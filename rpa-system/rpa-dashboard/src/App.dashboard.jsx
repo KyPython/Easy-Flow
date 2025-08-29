@@ -1,0 +1,60 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Header from './components/Header/Header';
+import DashboardPage from './pages/DashboardPage';
+import TasksPage from './pages/TasksPage';
+import HistoryPage from './pages/HistoryPage';
+import AuthPage from './pages/AuthPage';
+import PricingPage from './pages/PricingPage';
+import LandingPage from './pages/LandingPage';
+import ResetLanding from './pages/ResetLanding';
+import { AuthProvider, useAuth } from './utils/AuthContext';
+import { ThemeProvider } from './utils/ThemeContext';
+import SettingsPage from './pages/SettingsPage';
+import './theme.css';
+import './App.css';
+
+function Protected({ children }) {
+  const { session, loading } = useAuth();
+  if (loading) return null; // or a spinner component
+  if (!session) return <Navigate to="/" replace />;
+  return children;
+}
+
+function Shell() {
+  const { user } = useAuth();
+  return (
+    <div className="app">
+      <Header user={{ name: user?.email || 'User', role: 'Member' }} />
+      <main className="main-content">
+        <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/auth/reset" element={<ResetLanding />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          {/* Public landing page at root for unauthenticated users */}
+          <Route path="/" element={<LandingPage />} />
+          {/* Protected app routes live under /app */}
+          <Route path="/app" element={<Protected><DashboardPage /></Protected>} />
+          <Route path="/app/tasks" element={<Protected><TasksPage /></Protected>} />
+          <Route path="/app/history" element={<Protected><HistoryPage /></Protected>} />
+          <Route path="/app/settings" element={<Protected><SettingsPage /></Protected>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <ThemeProvider>
+          <Shell />
+        </ThemeProvider>
+      </AuthProvider>
+    </Router>
+  );
+}
+
+export default App;

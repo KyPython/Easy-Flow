@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  backend:
+    # Ensure the API restarts automatically on failures or reboots
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    # API is intentionally exposed on 3030 -> 3001 and fronted by Nginx
+
+  automation:
+    # Keep the automation service private in production
+    # Removing port mappings prevents direct public access
+    ports: []
+    restart: unless-stopped

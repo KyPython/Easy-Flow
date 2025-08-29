@@ -1,0 +1,23 @@
+.backdrop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+.modal {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+  max-width: 420px;
+  width: 90%;
+}
+.modal h3 { margin-top: 0; }
+.actions { text-align: right; margin-top: 16px; }
+.actions button { padding: 8px 12px; border-radius: 4px; }

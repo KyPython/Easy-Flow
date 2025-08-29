@@ -1,0 +1,60 @@
+name: Monitor Email Queue
+
+# Runs hourly and on workflow_dispatch
+on:
+  schedule:
+    - cron: "0 * * * *" # top of every hour
+  workflow_dispatch: {}
+
+jobs:
+  check-queue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch email queue stats
+        id: stats
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          ADMIN_API_SECRET: ${{ secrets.ADMIN_API_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "$APP_URL" ] || [ -z "$ADMIN_API_SECRET" ]; then
+            echo "Missing APP_URL or ADMIN_API_SECRET" >&2
+            exit 1
+          fi
+          resp=$(curl -sS -H "x-admin-secret: $ADMIN_API_SECRET" "$APP_URL/admin/email-queue-stats") || true
+          echo "resp<<EOF" >> $GITHUB_OUTPUT
+          echo "$resp" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Parse pending count
+        id: parse
+        run: |
+          echo "$RESP" >/tmp/resp.json || true
+        env:
+          RESP: ${{ steps.stats.outputs.resp }}
+
+      - name: Create issue if backlog exceeds threshold
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const resp = (process.env.RESP || '').trim();
+            if (!resp) {
+              core.setFailed('No response from email stats endpoint');
+              return;
+            }
+            let obj = null;
+            try { obj = JSON.parse(resp); } catch (e) { core.setFailed('Invalid JSON from stats endpoint: ' + e.message); return; }
+            const pending = obj?.counts?.pending || 0;
+            const threshold = 5; // assumption: create issue if > 5 pending
+            if (pending > threshold) {
+              const title = `[Alert] Email queue backlog: ${pending} pending items`;
+              const body = `Email queue stats exceeded threshold (${threshold}).\n\n">>> stats:\n\n\`${JSON.stringify(obj, null, 2)}\`"`;
+              await github.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ['alert', 'email-queue'] });
+              core.notice('Created alert issue for backlog');
+            } else {
+              core.info(`Pending (${pending}) <= threshold (${threshold}), no issue created.`);
+            }
+        env:
+          RESP: ${{ steps.stats.outputs.resp }}

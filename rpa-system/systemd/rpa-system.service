@@ -1,0 +1,25 @@
+[Unit]
+Description=RPA System (docker compose)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Use the deploy user's home directory. When the unit runs, %h expands to the
+# home directory of the user which owns the unit. This keeps the unit portable.
+WorkingDirectory=/home/ky/rpa-system
+ExecStart=/usr/bin/docker compose -f /home/ky/rpa-system/docker-compose.yml -f /home/ky/rpa-system/docker-compose.prod.yml up -d --build
+ExecStop=/usr/bin/docker compose -f /home/ky/rpa-system/docker-compose.yml -f /home/ky/rpa-system/docker-compose.prod.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+
+# Adjusted for a specific deploy user; change User/Group if you run under another account.
+User=ky
+Group=ky
+
+# Notes: This unit intentionally uses Type=oneshot with RemainAfterExit so
+# systemd considers the unit active once the compose stack is up. If you need
+# continuous supervision, run a wrapper that monitors `docker compose ps`.

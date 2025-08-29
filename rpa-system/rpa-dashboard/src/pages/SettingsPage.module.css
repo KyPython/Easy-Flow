@@ -1,0 +1,49 @@
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.section {
+  background: var(--card-bg);
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--color-gray-200);
+  margin-bottom: 16px;
+}
+.heading {
+  margin: 0 0 8px 0;
+  font-size: var(--font-size-xl);
+}
+.muted {
+  color: var(--color-gray-600);
+  font-size: var(--font-size-sm);
+}
+.formRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.input {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-gray-200);
+  flex: 1;
+}
+.select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-gray-200);
+}
+.msg {
+  margin-top: 12px;
+  color: var(--color-gray-700);
+}
+.btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+.btnPrimary { background: var(--color-primary-600); color: var(--on-primary); }
+.btnAlt { background: var(--color-gray-200); }

@@ -1,0 +1,20 @@
+{
+  "name": "rpa-system",
+  "private": true,
+  "scripts": {
+    "dev:backend": "node ./backend/index.js",
+    "dev:automation": "python3 ./automation/automate.py",
+    "dev": "concurrently \"npm:dev:backend\" \"npm:dev:automation\"",
+    "start": "node ./backend/index.js"
+  },
+  "dependencies": {
+  "axios": "^1.7.2",
+    "@supabase/supabase-js": "^2.45.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

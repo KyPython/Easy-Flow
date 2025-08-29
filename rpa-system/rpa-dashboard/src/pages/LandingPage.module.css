@@ -1,0 +1,127 @@
+.page {
+  font-family: Inter, system-ui, -apple-system, Roboto, sans-serif;
+}
+
+.hero {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-secondary-500) 100%);
+  color: var(--on-primary);
+}
+
+.heroContent {
+  max-width: 900px;
+  text-align: center;
+}
+
+.title {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
+
+.lead {
+  font-size: 1.1rem;
+  margin-bottom: 24px;
+  opacity: 0.95;
+}
+
+.ctaGroup {
+  display: inline-flex;
+  gap: 12px;
+}
+
+.ctaPrimary {
+  display: inline-block;
+  background: var(--color-error-500);
+  color: var(--on-primary);
+  padding: 12px 28px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.ctaSecondary {
+  display: inline-block;
+  background: transparent;
+  color: var(--on-primary);
+  border: 2px solid var(--on-primary);
+  padding: 10px 26px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.navTopRight {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+}
+
+.navButtonSecondary {
+  color: var(--on-primary);
+  background: transparent;
+  border: 2px solid var(--on-primary);
+  padding: 10px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.navButtonPrimary {
+  color: var(--on-primary);
+  background: var(--color-error-500);
+  padding: 10px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.featuresSection {
+  padding: 48px;
+  text-align: center;
+}
+
+.sectionTitle {
+  margin-bottom: 20px;
+}
+
+.featuresGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.featureCard {
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--card-bg);
+}
+
+.featureIcon {
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+
+.featureTitle {
+  color: var(--color-primary-500);
+}
+
+.featureText {
+  color: var(--text-muted);
+}
+
+.ctaBig {
+  margin-top: 40px;
+}
+
+.footer {
+  background: var(--color-gray-800);
+  color: var(--on-primary);
+  text-align: center;
+  padding: 24px;
+}

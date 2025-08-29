@@ -1,0 +1,157 @@
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--color-gray-200);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.container {
+  max-width: var(--container-max-width);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-lg);
+  height: var(--header-height);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+}
+
+.logo {
+  font-family: var(--font-family-secondary);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-600);
+  margin: 0;
+}
+
+.logoLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  gap: var(--spacing-lg);
+}
+
+.navLink {
+  text-decoration: none;
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+/* ensure buttons using navLink get native button appearance reset */
+.navLink[role="button"], .navLink:where(button) {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.navLink:hover {
+  color: var(--color-primary-600);
+  background: var(--color-primary-50);
+}
+
+.navLink.active {
+  color: var(--color-primary-600);
+  background: var(--color-primary-100);
+}
+
+.userMenu {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.userName {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.userRole {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-primary-500);
+  color: var(--on-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-lg);
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 6px var(--spacing-md);
+    gap: var(--spacing-sm);
+    /* allow the header to wrap to multiple lines so it doesn't get cut off */
+    flex-wrap: wrap;
+    align-items: center;
+    height: auto; /* let content determine height on small screens */
+  }
+  .logo {
+    font-size: var(--font-size-xl);
+  }
+  .nav {
+    gap: var(--spacing-sm);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* make nav span a full line so links are not squished */
+    order: 2;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 8px 0;
+    box-sizing: border-box;
+  }
+  .userInfo {
+    display: none;
+  }
+  .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: var(--font-size-base);
+  }
+
+  /* make sure user menu stays accessible on its own line */
+  .userMenu {
+    order: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    width: 100%;
+    justify-content: space-between;
+    padding: 6px 0;
+  }
+
+  /* ensure nav links have comfortable tap targets on mobile */
+  .navLink {
+    padding: 10px 14px;
+    white-space: nowrap;
+  }
+}
