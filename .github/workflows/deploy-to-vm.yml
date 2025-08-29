@@ -1,0 +1,78 @@
+name: Deploy to VM
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      TAR_FILE: rpa-system.tar.gz
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Use Node 18
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+
+    - name: Build frontend
+      working-directory: rpa-system/rpa-dashboard
+      run: |
+        npm ci
+        npm run build
+
+    - name: Package rpa-system
+      run: |
+        rm -f /tmp/${{ env.TAR_FILE }} || true
+        tar -czf /tmp/${{ env.TAR_FILE }} \
+          --exclude='rpa-system/node_modules' \
+          --exclude='rpa-system/rpa-dashboard/node_modules' \
+          --exclude='rpa-system/downloads' \
+          --exclude='rpa-system/.git' \
+          --exclude='rpa-system/**/.env*' \
+          rpa-system
+
+    - name: Prepare SSH deploy key
+      env:
+        DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      run: |
+        if [ -z "$DEPLOY_SSH_KEY" ]; then echo 'Missing DEPLOY_SSH_KEY secret' && exit 1; fi
+        mkdir -p ~/.ssh
+        echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        touch ~/.ssh/known_hosts
+        if [ -n "${{ secrets.VM_HOST }}" ]; then ssh-keyscan -H "${{ secrets.VM_HOST }}" >> ~/.ssh/known_hosts || true; fi
+
+    - name: Copy package to VM
+      env:
+        VM_HOST: ${{ secrets.VM_HOST }}
+        VM_USER: ${{ secrets.VM_USER }}
+        SSH_PORT: ${{ secrets.SSH_PORT }}
+      run: |
+        if [ -z "$VM_HOST" ] || [ -z "$VM_USER" ]; then echo 'Missing VM_HOST or VM_USER secrets' && exit 1; fi
+        PORT_OPT=''
+        if [ -n "$SSH_PORT" ]; then PORT_OPT="-P $SSH_PORT"; fi
+        scp -i ~/.ssh/deploy_key $PORT_OPT -o StrictHostKeyChecking=yes /tmp/${{ env.TAR_FILE }} "$VM_USER@$VM_HOST:/tmp/${{ env.TAR_FILE }}"
+
+    - name: Run remote deploy
+      env:
+        VM_HOST: ${{ secrets.VM_HOST }}
+        VM_USER: ${{ secrets.VM_USER }}
+        SSH_PORT: ${{ secrets.SSH_PORT }}
+      run: |
+        PORT_OPT=''
+        if [ -n "$SSH_PORT" ]; then PORT_OPT="-p $SSH_PORT"; fi
+        ssh -i ~/.ssh/deploy_key $PORT_OPT -o StrictHostKeyChecking=yes "$VM_USER@$VM_HOST" <<'EOF'
+          set -euo pipefail
+          if [ -f /tmp/rpa-system.tar.gz ]; then
+            tar -xzf /tmp/rpa-system.tar.gz -C ~
+          fi
+          cd ~/rpa-system || exit 0
+          chmod +x ./deploy.sh || true
+          sudo ./deploy.sh || true
+          echo 'deploy finished'
+EOF
