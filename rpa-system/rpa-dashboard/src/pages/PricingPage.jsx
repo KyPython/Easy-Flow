@@ -14,7 +14,7 @@ const plans = [
       '1 automation workflow',
       '50 automation runs/month',
       'Basic browser automation',
-      'Community support',
+      'Email support',
       '5 pre-built templates',
       'Basic logging (30 days)',
       '1GB storage'
@@ -219,6 +219,12 @@ export default function PricingPage() {
         <h1>Choose Your Plan</h1>
         <p>Start automating your workflows today with our flexible pricing options</p>
         
+        <div style={{ margin: '20px 0', padding: '15px', background: '#e7f3ff', border: '1px solid #007bff', borderRadius: '5px', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontWeight: 'bold', color: '#0056b3' }}>
+            All paid plans include a 14-day free trial with no credit card required.
+          </p>
+        </div>
+
         {currentStatus && (
           <div className={`${styles.currentPlan} ${currentStatus.type === 'trial' ? styles.trial : styles.active}`}>
             <span>{currentStatus.message}</span>
@@ -285,11 +291,15 @@ export default function PricingPage() {
           </div>
           <div className={styles.faqItem}>
             <h4>What happens after my trial ends?</h4>
-            <p>If you don't add a payment method, your account will be limited to the free tier. You can upgrade anytime to continue using premium features.</p>
+            <p>Upon completion of your 14-day trial, your account will be automatically upgraded to the selected paid plan. To ensure a seamless transition, please add a payment method before your trial concludes.</p>
           </div>
           <div className={styles.faqItem}>
             <h4>Is there a setup fee?</h4>
             <p>No setup fees! You only pay the monthly subscription price. Enterprise customers may have custom onboarding costs.</p>
+          </div>
+          <div className={styles.faqItem}>
+            <h4>Is email support included in all plans?</h4>
+            <p>Yes, email support is provided to all users, both free and paid. Paid plans offer faster, prioritized support.</p>
           </div>
         </div>
       </div>

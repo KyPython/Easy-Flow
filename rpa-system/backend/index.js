@@ -10,12 +10,15 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3030;
+const hooksEmailRouter = require('./hooks_email_route')
 
 // CORS: allow all in dev (when no whitelist provided); restrict in prod
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
+
+app.use(hooksEmailRouter);
 
 app.use(cors({
   origin: (origin, cb) => {
@@ -43,7 +46,7 @@ app.use((req, res, next) => {
 const reactBuildPath = path.join(__dirname, '../rpa-dashboard/build');
 if (fs.existsSync(reactBuildPath)) {
   app.use('/app', express.static(reactBuildPath));
-  app.use('/app/*', (req, res) => {
+  app.use('/app/*', (_req, res) => {
     res.sendFile(path.join(reactBuildPath, 'index.html'));
   });
 }
@@ -91,7 +94,7 @@ app.get('/health', (_req, res) => {
 });
 
 // Root route - serve the landing page (prefer React build, fall back to static file)
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
     const reactBuildPath = path.join(__dirname, '../rpa-dashboard/build');
     const landingFallback = path.join(__dirname, 'public', 'landing.html');
     if (fs.existsSync(reactBuildPath)) {
@@ -275,7 +278,7 @@ app.post('/api/generate-referral', async (req, res) => {
     const code = crypto.randomBytes(4).toString('hex');
     if (!supabase) return res.status(500).json({ error: 'server misconfigured' });
 
-    const { data, error } = await supabase.from('referrals').insert([{ code, owner_user_id: user.id, created_at: new Date().toISOString() }]);
+    const { error } = await supabase.from('referrals').insert([{ code, owner_user_id: user.id, created_at: new Date().toISOString() }]);
     if (error) {
       console.warn('[generate-referral] db error', error.message || error);
       return res.status(500).json({ error: 'db error' });

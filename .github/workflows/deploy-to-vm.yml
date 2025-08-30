@@ -71,8 +71,8 @@ jobs:
           if [ -f /tmp/rpa-system.tar.gz ]; then
             tar -xzf /tmp/rpa-system.tar.gz -C ~
           fi
-          cd ~/rpa-system || exit 0
-          chmod +x ./deploy.sh || true
-          sudo ./deploy.sh || true
-          echo 'deploy finished'
+          cd ~/rpa-system
+          chmod +x ./deploy.sh
+          sudo ./deploy.sh
+          echo "deploy finished"
 EOF

@@ -66,6 +66,18 @@ services:
     command: ["sh","-c","npm install && node backend/workers/email_worker.js"]
     restart: unless-stopped
 
+  hooks_probe:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+    environment:
+      - PORT=4001
+    command: ["sh","-c","npm install express && node backend/hooks_probe.js"]
+    ports:
+      - "4001:4001"
+    restart: unless-stopped
+
 networks:
   default:
     driver: bridge
