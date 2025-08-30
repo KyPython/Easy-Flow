@@ -81,10 +81,11 @@ jobs:
           ssh -i ~/.ssh/deploy_key $PORT_OPT -o StrictHostKeyChecking=yes "${{ env.VM_USER }}@${{ env.VM_HOST }}" <<'EOF'
             set -euo pipefail
             if [ -f /tmp/rpa-system.tar.gz ]; then
-              tar -xzf /tmp/rpa-system.tar.gz -C ~
+              sudo rm -rf ~/rpa-system
+              sudo tar -xzf /tmp/rpa-system.tar.gz -C ~
             fi
             cd ~/rpa-system
-            chmod +x ./deploy.sh
+            sudo chmod +x ./deploy.sh
             sudo ./deploy.sh
             echo "deploy finished"
           EOF
