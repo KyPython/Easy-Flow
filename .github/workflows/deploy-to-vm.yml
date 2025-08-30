@@ -44,8 +44,8 @@ jobs:
 
       - name: Run deployment with debug info
         run: |
-          export GIT_SSH_COMMAND="ssh -v"
-          scp -i ~/.ssh/id_rsa /tmp/${{ env.TAR_FILE }} ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/tmp/${{ env.TAR_FILE }}
+            export GIT_SSH_COMMAND="ssh -v"
+            scp -i ~/.ssh/deploy_key /tmp/${{ env.TAR_FILE }} ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/tmp/${{ env.TAR_FILE }}
 
       - name: Prepare SSH deploy key
         env:
