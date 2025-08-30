@@ -2,7 +2,7 @@
   "name": "rpa-dashboard",
   "version": "0.1.0",
   "private": true,
-  "homepage": "/app",
+  "homepage": "http://easyflow-app.duckdns.org",
   "proxy": "http://localhost:3030",
   "dependencies": {
     "@supabase/supabase-js": "^2.45.3",
