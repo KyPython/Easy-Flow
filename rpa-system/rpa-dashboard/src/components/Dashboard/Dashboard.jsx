@@ -1,3 +1,4 @@
+// ...existing code...
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from './Dashboard.module.css';
@@ -19,7 +20,7 @@ const Dashboard = ({ metrics, recentTasks }) => {
       value: metrics.completedTasks,
       icon: '✅',
       trend: 'up',
-      subtitle: `${Math.round((metrics.completedTasks / metrics.totalTasks) * 100)}% success rate`
+      subtitle: `${Math.round((metrics.completedTasks / Math.max(metrics.totalTasks, 1)) * 100)}% success rate`
     },
     {
       title: 'Time Saved',
@@ -66,26 +67,30 @@ const Dashboard = ({ metrics, recentTasks }) => {
         </div>
         
         <div className={styles.activityList}>
-          {recentTasks.slice(0, 5).map(task => (
-            <div key={task.id} className={styles.activityItem}>
-              <div className={styles.activityIcon}>
-                {task.status === 'completed' ? '✅' : 
-                 task.status === 'failed' ? '❌' : 
-                 task.status === 'in_progress' ? '⏳' : '⏸️'}
-              </div>
-              <div className={styles.activityContent}>
-                <div className={styles.activityText}>
-                  <strong>{task.type.replace('_', ' ')}</strong> for {task.url}
+          {(recentTasks || []).length > 0 ? (
+            (recentTasks || []).slice(0, 5).map(task => (
+              <div key={task.id} className={styles.activityItem}>
+                <div className={styles.activityIcon}>
+                  {task.status === 'completed' ? '✅' : 
+                   task.status === 'failed' ? '❌' : 
+                   task.status === 'in_progress' ? '⏳' : '⏸️'}
                 </div>
-                <div className={styles.activityTime}>
-                  {new Date(task.created_at).toLocaleString()}
+                <div className={styles.activityContent}>
+                  <div className={styles.activityText}>
+                    <strong>{String(task.type).replace('_', ' ')}</strong> for {task.url}
+                  </div>
+                  <div className={styles.activityTime}>
+                    {new Date(task.created_at).toLocaleString()}
+                  </div>
+                </div>
+                <div className={`${styles.activityStatus} ${styles[task.status]}`}>
+                  {String(task.status).replace('_', ' ')}
                 </div>
               </div>
-              <div className={`${styles.activityStatus} ${styles[task.status]}`}>
-                {task.status.replace('_', ' ')}
-              </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className={styles.noActivityMessage}>No recent activity. Create a new task to get started!</p>
+          )}
         </div>
       </div>
 
@@ -124,14 +129,16 @@ const Dashboard = ({ metrics, recentTasks }) => {
             </div>
           </button>
           
-          <button className={styles.actionCard} onClick={async () => {
-            try {
-              await triggerCampaign({ reason: 'complete_onboarding' });
-              // optionally show toast / UI feedback in future
-            } catch (e) {
-              // ignore UI-breaking errors
-            }
-          }}>
+          <button
+            className={styles.actionCard}
+            onClick={async () => {
+              try {
+                await triggerCampaign({ reason: 'complete_onboarding' });
+              } catch (e) {
+                // no UI breakage
+              }
+            }}
+          >
             <div className={styles.actionIcon}>✅</div>
             <div className={styles.actionText}>
               <div className={styles.actionTitle}>Complete onboarding</div>
@@ -145,3 +152,4 @@ const Dashboard = ({ metrics, recentTasks }) => {
 };
 
 export default Dashboard;
+// ...existing code...

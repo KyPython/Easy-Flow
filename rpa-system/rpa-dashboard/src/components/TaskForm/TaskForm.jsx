@@ -10,7 +10,7 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     task: 'invoice_download',
     pdf_url: ''
   });
-  
+
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -23,17 +23,14 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
 
   const validateForm = () => {
     const newErrors = {};
-    
     if (!form.url.trim()) {
       newErrors.url = 'Target URL is required';
     } else if (!isValidUrl(form.url)) {
       newErrors.url = 'Please enter a valid URL';
     }
-    
     if (form.username && !isValidEmail(form.username)) {
       newErrors.username = 'Please enter a valid email address';
     }
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -54,8 +51,6 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -63,16 +58,11 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
-    
     setIsSubmitting(true);
-    
     try {
-  const response = await api.post('/api/run-task', form);
+      const response = await api.post('/api/run-task', form);
       onTaskSubmit?.(response.data);
-      
-      // Reset form on success
       setForm({
         url: '',
         username: '',
@@ -93,7 +83,6 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
         <h2 className={styles.title}>Create New Automation Task</h2>
         <p className={styles.subtitle}>Configure and execute your business process automation</p>
       </div>
-      
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.formGrid}>
           <div className={styles.formGroup}>
@@ -113,7 +102,6 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
               ))}
             </select>
           </div>
-
           <div className={styles.formGroup}>
             <label htmlFor="url" className={styles.label}>
               Target URL <span className={styles.required}>*</span>
@@ -130,7 +118,6 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
             />
             {errors.url && <span className={styles.errorText}>{errors.url}</span>}
           </div>
-
           <div className={styles.formGroup}>
             <label htmlFor="username" className={styles.label}>Username/Email</label>
             <input
@@ -144,7 +131,6 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
             />
             {errors.username && <span className={styles.errorText}>{errors.username}</span>}
           </div>
-
           <div className={styles.formGroup}>
             <label htmlFor="password" className={styles.label}>Password</label>
             <input
@@ -157,7 +143,6 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
               className={styles.input}
             />
           </div>
-
           <div className={styles.formGroup}>
             <label htmlFor="pdf_url" className={styles.label}>PDF URL (Optional)</label>
             <input
@@ -171,7 +156,6 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
             />
           </div>
         </div>
-
         <div className={styles.actions}>
           <button
             type="submit"

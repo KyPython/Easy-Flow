@@ -1,5 +1,6 @@
+/* Base layout */
 .dashboard {
-  padding: var(--spacing-xl);
+  padding: var(--spacing-2xl);
   max-width: var(--container-max-width);
   margin: 0 auto;
 }
@@ -13,7 +14,7 @@
   font-size: var(--font-size-4xl);
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
-  margin: 0 0 var(--spacing-md) 0;
+  margin: 0 0 var(--spacing-sm) 0;
   font-family: var(--font-family-secondary);
 }
 
@@ -23,13 +24,15 @@
   margin: 0;
 }
 
+/* Cards grid */
 .metricsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--spacing-lg);
+  gap: var(--spacing-xl);
   margin-bottom: var(--spacing-2xl);
 }
 
+/* Recent activity */
 .recentActivity {
   background: var(--card-bg);
   border-radius: var(--radius-lg);
@@ -43,6 +46,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
 }
 
@@ -53,21 +57,47 @@
   margin: 0;
 }
 
-.viewAllButton {
-  background: var(--color-primary-100);
-  color: var(--color-primary-700);
-  border: none;
-  padding: var(--spacing-sm) var(--spacing-md);
+/* Unified button styles (Kombai-like) */
+.button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  height: 38px;
   border-radius: var(--radius-md);
+  border: 1px solid var(--color-gray-300);
+  background: var(--surface, #fff);
+  color: var(--text-primary);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .05s ease;
 }
 
-.viewAllButton:hover {
+.button:hover {
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-400);
+}
+
+.button:active {
+  transform: translateY(0.5px);
+}
+
+.buttonPrimary {
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  border-color: var(--color-primary-200);
+}
+
+.buttonPrimary:hover {
   background: var(--color-primary-200);
+  border-color: var(--color-primary-300);
 }
 
+/* Legacy class kept for compatibility but now composes the new button style via JSX */
+
+/* Activity list */
 .activityList {
   display: flex;
   flex-direction: column;
@@ -105,7 +135,7 @@
 .activityText {
   font-weight: var(--font-weight-medium);
   color: var(--color-gray-900);
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: var(--spacing-2xs);
 }
 
 .activityTime {
@@ -114,7 +144,7 @@
 }
 
 .activityStatus {
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-2xs) var(--spacing-sm);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -141,6 +171,7 @@
   color: var(--color-gray-700);
 }
 
+/* Quick actions */
 .quickActions {
   background: var(--card-bg);
   border-radius: var(--radius-lg);
@@ -158,12 +189,13 @@
 
 .actionGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--spacing-lg);
 }
 
 .actionCard {
-  background: var(--card-bg);
+  appearance: none;
+  background: var(--surface, #fff);
   border: 1px solid var(--color-gray-200);
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
@@ -171,25 +203,29 @@
   align-items: center;
   gap: var(--spacing-md);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .05s ease;
   text-align: left;
 }
 
 .actionCard:hover {
-  background: var(--card-bg);
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-300);
   box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+}
+
+.actionCard:active {
+  transform: translateY(0.5px);
 }
 
 .actionIcon {
   font-size: var(--font-size-3xl);
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--color-primary-100);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   flex-shrink: 0;
 }
 
@@ -200,7 +236,7 @@
 .actionTitle {
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: var(--spacing-2xs);
 }
 
 .actionDesc {
@@ -208,6 +244,15 @@
   color: var(--text-muted);
 }
 
+/* Focus visibility for accessibility */
+.button:focus-visible,
+.actionCard:focus-visible,
+.viewAllButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-200);
+}
+
+/* Responsive tweaks */
 @media (max-width: 768px) {
   .dashboard {
     padding: var(--spacing-lg);

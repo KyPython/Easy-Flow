@@ -82,21 +82,41 @@
   transform: scale(1.02);
 }
 
+.planCard.popular {
+  border-color: var(--color-warning-500);
+  box-shadow: 0 0 0 2px var(--color-warning-200);
+  transform: scale(1.04);
+  z-index: 2;
+}
+
 .planCard.popular:hover {
-  transform: scale(1.02) translateY(-2px);
+  transform: scale(1.04) translateY(-2px);
 }
 
 .popularBadge {
   position: absolute;
   top: var(--spacing-lg);
   right: -30px;
-  background: var(--color-primary-600);
+  background: var(--color-warning-600);
   color: var(--on-primary);
   padding: var(--spacing-xs) 40px;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   transform: rotate(45deg);
+  box-shadow: 0 2px 8px var(--color-warning-200);
 }
+
+.planButton.popularButton {
+  background: var(--color-warning-500);
+  color: var(--on-primary);
+  box-shadow: 0 2px 8px var(--color-warning-200);
+}
+
+.planButton.popularButton:hover:not(:disabled) {
+  background: var(--color-warning-700);
+}
+
+/* ...rest of your CSS unchanged... */
 
 .planHeader {
   text-align: center;
@@ -192,14 +212,6 @@
   opacity: 0.6;
   cursor: not-allowed;
   background: var(--color-gray-400);
-}
-
-.planButton.popularButton {
-  background: var(--color-warning-500);
-}
-
-.planButton.popularButton:hover:not(:disabled) {
-  background: var(--color-warning-700);
 }
 
 .error {

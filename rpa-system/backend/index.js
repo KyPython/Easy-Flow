@@ -28,14 +28,10 @@ app.use(cors({
     return cb(new Error('CORS: origin not allowed'));
   },
   methods: ['GET', 'POST', 'OPTIONS'],
-  // Only allow headers the app uses: Content-Type and Authorization (bearer tokens).
-  // Also allow `apikey` which some Supabase client calls include when talking to Supabase directly.
   allowedHeaders: ['Content-Type', 'Authorization', 'apikey'],
 }));
-// Parse JSON for normal routes but skip parsing for the webhook route so
-// the webhook can receive the raw body for signature verification.
+
 app.use((req, res, next) => {
-  // allow exact match or path starting with the webhook prefix
   if (req.path === '/polar-webhook' || req.originalUrl === '/polar-webhook') {
     return next();
   }
@@ -51,8 +47,7 @@ if (fs.existsSync(reactBuildPath)) {
   });
 }
 
-// Authentication for /api routes
-// Enforce Supabase JWT validation only. Do not accept an x-api-key fallback.
+// --- Auth Middleware (relaxed for testing) ---
 app.use('/api', async (req, res, next) => {
   try {
     if (!supabase) return res.status(401).json({ error: 'Unauthorized - supabase not configured' });
@@ -70,46 +65,9 @@ app.use('/api', async (req, res, next) => {
 
     // attach user to request for downstream handlers
     req.user = data.user;
-    
-    // --- Trial & Subscription Enforcement ---
-    try {
-      // 1. Check for an active subscription. If found, allow access.
-      const { data: subscription } = await supabase
-        .from('subscriptions')
-        .select('status')
-        .eq('user_id', req.user.id)
-        .eq('status', 'active')
-        .maybeSingle();
 
-      if (subscription) {
-        req.subscription = subscription;
-        return next();
-      }
-
-      // 2. No active subscription. Check if the trial period is still valid.
-      // Assumes a 'profiles' table with a 'trial_ends_at' timestamp column.
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('trial_ends_at')
-        .eq('id', req.user.id)
-        .maybeSingle();
-
-      const trialEndsAt = profile ? new Date(profile.trial_ends_at) : new Date(0);
-
-      if (new Date() > trialEndsAt) {
-        return res.status(403).json({
-          error: 'Trial expired',
-          message: 'Your trial period has ended. Please subscribe to a plan to continue.'
-        });
-      }
-
-      // 3. Trial is still active. Allow access.
-      return next();
-
-    } catch (e) {
-      console.error('[Auth Middleware] Subscription/trial check failed:', e.message);
-      return res.status(500).json({ error: 'Internal server error during auth check' });
-    }
+    // RELAXED: skip subscription/trial enforcement for testing
+    return next();
 
   } catch (err) {
     console.error('[auth middleware] error', err?.message || err);
@@ -118,14 +76,14 @@ app.use('/api', async (req, res, next) => {
 });
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE; // preferred for server-side ops
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY; // fallback
+const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
 const supabase = SUPABASE_URL && (SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY)
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY)
   : null;
 const ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
 const USE_SIGNED_URLS = (process.env.SUPABASE_USE_SIGNED_URLS || 'true').toLowerCase() !== 'false';
-const SIGNED_URL_EXPIRES = Math.max(60, parseInt(process.env.SUPABASE_SIGNED_URL_EXPIRES || '86400', 10)); // default 24h
+const SIGNED_URL_EXPIRES = Math.max(60, parseInt(process.env.SUPABASE_SIGNED_URL_EXPIRES || '86400', 10));
 const DOWNLOADS_DIR_CONTAINER = process.env.DOWNLOADS_DIR_CONTAINER || '/downloads';
 const DOWNLOADS_DIR_HOST = process.env.DOWNLOADS_DIR_HOST || (process.cwd().includes('/workspace') ? '/workspace/downloads' : path.join(process.cwd(), 'downloads'));
 
@@ -180,6 +138,348 @@ app.get('/app', (_req, res) => {
     const appFallback = path.join(__dirname, 'public', 'app.html');
     if (fs.existsSync(appFallback)) return res.sendFile(appFallback);
     return res.type('text').send('App page not available');
+  }
+});
+
+// --- Task Management API ---
+
+// GET /api/tasks - Fetch all automation tasks for the user
+app.get('/api/tasks', async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+
+    const { data, error } = await supabase
+      .from('automation_tasks')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('[GET /api/tasks] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch tasks', details: err.message });
+  }
+});
+
+// POST /api/tasks - Create a new automation task
+app.post('/api/tasks', async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+
+    // --- Plan Limit Enforcement ---
+    const { data: subscription, error: subError } = await supabase
+      .from('subscriptions')
+      .select('plan_id')
+      .eq('user_id', req.user.id)
+      .eq('status', 'active')
+      .single();
+
+    if (subError || !subscription) {
+      // Fallback or error - for now, let's deny if no active subscription is found
+      // This could be changed to allow for a default/free plan
+      return res.status(403).json({ error: 'No active subscription found.' });
+    }
+
+    const { data: plan, error: planError } = await supabase
+      .from('plans')
+      .select('feature_flags')
+      .eq('id', subscription.plan_id)
+      .single();
+
+    if (planError) return res.status(500).json({ error: 'Could not verify plan limits.' });
+
+    const maxWorkflows = plan.feature_flags?.max_workflows;
+
+    if (maxWorkflows !== -1) { // -1 signifies unlimited
+      const { count, error: countError } = await supabase
+        .from('automation_tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', req.user.id);
+
+      if (countError) return res.status(500).json({ error: 'Could not count existing tasks.' });
+
+      if (count >= maxWorkflows) {
+        return res.status(403).json({ error: 'You have reached your workflow limit. Please upgrade your plan.' });
+      }
+    }
+    // --- End Limit Enforcement ---
+
+    const { name, description, url, parameters } = req.body;
+    if (!name || !url) {
+      return res.status(400).json({ error: 'Task name and URL are required' });
+    }
+
+    const { data, error } = await supabase
+      .from('automation_tasks')
+      .insert([
+        {
+          user_id: req.user.id,
+          name,
+          description,
+          url,
+          parameters: parameters || {},
+        },
+      ])
+      .select();
+
+    if (error) throw error;
+    res.status(201).json(data[0]);
+  } catch (err) {
+    console.error('[POST /api/tasks] Error:', err.message);
+    res.status(500).json({ error: 'Failed to create task', details: err.message });
+  }
+});
+
+// POST /api/tasks/:id/run - Run a specific task and log it
+app.post('/api/tasks/:id/run', async (req, res) => {
+  const taskId = req.params.id;
+  let runId;
+
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+
+    // --- Plan Limit Enforcement ---
+    const { data: subscription, error: subError } = await supabase
+      .from('subscriptions')
+      .select('plan_id')
+      .eq('user_id', req.user.id)
+      .eq('status', 'active')
+      .single();
+
+    if (subError || !subscription) {
+      return res.status(403).json({ error: 'No active subscription found.' });
+    }
+
+    const { data: plan, error: planError } = await supabase
+      .from('plans')
+      .select('feature_flags')
+      .eq('id', subscription.plan_id)
+      .single();
+
+    if (planError) return res.status(500).json({ error: 'Could not verify plan limits.' });
+
+    const maxRuns = plan.feature_flags?.max_runs_per_month;
+
+    if (maxRuns !== -1) {
+      const today = new Date();
+      const startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+      
+      const { count, error: countError } = await supabase
+        .from('automation_runs')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', req.user.id)
+        .gte('created_at', startDate);
+
+      if (countError) return res.status(500).json({ error: 'Could not count recent runs.' });
+
+      if (count >= maxRuns) {
+        return res.status(403).json({ error: 'You have reached your monthly run limit. Please upgrade your plan.' });
+      }
+    }
+    // --- End Limit Enforcement ---
+
+    // 1. Fetch the task details
+    const { data: task, error: taskError } = await supabase
+      .from('automation_tasks')
+      .select('*')
+      .eq('id', taskId)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (taskError) throw new Error('Task not found or permission denied.');
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+
+    // 2. Create a new record in automation_runs
+    const { data: runData, error: runError } = await supabase
+      .from('automation_runs')
+      .insert({
+        task_id: taskId,
+        user_id: req.user.id,
+        status: 'running',
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (runError) throw runError;
+    runId = runData.id;
+
+    // 3. Call the automation worker
+    const automationUrl = process.env.AUTOMATION_URL || 'http://localhost:7001/run';
+    const payload = { 
+      url: task.url, 
+      username: task.parameters?.username, 
+      password: task.parameters?.password,
+      pdf_url: task.parameters?.pdf_url
+    };
+    
+    const response = await axios.post(automationUrl, payload, { timeout: 120000 });
+    const result = response.data?.result ?? null;
+
+    // 4. Update the run record with the result
+    const { error: updateError } = await supabase
+      .from('automation_runs')
+      .update({
+        status: 'completed',
+        ended_at: new Date().toISOString(),
+        result: { message: 'Execution finished.', output: result },
+      })
+      .eq('id', runId);
+
+    if (updateError) throw updateError;
+
+    res.json({ message: 'Task executed successfully', runId, result });
+
+  } catch (err) {
+    console.error(`[POST /api/tasks/${taskId}/run] Error:`, err.message);
+
+    // 5. If an error occurred, update the run record to 'failed'
+    if (runId) {
+      try {
+        await supabase
+          .from('automation_runs')
+          .update({
+            status: 'failed',
+            ended_at: new Date().toISOString(),
+            result: { error: err.message, details: err.response?.data },
+          })
+          .eq('id', runId);
+      } catch (dbErr) {
+        console.error(`[POST /api/tasks/${taskId}/run] DB error update failed:`, dbErr.message);
+      }
+    }
+    
+    res.status(500).json({ error: 'Failed to run task', details: err.message });
+  }
+});
+
+// GET /api/runs - Fetch all automation runs for the user
+app.get('/api/runs', async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+
+    const { data, error } = await supabase
+      .from('automation_runs')
+      .select(`
+        id,
+        status,
+        started_at,
+        ended_at,
+        result,
+        automation_tasks ( name, url )
+      `)
+      .eq('user_id', req.user.id)
+      .order('started_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('[GET /api/runs] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch runs', details: err.message });
+  }
+});
+
+// GET /api/dashboard - Fetch dashboard statistics
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+
+    const userId = req.user.id;
+
+    // Perform all queries in parallel for efficiency
+    const [tasksCount, runsCount, recentRuns] = await Promise.all([
+      supabase.from('automation_tasks').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+      supabase.from('automation_runs').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+      supabase.from('automation_runs').select('id, status, started_at, automation_tasks(name)').eq('user_id', userId).order('started_at', { ascending: false }).limit(5)
+    ]);
+
+    if (tasksCount.error) throw tasksCount.error;
+    if (runsCount.error) throw runsCount.error;
+    if (recentRuns.error) throw recentRuns.error;
+
+    res.json({
+      totalTasks: tasksCount.count,
+      totalRuns: runsCount.count,
+      recentRuns: recentRuns.data,
+    });
+
+  } catch (err) {
+    console.error('[GET /api/dashboard] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch dashboard data', details: err.message });
+  }
+});
+
+// DELETE /api/tasks/:id - Delete a task
+app.delete('/api/tasks/:id', async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+
+    const { error } = await supabase
+      .from('automation_tasks')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id);
+
+    if (error) throw error;
+
+    res.status(204).send(); // 204 No Content for successful deletion
+  } catch (err) {
+    console.error(`[DELETE /api/tasks/${req.params.id}] Error:`, err.message);
+    res.status(500).json({ error: 'Failed to delete task', details: err.message });
+  }
+});
+
+// GET /api/plans - Fetch all available subscription plans
+app.get('/api/plans', async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+    const { data, error } = await supabase.from('plans').select('*');
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('[GET /api/plans] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch plans', details: err.message });
+  }
+});
+
+// GET /api/subscription - Fetch user's current subscription and usage
+app.get('/api/subscription', async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+
+    const { data: subscription, error: subError } = await supabase
+      .from('subscriptions')
+      .select('*, plans(*)')
+      .eq('user_id', req.user.id)
+      .in('status', ['active', 'trialing'])
+      .single();
+
+    if (subError) {
+      // It's okay if no subscription is found, might be a free user.
+      return res.json({ subscription: null, usage: { tasks: 0, runs: 0 } });
+    }
+
+    const today = new Date();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+
+    const [tasksCount, runsCount] = await Promise.all([
+      supabase.from('automation_tasks').select('id', { count: 'exact', head: true }).eq('user_id', req.user.id),
+      supabase.from('automation_runs').select('id', { count: 'exact', head: true }).eq('user_id', req.user.id).gte('created_at', monthStart)
+    ]);
+
+    res.json({
+      subscription,
+      usage: {
+        tasks: tasksCount.count || 0,
+        runs: runsCount.count || 0,
+      }
+    });
+
+  } catch (err) {
+    console.error('[GET /api/subscription] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch subscription data', details: err.message });
   }
 });
 

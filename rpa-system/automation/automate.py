@@ -68,7 +68,8 @@ def run():
                 s.cookies.set(c['name'], c['value'], domain=c.get('domain'))
 
             os.makedirs('/downloads', exist_ok=True)
-            ts = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            from datetime import timezone
+            ts = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
             filename = f"download_{ts}.pdf"
             saved_path = f"/downloads/{filename}"
             try:

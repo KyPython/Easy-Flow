@@ -1,5 +1,4 @@
 const axios = require('axios');
-require('dotenv').config();
 
 const POLAR_API_KEY = process.env.POLAR_API_KEY;
 const POLAR_API_BASE_URL = process.env.POLAR_API_BASE_URL;

@@ -2,32 +2,223 @@
   padding: var(--spacing-xl);
   max-width: var(--container-max-width);
   margin: 0 auto;
+  background: var(--bg);
+  min-height: calc(100vh - var(--header-height));
 }
 
-.resultContainer {
-  margin-top: var(--spacing-xl);
+.formSection {
   background: var(--card-bg);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-xl);
+  padding: var(--spacing-2xl);
   box-shadow: var(--shadow-md);
-  border: 1px solid var(--color-gray-200);
+  border: 1px solid var(--color-primary-100);
+  margin-bottom: var(--spacing-2xl);
 }
 
-.resultTitle {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin: 0 0 var(--spacing-md) 0;
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  max-width: 600px;
 }
 
-.resultContent {
-  background: var(--bg);
-  border: 1px solid var(--color-gray-200);
-  border-radius: var(--radius-md);
+.input, .textarea {
   padding: var(--spacing-md);
-  font-family: 'Courier New', monospace;
-  font-size: var(--font-size-sm);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-family: var(--font-family-primary);
+  background: var(--surface);
   color: var(--text-primary);
-  white-space: pre-wrap;
-  overflow-x: auto;
+  transition: all 0.2s ease;
+}
+
+.input:focus, .textarea:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+.textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.submitButton {
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+  border: none;
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-self: flex-start;
+}
+
+.submitButton:hover {
+  background: var(--color-primary-700);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.formError {
+  color: var(--color-error-600);
+  background: var(--color-error-50);
+  border: 1px solid var(--color-error-200);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.listSection {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-primary-100);
+  overflow: hidden;
+}
+
+.listSection h2 {
+  padding: var(--spacing-xl) var(--spacing-xl) var(--spacing-lg);
+  margin: 0;
+  border-bottom: 1px solid var(--color-gray-200);
+  background: var(--color-primary-50);
+}
+
+.taskList {
+  display: grid;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-xl);
+}
+
+.taskCard {
+  background: var(--surface);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  transition: all 0.2s ease;
+}
+
+.taskCard:hover {
+  border-color: var(--color-primary-200);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.taskCard h3 {
+  margin: 0 0 var(--spacing-md) 0;
+  color: var(--color-primary-700);
+}
+
+.taskCard p {
+  margin: 0 0 var(--spacing-md) 0;
+  line-height: 1.6;
+}
+
+.taskUrl {
+  background: var(--color-gray-50);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-md);
+  word-break: break-all;
+}
+
+.taskUrl a {
+  color: var(--color-primary-600);
+  text-decoration: none;
+}
+
+.taskUrl a:hover {
+  text-decoration: underline;
+}
+
+.taskMeta {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.taskActions {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.runButton, .deleteButton {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.runButton {
+  background: var(--color-success-600);
+  color: var(--on-primary);
+}
+
+.runButton:hover:not(:disabled) {
+  background: var(--color-success-700);
+  transform: translateY(-1px);
+}
+
+.runButton:disabled {
+  background: var(--color-gray-400);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.deleteButton {
+  background: var(--color-error-600);
+  color: var(--on-primary);
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: var(--color-error-700);
+  transform: translateY(-1px);
+}
+
+.deleteButton:disabled {
+  background: var(--color-gray-400);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.error {
+  color: var(--color-error-600);
+  background: var(--color-error-50);
+  border: 1px solid var(--color-error-200);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  text-align: center;
+  margin: var(--spacing-lg);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .container {
+    padding: var(--spacing-lg);
+  }
+  
+  .formSection, .listSection {
+    padding: var(--spacing-lg);
+  }
+  
+  .taskActions {
+    justify-content: stretch;
+  }
+  
+  .runButton, .deleteButton {
+    flex: 1;
+    justify-content: center;
+  }
 }

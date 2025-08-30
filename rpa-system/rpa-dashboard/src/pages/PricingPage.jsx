@@ -1,7 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import styles from './PricingPage.module.css';
+
+// Helper to fetch most popular plan id
+async function getMostPopularPlanId() {
+  try {
+    const resp = await fetch('/api/plans/popularity');
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.mostPopularPlanId || null;
+  } catch {
+    return null;
+  }
+}
 
 const plans = [
   {
@@ -19,8 +31,7 @@ const plans = [
       'Basic logging (30 days)',
       '1GB storage'
     ],
-    buttonText: 'Get Started Free',
-    popular: false
+    buttonText: 'Get Started Free'
   },
   {
     id: 'starter',
@@ -39,8 +50,7 @@ const plans = [
       'Basic analytics',
       'Webhook integrations'
     ],
-    buttonText: 'Start Free Trial',
-    popular: true
+    buttonText: 'Start Free Trial'
   },
   {
     id: 'professional',
@@ -62,8 +72,7 @@ const plans = [
       'Scheduled automations',
       'Error handling & retries'
     ],
-    buttonText: 'Start Free Trial',
-    popular: false
+    buttonText: 'Start Free Trial'
   },
   {
     id: 'enterprise',
@@ -85,8 +94,7 @@ const plans = [
       'White-label options',
       'SLA guarantees'
     ],
-    buttonText: 'Contact Sales',
-    popular: false
+    buttonText: 'Contact Sales'
   }
 ];
 
@@ -96,23 +104,8 @@ export default function PricingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [mostPopularId, setMostPopularId] = useState(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    checkUser();
-  }, []);
-
-  const checkUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
-        await fetchUserPlan(user.id);
-      }
-    } catch (error) {
-      console.error('Error checking user:', error);
-    }
-  };
 
   const fetchUserPlan = async (userId) => {
     try {
@@ -131,6 +124,27 @@ export default function PricingPage() {
       console.error('Error fetching user plan:', error);
     }
   };
+
+  // Memoize checkUser so it can be safely used in useEffect dependencies
+  const checkUser = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUser(user);
+        await fetchUserPlan(user.id);
+      }
+    } catch (error) {
+      console.error('Error checking user:', error);
+    }
+  }, []); // No dependencies needed unless you use something from props/state
+
+  useEffect(() => {
+    checkUser();
+    (async () => {
+      const id = await getMostPopularPlanId();
+      setMostPopularId(id);
+    })();
+  }, [checkUser]); // Include checkUser in dependency array
 
   const startFreeTrial = async (planId) => {
     if (!user) {
@@ -215,16 +229,14 @@ export default function PricingPage() {
 
   return (
     <div className={styles.pricingPage}>
-<div className={styles.header}>
-  <h1>Choose Your Plan</h1>
-  <p>Start automating your workflows today with our flexible pricing options</p>
-        
+      <div className={styles.header}>
+        <h1>Choose Your Plan</h1>
+        <p>Start automating your workflows today with our flexible pricing options</p>
         <div style={{ margin: '20px 0', padding: '15px', background: '#e7f3ff', border: '1px solid #007bff', borderRadius: '5px', textAlign: 'center' }}>
           <p style={{ margin: 0, fontWeight: 'bold', color: '#0056b3' }}>
             All paid plans include a 14-day free trial with no credit card required.
           </p>
         </div>
-
         {currentStatus && (
           <div className={`${styles.currentPlan} ${currentStatus.type === 'trial' ? styles.trial : styles.active}`}>
             <span>{currentStatus.message}</span>
@@ -234,15 +246,13 @@ export default function PricingPage() {
           </div>
         )}
       </div>
-
       <div className={styles.plansGrid}>
         {plans.map((plan) => (
           <div 
             key={plan.id} 
-            className={`${styles.planCard} ${plan.popular ? styles.popular : ''}`}
+            className={`${styles.planCard} ${plan.id === mostPopularId ? styles.popular : ''}`}
           >
-            {plan.popular && <div className={styles.popularBadge}>Most Popular</div>}
-            
+            {plan.id === mostPopularId && <div className={styles.popularBadge}>Most Popular</div>}
             <div className={styles.planHeader}>
               <h3>{plan.name}</h3>
               <div className={styles.price}>
@@ -252,7 +262,6 @@ export default function PricingPage() {
               </div>
               <p className={styles.description}>{plan.description}</p>
             </div>
-
             <ul className={styles.features}>
               {plan.features.map((feature, index) => (
                 <li key={index}>
@@ -261,9 +270,8 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-
             <button
-              className={`${styles.planButton} ${plan.popular ? styles.popularButton : ''}`}
+              className={`${styles.planButton} ${plan.id === mostPopularId ? styles.popularButton : ''}`}
               onClick={() => startFreeTrial(plan.id)}
               disabled={loading || (userPlan && userPlan.plan_id === plan.id)}
             >
@@ -274,10 +282,8 @@ export default function PricingPage() {
           </div>
         ))}
       </div>
-
       {error && <div className={styles.error}>{error}</div>}
       {success && <div className={styles.success}>{success}</div>}
-
       <div className={styles.faq}>
         <h2>Frequently Asked Questions</h2>
         <div className={styles.faqGrid}>
@@ -303,7 +309,6 @@ export default function PricingPage() {
           </div>
         </div>
       </div>
-
       <div className={styles.cta}>
         <h3>Ready to automate your workflow?</h3>
         <p>Join thousands of businesses saving time and money with EasyFlow</p>

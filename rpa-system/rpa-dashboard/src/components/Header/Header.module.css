@@ -1,10 +1,11 @@
 .header {
   background: var(--surface);
   border-bottom: 1px solid var(--color-gray-200);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   position: sticky;
   top: 0;
   z-index: 100;
+  width: 100%;
 }
 
 .container {
@@ -13,47 +14,63 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--spacing-lg);
+  padding: 0 var(--spacing-xl);
   height: var(--header-height);
+  gap: var(--spacing-xl);
 }
 
 .brand {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .logo {
-  font-family: var(--font-family-secondary);
+  font-family: var(--font-family-brand);
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-primary-600);
   margin: 0;
+  letter-spacing: -0.025em;
 }
 
 .logoLink {
   color: inherit;
   text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.logoLink:hover {
+  color: var(--color-primary-700);
 }
 
 .nav {
   display: flex;
-  gap: var(--spacing-lg);
+  align-items: center;
+  gap: var(--spacing-xl);
+  flex: 1;
+  justify-content: center;
 }
 
 .navLink {
   text-decoration: none;
-  color: var(--text-muted);
+  color: var(--color-gray-600);
   font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-base);
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   transition: all 0.2s ease;
+  white-space: nowrap;
+  position: relative;
 }
 
-/* ensure buttons using navLink get native button appearance reset */
-.navLink[role="button"], .navLink:where(button) {
+/* Reset button styles for nav buttons */
+.navLink[role="button"], 
+.navLink:where(button) {
   background: transparent;
   border: none;
   cursor: pointer;
+  font-family: inherit;
 }
 
 .navLink:hover {
@@ -64,12 +81,14 @@
 .navLink.active {
   color: var(--color-primary-600);
   background: var(--color-primary-100);
+  font-weight: var(--font-weight-semibold);
 }
 
 .userMenu {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--spacing-lg);
+  flex-shrink: 0;
 }
 
 .userInfo {
@@ -77,81 +96,178 @@
   flex-direction: column;
   align-items: flex-end;
   text-align: right;
+  margin-right: var(--spacing-sm);
 }
 
 .userName {
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   font-size: var(--font-size-sm);
+  line-height: 1.2;
 }
 
 .userRole {
   font-size: var(--font-size-xs);
   color: var(--text-muted);
   text-transform: capitalize;
+  line-height: 1.2;
 }
 
 .avatar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--color-primary-500);
+  background: var(--color-primary-600);
   color: var(--on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   font-size: var(--font-size-lg);
+  border: 2px solid var(--color-primary-100);
+  transition: all 0.2s ease;
+}
+
+.avatar:hover {
+  background: var(--color-primary-700);
+  border-color: var(--color-primary-200);
+  transform: scale(1.05);
+}
+
+.userActions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.actionButton {
+  background: transparent;
+  border: 1px solid var(--color-gray-300);
+  color: var(--color-gray-700);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.actionButton:hover {
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-400);
+  color: var(--color-gray-900);
+}
+
+.actionButton.primary {
+  background: var(--color-primary-600);
+  border-color: var(--color-primary-600);
+  color: var(--on-primary);
+}
+
+.actionButton.primary:hover {
+  background: var(--color-primary-700);
+  border-color: var(--color-primary-700);
+}
+
+.signOutButton {
+  background: var(--color-error-50);
+  border-color: var(--color-error-200);
+  color: var(--color-error-700);
+}
+
+.signOutButton:hover {
+  background: var(--color-error-100);
+  border-color: var(--color-error-300);
+  color: var(--color-error-800);
+}
+
+/* Mobile responsive design */
+@media (max-width: 1024px) {
+  .container {
+    padding: 0 var(--spacing-lg);
+    gap: var(--spacing-lg);
+  }
+  
+  .nav {
+    gap: var(--spacing-lg);
+  }
+  
+  .userInfo {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {
   .container {
-    padding: 6px var(--spacing-md);
-    gap: var(--spacing-sm);
-    /* allow the header to wrap to multiple lines so it doesn't get cut off */
+    padding: var(--spacing-sm) var(--spacing-md);
+    gap: var(--spacing-md);
     flex-wrap: wrap;
-    align-items: center;
-    height: auto; /* let content determine height on small screens */
+    height: auto;
+    min-height: var(--header-height);
   }
+  
+  .brand {
+    order: 1;
+  }
+  
+  .userMenu {
+    order: 2;
+    gap: var(--spacing-sm);
+  }
+  
+  .nav {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
   .logo {
     font-size: var(--font-size-xl);
   }
-  .nav {
-    gap: var(--spacing-sm);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    /* make nav span a full line so links are not squished */
-    order: 2;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 8px 0;
-    box-sizing: border-box;
-  }
-  .userInfo {
-    display: none;
-  }
+  
   .avatar {
     width: 32px;
     height: 32px;
     font-size: var(--font-size-base);
   }
-
-  /* make sure user menu stays accessible on its own line */
-  .userMenu {
-    order: 1;
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    width: 100%;
-    justify-content: space-between;
-    padding: 6px 0;
-  }
-
-  /* ensure nav links have comfortable tap targets on mobile */
+  
   .navLink {
-    padding: 10px 14px;
-    white-space: nowrap;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+  }
+  
+  .actionButton {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+  
+  .userActions {
+    gap: var(--spacing-xs);
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .userActions {
+    flex-direction: column;
+    gap: var(--spacing-2xs);
+  }
+  
+  .actionButton {
+    padding: var(--spacing-2xs) var(--spacing-xs);
+    min-width: 60px;
+    justify-content: center;
   }
 }
