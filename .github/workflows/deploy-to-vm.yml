@@ -60,7 +60,7 @@ jobs:
           if [ -z "${{ env.VM_HOST }}" ] || [ -z "${{ env.VM_USER }}" ]; then echo 'Missing VM_HOST or VM_USER secrets' && exit 1; fi
           PORT_OPT=''
           if [ -n "${{ env.SSH_PORT }}" ]; then PORT_OPT="-P ${{ env.SSH_PORT }}"; fi
-          scp -i ~/.ssh/deploy_key $PORT_OPT -o StrictHostKeyChecking=yes "${{ env.VM_USER }}@${{ env.VM_HOST }}:/tmp/${{ env.TAR_FILE }}"
+          scp -i ~/.ssh/deploy_key $PORT_OPT -o StrictHostKeyChecking=yes /tmp/${{ env.TAR_FILE }} "${{ env.VM_USER }}@${{ env.VM_HOST }}:/tmp/${{ env.TAR_FILE }}"
 
       - name: Run remote deploy
         run: |
