@@ -13,4 +13,12 @@ jobs:
           APP_URL: ${{ secrets.APP_URL }}
           ADMIN_API_SECRET: ${{ secrets.ADMIN_API_SECRET }}
         run: |
-          curl -sS -X POST "$APP_URL/admin/enqueue-welcome" -H "Content-Type: application/json" -H "x-admin-secret: $ADMIN_API_SECRET" -d '{"days":1}' || true
+          response=$(curl -sS -w "%{{http_code}}" -X POST "$APP_URL/admin/enqueue-welcome" \
+            -H "Content-Type: application/json" \
+            -H "x-admin-secret: $ADMIN_API_SECRET" \
+            -d '{{"days":1}}')
+          http_code=$(echo "$response" | tail -n1)
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: Received status code $http_code"
+            exit 1
+          fi
