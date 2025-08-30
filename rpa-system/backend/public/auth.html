@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EasyFlow - Login & Signup</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 15px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 { 
+            color: #2563eb; 
+            margin-bottom: 30px; 
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .auth-form {
+            text-align: left;
+            margin-top: 20px;
+        }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #333; font-weight: 500; }
+        .form-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        .auth-button { background: #2563eb; color: white; padding: 12px 30px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 10px; }
+        .auth-button:hover { background: #1d4ed8; }
+        .toggle-auth { margin-top: 20px; color: #666; }
+        .toggle-auth a { color: #2563eb; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 EasyFlow</h1>
+        
+        <div id="login-form" class="auth-form">
+            <h3>Welcome Back</h3>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" placeholder="Enter your email">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Enter your password">
+            </div>
+            <button class="auth-button" onclick="handleLogin()">Login</button>
+            <div class="toggle-auth">
+                Don't have an account? <a href="#" onclick="toggleForm()">Sign up</a>
+            </div>
+        </div>
+        
+        <div id="signup-form" class="auth-form" style="display: none;">
+            <h3>Create Account</h3>
+            <div class="form-group">
+                <label for="signup-email">Email</label>
+                <input type="email" id="signup-email" placeholder="Enter your email">
+            </div>
+            <div class="form-group">
+                <label for="signup-password">Password</label>
+                <input type="password" id="signup-password" placeholder="Create a password">
+            </div>
+            <div class="form-group">
+                <label for="confirm-password">Confirm Password</label>
+                <input type="password" id="confirm-password" placeholder="Confirm your password">
+            </div>
+            <button class="auth-button" onclick="handleSignup()">Sign Up</button>
+            <div class="toggle-auth">
+                Already have an account? <a href="#" onclick="toggleForm()">Login</a>
+            </div>
+        </div>
+        
+        <p style="margin-top: 30px; font-size: 0.9rem; color: #666;"><a href="/" style="color: #667eea; text-decoration: none;">← Back to Home</a></p>
+    </div>
+    
+    <script>
+    function toggleForm() {
+      const loginForm = document.getElementById('login-form');
+      const signupForm = document.getElementById('signup-form');
+      if (loginForm.style.display === 'none') { loginForm.style.display = 'block'; signupForm.style.display = 'none'; } else { loginForm.style.display = 'none'; signupForm.style.display = 'block'; }
+    }
+    function handleLogin() { alert('This page is a static fallback. Use the app to login'); }
+    function handleSignup() { alert('This page is a static fallback. Use the app to sign up'); }
+    </script>
+</body>
+</html>

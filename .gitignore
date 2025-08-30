@@ -68,7 +68,6 @@ dist/
 
 # Svelte
 __sapper__/
-public/
 
 # Gatsby
 .cache/

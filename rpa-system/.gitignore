@@ -29,7 +29,6 @@ downloads/
 .vscode/
 
 # Build output
-build/
 dist/
 coverage/
 .cache/
