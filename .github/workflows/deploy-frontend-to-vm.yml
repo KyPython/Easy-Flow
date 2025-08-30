@@ -2,7 +2,8 @@ name: Build and deploy frontend to VM
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   build-and-deploy:
@@ -17,17 +18,14 @@ jobs:
 
       - name: Install dependencies
         working-directory: rpa-system/rpa-dashboard
-        run: |
-          npm ci
+        run: npm ci
 
       - name: Build
         working-directory: rpa-system/rpa-dashboard
-        run: |
-          npm run build
+        run: npm run build
 
       - name: Archive build
-        run: |
-          tar -czf rpa-dashboard-build.tar.gz -C rpa-system/rpa-dashboard build
+        run: tar -czf rpa-dashboard-build.tar.gz -C rpa-system/rpa-dashboard build
 
       - name: Copy to VM
         uses: appleboy/scp-action@v0.1.3
