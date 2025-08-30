@@ -5,7 +5,7 @@ services:
     volumes:
       - ./:/workspace
     environment:
-      - PORT=3001
+      - PORT=3030
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE}
@@ -19,12 +19,12 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
     command: sh -c "npm install && node backend/index.js"
     ports:
-      - "3030:3001"
+      - "3030:3030"
     depends_on:
       automation:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health || curl -fsS http://localhost:3001/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3030/health || curl -fsS http://localhost:3030/health || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -75,7 +75,7 @@ services:
       - PORT=4001
     command: ["sh","-c","npm install express && node backend/hooks_probe.js"]
     ports:
-      - "4001:4001"
+      - "3001:3001"
     restart: unless-stopped
 
 networks:

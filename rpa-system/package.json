@@ -5,10 +5,10 @@
     "dev:backend": "node ./backend/index.js",
     "dev:automation": "python3 ./automation/automate.py",
     "dev": "concurrently \"npm:dev:backend\" \"npm:dev:automation\"",
-      "start": "react-app-rewired start",
-  "build": "react-app-rewired build",
-  "test": "react-app-rewired test",
-  "eject": "react-scripts eject"
+    "start": "react-app-rewired start",
+    "build": "react-app-rewired build",
+    "test": "react-app-rewired test",
+    "eject": "react-scripts eject"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.3",

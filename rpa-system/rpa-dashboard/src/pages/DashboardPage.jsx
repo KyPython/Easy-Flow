@@ -59,13 +59,8 @@ const DashboardPage = () => {
       try {
         setLoading(true);
 
-        // Try to fetch real data with a timeout
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Request timeout')), 5000)
-        );
-        
-        const dataPromise = getDashboardData();
-        const data = await Promise.race([dataPromise, timeoutPromise]);
+        // Try to fetch real data from backend
+        const data = await getDashboardData();
         
         // If we get real data, use it
         const enhancedMetrics = {

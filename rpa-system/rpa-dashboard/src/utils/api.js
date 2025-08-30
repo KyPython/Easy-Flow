@@ -56,6 +56,11 @@ export const getDashboardData = async () => {
   return data;
 };
 
+export const editTask = async (taskId, taskData) => {
+  const { data } = await api.put(`/api/tasks/${taskId}`, taskData);
+  return data;
+};
+
 export const deleteTask = async (taskId) => {
   await api.delete(`/api/tasks/${taskId}`);
 };
@@ -112,4 +117,3 @@ export async function createCheckoutSession(planId) {
     return null;
   }
 }
-

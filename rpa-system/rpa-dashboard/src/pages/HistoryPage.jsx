@@ -75,6 +75,12 @@ const HistoryPage = () => {
   const [error, setError] = useState(null);
   const [isUsingFallback, setIsUsingFallback] = useState(false);
 
+  // Edit modal state
+  const [editingTask, setEditingTask] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editUrl, setEditUrl] = useState('');
+  const [editError, setEditError] = useState('');
+
   useEffect(() => {
     const fetchRuns = async () => {
       try {
@@ -132,12 +138,38 @@ const HistoryPage = () => {
     }
   };
 
+  const handleEditTask = (task) => {
+    setEditingTask(task);
+    setEditName(task.type);
+    setEditUrl(task.url);
+    setEditError('');
+  };
+
+  const handleEditSubmit = (e) => {
+    e.preventDefault();
+    if (!editName || !editUrl) {
+      setEditError('Task Name and URL are required.');
+      return;
+    }
+    // Demo mode: update locally
+    setRuns(prev => prev.map(t => t.id === editingTask.id ? { ...t, type: editName, url: editUrl } : t));
+    setEditingTask(null);
+    alert('✏️ Task edited in demo mode!');
+  };
+
+  const handleDeleteTask = (task) => {
+    if (window.confirm(`Are you sure you want to delete "${task.type}"?`)) {
+      // Demo mode: delete locally
+      setRuns(prev => prev.filter(t => t.id !== task.id));
+      alert('🗑️ Task deleted in demo mode!');
+    }
+  };
+
   const handleRefresh = () => {
     if (isUsingFallback) {
       alert('🔄 In demo mode - showing sample automation history. Connect to backend for real data.');
       return;
     }
-    
     // Refresh the data
     const fetchRuns = async () => {
       try {
@@ -151,7 +183,6 @@ const HistoryPage = () => {
         setLoading(false);
       }
     };
-    
     fetchRuns();
   };
 
@@ -253,10 +284,38 @@ const HistoryPage = () => {
       ) : (
         <TaskList
           tasks={mappedTasks}
-          onEdit={null}
-          onDelete={null}
+          onEdit={handleEditTask}
+          onDelete={handleDeleteTask}
           onView={handleViewTask}
         />
+      )}
+
+      {/* Edit Modal */}
+      {editingTask && (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h3>Edit Task</h3>
+            <form onSubmit={handleEditSubmit}>
+              {editError && <p className={styles.formError}>{editError}</p>}
+              <input
+                type="text"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                className={styles.input}
+                required
+              />
+              <input
+                type="url"
+                value={editUrl}
+                onChange={e => setEditUrl(e.target.value)}
+                className={styles.input}
+                required
+              />
+              <button type="submit" className={styles.submitButton}>Save</button>
+              <button type="button" className={styles.cancelButton} onClick={() => setEditingTask(null)}>Cancel</button>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

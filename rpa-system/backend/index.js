@@ -1047,5 +1047,22 @@ app.post('/admin/approve-subscription', express.json(), async (req, res) => {
   }
 });
 
+// Fallback endpoints for frontend demo/fallback mode
+app.get('/api/tasks', async (req, res) => {
+  res.json([]);
+});
+
+app.get('/api/runs', async (req, res) => {
+  res.json([]);
+});
+
+app.get('/api/dashboard', async (req, res) => {
+  res.json({});
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // Bind to 0.0.0.0 inside the container so the mapped host port is reachable.
 app.listen(PORT, '0.0.0.0', () => console.log(`Backend listening on http://0.0.0.0:${PORT}`));
