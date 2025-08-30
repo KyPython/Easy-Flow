@@ -46,8 +46,8 @@ jobs:
           script: |
             set -e
             mkdir -p /tmp/build
-            tar -xzf rpa-dashboard-build.tar.gz -C /tmp
+            tar -xzf /home/ky/rpa-dashboard-build.tar.gz -C /tmp
             sudo rm -rf /var/www/easyflow-app/* || true
-            sudo cp -a /tmp/build/. /var/www/easyflow-app/
+            sudo cp -a /tmp/build/build/. /var/www/easyflow-app/
             sudo chown -R www-data:www-data /var/www/easyflow-app
             sudo systemctl reload nginx || true
