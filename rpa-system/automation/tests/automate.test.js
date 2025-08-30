@@ -21,3 +21,4 @@ describe('Automation API Tests', () => {
     expect(response.data.result).toHaveProperty('message', 'Automation executed successfully!');
   });
 });
+

@@ -27,15 +27,14 @@ jobs:
       - name: Archive build
         run: tar -czf rpa-dashboard-build.tar.gz -C rpa-system/rpa-dashboard build
 
-      - name: Copy to VM
+      - name: Copy files to VM
         uses: appleboy/scp-action@v0.1.3
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          source: "rpa-dashboard-build.tar.gz"
-          target: "~"
+          source: rpa-dashboard-build.tar.gz
+          target: /home/ky/
 
       - name: Run remote deploy script
         uses: appleboy/ssh-action@v0.1.8
