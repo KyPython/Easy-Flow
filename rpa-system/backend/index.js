@@ -70,7 +70,47 @@ app.use('/api', async (req, res, next) => {
 
     // attach user to request for downstream handlers
     req.user = data.user;
-    return next();
+    
+    // --- Trial & Subscription Enforcement ---
+    try {
+      // 1. Check for an active subscription. If found, allow access.
+      const { data: subscription } = await supabase
+        .from('subscriptions')
+        .select('status')
+        .eq('user_id', req.user.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (subscription) {
+        req.subscription = subscription;
+        return next();
+      }
+
+      // 2. No active subscription. Check if the trial period is still valid.
+      // Assumes a 'profiles' table with a 'trial_ends_at' timestamp column.
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('trial_ends_at')
+        .eq('id', req.user.id)
+        .maybeSingle();
+
+      const trialEndsAt = profile ? new Date(profile.trial_ends_at) : new Date(0);
+
+      if (new Date() > trialEndsAt) {
+        return res.status(403).json({
+          error: 'Trial expired',
+          message: 'Your trial period has ended. Please subscribe to a plan to continue.'
+        });
+      }
+
+      // 3. Trial is still active. Allow access.
+      return next();
+
+    } catch (e) {
+      console.error('[Auth Middleware] Subscription/trial check failed:', e.message);
+      return res.status(500).json({ error: 'Internal server error during auth check' });
+    }
+
   } catch (err) {
     console.error('[auth middleware] error', err?.message || err);
     return res.status(500).json({ error: 'Internal auth error' });

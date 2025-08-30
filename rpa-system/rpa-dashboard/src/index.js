@@ -10,18 +10,38 @@ root.render(
     <App />
   </React.StrictMode>
 );
+// In index.js, after other requires:
+const { getPolarSubscription } = require('./polar_utils');
+const express = require('express');
+const app = express();
+
+// ...
+
+// Add a new API route
+app.get('/api/my-subscription', async (req, res) => {
+  // 1. Get the user's subscription from your database
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('external_payment_id') // Assuming you store the Polar sub ID here
+    .eq('user_id', req.user.id)
+    .maybeSingle();
+
+  if (!sub || !sub.external_payment_id) {
+    return res.status(404).json({ error: 'No subscription found' });
+  }
+
+  // 2. Fetch the latest status from Polar
+  const polarSub = await getPolarSubscription(sub.external_payment_id);
+
+  if (!polarSub) {
+    return res.status(502).json({ error: 'Could not retrieve subscription details' });
+  }
+
+  // 3. Return the fresh data
+  res.json(polarSub);
+});
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
-
-• Google Analytics tokens add them to the environment variables. • In your React app’s entry point (e.g. rpa-dashboard/src/index.js), the Google Analytics initialization should be integrated (using react-ga or gtag.js) so that all relevant user events are tracked. • QA, testing (with Jest & ESLint), and monitoring (via New Relic) are in place to ensure robust performance.
-
-import React from 'react'; import ReactDOM from 'react-dom'; import App from './App'; import ReactGA from 'react-ga';
-
-ReactGA.initialize(process.env.REACT_APP_GA_TOKEN); ReactGA.pageview(window.location.pathname + window.location.search);
-
-ReactDOM.render(<App />, document.getElementById('root'));
-
-A Chatbase AI chatbot widget has been added to the production build for 24/7 customer support.
