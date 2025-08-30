@@ -42,6 +42,11 @@ jobs:
             --exclude='rpa-system/**/.env*' \
             rpa-system
 
+      - name: Run deployment with debug info
+        run: |
+          export GIT_SSH_COMMAND="ssh -v"
+          scp -i ~/.ssh/id_rsa /tmp/${{ env.TAR_FILE }} ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/tmp/${{ env.TAR_FILE }}
+
       - name: Prepare SSH deploy key
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -54,6 +59,12 @@ jobs:
           if [ -n "${{ env.VM_HOST }}" ]; then
             ssh-keyscan -H "${{ env.VM_HOST }}" >> ~/.ssh/known_hosts
           fi
+
+      - name: Add SSH known host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       - name: Copy package to VM
         run: |
