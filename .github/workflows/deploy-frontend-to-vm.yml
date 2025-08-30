@@ -46,6 +46,11 @@ jobs:
           script: |
             set -e
             tar -xzf /home/ky/rpa-dashboard-build.tar.gz -C /tmp
+            if [ ! -f /tmp/build/index.html ]; then
+              echo "ERROR: /tmp/build/index.html not found after extraction. Check archive structure and build step." >&2
+              ls -l /tmp/build
+              exit 1
+            fi
             sudo rm -rf /var/www/easyflow-app/* || true
             sudo cp -a /tmp/build/. /var/www/easyflow-app/
             sudo chown -R www-data:www-data /var/www/easyflow-app
