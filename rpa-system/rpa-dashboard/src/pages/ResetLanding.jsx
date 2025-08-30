@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
 function parseHashParams(hash) {
@@ -44,12 +44,12 @@ export default function ResetLanding() {
   };
 
   return (
-    <div style={{ maxWidth: 720, margin: '4rem auto', fontFamily: 'system-ui, Arial', padding: 20 }}>
-      <h1>Password reset / sign-in</h1>
-      <p>
-        We received a password reset request. This page gives you control over when to continue into the
-        app. Click Continue to sign in using the token that was embedded in the link.
-      </p>
+<div style={{ maxWidth: 720, margin: '4rem auto', fontFamily: 'system-ui, Arial', padding: 20 }}>
+  <h1>Password reset / sign-in</h1>
+  <p>
+    We received a password reset request. This page gives you control over when to continue into the
+    app. Click Continue to sign in using the token that was embedded in the link.
+  </p>
 
       <div style={{ marginTop: 24 }}>
         <button onClick={onContinue} disabled={loading || done} style={{ padding: '10px 18px', background: '#2563eb', color: 'white', borderRadius: 6, border: 'none' }}>

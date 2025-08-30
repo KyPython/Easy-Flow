@@ -34,6 +34,28 @@ const DashboardPage = () => {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    // Google Analytics gtag.js script injection
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://www.googletagmanager.com/gtag/js?id=G-QGYCGQFC6D';
+    document.head.appendChild(script);
+
+    const inlineScript = document.createElement('script');
+    inlineScript.innerHTML = `
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-QGYCGQFC6D');
+    `;
+    document.head.appendChild(inlineScript);
+
+    return () => {
+      document.head.removeChild(script);
+      document.head.removeChild(inlineScript);
+    };
+  }, []);
+
   return <Dashboard metrics={metrics} recentTasks={recentTasks} />;
 };
 

@@ -1,5 +1,6 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import ReactGA from 'react-ga4';
 import Header from './components/Header/Header';
 import DashboardPage from './pages/DashboardPage';
 import TasksPage from './pages/TasksPage';
@@ -14,6 +15,21 @@ import SettingsPage from './pages/SettingsPage';
 import './theme.css';
 import './App.css';
 
+// --- Google Analytics Pageview Tracker ---
+// This component tracks pageviews whenever the route changes.
+const AnalyticsTracker = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    const gaMeasurementId = process.env.REACT_APP_GA_MEASUREMENT_ID;
+    if (gaMeasurementId) {
+      ReactGA.send({ hitType: "pageview", page: location.pathname + location.search });
+    }
+  }, [location]);
+
+  return null; // This component does not render anything
+};
+
 function Protected({ children }) {
   const { session, loading } = useAuth();
   if (loading) return null; // or a spinner component
@@ -25,9 +41,9 @@ function Shell() {
   const { user } = useAuth();
   return (
     <div className="app">
-      <Header user={{ name: user?.email || 'User', role: 'Member' }} />
-      <main className="main-content">
-        <Routes>
+<Header user={{ name: user?.email || 'User', role: 'Member' }} />
+<main className="main-content">
+  <Routes>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/auth/reset" element={<ResetLanding />} />
           <Route path="/pricing" element={<PricingPage />} />
@@ -50,6 +66,7 @@ function App() {
     <Router>
       <AuthProvider>
         <ThemeProvider>
+          <AnalyticsTracker />
           <Shell />
         </ThemeProvider>
       </AuthProvider>

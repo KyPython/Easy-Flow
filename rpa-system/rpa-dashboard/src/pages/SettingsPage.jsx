@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../utils/AuthContext';
 import { useTheme } from '../utils/ThemeContext';
@@ -65,9 +65,9 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <h2 className={styles.heading}>Settings</h2>
-      <section className={styles.section}>
-        <h3 className={styles.heading}>Theme</h3>
+<h2 className={styles.heading}>Settings</h2>
+<section className={styles.section}>
+  <h3 className={styles.heading}>Theme</h3>
         <p className={styles.muted}>Current: {theme}</p>
         <div className={styles.formRow}>
           <button className={`${styles.btn} ${styles.btnAlt}`} onClick={toggle}>{theme === 'light' ? 'Switch to dark' : 'Switch to light'}</button>

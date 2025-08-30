@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { trackEvent, triggerCampaign } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
@@ -103,7 +103,7 @@ export default function AuthPage() {
             navigate('/app');
           }, 1500);
       } else {
-          const { data, error } = await supabase.auth.signUp({ email, password });
+          const { error } = await supabase.auth.signUp({ email, password });
           if (error) throw error;
           // If confirmations are enabled, inform the user
           setSuccess('Sign-up successful! Please check your email to confirm your account.');
@@ -134,10 +134,11 @@ export default function AuthPage() {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <div className={styles.header}>
-          <h2 className={styles.title}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
-          <p className={styles.subtitle}>Sign {mode === 'login' ? 'in' : 'up'} to continue</p>
-        </div>
+<div className={styles.header}>
+  {/* Google tag (gtag.js) should be included in public/index.html or via useEffect, not directly in JSX */}
+  <h2 className={styles.title}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
+  <p className={styles.subtitle}>Sign {mode === 'login' ? 'in' : 'up'} to continue</p>
+</div>
         <form onSubmit={onSubmit} className={styles.form}>
           <div className={styles.formGrid}>
             <div className={styles.formGroup}>

@@ -12,10 +12,10 @@
  *   POLAR_API_KEY=... SUPABASE_URL=... SUPABASE_SERVICE_ROLE=... node reconcile_polar.js
  */
 
-import { createClient } from '@supabase/supabase-js';
-import axios from 'axios';
-import dotenv from 'dotenv';
-dotenv.config();
+const { createClient } = require('@supabase/supabase-js');
+const axios = require('axios');
+require('dotenv').config();
+const { getPolarSubscription } = require('../polar_utils');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
@@ -64,39 +64,35 @@ async function main() {
 
   // NOTE: Optional Polar cross-check
   if (process.env.POLAR_API_KEY) {
-    console.log('[reconcile] POLAR_API_KEY present. Cross-checking with Polar API...');
-    try {
-      const response = await axios.get('https://api.polar.sh/v1/orders', {
-        headers: {
-          'Authorization': `Bearer ${process.env.POLAR_API_KEY}`,
-          'Accept': 'application/json',
-        },
-        params: {
-          // Fetching recent orders to check against local records
-          limit: 50,
-          ordering: '-created_at'
+    console.log('[reconcile] POLAR_API_KEY present. Cross-checking non-active subscriptions with Polar API...');
+    let updatedCount = 0;
+
+    for (const sub of pending) {
+      if (!sub.external_payment_id) {
+        continue; // Cannot check without a Polar ID
+      }
+
+      const polarSub = await getPolarSubscription(sub.external_payment_id);
+
+      // If we found a subscription on Polar and its status is different from our DB...
+      if (polarSub && polarSub.status !== sub.status) {
+        console.log(`- Updating Sub ID ${sub.id}: DB status was '${sub.status}', Polar status is '${polarSub.status}'.`);
+
+        const { error: updateErr } = await supabase
+          .from('subscriptions')
+          .update({ status: polarSub.status, updated_at: new Date().toISOString() })
+          .eq('id', sub.id);
+
+        if (updateErr) {
+          console.error(`  - FAILED to update Sub ID ${sub.id}:`, updateErr.message);
+        } else {
+          updatedCount++;
+          console.log(`  - SUCCESS: Updated status in DB.`);
         }
-      });
-
-      const orders = response.data.items || [];
-      console.log(`[reconcile] Fetched ${orders.length} recent orders from Polar.`);
-
-      // TODO: Implement matching logic here.
-      // For each order from Polar, find the corresponding subscription in your database.
-      // You might match on `customer_id`, `subscription_id`, or a `charge_id` stored as `external_payment_id`.
-      orders.forEach(order => {
-        console.log(`POLAR_ORDER: ID=${order.id}, Amount=${order.amount / 100} ${order.currency.toUpperCase()}, Status=${order.status}`);
-      });
-
-    } catch (error) {
-      console.error('[reconcile] Error fetching data from Polar API.');
-      if (error.response) {
-        console.error(`Status: ${error.response.status} - ${error.response.statusText}`);
-        console.error('Data:', error.response.data);
-      } else {
-        console.error(error.message);
       }
     }
+    console.log(`[reconcile] Finished Polar cross-check. Updated ${updatedCount} records.`);
+
   } else {
     console.log('[reconcile] POLAR_API_KEY not set — skipping Polar cross-check');
   }
@@ -159,3 +155,4 @@ export async function reconcile() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   reconcile();
 }
+

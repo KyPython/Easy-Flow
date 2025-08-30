@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import styles from './PricingPage.module.css';
@@ -215,9 +215,9 @@ export default function PricingPage() {
 
   return (
     <div className={styles.pricingPage}>
-      <div className={styles.header}>
-        <h1>Choose Your Plan</h1>
-        <p>Start automating your workflows today with our flexible pricing options</p>
+<div className={styles.header}>
+  <h1>Choose Your Plan</h1>
+  <p>Start automating your workflows today with our flexible pricing options</p>
         
         <div style={{ margin: '20px 0', padding: '15px', background: '#e7f3ff', border: '1px solid #007bff', borderRadius: '5px', textAlign: 'center' }}>
           <p style={{ margin: 0, fontWeight: 'bold', color: '#0056b3' }}>
