@@ -7,16 +7,23 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - backend
-      - hooks_probe
-      - automation
+      backend:
+        condition: service_healthy
+      hooks_probe:
+        condition: service_started
+      automation:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - easyflow_network
 
   backend:
-    image: node:20-alpine
-    working_dir: /workspace
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
     volumes:
-      - ./:/workspace
+      # Mount only the downloads directory, not the entire codebase
+      - ./downloads:/workspace/downloads
     environment:
       - PORT=3030
       - SUPABASE_URL=${SUPABASE_URL}
@@ -38,7 +45,6 @@ services:
       - SENDGRID_API_KEY=${SENDGRID_API_KEY}
       - SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
       - SENDGRID_FROM_NAME=${SENDGRID_FROM_NAME}
-    command: sh -c "npm install && node backend/index.js"
     ports:
       - "3030:3030"
     depends_on:
@@ -51,12 +57,13 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - easyflow_network
 
   automation:
     build:
       context: .
       dockerfile: automation/Dockerfile
-    working_dir: /app
     volumes:
       - ./downloads:/downloads
     environment:
@@ -72,35 +79,38 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - easyflow_network
 
   email_worker:
-    image: node:20-alpine
-    working_dir: /app
+    build:
+      context: .
+      dockerfile: Dockerfile.email_worker
     volumes:
-      - ./:/app
       - root_config:/root/.config:ro
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE}
       - SEND_EMAIL_WEBHOOK_SECRET=${SEND_EMAIL_WEBHOOK_SECRET}
       - EMAIL_WORKER_POLL_MS=5000
-    command: ["sh", "-c", "npm install && node backend/workers/email_worker.js"]
     restart: unless-stopped
+    networks:
+      - easyflow_network
 
   hooks_probe:
-    image: node:20-alpine
-    working_dir: /app
-    volumes:
-      - ./:/app
+    build:
+      context: .
+      dockerfile: Dockerfile.hooks_probe
     environment:
       - PORT=4001
-    command: ["sh", "-c", "npm install express && node backend/hooks_probe.js"]
     ports:
       - "3001:3001"
     restart: unless-stopped
+    networks:
+      - easyflow_network
 
 networks:
-  default:
+  easyflow_network:
     driver: bridge
 
 volumes:

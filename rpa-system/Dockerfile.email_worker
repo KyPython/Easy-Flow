@@ -1,0 +1,10 @@
+FROM node:20-alpine
+
+WORKDIR /workspace
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY . .
+
+CMD ["node", "backend/workers/email_worker.js"]

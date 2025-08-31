@@ -1,0 +1,13 @@
+FROM node:20-alpine
+
+WORKDIR /workspace
+
+# Copy package files and install production dependencies
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Copy the rest of the application code
+COPY . .
+
+EXPOSE 3030
+CMD ["node", "backend/index.js"]
