@@ -53,6 +53,19 @@ app.use((req, res, next) => {
   return express.json()(req, res, next);
 });
 
+// Simple logging middleware to see incoming request bodies
+app.use((req, res, next) => {
+  // We only want to log the body for POST, PUT, PATCH requests
+  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+    console.log(`[Request Logger] ${req.method} ${req.originalUrl}`);
+    // Check if body is not empty
+    if (req.body && Object.keys(req.body).length > 0) {
+      console.log('Body:', JSON.stringify(req.body, null, 2));
+    }
+  }
+  next();
+});
+
 app.use('/hooks', hooksEmailRouter); // Mount hooks router on /hooks
 app.use('/api', sendEmailRouter); // Mount email sender on /api
 
