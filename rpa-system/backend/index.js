@@ -65,49 +65,6 @@ if (fs.existsSync(reactBuildPath)) {
   });
 }
 
-// --- Public API Routes ---
-
-// GET /api/plans - Fetch all available subscription plans
-app.get('/api/plans', async (req, res) => {
-  try {
-    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
-    const { data, error } = await supabase.from('plans').select('*');
-    if (error) throw error;
-    res.json(data || []);
-  } catch (err) {
-    console.error('[GET /api/plans] Error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch plans', details: err.message });
-  }
-});
-
-// --- Auth Middleware (for all subsequent /api routes) ---
-app.use('/api', async (req, res, next) => {
-  try {
-    if (!supabase) return res.status(401).json({ error: 'Unauthorized - supabase not configured' });
-
-    const authHeader = (req.get('authorization') || '').trim();
-    const parts = authHeader.split(' ');
-    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
-    if (!token) return res.status(401).json({ error: 'Unauthorized - missing bearer token' });
-
-    // validate token via Supabase server client
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data || !data.user) {
-      return res.status(401).json({ error: 'Unauthorized - invalid token' });
-    }
-
-    // attach user to request for downstream handlers
-    req.user = data.user;
-
-    // RELAXED: skip subscription/trial enforcement for testing
-    return next();
-
-  } catch (err) {
-    console.error('[auth middleware] error', err?.message || err);
-    return res.status(500).json({ error: 'Internal auth error' });
-  }
-});
-
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'backend', time: new Date().toISOString() });
 });
@@ -265,6 +222,140 @@ app.get('/api/logs', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch logs', details: err.message });
   }
 });
+
+// --- Public API Routes ---
+
+// GET /api/plans - Fetch all available subscription plans
+app.get('/api/plans', async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+    const { data, error } = await supabase.from('plans').select('*');
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('[GET /api/plans] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch plans', details: err.message });
+  }
+});
+
+app.post('/api/run-task', async (req, res) => {
+  try {
+    const { task, url, username, password } = req.body || {};
+    if (!url) return res.status(400).json({ error: 'url is required' });
+
+  // Prefer localhost for local dev; Docker compose sets AUTOMATION_URL=http://automation:7001/run
+  const automationUrl = process.env.AUTOMATION_URL || 'http://localhost:7001/run';
+  const payload = { url, username, password, task };
+  if (req.body && typeof req.body.pdf_url === 'string') payload.pdf_url = req.body.pdf_url;
+  const response = await axios.post(automationUrl, payload, { timeout: 120000 });
+
+    const result = response.data?.result ?? null;
+
+    // Upload artifact (PDF) to Supabase Storage if present
+    let artifact_url = null;
+    if (supabase && result && result.pdf) {
+      try {
+        const containerPath = result.pdf;
+        const fileName = path.basename(containerPath);
+        let hostPath = containerPath;
+        if (containerPath.startsWith(DOWNLOADS_DIR_CONTAINER)) {
+          hostPath = path.join(DOWNLOADS_DIR_HOST, fileName);
+        }
+        if (fs.existsSync(hostPath)) {
+          const buffer = fs.readFileSync(hostPath);
+          const key = `runs/${new Date().toISOString().slice(0,10)}/${Date.now()}_${fileName}`;
+          const { error: upErr } = await supabase.storage.from(ARTIFACTS_BUCKET).upload(key, buffer, {
+            contentType: 'application/pdf',
+            upsert: true,
+          });
+          if (upErr) throw upErr;
+          if (USE_SIGNED_URLS) {
+            const { data: signed, error: signErr } = await supabase.storage
+              .from(ARTIFACTS_BUCKET)
+              .createSignedUrl(key, SIGNED_URL_EXPIRES);
+            if (signErr) throw signErr;
+            artifact_url = signed.signedUrl;
+          } else {
+            artifact_url = supabase.storage.from(ARTIFACTS_BUCKET).getPublicUrl(key).data.publicUrl;
+          }
+        }
+      } catch (storageErr) {
+        console.warn('[run-task] artifact upload failed', storageErr.message);
+      }
+    }
+
+  if (supabase) {
+      try {
+    await supabase.from('automation_logs').insert([{ task, url, username, result, status: 'completed', artifact_url, created_at: new Date().toISOString() }]);
+      } catch (dbErr) {
+        console.warn('[DB insert failed]', dbErr.message);
+      }
+    }
+
+  res.json({ result, artifact_url });
+  } catch (err) {
+    const status = err.response?.status || 500;
+    const data = err.response?.data || err.message;
+    console.error('[POST /api/run-task] Error:', status, data);
+    // Attempt to log failure
+    if (supabase) {
+      try {
+        const body = req.body || {};
+        await supabase.from('automation_logs').insert([{ task: body.task, url: body.url, username: body.username, result: { error: data }, status: 'failed', created_at: new Date().toISOString() }]);
+      } catch (e) {
+        console.warn('[DB insert failed - error path]', e.message);
+      }
+    }
+    res.status(502).json({ error: 'Automation failed', status, details: data });
+  }
+});
+
+// Fetch recent logs
+app.get('/api/logs', async (req, res) => {
+  try {
+    if (!supabase) return res.json([]);
+    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const { data, error } = await supabase
+      .from('automation_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch logs', details: err.message });
+  }
+});
+
+// --- Auth Middleware (for all subsequent /api routes) ---
+app.use('/api', async (req, res, next) => {
+  try {
+    if (!supabase) return res.status(401).json({ error: 'Unauthorized - supabase not configured' });
+
+    const authHeader = (req.get('authorization') || '').trim();
+    const parts = authHeader.split(' ');
+    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
+    if (!token) return res.status(401).json({ error: 'Unauthorized - missing bearer token' });
+
+    // validate token via Supabase server client
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data || !data.user) {
+      return res.status(401).json({ error: 'Unauthorized - invalid token' });
+    }
+
+    // attach user to request for downstream handlers
+    req.user = data.user;
+
+    // RELAXED: skip subscription/trial enforcement for testing
+    return next();
+
+  } catch (err) {
+    console.error('[auth middleware] error', err?.message || err);
+    return res.status(500).json({ error: 'Internal auth error' });
+  }
+});
+
+// --- Authenticated API Routes ---
 
 // --- Task Management API ---
 

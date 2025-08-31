@@ -6,6 +6,7 @@ services:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - /var/www/easyflow-app:/var/www/easyflow-app:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -104,7 +105,7 @@ services:
     environment:
       - PORT=4001
     ports:
-      - "3001:3001"
+      - "4001:4001"
     restart: unless-stopped
     networks:
       - easyflow_network
