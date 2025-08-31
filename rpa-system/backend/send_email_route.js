@@ -73,7 +73,7 @@ const emailTemplates = {
 };
 
 // Middleware to protect this internal-only endpoint
-router.use('/api/send-email-now', (req, res, next) => {
+const authWebhook = (req, res, next) => {
   const authHeader = req.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
 
@@ -81,9 +81,9 @@ router.use('/api/send-email-now', (req, res, next) => {
     return next();
   }
   return res.status(403).json({ error: 'Forbidden: invalid or missing secret' });
-});
+};
 
-router.post('/api/send-email-now', async (req, res) => {
+router.post('/send-email-now', authWebhook, async (req, res) => {
   if (!sendgridConfigured) {
     return res.status(503).json({ error: 'Email service (SendGrid) is not configured on the server.' });
   }

@@ -10,8 +10,22 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3030;
-const hooksEmailRouter = require('./hooks_email_route')
+const hooksEmailRouter = require('./hooks_email_route');
 const sendEmailRouter = require('./send_email_route');
+
+// --- Supabase & App Config ---
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+const supabase = SUPABASE_URL && (SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY)
+  : null;
+const ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
+const USE_SIGNED_URLS = (process.env.SUPABASE_USE_SIGNED_URLS || 'true').toLowerCase() !== 'false';
+const SIGNED_URL_EXPIRES = Math.max(60, parseInt(process.env.SUPABASE_SIGNED_URL_EXPIRES || '86400', 10));
+const DOWNLOADS_DIR_CONTAINER = process.env.DOWNLOADS_DIR_CONTAINER || '/downloads';
+const DOWNLOADS_DIR_HOST = process.env.DOWNLOADS_DIR_HOST || (process.cwd().includes('/workspace') ? '/workspace/downloads' : path.join(process.cwd(), 'downloads'));
+
 
 // CORS: allow all in dev (when no whitelist provided); restrict in prod
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
@@ -39,8 +53,8 @@ app.use((req, res, next) => {
   return express.json()(req, res, next);
 });
 
-app.use(hooksEmailRouter);
-app.use(sendEmailRouter);
+app.use('/hooks', hooksEmailRouter); // Mount hooks router on /hooks
+app.use('/api', sendEmailRouter); // Mount email sender on /api
 
 // Serve static files from React build (if it exists)
 const reactBuildPath = path.join(__dirname, '../rpa-dashboard/build');
@@ -51,7 +65,22 @@ if (fs.existsSync(reactBuildPath)) {
   });
 }
 
-// --- Auth Middleware (relaxed for testing) ---
+// --- Public API Routes ---
+
+// GET /api/plans - Fetch all available subscription plans
+app.get('/api/plans', async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+    const { data, error } = await supabase.from('plans').select('*');
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('[GET /api/plans] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch plans', details: err.message });
+  }
+});
+
+// --- Auth Middleware (for all subsequent /api routes) ---
 app.use('/api', async (req, res, next) => {
   try {
     if (!supabase) return res.status(401).json({ error: 'Unauthorized - supabase not configured' });
@@ -78,18 +107,6 @@ app.use('/api', async (req, res, next) => {
     return res.status(500).json({ error: 'Internal auth error' });
   }
 });
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
-const supabase = SUPABASE_URL && (SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY)
-  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY)
-  : null;
-const ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
-const USE_SIGNED_URLS = (process.env.SUPABASE_USE_SIGNED_URLS || 'true').toLowerCase() !== 'false';
-const SIGNED_URL_EXPIRES = Math.max(60, parseInt(process.env.SUPABASE_SIGNED_URL_EXPIRES || '86400', 10));
-const DOWNLOADS_DIR_CONTAINER = process.env.DOWNLOADS_DIR_CONTAINER || '/downloads';
-const DOWNLOADS_DIR_HOST = process.env.DOWNLOADS_DIR_HOST || (process.cwd().includes('/workspace') ? '/workspace/downloads' : path.join(process.cwd(), 'downloads'));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'backend', time: new Date().toISOString() });
@@ -142,6 +159,110 @@ app.get('/app', (_req, res) => {
     const appFallback = path.join(__dirname, 'public', 'app.html');
     if (fs.existsSync(appFallback)) return res.sendFile(appFallback);
     return res.type('text').send('App page not available');
+  }
+});
+
+// --- Public API Routes ---
+
+// GET /api/plans - Fetch all available subscription plans
+app.get('/api/plans', async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+    const { data, error } = await supabase.from('plans').select('*');
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('[GET /api/plans] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch plans', details: err.message });
+  }
+});
+
+app.post('/api/run-task', async (req, res) => {
+  try {
+    const { task, url, username, password } = req.body || {};
+    if (!url) return res.status(400).json({ error: 'url is required' });
+
+  // Prefer localhost for local dev; Docker compose sets AUTOMATION_URL=http://automation:7001/run
+  const automationUrl = process.env.AUTOMATION_URL || 'http://localhost:7001/run';
+  const payload = { url, username, password, task };
+  if (req.body && typeof req.body.pdf_url === 'string') payload.pdf_url = req.body.pdf_url;
+  const response = await axios.post(automationUrl, payload, { timeout: 120000 });
+
+    const result = response.data?.result ?? null;
+
+    // Upload artifact (PDF) to Supabase Storage if present
+    let artifact_url = null;
+    if (supabase && result && result.pdf) {
+      try {
+        const containerPath = result.pdf;
+        const fileName = path.basename(containerPath);
+        let hostPath = containerPath;
+        if (containerPath.startsWith(DOWNLOADS_DIR_CONTAINER)) {
+          hostPath = path.join(DOWNLOADS_DIR_HOST, fileName);
+        }
+        if (fs.existsSync(hostPath)) {
+          const buffer = fs.readFileSync(hostPath);
+          const key = `runs/${new Date().toISOString().slice(0,10)}/${Date.now()}_${fileName}`;
+          const { error: upErr } = await supabase.storage.from(ARTIFACTS_BUCKET).upload(key, buffer, {
+            contentType: 'application/pdf',
+            upsert: true,
+          });
+          if (upErr) throw upErr;
+          if (USE_SIGNED_URLS) {
+            const { data: signed, error: signErr } = await supabase.storage
+              .from(ARTIFACTS_BUCKET)
+              .createSignedUrl(key, SIGNED_URL_EXPIRES);
+            if (signErr) throw signErr;
+            artifact_url = signed.signedUrl;
+          } else {
+            artifact_url = supabase.storage.from(ARTIFACTS_BUCKET).getPublicUrl(key).data.publicUrl;
+          }
+        }
+      } catch (storageErr) {
+        console.warn('[run-task] artifact upload failed', storageErr.message);
+      }
+    }
+
+  if (supabase) {
+      try {
+    await supabase.from('automation_logs').insert([{ task, url, username, result, status: 'completed', artifact_url, created_at: new Date().toISOString() }]);
+      } catch (dbErr) {
+        console.warn('[DB insert failed]', dbErr.message);
+      }
+    }
+
+  res.json({ result, artifact_url });
+  } catch (err) {
+    const status = err.response?.status || 500;
+    const data = err.response?.data || err.message;
+    console.error('[POST /api/run-task] Error:', status, data);
+    // Attempt to log failure
+    if (supabase) {
+      try {
+        const body = req.body || {};
+        await supabase.from('automation_logs').insert([{ task: body.task, url: body.url, username: body.username, result: { error: data }, status: 'failed', created_at: new Date().toISOString() }]);
+      } catch (e) {
+        console.warn('[DB insert failed - error path]', e.message);
+      }
+    }
+    res.status(502).json({ error: 'Automation failed', status, details: data });
+  }
+});
+
+// Fetch recent logs
+app.get('/api/logs', async (req, res) => {
+  try {
+    if (!supabase) return res.json([]);
+    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const { data, error } = await supabase
+      .from('automation_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch logs', details: err.message });
   }
 });
 
@@ -435,19 +556,6 @@ app.delete('/api/tasks/:id', async (req, res) => {
   }
 });
 
-// GET /api/plans - Fetch all available subscription plans
-app.get('/api/plans', async (req, res) => {
-  try {
-    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
-    const { data, error } = await supabase.from('plans').select('*');
-    if (error) throw error;
-    res.json(data || []);
-  } catch (err) {
-    console.error('[GET /api/plans] Error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch plans', details: err.message });
-  }
-});
-
 // GET /api/subscription - Fetch user's current subscription and usage
 app.get('/api/subscription', async (req, res) => {
   try {
@@ -484,98 +592,6 @@ app.get('/api/subscription', async (req, res) => {
   } catch (err) {
     console.error('[GET /api/subscription] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch subscription data', details: err.message });
-  }
-});
-
-app.post('/api/run-task', async (req, res) => {
-  try {
-    const { task, url, username, password } = req.body || {};
-    if (!url) return res.status(400).json({ error: 'url is required' });
-
-  // Prefer localhost for local dev; Docker compose sets AUTOMATION_URL=http://automation:7001/run
-  const automationUrl = process.env.AUTOMATION_URL || 'http://localhost:7001/run';
-  const payload = { url, username, password, task };
-  if (req.body && typeof req.body.pdf_url === 'string') payload.pdf_url = req.body.pdf_url;
-  const response = await axios.post(automationUrl, payload, { timeout: 120000 });
-
-    const result = response.data?.result ?? null;
-
-    // Upload artifact (PDF) to Supabase Storage if present
-    let artifact_url = null;
-    if (supabase && result && result.pdf) {
-      try {
-        const containerPath = result.pdf;
-        const fileName = path.basename(containerPath);
-        let hostPath = containerPath;
-        if (containerPath.startsWith(DOWNLOADS_DIR_CONTAINER)) {
-          hostPath = path.join(DOWNLOADS_DIR_HOST, fileName);
-        }
-        if (fs.existsSync(hostPath)) {
-          const buffer = fs.readFileSync(hostPath);
-          const key = `runs/${new Date().toISOString().slice(0,10)}/${Date.now()}_${fileName}`;
-          const { error: upErr } = await supabase.storage.from(ARTIFACTS_BUCKET).upload(key, buffer, {
-            contentType: 'application/pdf',
-            upsert: true,
-          });
-          if (upErr) throw upErr;
-          if (USE_SIGNED_URLS) {
-            const { data: signed, error: signErr } = await supabase.storage
-              .from(ARTIFACTS_BUCKET)
-              .createSignedUrl(key, SIGNED_URL_EXPIRES);
-            if (signErr) throw signErr;
-            artifact_url = signed?.signedUrl || null;
-          } else {
-            const { data: pub } = supabase.storage.from(ARTIFACTS_BUCKET).getPublicUrl(key);
-            artifact_url = pub?.publicUrl || null;
-          }
-        } else {
-          console.warn('[artifact upload] file not found:', hostPath);
-        }
-      } catch (upErr) {
-        console.warn('[artifact upload failed]', upErr.message);
-      }
-    }
-
-  if (supabase) {
-      try {
-    await supabase.from('automation_logs').insert([{ task, url, username, result, status: 'completed', artifact_url, created_at: new Date().toISOString() }]);
-      } catch (dbErr) {
-        console.warn('[DB insert failed]', dbErr.message);
-      }
-    }
-
-  res.json({ result, artifact_url });
-  } catch (err) {
-    const status = err.response?.status || 500;
-    const data = err.response?.data || err.message;
-    console.error('[POST /api/run-task] Error:', status, data);
-    // Attempt to log failure
-    if (supabase) {
-      try {
-        const body = req.body || {};
-        await supabase.from('automation_logs').insert([{ task: body.task, url: body.url, username: body.username, result: { error: data }, status: 'failed', created_at: new Date().toISOString() }]);
-      } catch (e) {
-        console.warn('[DB insert failed - error path]', e.message);
-      }
-    }
-    res.status(502).json({ error: 'Automation failed', status, details: data });
-  }
-});
-
-// Fetch recent logs
-app.get('/api/logs', async (req, res) => {
-  try {
-    if (!supabase) return res.json([]);
-    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
-    const { data, error } = await supabase
-      .from('automation_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    if (error) throw error;
-    res.json(data || []);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch logs', details: err.message });
   }
 });
 
@@ -769,7 +785,9 @@ app.post('/api/trigger-campaign', async (req, res) => {
             console.warn(`[trigger-campaign] Failed to add or update contact in HubSpot:`, hubspotError.response?.data || hubspotError.message);
           }
         }
-      })();
+      })().catch(err => {
+        console.error('[trigger-campaign] HubSpot background task failed:', err.message || err);
+      });
     }
 
     const now = new Date();
@@ -777,9 +795,25 @@ app.post('/api/trigger-campaign', async (req, res) => {
 
     // Small built-in campaign: welcome (immediate) + follow-up (3 days)
     if (campaign === 'welcome') {
-      inserts.push({ to_email: targetEmail, template: 'welcome', data: { user_id: user.id }, scheduled_at: now.toISOString(), status: 'pending', created_at: new Date().toISOString() });
+      inserts.push({
+        user_id: user.id,
+        to_email: targetEmail,
+        template: 'welcome',
+        data: { user_id: user.id }, // Keep for template data if needed
+        scheduled_at: now.toISOString(),
+        status: 'pending',
+        created_at: new Date().toISOString()
+      });
       const followup = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-      inserts.push({ to_email: targetEmail, template: 'welcome_followup', data: { user_id: user.id }, scheduled_at: followup.toISOString(), status: 'pending', created_at: new Date().toISOString() });
+      inserts.push({
+        user_id: user.id,
+        to_email: targetEmail,
+        template: 'welcome_followup',
+        data: { user_id: user.id }, // Keep for template data if needed
+        scheduled_at: followup.toISOString(),
+        status: 'pending',
+        created_at: new Date().toISOString()
+      });
     } else {
       return res.status(400).json({ error: 'unknown campaign' });
     }
@@ -1111,22 +1145,32 @@ app.post('/admin/approve-subscription', express.json(), async (req, res) => {
   }
 });
 
-// Fallback endpoints for frontend demo/fallback mode
-app.get('/api/tasks', async (req, res) => {
-  res.json([]);
-});
+/**
+ * Initializes and starts the Express server.
+ * This async wrapper ensures that any future asynchronous initialization
+ * (like database connections or cache warming) completes before the server
+ * starts accepting requests, preventing race conditions on startup.
+ */
+async function startServer() {
+  // This function ensures all asynchronous initialization is complete before
+  // the server starts accepting requests. This prevents race conditions where
+  // a request arrives before a dependency (like the database) is ready.
+  if (supabase) {
+    console.log('Verifying database connection...');
+    // Perform a simple query to ensure the database is reachable.
+    const { error } = await supabase.from('plans').select('id', { head: true, count: 'exact' });
+    if (error) {
+      throw new Error(`Database connection check failed: ${error.message}`);
+    }
+    console.log('Database connection verified.');
+  }
+  // Bind to 0.0.0.0 inside the container so the mapped host port is reachable.
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Backend listening on http://0.0.0.0:${PORT}`);
+  });
+}
 
-app.get('/api/runs', async (req, res) => {
-  res.json([]);
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });
-
-app.get('/api/dashboard', async (req, res) => {
-  res.json({});
-});
-
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
-
-// Bind to 0.0.0.0 inside the container so the mapped host port is reachable.
-app.listen(PORT, '0.0.0.0', () => console.log(`Backend listening on http://0.0.0.0:${PORT}`));

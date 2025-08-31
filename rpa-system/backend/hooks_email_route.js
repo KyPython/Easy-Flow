@@ -16,7 +16,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
 
 // POST /hooks/email
-router.post('/hooks/email', async (req, res) => {
+router.post('/email', async (req, res) => {
   // optional secret check
   if (SEND_EMAIL_WEBHOOK_SECRET) {
     const secretHeader = req.get('X-Webhook-Secret')

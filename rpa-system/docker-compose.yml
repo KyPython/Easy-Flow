@@ -1,4 +1,17 @@
 services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: rpa-system-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - hooks_probe
+      - automation
+    restart: unless-stopped
+
   backend:
     image: node:20-alpine
     working_dir: /workspace
@@ -11,7 +24,7 @@ services:
       - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE}
       - AUTOMATION_URL=http://automation:7001/run
       - SUPABASE_BUCKET=${SUPABASE_BUCKET:-artifacts}
-      - SUPABASE_USE_SIGNED_URLS=${SUPABASE_USE_SIGNED_URLS:-true}
+      - SUPABASE_USE_SIGNED_URLS=true
       - SUPABASE_SIGNED_URL_EXPIRES=${SUPABASE_SIGNED_URL_EXPIRES:-86400}
       - DOWNLOADS_DIR_CONTAINER=/downloads
       - DOWNLOADS_DIR_HOST=/workspace/downloads
@@ -69,10 +82,9 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE}
-      - SEND_EMAIL_WEBHOOK=${SEND_EMAIL_WEBHOOK}
       - SEND_EMAIL_WEBHOOK_SECRET=${SEND_EMAIL_WEBHOOK_SECRET}
       - EMAIL_WORKER_POLL_MS=5000
-    command: ["sh","-c","npm install && node backend/workers/email_worker.js"]
+    command: ["sh", "-c", "npm install && node backend/workers/email_worker.js"]
     restart: unless-stopped
 
   hooks_probe:
@@ -82,7 +94,7 @@ services:
       - ./:/app
     environment:
       - PORT=4001
-    command: ["sh","-c","npm install express && node backend/hooks_probe.js"]
+    command: ["sh", "-c", "npm install express && node backend/hooks_probe.js"]
     ports:
       - "3001:3001"
     restart: unless-stopped
