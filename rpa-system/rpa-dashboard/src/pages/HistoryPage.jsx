@@ -40,18 +40,6 @@ const HistoryPage = () => {
     fetchRuns();
   }, [user]);
 
-  const handleNewTask = (newTask) => {
-    const mapped = {
-      id: newTask.id,
-      url: newTask.automation_tasks?.url || 'N/A',
-      type: newTask.automation_tasks?.name || 'Unknown Task',
-      status: newTask.status,
-      created_at: newTask.started_at || new Date().toISOString(),
-      artifact_url: newTask.result?.pdf || null,
-      result: newTask.result
-    };
-    setRuns(prev => [mapped, ...prev]);
-  };
 
   const handleViewTask = (task) => {
     if (task.result) alert(`Task Result:\n\n${JSON.stringify(task.result, null, 2)}`);

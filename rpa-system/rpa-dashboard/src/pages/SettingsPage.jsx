@@ -10,7 +10,7 @@ export default function SettingsPage() {
   const { theme, toggle } = useTheme();
 
   // UI state
-  const [message, setMessage] = useState('');
+  const [, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Error states

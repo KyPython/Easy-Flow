@@ -12,25 +12,31 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Filter and sort tasks
+  // Filter and sort tasks safely
   const filteredTasks = tasks
     .filter(task => {
-      const matchesSearch = task.url.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           task.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           formatTaskType(task.type).toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch =
+        (task.url?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (task.username?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (formatTaskType(task.type)?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+
       const matchesFilter = filterStatus === 'all' || task.status === filterStatus;
+
       return matchesSearch && matchesFilter;
     })
     .sort((a, b) => {
       const aValue = a[sortBy];
       const bValue = b[sortBy];
       const multiplier = sortOrder === 'asc' ? 1 : -1;
-      
+
       if (sortBy === 'created_at') {
         return (new Date(aValue) - new Date(bValue)) * multiplier;
       }
-      
-      return aValue.localeCompare(bValue) * multiplier;
+
+      // Safely compare strings even if undefined
+      const aStr = aValue?.toString() || '';
+      const bStr = bValue?.toString() || '';
+      return aStr.localeCompare(bStr) * multiplier;
     });
 
   // Pagination
@@ -79,7 +85,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
               className={styles.searchInput}
             />
           </div>
-          
+
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
@@ -106,7 +112,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                   className={styles.checkbox}
                 />
               </th>
-              <th 
+              <th
                 className={styles.sortableHeader}
                 onClick={() => handleSort('type')}
               >
@@ -117,7 +123,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                   </span>
                 )}
               </th>
-              <th 
+              <th
                 className={styles.sortableHeader}
                 onClick={() => handleSort('url')}
               >
@@ -130,7 +136,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
               </th>
               <th>Status</th>
               <th>Artifact</th>
-              <th 
+              <th
                 className={styles.sortableHeader}
                 onClick={() => handleSort('created_at')}
               >
@@ -218,11 +224,11 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
           >
             Previous
           </button>
-          
+
           <span className={styles.paginationInfo}>
             Page {currentPage} of {totalPages}
           </span>
-          
+
           <button
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
