@@ -11,14 +11,13 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3030;
 const hooksEmailRouter = require('./hooks_email_route')
+const sendEmailRouter = require('./send_email_route');
 
 // CORS: allow all in dev (when no whitelist provided); restrict in prod
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
-
-app.use(hooksEmailRouter);
 
 app.use(cors({
   origin: (origin, cb) => {
@@ -31,12 +30,17 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'apikey'],
 }));
 
+// The Polar webhook needs a raw body, so its route is defined later with special middleware.
+// For all other routes, we'll use the JSON body parser. It must be registered before the routes.
 app.use((req, res, next) => {
   if (req.path === '/polar-webhook' || req.originalUrl === '/polar-webhook') {
     return next();
   }
   return express.json()(req, res, next);
 });
+
+app.use(hooksEmailRouter);
+app.use(sendEmailRouter);
 
 // Serve static files from React build (if it exists)
 const reactBuildPath = path.join(__dirname, '../rpa-dashboard/build');
@@ -707,6 +711,66 @@ app.post('/api/trigger-campaign', async (req, res) => {
     }
 
     if (!targetEmail) return res.status(400).json({ error: 'target email not found' });
+
+    // Add contact to HubSpot in the background (fire-and-forget)
+    if (process.env.HUBSPOT_API_KEY) {
+      (async () => {
+        try {
+          const hubspotPayload = {
+            properties: {
+              email: targetEmail,
+              // You can add more properties like firstname, lastname if you have them
+              lifecyclestage: 'lead',
+            },
+          };
+
+          await axios.post(
+            'https://api.hubapi.com/crm/v3/objects/contacts',
+            hubspotPayload,
+            {
+              headers: {
+                'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          console.log(`[trigger-campaign] Successfully created contact ${targetEmail} in HubSpot.`);
+        } catch (hubspotError) {
+          // If contact already exists (409), update them instead.
+          if (hubspotError.response?.status === 409 && hubspotError.response?.data?.message) {
+            console.log(`[trigger-campaign] Contact ${targetEmail} already exists. Attempting update.`);
+            try {
+              // Extract contact ID from the error message
+              const message = hubspotError.response.data.message;
+              const contactIdMatch = message.match(/Existing contact id: (\d+)/);
+              const contactId = contactIdMatch ? contactIdMatch[1] : null;
+
+              if (contactId) {
+                // Properties to update on the existing contact
+                const hubspotUpdatePayload = {
+                  properties: {
+                    lifecyclestage: 'lead',
+                    // You could add other properties to update here, like:
+                    // last_app_activity: new Date().toISOString()
+                  },
+                };
+
+                await axios.patch(
+                  `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
+                  hubspotUpdatePayload,
+                  { headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`, 'Content-Type': 'application/json' } }
+                );
+                console.log(`[trigger-campaign] Successfully updated contact ${targetEmail} in HubSpot.`);
+              }
+            } catch (updateError) {
+              console.warn(`[trigger-campaign] Failed to update existing contact in HubSpot:`, updateError.response?.data || updateError.message);
+            }
+          } else {
+            console.warn(`[trigger-campaign] Failed to add or update contact in HubSpot:`, hubspotError.response?.data || hubspotError.message);
+          }
+        }
+      })();
+    }
 
     const now = new Date();
     const inserts = [];

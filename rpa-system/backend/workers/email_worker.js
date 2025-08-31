@@ -64,7 +64,17 @@ async function handleItem(item) {
     let sent = false;
     if (SEND_EMAIL_WEBHOOK) {
       try {
-        await axios.post(SEND_EMAIL_WEBHOOK, { to_email: item.to_email, template: item.template, data: item.data }, { timeout: 15000 });
+        const secret = process.env.SEND_EMAIL_WEBHOOK_SECRET;
+        const headers = { 'Content-Type': 'application/json' };
+        if (secret) {
+          headers['Authorization'] = `Bearer ${secret}`;
+        }
+
+        await axios.post(
+          SEND_EMAIL_WEBHOOK,
+          { to_email: item.to_email, template: item.template, data: item.data },
+          { timeout: 15000, headers }
+        );
         sent = true;
       } catch (e) {
         console.warn('[email_worker] webhook send failed', e?.message || e);
