@@ -27,52 +27,103 @@ api.interceptors.request.use(
   }
 );
 
-// Example: Axios interceptor
-// (Removed duplicate import and api definition)
-
 // --- Task Management ---
 export const getTasks = async () => {
-  const { data } = await api.get('/api/tasks');
-  return data;
+  try {
+    const { data } = await api.get('/api/tasks');
+    return data;
+  } catch (e) {
+    console.error('getTasks failed:', e?.message || e);
+    alert('Unable to load tasks. Please try again later.');
+    throw e;
+  }
 };
 
 export const createTask = async (taskData) => {
-  const { data } = await api.post('/api/tasks', taskData);
-  return data;
+  try {
+    const { data } = await api.post('/api/tasks', taskData);
+    return data;
+  } catch (e) {
+    console.error('createTask failed:', e?.message || e);
+    alert('Could not create task. Please check your input and try again.');
+    throw e;
+  }
 };
 
 export const runTask = async (taskId) => {
-  const { data } = await api.post(`/api/tasks/${taskId}/run`);
-  return data;
+  try {
+    const { data } = await api.post(`/api/tasks/${taskId}/run`);
+    return data;
+  } catch (e) {
+    console.error('runTask failed:', e?.message || e);
+    alert('Failed to run the task. Please try again.');
+    throw e;
+  }
 };
 
 export const getRuns = async () => {
-  const { data } = await api.get('/api/runs');
-  return data;
+  try {
+    const { data } = await api.get('/api/runs');
+    return data;
+  } catch (e) {
+    console.error('getRuns failed:', e?.message || e);
+    alert('Unable to load runs. Please try again later.');
+    throw e;
+  }
 };
 
 export const getDashboardData = async () => {
-  const { data } = await api.get('/api/dashboard');
-  return data;
+  try {
+    const { data } = await api.get('/api/dashboard');
+    return data;
+  } catch (e) {
+    console.error('getDashboardData failed:', e?.message || e);
+    alert('Unable to load dashboard data. Please refresh or try again later.');
+    throw e;
+  }
 };
 
 export const editTask = async (taskId, taskData) => {
-  const { data } = await api.put(`/api/tasks/${taskId}`, taskData);
-  return data;
+  try {
+    const { data } = await api.put(`/api/tasks/${taskId}`, taskData);
+    return data;
+  } catch (e) {
+    console.error('editTask failed:', e?.message || e);
+    alert('Could not update the task. Please check your changes and try again.');
+    throw e;
+  }
 };
 
 export const deleteTask = async (taskId) => {
-  await api.delete(`/api/tasks/${taskId}`);
+  try {
+    await api.delete(`/api/tasks/${taskId}`);
+  } catch (e) {
+    console.error('deleteTask failed:', e?.message || e);
+    alert('Failed to delete the task. Please try again.');
+    throw e;
+  }
 };
 
 export const getPlans = async () => {
-  const { data } = await api.get('/api/plans');
-  return data;
+  try {
+    const { data } = await api.get('/api/plans');
+    return data;
+  } catch (e) {
+    console.error('getPlans failed:', e?.message || e);
+    alert('Unable to load plans. Please try again later.');
+    throw e;
+  }
 };
 
 export const getSubscription = async () => {
-  const { data } = await api.get('/api/subscription');
-  return data;
+  try {
+    const { data } = await api.get('/api/subscription');
+    return data;
+  } catch (e) {
+    console.error('getSubscription failed:', e?.message || e);
+    alert('Unable to load subscription details. Please try again later.');
+    throw e;
+  }
 };
 
 
@@ -83,6 +134,7 @@ export async function trackEvent(payload) {
   } catch (e) {
     // non-fatal; surface to console for debugging
     console.warn('trackEvent failed', e?.message || e);
+    // No alert: tracking is non-critical for user
   }
 }
 
@@ -92,6 +144,7 @@ export async function generateReferral() {
     return resp.data;
   } catch (e) {
     console.warn('generateReferral failed', e?.message || e);
+    alert('Unable to generate referral link. Please try again later.');
     return null;
   }
 }
@@ -102,6 +155,7 @@ export async function triggerCampaign(payload) {
     return resp.data;
   } catch (e) {
     console.warn('triggerCampaign failed', e?.message || e);
+    alert('Unable to trigger campaign. Please try again later.');
     return null;
   }
 }
@@ -114,6 +168,7 @@ export async function createCheckoutSession(planId) {
     return resp.data;
   } catch (e) {
     console.error('createCheckoutSession failed', e?.message || e);
+    alert('Unable to start checkout. Please try again later.');
     return null;
   }
 }

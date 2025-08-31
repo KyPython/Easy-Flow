@@ -2,16 +2,20 @@
 import React from 'react';
 import DashboardApp from './App.dashboard';
 import './App.css';
-import { Helmet } from 'react-helmet';
 
 export default function App() {
+  React.useEffect(() => {
+    document.title = "EasyFlow";
+  }, []);
+
   return (
     <>
-      <Helmet>
-        <title>EasyFlow</title>
-        <meta name="description" content="EasyFlow - Your automation solution" />
-      </Helmet>
       <DashboardApp />
     </>
   );
 }
+
+
+//src/SettingsPage.jsx (for better error handling in the UI)
+//Add error handling to your backend code to gracefully handle API failures
+//Implement a fallback for when the payment service is unavailable

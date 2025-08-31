@@ -17,6 +17,9 @@ services:
       - DOWNLOADS_DIR_HOST=/workspace/downloads
       - API_KEY=${API_KEY}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - POLAR_API_KEY=${POLAR_API_KEY}
+      - POLAR_WEBHOOK_SECRET=${POLAR_WEBHOOK_SECRET}
+      - APP_PUBLIC_URL=${APP_PUBLIC_URL}
     command: sh -c "npm install && node backend/index.js"
     ports:
       - "3030:3030"

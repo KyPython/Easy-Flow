@@ -41,7 +41,7 @@ function Shell() {
   const { user } = useAuth();
   return (
     <div className="app">
-<Header user={{ name: user?.email || 'User', role: 'Member' }} />
+      <Header user={user} />
 <main className="main-content">
   <Routes>
           <Route path="/auth" element={<AuthPage />} />

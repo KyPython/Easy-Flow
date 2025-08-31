@@ -18,6 +18,12 @@ export default function SettingsPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Error states for each section
+  const [themeError, setThemeError] = useState('');
+  const [referralError, setReferralError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [planError, setPlanError] = useState('');
+
   // Password
   const [password, setPassword] = useState('');
 
@@ -56,6 +62,7 @@ export default function SettingsPage() {
       } catch (error) {
         console.error(error);
         setMessage('Error: Could not load subscription data.');
+        setPlanError('Error: Could not load subscription data.');
       } finally {
         if (mounted) setPageLoading(false);
       }
@@ -69,12 +76,17 @@ export default function SettingsPage() {
     e.preventDefault();
     setLoading(true);
     setMessage('');
+    setPasswordError('');
     try {
       const { error } = await supabase.auth.updateUser({ password });
-      if (error) setMessage(`Failed: ${error.message}`);
+      if (error) {
+        setMessage(`Failed: ${error.message}`);
+        setPasswordError(error.message);
+      }
       else setMessage('Password updated successfully.');
     } catch {
       setMessage('Unexpected error');
+      setPasswordError('Unexpected error');
     } finally {
       setLoading(false);
     }
@@ -85,16 +97,19 @@ export default function SettingsPage() {
     e.preventDefault();
     setLoading(true);
     setMessage('');
+    setPlanError('');
     try {
       const session = await createCheckoutSession(plan);
       if (session?.url) {
         window.location.href = session.url;
       } else {
         setMessage('Could not initiate plan change. Please try again.');
+        setPlanError('Could not initiate plan change. Please try again.');
       }
     } catch (error) {
       console.error(error);
       setMessage('Error: Could not initiate plan change.');
+      setPlanError('Error: Could not initiate plan change.');
     } finally {
       setLoading(false);
     }
@@ -114,12 +129,20 @@ export default function SettingsPage() {
         <div className={styles.formRow}>
           <button
             className={`${styles.btn} ${styles.btnAlt}`}
-            onClick={toggle}
+            onClick={() => {
+              try {
+                toggle();
+                setThemeError('');
+              } catch (err) {
+                setThemeError('Failed to toggle theme.');
+              }
+            }}
             type="button"
           >
             {theme === 'light' ? 'Switch to dark' : 'Switch to light'}
           </button>
         </div>
+        {themeError && <div className={styles.error}>{themeError}</div>}
       </section>
 
       {/* Referrals (UI from 2nd) */}
@@ -134,6 +157,7 @@ export default function SettingsPage() {
             type="button"
             onClick={async () => {
               setMessage('');
+              setReferralError('');
               try {
                 const resp = await generateReferral();
                 if (resp && resp.ok) {
@@ -141,9 +165,11 @@ export default function SettingsPage() {
                   setMessage('Referral generated.');
                 } else {
                   setMessage('Failed to generate referral.');
+                  setReferralError('Failed to generate referral.');
                 }
               } catch {
                 setMessage('Unexpected error generating referral');
+                setReferralError('Unexpected error generating referral');
               }
             }}
             disabled={loading}
@@ -151,6 +177,7 @@ export default function SettingsPage() {
             Generate referral
           </button>
         </div>
+        {referralError && <div className={styles.error}>{referralError}</div>}
         {referralUrl && (
           <div style={{ marginTop: 12 }}>
             <a href={referralUrl} target="_blank" rel="noreferrer">
@@ -179,6 +206,7 @@ export default function SettingsPage() {
             Update password
           </button>
         </form>
+        {passwordError && <div className={styles.error}>{passwordError}</div>}
       </section>
 
       {/* Pricing plan (UI from 2nd, functionality from 1st) */}
@@ -215,6 +243,7 @@ export default function SettingsPage() {
                 {plan === currentPlanId ? 'Current Plan' : 'Save plan'}
               </button>
             </form>
+            {planError && <div className={styles.error}>{planError}</div>}
             <p className={styles.muted}>
               To handle payments and trials you must connect your payment
               provider server-side and record entitlements accordingly.
