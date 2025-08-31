@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../utils/AuthContext';
@@ -12,8 +12,8 @@ export default function PricingPage() {
   const [userSubscription, setUserSubscription] = useState(null);
   const [mostPopularId, setMostPopularId] = useState(null);
 
-  // Backup default plans
-  const backupPlans = [
+  // Backup default plans (memoized)
+  const backupPlans = useMemo(() => [
     {
       id: 'backup-1',
       name: 'Professional',
@@ -104,7 +104,7 @@ export default function PricingPage() {
       },
       is_most_popular: false
     }
-  ];
+  ], []);
 
   // Fetch plans from Supabase
   const fetchPlans = useCallback(async () => {
@@ -129,7 +129,7 @@ export default function PricingPage() {
       setPlans(backupPlans);
       setMostPopularId(backupPlans.find(p => p.is_most_popular).id);
     }
-  }, []);
+  }, [backupPlans]);
 
   const fetchFeatureLabels = useCallback(async () => {
     try {

@@ -14,8 +14,3 @@ export default function App() {
     </>
   );
 }
-
-
-//src/SettingsPage.jsx (for better error handling in the UI)
-//Add error handling to your backend code to gracefully handle API failures
-//Implement a fallback for when the payment service is unavailable
