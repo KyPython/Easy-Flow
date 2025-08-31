@@ -36,42 +36,34 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
   };
 
   const isValidUrl = (string) => {
-    try {
-      new URL(string);
-      return true;
-    } catch (_) {
-      return false;
-    }
+    try { new URL(string); return true; } catch (_) { return false; }
   };
 
-  const isValidEmail = (email) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
+  const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+
     setIsSubmitting(true);
     try {
       const response = await api.post('/api/run-task', form);
-      onTaskSubmit?.(response.data);
-      setForm({
-        url: '',
-        username: '',
-        password: '',
-        task: 'invoice_download',
-        pdf_url: ''
-      });
+      const completedTask = response.data;
+
+      // Notify parent
+      onTaskSubmit?.(completedTask);
+
+      setForm({ url: '', username: '', password: '', task: 'invoice_download', pdf_url: '' });
+      alert('✅ Task submitted and completed successfully!');
     } catch (error) {
       console.error('Task submission failed:', error);
+      alert('❌ Task submission failed. Check console for details.');
     } finally {
       setIsSubmitting(false);
     }
@@ -83,6 +75,7 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
         <h2 className={styles.title}>Create New Automation Task</h2>
         <p className={styles.subtitle}>Configure and execute your business process automation</p>
       </div>
+
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.formGrid}>
           <div className={styles.formGroup}>
@@ -96,16 +89,13 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
               required
             >
               {taskTypes.map(type => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
+                <option key={type.value} value={type.value}>{type.label}</option>
               ))}
             </select>
           </div>
+
           <div className={styles.formGroup}>
-            <label htmlFor="url" className={styles.label}>
-              Target URL <span className={styles.required}>*</span>
-            </label>
+            <label htmlFor="url" className={styles.label}>Target URL <span className={styles.required}>*</span></label>
             <input
               type="url"
               id="url"
@@ -118,6 +108,7 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
             />
             {errors.url && <span className={styles.errorText}>{errors.url}</span>}
           </div>
+
           <div className={styles.formGroup}>
             <label htmlFor="username" className={styles.label}>Username/Email</label>
             <input
@@ -131,6 +122,7 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
             />
             {errors.username && <span className={styles.errorText}>{errors.username}</span>}
           </div>
+
           <div className={styles.formGroup}>
             <label htmlFor="password" className={styles.label}>Password</label>
             <input
@@ -143,6 +135,7 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
               className={styles.input}
             />
           </div>
+
           <div className={styles.formGroup}>
             <label htmlFor="pdf_url" className={styles.label}>PDF URL (Optional)</label>
             <input
@@ -156,20 +149,12 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
             />
           </div>
         </div>
+
         <div className={styles.actions}>
-          <button
-            type="submit"
-            disabled={isSubmitting || loading}
-            className={styles.submitButton}
-          >
-            {isSubmitting ? (
-              <>
-                <span className={styles.spinner}></span>
-                Executing...
-              </>
-            ) : (
-              'Run Automation'
-            )}
+          <button type="submit" disabled={isSubmitting || loading} className={styles.submitButton}>
+            {isSubmitting ? <>
+              <span className={styles.spinner}></span> Executing...
+            </> : 'Run Automation'}
           </button>
         </div>
       </form>

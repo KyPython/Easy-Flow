@@ -1,9 +1,9 @@
-// ...existing code...
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from './Dashboard.module.css';
 import { triggerCampaign } from '../../utils/api';
 import MetricCard from '../MetricCard/MetricCard';
+
 
 const Dashboard = ({ metrics, recentTasks }) => {
   const navigate = useNavigate();
@@ -40,6 +40,7 @@ const Dashboard = ({ metrics, recentTasks }) => {
 
   return (
     <div className={styles.dashboard}>
+      {/* Header */}
       <div className={styles.header}>
         <h1 className={styles.title}>Business Automation Dashboard</h1>
         <p className={styles.subtitle}>
@@ -47,6 +48,7 @@ const Dashboard = ({ metrics, recentTasks }) => {
         </p>
       </div>
 
+      {/* Metric cards */}
       <div className={styles.metricsGrid}>
         {metricCards.map((metric, index) => (
           <MetricCard
@@ -60,19 +62,20 @@ const Dashboard = ({ metrics, recentTasks }) => {
         ))}
       </div>
 
+      {/* Recent activity */}
       <div className={styles.recentActivity}>
         <div className={styles.activityHeader}>
           <h2 className={styles.activityTitle}>Recent Activity</h2>
           <button className={styles.viewAllButton} onClick={() => navigate('/app/history')}>View All Tasks</button>
         </div>
-        
+
         <div className={styles.activityList}>
           {(recentTasks || []).length > 0 ? (
-            (recentTasks || []).slice(0, 5).map(task => (
+            recentTasks.slice(0, 5).map(task => (
               <div key={task.id} className={styles.activityItem}>
                 <div className={styles.activityIcon}>
-                  {task.status === 'completed' ? '✅' : 
-                   task.status === 'failed' ? '❌' : 
+                  {task.status === 'completed' ? '✅' :
+                   task.status === 'failed' ? '❌' :
                    task.status === 'in_progress' ? '⏳' : '⏸️'}
                 </div>
                 <div className={styles.activityContent}>
@@ -94,6 +97,7 @@ const Dashboard = ({ metrics, recentTasks }) => {
         </div>
       </div>
 
+      {/* Quick actions */}
       <div className={styles.quickActions}>
         <h2 className={styles.quickActionsTitle}>Quick Actions</h2>
         <div className={styles.actionGrid}>
@@ -104,7 +108,7 @@ const Dashboard = ({ metrics, recentTasks }) => {
               <div className={styles.actionDesc}>Create automation task</div>
             </div>
           </button>
-          
+
           <button className={styles.actionCard} onClick={() => navigate('/app/history')}>
             <div className={styles.actionIcon}>📊</div>
             <div className={styles.actionText}>
@@ -112,7 +116,7 @@ const Dashboard = ({ metrics, recentTasks }) => {
               <div className={styles.actionDesc}>Analytics & insights</div>
             </div>
           </button>
-          
+
           <button className={styles.actionCard} onClick={() => navigate('/app/tasks')}>
             <div className={styles.actionIcon}>⚙️</div>
             <div className={styles.actionText}>
@@ -120,7 +124,7 @@ const Dashboard = ({ metrics, recentTasks }) => {
               <div className={styles.actionDesc}>Configure automation</div>
             </div>
           </button>
-          
+
           <button className={styles.actionCard}>
             <div className={styles.actionIcon}>📚</div>
             <div className={styles.actionText}>
@@ -128,15 +132,12 @@ const Dashboard = ({ metrics, recentTasks }) => {
               <div className={styles.actionDesc}>Learn & support</div>
             </div>
           </button>
-          
+
           <button
             className={styles.actionCard}
             onClick={async () => {
-              try {
-                await triggerCampaign({ reason: 'complete_onboarding' });
-              } catch (e) {
-                // no UI breakage
-              }
+              try { await triggerCampaign({ reason: 'complete_onboarding' }); } 
+              catch {}
             }}
           >
             <div className={styles.actionIcon}>✅</div>
@@ -152,4 +153,3 @@ const Dashboard = ({ metrics, recentTasks }) => {
 };
 
 export default Dashboard;
-// ...existing code...

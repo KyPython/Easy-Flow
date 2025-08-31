@@ -1,321 +1,268 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../utils/AuthContext';
 import styles from './PricingPage.module.css';
 
-// Helper to fetch most popular plan id
-async function getMostPopularPlanId() {
-  try {
-    const resp = await fetch('/api/plans/popularity');
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    return data.mostPopularPlanId || null;
-  } catch {
-    return null;
-  }
-}
-
-const plans = [
-  {
-    id: 'free',
-    name: 'Hobbyist',
-    price: 0,
-    period: 'month',
-    description: 'Get started with basic automation',
-    features: [
-      '1 automation workflow',
-      '50 automation runs/month',
-      'Basic browser automation',
-      'Email support',
-      '5 pre-built templates',
-      'Basic logging (30 days)',
-      '1GB storage'
-    ],
-    buttonText: 'Get Started Free'
-  },
-  {
-    id: 'starter',
-    name: 'Starter',
-    price: 29,
-    period: 'month',
-    description: 'Grow your business with automation',
-    features: [
-      '5 automation workflows',
-      '500 automation runs/month',
-      'Advanced automation',
-      'Email support (24-48h)',
-      'Unlimited custom templates',
-      'Advanced logging (90 days)',
-      '10GB storage',
-      'Basic analytics',
-      'Webhook integrations'
-    ],
-    buttonText: 'Start Free Trial'
-  },
-  {
-    id: 'professional',
-    name: 'Professional',
-    price: 99,
-    period: 'month',
-    description: 'Scale your operations',
-    features: [
-      '25 automation workflows',
-      '5,000 automation runs/month',
-      'Enterprise automation',
-      'Priority support (4-8h)',
-      'Advanced templates',
-      'Full logging (1 year)',
-      '100GB storage',
-      'Advanced analytics',
-      'Team collaboration (5 users)',
-      'Custom integrations',
-      'Scheduled automations',
-      'Error handling & retries'
-    ],
-    buttonText: 'Start Free Trial'
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: 299,
-    period: 'month',
-    description: 'Enterprise-grade automation',
-    features: [
-      'Unlimited workflows',
-      '50,000 runs/month',
-      'Enterprise features (SSO, LDAP)',
-      'Dedicated support (2-4h)',
-      'Custom development',
-      'Unlimited storage',
-      'Enterprise analytics',
-      'Unlimited team members',
-      'Advanced security',
-      'Full API access',
-      'White-label options',
-      'SLA guarantees'
-    ],
-    buttonText: 'Contact Sales'
-  }
-];
-
 export default function PricingPage() {
-  const [user, setUser] = useState(null);
-  const [userPlan, setUserPlan] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [mostPopularId, setMostPopularId] = useState(null);
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const [plans, setPlans] = useState([]);
+  const [featureLabels, setFeatureLabels] = useState({});
+  const [userSubscription, setUserSubscription] = useState(null);
+  const [mostPopularId, setMostPopularId] = useState(null);
 
-  const fetchUserPlan = async (userId) => {
+  // Backup default plans
+  const backupPlans = [
+    {
+      id: 'backup-1',
+      name: 'Professional',
+      price_cents: 9900,
+      billing_interval: 'month',
+      description: 'Professional plan for teams needing advanced automation.',
+      polar_url: '#',
+      feature_flags: {
+        storage_gb: 50,
+        priority_support: true,
+        full_logging: true,
+        advanced_analytics: true,
+        advanced_templates: true,
+        custom_integrations: true,
+        automation_workflows: true,
+        enterprise_automation: true,
+        scheduled_automations: true,
+        error_handling: true,
+        team_collaboration: true,
+        automation_runs: 1000
+      },
+      is_most_popular: true
+    },
+    {
+      id: 'backup-2',
+      name: 'Starter',
+      price_cents: 2900,
+      billing_interval: 'month',
+      description: 'Starter plan for small teams with basic automation needs.',
+      polar_url: '#',
+      feature_flags: {
+        storage_gb: 10,
+        email_support: true,
+        basic_analytics: true,
+        advanced_automation: true,
+        automation_workflows: true,
+        webhook_integrations: true,
+        advanced_logging_days: 7,
+        automation_runs: 100,
+        unlimited_custom_templates: true
+      },
+      is_most_popular: false
+    },
+    {
+      id: 'backup-3',
+      name: 'Enterprise',
+      price_cents: 29900,
+      billing_interval: 'month',
+      description: 'Enterprise plan for large organizations with full automation features.',
+      polar_url: '#',
+      feature_flags: {
+        storage_gb: 500,
+        white_label_options: true,
+        contact_sales: true,
+        requires_sales_team: true,
+        sla_guarantees: true,
+        full_api_access: true,
+        priority_support: true,
+        advanced_security: true,
+        dedicated_support: true,
+        full_logging: true,
+        unlimited_storage: true,
+        advanced_analytics: true,
+        advanced_templates: true,
+        custom_development: true,
+        custom_integrations: true,
+        enterprise_features: true,
+        unlimited_workflows: true,
+        enterprise_automation: true,
+        scheduled_automations: true,
+        error_handling: true,
+        unlimited_team_members: true,
+        team_collaboration: true,
+        automation_runs: 10000
+      },
+      is_most_popular: false
+    },
+    {
+      id: 'backup-4',
+      name: 'Hobbyist',
+      price_cents: 0,
+      billing_interval: 'month',
+      description: 'Hobbyist plan for individuals starting automation.',
+      polar_url: '#',
+      feature_flags: {
+        storage_gb: 5,
+        automation_runs: 50
+      },
+      is_most_popular: false
+    }
+  ];
+
+  // Fetch plans from Supabase
+  const fetchPlans = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('user_plans')
-        .select('*')
-        .eq('user_id', userId)
+        .from('plans')
+        .select('id, name, price_cents, billing_interval, description, polar_url, feature_flags, is_most_popular')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      if (data && data.length) {
+        setPlans(data);
+        const popularPlan = data.find(p => p.is_most_popular) || data[0];
+        if (popularPlan) setMostPopularId(popularPlan.id);
+      } else {
+        setPlans(backupPlans);
+        setMostPopularId(backupPlans.find(p => p.is_most_popular).id);
+      }
+    } catch (err) {
+      console.error('Error fetching plans, using backup:', err);
+      setPlans(backupPlans);
+      setMostPopularId(backupPlans.find(p => p.is_most_popular).id);
+    }
+  }, []);
+
+  const fetchFeatureLabels = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('plan_feature_labels')
+        .select('feature_key, feature_label');
+
+      if (error) throw error;
+
+      const mapping = {};
+      data?.forEach(f => {
+        mapping[f.feature_key] = f.feature_label;
+      });
+      setFeatureLabels(mapping);
+    } catch (err) {
+      console.error('Error fetching feature labels, using default keys:', err);
+    }
+  }, []);
+
+  const fetchUserSubscription = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('*, plan:plans(*)')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user plan:', error);
-      } else if (data) {
-        setUserPlan(data);
-      }
-    } catch (error) {
-      console.error('Error fetching user plan:', error);
+      if (error && error.code !== 'PGRST116') throw error;
+      setUserSubscription(data || null);
+    } catch (err) {
+      console.error('Error fetching user subscription:', err);
     }
-  };
-
-  // Memoize checkUser so it can be safely used in useEffect dependencies
-  const checkUser = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
-        await fetchUserPlan(user.id);
-      }
-    } catch (error) {
-      console.error('Error checking user:', error);
-    }
-  }, []); // No dependencies needed unless you use something from props/state
+  }, [user]);
 
   useEffect(() => {
-    checkUser();
-    (async () => {
-      const id = await getMostPopularPlanId();
-      setMostPopularId(id);
-    })();
-  }, [checkUser]); // Include checkUser in dependency array
+    fetchPlans();
+    fetchFeatureLabels();
+    fetchUserSubscription();
+  }, [fetchPlans, fetchFeatureLabels, fetchUserSubscription]);
 
-  const startFreeTrial = async (planId) => {
+  const startPlan = plan => {
     if (!user) {
       navigate('/auth');
       return;
     }
-
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      // Check if user already has a plan
-      if (userPlan) {
-        setError('You already have an active plan. Please contact support to change plans.');
-        return;
-      }
-
-      // Create new user plan with free trial
-      const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + 14); // 14-day free trial
-
-      const { error } = await supabase
-        .from('user_plans')
-        .insert({
-          user_id: user.id,
-          plan_id: planId,
-          status: 'trial',
-          trial_start: new Date().toISOString(),
-          trial_end: trialEndDate.toISOString(),
-          current_period_start: new Date().toISOString(),
-          current_period_end: trialEndDate.toISOString()
-        });
-
-      if (error) throw error;
-
-      setSuccess(`Free trial started for ${plans.find(p => p.id === planId)?.name} plan!`);
-      
-      // Refresh user plan
-      await fetchUserPlan(user.id);
-      
-      // Redirect to dashboard after a short delay
-      setTimeout(() => {
-        navigate('/app');
-      }, 2000);
-
-    } catch (error) {
-      setError('Failed to start free trial. Please try again.');
-      console.error('Error starting free trial:', error);
-    } finally {
-      setLoading(false);
-    }
+    if (!plan.polar_url) return;
+    window.open(plan.polar_url, '_blank');
   };
 
-  const getCurrentPlanStatus = () => {
-    if (!userPlan) return null;
-    
-    const plan = plans.find(p => p.id === userPlan.plan_id);
-    if (!plan) return null;
-
-    if (userPlan.status === 'trial') {
-      const trialEnd = new Date(userPlan.trial_end);
-      const now = new Date();
-      const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
-      
-      return {
-        type: 'trial',
-        plan: plan.name,
-        daysLeft: Math.max(0, daysLeft),
-        message: `You're currently on a free trial of ${plan.name}. ${daysLeft > 0 ? `${daysLeft} days remaining.` : 'Trial expired.'}`
-      };
-    }
-
-    return {
-      type: 'active',
-      plan: plan.name,
-      message: `You're currently on the ${plan.name} plan.`
-    };
-  };
-
-  const currentStatus = getCurrentPlanStatus();
+  const currentPlanName = userSubscription?.plan?.name || 'Free';
 
   return (
     <div className={styles.pricingPage}>
-      <div className={styles.header}>
+      <header className={styles.header}>
         <h1>Choose Your Plan</h1>
         <p>Start automating your workflows today with our flexible pricing options</p>
-        <div style={{ margin: '20px 0', padding: '15px', background: '#e7f3ff', border: '1px solid #007bff', borderRadius: '5px', textAlign: 'center' }}>
-          <p style={{ margin: 0, fontWeight: 'bold', color: '#0056b3' }}>
-            All paid plans include a 14-day free trial with no credit card required.
-          </p>
+        <div className={styles.trialInfo}>
+          <p>All paid plans include a 14-day free trial.</p>
         </div>
-        {currentStatus && (
-          <div className={`${styles.currentPlan} ${currentStatus.type === 'trial' ? styles.trial : styles.active}`}>
-            <span>{currentStatus.message}</span>
-            {currentStatus.type === 'trial' && currentStatus.daysLeft > 0 && (
-              <span className={styles.trialDays}>{currentStatus.daysLeft} days left</span>
-            )}
+        {userSubscription && (
+          <div className={styles.currentPlan}>
+            <span>Current plan: {currentPlanName}</span>
           </div>
         )}
-      </div>
+      </header>
+
       <div className={styles.plansGrid}>
-        {plans.map((plan) => (
-          <div 
-            key={plan.id} 
-            className={`${styles.planCard} ${plan.id === mostPopularId ? styles.popular : ''}`}
-          >
-            {plan.id === mostPopularId && <div className={styles.popularBadge}>Most Popular</div>}
-            <div className={styles.planHeader}>
+        {plans.map(plan => {
+          const features = plan.feature_flags
+            ? Object.entries(plan.feature_flags)
+                .filter(([_, value]) => value)
+                .map(([key, value]) => {
+                  const label = featureLabels[key] || key;
+                  return value === true ? label : `${label}: ${value}`;
+                })
+            : [];
+
+          return (
+            <div
+              key={plan.id}
+              className={`${styles.planCard} ${plan.id === mostPopularId ? styles.popular : ''}`}
+            >
+              {plan.id === mostPopularId && <div className={styles.popularBadge}>Most Popular</div>}
               <h3>{plan.name}</h3>
               <div className={styles.price}>
                 <span className={styles.currency}>$</span>
-                <span className={styles.amount}>{plan.price}</span>
-                <span className={styles.period}>/{plan.period}</span>
+                <span className={styles.amount}>{(plan.price_cents / 100).toFixed(2)}</span>
+                <span className={styles.period}>/{plan.billing_interval}</span>
               </div>
-              <p className={styles.description}>{plan.description}</p>
+              <p className={styles.description}>{plan.description || ''}</p>
+              <ul className={styles.features}>
+                {features.map((label, i) => (
+                  <li key={i}>
+                    <span className={styles.checkmark}>✓</span> {label}
+                  </li>
+                ))}
+              </ul>
+              <button
+                className={styles.planButton}
+                onClick={() => startPlan(plan)}
+                disabled={userSubscription?.plan_id === plan.id}
+              >
+                {userSubscription?.plan_id === plan.id ? 'Current Plan' : 'Start Plan'}
+              </button>
             </div>
-            <ul className={styles.features}>
-              {plan.features.map((feature, index) => (
-                <li key={index}>
-                  <span className={styles.checkmark}>✓</span>
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <button
-              className={`${styles.planButton} ${plan.id === mostPopularId ? styles.popularButton : ''}`}
-              onClick={() => startFreeTrial(plan.id)}
-              disabled={loading || (userPlan && userPlan.plan_id === plan.id)}
-            >
-              {loading ? 'Processing...' : 
-               userPlan && userPlan.plan_id === plan.id ? 'Current Plan' : 
-               plan.buttonText}
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      {error && <div className={styles.error}>{error}</div>}
-      {success && <div className={styles.success}>{success}</div>}
-      <div className={styles.faq}>
+
+      <section className={styles.faq}>
         <h2>Frequently Asked Questions</h2>
         <div className={styles.faqGrid}>
           <div className={styles.faqItem}>
             <h4>How does the free trial work?</h4>
-            <p>All paid plans come with a 14-day free trial. No credit card required. You can cancel anytime during the trial period.</p>
+            <p>All paid plans come with a 14-day free trial.</p>
           </div>
           <div className={styles.faqItem}>
             <h4>Can I change plans later?</h4>
-            <p>Yes! You can upgrade or downgrade your plan at any time. Changes take effect at the start of your next billing cycle.</p>
+            <p>You can upgrade or downgrade your plan at any time. Changes take effect at the start of your next billing cycle.</p>
           </div>
           <div className={styles.faqItem}>
             <h4>What happens after my trial ends?</h4>
-            <p>Upon completion of your 14-day trial, your account will be automatically upgraded to the selected paid plan. To ensure a seamless transition, please add a payment method before your trial concludes.</p>
-          </div>
-          <div className={styles.faqItem}>
-            <h4>Is there a setup fee?</h4>
-            <p>No setup fees! You only pay the monthly subscription price. Enterprise customers may have custom onboarding costs.</p>
-          </div>
-          <div className={styles.faqItem}>
-            <h4>Is email support included in all plans?</h4>
-            <p>Yes, email support is provided to all users, both free and paid. Paid plans offer faster, prioritized support.</p>
+            <p>Your account will be upgraded to the paid plan unless cancelled.</p>
           </div>
         </div>
-      </div>
+      </section>
+
       <div className={styles.cta}>
         <h3>Ready to automate your workflow?</h3>
         <p>Join thousands of businesses saving time and money with EasyFlow</p>
-        <button 
-          className={styles.ctaButton}
-          onClick={() => navigate('/auth')}
-        >
+        <button className={styles.ctaButton} onClick={() => navigate('/auth')}>
           Get Started Today
         </button>
       </div>

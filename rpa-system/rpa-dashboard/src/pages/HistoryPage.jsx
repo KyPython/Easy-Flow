@@ -1,81 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import TaskList from '../components/TaskList/TaskList';
-import { getRuns } from '../utils/api';
 import { useAuth } from '../utils/AuthContext';
+import { supabase } from '../utils/supabaseClient';
 import styles from './HistoryPage.module.css';
 
-// Robust fallback data for when backend is unavailable
+// Demo fallback
 const fallbackRuns = [
-  {
-    id: 1,
-    automation_tasks: {
-      name: 'Daily Sales Report',
-      url: 'https://crm.example.com/reports'
-    },
-    status: 'completed',
-    started_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    result: { 
-      pdf: 'https://example.com/reports/sales-report-2025-01-27.pdf',
-      summary: 'Successfully extracted 156 sales records'
-    }
-  },
-  {
-    id: 2,
-    automation_tasks: {
-      name: 'Invoice Processing',
-      url: 'https://accounting.example.com/invoices'
-    },
-    status: 'completed',
-    started_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-    result: { 
-      summary: 'Processed 23 invoices, 2 flagged for review'
-    }
-  },
-  {
-    id: 3,
-    automation_tasks: {
-      name: 'Customer Data Sync',
-      url: 'https://customers.example.com/sync'
-    },
-    status: 'failed',
-    started_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-    result: { 
-      error: 'Connection timeout to external API'
-    }
-  },
-  {
-    id: 4,
-    automation_tasks: {
-      name: 'Inventory Update',
-      url: 'https://inventory.example.com/update'
-    },
-    status: 'in_progress',
-    started_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    result: null
-  },
-  {
-    id: 5,
-    automation_tasks: {
-      name: 'Email Campaign Analytics',
-      url: 'https://marketing.example.com/analytics'
-    },
-    status: 'completed',
-    started_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    result: { 
-      pdf: 'https://example.com/reports/email-analytics-2025-01-26.pdf',
-      summary: 'Campaign reached 5,432 recipients, 18.5% open rate'
-    }
-  }
+  { id: 1, automation_tasks: { name: 'Demo Task', url: '#' }, status: 'completed', started_at: new Date().toISOString(), result: { summary: 'Demo result' } }
 ];
 
 const HistoryPage = () => {
   const { user } = useAuth();
-  const [runs, setRuns] = useState(fallbackRuns);
+  const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [isUsingFallback, setIsUsingFallback] = useState(false);
-
-  // Edit modal state
   const [editingTask, setEditingTask] = useState(null);
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
@@ -83,59 +21,41 @@ const HistoryPage = () => {
 
   useEffect(() => {
     const fetchRuns = async () => {
+      if (!user) return;
       try {
         setLoading(true);
-        setError(null);
-        
-        // Try to fetch real data with timeout
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Request timeout')), 5000)
-        );
-        
-        const runsPromise = getRuns();
-        const fetchedRuns = await Promise.race([runsPromise, timeoutPromise]);
-        
-        setRuns(fetchedRuns && fetchedRuns.length > 0 ? fetchedRuns : fallbackRuns);
+        const { data, error } = await supabase.from('automation_runs')
+          .select(`id,status,started_at,result,automation_tasks(name,url)`)
+          .eq('user_id', user.id)
+          .order('started_at', { ascending: false });
+        if (error) throw error;
+        setRuns(data || []);
         setIsUsingFallback(false);
-        
       } catch (err) {
-        console.warn('Backend unavailable for history, using fallback data:', err.message);
+        console.warn('Using fallback:', err.message);
         setRuns(fallbackRuns);
         setIsUsingFallback(true);
-        setError(null); // Don't show error, just use fallback
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     };
-
-    if (user) {
-      fetchRuns();
-    } else {
-      // Show fallback data even without user for demo purposes
-      setRuns(fallbackRuns);
-      setIsUsingFallback(true);
-    }
+    fetchRuns();
   }, [user]);
 
-  // Map the fetched run data to the structure expected by the TaskList component
-  const mappedTasks = runs.map(run => ({
-    id: run.id,
-    url: run.automation_tasks?.url || 'N/A',
-    username: '', // Not available in the runs data
-    type: run.automation_tasks?.name || 'Unknown Task',
-    status: run.status,
-    created_at: run.started_at,
-    artifact_url: run.result?.pdf || null,
-    result: run.result,
-  }));
+  const handleNewTask = (newTask) => {
+    const mapped = {
+      id: newTask.id,
+      url: newTask.automation_tasks?.url || 'N/A',
+      type: newTask.automation_tasks?.name || 'Unknown Task',
+      status: newTask.status,
+      created_at: newTask.started_at || new Date().toISOString(),
+      artifact_url: newTask.result?.pdf || null,
+      result: newTask.result
+    };
+    setRuns(prev => [mapped, ...prev]);
+  };
 
   const handleViewTask = (task) => {
-    if (task.result) {
-      const resultText = JSON.stringify(task.result, null, 2);
-      alert(`Task Result:\n\n${resultText}`);
-    } else {
-      alert('No result data available for this task.');
-    }
+    if (task.result) alert(`Task Result:\n\n${JSON.stringify(task.result, null, 2)}`);
+    else alert('No result data available for this task.');
   };
 
   const handleEditTask = (task) => {
@@ -147,170 +67,47 @@ const HistoryPage = () => {
 
   const handleEditSubmit = (e) => {
     e.preventDefault();
-    if (!editName || !editUrl) {
-      setEditError('Task Name and URL are required.');
-      return;
-    }
-    // Demo mode: update locally
+    if (!editName || !editUrl) { setEditError('Task Name and URL are required.'); return; }
     setRuns(prev => prev.map(t => t.id === editingTask.id ? { ...t, type: editName, url: editUrl } : t));
     setEditingTask(null);
     alert('✏️ Task edited in demo mode!');
   };
 
   const handleDeleteTask = (task) => {
-    if (window.confirm(`Are you sure you want to delete "${task.type}"?`)) {
-      // Demo mode: delete locally
+    if (window.confirm(`Delete "${task.type}"?`)) {
       setRuns(prev => prev.filter(t => t.id !== task.id));
       alert('🗑️ Task deleted in demo mode!');
     }
   };
 
-  const handleRefresh = () => {
-    if (isUsingFallback) {
-      alert('🔄 In demo mode - showing sample automation history. Connect to backend for real data.');
-      return;
-    }
-    // Refresh the data
-    const fetchRuns = async () => {
-      try {
-        setLoading(true);
-        const fetchedRuns = await getRuns();
-        setRuns(fetchedRuns || fallbackRuns);
-      } catch (err) {
-        console.error('Failed to refresh runs:', err);
-        setError('Failed to refresh automation history.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRuns();
-  };
-
-  if (loading) {
-    return (
-      <div className={styles.container}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          minHeight: '400px',
-          color: 'var(--text-muted)'
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ 
-              width: '40px', 
-              height: '40px', 
-              border: '3px solid var(--color-primary-200)', 
-              borderTop: '3px solid var(--color-primary-600)',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto 1rem'
-            }}></div>
-            <p>Loading automation history...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className={styles.container}><p>Loading automation history...</p></div>;
 
   return (
     <div className={styles.container}>
       {isUsingFallback && (
-        <div style={{
-          background: 'var(--color-warning-50)',
-          border: '1px solid var(--color-warning-200)',
-          color: 'var(--color-warning-800)',
-          padding: 'var(--spacing-md)',
-          borderRadius: 'var(--radius-md)',
-          margin: '0 0 var(--spacing-lg) 0',
-          textAlign: 'center',
-          fontSize: 'var(--font-size-sm)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <span>📡 Demo Mode: Showing sample automation history</span>
-          <button 
-            onClick={handleRefresh}
-            style={{
-              background: 'var(--color-warning-600)',
-              color: 'white',
-              border: 'none',
-              padding: 'var(--spacing-xs) var(--spacing-sm)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 'var(--font-size-xs)',
-              cursor: 'pointer'
-            }}
-          >
-            🔄 Refresh
-          </button>
+        <div style={{ background: '#FFF4E5', border: '1px solid #FFD380', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center' }}>
+          📡 Backend unavailable: Showing fallback data
         </div>
       )}
 
-      {error && (
-        <div className={styles.error}>
-          {error}
-          <button 
-            onClick={handleRefresh}
-            style={{
-              marginLeft: 'var(--spacing-md)',
-              background: 'var(--color-error-600)',
-              color: 'white',
-              border: 'none',
-              padding: 'var(--spacing-xs) var(--spacing-sm)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 'var(--font-size-xs)',
-              cursor: 'pointer'
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {mappedTasks.length === 0 ? (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: 'var(--spacing-3xl)', 
-          color: 'var(--text-muted)',
-          background: 'var(--card-bg)',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--color-gray-200)'
-        }}>
-          <div style={{ fontSize: '4rem', marginBottom: 'var(--spacing-lg)' }}>📊</div>
-          <h3 className="text-heading-3" style={{ marginBottom: 'var(--spacing-md)' }}>No Automation History</h3>
-          <p className="text-body">Your automation runs will appear here once you start executing tasks.</p>
+      {runs.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '4rem', color: '#888', border: '1px solid #EEE', borderRadius: '12px' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>📊</div>
+          <h3>No Automation History</h3>
+          <p>Your automation runs will appear here once you start executing tasks.</p>
         </div>
       ) : (
-        <TaskList
-          tasks={mappedTasks}
-          onEdit={handleEditTask}
-          onDelete={handleDeleteTask}
-          onView={handleViewTask}
-        />
+        <TaskList tasks={runs} onView={handleViewTask} onEdit={handleEditTask} onDelete={handleDeleteTask} />
       )}
 
-      {/* Edit Modal */}
       {editingTask && (
         <div className={styles.modalBackdrop}>
           <div className={styles.modal}>
             <h3>Edit Task</h3>
             <form onSubmit={handleEditSubmit}>
               {editError && <p className={styles.formError}>{editError}</p>}
-              <input
-                type="text"
-                value={editName}
-                onChange={e => setEditName(e.target.value)}
-                className={styles.input}
-                required
-              />
-              <input
-                type="url"
-                value={editUrl}
-                onChange={e => setEditUrl(e.target.value)}
-                className={styles.input}
-                required
-              />
+              <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className={styles.input} required />
+              <input type="url" value={editUrl} onChange={e => setEditUrl(e.target.value)} className={styles.input} required />
               <button type="submit" className={styles.submitButton}>Save</button>
               <button type="button" className={styles.cancelButton} onClick={() => setEditingTask(null)}>Cancel</button>
             </form>
