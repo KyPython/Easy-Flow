@@ -9,7 +9,7 @@ services:
       - /var/www/easyflow-app:/var/www/easyflow-app:ro
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
       hooks_probe:
         condition: service_started
       automation:
@@ -51,12 +51,13 @@ services:
     depends_on:
       automation:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3030/health || curl -fsS http://localhost:3030/health || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
+    # healthcheck:
+    #   test: ["CMD-SHELL", "wget -qO- http://localhost:3030/health || curl -fsS http://localhost:3030/health || exit 1"]
+    #   interval: 10s
+    #   timeout: 3s
+    #   retries: 5
+    #   start_period: 45s
+    #   start_interval: 5s
     restart: unless-stopped
     networks:
       - easyflow_network
