@@ -3,7 +3,7 @@ import TaskList from '../components/TaskList/TaskList';
 import { useAuth } from '../utils/AuthContext';
 import { supabase } from '../utils/supabaseClient';
 import styles from './HistoryPage.module.css';
-import ErrorMessage from '../components/ErrorMessage/ErrorMessage';
+import ErrorMessage from '../components/ErrorMessage';
 const HistoryPage = () => {
   const { user } = useAuth();
   const [runs, setRuns] = useState([]);

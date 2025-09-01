@@ -1,0 +1,22 @@
+.errorContainer {
+  background: #FFFBEB; /* A light, non-intrusive yellow */
+  border: 1px solid #FEE2E2;
+  color: #B91C1C; /* A dark red for high contrast and readability */
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1rem;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.errorIcon {
+  font-size: 1.2rem;
+}
+
+.errorMessage {
+  font-size: 0.9rem;
+  font-weight: 500;
+}

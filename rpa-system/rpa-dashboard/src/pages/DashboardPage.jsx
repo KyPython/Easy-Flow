@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../utils/AuthContext';
 import Dashboard from '../components/Dashboard/Dashboard';
 import { supabase } from '../utils/supabaseClient';
-import ErrorMessage from '../components/ErrorMessage/ErrorMessage';
+import ErrorMessage from '../components/ErrorMessage';
 
 const DashboardPage = () => {
   const { user, loading: authLoading } = useAuth();
