@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../utils/AuthContext';
 import Dashboard from '../components/Dashboard/Dashboard';
 import { supabase } from '../utils/supabaseClient';
+import ErrorMessage from '../components/ErrorMessage/ErrorMessage';
 
 const DashboardPage = () => {
   const { user, loading: authLoading } = useAuth();
@@ -13,7 +14,7 @@ const DashboardPage = () => {
   });
   const [recentTasks, setRecentTasks] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [isUsingFallback, setIsUsingFallback] = useState(false);
+  const [error, setError] = useState('');
 
   // Fetch dashboard data from Supabase RPC
   const fetchDashboardData = useCallback(async () => {
@@ -43,10 +44,9 @@ const DashboardPage = () => {
         result: run.result || null
       })));
 
-      setIsUsingFallback(false);
     } catch (err) {
-      console.warn('Backend unavailable, using fallback data:', err.message);
-      setIsUsingFallback(true);
+      console.error('Failed to fetch dashboard data:', err.message || err);
+      setError(err.message || 'Could not load dashboard data. The backend may be unavailable.');
     } finally {
       setLoading(false);
     }
@@ -110,20 +110,7 @@ const DashboardPage = () => {
 
   return (
     <>
-      {isUsingFallback && (
-        <div style={{
-          background: 'var(--color-warning-50)',
-          border: '1px solid var(--color-warning-200)',
-          color: 'var(--color-warning-800)',
-          padding: 'var(--spacing-md)',
-          borderRadius: 'var(--radius-md)',
-          margin: 'var(--spacing-lg)',
-          textAlign: 'center',
-          fontSize: 'var(--font-size-sm)'
-        }}>
-          📡 Demo Mode: Showing sample data while backend is connecting...
-        </div>
-      )}
+      <ErrorMessage message={error} />
 
       <Dashboard metrics={metrics} recentTasks={recentTasks} />
     </>

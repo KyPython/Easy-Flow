@@ -5,33 +5,33 @@ import { triggerCampaign } from '../../utils/api';
 import MetricCard from '../MetricCard/MetricCard';
 
 
-const Dashboard = ({ metrics, recentTasks }) => {
+const Dashboard = ({ metrics = {}, recentTasks = [] }) => {
   const navigate = useNavigate();
   const metricCards = [
     {
       title: 'Total Tasks',
-      value: metrics.totalTasks,
+      value: metrics.totalTasks || 0,
       icon: '📊',
       trend: 'up',
       subtitle: 'All time'
     },
     {
       title: 'Completed Tasks',
-      value: metrics.completedTasks,
+      value: metrics.completedTasks || 0,
       icon: '✅',
       trend: 'up',
-      subtitle: `${Math.round((metrics.completedTasks / Math.max(metrics.totalTasks, 1)) * 100)}% success rate`
+      subtitle: `${metrics.totalTasks ? Math.round((metrics.completedTasks / metrics.totalTasks) * 100) : 0}% success rate`
     },
     {
       title: 'Time Saved',
-      value: `${metrics.timeSavedHours}h`,
+      value: `${metrics.timeSavedHours || 0}h`,
       icon: '⏰',
       trend: 'up',
       subtitle: 'This month'
     },
     {
       title: 'Documents Processed',
-      value: metrics.documentsProcessed,
+      value: metrics.documentsProcessed || 0,
       icon: '📄',
       trend: 'up',
       subtitle: 'Files automated'
@@ -70,7 +70,7 @@ const Dashboard = ({ metrics, recentTasks }) => {
         </div>
 
         <div className={styles.activityList}>
-          {(recentTasks || []).length > 0 ? (
+          {recentTasks.length > 0 ? (
             recentTasks.slice(0, 5).map(task => (
               <div key={task.id} className={styles.activityItem}>
                 <div className={styles.activityIcon}>
@@ -136,8 +136,12 @@ const Dashboard = ({ metrics, recentTasks }) => {
           <button
             className={styles.actionCard}
             onClick={async () => {
-              try { await triggerCampaign({ reason: 'complete_onboarding' }); } 
-              catch {}
+              try {
+                await triggerCampaign({ reason: 'complete_onboarding' });
+              } catch (e) {
+                // Now logs the error to the console for debugging
+                console.error("triggerCampaign failed:", e);
+              }
             }}
           >
             <div className={styles.actionIcon}>✅</div>

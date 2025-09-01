@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { supabase } from "../utils/supabaseClient";
 import TaskForm from "../components/TaskForm/TaskForm";
 import { getTasks, createTask } from "../utils/api";
 
@@ -9,11 +10,25 @@ const TasksPage = () => {
 
   useEffect(() => {
     const fetchTasks = async () => {
+      setLoading(true);
+      setError("");
+
+      // 1. Get the current user session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      // 2. Check if a session exists before making the API call
+      if (sessionError || !session) {
+        setError("You must be logged in to view tasks.");
+        setLoading(false);
+        return; // Stop execution if no valid session
+      }
+
       try {
         const data = await getTasks();
         setTasks(data);
       } catch (err) {
-        setError("Backend unavailable, using fallback data: Network Error");
+        // Replaced "Backend unavailable" with a more general message
+        setError("Failed to load tasks.");
         setTasks([]);
       } finally {
         setLoading(false);

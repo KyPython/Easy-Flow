@@ -15,25 +15,43 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
   // Filter and sort tasks safely
   const filteredTasks = tasks
     .filter(task => {
+      // Handle both run history (nested) and task list (flat) data structures
+      const taskName = task.automation_tasks?.name || task.type;
+      const taskUrl = task.automation_tasks?.url || task.url;
+
       const matchesSearch =
-        (task.url?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (taskUrl?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (task.username?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (formatTaskType(task.type)?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+        (formatTaskType(taskName)?.toLowerCase() || '').includes(searchTerm.toLowerCase());
 
       const matchesFilter = filterStatus === 'all' || task.status === filterStatus;
 
       return matchesSearch && matchesFilter;
     })
     .sort((a, b) => {
-      const aValue = a[sortBy];
-      const bValue = b[sortBy];
+      let aValue, bValue;
+
+      // Handle potentially nested properties for sorting
+      if (sortBy === 'type') {
+        aValue = a.automation_tasks?.name || a.type;
+        bValue = b.automation_tasks?.name || b.type;
+      } else if (sortBy === 'url') {
+        aValue = a.automation_tasks?.url || a.url;
+        bValue = b.automation_tasks?.url || b.url;
+      } else if (sortBy === 'created_at') {
+        aValue = a.started_at || a.created_at;
+        bValue = b.started_at || b.created_at;
+      } else {
+        aValue = a[sortBy];
+        bValue = b[sortBy];
+      }
+
       const multiplier = sortOrder === 'asc' ? 1 : -1;
 
       if (sortBy === 'created_at') {
         return (new Date(aValue) - new Date(bValue)) * multiplier;
       }
 
-      // Safely compare strings even if undefined
       const aStr = aValue?.toString() || '';
       const bStr = bValue?.toString() || '';
       return aStr.localeCompare(bStr) * multiplier;
@@ -162,11 +180,13 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                   />
                 </td>
                 <td className={styles.taskType}>
-                  {formatTaskType(task.type)}
+                  {/* Handle both run history (nested) and task list (flat) data structures */}
+                  {formatTaskType(task.automation_tasks?.name || task.type)}
                 </td>
                 <td className={styles.url}>
-                  <a href={task.url} target="_blank" rel="noopener noreferrer">
-                    {task.url}
+                  {/* Handle both run history (nested) and task list (flat) data structures */}
+                  <a href={task.automation_tasks?.url || task.url} target="_blank" rel="noopener noreferrer">
+                    {task.automation_tasks?.url || task.url}
                   </a>
                 </td>
                 <td>
@@ -182,7 +202,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                   )}
                 </td>
                 <td className={styles.date}>
-                  {formatDateTime(task.created_at)}
+                  {formatDateTime(task.started_at || task.created_at)}
                 </td>
                 <td>
                   <div className={styles.actions}>

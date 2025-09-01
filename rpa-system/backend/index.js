@@ -4,6 +4,7 @@ const axios = require('axios');
 const dotenv = require('dotenv');
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
+const morgan = require('morgan');
 const path = require('path');
 
 dotenv.config();
@@ -53,21 +54,11 @@ app.use((req, res, next) => {
   return express.json()(req, res, next);
 });
 
-// Simple logging middleware to see incoming request bodies
-app.use((req, res, next) => {
-  // We only want to log the body for POST, PUT, PATCH requests
-  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-    console.log(`[Request Logger] ${req.method} ${req.originalUrl}`);
-    // Check if body is not empty
-    if (req.body && Object.keys(req.body).length > 0) {
-      console.log('Body:', JSON.stringify(req.body, null, 2));
-    }
-  }
-  next();
-});
+// Use morgan for detailed, standardized request logging.
+// The 'dev' format is great for development, providing color-coded status codes.
+app.use(morgan('dev'));
 
 app.use('/hooks', hooksEmailRouter); // Mount hooks router on /hooks
-app.use('/api', sendEmailRouter); // Mount email sender on /api
 
 // Serve static files from React build (if it exists)
 const reactBuildPath = path.join(__dirname, '../rpa-dashboard/build');
@@ -131,6 +122,9 @@ app.get('/app', (_req, res) => {
     return res.type('text').send('App page not available');
   }
 });
+
+// --- Public API Routes ---
+// Routes that do not require a user to be logged in.
 
 // --- Public API Routes ---
 
@@ -236,6 +230,40 @@ app.get('/api/logs', async (req, res) => {
   }
 });
 
+// --- Auth Middleware (for all subsequent /api routes) ---
+// This middleware will protect all API routes defined below it.
+
+app.use('/api', async (req, res, next) => {
+  try {
+    if (!supabase) return res.status(401).json({ error: 'Unauthorized - supabase not configured' });
+
+    const authHeader = (req.get('authorization') || '').trim();
+    const parts = authHeader.split(' ');
+    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized - missing bearer token' });
+    }
+
+    // validate token via Supabase server client
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data || !data.user) {
+      return res.status(401).json({ error: 'Unauthorized - invalid token' });
+    }
+
+    // attach user to request for downstream handlers
+    req.user = data.user;
+
+    return next();
+
+  } catch (err) {
+    console.error('[auth middleware] error', err?.message || err);
+    return res.status(500).json({ error: 'Internal auth error' });
+  }
+});
+
+// --- Authenticated API Routes ---
+// All routes defined below this point will require a valid JWT.
+
 // --- Authenticated API Routes ---
 
 // --- Task Management API ---
@@ -243,6 +271,14 @@ app.get('/api/logs', async (req, res) => {
 // GET /api/tasks - Fetch all automation tasks for the user
 app.get('/api/tasks', async (req, res) => {
   try {
+    // Defensive check to ensure auth middleware has attached the user.
+    if (!req.user || !req.user.id) {
+      console.error('[GET /api/tasks] Error: req.user is not defined. This indicates the Authorization header is missing or was stripped by a proxy.');
+      // Log headers for debugging, but be careful with sensitive data in production logs.
+      console.error('[GET /api/tasks] Request Headers:', JSON.stringify(req.headers));
+      return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+    }
+
     if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
 
     const { data, error } = await supabase
@@ -262,6 +298,9 @@ app.get('/api/tasks', async (req, res) => {
 // POST /api/tasks - Create a new automation task
 app.post('/api/tasks', async (req, res) => {
   try {
+    // Defensive check
+    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+
     if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
 
     // --- Plan Limit Enforcement ---
@@ -334,6 +373,9 @@ app.post('/api/tasks/:id/run', async (req, res) => {
   let runId;
 
   try {
+    // Defensive check
+    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+
     if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
 
     // --- Plan Limit Enforcement ---
@@ -414,13 +456,16 @@ app.post('/api/tasks/:id/run', async (req, res) => {
     const response = await axios.post(automationUrl, payload, { timeout: 120000 });
     const result = response.data?.result ?? null;
 
+    // Add detailed logging for the result from the automation service
+    console.log(`[POST /api/tasks/${taskId}/run] Received result from automation service:`, JSON.stringify(result, null, 2));
+
     // 4. Update the run record with the result
     const { error: updateError } = await supabase
       .from('automation_runs')
       .update({
         status: 'completed',
         ended_at: new Date().toISOString(),
-        result: { message: 'Execution finished.', output: result },
+        result: { message: 'Execution finished.', output: result }, // The result from the automation service is saved here
       })
       .eq('id', runId);
 
@@ -454,6 +499,9 @@ app.post('/api/tasks/:id/run', async (req, res) => {
 // GET /api/runs - Fetch all automation runs for the user
 app.get('/api/runs', async (req, res) => {
   try {
+    // Defensive check
+    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+
     if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
 
     const { data, error } = await supabase
@@ -481,6 +529,9 @@ app.get('/api/runs', async (req, res) => {
 // GET /api/dashboard - Fetch dashboard statistics
 app.get('/api/dashboard', async (req, res) => {
   try {
+    // Defensive check
+    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+
     if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
 
     const userId = req.user.id;
@@ -511,6 +562,9 @@ app.get('/api/dashboard', async (req, res) => {
 // DELETE /api/tasks/:id - Delete a task
 app.delete('/api/tasks/:id', async (req, res) => {
   try {
+    // Defensive check
+    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+
     if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
 
     const { error } = await supabase
@@ -531,6 +585,9 @@ app.delete('/api/tasks/:id', async (req, res) => {
 // GET /api/subscription - Fetch user's current subscription and usage
 app.get('/api/subscription', async (req, res) => {
   try {
+    // Defensive check
+    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+
     if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
 
     const { data: subscription, error: subError } = await supabase
@@ -604,22 +661,22 @@ app.post('/api/track-event', async (req, res) => {
 // Generate a referral code for an authenticated user
 app.post('/api/generate-referral', async (req, res) => {
   try {
-    const user = req.user;
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    // Defensive check
+    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
     const crypto = require('crypto');
     const code = crypto.randomBytes(4).toString('hex');
     if (!supabase) return res.status(500).json({ error: 'server misconfigured' });
 
-    const { error } = await supabase.from('referrals').insert([{ code, owner_user_id: user.id, created_at: new Date().toISOString() }]);
+    const { error } = await supabase.from('referrals').insert([{ code, owner_user_id: req.user.id, created_at: new Date().toISOString() }]);
     if (error) {
-      console.warn('[generate-referral] db error', error.message || error);
-      return res.status(500).json({ error: 'db error' });
+      console.error('[POST /api/generate-referral] Supabase error:', error.message || error);
+      return res.status(500).json({ error: 'Failed to generate referral link.' });
     }
     const url = `${process.env.APP_PUBLIC_URL || 'http://localhost:3000'}/?ref=${code}`;
     return res.json({ ok: true, code, url });
   } catch (e) {
     console.error('[POST /api/generate-referral] error', e?.message || e);
-    return res.status(500).json({ error: 'internal' });
+    return res.status(500).json({ error: 'An unexpected error occurred.' });
   }
 });
 
@@ -645,31 +702,31 @@ app.post('/api/enqueue-email', async (req, res) => {
 // Assign an experiment variant to the authenticated user and persist in profiles.experiment_assignments
 app.post('/api/assign-experiment', async (req, res) => {
   try {
-    const user = req.user;
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    // Defensive check
+    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
     const { experiment_key, variants } = req.body || {};
     if (!experiment_key || !Array.isArray(variants) || variants.length === 0) return res.status(400).json({ error: 'experiment_key and variants[] required' });
     if (!supabase) return res.status(500).json({ error: 'server misconfigured' });
 
     // deterministic assignment by hashing user id
     const crypto = require('crypto');
-    const h = crypto.createHash('sha1').update(user.id + '::' + experiment_key).digest('hex');
+    const h = crypto.createHash('sha1').update(req.user.id + '::' + experiment_key).digest('hex');
     const n = parseInt(h.slice(0,8), 16);
     const idx = n % variants.length;
     const variant = variants[idx];
 
     // merge into profiles.experiment_assignments JSONB
     try {
-      const { data: profile } = await supabase.from('profiles').select('experiment_assignments').eq('id', user.id).maybeSingle();
+      const { data: profile } = await supabase.from('profiles').select('experiment_assignments').eq('id', req.user.id).maybeSingle();
       let assignments = (profile && profile.experiment_assignments) || {};
       assignments[experiment_key] = variant;
-      await supabase.from('profiles').update({ experiment_assignments: assignments }).eq('id', user.id);
+      await supabase.from('profiles').update({ experiment_assignments: assignments }).eq('id', req.user.id);
     } catch (e) {
       console.warn('[assign-experiment] profile update failed', e?.message || e);
     }
 
     // track assignment event
-    try { await supabase.from('marketing_events').insert([{ user_id: user.id, event_name: 'experiment_assigned', properties: { experiment_key, variant }, created_at: new Date().toISOString() }]); } catch (e) { /* noop */ }
+    try { await supabase.from('marketing_events').insert([{ user_id: req.user.id, event_name: 'experiment_assigned', properties: { experiment_key, variant }, created_at: new Date().toISOString() }]); } catch (e) { /* noop */ }
 
     return res.json({ ok: true, variant });
   } catch (e) {
@@ -681,8 +738,8 @@ app.post('/api/assign-experiment', async (req, res) => {
 // Trigger a small campaign sequence for the authenticated user (example: welcome series)
 app.post('/api/trigger-campaign', async (req, res) => {
   try {
-    const user = req.user;
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    // Defensive check
+    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
     const { campaign, to_email } = req.body || {};
     if (!campaign) return res.status(400).json({ error: 'campaign is required' });
 
@@ -690,7 +747,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
     let targetEmail = to_email || null;
     if (!targetEmail) {
       try {
-        const { data: profile, error: pErr } = await supabase.from('profiles').select('email').eq('id', user.id).maybeSingle();
+        const { data: profile, error: pErr } = await supabase.from('profiles').select('email').eq('id', req.user.id).maybeSingle();
         if (pErr) console.warn('[trigger-campaign] profile lookup error', pErr.message || pErr);
         targetEmail = profile && profile.email;
       } catch (e) {
@@ -768,20 +825,20 @@ app.post('/api/trigger-campaign', async (req, res) => {
     // Small built-in campaign: welcome (immediate) + follow-up (3 days)
     if (campaign === 'welcome') {
       inserts.push({
-        user_id: user.id,
+        user_id: req.user.id,
         to_email: targetEmail,
         template: 'welcome',
-        data: { user_id: user.id }, // Keep for template data if needed
+        data: { user_id: req.user.id }, // Keep for template data if needed
         scheduled_at: now.toISOString(),
         status: 'pending',
         created_at: new Date().toISOString()
       });
       const followup = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
       inserts.push({
-        user_id: user.id,
+        user_id: req.user.id,
         to_email: targetEmail,
         template: 'welcome_followup',
-        data: { user_id: user.id }, // Keep for template data if needed
+        data: { user_id: req.user.id }, // Keep for template data if needed
         scheduled_at: followup.toISOString(),
         status: 'pending',
         created_at: new Date().toISOString()
@@ -792,14 +849,17 @@ app.post('/api/trigger-campaign', async (req, res) => {
 
     const { error } = await supabase.from('email_queue').insert(inserts);
     if (error) {
-      console.error('[trigger-campaign] insert error', error.message || error);
-      return res.status(500).json({ error: 'db error' });
+      // This is a non-critical background task. Log the error for debugging,
+      // but return a success response to avoid showing a failure message to the user on sign-in.
+      console.error('[trigger-campaign] Failed to enqueue emails:', error.message || error);
+      return res.json({ ok: true, enqueued: 0, note: 'Failed to enqueue emails.' });
     }
 
     return res.json({ ok: true, enqueued: inserts.length });
   } catch (e) {
-    console.error('[trigger-campaign] fatal', e?.message || e);
-    return res.status(500).json({ error: 'internal' });
+    console.error('[trigger-campaign] Fatal error:', e?.message || e);
+    // Also log and return success here for the same reason.
+    return res.json({ ok: true, enqueued: 0, note: 'An internal error occurred.' });
   }
 });
 
@@ -882,10 +942,8 @@ app.get('/admin/email-queue-stats', async (req, res) => {
 // Create a checkout session for a plan (authenticated users only)
 app.post('/api/create-checkout-session', async (req, res) => {
   try {
+    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
     const { planId } = req.body || {};
-    const user = req.user;
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    if (!planId) return res.status(400).json({ error: 'planId is required' });
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
       return res.status(500).json({ error: 'Server not configured for payments (missing SUPABASE_SERVICE_ROLE)' });
@@ -917,7 +975,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
       product_id: plan.external_product_id || plan.external_product || plan.external_product_id,
       success_url: `${process.env.APP_PUBLIC_URL || 'http://localhost:3000'}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.APP_PUBLIC_URL || 'http://localhost:3000'}/billing/cancel`,
-      metadata: { userId: user.id, planId, external_payment_id },
+      metadata: { userId: req.user.id, planId, external_payment_id },
     };
     console.log('[create-checkout-session] generated external_payment_id', external_payment_id);
 
@@ -1116,6 +1174,9 @@ app.post('/admin/approve-subscription', express.json(), async (req, res) => {
     return res.status(500).json({ error: 'internal' });
   }
 });
+
+// Mount the email sending router here, as it's an internal, authenticated API.
+app.use('/api', sendEmailRouter);
 
 // --- Global Error Handler ---
 // This should be the last middleware. It catches any unhandled errors from routes,
