@@ -8,11 +8,13 @@ const morgan = require('morgan');
 const path = require('path');
 
 dotenv.config();
+console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
+console.log('SUPABASE_SERVICE_ROLE:', process.env.SUPABASE_SERVICE_ROLE);
 
 const app = express();
 const PORT = process.env.PORT || 3030;
-const hooksEmailRouter = require('./hooks_email_route');
-const sendEmailRouter = require('./send_email_route');
+const hooksEmailRouter = require('./hooks_email_route.js');
+const { campaignRouter } = require('./send_email_route.js');
 
 // --- Supabase & App Config ---
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -129,7 +131,7 @@ app.get('/app', (_req, res) => {
 // --- Public API Routes ---
 
 // GET /api/plans - Fetch all available subscription plans
-app.get('/api/plans', async (req, res) => {
+app.get('/api/plans', async (_req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
     const { data, error } = await supabase.from('plans').select('*');
@@ -696,7 +698,16 @@ app.post('/api/enqueue-email', async (req, res) => {
     if (!to_email || !template) return res.status(400).json({ error: 'to_email and template are required' });
     if (!supabase) return res.status(500).json({ error: 'server misconfigured' });
     const when = scheduled_at ? new Date(scheduled_at).toISOString() : new Date().toISOString();
-    const { error } = await supabase.from('email_queue').insert([{ to_email, template, data: data || {}, scheduled_at: when, status: 'pending', created_at: new Date().toISOString() }]);
+
+    const emailData = {
+      subject: `Email from template: ${template}`,
+      body: JSON.stringify(data),
+      to_email,
+      scheduled_at: when,
+      status: 'pending',
+    };
+
+    const { error } = await supabase.from('email_queue').insert([emailData]);
     if (error) {
       console.warn('[enqueue-email] db error', error.message || error);
       return res.status(500).json({ error: 'db error' });
@@ -704,42 +715,6 @@ app.post('/api/enqueue-email', async (req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     console.error('[POST /api/enqueue-email] error', e?.message || e);
-    return res.status(500).json({ error: 'internal' });
-  }
-});
-
-// Assign an experiment variant to the authenticated user and persist in profiles.experiment_assignments
-app.post('/api/assign-experiment', async (req, res) => {
-  try {
-    // Defensive check
-    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
-    const { experiment_key, variants } = req.body || {};
-    if (!experiment_key || !Array.isArray(variants) || variants.length === 0) return res.status(400).json({ error: 'experiment_key and variants[] required' });
-    if (!supabase) return res.status(500).json({ error: 'server misconfigured' });
-
-    // deterministic assignment by hashing user id
-    const crypto = require('crypto');
-    const h = crypto.createHash('sha1').update(req.user.id + '::' + experiment_key).digest('hex');
-    const n = parseInt(h.slice(0,8), 16);
-    const idx = n % variants.length;
-    const variant = variants[idx];
-
-    // merge into profiles.experiment_assignments JSONB
-    try {
-      const { data: profile } = await supabase.from('profiles').select('experiment_assignments').eq('id', req.user.id).maybeSingle();
-      let assignments = (profile && profile.experiment_assignments) || {};
-      assignments[experiment_key] = variant;
-      await supabase.from('profiles').update({ experiment_assignments: assignments }).eq('id', req.user.id);
-    } catch (e) {
-      console.warn('[assign-experiment] profile update failed', e?.message || e);
-    }
-
-    // track assignment event
-    try { await supabase.from('marketing_events').insert([{ user_id: req.user.id, event_name: 'experiment_assigned', properties: { experiment_key, variant }, created_at: new Date().toISOString() }]); } catch (e) { /* noop */ }
-
-    return res.json({ ok: true, variant });
-  } catch (e) {
-    console.error('[POST /api/assign-experiment] error', e?.message || e);
     return res.status(500).json({ error: 'internal' });
   }
 });
@@ -758,7 +733,9 @@ app.post('/api/trigger-campaign', async (req, res) => {
       try {
         const { data: profile, error: pErr } = await supabase.from('profiles').select('email').eq('id', req.user.id).maybeSingle();
         if (pErr) console.warn('[trigger-campaign] profile lookup error', pErr.message || pErr);
-        targetEmail = profile && profile.email;
+        if (profile && profile.email) {
+          targetEmail = profile.email;
+        }
       } catch (e) {
         console.warn('[trigger-campaign] profile lookup failed', e?.message || e);
       }
@@ -801,439 +778,92 @@ app.post('/api/trigger-campaign', async (req, res) => {
 
               if (contactId) {
                 // Properties to update on the existing contact
-                const hubspotUpdatePayload = {
+                const updatePayload = {
                   properties: {
                     lifecyclestage: 'lead',
-                    // You could add other properties to update here, like:
-                    // last_app_activity: new Date().toISOString()
                   },
                 };
-
                 await axios.patch(
                   `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
-                  hubspotUpdatePayload,
-                  { headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`, 'Content-Type': 'application/json' } }
+                  updatePayload,
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+                      'Content-Type': 'application/json',
+                    },
+                  }
                 );
                 console.log(`[trigger-campaign] Successfully updated contact ${targetEmail} in HubSpot.`);
+              } else {
+                console.warn(`[trigger-campaign] Failed to parse contact ID from HubSpot error: ${message}`);
               }
             } catch (updateError) {
-              console.warn(`[trigger-campaign] Failed to update existing contact in HubSpot:`, updateError);
+              console.error(`[trigger-campaign] Failed to update contact ${targetEmail} in HubSpot: ${updateError.message}`);
             }
           } else {
-            console.warn(`[trigger-campaign] Failed to add or update contact in HubSpot:`, hubspotError);
+            console.error(`[trigger-campaign] Failed to create contact ${targetEmail} in HubSpot: ${hubspotError.message}`);
           }
         }
-      })().catch(err => {
-        console.error('[trigger-campaign] HubSpot background task failed:', err.message || err);
-      });
+      })();
     }
 
+    // Now, enqueue the emails for the campaign
     const now = new Date();
+    const followup = new Date();
+    followup.setHours(followup.getHours() + 24); // Schedule followup 24 hours later
+
     const inserts = [];
 
-    // Small built-in campaign: welcome (immediate) + follow-up (3 days)
-    if (campaign === 'welcome') {
-      inserts.push({
-        user_id: req.user.id,
-        to_email: targetEmail,
-        template: 'welcome',
-        data: { user_id: req.user.id }, // Keep for template data if needed
-        scheduled_at: now.toISOString(),
-        status: 'pending',
-        created_at: new Date().toISOString()
-      });
-      const followup = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-      inserts.push({
-        user_id: req.user.id,
-        to_email: targetEmail,
-        template: 'welcome_followup',
-        data: { user_id: req.user.id }, // Keep for template data if needed
-        scheduled_at: followup.toISOString(),
-        status: 'pending',
-        created_at: new Date().toISOString()
-      });
-    } else {
-      return res.status(400).json({ error: 'unknown campaign' });
+    switch (campaign) {
+            case 'welcome':
+        inserts.push({
+          profile_id: req.user.id,
+          to_email: targetEmail,
+          template: 'welcome',
+          data: { profile_id: req.user.id },
+          scheduled_at: now.toISOString(),
+          status: 'pending',
+          created_at: now.toISOString(),
+        });
+        inserts.push({
+          profile_id: req.user.id,
+          to_email: targetEmail,
+          template: 'welcome_followup',
+          data: { profile_id: req.user.id },
+          scheduled_at: followup.toISOString(),
+          status: 'pending',
+          created_at: followup.toISOString(),
+        });
+        break;
+      default:
+        // Handle other campaigns if you add them
+        break;
     }
 
-    const { error } = await supabase.from('email_queue').insert(inserts);
-    if (error) {
-      // This is a non-critical background task. Log the error for debugging,
-      // but return a success response to avoid showing a failure message to the user on sign-in.
-      console.error('[trigger-campaign] Failed to enqueue emails:', error.message || error);
-      return res.json({ ok: true, enqueued: 0, note: 'Failed to enqueue emails.' });
+    if (inserts.length > 0) {
+      const { error } = await supabase
+        .from('email_queue')
+        .insert(inserts);
+
+      if (error) {
+        console.error('[trigger-campaign] DB insert failed:', error.message);
+        return res.status(500).json({ error: 'Failed to enqueue emails.', note: 'Failed to enqueue emails.' });
+      }
     }
 
     return res.json({ ok: true, enqueued: inserts.length });
   } catch (e) {
-    console.error('[trigger-campaign] Fatal error:', e?.message || e);
-    // Also log and return success here for the same reason.
-    return res.json({ ok: true, enqueued: 0, note: 'An internal error occurred.' });
+    console.error('[POST /api/trigger-campaign] error', e?.message || e);
+    return res.status(500).json({ error: 'internal', enqueued: 0, note: e.message || 'No additional error note provided.' });
   }
 });
 
-// Admin scheduled endpoint: enqueue welcome emails for new profiles
-// Protect with x-admin-secret header or ADMIN_API_SECRET env var
-app.post('/admin/enqueue-welcome', express.json(), async (req, res) => {
-  try {
-    const secret = req.get('x-admin-secret') || process.env.ADMIN_API_SECRET;
-    if (!secret || secret !== (req.get('x-admin-secret') || process.env.ADMIN_API_SECRET)) return res.status(401).json({ error: 'Unauthorized' });
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) return res.status(500).json({ error: 'server misconfigured' });
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
-
-    const days = parseInt(req.body?.days || '1', 10);
-    const since = new Date(Date.now() - Math.max(1, days) * 24 * 60 * 60 * 1000).toISOString();
-
-    // Find profiles created since `since` and having an email
-    const { data: profiles, error: pErr } = await supabaseAdmin.from('profiles').select('id,email,created_at').gte('created_at', since);
-    if (pErr) {
-      console.error('[admin/enqueue-welcome] profiles query failed', pErr.message || pErr);
-      return res.status(500).json({ error: 'db error' });
-    }
-
-    let enqueued = 0;
-    for (const p of profiles || []) {
-      if (!p.email) continue;
-      // check if a welcome template already scheduled or sent
-      const { data: existing } = await supabaseAdmin.from('email_queue').select('id').eq('to_email', p.email).in('template', ['welcome','welcome_followup']).maybeSingle();
-      if (existing) continue;
-      const now = new Date().toISOString();
-      const followup = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
-      const inserts = [
-        { to_email: p.email, template: 'welcome', data: { user_id: p.id }, scheduled_at: now, status: 'pending', created_at: now },
-        { to_email: p.email, template: 'welcome_followup', data: { user_id: p.id }, scheduled_at: followup, status: 'pending', created_at: now },
-      ];
-      const { error: insErr } = await supabaseAdmin.from('email_queue').insert(inserts);
-      if (!insErr) enqueued += inserts.length;
-    }
-
-    return res.json({ ok: true, enqueued });
-  } catch (e) {
-    console.error('[admin/enqueue-welcome] error', e?.message || e);
-    return res.status(500).json({ error: 'internal' });
-  }
+// Final error handler
+app.use((err, _req, res, _next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal Server Error', details: err.message });
 });
 
-// Admin: email queue stats for monitoring
-app.get('/admin/email-queue-stats', async (req, res) => {
-  try {
-    const secret = req.get('x-admin-secret') || process.env.ADMIN_API_SECRET;
-    if (!secret || secret !== (req.get('x-admin-secret') || process.env.ADMIN_API_SECRET)) return res.status(401).json({ error: 'Unauthorized' });
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) return res.status(500).json({ error: 'server misconfigured' });
-
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
-
-    // Get counts by status (use head:true to fetch counts only)
-    const pendingQ = await supabaseAdmin.from('email_queue').select('id', { head: true, count: 'exact' }).eq('status', 'pending');
-    const sendingQ = await supabaseAdmin.from('email_queue').select('id', { head: true, count: 'exact' }).eq('status', 'sending');
-    const sentQ = await supabaseAdmin.from('email_queue').select('id', { head: true, count: 'exact' }).eq('status', 'sent');
-    const failedQ = await supabaseAdmin.from('email_queue').select('id', { head: true, count: 'exact' }).eq('status', 'failed');
-
-    const pending = pendingQ.count || 0;
-    const sending = sendingQ.count || 0;
-    const sent = sentQ.count || 0;
-    const failed = failedQ.count || 0;
-
-    // oldest pending item for visibility
-    const { data: oldest, error: oldErr } = await supabaseAdmin.from('email_queue').select('id,to_email,template,scheduled_at,created_at').eq('status', 'pending').order('scheduled_at', { ascending: true }).limit(1).maybeSingle();
-    if (oldErr) console.warn('[email-queue-stats] oldest query failed', oldErr.message || oldErr);
-
-    return res.json({ ok: true, counts: { pending, sending, sent, failed }, oldest_pending: oldest || null });
-  } catch (e) {
-    console.error('[admin/email-queue-stats] error', e?.message || e);
-    return res.status(500).json({ error: 'internal' });
-  }
-});
-
-// ----------------------------------------------------------------------------------
-
-// Create a checkout session for a plan (authenticated users only)
-app.post('/api/create-checkout-session', async (req, res) => {
-  try {
-    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
-    const { planId } = req.body || {};
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
-      return res.status(500).json({ error: 'Server not configured for payments (missing SUPABASE_SERVICE_ROLE)' });
-    }
-
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
-    // Look up plan metadata (expects a plans table with external_product_id)
-    const { data: plan, error: planErr } = await supabaseAdmin
-      .from('plans')
-      .select('*')
-      .eq('id', planId)
-      .maybeSingle();
-
-    if (planErr) {
-      console.error('[create-checkout-session] plan lookup error', planErr.message || planErr);
-      return res.status(500).json({ error: 'Plan lookup failed' });
-    }
-    if (!plan) return res.status(404).json({ error: 'Plan not found' });
-
-    const POLAR_API_BASE = process.env.POLAR_API_BASE || process.env.POLAR_API_URL || 'https://api.polar.com';
-    const POLAR_API_KEY = process.env.POLAR_API_KEY;
-    if (!POLAR_API_KEY) return res.status(500).json({ error: 'Server not configured for Polar (missing POLAR_API_KEY)' });
-
-    // Create hosted checkout session at Polar
-    const crypto = require('crypto');
-    // generate an external_payment_id server-side so we can track idempotency and tests
-    const external_payment_id = (crypto.randomUUID && crypto.randomUUID()) || crypto.randomBytes(16).toString('hex');
-    const payload = {
-      product_id: plan.external_product_id || plan.external_product || plan.external_product_id,
-      success_url: `${process.env.APP_PUBLIC_URL || 'http://localhost:3000'}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.APP_PUBLIC_URL || 'http://localhost:3000'}/billing/cancel`,
-      metadata: { userId: req.user.id, planId, external_payment_id },
-    };
-    console.log('[create-checkout-session] generated external_payment_id', external_payment_id);
-
-    const axiosResp = await axios.post(`${POLAR_API_BASE}/v1/checkout/sessions`, payload, {
-      headers: {
-        Authorization: `Bearer ${POLAR_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: 10000,
-    });
-
-    const session = axiosResp?.data || {};
-    if (!session || (!session.url && !session.checkout_url)) {
-      return res.status(502).json({ error: 'Invalid response from payment provider', detail: session });
-    }
-
-  // Return redirect URL and the generated external_payment_id to frontend
-  res.json({ url: session.url || session.checkout_url, external_payment_id });
-  } catch (err) {
-    console.error('[create-checkout-session] error', err?.message || err);
-    res.status(500).json({ error: 'failed to create checkout session', detail: err?.message || err });
-  }
-});
-
-// Polar webhook endpoint - raw body required for signature verification
-app.post('/polar-webhook', express.raw({ type: '*/*' }), async (req, res) => {
-  try {
-    const sigHeader = req.get('polar-signature') || req.get('x-polar-signature') || '';
-    const webhookSecret = process.env.POLAR_WEBHOOK_SECRET;
-    const payload = req.body; // Buffer
-
-    // Verify HMAC-SHA256 signature if secret provided (Polar may use a different scheme - adapt if needed)
-    if (webhookSecret) {
-      const crypto = require('crypto');
-      const expected = crypto.createHmac('sha256', webhookSecret).update(payload).digest('hex');
-      if (!sigHeader || sigHeader !== expected) {
-        console.warn('[polar-webhook] signature mismatch');
-        return res.status(400).send('invalid signature');
-      }
-    }
-
-    let event = null;
-    try {
-      // Debug: log headers and a snippet of the raw payload to help diagnose parse errors
-      console.log('[polar-webhook] incoming headers:', JSON.stringify(req.headers));
-      const rawText = payload.toString();
-      console.log('[polar-webhook] raw payload (first 2000 chars):', rawText.slice(0, 2000));
-      event = JSON.parse(rawText);
-    } catch (e) {
-      console.warn('[polar-webhook] invalid json payload or parse error', (e && e.message) || e);
-      return res.status(400).send('invalid payload');
-    }
-
-    // Example event: { type: 'checkout.session.completed', data: { id: 'pay_123', metadata: { userId, planId } } }
-    if (event.type === 'checkout.session.completed' || event.type === 'payment.completed') {
-      const data = event.data || {};
-      const metadata = data.metadata || {};
-      let userId = metadata.userId;
-      const planId = metadata.planId;
-      const externalPaymentId = data.id || data.payment_id || event.id;
-
-      if (!userId || !planId || !externalPaymentId) {
-        console.warn('[polar-webhook] missing metadata', { userId, planId, externalPaymentId });
-        return res.status(400).send('missing metadata');
-      }
-
-      if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
-        console.error('[polar-webhook] missing supabase configuration');
-        return res.status(500).send('server misconfigured');
-      }
-
-      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
-
-      // Resolve planId: accept either the internal UUID (plans.id), the external_product_id, or the plan name.
-      let resolvedPlanId = null;
-      try {
-        // 1) Try direct ID match
-        if (planId) {
-          const { data: byId, error: byIdErr } = await supabaseAdmin.from('plans').select('id').eq('id', planId).maybeSingle();
-          if (!byIdErr && byId && byId.id) resolvedPlanId = byId.id;
-        }
-
-        // 2) Try external_product_id
-        if (!resolvedPlanId && planId) {
-          const { data: byExternal, error: byExternalErr } = await supabaseAdmin.from('plans').select('id').eq('external_product_id', planId).maybeSingle();
-          if (!byExternalErr && byExternal && byExternal.id) resolvedPlanId = byExternal.id;
-        }
-
-        // 3) Try by name
-        if (!resolvedPlanId && planId) {
-          const { data: byName, error: byNameErr } = await supabaseAdmin.from('plans').select('id').eq('name', planId).maybeSingle();
-          if (!byNameErr && byName && byName.id) resolvedPlanId = byName.id;
-        }
-      } catch (e) {
-        console.warn('[polar-webhook] plan lookup failed', e?.message || e);
-      }
-
-      // If still unresolved, fall back to original planId value (may be a UUID matching internal id)
-      if (!resolvedPlanId) resolvedPlanId = planId;
-
-      // Idempotency: check existing subscription by external_payment_id
-      const { data: existing } = await supabaseAdmin
-        .from('subscriptions')
-        .select('id')
-        .eq('external_payment_id', externalPaymentId)
-        .maybeSingle();
-
-      if (existing) {
-        return res.status(200).send('already processed');
-      }
-
-      // Fetch plan row (to check feature_flags like requires_sales)
-      let planRow = null;
-      try {
-        const { data: planData, error: planErr } = await supabaseAdmin.from('plans').select('*').eq('id', resolvedPlanId).maybeSingle();
-        if (!planErr) planRow = planData;
-      } catch (e) {
-        console.warn('[polar-webhook] failed to fetch plan row', e?.message || e);
-      }
-
-      const requiresSales = !!(planRow && planRow.feature_flags && (planRow.feature_flags.requires_sales === true || planRow.feature_flags.requires_sales === 'true'));
-
-      // Insert subscription record and update profile/roles
-      const now = new Date().toISOString();
-      const subscriptionStatus = requiresSales ? 'pending' : 'active';
-      const startedAtValue = requiresSales ? null : now;
-
-      const insertResp = await supabaseAdmin.from('subscriptions').insert([
-        {
-          user_id: userId,
-          plan_id: resolvedPlanId,
-          status: subscriptionStatus,
-          started_at: startedAtValue,
-          external_payment_id: externalPaymentId,
-        },
-      ]);
-
-      if (insertResp.error) {
-        console.error('[polar-webhook] insert subscription error', insertResp.error.message || insertResp.error);
-        return res.status(500).send('db error');
-      }
-
-      // Update user profile with plan_id if a profiles table exists and the subscription is active
-      if (!requiresSales) {
-        try {
-          await supabaseAdmin.from('profiles').update({ plan_id: resolvedPlanId }).eq('id', userId);
-        } catch (e) {
-          console.warn('[polar-webhook] failed to update profile', e.message || e);
-        }
-      } else {
-        // For requires_sales plans we leave status pending and do not auto-assign the plan to the profile.
-        console.log('[polar-webhook] subscription created as pending (requires sales approval)', { userId, planId: resolvedPlanId, externalPaymentId });
-      }
-
-      return res.status(200).send('ok');
-    }
-
-    // Unhandled event types
-    res.status(200).send('ignored');
-  } catch (err) {
-    console.error('[polar-webhook] fatal', err?.message || err);
-    res.status(500).send('internal error');
-  }
-});
-
-// Admin endpoint to approve a pending subscription (simple secret auth)
-// Body: { external_payment_id: string }
-app.post('/admin/approve-subscription', express.json(), async (req, res) => {
-  try {
-    const secret = req.get('x-admin-secret') || process.env.ADMIN_API_SECRET;
-    if (!secret || secret !== (req.get('x-admin-secret') || process.env.ADMIN_API_SECRET)) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const { external_payment_id } = req.body || {};
-    if (!external_payment_id) return res.status(400).json({ error: 'external_payment_id required' });
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) return res.status(500).json({ error: 'server misconfigured' });
-
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
-
-    // Find subscription
-    const { data: sub, error: subErr } = await supabaseAdmin.from('subscriptions').select('*').eq('external_payment_id', external_payment_id).maybeSingle();
-    if (subErr) return res.status(500).json({ error: 'db error', detail: subErr.message || subErr });
-    if (!sub) return res.status(404).json({ error: 'subscription not found' });
-
-    // Activate
-    const { error: updErr } = await supabaseAdmin.from('subscriptions').update({ status: 'active', started_at: new Date().toISOString() }).eq('id', sub.id);
-    if (updErr) return res.status(500).json({ error: 'failed to update subscription', detail: updErr.message || updErr });
-
-    // Upsert profile
-    const { error: upsertErr } = await supabaseAdmin.from('profiles').upsert([{ id: sub.user_id, plan_id: sub.plan_id, created_at: new Date().toISOString() }], { onConflict: 'id' });
-    if (upsertErr) console.warn('[admin/approve] profile upsert failed', upsertErr.message || upsertErr);
-
-    return res.json({ ok: true, subscription: sub });
-  } catch (e) {
-    console.error('[admin/approve] error', e?.message || e);
-    return res.status(500).json({ error: 'internal' });
-  }
-});
-
-// Mount the email sending router here, as it's an internal, authenticated API.
-app.use('/api', sendEmailRouter);
-
-// --- Global Error Handler ---
-// This should be the last middleware. It catches any unhandled errors from routes,
-// especially from async functions, preventing the server from crashing.
-app.use((err, req, res, next) => {
-  // Log the full error for debugging purposes.
-  // In a real production environment, you would use a more robust logger like Winston or Pino.
-  console.error('[Global Error Handler] Unhandled error:', err.stack || err);
-
-  // If headers have already been sent to the client, delegate to the default Express error handler.
-  // This is important for streaming responses or other cases where the response has already started.
-  if (res.headersSent) {
-    return next(err);
-  }
-
-  // Send a generic, user-friendly error response.
-  // Avoid sending stack traces or sensitive implementation details to the client.
-  res.status(500).json({
-    error: 'Internal Server Error',
-  });
-});
-
-/**
- * Initializes and starts the Express server.
- * This async wrapper ensures that any future asynchronous initialization
- * (like database connections or cache warming) completes before the server
- * starts accepting requests, preventing race conditions on startup.
- */
-async function startServer() {
-  // This function ensures all asynchronous initialization is complete before
-  // the server starts accepting requests. This prevents race conditions where
-  // a request arrives before a dependency (like the database) is ready.
-  if (supabase) {
-    console.log('Verifying database connection...');
-    // Perform a simple query to ensure the database is reachable.
-    const { error } = await supabase.from('plans').select('id', { head: true, count: 'exact' });
-    if (error) {
-      throw new Error(`Database connection check failed: ${error.message}`);
-    }
-    console.log('Database connection verified.');
-  }
-  // Bind to 0.0.0.0 inside the container so the mapped host port is reachable.
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Backend listening on http://0.0.0.0:${PORT}`);
-  });
-}
-
-startServer().catch(err => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });

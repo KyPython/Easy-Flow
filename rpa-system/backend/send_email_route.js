@@ -1,107 +1,96 @@
-// SendGrid Email Route
 const express = require('express');
-const router = express.Router();
-const sgMail = require('@sendgrid/mail');
+const { createClient } = require('@supabase/supabase-js');
+const dotenv = require('dotenv');
+const path = require('path');
 
-const {
-  SEND_EMAIL_WEBHOOK_SECRET,
-  SENDGRID_API_KEY,
-  SENDGRID_FROM_EMAIL,
-  SENDGRID_FROM_NAME,
-} = process.env;
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-// --- Service Initialization ---
-let sendgridService;
-if (SENDGRID_API_KEY && SENDGRID_FROM_EMAIL) {
-  sgMail.setApiKey(SENDGRID_API_KEY);
-  sendgridService = sgMail;
-  console.log('[send_email_route] SendGrid mailer configured.');
-}
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
 
-if (!sendgridService) {
-  console.warn('⚠️ No email service configured (SendGrid). Email sending is disabled.');
-}
+const campaignRouter = express.Router();
 
-if (!SEND_EMAIL_WEBHOOK_SECRET) {
-  console.warn('⚠️ Missing SEND_EMAIL_WEBHOOK_SECRET, the /api/send-email-now endpoint is not secure.');
-}
+// --- Supabase Campaign Route ---
+campaignRouter.post('/api/trigger-campaign', async (req, res) => {
+  try {
+    const { campaign, to_email } = req.body;
 
-// --- Template Rendering ---
-function renderTemplate(templateString, data) {
-  if (!data) return templateString;
-  let rendered = templateString;
-  // Basic regex escape for keys
-  const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  for (const key in data) {
-    const regex = new RegExp(`{{${escapeRegExp(key)}}}`, 'g');
-    rendered = rendered.replace(regex, data[key] || '');
-  }
-  return rendered;
-}
-
-// --- Templates ---
-const emailTemplates = {
-  'welcome': {
-    subject: 'Welcome to EasyFlow!',
-    html: `
-      <h1>Welcome!</h1>
-      <p>We're excited to have you on board with EasyFlow.</p>
-      <p>You can get started by visiting your dashboard.</p>
-      <br>
-      <p>Cheers,</p>
-      <p>The EasyFlow Team</p>
-    `,
-  },
-  'welcome_followup': {
-    subject: 'Getting the most out of EasyFlow',
-    html: `
-      <h1>Quick Tip</h1>
-      <p>Did you know you can connect EasyFlow to other apps?</p>
-      <p>Let me know if you have any questions!</p>
-    `,
-  },
-};
-
-// --- Middleware ---
-const authWebhook = (req, res, next) => {
-  const authHeader = req.get('authorization') || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-  if (SEND_EMAIL_WEBHOOK_SECRET && token === SEND_EMAIL_WEBHOOK_SECRET) {
-    return next();
-  }
-  return res.status(403).json({ error: 'Forbidden: invalid or missing secret' });
-};
-
-// --- Main Route ---
-router.post('/send-email-now', authWebhook, async (req, res) => {
-  const { to_email, template, data } = req.body || {};
-
-  if (!to_email || !template) {
-    return res.status(400).json({ error: 'Missing required fields: to_email and template' });
-  }
-
-  const emailTemplate = emailTemplates[template];
-  if (!emailTemplate) {
-    return res.status(400).json({ error: `Unknown email template: ${template}` });
-  }
-
-  if (sendgridService) {
-    try {
-      const msg = {
-        to: to_email,
-        from: { email: SENDGRID_FROM_EMAIL, name: SENDGRID_FROM_NAME },
-        subject: renderTemplate(emailTemplate.subject, data),
-        html: renderTemplate(emailTemplate.html, data),
-      };
-      await sendgridService.send(msg);
-      return res.json({ ok: true, message: 'Email sent via SendGrid.' });
-    } catch (err) {
-      console.error('SendGrid send error:', err.response?.body || err.message);
-      return res.status(502).json({ error: 'Failed to send email via SendGrid', details: err.response?.body });
+    // Get the user from the JWT in the Authorization header
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ ok: false, error: 'Authentication token missing.' });
     }
-  } else {
-    return res.status(503).json({ error: 'Email service is not configured on the server.' });
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      console.error('Auth error:', authError);
+      return res.status(401).json({ ok: false, error: 'Authentication failed.' });
+    }
+
+    if (!campaign || !to_email) {
+      return res.status(400).json({ ok: false, error: 'Missing campaign or to_email' });
+    }
+
+    // Determine which emails to send
+    let emailsToSend = [];
+    if (campaign === 'welcome') {
+      emailsToSend = [
+        { template: 'welcome', to_email },
+        { template: 'welcome_followup', to_email }
+      ];
+    }
+    // Add more campaign logic as needed
+
+    let enqueued = 0;
+    let failed = 0;
+    let errors = [];
+
+    for (const email of emailsToSend) {
+      try {
+        // Ensure both to_email and template are provided
+        if (!email.to_email || !email.template) {
+          failed++;
+          errors.push('Missing to_email or template in email object.');
+          continue;
+        }
+
+        const insertObj = {
+          to_email: email.to_email,
+          template: email.template,
+          profile_id: user.id, // Use the user's ID from the JWT
+        };
+
+        const { error } = await supabase
+          .from('email_queue')
+          .insert([insertObj]);
+        if (error) {
+          failed++;
+          errors.push(error.message);
+          console.error('Failed to enqueue email:', error);
+        } else {
+          enqueued++;
+        }
+      } catch (err) {
+        failed++;
+        errors.push(err.message);
+        console.error('Unexpected error enqueuing email:', err);
+      }
+    }
+
+    if (enqueued === 0) {
+      return res.json({
+        ok: false,
+        enqueued,
+        note: `Failed to enqueue emails. Errors: ${errors.join('; ')}`
+      });
+    }
+
+    return res.json({ ok: true, enqueued });
+  } catch (err) {
+    console.error('Error in /api/trigger-campaign:', err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-module.exports = router;
+module.exports.campaignRouter = campaignRouter;

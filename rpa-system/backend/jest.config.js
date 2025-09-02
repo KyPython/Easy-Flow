@@ -5,6 +5,11 @@ module.exports = {
   // This is crucial so that Jest can find the root `babel.config.js` and `node_modules`.
   rootDir: path.join(__dirname, '..'),
 
+  // Setup files to run before tests
+  setupFiles: [
+    '<rootDir>/backend/setup-tests.js'
+  ],
+
   // Now that rootDir is set, we must specify the test paths relative to it.
   testMatch: [
     '<rootDir>/backend/tests/**/*.test.js'
