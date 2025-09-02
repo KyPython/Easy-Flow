@@ -32,21 +32,26 @@ async function processOne() {
     if (fetchErr) {
       // Fallback: select then update (less safe)
       console.warn('[email_worker] rpc claim failed, falling back to simple select', fetchErr && (fetchErr.message || JSON.stringify(fetchErr)));
-      const { data: rows, error } = await supabase.from('email_queue').select('*').eq('status', 'pending').lte('scheduled_at', now).order('created_at', { ascending: true }).limit(1);
-      if (error || !rows || rows.length === 0) return false;
-      const item = rows[0];
-      // try update to sending
-      const { data: uData, error: uErr } = await supabase.from('email_queue').update({ status: 'sending', attempts: item.attempts + 1 }).eq('id', item.id).eq('status', 'pending').select('*');
-      if (uErr) {
-        console.warn('[email_worker] fallback update error', uErr.message || uErr);
+      const { data: selectData, error: selectError } = await supabase.from('email_queue').select('*').eq('status', 'pending').lte('scheduled_at', now).order('created_at', { ascending: true }).limit(1);
+      if (selectError) {
+        console.error('[email_worker] fallback select error', selectError.message);
         return false;
       }
-      if (!uData || uData.length === 0) {
+      if (!selectData || selectData.length === 0) return false;
+      const itemToClaim = selectData[0];
+
+      // Try to claim the item by updating its status.
+      const { data: updatedData, error: updateError } = await supabase.from('email_queue').update({ status: 'sending', attempts: (itemToClaim.attempts || 0) + 1 }).eq('id', itemToClaim.id).eq('status', 'pending').select('*').single();
+      if (updateError) {
+        console.warn('[email_worker] fallback update error', updateError.message || updateError);
+        return false;
+      }
+      if (!updatedData) {
         // somebody else claimed it or the update didn't apply
-        console.warn('[email_worker] fallback update affected no rows (claimed by someone else?)', item.id);
+        console.warn('[email_worker] fallback update affected no rows (claimed by another worker?) for item:', itemToClaim.id);
         return false;
       }
-      return await handleItem(item);
+      return await handleItem(updatedData);
     }
 
     if (!items || items.length === 0) return false;

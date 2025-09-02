@@ -14,7 +14,6 @@ console.log('SUPABASE_SERVICE_ROLE:', process.env.SUPABASE_SERVICE_ROLE);
 const app = express();
 const PORT = process.env.PORT || 3030;
 const hooksEmailRouter = require('./hooks_email_route.js');
-const { campaignRouter } = require('./send_email_route.js');
 
 // --- Supabase & App Config ---
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -649,7 +648,7 @@ app.post('/api/track-event', async (req, res) => {
     // Optionally forward to external analytics asynchronously
     (async () => {
       try {
-        if (process.env.MIXPANEL_TOKEN) {
+        if (process.env.MIXPANEL_TOKEN && process.env.NODE_ENV !== 'test') {
           // Basic Mixpanel HTTP ingestion (lite) - non-blocking
           const mp = {
             event: event_name,
@@ -743,8 +742,8 @@ app.post('/api/trigger-campaign', async (req, res) => {
 
     if (!targetEmail) return res.status(400).json({ error: 'target email not found' });
 
-    // Add contact to HubSpot in the background (fire-and-forget)
-    if (process.env.HUBSPOT_API_KEY) {
+    // Add contact to HubSpot in the background (fire-and-forget), but not during tests.
+    if (process.env.HUBSPOT_API_KEY && process.env.NODE_ENV !== 'test') {
       (async () => {
         try {
           const hubspotPayload = {
@@ -832,7 +831,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
           data: { profile_id: req.user.id },
           scheduled_at: followup.toISOString(),
           status: 'pending',
-          created_at: followup.toISOString(),
+          created_at: now.toISOString(),
         });
         break;
       default:
