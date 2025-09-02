@@ -1,3 +1,6 @@
+# docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# To drop it, run: docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
+
 services:
   nginx:
     image: nginx:1.25-alpine

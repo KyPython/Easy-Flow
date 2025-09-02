@@ -2,18 +2,12 @@
 const express = require('express');
 const router = express.Router();
 const sgMail = require('@sendgrid/mail');
-const nodemailer = require('nodemailer');
 
 const {
   SEND_EMAIL_WEBHOOK_SECRET,
   SENDGRID_API_KEY,
   SENDGRID_FROM_EMAIL,
   SENDGRID_FROM_NAME,
-  SMTP_HOST,
-  SMTP_PORT,
-  SMTP_USER,
-  SMTP_PASS,
-  SMTP_FROM,
 } = process.env;
 
 // --- Service Initialization ---
@@ -24,19 +18,8 @@ if (SENDGRID_API_KEY && SENDGRID_FROM_EMAIL) {
   console.log('[send_email_route] SendGrid mailer configured.');
 }
 
-let nodemailerService;
-if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
-  nodemailerService = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: parseInt(SMTP_PORT || '587', 10),
-    secure: parseInt(SMTP_PORT || '587', 10) === 465, // true for 465, false for other ports
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
-  console.log('[send_email_route] Nodemailer transporter configured.');
-}
-
-if (!sendgridService && !nodemailerService) {
-  console.warn('⚠️ No email service configured (SendGrid or SMTP). Email sending is disabled.');
+if (!sendgridService) {
+  console.warn('⚠️ No email service configured (SendGrid). Email sending is disabled.');
 }
 
 if (!SEND_EMAIL_WEBHOOK_SECRET) {
@@ -57,7 +40,6 @@ function renderTemplate(templateString, data) {
 }
 
 // --- Templates ---
-// Using a single set of templates. Can be customized per service if needed.
 const emailTemplates = {
   'welcome': {
     subject: 'Welcome to EasyFlow!',
@@ -75,7 +57,7 @@ const emailTemplates = {
     html: `
       <h1>Quick Tip</h1>
       <p>Did you know you can connect EasyFlow to other apps?</p>
-      <p>Let us know if you have any questions!</p>
+      <p>Let me know if you have any questions!</p>
     `,
   },
 };
@@ -103,7 +85,6 @@ router.post('/send-email-now', authWebhook, async (req, res) => {
     return res.status(400).json({ error: `Unknown email template: ${template}` });
   }
 
-  // Prefer SendGrid if configured, otherwise fall back to Nodemailer
   if (sendgridService) {
     try {
       const msg = {
@@ -117,20 +98,6 @@ router.post('/send-email-now', authWebhook, async (req, res) => {
     } catch (err) {
       console.error('SendGrid send error:', err.response?.body || err.message);
       return res.status(502).json({ error: 'Failed to send email via SendGrid', details: err.response?.body });
-    }
-  } else if (nodemailerService) {
-    try {
-      const mailOptions = {
-        from: SMTP_FROM || SENDGRID_FROM_EMAIL, // Fallback from address
-        to: to_email,
-        subject: renderTemplate(emailTemplate.subject, data),
-        html: renderTemplate(emailTemplate.html, data),
-      };
-      await nodemailerService.sendMail(mailOptions);
-      return res.json({ ok: true, message: 'Email sent via Nodemailer.' });
-    } catch (err) {
-      console.error('Nodemailer send error:', err.message);
-      return res.status(502).json({ error: 'Failed to send email via SMTP', details: err.message });
     }
   } else {
     return res.status(503).json({ error: 'Email service is not configured on the server.' });

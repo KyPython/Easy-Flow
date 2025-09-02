@@ -474,25 +474,34 @@ app.post('/api/tasks/:id/run', async (req, res) => {
     res.json({ message: 'Task executed successfully', runId, result });
 
   } catch (err) {
-    console.error(`[POST /api/tasks/${taskId}/run] Error:`, err.message);
+    // Log the full error object for more detailed debugging information.
+    console.error(`[POST /api/tasks/${taskId}/run] Error:`, err);
 
     // 5. If an error occurred, update the run record to 'failed'
     if (runId) {
       try {
+        // Create a structured error payload for the database.
+        const errorPayload = {
+          error: 'Task execution failed.',
+          message: err.message,
+          details: err.response?.data || null, // Capture details from axios error response if available.
+        };
         await supabase
           .from('automation_runs')
           .update({
             status: 'failed',
             ended_at: new Date().toISOString(),
-            result: { error: err.message, details: err.response?.data },
+            result: errorPayload,
           })
           .eq('id', runId);
       } catch (dbErr) {
-        console.error(`[POST /api/tasks/${taskId}/run] DB error update failed:`, dbErr.message);
+        // Log the full database error for better diagnostics if the failure update itself fails.
+        console.error(`[POST /api/tasks/${taskId}/run] DB error update failed:`, dbErr);
       }
     }
     
-    res.status(500).json({ error: 'Failed to run task', details: err.message });
+    // Return a more structured error response to the client.
+    res.status(500).json({ error: 'Failed to run task', details: err.message, runId: runId || null });
   }
 });
 
@@ -808,10 +817,10 @@ app.post('/api/trigger-campaign', async (req, res) => {
                 console.log(`[trigger-campaign] Successfully updated contact ${targetEmail} in HubSpot.`);
               }
             } catch (updateError) {
-              console.warn(`[trigger-campaign] Failed to update existing contact in HubSpot:`, updateError.response?.data || updateError.message);
+              console.warn(`[trigger-campaign] Failed to update existing contact in HubSpot:`, updateError);
             }
           } else {
-            console.warn(`[trigger-campaign] Failed to add or update contact in HubSpot:`, hubspotError.response?.data || hubspotError.message);
+            console.warn(`[trigger-campaign] Failed to add or update contact in HubSpot:`, hubspotError);
           }
         }
       })().catch(err => {
