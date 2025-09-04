@@ -71,29 +71,42 @@ async function findPlanId() {
 async function upsertReferrer(email) {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  // Try an upsert, but handle the case where ON CONFLICT fails (no unique constraint)
+  // Ensure we have the authoritative profile id. Try select first; if missing, create an auth user then insert/upsert the profile with that id.
   let profileId = null;
-  try {
-    // upsert without providing id so DB can enforce any FK/auth relationships
-    const { error: upsertErr } = await supabase.from('profiles').upsert([{ email, created_at: now }], { onConflict: 'email' });
-    if (upsertErr) {
-      // warn and fall through to explicit select/insert
-      console.warn('[referral_integration] profiles.upsert returned error, falling back to safe insert/select:', upsertErr.message || upsertErr);
-    }
-  } catch (e) {
-    console.warn('[referral_integration] profiles.upsert threw, falling back to safe insert/select:', e?.message || e);
-  }
-
-  // Ensure we have the authoritative profile id. Try select; if missing, insert explicitly.
   const { data: profileRow, error: profileErr } = await supabase.from('profiles').select('id').eq('email', email).maybeSingle();
   if (profileErr) throw profileErr;
   if (profileRow && profileRow.id) {
     profileId = profileRow.id;
   } else {
-  // Insert explicit row without id so DB can generate it (avoids FK violations)
-  const { data: inserted, error: insertErr } = await supabase.from('profiles').insert([{ email, created_at: now }]).select('id').maybeSingle();
-    if (insertErr) throw insertErr;
-    profileId = inserted?.id || id;
+    // If profiles.id references auth.users (common in Supabase), create an auth user first
+    try {
+      const pw = crypto.randomBytes(16).toString('hex');
+      const { data: createdUser, error: createUserErr } = await supabase.auth.admin.createUser({ email, password: pw, email_confirm: true });
+      if (createUserErr) {
+        // fallback: insert profile without id (if allowed)
+        console.warn('[referral_integration] creating auth user failed, falling back to profile insert:', createUserErr.message || createUserErr);
+        const { data: inserted, error: insertErr } = await supabase.from('profiles').insert([{ email, created_at: now }]).select('id').maybeSingle();
+        if (insertErr) throw insertErr;
+        profileId = inserted?.id || id;
+      } else {
+        // insert profile row with id matching auth user id
+        const userId = createdUser?.id || createdUser?.user?.id || null;
+        if (!userId) {
+          throw new Error('Could not determine created auth user id');
+        }
+        // Use insert ... on conflict do nothing then select to obtain id reliably
+        const { error: insertErr } = await supabase.from('profiles').insert([{ id: userId, email, created_at: now }], { returning: 'minimal' });
+        if (insertErr && !/duplicate key value/i.test(insertErr.message || '')) {
+          throw insertErr;
+        }
+        // Select authoritative id
+        const { data: sel, error: selErr } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
+        if (selErr) throw selErr;
+        profileId = sel?.id || userId;
+      }
+    } catch (e) {
+      throw e;
+    }
   }
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const planId = await findPlanId();
@@ -121,11 +134,18 @@ async function run() {
     console.log('  referrer:', referrer);
 
     console.log('2) Call generate-referral endpoint...');
-    const resp = await axios.post(`${BASE}/api/generate-referral`, { referrer_email: referrerEmail, referred_email: referredEmail }, { headers: { 'Content-Type': 'application/json' } });
+  const resp = await axios.post(`${BASE}/api/generate-referral`, { referrerEmail, referredEmail }, { headers: { 'Content-Type': 'application/json' } });
     console.log('  endpoint response:', resp.data);
 
     console.log('3) Query referrals table for the created referral...');
-    const { data: referrals } = await supabase.from('referrals').select('*').filter('referred_email', 'eq', referredEmail).order('created_at', { ascending: false }).limit(1);
+    // referrals store the referred email inside metadata JSON -> referred_email
+    const { data: referrals, error: findRefError } = await supabase
+      .from('referrals')
+      .select('*')
+      .filter('metadata->>referred_email', 'eq', referredEmail)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (findRefError) throw findRefError;
     const referral = referrals && referrals[0];
     if (!referral) {
       console.error('No referral row found for referredEmail');
@@ -143,7 +163,7 @@ async function run() {
     
     console.log('5) Update referral status...');
     if (!handled) {
-      // Manually mark the referral as completed
+      // Manually mark the referral as completed by setting the canonical referred_user_id.
       const { error: updateError } = await supabase
         .from('referrals')
         .update({
@@ -152,9 +172,9 @@ async function run() {
           metadata: { ...(referral.metadata || {}), completed: true, completed_at: new Date().toISOString() }
         }).eq('id', referral.id);
       if (updateError) throw updateError;
-      
+
       console.log('  referral marked as completed manually.');
-      
+
       // Now extend subscription manually to simulate the business rule.
       const { data: sub } = await supabase.from('subscriptions').select('*').eq('user_id', referrer.id).maybeSingle();
       if (sub) {
