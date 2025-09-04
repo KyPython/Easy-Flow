@@ -3,6 +3,8 @@ import { supabase } from './supabaseClient';
 
 const AuthContext = createContext(null);
 
+import PropTypes from 'prop-types';
+
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -29,3 +31,7 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
+
+AuthProvider.propTypes = {
+  children: PropTypes.node.isRequired,
+};

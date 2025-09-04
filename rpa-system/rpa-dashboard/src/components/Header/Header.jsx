@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import styles from './Header.module.css';
 import { supabase } from '../../utils/supabaseClient';
+import PropTypes from 'prop-types';
 import ContactModal from './ContactModal';
 
 const Header = ({ user }) => {
@@ -129,6 +130,20 @@ const Header = ({ user }) => {
       />
     </header>
   );
+};
+
+Header.propTypes = {
+  user: PropTypes.shape({
+    name: PropTypes.string,
+    email: PropTypes.string,
+    role: PropTypes.string,
+  }),
+  onLogout: PropTypes.func,
+};
+
+Header.defaultProps = {
+  user: null,
+  onLogout: () => {},
 };
 
 export default Header;

@@ -67,8 +67,9 @@ export default function AuthPage() {
       if (error) throw error;
       setSuccess('Verification email resent! Please check your inbox.');
     } catch (err) {
+      console.debug('resend verification failed', err);
       setError('Failed to resend verification email. Please try again.');
-  } finally {
+    } finally {
       setLoading(false);
     }
   };
@@ -97,8 +98,8 @@ export default function AuthPage() {
           // Successful login - redirect to dashboard
           setSuccess('Login successful! Redirecting to dashboard...');
           // Track login event and trigger any first-login campaigns
-          try { trackEvent({ user_id: data.user?.id, event_name: 'user_login' }); } catch (e) {}
-          try { triggerCampaign({ user_id: data.user?.id, reason: 'first_login' }); } catch (e) {}
+          try { trackEvent({ user_id: data.user?.id, event_name: 'user_login' }); } catch (e) { console.debug('trackEvent failed', e); }
+          try { triggerCampaign({ user_id: data.user?.id, reason: 'first_login' }); } catch (e) { console.debug('triggerCampaign failed', e); }
           setTimeout(() => {
             navigate('/app');
           }, 1500);
@@ -108,8 +109,8 @@ export default function AuthPage() {
           // If confirmations are enabled, inform the user
           setSuccess('Sign-up successful! Please check your email to confirm your account.');
           // Track signup event and trigger welcome campaign after sign-up (server-side will resolve user id when they first login)
-          try { trackEvent({ event_name: 'user_signup', properties: { email } }); } catch (e) {}
-          try { triggerCampaign({ email, reason: 'signup' }); } catch (e) {}
+          try { trackEvent({ event_name: 'user_signup', properties: { email } }); } catch (e) { console.debug('trackEvent failed', e); }
+          try { triggerCampaign({ email, reason: 'signup' }); } catch (e) { console.debug('triggerCampaign failed', e); }
       }
     } catch (err) {
       const msg = typeof err?.message === 'string' ? err.message : 'Authentication failed';

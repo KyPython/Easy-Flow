@@ -12,7 +12,7 @@ if (!supabaseUrl || !supabaseAnonKey || supabaseAnonKey.includes('...')) {
 	// Log a clear warning so CI/builds still surface the missing config.
 	// If you prefer strict build-time failure, revert this to an exception.
 	// During development you can set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY in .env.local.
-	// eslint-disable-next-line no-console
+	 
 	console.warn('[Supabase] Missing or placeholder env vars at build time. Expecting runtime window._env to provide them.');
 }
 

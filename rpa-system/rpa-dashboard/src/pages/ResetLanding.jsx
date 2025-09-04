@@ -60,7 +60,7 @@ export default function ResetLanding() {
       {error && <div style={{ color: 'red', marginTop: 12 }}>{error}</div>}
 
       <p style={{ marginTop: 18, color: '#666' }}>
-        If you didn't request this, please change your password after signing in or contact support.
+      If you didn&apos;t request this, please change your password after signing in or contact support.
       </p>
     </div>
   );

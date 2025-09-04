@@ -1,12 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-// Load environment variables from .env file
-require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
-const morgan = require('morgan');
-const path = require('path');
++// Load environment variables from the backend/.env file (absolute, not CWD-dependent)
++require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+ const { createClient } = require('@supabase/supabase-js');
+ const fs = require('fs');
+ const morgan = require('morgan');
+ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3030;
@@ -679,17 +679,25 @@ app.post('/api/enqueue-email', async (req, res) => {
     if (!supabase) return res.status(500).json({ error: 'server misconfigured' });
     const when = scheduled_at ? new Date(scheduled_at).toISOString() : new Date().toISOString();
 
+// Match the email_queue schema: use `template` and `data` (JSON) fields.
     const emailData = {
-      subject: `Email from template: ${template}`,
-      body: JSON.stringify(data),
+      profile_id: req.user?.id || null,
       to_email,
+      template,
+      data: data || {},
       scheduled_at: when,
       status: 'pending',
+      created_at: new Date().toISOString(),
     };
 
     const { error } = await supabase.from('email_queue').insert([emailData]);
     if (error) {
-      console.warn('[enqueue-email] db error', error.message || error);
+      // Log full error object for debugging
+      console.error('[enqueue-email] db error', JSON.stringify(error, null, 2));
+      // In non-production show details to help diagnose; DO NOT enable this in production
+      if (process.env.NODE_ENV !== 'production') {
+        return res.status(500).json({ error: 'db error', details: error });
+      }
       return res.status(500).json({ error: 'db error' });
     }
     return res.json({ ok: true });

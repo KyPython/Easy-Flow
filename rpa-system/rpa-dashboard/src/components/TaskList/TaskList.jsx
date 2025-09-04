@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import styles from './TaskList.module.css';
 import StatusBadge from '../StatusBadge/StatusBadge';
 import { formatDateTime, formatTaskType } from '../../utils/formatters';
@@ -260,6 +261,19 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
       )}
     </div>
   );
+};
+
+TaskList.propTypes = {
+  tasks: PropTypes.arrayOf(PropTypes.object).isRequired,
+  onEdit: PropTypes.func,
+  onDelete: PropTypes.func,
+  onView: PropTypes.func,
+};
+
+TaskList.defaultProps = {
+  onEdit: () => {},
+  onDelete: () => {},
+  onView: () => {},
 };
 
 export default TaskList;

@@ -156,9 +156,9 @@ export default function SettingsPage() {
       {/* Referrals */}
       <section className={styles.section}>
         <h3 className={styles.heading}>Referrals</h3>
-        <p className={styles.muted}>
+          <p className={styles.muted}>
           Share EasyFlow and get credit for new signups.<br />
-          <strong>How it works:</strong> Enter your friend's email. We'll send them an invite. If they sign up, you'll get <strong>1 month free of the Pro plan</strong> automatically!
+          <strong>How it works:</strong> Enter your friend&apos;s email. We&apos;ll send them an invite. If they sign up, you&apos;ll get <strong>1 month free of the Pro plan</strong> automatically!
         </p>
         <button
           className={`${styles.btn} ${styles.btnPrimary}`}

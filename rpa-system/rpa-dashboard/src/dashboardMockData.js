@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 
 export default function LogsTable({ logs }) {
   return (
@@ -28,3 +29,7 @@ export default function LogsTable({ logs }) {
     </table>
   );
 }
+
+LogsTable.propTypes = {
+  logs: PropTypes.arrayOf(PropTypes.object).isRequired,
+};

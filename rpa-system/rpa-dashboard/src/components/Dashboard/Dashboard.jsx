@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styles from './Dashboard.module.css';
 import { triggerCampaign } from '../../utils/api';
 import MetricCard from '../MetricCard/MetricCard';
+import PropTypes from 'prop-types';
 
 
 const Dashboard = ({ metrics = {}, recentTasks = [] }) => {
@@ -154,6 +155,16 @@ const Dashboard = ({ metrics = {}, recentTasks = [] }) => {
       </div>
     </div>
   );
+};
+
+Dashboard.propTypes = {
+  metrics: PropTypes.arrayOf(PropTypes.object),
+  recentTasks: PropTypes.arrayOf(PropTypes.object),
+};
+
+Dashboard.defaultProps = {
+  metrics: [],
+  recentTasks: [],
 };
 
 export default Dashboard;

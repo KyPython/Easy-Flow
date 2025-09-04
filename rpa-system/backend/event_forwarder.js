@@ -46,11 +46,12 @@ async function flush() {
   await Promise.all(batch.map(processItem));
 }
 
-function enqueueEvent({ id, url, body, headers, method }) {
+function enqueueEvent({ id, url, body, headers, method, eventName }) {
   if (id && recentIds.has(id)) return false;
   queue.push({ id, url, body, headers, method, attempt: 0 });
   if (!flushTimer) scheduleFlush();
   if (queue.length >= BATCH_SIZE) flush();
+  console.log('[event_forwarder] forwarding event', { id: id || null, event: eventName, payload: body, to: url });
   return true;
 }
 

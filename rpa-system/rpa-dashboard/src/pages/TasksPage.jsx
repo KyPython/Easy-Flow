@@ -27,7 +27,7 @@ const TasksPage = () => {
         const data = await getTasks();
         setTasks(data);
       } catch (err) {
-        // Replaced "Backend unavailable" with a more general message
+        console.debug('fetch tasks failed', err);
         setError("Failed to load tasks.");
         setTasks([]);
       } finally {
@@ -42,6 +42,7 @@ const TasksPage = () => {
       const newTask = await createTask(taskData);
       setTasks((prev) => [...prev, newTask]);
     } catch (err) {
+      console.debug('create task failed', err);
       setError("Failed to create task.");
     }
   };

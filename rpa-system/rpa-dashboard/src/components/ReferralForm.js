@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import styles from '../pages/SettingsPage.module.css';
+import PropTypes from 'prop-types';
 import { generateReferral } from '../utils/api';
 import { useTheme } from '../utils/ThemeContext'; // Add this import
 
@@ -40,7 +41,7 @@ export default function ReferralForm({ referrerEmail, proPlan, onClose, onSucces
       onSubmit={handleSubmit}
     >
       <label className={styles.label} htmlFor="referral-email">
-        Enter your friend's email to refer them:
+        Enter your friend&apos;s email to refer them:
       </label>
       <input
         id="referral-email"
@@ -65,7 +66,7 @@ export default function ReferralForm({ referrerEmail, proPlan, onClose, onSucces
           color: theme === 'dark' ? '#a0aec0' : undefined,
         }}
       >
-        If your friend signs up, you'll get <strong>1 month free</strong> of the <strong>{proPlan?.name || 'Pro'}</strong> plan!
+  If your friend signs up, you&apos;ll get <strong>1 month free</strong> of the <strong>{proPlan?.name || 'Pro'}</strong> plan!
       </div>
       <div style={{ display: 'flex', gap: '1em' }}>
         <button
@@ -97,3 +98,19 @@ export default function ReferralForm({ referrerEmail, proPlan, onClose, onSucces
     </form>
   );
 }
+
+ReferralForm.propTypes = {
+  referrerEmail: PropTypes.string,
+  proPlan: PropTypes.object,
+  onClose: PropTypes.func,
+  onSuccess: PropTypes.func,
+  onError: PropTypes.func,
+};
+
+ReferralForm.defaultProps = {
+  referrerEmail: '',
+  proPlan: null,
+  onClose: () => {},
+  onSuccess: () => {},
+  onError: () => {},
+};

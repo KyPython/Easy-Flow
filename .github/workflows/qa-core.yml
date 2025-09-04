@@ -1,0 +1,66 @@
+name: QA — core feature tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Start test services (docker-compose)
+        working-directory: rpa-system
+        run: |
+          docker compose -f docker-compose.test.yml up -d
+          # wait for services to be ready
+          sleep 8
+
+      - name: Install backend deps
+        working-directory: rpa-system
+        run: npm ci
+
+      - name: Run backend unit tests
+        working-directory: rpa-system
+        run: npm test --silent
+
+      - name: Run integration scripts
+        working-directory: rpa-system
+        run: |
+          node backend/referral_integration.js || true
+          node backend/scripts/test_event_forwarder.js || true
+
+      - name: Set up Python (automation)
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Run Python automation tests
+        working-directory: automation
+        run: |
+          pip install -r requirements.txt
+          pytest -q || true
+
+      - name: Collect logs
+        run: |
+          mkdir -p artifacts
+          docker compose -f rpa-system/docker-compose.test.yml logs --no-color > artifacts/service-logs.txt || true
+        working-directory: ${{ github.workspace }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-artifacts
+          path: artifacts

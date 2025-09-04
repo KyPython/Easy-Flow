@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import styles from './MetricCard.module.css';
 
 const MetricCard = ({ title, value, icon, trend, subtitle }) => {
@@ -22,6 +23,21 @@ const MetricCard = ({ title, value, icon, trend, subtitle }) => {
       </div>
     </div>
   );
+};
+
+MetricCard.propTypes = {
+  title: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  icon: PropTypes.node,
+  trend: PropTypes.string,
+  subtitle: PropTypes.string,
+};
+
+MetricCard.defaultProps = {
+  value: null,
+  icon: null,
+  trend: null,
+  subtitle: null,
 };
 
 export default MetricCard;

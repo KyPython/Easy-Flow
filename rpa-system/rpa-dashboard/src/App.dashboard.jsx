@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ReactGA from 'react-ga4';
 import Header from './components/Header/Header';
@@ -36,6 +37,10 @@ function Protected({ children }) {
   if (!session) return <Navigate to="/" replace />;
   return children;
 }
+
+Protected.propTypes = {
+  children: PropTypes.node.isRequired,
+};
 
 function Shell() {
   const { user } = useAuth();

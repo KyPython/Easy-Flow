@@ -1,14 +1,11 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router } from 'react-router-dom';
 import Header from './components/Header/Header';
 import Dashboard from './components/Dashboard/Dashboard';
 import MetricCard from './components/MetricCard/MetricCard';
-import TaskList from './components/TaskList/TaskList';
 import StatusBadge from './components/StatusBadge/StatusBadge';
 import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
-import PricingPage from './pages/PricingPage';
-import TasksPage from './pages/TasksPage';
 import './theme.css';
 import './App.css';
 
@@ -27,12 +24,7 @@ const mockRecentTasks = [
   { id: 4, type: 'data_validation', url: 'https://sample.com', status: 'pending', created_at: '2025-01-27T08:00:00Z' }
 ];
 
-const mockTasks = [
-  { id: 1, type: 'data_extraction', url: 'https://example.com/data', username: 'user1', status: 'completed', created_at: '2025-01-27T10:30:00Z', artifact_url: 'https://example.com/download/1' },
-  { id: 2, type: 'form_filling', url: 'https://demo.com/form', username: 'user2', status: 'in_progress', created_at: '2025-01-27T09:15:00Z', artifact_url: null },
-  { id: 3, type: 'report_generation', url: 'https://test.com/reports', username: 'user3', status: 'failed', created_at: '2025-01-27T08:45:00Z', artifact_url: null },
-  { id: 4, type: 'data_validation', url: 'https://sample.com/validate', username: 'user4', status: 'pending', created_at: '2025-01-27T08:00:00Z', artifact_url: null }
-];
+// ...mock tasks intentionally removed for lint cleanliness (not used in this showcase)
 
 const mockUser = { name: 'John Doe', role: 'Admin' };
 

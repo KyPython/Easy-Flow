@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../../utils/api';
 import styles from './TaskForm.module.css';
+import PropTypes from 'prop-types';
 
 const TaskForm = ({ onTaskSubmit, loading }) => {
   const [form, setForm] = useState({
@@ -36,7 +37,7 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
   };
 
   const isValidUrl = (string) => {
-    try { new URL(string); return true; } catch (_) { return false; }
+    try { new URL(string); return true; } catch (err) { console.debug('Invalid URL', err); return false; }
   };
 
   const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -160,6 +161,15 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
       </form>
     </div>
   );
+};
+
+TaskForm.propTypes = {
+  onTaskSubmit: PropTypes.func.isRequired,
+  loading: PropTypes.bool,
+};
+
+TaskForm.defaultProps = {
+  loading: false,
 };
 
 export default TaskForm;

@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './ErrorMessage.module.css';
+import PropTypes from 'prop-types';
 
 const ErrorMessage = ({ message }) => {
   if (!message) {
@@ -14,5 +15,12 @@ const ErrorMessage = ({ message }) => {
   );
 };
 
-export default ErrorMessage;
+ErrorMessage.propTypes = {
+  message: PropTypes.string,
+};
 
+ErrorMessage.defaultProps = {
+  message: '',
+};
+
+export default ErrorMessage;

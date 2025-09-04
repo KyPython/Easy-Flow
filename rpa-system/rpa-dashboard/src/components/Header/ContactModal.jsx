@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './ContactModal.module.css';
+import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext'; // adjust path if needed
 
 export default function ContactModal({ open, onClose }) {
@@ -26,3 +27,8 @@ export default function ContactModal({ open, onClose }) {
     </div>
   );
 }
+
+ContactModal.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+};

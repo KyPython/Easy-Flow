@@ -1,6 +1,7 @@
 import React from 'react';
 import styles from './StatusBadge.module.css';
 import { formatTaskStatus } from '../../utils/formatters';
+import PropTypes from 'prop-types';
 
 const StatusBadge = ({ status }) => {
   const getStatusClass = (status) => {
@@ -24,5 +25,11 @@ const StatusBadge = ({ status }) => {
     </span>
   );
 };
+
+StatusBadge.propTypes = {
+  status: PropTypes.string.isRequired,
+};
+
+StatusBadge.defaultProps = {};
 
 export default StatusBadge;

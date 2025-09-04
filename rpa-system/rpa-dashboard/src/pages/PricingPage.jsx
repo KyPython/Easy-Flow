@@ -200,9 +200,9 @@ export default function PricingPage() {
 
       <div className={styles.plansGrid}>
         {plans.map(plan => {
-          const features = plan.feature_flags
+            const features = plan.feature_flags
             ? Object.entries(plan.feature_flags)
-                .filter(([_, value]) => value)
+                .filter(([, value]) => value)
                 .map(([key, value]) => {
                   const label = featureLabels[key] || key;
                   return value === true ? label : `${label}: ${value}`;
