@@ -1,7 +1,4 @@
 import globals from "globals";
-import pluginJs from "@eslint/js";
-import pluginReact from "eslint-plugin-react";
-import pluginReactHooks from "eslint-plugin-react-hooks";
 
 export default [
   {
@@ -15,29 +12,13 @@ export default [
       globals: {
         ...globals.browser,
         ...globals.node,
-        // This is a common way to include Jest globals for test files
         ...globals.jest,
       },
     },
-    // Add settings to define the React version
     settings: {
-      react: {
-        version: "detect", // Automatically detects the installed React version
-      },
+      react: { version: "detect" },
     },
-    plugins: {
-      react: pluginReact,
-      "react-hooks": pluginReactHooks,
-    },
-    rules: {
-      ...pluginJs.configs.recommended.rules,
-      ...pluginReact.configs.recommended.rules,
-      "react/react-in-jsx-scope": "off",
-      "react/jsx-uses-vars": "error",
-      "react/jsx-uses-react": "error",
-      ...pluginReactHooks.configs.recommended.rules,
-      "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
-    },
+    // Keep rules empty here; use the local .eslintrc.cjs in this package to enable plugin rules.
+    rules: {},
   },
 ];
