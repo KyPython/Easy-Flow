@@ -2,12 +2,6 @@
 -- Running this in your Supabase SQL Editor will set up the necessary
 -- tables, policies, and functions for the backend services to operate correctly.
 
--- The following DROP statements ensure a clean re-application of the schema,
--- which is crucial for fixing user creation errors caused by a broken
--- `handle_new_user` trigger or an incorrect `profiles` table schema.
-DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
-DROP TABLE IF EXISTS public.profiles CASCADE;
-
 -- 1. Create a table for public user profiles
 -- This table is required for user sign-up and associating data with users.
 create table if not exists public.profiles (

@@ -1,17 +1,18 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../utils/AuthContext';
 import { useTheme } from '../utils/ThemeContext';
-import { generateReferral } from '../utils/api';
 import styles from './SettingsPage.module.css';
+import ReferralForm from '../components/ReferralForm';
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const { theme, toggle } = useTheme();
 
   // UI state
-  const [, setMessage] = useState('');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showReferralForm, setShowReferralForm] = useState(false);
 
   // Error states
   const [themeError, setThemeError] = useState('');
@@ -19,14 +20,13 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState('');
   const [planError, setPlanError] = useState('');
 
-  // Password & Referral
+  // Password
   const [password, setPassword] = useState('');
-  const [referralUrl, setReferralUrl] = useState('');
 
   // Plans & subscription
   const [plans, setPlans] = useState([]);
   const [subscription, setSubscription] = useState(null);
-  const [planId, setPlanId] = useState(null); // selected plan ID
+  const [planId, setPlanId] = useState(null);
   const [pageLoading, setPageLoading] = useState(true);
 
   // Fetch subscription
@@ -41,7 +41,7 @@ export default function SettingsPage() {
         .eq('status', 'active')
         .order('started_at', { ascending: false })
         .limit(1)
-        .maybeSingle(); // safer than .single()
+        .maybeSingle();
 
       if (error) throw error;
       setSubscription(data || null);
@@ -127,10 +127,14 @@ export default function SettingsPage() {
   }
 
   const currentPlanId = subscription?.plan?.id || null;
+  const proPlan = plans.find(p => p.price_cents > 0 && p.name.toLowerCase().includes('pro')) || plans.find(p => p.price_cents > 0);
 
   return (
     <div className={styles.page}>
       <h2 className={styles.heading}>Settings</h2>
+
+      {/* Show feedback message */}
+      {message && <div className={styles.success}>{message}</div>}
 
       {/* Theme */}
       <section className={styles.section}>
@@ -152,30 +156,34 @@ export default function SettingsPage() {
       {/* Referrals */}
       <section className={styles.section}>
         <h3 className={styles.heading}>Referrals</h3>
-        <p className={styles.muted}>Share EasyFlow and get credit for new signups.</p>
+        <p className={styles.muted}>
+          Share EasyFlow and get credit for new signups.<br />
+          <strong>How it works:</strong> Enter your friend's email. We'll send them an invite. If they sign up, you'll get <strong>1 month free of the Pro plan</strong> automatically!
+        </p>
         <button
           className={`${styles.btn} ${styles.btnPrimary}`}
           type="button"
-          onClick={async () => {
-            setReferralError('');
+          onClick={() => {
+            setShowReferralForm(true);
             setMessage('');
-            try {
-              const resp = await generateReferral();
-              if (resp && resp.ok) {
-                setReferralUrl(resp.url || '');
-                setMessage('Referral generated.');
-              } else {
-                setReferralError('Failed to generate referral.');
-              }
-            } catch {
-              setReferralError('Unexpected error generating referral');
-            }
+            setReferralError('');
           }}
         >
           Generate referral
         </button>
         {referralError && <div className={styles.error}>{referralError}</div>}
-        {referralUrl && <div><a href={referralUrl} target="_blank" rel="noreferrer">{referralUrl}</a></div>}
+        {showReferralForm && (
+          <ReferralForm
+            referrerEmail={user?.email || ''}
+            proPlan={proPlan}
+            onClose={() => setShowReferralForm(false)}
+            onSuccess={() => {
+              setShowReferralForm(false);
+              setMessage('Referral sent! Your friend will get an invite email. If they sign up, you will automatically earn 1 month free of the Pro plan.');
+            }}
+            onError={err => setReferralError(err)}
+          />
+        )}
       </section>
 
       {/* Password */}

@@ -1,27 +1,23 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const dotenv = require('dotenv');
+// Load environment variables from .env file
+require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const morgan = require('morgan');
 const path = require('path');
 
-dotenv.config();
-console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
-console.log('SUPABASE_SERVICE_ROLE:', process.env.SUPABASE_SERVICE_ROLE);
-
 const app = express();
 const PORT = process.env.PORT || 3030;
-const hooksEmailRouter = require('./hooks_email_route.js');
 
 // --- Supabase & App Config ---
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
-const supabase = SUPABASE_URL && (SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY)
-  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE || SUPABASE_ANON_KEY)
-  : null;
+const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE) : null;
+if (!supabase) {
+  console.warn('⚠️ Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE environment variables.');
+}
 const ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
 const USE_SIGNED_URLS = (process.env.SUPABASE_USE_SIGNED_URLS || 'true').toLowerCase() !== 'false';
 const SIGNED_URL_EXPIRES = Math.max(60, parseInt(process.env.SUPABASE_SIGNED_URL_EXPIRES || '86400', 10));
@@ -43,23 +39,30 @@ app.use(cors({
     return cb(new Error('CORS: origin not allowed'));
   },
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'apikey'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'apikey', 'x-client-info'],
 }));
 
-// The Polar webhook needs a raw body, so its route is defined later with special middleware.
-// For all other routes, we'll use the JSON body parser. It must be registered before the routes.
+// The Polar webhook needs a raw body, so we conditionally skip the JSON parser for it.
+// For all other routes, this middleware will parse the JSON body.
+// It must be registered before any routes that need to access `req.body`.
 app.use((req, res, next) => {
-  if (req.path === '/polar-webhook' || req.originalUrl === '/polar-webhook') {
+  if (req.path.startsWith('/polar-webhook')) {
     return next();
   }
-  return express.json()(req, res, next);
+  return express.json({ limit: '1mb' })(req, res, next);
 });
+
+// --- API Route Setup ---
+
+const sendEmailRoute = require('./send_email_route');
+app.use('/api', sendEmailRoute);
+
+const { router: referralRouter } = require('./referral_route');
+app.use('/api', referralRouter);
 
 // Use morgan for detailed, standardized request logging.
 // The 'dev' format is great for development, providing color-coded status codes.
 app.use(morgan('dev'));
-
-app.use('/hooks', hooksEmailRouter); // Mount hooks router on /hooks
 
 // Serve static files from React build (if it exists)
 const reactBuildPath = path.join(__dirname, '../rpa-dashboard/build');
@@ -668,28 +671,6 @@ app.post('/api/track-event', async (req, res) => {
   }
 });
 
-// Generate a referral code for an authenticated user
-app.post('/api/generate-referral', async (req, res) => {
-  try {
-    // Defensive check
-    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
-    const crypto = require('crypto');
-    const code = crypto.randomBytes(4).toString('hex');
-    if (!supabase) return res.status(500).json({ error: 'server misconfigured' });
-
-    const { error } = await supabase.from('referrals').insert([{ code, owner_user_id: req.user.id, created_at: new Date().toISOString() }]);
-    if (error) {
-      console.error('[POST /api/generate-referral] Supabase error:', error.message || error);
-      return res.status(500).json({ error: 'Failed to generate referral link.' });
-    }
-    const url = `${process.env.APP_PUBLIC_URL || 'http://localhost:3000'}/?ref=${code}`;
-    return res.json({ ok: true, code, url });
-  } catch (e) {
-    console.error('[POST /api/generate-referral] error', e?.message || e);
-    return res.status(500).json({ error: 'An unexpected error occurred.' });
-  }
-});
-
 // Enqueue a transactional/marketing email (worker will process)
 app.post('/api/enqueue-email', async (req, res) => {
   try {
@@ -749,8 +730,8 @@ app.post('/api/trigger-campaign', async (req, res) => {
           const hubspotPayload = {
             properties: {
               email: targetEmail,
-              // You can add more properties like firstname, lastname if you have them
               lifecyclestage: 'lead',
+              record_source: 'EasyFlow SaaS', // <-- Added here
             },
           };
 
@@ -780,6 +761,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
                 const updatePayload = {
                   properties: {
                     lifecyclestage: 'lead',
+                    record_source: 'EasyFlow SaaS', // <-- Added here
                   },
                 };
                 await axios.patch(
@@ -866,3 +848,5 @@ app.use((err, _req, res, _next) => {
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
+
+module.exports = app;

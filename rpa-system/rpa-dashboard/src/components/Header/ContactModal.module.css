@@ -21,3 +21,21 @@
 .modal h3 { margin-top: 0; }
 .actions { text-align: right; margin-top: 16px; }
 .actions button { padding: 8px 12px; border-radius: 4px; }
+
+/* Dark Mode Styles */
+.modal.dark {
+  background-color: #2d3748; /* A dark gray, adjust as needed */
+  color: #f7fafc; /* A light gray for text */
+  border: 1px solid #4a5568;
+}
+
+.modal.dark a {
+  color: #63b3ed; /* A light blue for links */
+}
+
+.modal.dark .actions button {
+  background-color: #4a5568;
+  color: #f7fafc;
+  border: 1px solid #718096;
+}
+

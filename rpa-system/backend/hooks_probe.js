@@ -7,9 +7,13 @@ let capturedEmails = [];
  
 // This endpoint is called by the email_worker during tests, mocking the real /api/send-email-now
 app.post('/api/send-email-now', (req, res) => {
-  console.log('[hooks_probe] received POST /api/send-email-now');
-  console.log('headers:', JSON.stringify(req.headers));
-  console.log('body:', JSON.stringify(req.body).slice(0, 4000));
+  // Use structured logging for better readability and to avoid overly long log lines.
+  console.log('[hooks_probe] Received email webhook:', {
+    to: req.body.to_email,
+    template: req.body.template,
+    hasData: !!req.body.data,
+    authHeader: req.headers['authorization'] ? 'Present' : 'Missing',
+  });
   capturedEmails.push(req.body);
   res.json({ ok: true, message: 'Email captured by test probe.' });
 });
@@ -27,12 +31,12 @@ app.delete('/test/emails', (req, res) => {
 
 app.get('/health', (req, res) => res.send('ok'));
 
-const port = process.env.PORT || 4001;
+const port = 4001; // Always use 4001 for the probe
 const server = app.listen(port, '0.0.0.0', () => console.log(`hooks_probe listening on ${port}`));
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`Error: Port ${port} is already in use. Please find and stop the other process or choose a different port.`);
+    console.error(`[hooks_probe] Error: Port ${port} is already in use. Please find and stop the other process or choose a different port.`);
     process.exit(1);
   } else {
     console.error('An unhandled server error occurred:', err);

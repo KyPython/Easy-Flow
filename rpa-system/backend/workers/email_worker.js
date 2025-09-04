@@ -118,10 +118,16 @@ async function handleItem(item) {
 
 (async function main() {
   console.log('[email_worker] starting, poll interval', POLL_INTERVAL_MS, 'ms');
+  let lastHeartbeat = Date.now();
   while (true) {
     try {
       const ok = await processOne();
       if (!ok) await sleep(POLL_INTERVAL_MS);
+
+      if (Date.now() - lastHeartbeat > 60000) { // Log a heartbeat every 60 seconds
+        console.log(`[email_worker] heartbeat: still running at ${new Date().toISOString()}`);
+        lastHeartbeat = Date.now();
+      }
     } catch (e) {
       console.error('[email_worker] main loop error', e?.message || e);
       await sleep(POLL_INTERVAL_MS);

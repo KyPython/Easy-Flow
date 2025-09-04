@@ -133,13 +133,13 @@ export async function trackEvent(payload) {
   }
 }
 
-export async function generateReferral() {
+export async function generateReferral(referrerEmail, referredEmail) {
   try {
-    const resp = await api.post('/api/generate-referral');
+    const resp = await api.post('/api/generate-referral', { referrerEmail, referredEmail });
     return resp.data;
   } catch (e) {
     console.error('generateReferral failed:', e);
-    throw new Error(getErrorMessage(e, 'Unable to generate referral link. Please try again later.'));
+    throw new Error(getErrorMessage(e, 'Unable to send referral. Please try again later.'));
   }
 }
 
