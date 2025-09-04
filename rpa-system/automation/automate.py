@@ -12,59 +12,27 @@ import hashlib
 from cryptography.fernet import Fernet
 import json
 import base64
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+import hmac
+import re
 
 app = Flask(__name__)
 
-@app.route('/run', methods=['POST'])
-def run_automation():
-    try:
-        data = request.json
-        url = data.get('url')
-        run_id = data.get('run_id')
-        task_id = data.get('task_id')
-        user_id = data.get('user_id')
-        
-        if not url:
-            return jsonify({"error": "URL is required"}), 400
-        
-        print(f"[automation] Processing URL: {url} for run_id: {run_id}")
-        
-        # Simulate successful automation
-        result = {
-            "status": "success", 
-            "message": f"Processed URL: {url}",
-            "run_id": run_id,
-            "data": {
-                "url": url,
-                "processed_at": datetime.datetime.now().isoformat()
-            }
-        }
-        
-        return jsonify(result)
-    except Exception as e:
-        print(f"[automation] Error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-# Security validation functions
+# Security validation functions (these were fine, just need to be in the final code)
 def decrypt_credentials(encrypted_data, key):
     """Decrypt credentials using AES-256-GCM"""
     try:
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-        from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
-        
-        # Use the salt from encrypted data
-        salt = bytes.fromhex(encrypted_data['salt'])  # Get salt from encrypted data
+        salt = bytes.fromhex(encrypted_data['salt'])
         kdf = Scrypt(algorithm=hashes.SHA256(), length=32, salt=salt, n=2**14, r=8, p=1)
         key_bytes = kdf.derive(key.encode())
         
-        # Decrypt using AESGCM
         aesgcm = AESGCM(key_bytes)
         iv = bytes.fromhex(encrypted_data['iv'])
         auth_tag = bytes.fromhex(encrypted_data['authTag'])
         encrypted_bytes = bytes.fromhex(encrypted_data['encrypted'])
         
-        # Combine encrypted data and auth tag for AESGCM
         ciphertext = encrypted_bytes + auth_tag
         decrypted = aesgcm.decrypt(iv, ciphertext, None)
         
@@ -76,21 +44,17 @@ def decrypt_credentials(encrypted_data, key):
 def validate_file_type(file_path):
     """Validate file is actually a PDF"""
     try:
-        # Check file extension
         if not file_path.lower().endswith('.pdf'):
             return False, "Invalid file extension"
         
-        # Check file size (limit to 50MB)
         if os.path.getsize(file_path) > 50 * 1024 * 1024:
             return False, "File too large"
             
-        # Check file magic bytes using python-magic if available
         try:
             mime_type = magic.from_file(file_path, mime=True)
             if mime_type != 'application/pdf':
                 return False, f"Invalid file type: {mime_type}"
         except:
-            # Fallback: check PDF header
             with open(file_path, 'rb') as f:
                 header = f.read(4)
                 if header != b'%PDF':
@@ -102,18 +66,9 @@ def validate_file_type(file_path):
 
 def sanitize_filename(filename):
     """Sanitize filename to prevent directory traversal"""
-    import re
-    # Remove path separators completely
     filename = filename.replace('/', '').replace('\\', '').replace('..', '')
-    # Remove dangerous characters, keep only alphanumeric, dash, underscore, dot
     filename = re.sub(r'[^\w\-_\.]', '_', filename)
-    # Limit length
     return filename[:50]
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({"ok": True, "service": "automation", "time": time.time()})
-
 
 def authenticate_request():
     """Authenticate incoming requests using shared API key"""
@@ -132,12 +87,11 @@ def authenticate_request():
         print('[Security] AUTOMATION_API_KEY too short')
         return False
     
-    # Constant-time comparison to prevent timing attacks
-    import hmac
     return hmac.compare_digest(token, expected_token)
 
+# The new, combined function
 @app.route('/run', methods=['POST'])
-def run():
+def run_task_with_auth_and_automation():
     # Authentication check
     if not authenticate_request():
         return jsonify({"error": "Unauthorized"}), 401
@@ -173,18 +127,15 @@ def run():
         return jsonify({"result": f"DRY_RUN: would automate {url}"})
 
     options = ChromeOptions()
-    # Bind to system Chromium if available (Docker image) else fallback
     chrome_bin = os.getenv('CHROME_BIN')
     chromedriver_path = os.getenv('CHROMEDRIVER_PATH')
     if chrome_bin:
         options.binary_location = chrome_bin
     
-    # Basic Chrome arguments
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    
-    # Security-focused Chrome arguments
+    # ... (rest of the options) ...
     options.add_argument("--disable-features=VizDisplayCompositor")
     options.add_argument("--disable-background-timer-throttling")
     options.add_argument("--disable-backgrounding-occluded-windows")
@@ -201,47 +152,38 @@ def run():
     options.add_argument("--metrics-recording-only")
     options.add_argument("--no-first-run")
     options.add_argument("--no-default-browser-check")
-    options.add_argument("--disable-popup-blocking")  # May be needed for some sites
-    
-    # Memory and performance limits
+    options.add_argument("--disable-popup-blocking")
     options.add_argument("--memory-pressure-off")
     options.add_argument("--max_old_space_size=512")
-    
-    # Network security
     options.add_argument("--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE localhost")
     options.add_argument("--disable-background-mode")
-    
-    # Additional security headers
     options.add_experimental_option("useAutomationExtension", False)
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_argument("--disable-blink-features=AutomationControlled")
-    
-    # Set user agent to avoid detection
     options.add_argument("--user-agent=Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36")
+    
+    driver = None
     try:
         if chromedriver_path:
             service = ChromeService(executable_path=chromedriver_path)
             driver = webdriver.Chrome(service=service, options=options)
         else:
-            # Fallback: webdriver-manager (local dev)
             from webdriver_manager.chrome import ChromeDriverManager
             driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
     except Exception as init_err:
         return jsonify({"result": f"Error initializing Chrome: {init_err}"}), 500
+
     try:
         driver.get(url)
         if username and password:
             try:
-                # Security validation before entering credentials
                 current_domain = urlparse(driver.current_url).netloc.lower()
                 original_domain = urlparse(url).netloc.lower()
                 
-                # Ensure we're still on the same domain
                 if current_domain != original_domain:
                     print(f'[Security] Domain changed from {original_domain} to {current_domain}, skipping credential entry')
                     username = password = None
                 else:
-                    # Look for username field with multiple possible names/ids
                     username_field = None
                     for selector in ['name=username', 'name=email', 'id=username', 'id=email', 'name=user']:
                         try:
@@ -250,7 +192,6 @@ def run():
                         except:
                             continue
                     
-                    # Look for password field
                     password_field = None
                     for selector in ['name=password', 'id=password', 'name=pass']:
                         try:
@@ -259,33 +200,27 @@ def run():
                         except:
                             continue
                     
-                    # Only proceed if both fields found and form looks legitimate
                     if username_field and password_field:
-                        # Additional security checks
                         form = None
                         try:
                             form = username_field.find_element("xpath", "./ancestor::form")
                         except:
                             pass
                         
-                        # Check if form has suspicious attributes
                         if form:
                             form_action = form.get_attribute('action') or ''
                             form_method = form.get_attribute('method') or 'get'
                             
-                            # Validate form action URL
                             if form_action:
                                 if form_action.startswith('javascript:') or form_action.startswith('data:'):
                                     print('[Security] Suspicious form action detected, skipping credential entry')
                                     username = password = None
                                 else:
-                                    # Enter credentials
                                     username_field.clear()
                                     username_field.send_keys(username)
                                     password_field.clear()
                                     password_field.send_keys(password)
                                     
-                                    # Look for submit button
                                     submit_button = None
                                     for selector in ['button[type=submit]', 'input[type=submit]', 'button']:
                                         try:
@@ -296,7 +231,7 @@ def run():
                                     
                                     if submit_button:
                                         submit_button.click()
-                                        time.sleep(3)  # Wait for potential redirect
+                                        time.sleep(3)
                             else:
                                 print('[Security] No form action found, skipping credential entry')
                         else:
@@ -306,15 +241,13 @@ def run():
             except Exception as e:
                 print(f'[Security] Error during credential entry: {e}')
                 pass
-        # If client provides a direct PDF URL or a relative href, attempt to download it using session cookies
+        
         pdf_url = data.get('pdf_url')
         saved_path = None
         if pdf_url:
-            # Resolve relative URLs against current location
             if not urlparse(pdf_url).scheme:
                 pdf_url = urljoin(driver.current_url, pdf_url)
 
-            # Extract cookies from Selenium and use requests to download
             s = requests.Session()
             for c in driver.get_cookies():
                 s.cookies.set(c['name'], c['value'], domain=c.get('domain'))
@@ -329,15 +262,11 @@ def run():
                 with s.get(pdf_url, stream=True, timeout=30) as r:
                     r.raise_for_status()
                     
-                    # Strict content type validation
                     content_type = r.headers.get('content-type', '').lower()
                     content_disposition = r.headers.get('content-disposition', '').lower()
                     
-                    # Check if content type indicates PDF
                     valid_pdf_types = ['application/pdf', 'application/x-pdf', 'application/acrobat', 'applications/vnd.pdf']
                     is_pdf_content_type = any(pdf_type in content_type for pdf_type in valid_pdf_types)
-                    
-                    # Also check content-disposition header
                     is_pdf_disposition = '.pdf' in content_disposition or 'filename="' in content_disposition
                     
                     if not (is_pdf_content_type or is_pdf_disposition):
@@ -346,7 +275,6 @@ def run():
                     if content_type.startswith('text/') or content_type.startswith('image/'):
                         raise Exception(f'Suspicious content type for PDF: {content_type}')
                     
-                    # Download with size limit (50MB)
                     max_size = 50 * 1024 * 1024
                     downloaded_size = 0
                     
@@ -359,7 +287,6 @@ def run():
                                     raise Exception("File too large")
                                 f.write(chunk)
                 
-                # Validate the downloaded file
                 is_valid, message = validate_file_type(saved_path)
                 if not is_valid:
                     os.remove(saved_path)
@@ -382,10 +309,16 @@ def run():
         result = f"Error: {str(e)}"
     finally:
         try:
-            driver.quit()
+            if driver:
+                driver.quit()
         except Exception:
             pass
     return jsonify({"result": result})
+
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"ok": True, "service": "automation", "time": time.time()})
 
 if __name__ == "__main__":
     port = int(os.environ.get("AUTOMATION_PORT") or os.environ.get("PORT", 7001))
