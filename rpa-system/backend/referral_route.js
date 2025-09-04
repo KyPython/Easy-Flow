@@ -1,8 +1,9 @@
 import express from 'express';
 const router = express.Router();
 import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { enqueueEvent } = require('./event_forwarder');
 
 // 1. User submits an email-based referral
 router.post('/generate-referral', async (req, res) => {
@@ -175,6 +176,19 @@ async function handleReferralOnSignup(newUserEmail, referralCode = null) {
       }
     }
   }
+}
+
+// when referral is created/updated, enqueue forwarding:
+function forwardReferralEvent(referral, action = 'created') {
+  const target = process.env.REFERRAL_WEBHOOK_URL;
+  if (!target) return;
+  enqueueEvent({
+    id: `referral:${referral.id}:${action}`,
+    url: target,
+    method: 'post',
+    headers: { 'Content-Type': 'application/json' },
+    body: { action, referral }
+  });
 }
 
 export { router, handleReferralOnSignup };

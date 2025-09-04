@@ -1,9 +1,23 @@
+// ...existing code...
 const express = require('express');
 const router = express.Router();
 const sgMail = require('@sendgrid/mail');
+const { enqueueEvent } = require('./event_forwarder');
+const crypto = require('crypto');
 
 if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+}
+
+function forwardEmailWebhook(targetUrl, payload, opts = {}) {
+  const id = opts.id || payload?.id || crypto.randomUUID?.() || (Date.now() + '-' + Math.random());
+  enqueueEvent({
+    id,
+    url: targetUrl,
+    method: 'post',
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    body: payload
+  });
 }
 
 router.post('/send-email-now', async (req, res) => {
@@ -51,7 +65,6 @@ router.post('/send-email-now', async (req, res) => {
   try {
     if (!process.env.SENDGRID_API_KEY) {
       console.error('[send_email_route] SendGrid API Key is not configured. Set SENDGRID_API_KEY in your environment.');
-      // In a real scenario, you might want to avoid failing silently.
       return res.status(500).json({ error: 'Email service is not configured.' });
     }
     await sgMail.send({
@@ -61,11 +74,18 @@ router.post('/send-email-now', async (req, res) => {
       text,
       html,
     });
+
+    const target = process.env.EMAIL_WEBHOOK_URL;
+    if (target) {
+      forwardEmailWebhook(target, { event: 'email.enqueued', data: { to_email, template, data } }, { id: crypto.randomUUID?.() || (Date.now() + '-' + Math.random()) });
+    }
+
     res.status(200).json({ success: true });
   } catch (err) {
-    console.error('[send_email_route] SendGrid error:', err.message || err);
-    res.status(500).json({ error: err.message || err });
+    console.error('[send_email_route] SendGrid error:', err?.message || err);
+    res.status(500).json({ error: err?.message || err });
   }
 });
 
 module.exports = router;
+// ...existing code...
