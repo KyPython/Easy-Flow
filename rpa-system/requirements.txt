@@ -3,3 +3,5 @@ flask-cors==4.0.1
 selenium==4.23.1
 webdriver-manager==4.0.2
 requests==2.32.3
+python-magic==0.4.27
+cryptography==41.0.8

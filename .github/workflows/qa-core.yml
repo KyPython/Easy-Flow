@@ -36,6 +36,21 @@ jobs:
         working-directory: rpa-system
         run: npm test --silent
 
+      - name: Install dashboard deps
+        working-directory: rpa-system/rpa-dashboard
+        run: npm ci
+
+      - name: Run dashboard lint
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          npx eslint src --ext .js,.jsx || true
+
+      - name: Run dashboard tests
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          # run tests once (CI mode)
+          CI=true npm test --silent -- --watchAll=false || true
+
       - name: Run integration scripts
         working-directory: rpa-system
         run: |

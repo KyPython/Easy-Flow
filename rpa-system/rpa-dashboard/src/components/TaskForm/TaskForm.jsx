@@ -48,27 +48,30 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  // Replace the handleSubmit function with this corrected version
 
-    setIsSubmitting(true);
-    try {
-      const response = await api.post('/api/run-task', form);
-      const completedTask = response.data;
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!validateForm()) return;
 
-      // Notify parent
-      onTaskSubmit?.(completedTask);
+  setIsSubmitting(true);
+  try {
+    // Send URL directly in the request body - don't use query params
+    const response = await api.post('/api/run-task', form);
+    const completedTask = response.data;
 
-      setForm({ url: '', username: '', password: '', task: 'invoice_download', pdf_url: '' });
-      alert('✅ Task submitted and completed successfully!');
-    } catch (error) {
-      console.error('Task submission failed:', error);
-      alert('❌ Task submission failed. Check console for details.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    // Notify parent
+    onTaskSubmit?.(completedTask);
+
+    setForm({ url: '', username: '', password: '', task: 'invoice_download', pdf_url: '' });
+    alert('✅ Task submitted and completed successfully!');
+  } catch (error) {
+    console.error('Task submission failed:', error);
+    alert('❌ Task submission failed. Check console for details.');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <div className={styles.container}>

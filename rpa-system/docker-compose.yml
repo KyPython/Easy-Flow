@@ -91,6 +91,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.email_worker
+    image: rpa-system-email-worker:latest
     volumes:
       - root_config:/root/.config:ro
     environment:
