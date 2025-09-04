@@ -15,6 +15,36 @@ import base64
 
 app = Flask(__name__)
 
+@app.route('/run', methods=['POST'])
+def run_automation():
+    try:
+        data = request.json
+        url = data.get('url')
+        run_id = data.get('run_id')
+        task_id = data.get('task_id')
+        user_id = data.get('user_id')
+        
+        if not url:
+            return jsonify({"error": "URL is required"}), 400
+        
+        print(f"[automation] Processing URL: {url} for run_id: {run_id}")
+        
+        # Simulate successful automation
+        result = {
+            "status": "success", 
+            "message": f"Processed URL: {url}",
+            "run_id": run_id,
+            "data": {
+                "url": url,
+                "processed_at": datetime.datetime.now().isoformat()
+            }
+        }
+        
+        return jsonify(result)
+    except Exception as e:
+        print(f"[automation] Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 # Security validation functions
 def decrypt_credentials(encrypted_data, key):
     """Decrypt credentials using AES-256-GCM"""

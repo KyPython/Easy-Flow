@@ -56,4 +56,3 @@ function enqueueEvent({ id, url, body, headers, method, eventName }) {
 }
 
 module.exports = { enqueueEvent, __internal: { queue, flush } };
-// ...existing code...

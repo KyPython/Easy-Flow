@@ -15,6 +15,49 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3030;
 
+// Add after imports, before route definitions (around line 100)
+
+// Authentication middleware for individual routes
+const authMiddleware = async (req, res, next) => {
+  const startTime = Date.now();
+  const minDelay = 100; // Minimum delay in ms to prevent timing attacks
+  
+  try {
+    if (!supabase) {
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      return res.status(401).json({ error: 'Authentication failed' });
+    }
+
+    const authHeader = (req.get('authorization') || '').trim();
+    const parts = authHeader.split(' ');
+    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
+    
+    if (!token) {
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      return res.status(401).json({ error: 'Authentication failed' });
+    }
+
+    // validate token via Supabase server client
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data || !data.user) {
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      return res.status(401).json({ error: 'Authentication failed' });
+    }
+
+    // attach user to request for downstream handlers
+    req.user = data.user;
+
+    // Ensure minimum delay even for successful auth
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+    return next();
+
+  } catch (err) {
+    console.error('[auth middleware] error', err?.message || err);
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
+};
+
 // Rate limiting - More restrictive limits
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -449,6 +492,110 @@ function sanitizeError(error, isDevelopment = false) {
   return genericErrors[errorType] || 'Internal server error';
 }
 
+// Add this function before the route handlers (around line 500)
+
+// Implementation of task run queueing and processing
+async function queueTaskRun(runId, taskData) {
+  try {
+    console.log(`[queueTaskRun] Queueing automation run ${runId}`);
+    
+    // Get the automation worker URL from environment or use default
+    const automationUrl = process.env.AUTOMATION_URL || 'http://localhost:7001/run';
+    
+    // Prepare the payload for the automation worker
+    const payload = { 
+      url: taskData.url,
+      title: taskData.title || 'Untitled Task',
+      run_id: runId,
+      task_id: taskData.task_id,
+      user_id: taskData.user_id
+    };
+    
+    console.log(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
+    
+    // In development mode, we can bypass the actual automation call
+    if (process.env.NODE_ENV === 'development' && process.env.DEV_MOCK_AUTOMATION === 'true') {
+      console.log('[queueTaskRun] DEV MODE: Simulating successful automation');
+      
+      // Update the run with simulated success
+      await supabase
+        .from('automation_runs')
+        .update({
+          status: 'completed',
+          ended_at: new Date().toISOString(),
+          result: JSON.stringify({ 
+            message: 'Development mode: Simulated successful execution',
+            url: taskData.url
+          })
+        })
+        .eq('id', runId);
+        
+      return { success: true, simulated: true };
+    }
+    
+    // For real execution, call the automation service
+    try {
+      const response = await axios.post(automationUrl, payload, { 
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${process.env.AUTOMATION_API_KEY}`
+  }
+});
+      
+      console.log(`[queueTaskRun] Automation service response:`, 
+        response.status, response.data ? 'data received' : 'no data');
+      
+      // Update the run with the result
+      await supabase
+        .from('automation_runs')
+        .update({
+          status: 'completed',
+          ended_at: new Date().toISOString(),
+          result: response.data || { message: 'Execution completed with no data returned' }
+        })
+        .eq('id', runId);
+        
+      return response.data;
+    } catch (error) {
+      console.error(`[queueTaskRun] Automation service error:`, error.message);
+      
+      // Update the run with the error
+      await supabase
+        .from('automation_runs')
+        .update({
+          status: 'failed',
+          ended_at: new Date().toISOString(),
+          result: JSON.stringify({ 
+            error: 'Automation execution failed',
+            message: error.message || 'Unknown error'
+          })
+        })
+        .eq('id', runId);
+        
+      throw error;
+    }
+  } catch (error) {
+    console.error(`[queueTaskRun] Error: ${error.message || error}`);
+    
+    // Make sure the run is marked as failed if we get an unexpected error
+    try {
+      await supabase
+        .from('automation_runs')
+        .update({
+          status: 'failed',
+          ended_at: new Date().toISOString(),
+          result: JSON.stringify({ error: error.message || 'Unknown error' })
+        })
+        .eq('id', runId);
+    } catch (updateError) {
+      console.error(`[queueTaskRun] Failed to update run status: ${updateError.message}`);
+    }
+    
+    throw error;
+  }
+}
+
 // Comprehensive input sanitization function
 function sanitizeInput(input) {
   if (typeof input !== 'string') return input;
@@ -523,208 +670,71 @@ function decryptCredentials(encryptedData, key) {
 }
 
 // POST /api/run-task - Secured automation endpoint
-app.post('/api/run-task', automationLimiter, async (req, res) => {
+app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) => {
+  const { url, title, notes } = req.body;
+  const user = req.user;
+
+  if (!url) {
+    return res.status(400).json({ error: 'url is required' });
+  }
+
   try {
-    // Defensive check for authentication
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
-
-    const { task, url, username, password } = req.body || {};
+    console.log(`[run-task] Processing automation for user ${user.id}`);
     
-    // Input sanitization
-    const sanitizedTask = sanitizeInput(task);
-    const sanitizedUrl = sanitizeInput(url);
-    const sanitizedUsername = sanitizeInput(username);
-    
-    if (!sanitizedUrl) return res.status(400).json({ error: 'url is required' });
-
-    // URL validation
-    const urlValidation = isValidUrl(sanitizedUrl);
-    if (!urlValidation.valid) {
-      return res.status(400).json({ 
-        error: 'Invalid URL', 
-        reason: urlValidation.reason 
-      });
-    }
-
-    // Rate limiting check (plan-based)
-    const { data: subscription, error: subError } = await supabase
-      .from('subscriptions')
-      .select('plan_id')
-      .eq('user_id', req.user.id)
-      .eq('status', 'active')
+    // First, create or find a task in automation_tasks
+    const { data: task, error: taskError } = await supabase
+      .from('automation_tasks')
+      .insert([{
+        user_id: user.id,
+        name: title || 'Untitled Task',
+        description: notes || '',
+        url: url,
+        task_type: 'manual',
+        parameters: JSON.stringify({ notes: notes || '' })
+      }])
+      .select()
       .single();
-
-    if (subError || !subscription) {
-      return res.status(403).json({ error: 'No active subscription found' });
+    
+    if (taskError) {
+      console.error('[run-task] Error creating automation task:', taskError);
+      return res.status(500).json({ error: 'Failed to create automation task' });
     }
-
-    const { data: plan, error: planError } = await supabase
-      .from('plans')
-      .select('feature_flags')
-      .eq('id', subscription.plan_id)
+    
+    // Now create a run record in automation_runs
+    const { data: run, error: runError } = await supabase
+      .from('automation_runs')
+      .insert([{
+        task_id: task.id,
+        user_id: user.id,
+        status: 'running',  // Valid statuses: 'running', 'completed', 'failed'
+        started_at: new Date().toISOString(),
+        result: JSON.stringify({ status: 'started' })
+      }])
+      .select()
       .single();
-
-    if (planError) return res.status(500).json({ error: 'Could not verify plan limits' });
-
-    const maxRuns = plan.feature_flags?.max_runs_per_month;
-    if (maxRuns !== -1) {
-      const today = new Date();
-      const startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-      
-      let count = 0;
-      let countError = null;
-      try {
-        const countRes = await supabase
-          .from('automation_logs')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', req.user.id)
-          .gte('created_at', startDate);
-        count = countRes.count;
-        countError = countRes.error;
-      } catch (err) {
-        countError = err;
-      }
-
-      // Change this section
-if (countError) {
-  // Log the error but don't fail the request
-  console.error('[run-task] Could not count recent runs:', countError.message || countError);
-  // Continue processing instead of returning error
-  // Only enforce limits if we successfully got the count
-}
-
-      if (count >= maxRuns) {
-        return res.status(403).json({ error: 'Monthly run limit exceeded' });
-      }
-    }
-
-    // Encrypt credentials if provided
-    let encryptedCredentials = null;
-    if (sanitizedUsername && password) {
-      const encryptionKey = process.env.CREDENTIAL_ENCRYPTION_KEY;
-      if (!encryptionKey) {
-        return res.status(500).json({ error: 'Server misconfiguration: encryption key not set' });
-      }
-      if (encryptionKey.length < 32) {
-        return res.status(500).json({ error: 'Server misconfiguration: encryption key too short' });
-      }
-      encryptedCredentials = encryptCredentials({
-        username: sanitizedUsername,
-        password: password
-      }, encryptionKey);
-    }
-
-    // Prepare payload for automation service
-    const automationUrl = process.env.AUTOMATION_URL || 'http://localhost:7001/run';
-    const automationApiKey = process.env.AUTOMATION_API_KEY;
     
-    if (!automationApiKey) {
-      return res.status(500).json({ error: 'Server misconfiguration: automation API key not set' });
+    if (runError) {
+      console.error('[run-task] Error creating automation run:', runError);
+      return res.status(500).json({ error: 'Failed to create automation run' });
     }
     
-    const payload = { 
-      url: sanitizedUrl, 
-      task: sanitizedTask,
-      user_id: req.user.id,
-      encrypted_credentials: encryptedCredentials
-    };
-    
-    if (req.body && typeof req.body.pdf_url === 'string') {
-      const sanitizedPdfUrl = sanitizeInput(req.body.pdf_url);
-      const pdfUrlValidation = isValidUrl(sanitizedPdfUrl);
-      if (pdfUrlValidation.valid) {
-        payload.pdf_url = sanitizedPdfUrl;
-      }
-    }
-    
-    const response = await axios.post(automationUrl, payload, { 
-      timeout: 120000,
-      headers: {
-        'Authorization': `Bearer ${automationApiKey}`,
-        'Content-Type': 'application/json'
-      }
+    // Queue the task processing - update this to use automation_runs instead of task_runs
+    await queueTaskRun(run.id, { 
+      url, 
+      title, 
+      task_id: task.id,
+      user_id: user.id 
     });
-    const result = response.data?.result ?? null;
-
-    // Upload artifact (PDF) to Supabase Storage if present
-    let artifact_url = null;
-    if (supabase && result && result.pdf) {
-      try {
-        const containerPath = result.pdf;
-        const fileName = path.basename(containerPath);
-        let hostPath = containerPath;
-        if (containerPath.startsWith(DOWNLOADS_DIR_CONTAINER)) {
-          hostPath = path.join(DOWNLOADS_DIR_HOST, fileName);
-        }
-        if (fs.existsSync(hostPath)) {
-          const buffer = fs.readFileSync(hostPath);
-          const key = `runs/${new Date().toISOString().slice(0,10)}/${Date.now()}_${fileName}`;
-          const { error: upErr } = await supabase.storage.from(ARTIFACTS_BUCKET).upload(key, buffer, {
-            contentType: 'application/pdf',
-            upsert: true,
-          });
-          if (upErr) throw upErr;
-          if (USE_SIGNED_URLS) {
-            const { data: signed, error: signErr } = await supabase.storage
-              .from(ARTIFACTS_BUCKET)
-              .createSignedUrl(key, SIGNED_URL_EXPIRES);
-            if (signErr) throw signErr;
-            artifact_url = signed.signedUrl;
-          } else {
-            artifact_url = supabase.storage.from(ARTIFACTS_BUCKET).getPublicUrl(key).data.publicUrl;
-          }
-        }
-      } catch (storageErr) {
-        console.warn('[run-task] artifact upload failed', storageErr.message);
-      }
-    }
-
-    // Log the execution
-    if (supabase) {
-      try {
-        await supabase.from('automation_logs').insert([{ 
-          user_id: req.user.id,
-          task: sanitizedTask, 
-          url: sanitizedUrl, 
-          username: sanitizedUsername, 
-          result, 
-          status: 'completed', 
-          artifact_url, 
-          created_at: new Date().toISOString() 
-        }]);
-      } catch (dbErr) {
-        console.warn('[DB insert failed]', dbErr.message);
-      }
-    }
-
-    res.json({ result, artifact_url });
-  } catch (err) {
-    const status = err.response?.status || 500;
-    const data = err.response?.data || err.message;
-    console.error('[POST /api/run-task] Error:', status, data);
     
-    // Log failure
-    if (supabase && req.user) {
-      try {
-        const body = req.body || {};
-        await supabase.from('automation_logs').insert([{ 
-          user_id: req.user.id,
-          task: sanitizeInput(body.task), 
-          url: sanitizeInput(body.url), 
-          username: sanitizeInput(body.username), 
-          result: { error: 'Execution failed' }, 
-          status: 'failed', 
-          created_at: new Date().toISOString() 
-        }]);
-      } catch (e) {
-        console.warn('[DB insert failed - error path]', e.message);
-      }
-    }
-    res.status(502).json({ error: 'Automation failed' });
+    return res.status(200).json({ 
+      id: run.id,
+      status: 'queued',
+      message: 'Task queued for processing'
+    });
+    
+  } catch (error) {
+    console.error('[run-task] Unhandled error:', error.message || error);
+    return res.status(500).json({ error: 'Failed to process request' });
   }
 });
 
