@@ -34,7 +34,7 @@ jobs:
 
       - name: Run backend unit tests
         working-directory: rpa-system
-        run: npm test --silent
+        run: npm run test:backend --silent
 
       - name: Install dashboard deps
         working-directory: rpa-system/rpa-dashboard
@@ -63,10 +63,12 @@ jobs:
           python-version: "3.11"
 
       - name: Run Python automation tests
-        working-directory: automation
+        working-directory: rpa-system/automation
         run: |
-          pip install -r requirements.txt
-          pytest -q || true
+          pip install -r ../requirements.txt
+          pip install pytest selenium requests
+          pytest test_core_features.py -v || true
+          pytest test_automate.py -v || true
 
       - name: Collect logs
         run: |

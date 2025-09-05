@@ -9,8 +9,16 @@
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
     "test:backend": "dotenv -- jest --config backend/jest.config.js",
+    "test:backend:watch": "dotenv -- jest --config backend/jest.config.js --watch",
+    "test:backend:coverage": "dotenv -- jest --config backend/jest.config.js --coverage",
+    "test:performance": "dotenv -- jest --config backend/jest.config.js --testNamePattern='Performance'",
+    "test:security": "dotenv -- jest --config backend/jest.config.js --testNamePattern='security|Security'",
+    "test:integration": "dotenv -- jest --config backend/jest.config.js --testNamePattern='integration|Integration'",
     "eject": "react-scripts eject",
-    "test:services": "dotenv concurrently --names \"BACKEND,WORKER,PROBE\" \"node backend/index.js\" \"cross-env SEND_EMAIL_WEBHOOK=http://localhost:4001/api/send-email-now node backend/workers/email_worker.js\" \"node backend/hooks_probe.js\""
+    "test:services": "dotenv concurrently --names \"BACKEND,WORKER,PROBE\" \"node backend/index.js\" \"cross-env SEND_EMAIL_WEBHOOK=http://localhost:4001/api/send-email-now node backend/workers/email_worker.js\" \"node backend/hooks_probe.js\"",
+    "qa:run": "../scripts/run-qa-tests.sh",
+    "qa:backend": "npm run test:backend && npm run test:performance && npm run test:security",
+    "qa:full": "npm run qa:backend && cd rpa-dashboard && npm test -- --watchAll=false && cd ../automation && python3 -m pytest -v"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.5",

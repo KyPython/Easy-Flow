@@ -1,0 +1,163 @@
+name: QA — Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  workflow_dispatch:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+      CI: true
+      
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            rpa-system/package-lock.json
+            rpa-system/rpa-dashboard/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver
+          
+      - name: Start Docker services
+        working-directory: rpa-system
+        run: |
+          docker compose -f docker-compose.test.yml up -d
+          sleep 10
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: rpa-system
+        run: npm ci
+
+      - name: Install frontend dependencies  
+        working-directory: rpa-system/rpa-dashboard
+        run: npm ci
+
+      - name: Install Python dependencies
+        working-directory: rpa-system
+        run: |
+          pip install -r requirements.txt
+          pip install pytest selenium requests webdriver-manager
+
+      - name: Start backend services
+        working-directory: rpa-system
+        run: |
+          npm run dev:backend &
+          sleep 5
+        env:
+          NODE_ENV: test
+
+      - name: Start frontend development server
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          npm start &
+          sleep 10
+        env:
+          BROWSER: none
+          CI: false
+
+      - name: Wait for services to be ready
+        run: |
+          timeout 60s bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+          timeout 60s bash -c 'until curl -f http://localhost:3000; do sleep 2; done'
+
+      - name: Run backend integration tests
+        working-directory: rpa-system
+        run: npm run test:backend -- --testTimeout=10000
+        env:
+          NODE_ENV: test
+
+      - name: Run frontend integration tests  
+        working-directory: rpa-system/rpa-dashboard
+        run: CI=true npm test -- --watchAll=false --testTimeout=15000
+
+      - name: Run Python integration tests
+        working-directory: rpa-system/automation
+        run: |
+          export CHROME_BIN=/usr/bin/chromium-browser
+          export CHROMEDRIVER_PATH=/usr/bin/chromedriver
+          pytest test_core_features.py -v -x --tb=short
+        env:
+          BACKEND_URL: http://localhost:3030
+          FRONTEND_URL: http://localhost:3000
+
+      - name: Run end-to-end automation test
+        working-directory: rpa-system
+        run: |
+          timeout 300s python3 automation/easyflow_autotest.py || true
+        env:
+          TEST_MODE: true
+
+      - name: Check service logs for errors
+        if: failure()
+        run: |
+          echo "=== Backend Logs ==="
+          docker compose -f rpa-system/docker-compose.test.yml logs backend || true
+          echo "=== Database Logs ==="
+          docker compose -f rpa-system/docker-compose.test.yml logs postgres || true
+
+      - name: Collect test artifacts
+        if: always()
+        run: |
+          mkdir -p test-artifacts
+          cp -r rpa-system/backend/tests/coverage test-artifacts/ 2>/dev/null || true
+          cp -r rpa-system/rpa-dashboard/coverage test-artifacts/ 2>/dev/null || true
+          docker compose -f rpa-system/docker-compose.test.yml logs --no-color > test-artifacts/service-logs.txt || true
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-artifacts
+          path: test-artifacts/
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f rpa-system/docker-compose.test.yml down -v || true
+          pkill -f "npm.*start" || true
+          pkill -f "node.*index.js" || true

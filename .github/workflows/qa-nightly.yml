@@ -1,0 +1,166 @@
+name: QA — Nightly Full Test Suite
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # Daily at 3 AM UTC
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Test type to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+        - full
+        - performance
+        - security
+        - integration
+
+jobs:
+  nightly-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+      CI: true
+      NODE_ENV: test
+      
+    strategy:
+      matrix:
+        node-version: [18, 20]
+        python-version: [3.11, 3.12]
+      fail-fast: false
+        
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver postgresql-client
+          
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+          
+      - name: Run QA test script
+        run: |
+          chmod +x scripts/run-qa-tests.sh
+          ./scripts/run-qa-tests.sh
+        env:
+          CHROME_BIN: /usr/bin/chromium-browser
+          CHROMEDRIVER_PATH: /usr/bin/chromedriver
+          
+      - name: Run extended performance tests
+        if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'performance' }}
+        working-directory: rpa-system
+        run: |
+          npm run test:backend -- --testNamePattern="Performance" --verbose
+          
+      - name: Run security audit
+        if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'security' }}
+        run: |
+          npm audit --audit-level=moderate || true
+          cd rpa-system && npm audit --audit-level=moderate || true
+          cd rpa-system/rpa-dashboard && npm audit --audit-level=moderate || true
+          
+      - name: Run dependency vulnerability check
+        if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'security' }}
+        working-directory: rpa-system/automation
+        run: |
+          pip install safety
+          safety check || true
+          
+      - name: Generate test coverage report
+        if: ${{ github.event.inputs.test_type == 'full' }}
+        run: |
+          cd rpa-system
+          npm run test:backend -- --coverage --coverageReporters=lcov
+          cd rpa-dashboard
+          CI=true npm test -- --coverage --watchAll=false --coverageReporters=lcov
+          
+      - name: Upload coverage to Codecov
+        if: ${{ github.event.inputs.test_type == 'full' }}
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./rpa-system
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          
+      - name: Run load testing
+        if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'performance' }}
+        working-directory: rpa-system
+        run: |
+          npm install -g artillery@latest
+          # Create a simple load test if artillery config exists
+          if [ -f "load-test.yml" ]; then
+            artillery run load-test.yml || true
+          fi
+          
+      - name: Collect comprehensive logs
+        if: always()
+        run: |
+          mkdir -p nightly-artifacts
+          
+          # System information
+          echo "=== System Info ===" > nightly-artifacts/system-info.txt
+          uname -a >> nightly-artifacts/system-info.txt
+          node --version >> nightly-artifacts/system-info.txt
+          npm --version >> nightly-artifacts/system-info.txt
+          python3 --version >> nightly-artifacts/system-info.txt
+          
+          # Docker logs if available
+          docker compose -f rpa-system/docker-compose.test.yml logs --no-color > nightly-artifacts/docker-logs.txt 2>/dev/null || true
+          
+          # Test results
+          find . -name "*.log" -o -name "test-results*" -o -name "coverage" -type d | while read -r file; do
+            if [ -f "$file" ]; then
+              cp "$file" nightly-artifacts/ 2>/dev/null || true
+            elif [ -d "$file" ]; then
+              cp -r "$file" nightly-artifacts/ 2>/dev/null || true
+            fi
+          done
+          
+      - name: Upload nightly artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-qa-artifacts-node${{ matrix.node-version }}-py${{ matrix.python-version }}
+          path: nightly-artifacts/
+          retention-days: 14
+          
+      - name: Post results to Slack
+        if: failure() && github.ref == 'refs/heads/main'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#qa-alerts'
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+          
+      - name: Cleanup
+        if: always()
+        run: |
+          docker system prune -f || true
+          docker compose -f rpa-system/docker-compose.test.yml down -v || true
