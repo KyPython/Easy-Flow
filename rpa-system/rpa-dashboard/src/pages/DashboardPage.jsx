@@ -3,6 +3,7 @@ import { useAuth } from '../utils/AuthContext';
 import Dashboard from '../components/Dashboard/Dashboard';
 import { supabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
+import Chatbot from '../components/Chatbot/Chatbot';
 
 const DashboardPage = () => {
   const { user, loading: authLoading } = useAuth();
@@ -107,6 +108,8 @@ const DashboardPage = () => {
       <ErrorMessage message={error} />
 
       <Dashboard metrics={metrics} recentTasks={recentTasks} />
+      
+      <Chatbot />
     </>
   );
 };

@@ -1,0 +1,29 @@
+/* Chatbot container styles */
+.chatbotContainer {
+  /* This container is mainly for React component structure */
+  /* The actual chatbot widget positioning is handled by the uchat script */
+  position: relative;
+  z-index: 1000;
+}
+
+/* Ensure chatbot doesn't interfere with page content */
+.chatbotContainer * {
+  box-sizing: border-box;
+}
+
+/* Override styles if needed for better integration */
+:global(#uchat-widget) {
+  /* Ensure the chatbot stays in bottom right */
+  position: fixed !important;
+  bottom: 20px !important;
+  right: 20px !important;
+  z-index: 9999 !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  :global(#uchat-widget) {
+    bottom: 10px !important;
+    right: 10px !important;
+  }
+}

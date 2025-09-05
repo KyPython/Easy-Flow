@@ -4,6 +4,7 @@ import { useAuth } from '../utils/AuthContext';
 import { supabase } from '../utils/supabaseClient';
 import styles from './HistoryPage.module.css';
 import ErrorMessage from '../components/ErrorMessage';
+import Chatbot from '../components/Chatbot/Chatbot';
 const HistoryPage = () => {
   const { user } = useAuth();
   const [runs, setRuns] = useState([]);
@@ -130,6 +131,8 @@ const HistoryPage = () => {
           </div>
         </div>
       )}
+      
+      <Chatbot />
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import TaskForm from "../components/TaskForm/TaskForm";
+import Chatbot from "../components/Chatbot/Chatbot";
 
 const TasksPage = () => {
   const handleTaskSubmit = (completedTask) => {
@@ -11,6 +12,8 @@ const TasksPage = () => {
       <div className="task-form-container">
         <TaskForm onTaskSubmit={handleTaskSubmit} />
       </div>
+      
+      <Chatbot />
     </div>
   );
 };

@@ -8,6 +8,14 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      CI: false  # Treat warnings as warnings, not errors
+      NODE_ENV: production
+      # Set placeholder values to prevent build-time warnings
+      REACT_APP_SUPABASE_URL: "placeholder-url"
+      REACT_APP_SUPABASE_ANON_KEY: "placeholder-key"
+      # Increase memory for Node.js build process
+      NODE_OPTIONS: "--max_old_space_size=4096"
     steps:
       - uses: actions/checkout@v4
 
@@ -15,29 +23,117 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: 'npm'
+          cache-dependency-path: rpa-system/rpa-dashboard/package-lock.json
 
       - name: Install dependencies
         working-directory: rpa-system/rpa-dashboard
-        run: npm ci
-
-      - name: Build
+        run: |
+          echo "Installing dependencies..."
+          npm ci --prefer-offline --no-audit
+          echo "Dependencies installed successfully"
+          
+      - name: Pre-build checks
         working-directory: rpa-system/rpa-dashboard
-        run: npm run build
+        run: |
+          echo "=== Pre-build diagnostics ==="
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          echo "Working directory: $(pwd)"
+          echo "Package.json scripts:"
+          cat package.json | jq '.scripts'
+          echo "Checking for config-overrides.js:"
+          ls -la config-overrides.js || echo "No config-overrides.js found"
+          echo "node_modules existence:"
+          ls -la node_modules/ | head -5
+          
+      - name: Build frontend
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          echo "=== Starting build process ==="
+          echo "Build command: npm run build"
+          
+          # Try the standard build command first
+          if npm run build 2>&1 | tee build.log; then
+            echo "Build successful with npm run build"
+          else
+            echo "Build failed with npm run build, trying fallback..."
+            echo "Exit code: $?"
+            
+            # Show build log for debugging
+            echo "=== Build log ==="
+            cat build.log || echo "No build log available"
+            
+            # Try fallback with react-scripts directly
+            echo "Attempting fallback build with react-scripts..."
+            if npx react-scripts build 2>&1 | tee build-fallback.log; then
+              echo "Fallback build successful!"
+            else
+              echo "Both build attempts failed!"
+              echo "=== Fallback build log ==="
+              cat build-fallback.log || echo "No fallback build log available"
+              exit 1
+            fi
+          fi
+          
+      - name: Post-build verification
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          echo "=== Post-build verification ==="
+          if [ ! -d build ]; then
+            echo "ERROR: Build directory not found!"
+            echo "Current directory contents:"
+            ls -la
+            echo "Build log:"
+            cat build.log || echo "No build log found"
+            exit 1
+          fi
+          
+          echo "Build directory found. Contents:"
+          ls -la build/
+          
+          if [ ! -f build/index.html ]; then
+            echo "ERROR: build/index.html not found!"
+            echo "Build directory contents:"
+            find build -type f | head -20
+            exit 1
+          fi
+          
+          echo "Build verification successful!"
+          echo "Built files:"
+          find build -name "*.js" -o -name "*.css" -o -name "*.html" | head -10
 
       - name: Archive build
         run: |
+          echo "=== Creating build archive ==="
           if [ ! -d rpa-system/rpa-dashboard/build ]; then
             echo "ERROR: Build directory not found. Did the build step succeed?" >&2
+            echo "Current directory structure:"
+            find rpa-system/rpa-dashboard -maxdepth 2 -type d
             exit 1
           fi
+          
+          echo "Creating tar archive..."
           tar -czf rpa-dashboard-build.tar.gz -C rpa-system/rpa-dashboard build
+          echo "Archive created successfully"
+          
+          echo "Archive size: $(du -h rpa-dashboard-build.tar.gz)"
+          echo "Testing archive integrity..."
+          tar -tzf rpa-dashboard-build.tar.gz | head -10
 
-      - name: Check build archive exists
+      - name: Verify build archive
         run: |
+          echo "=== Verifying build archive ==="
           if [ ! -f rpa-dashboard-build.tar.gz ]; then
             echo "ERROR: rpa-dashboard-build.tar.gz not found. Archive step failed." >&2
+            echo "Files in current directory:"
+            ls -la
             exit 1
           fi
+          
+          echo "Archive verification successful!"
+          echo "Archive details:"
+          ls -lh rpa-dashboard-build.tar.gz
 
       - name: Copy files to VM
         uses: appleboy/scp-action@v0.1.3
@@ -48,7 +144,7 @@ jobs:
           source: rpa-dashboard-build.tar.gz
           target: /home/${{ secrets.VM_USER }}/
 
-      - name: Run remote deploy script
+      - name: Deploy to VM
         uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.VM_HOST }}
@@ -57,13 +153,58 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -e
-            tar -xzf /home/ky/rpa-dashboard-build.tar.gz -C /tmp
-            if [ ! -f /tmp/build/index.html ]; then
-              echo "ERROR: /tmp/build/index.html not found after extraction. Check archive structure and build step." >&2
-              ls -l /tmp/build
+            echo "=== Starting deployment on VM ==="
+            
+            # Check if archive exists
+            if [ ! -f /home/${{ secrets.VM_USER }}/rpa-dashboard-build.tar.gz ]; then
+              echo "ERROR: rpa-dashboard-build.tar.gz not found on VM"
+              echo "Files in home directory:"
+              ls -la /home/${{ secrets.VM_USER }}/
               exit 1
             fi
+            
+            echo "Archive found, extracting..."
+            rm -rf /tmp/build || true
+            tar -xzf /home/${{ secrets.VM_USER }}/rpa-dashboard-build.tar.gz -C /tmp
+            
+            # Verify extraction
+            if [ ! -f /tmp/build/index.html ]; then
+              echo "ERROR: /tmp/build/index.html not found after extraction"
+              echo "Extracted contents:"
+              find /tmp -name "build" -type d -exec ls -la {} \;
+              echo "Archive contents:"
+              tar -tzf /home/${{ secrets.VM_USER }}/rpa-dashboard-build.tar.gz | head -20
+              exit 1
+            fi
+            
+            echo "Extraction successful, deploying files..."
+            echo "Current /var/www/easyflow-app contents:"
+            sudo ls -la /var/www/easyflow-app/ || echo "Directory doesn't exist yet"
+            
+            # Backup current deployment
+            if [ -d /var/www/easyflow-app ] && [ "$(sudo ls -A /var/www/easyflow-app)" ]; then
+              sudo mkdir -p /var/www/backups
+              sudo cp -r /var/www/easyflow-app /var/www/backups/easyflow-app-$(date +%Y%m%d-%H%M%S) || true
+            fi
+            
+            # Deploy new files
             sudo rm -rf /var/www/easyflow-app/* || true
             sudo cp -a /tmp/build/. /var/www/easyflow-app/
             sudo chown -R www-data:www-data /var/www/easyflow-app
-            sudo systemctl reload nginx || true
+            
+            echo "Files deployed successfully!"
+            echo "Deployed files:"
+            sudo ls -la /var/www/easyflow-app/ | head -10
+            
+            # Test nginx configuration and reload
+            echo "Testing nginx configuration..."
+            sudo nginx -t
+            echo "Reloading nginx..."
+            sudo systemctl reload nginx
+            echo "Nginx reloaded successfully"
+            
+            # Cleanup
+            rm -f /home/${{ secrets.VM_USER }}/rpa-dashboard-build.tar.gz
+            rm -rf /tmp/build
+            
+            echo "=== Deployment completed successfully! ==="

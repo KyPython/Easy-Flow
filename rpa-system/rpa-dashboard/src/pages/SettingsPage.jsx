@@ -4,6 +4,7 @@ import { useAuth } from '../utils/AuthContext';
 import { useTheme } from '../utils/ThemeContext';
 import styles from './SettingsPage.module.css';
 import ReferralForm from '../components/ReferralForm';
+import Chatbot from '../components/Chatbot/Chatbot';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -240,6 +241,8 @@ export default function SettingsPage() {
           </>
         )}
       </section>
+      
+      <Chatbot />
     </div>
   );
 }
