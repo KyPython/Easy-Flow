@@ -195,10 +195,13 @@ jobs:
           ls -lh rpa-dashboard-build.tar.gz
 
       - name: Emergency disk cleanup on remote server
-        run: |
-          echo "Performing emergency disk cleanup on remote server..."
-          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF' || \
-          ssh -i /tmp/ssh_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
             set -e
             echo "=== BEFORE CLEANUP ==="
             df -h /
@@ -247,7 +250,6 @@ jobs:
             else
               echo "✅ Sufficient space available for frontend deployment (${AVAILABLE_MB}MB)"
             fi
-          EOF
 
       - name: Copy files to VM
         uses: appleboy/scp-action@v0.1.3
