@@ -17,24 +17,76 @@ jobs:
           ADMIN_API_SECRET: ${{ secrets.ADMIN_API_SECRET }}
         run: |
           set -euo pipefail
+          
+          # Validate environment variables
           if [ -z "$APP_URL" ] || [ -z "$ADMIN_API_SECRET" ]; then
-            echo "Missing APP_URL or ADMIN_API_SECRET" >&2
+            echo "❌ Missing required environment variables:" >&2
+            echo "APP_URL: ${APP_URL:-'NOT SET'}" >&2
+            echo "ADMIN_API_SECRET: ${ADMIN_API_SECRET:+PRESENT}" >&2
             exit 1
           fi
           
+          echo "🔍 Configuration check:"
+          echo "APP_URL is set to: $APP_URL"
+          echo "Target endpoint: $APP_URL/admin/email-queue-stats"
+          
           # Determine if we need to skip SSL verification for IP addresses
-          curl_opts="-sS"
+          curl_opts="-sS --max-time 30"
           if [[ "$APP_URL" =~ ^https://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "⚠️ Warning: Using IP address with HTTPS. Adding -k flag to skip SSL verification."
             echo "⚠️ Recommendation: Use a proper domain name with valid SSL certificate."
-            curl_opts="-sS -k"
+            curl_opts="$curl_opts -k"
           fi
           
-          resp=$(curl $curl_opts -H "x-admin-secret: $ADMIN_API_SECRET" "$APP_URL/admin/email-queue-stats" 2>&1) || {
-            echo "❌ curl failed with exit code $?"
-            echo "Response: $resp"
-            resp='{"error":"curl_failed","message":"Failed to fetch email queue stats"}'
+          # Test basic connectivity first
+          echo "🌐 Testing basic connectivity to $APP_URL..."
+          if ! curl $curl_opts --head --silent --fail "$APP_URL" >/dev/null 2>&1; then
+            echo "⚠️ Warning: Base URL connectivity test failed, proceeding anyway..."
+          else
+            echo "✅ Base URL is accessible"
+          fi
+          
+          # Fetch email queue stats
+          echo "📊 Fetching email queue stats..."
+          endpoint="$APP_URL/admin/email-queue-stats"
+          resp=$(curl $curl_opts -H "x-admin-secret: $ADMIN_API_SECRET" "$endpoint" 2>&1) || {
+            exit_code=$?
+            echo "❌ curl failed with exit code $exit_code"
+            echo "Response received: $resp"
+            resp='{"error":"curl_failed","message":"Failed to fetch email queue stats","exit_code":'$exit_code'}'
           }
+          
+          # Check if response is HTML instead of JSON
+          if [[ "$resp" == "<!doctype"* ]] || [[ "$resp" == "<!DOCTYPE"* ]] || [[ "$resp" == "<html"* ]]; then
+            echo "❌ ERROR: Endpoint returned HTML instead of JSON!"
+            echo "This indicates APP_URL may be pointing to a frontend site instead of the backend API."
+            echo "Response preview: ${resp:0:200}..."
+            echo ""
+            echo "💡 Solutions:"
+            echo "1. Update APP_URL secret to point to your backend API (e.g., https://api.yourdomain.com)"
+            echo "2. Ensure the /admin/email-queue-stats endpoint exists on your backend"
+            echo "3. Verify ADMIN_API_SECRET is correct for your backend"
+            
+            resp='{"error":"html_response","message":"Endpoint returned HTML instead of JSON - check APP_URL configuration"}'
+          fi
+          
+          # Check if response is empty
+          if [ -z "$resp" ]; then
+            echo "❌ ERROR: Empty response from endpoint"
+            resp='{"error":"empty_response","message":"Empty response from email queue stats endpoint"}'
+          fi
+          
+          # Validate JSON structure if not an error response
+          if [[ "$resp" != *'"error":'* ]]; then
+            if echo "$resp" | jq . >/dev/null 2>&1; then
+              echo "✅ Valid JSON response received"
+              echo "📋 Response preview: $(echo "$resp" | jq -c . | head -c 200)..."
+            else
+              echo "❌ ERROR: Response is not valid JSON"
+              echo "Response: ${resp:0:500}..."
+              resp='{"error":"invalid_json","message":"Response is not valid JSON","raw_response":"'$(echo "$resp" | sed 's/"/\\"/g' | head -c 200)'"}'
+            fi
+          fi
           
           echo "resp<<EOF" >> $GITHUB_OUTPUT
           echo "$resp" >> $GITHUB_OUTPUT
@@ -47,54 +99,113 @@ jobs:
         env:
           RESP: ${{ steps.stats.outputs.resp }}
 
-      - name: Create issue if backlog exceeds threshold
+      - name: Process email queue stats
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const resp = (process.env.RESP || '').trim();
+            
             if (!resp) {
               core.setFailed('No response from email stats endpoint');
               return;
             }
             
+            core.info(`Raw response length: ${resp.length} characters`);
+            
             let obj = null;
             try { 
               obj = JSON.parse(resp); 
             } catch (e) { 
-              // If JSON parsing fails, check if it's a curl error
-              if (resp.includes('curl_failed')) {
-                core.warning('curl failed to fetch email stats - SSL certificate issue detected');
-                core.warning('Consider updating APP_URL to use a domain name with valid SSL certificate');
-                return; // Don't fail the workflow for SSL issues
+              core.error(`JSON parsing failed: ${e.message}`);
+              core.error(`Response preview: ${resp.substring(0, 200)}...`);
+              
+              // Check for common error patterns
+              if (resp.includes('<!doctype') || resp.includes('<html')) {
+                core.error('🚨 CONFIGURATION ERROR: APP_URL points to frontend instead of backend API');
+                core.error('💡 Fix: Update APP_URL secret to your backend API endpoint');
+                core.error('   Example: https://api.yourdomain.com (not https://yourdomain.com)');
+                core.setFailed('APP_URL configuration error - receiving HTML instead of JSON');
+              } else if (resp.includes('curl_failed')) {
+                core.warning('curl failed to fetch email stats - connectivity issue');
+                core.warning('This may be due to SSL certificate mismatch or network issues');
+              } else {
+                core.setFailed(`Invalid JSON response: ${e.message}`);
               }
-              core.setFailed('Invalid JSON from stats endpoint: ' + e.message); 
               return; 
             }
             
-            // Handle curl error responses
-            if (obj?.error === 'curl_failed') {
-              core.warning('Email queue monitoring failed due to connectivity issues');
-              core.warning('SSL certificate may not match the server hostname');
+            // Handle structured error responses
+            if (obj?.error) {
+              const errorType = obj.error;
+              const errorMessage = obj.message || 'Unknown error';
+              
+              switch (errorType) {
+                case 'html_response':
+                  core.error('🚨 CONFIGURATION ERROR: Endpoint returned HTML instead of JSON');
+                  core.error('💡 Solutions:');
+                  core.error('   1. Update APP_URL to point to backend API, not frontend');
+                  core.error('   2. Ensure /admin/email-queue-stats endpoint exists');
+                  core.error('   3. Verify ADMIN_API_SECRET is correct');
+                  core.setFailed('APP_URL misconfiguration - HTML response detected');
+                  break;
+                  
+                case 'curl_failed':
+                  core.warning(`curl failed: ${errorMessage}`);
+                  core.warning('Check network connectivity and SSL certificates');
+                  break;
+                  
+                case 'empty_response':
+                  core.warning('Empty response from endpoint - API may be down');
+                  break;
+                  
+                case 'invalid_json':
+                  core.warning(`Invalid JSON response: ${errorMessage}`);
+                  if (obj.raw_response) {
+                    core.warning(`Raw response: ${obj.raw_response}`);
+                  }
+                  break;
+                  
+                default:
+                  core.warning(`Unknown error type: ${errorType} - ${errorMessage}`);
+              }
+              
+              // Don't fail workflow for monitoring issues, just warn
               return;
             }
             
+            // Process successful response
             const pending = obj?.counts?.pending || 0;
-            const threshold = 5; // assumption: create issue if > 5 pending
+            const threshold = 5; // Create issue if > 5 pending
+            
+            core.info(`Email queue status: ${pending} pending items (threshold: ${threshold})`);
+            
             if (pending > threshold) {
               const title = `[Alert] Email queue backlog: ${pending} pending items`;
-              const body = `Email queue stats exceeded threshold (${threshold}).\n\n>>> stats:\n\n\`\`\`json\n${JSON.stringify(obj, null, 2)}\n\`\`\`\n\n---\n*Generated by email queue monitoring workflow*`;
-              await github.rest.issues.create({ 
-                owner: context.repo.owner, 
-                repo: context.repo.repo, 
-                title, 
-                body, 
-                labels: ['alert', 'email-queue'] 
-              });
-              core.notice('Created alert issue for backlog');
+              const body = `Email queue stats exceeded threshold (${threshold}).\n\n**📊 Current Stats:**\n\n\`\`\`json\n${JSON.stringify(obj, null, 2)}\n\`\`\`\n\n**⚡ Action Required:**\n- Check email worker processes\n- Review email service configuration\n- Monitor for continued backlog growth\n\n---\n*Generated by email queue monitoring workflow*`;
+              
+              try {
+                await github.rest.issues.create({ 
+                  owner: context.repo.owner, 
+                  repo: context.repo.repo, 
+                  title, 
+                  body, 
+                  labels: ['alert', 'email-queue', 'high-priority'] 
+                });
+                core.notice(`🚨 Created alert issue for backlog: ${pending} pending items`);
+              } catch (issueError) {
+                core.error(`Failed to create GitHub issue: ${issueError.message}`);
+              }
             } else {
-              core.info(`Pending (${pending}) <= threshold (${threshold}), no issue created.`);
+              core.info(`✅ Email queue healthy: ${pending} pending items (within threshold)`);
             }
+            
+            // Log additional stats if available
+            if (obj.counts) {
+              const stats = obj.counts;
+              core.info(`Queue details - Pending: ${stats.pending || 0}, Sent: ${stats.sent || 0}, Failed: ${stats.failed || 0}`);
+            }
+            
         env:
           RESP: ${{ steps.stats.outputs.resp }}
