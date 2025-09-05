@@ -20,19 +20,7 @@ jobs:
       SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
       CI: true
       
-    services:
-      postgres:
-        image: postgres:13
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: testdb
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+    # Remove built-in postgres service since docker-compose.test.yml provides it
 
     steps:
       - name: Checkout
@@ -59,11 +47,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
           
-      - name: Start Docker services
+      - name: Clean up conflicting containers and start Docker services
         working-directory: rpa-system
         run: |
+          # Stop any existing containers using port 5432
+          docker ps -aq --filter "publish=5432" | xargs -r docker stop
+          docker ps -aq --filter "publish=5432" | xargs -r docker rm
+          # Start test services
           docker compose -f docker-compose.test.yml up -d
-          sleep 10
+          sleep 15
 
       - name: Install root dependencies
         run: npm ci

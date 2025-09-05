@@ -12,9 +12,15 @@ BEGIN
         CREATE USER testuser WITH PASSWORD 'testpassword';
     END IF;
     
+    -- Create root user if it doesn't exist (for applications that might use it)
+    IF NOT EXISTS (SELECT 1 FROM pg_user WHERE usename = 'root') THEN
+        CREATE USER root WITH PASSWORD 'rootpassword' CREATEDB SUPERUSER;
+    END IF;
+    
     -- Grant necessary permissions
     GRANT ALL PRIVILEGES ON DATABASE testdb TO postgres;
     GRANT ALL PRIVILEGES ON DATABASE testdb TO testuser;
+    GRANT ALL PRIVILEGES ON DATABASE testdb TO root;
     
 END $$;
 
@@ -27,6 +33,7 @@ CREATE SCHEMA IF NOT EXISTS public;
 -- Grant permissions on schema
 GRANT ALL ON SCHEMA public TO postgres;
 GRANT ALL ON SCHEMA public TO testuser;
+GRANT ALL ON SCHEMA public TO root;
 GRANT ALL ON SCHEMA public TO PUBLIC;
 
 -- Create a simple test table for health checks

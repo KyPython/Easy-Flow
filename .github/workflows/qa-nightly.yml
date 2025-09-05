@@ -30,7 +30,7 @@ jobs:
       
     strategy:
       matrix:
-        node-version: [18, 20]
+        node-version: [20, 22]
         python-version: [3.11, 3.12]
       fail-fast: false
         
