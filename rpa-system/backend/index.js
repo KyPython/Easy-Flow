@@ -1323,6 +1323,75 @@ app.post('/api/trigger-campaign', async (req, res) => {
   }
 });
 
+// Admin middleware for protected endpoints
+const adminAuthMiddleware = (req, res, next) => {
+  const adminSecret = req.headers['x-admin-secret'];
+  const expectedSecret = process.env.ADMIN_API_SECRET;
+  
+  if (!expectedSecret) {
+    return res.status(500).json({ error: 'ADMIN_API_SECRET not configured' });
+  }
+  
+  if (!adminSecret || adminSecret !== expectedSecret) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid admin secret' });
+  }
+  
+  next();
+};
+
+// Admin endpoint for email queue statistics
+app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
+  try {
+    // Query email queue statistics
+    const { data: stats, error } = await supabase
+      .from('email_queue')
+      .select('status')
+      .then(({ data, error }) => {
+        if (error) return { data: null, error };
+        
+        // Count by status
+        const counts = data.reduce((acc, row) => {
+          const status = row.status || 'unknown';
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {});
+        
+        return { data: counts, error: null };
+      });
+
+    if (error) {
+      console.error('[admin/email-queue-stats] Database error:', error.message);
+      return res.status(500).json({ 
+        error: 'Database error', 
+        message: error.message 
+      });
+    }
+
+    // Ensure we have standard status counts
+    const counts = {
+      pending: stats.pending || 0,
+      sent: stats.sent || 0,
+      failed: stats.failed || 0,
+      ...stats // Include any other statuses
+    };
+
+    const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+
+    res.json({
+      counts,
+      total,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (e) {
+    console.error('[admin/email-queue-stats] Unexpected error:', e?.message || e);
+    res.status(500).json({ 
+      error: 'Internal server error', 
+      message: e?.message || 'Unknown error' 
+    });
+  }
+});
+
 // Final error handler
 app.use((err, _req, res, _next) => {
   console.error(err.stack);
