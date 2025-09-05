@@ -30,8 +30,42 @@ jobs:
         working-directory: rpa-system/rpa-dashboard
         run: |
           echo "Installing dependencies..."
-          npm ci --prefer-offline --no-audit
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          
+          # Clean install with retries
+          if ! npm ci --prefer-offline --no-audit; then
+            echo "npm ci failed, trying with cache clear..."
+            npm cache clean --force
+            npm ci --prefer-offline --no-audit
+          fi
+          
           echo "Dependencies installed successfully"
+          
+          # Verify react-app-rewired installation
+          echo "=== Dependency verification ==="
+          if [ -f node_modules/.bin/react-app-rewired ]; then
+            echo "✅ react-app-rewired binary found"
+            ls -la node_modules/.bin/react-app-rewired
+          else
+            echo "❌ react-app-rewired binary NOT found"
+            echo "Checking if package is installed..."
+            npm list react-app-rewired || echo "react-app-rewired not found in dependencies"
+            
+            # Force install if missing
+            echo "Force installing react-app-rewired..."
+            npm install react-app-rewired@^2.2.1 --save-dev --no-package-lock
+          fi
+          
+          # Check other critical dependencies
+          echo "=== Critical dependencies check ==="
+          for pkg in "react-scripts" "customize-cra"; do
+            if npm list $pkg >/dev/null 2>&1; then
+              echo "✅ $pkg found"
+            else
+              echo "⚠️ $pkg missing"
+            fi
+          done
           
       - name: Pre-build checks
         working-directory: rpa-system/rpa-dashboard
@@ -51,29 +85,54 @@ jobs:
         working-directory: rpa-system/rpa-dashboard
         run: |
           echo "=== Starting build process ==="
-          echo "Build command: npm run build"
           
-          # Try the standard build command first
-          if npm run build 2>&1 | tee build.log; then
-            echo "Build successful with npm run build"
+          # Check if react-app-rewired is available
+          if command -v react-app-rewired >/dev/null 2>&1 || [ -f node_modules/.bin/react-app-rewired ]; then
+            echo "✅ react-app-rewired available"
+            BUILD_CMD="npm run build"
           else
-            echo "Build failed with npm run build, trying fallback..."
-            echo "Exit code: $?"
+            echo "❌ react-app-rewired not found, using react-scripts fallback"
+            BUILD_CMD="npx react-scripts build"
+          fi
+          
+          echo "Build command: $BUILD_CMD"
+          
+          # Execute the build
+          if $BUILD_CMD 2>&1 | tee build.log; then
+            echo "✅ Build successful with: $BUILD_CMD"
+          else
+            build_exit_code=$?
+            echo "❌ Build failed with: $BUILD_CMD (exit code: $build_exit_code)"
             
             # Show build log for debugging
             echo "=== Build log ==="
             cat build.log || echo "No build log available"
             
-            # Try fallback with react-scripts directly
-            echo "Attempting fallback build with react-scripts..."
-            if npx react-scripts build 2>&1 | tee build-fallback.log; then
-              echo "Fallback build successful!"
+            # Try alternative build methods
+            if [[ "$BUILD_CMD" == *"react-app-rewired"* ]]; then
+              echo "🔄 Trying fallback with react-scripts..."
+              if npx react-scripts build 2>&1 | tee build-fallback.log; then
+                echo "✅ Fallback build successful with react-scripts!"
+              else
+                echo "❌ Both build methods failed!"
+                echo "=== Fallback build log ==="
+                cat build-fallback.log || echo "No fallback build log available"
+                exit 1
+              fi
             else
-              echo "Both build attempts failed!"
-              echo "=== Fallback build log ==="
-              cat build-fallback.log || echo "No fallback build log available"
-              exit 1
+              echo "❌ Build failed and no fallback available"
+              exit $build_exit_code
             fi
+          fi
+          
+          # Verify build output
+          if [ -d build ] && [ -f build/index.html ]; then
+            echo "✅ Build verification passed"
+          else
+            echo "❌ Build verification failed - missing build directory or index.html"
+            echo "Current directory contents:"
+            ls -la
+            exit 1
           fi
           
       - name: Post-build verification
