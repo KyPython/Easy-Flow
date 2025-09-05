@@ -24,9 +24,18 @@ jobs:
       - name: Start test services (docker-compose)
         working-directory: rpa-system
         run: |
+          echo "Starting test services..."
           docker compose -f docker-compose.test.yml up -d
-          # wait for services to be ready
-          sleep 8
+          
+          echo "Waiting for services to be ready..."
+          # Wait for PostgreSQL to be ready
+          timeout 60s bash -c 'until docker compose -f docker-compose.test.yml exec -T postgres pg_isready -U postgres -d testdb; do sleep 2; done'
+          
+          # Wait for backend to be ready
+          timeout 60s bash -c 'until curl -f http://localhost:3030/api/health >/dev/null 2>&1; do sleep 2; done' || echo "Backend health check timeout (continuing anyway)"
+          
+          echo "Services are ready!"
+          docker compose -f docker-compose.test.yml ps
 
       - name: Install backend deps
         working-directory: rpa-system

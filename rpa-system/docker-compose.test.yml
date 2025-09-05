@@ -1,11 +1,89 @@
-version: "3.8"
-
-# This file overrides settings in docker-compose.yml for testing purposes.
-# To use it, run: docker-compose -f docker-compose.yml -f docker-compose.test.yml up
-# To drop it, run: docker-compose -f docker-compose.yml -f docker-compose.test.yml down
+# This file provides test services for the RPA system
+# To use it, run: docker compose -f docker-compose.test.yml up
+# To drop it, run: docker compose -f docker-compose.test.yml down
 
 services:
-  email_worker:
+  # Test PostgreSQL database
+  postgres:
+    image: postgres:13-alpine
+    container_name: test-postgres
     environment:
-      # Point the email worker to the test probe container for capturing emails.
+      POSTGRES_DB: testdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d testdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test_network
+
+  # Email worker service for testing
+  email_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.email_worker
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL:-http://localhost:54321}
+      - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE:-test-service-role}
+      - SEND_EMAIL_WEBHOOK_SECRET=${SEND_EMAIL_WEBHOOK_SECRET:-test-webhook-secret}
+      - EMAIL_WORKER_POLL_MS=1000
+      # Point the email worker to the test probe container for capturing emails
       - SEND_EMAIL_WEBHOOK=http://hooks_probe:4001/api/send-email-now
+      - NODE_ENV=test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - test_network
+
+  # Hooks probe for testing webhooks
+  hooks_probe:
+    build:
+      context: .
+      dockerfile: Dockerfile.hooks_probe
+    environment:
+      - PORT=4001
+      - NODE_ENV=test
+    ports:
+      - "4001:4001"
+    networks:
+      - test_network
+
+  # Test backend service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      - PORT=3030
+      - NODE_ENV=test
+      - SUPABASE_URL=${SUPABASE_URL:-http://localhost:54321}
+      - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE:-test-service-role}
+      - DATABASE_URL=postgresql://postgres:testpassword@postgres:5432/testdb
+      - SEND_EMAIL_WEBHOOK_SECRET=${SEND_EMAIL_WEBHOOK_SECRET:-test-webhook-secret}
+    ports:
+      - "3030:3030"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      email_worker:
+        condition: service_started
+      hooks_probe:
+        condition: service_started
+    networks:
+      - test_network
+
+networks:
+  test_network:
+    driver: bridge
+
+volumes:
+  postgres_test_data:
