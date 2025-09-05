@@ -200,8 +200,11 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
           source: rpa-dashboard-build.tar.gz
-          target: /home/${{ secrets.VM_USER }}/
+          target: ./
+          overwrite: true
+          debug: true
 
       - name: Deploy to VM
         uses: appleboy/ssh-action@v0.1.8
@@ -215,16 +218,16 @@ jobs:
             echo "=== Starting deployment on VM ==="
             
             # Check if archive exists
-            if [ ! -f /home/${{ secrets.VM_USER }}/rpa-dashboard-build.tar.gz ]; then
+            if [ ! -f ~/rpa-dashboard-build.tar.gz ]; then
               echo "ERROR: rpa-dashboard-build.tar.gz not found on VM"
               echo "Files in home directory:"
-              ls -la /home/${{ secrets.VM_USER }}/
+              ls -la ~/
               exit 1
             fi
             
             echo "Archive found, extracting..."
             rm -rf /tmp/build || true
-            tar -xzf /home/${{ secrets.VM_USER }}/rpa-dashboard-build.tar.gz -C /tmp
+            tar -xzf ~/rpa-dashboard-build.tar.gz -C /tmp
             
             # Verify extraction
             if [ ! -f /tmp/build/index.html ]; then
@@ -232,7 +235,7 @@ jobs:
               echo "Extracted contents:"
               find /tmp -name "build" -type d -exec ls -la {} \;
               echo "Archive contents:"
-              tar -tzf /home/${{ secrets.VM_USER }}/rpa-dashboard-build.tar.gz | head -20
+              tar -tzf ~/rpa-dashboard-build.tar.gz | head -20
               exit 1
             fi
             
@@ -263,7 +266,7 @@ jobs:
             echo "Nginx reloaded successfully"
             
             # Cleanup
-            rm -f /home/${{ secrets.VM_USER }}/rpa-dashboard-build.tar.gz
+            rm -f ~/rpa-dashboard-build.tar.gz
             rm -rf /tmp/build
             
             echo "=== Deployment completed successfully! ==="
