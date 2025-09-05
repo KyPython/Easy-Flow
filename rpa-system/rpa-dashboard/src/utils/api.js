@@ -43,6 +43,7 @@ export const getTasks = async () => {
   }
 };
 
+// taskData should include { url, title, notes, type }
 export const createTask = async (taskData) => {
   try {
     const { data } = await api.post('/api/tasks', taskData);

@@ -671,7 +671,7 @@ function decryptCredentials(encryptedData, key) {
 
 // POST /api/run-task - Secured automation endpoint
 app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) => {
-  const { url, title, notes } = req.body;
+  const { url, title, notes, type, task, username, password, pdf_url } = req.body;
   const user = req.user;
 
   if (!url) {
@@ -682,15 +682,23 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
     console.log(`[run-task] Processing automation for user ${user.id}`);
     
     // First, create or find a task in automation_tasks
-    const { data: task, error: taskError } = await supabase
+    const taskName = title || (type && type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || (task && task.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'Automation Task';
+    const taskType = type || task || 'general';
+    
+    const { data: taskRecord, error: taskError } = await supabase
       .from('automation_tasks')
       .insert([{
         user_id: user.id,
-        name: title || 'Untitled Task',
+        name: taskName,
         description: notes || '',
         url: url,
-        task_type: 'manual',
-        parameters: JSON.stringify({ notes: notes || '' })
+        task_type: taskType,
+        parameters: JSON.stringify({ 
+          notes: notes || '', 
+          username: username || '',
+          password: password || '',
+          pdf_url: pdf_url || ''
+        })
       }])
       .select()
       .single();
@@ -704,7 +712,7 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
     const { data: run, error: runError } = await supabase
       .from('automation_runs')
       .insert([{
-        task_id: task.id,
+        task_id: taskRecord.id,
         user_id: user.id,
         status: 'running',  // Valid statuses: 'running', 'completed', 'failed'
         started_at: new Date().toISOString(),
@@ -721,8 +729,8 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
     // Queue the task processing - update this to use automation_runs instead of task_runs
     await queueTaskRun(run.id, { 
       url, 
-      title, 
-      task_id: task.id,
+      title: taskName, 
+      task_id: taskRecord.id,
       user_id: user.id 
     });
     

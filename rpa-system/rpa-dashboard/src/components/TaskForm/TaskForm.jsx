@@ -3,6 +3,16 @@ import { api } from '../../utils/api';
 import styles from './TaskForm.module.css';
 import PropTypes from 'prop-types';
 
+const token = localStorage.getItem('sb-syxzilyuysdoirnezgii-auth-token');
+const parsedToken = (() => {
+  try {
+    return JSON.parse(token);
+  } catch {
+    return token;
+  }
+})();
+const accessToken = parsedToken?.access_token || parsedToken;
+
 const TaskForm = ({ onTaskSubmit, loading }) => {
   const [form, setForm] = useState({
     url: '',
@@ -37,7 +47,7 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
   };
 
   const isValidUrl = (string) => {
-    try { new URL(string); return true; } catch (err) { console.debug('Invalid URL', err); return false; }
+    try { new URL(string); return true; } catch { return false; }
   };
 
   const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -48,19 +58,22 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
-  // Replace the handleSubmit function with this corrected version
-
-const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
   e.preventDefault();
   if (!validateForm()) return;
 
   setIsSubmitting(true);
   try {
-    // Send URL directly in the request body - don't use query params
-    const response = await api.post('/api/run-task', form);
-    const completedTask = response.data;
+    // Include both the original form data and add type field based on task selection
+    const payload = { ...form, type: form.task };
 
-    // Notify parent
+    const response = await api.post('/api/run-task', payload, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    const completedTask = response.data;
     onTaskSubmit?.(completedTask);
 
     setForm({ url: '', username: '', password: '', task: 'invoice_download', pdf_url: '' });
@@ -72,6 +85,7 @@ const handleSubmit = async (e) => {
     setIsSubmitting(false);
   }
 };
+
 
   return (
     <div className={styles.container}>

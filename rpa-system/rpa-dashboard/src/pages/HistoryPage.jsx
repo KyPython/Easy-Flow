@@ -20,7 +20,7 @@ const HistoryPage = () => {
       setLoading(true);
       try {
         const { data, error } = await supabase.from('automation_runs')
-          .select(`id,status,started_at,result,artifact_url,automation_tasks(id,name,url)`)
+          .select(`id,status,started_at,result,artifact_url,automation_tasks(id,name,url,task_type)`)
           .eq('user_id', user.id)
           .order('started_at', { ascending: false });
         if (error) throw error;

@@ -16,29 +16,41 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch dashboard data from Supabase RPC
+  // Fetch dashboard data directly from automation_runs table
   const fetchDashboardData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
 
     try {
       const { data, error } = await supabase
-        .rpc('user_dashboard_report', { p_user_id: user.id })
-        .single();
+        .from('automation_runs')
+        .select(`id,status,started_at,result,artifact_url,automation_tasks(id,name,url,task_type)`)
+        .eq('user_id', user.id)
+        .order('started_at', { ascending: false });
 
       if (error) throw error;
 
+      // Calculate metrics from the data
+      const runs = data || [];
+      const totalTasks = runs.length;
+      const completedTasks = runs.filter(run => run.status === 'completed').length;
+      const timeSavedHours = Math.floor(completedTasks * 2.5); // Estimate 2.5h saved per completed task
+      const documentsProcessed = runs.filter(run => 
+        run.automation_tasks?.task_type?.includes('invoice') || 
+        run.automation_tasks?.task_type?.includes('document')
+      ).length;
+
       setMetrics({
-        totalTasks: data.total_tasks ?? 0,
-        completedTasks: data.completed_tasks ?? 0,
-        timeSavedHours: data.time_saved_hours ?? 0,
-        documentsProcessed: data.documents_processed ?? 0
+        totalTasks,
+        completedTasks,
+        timeSavedHours,
+        documentsProcessed
       });
 
-      setRecentTasks((data.recent_runs ?? []).map(run => ({
+      setRecentTasks(runs.slice(0, 5).map(run => ({
         id: run.id,
-        type: run.task_name || 'Unknown Task',
-        url: run.url || 'N/A',
+        type: run.automation_tasks?.name || 'Unknown Task',
+        url: run.automation_tasks?.url || 'N/A',
         status: run.status || 'pending',
         created_at: run.started_at || new Date().toISOString(),
         result: run.result || null
@@ -68,27 +80,9 @@ const DashboardPage = () => {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            const newTask = payload.new;
-
-            setRecentTasks(prev => [
-              {
-                id: newTask.id,
-                type: newTask.task_name || 'Unknown Task',
-                url: newTask.url || 'N/A',
-                status: newTask.status || 'pending',
-                created_at: newTask.started_at || new Date().toISOString(),
-                result: newTask.result || null
-              },
-              ...prev
-            ]);
-
-            setMetrics(prev => ({
-              ...prev,
-              totalTasks: prev.totalTasks + 1,
-              completedTasks: newTask.status === 'completed' ? prev.completedTasks + 1 : prev.completedTasks,
-              documentsProcessed: prev.documentsProcessed + (newTask.result?.documentsProcessed || 0),
-              timeSavedHours: prev.timeSavedHours + (newTask.result?.timeSavedHours || 0)
-            }));
+            console.log('Dashboard real-time update:', payload);
+            // Refresh all data when anything changes
+            fetchDashboardData();
           }
         )
         .subscribe();

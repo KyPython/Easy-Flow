@@ -13,12 +13,23 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // Helper to get the task type with fallbacks
+  const getTaskType = (task) =>
+    task.automation_tasks?.name ||
+    task.type ||
+    task.task_type ||
+    task.taskType ||
+    '';
+
+  // Helper to get the task URL with fallback
+  const getTaskUrl = (task) =>
+    task.automation_tasks?.url || task.url || '';
+
   // Filter and sort tasks safely
   const filteredTasks = tasks
     .filter(task => {
-      // Handle both run history (nested) and task list (flat) data structures
-      const taskName = task.automation_tasks?.name || task.type;
-      const taskUrl = task.automation_tasks?.url || task.url;
+      const taskName = getTaskType(task);
+      const taskUrl = getTaskUrl(task);
 
       const matchesSearch =
         (taskUrl?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -34,11 +45,11 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
 
       // Handle potentially nested properties for sorting
       if (sortBy === 'type') {
-        aValue = a.automation_tasks?.name || a.type;
-        bValue = b.automation_tasks?.name || b.type;
+        aValue = getTaskType(a);
+        bValue = getTaskType(b);
       } else if (sortBy === 'url') {
-        aValue = a.automation_tasks?.url || a.url;
-        bValue = b.automation_tasks?.url || b.url;
+        aValue = getTaskUrl(a);
+        bValue = getTaskUrl(b);
       } else if (sortBy === 'created_at') {
         aValue = a.started_at || a.created_at;
         bValue = b.started_at || b.created_at;
@@ -181,13 +192,11 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                   />
                 </td>
                 <td className={styles.taskType}>
-                  {/* Handle both run history (nested) and task list (flat) data structures */}
-                  {formatTaskType(task.automation_tasks?.name || task.type)}
+                  {formatTaskType(getTaskType(task))}
                 </td>
                 <td className={styles.url}>
-                  {/* Handle both run history (nested) and task list (flat) data structures */}
-                  <a href={task.automation_tasks?.url || task.url} target="_blank" rel="noopener noreferrer">
-                    {task.automation_tasks?.url || task.url}
+                  <a href={getTaskUrl(task)} target="_blank" rel="noopener noreferrer">
+                    {getTaskUrl(task)}
                   </a>
                 </td>
                 <td>
