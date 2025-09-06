@@ -4,9 +4,19 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Environment Files (CRITICAL SECURITY)
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+.env.staging
+**/.env
+**/.env.local
+**/.env.production
+**/.env.development
+**/.env.staging
 
 # Logs
 logs
@@ -51,6 +61,14 @@ coverage/
 
 # Disabled GitHub workflows (VM-related)
 .github/workflows/disabled/
+
+# Secrets and keys (CRITICAL)
+firebase-service-account.json
+**/firebase-service-account.json
+*.pem
+*.key
+**/secrets/
+config/secrets/
 
 # Optional npm cache directory
 .npm/
