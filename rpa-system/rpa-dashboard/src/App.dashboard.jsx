@@ -13,6 +13,7 @@ import ResetLanding from './pages/ResetLanding';
 import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import SettingsPage from './pages/SettingsPage';
+import './utils/firebaseConfig';
 import './theme.css';
 import './App.css';
 

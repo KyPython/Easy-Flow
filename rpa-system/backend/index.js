@@ -5,8 +5,10 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const csrf = require('csurf');
 const crypto = require('crypto');
-+// Load environment variables from the backend/.env file (absolute, not CWD-dependent)
-+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+const { firebaseNotificationService, NotificationTemplates } = require('./utils/firebaseAdmin');
+const { getKafkaService } = require('./utils/kafkaService');
+// Load environment variables from the backend/.env file (absolute, not CWD-dependent)
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  const morgan = require('morgan');
@@ -241,6 +243,69 @@ if (fs.existsSync(reactBuildPath)) {
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'backend', time: new Date().toISOString() });
+});
+
+// Enhanced health check endpoint for database services
+app.get('/api/health/databases', async (_req, res) => {
+  try {
+    const health = {
+      timestamp: new Date().toISOString(),
+      services: {}
+    };
+
+    // Test Supabase connection
+    try {
+      if (supabase) {
+        const { data, error } = await supabase.from('profiles').select('id').limit(1);
+        health.services.supabase = {
+          status: error ? 'error' : 'healthy',
+          configured: true,
+          error: error?.message || null,
+          url: process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/\/.*@/, '//***@') : null
+        };
+      } else {
+        health.services.supabase = {
+          status: 'not_configured',
+          configured: false
+        };
+      }
+    } catch (error) {
+      health.services.supabase = {
+        status: 'error',
+        configured: true,
+        error: error.message
+      };
+    }
+
+    // Test Firebase connection
+    try {
+      health.services.firebase = await firebaseNotificationService.getHealthStatus();
+    } catch (error) {
+      health.services.firebase = {
+        status: 'error',
+        configured: false,
+        error: error.message
+      };
+    }
+
+    // Overall health
+    const supabaseHealthy = health.services.supabase.status === 'healthy';
+    const firebaseHealthy = health.services.firebase.health?.overall === true;
+    
+    health.overall = {
+      status: supabaseHealthy && firebaseHealthy ? 'healthy' : 'degraded',
+      supabase: supabaseHealthy,
+      firebase: firebaseHealthy
+    };
+
+    res.json(health);
+  } catch (error) {
+    res.status(500).json({
+      timestamp: new Date().toISOString(),
+      overall: { status: 'error' },
+      error: error.message
+    });
+  }
 });
 
 // Root route - serve the landing page (prefer React build, fall back to static file)
@@ -529,6 +594,16 @@ async function queueTaskRun(runId, taskData) {
           })
         })
         .eq('id', runId);
+
+      // Send notification for task completion
+      try {
+        const taskName = taskData.title || 'Automation Task';
+        const notification = NotificationTemplates.taskCompleted(taskName);
+        await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
+        console.log(`🔔 Task completion notification sent to user ${taskData.user_id}`);
+      } catch (notificationError) {
+        console.error('🔔 Failed to send task completion notification:', notificationError.message);
+      }
         
       return { success: true, simulated: true };
     }
@@ -555,6 +630,16 @@ async function queueTaskRun(runId, taskData) {
           result: response.data || { message: 'Execution completed with no data returned' }
         })
         .eq('id', runId);
+
+      // Send notification for task completion
+      try {
+        const taskName = taskData.title || 'Automation Task';
+        const notification = NotificationTemplates.taskCompleted(taskName);
+        await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
+        console.log(`🔔 Task completion notification sent to user ${taskData.user_id}`);
+      } catch (notificationError) {
+        console.error('🔔 Failed to send task completion notification:', notificationError.message);
+      }
         
       return response.data;
     } catch (error) {
@@ -572,6 +657,16 @@ async function queueTaskRun(runId, taskData) {
           })
         })
         .eq('id', runId);
+
+      // Send notification for task failure
+      try {
+        const taskName = taskData.title || 'Automation Task';
+        const notification = NotificationTemplates.taskFailed(taskName, error.message || 'Unknown error');
+        await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
+        console.log(`🔔 Task failure notification sent to user ${taskData.user_id}`);
+      } catch (notificationError) {
+        console.error('🔔 Failed to send task failure notification:', notificationError.message);
+      }
         
       throw error;
     }
@@ -951,6 +1046,15 @@ app.post('/api/tasks/:id/run', async (req, res) => {
 
     if (updateError) throw updateError;
 
+    // Send task completion notification
+    try {
+      const notification = NotificationTemplates.taskCompleted(taskData.name);
+      await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
+      console.log(`🔔 Task completion notification sent for task ${taskData.name} to user ${req.user.id}`);
+    } catch (notificationError) {
+      console.error('🔔 Failed to send task completion notification:', notificationError.message);
+    }
+
     res.json({ message: 'Task executed successfully', runId, result });
 
   } catch (err) {
@@ -974,6 +1078,15 @@ app.post('/api/tasks/:id/run', async (req, res) => {
             result: errorPayload,
           })
           .eq('id', runId);
+
+        // Send task failure notification
+        try {
+          const notification = NotificationTemplates.taskFailed(taskData.name, err.message);
+          await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
+          console.log(`🔔 Task failure notification sent for task ${taskData.name} to user ${req.user.id}`);
+        } catch (notificationError) {
+          console.error('🔔 Failed to send task failure notification:', notificationError.message);
+        }
       } catch (dbErr) {
         // Log the full database error for better diagnostics if the failure update itself fails.
         console.error(`[POST /api/tasks/${taskId}/run] DB error update failed:`, dbErr);
@@ -1183,29 +1296,140 @@ app.post('/api/enqueue-email', async (req, res) => {
   }
 });
 
+async function ensureUserProfile(userId, email) {
+  try {
+    // Check if profile exists
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+    
+    if (!existingProfile) {
+      console.log(`[ensureUserProfile] Creating missing profile for user ${userId}, email: ${email}`);
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert([{
+          id: userId,
+          email: email,
+          created_at: new Date().toISOString()
+        }]);
+      
+      if (insertError) {
+        console.error('[ensureUserProfile] Failed to create profile:', insertError);
+        throw insertError;
+      }
+      console.log(`[ensureUserProfile] Successfully created profile for user ${userId}`);
+    }
+    return true;
+  } catch (error) {
+    console.error('[ensureUserProfile] Error:', error);
+    throw error;
+  }
+}
+
 // Trigger a small campaign sequence for the authenticated user (example: welcome series)
 app.post('/api/trigger-campaign', async (req, res) => {
   try {
     // Defensive check
-    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+    if (!req.user || !req.user.id) {
+      console.log('[trigger-campaign] No user found on request');
+      return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+    }
     const { campaign, to_email } = req.body || {};
-    if (!campaign) return res.status(400).json({ error: 'campaign is required' });
+    console.log(`[trigger-campaign] Received request: campaign=${campaign}, to_email=${to_email}, user_id=${req.user.id}`);
+    if (!campaign) {
+      console.log('[trigger-campaign] No campaign specified');
+      return res.status(400).json({ error: 'campaign is required' });
+    }
 
-    // Determine target email: optional override via body (useful for admin/testing)
+    // Enhanced email lookup with multiple strategies
     let targetEmail = to_email || null;
     if (!targetEmail) {
+      console.log('[trigger-campaign] Looking up user email - trying multiple sources...');
+      
+      // Strategy 1: Try profiles table (existing logic)
       try {
-        const { data: profile, error: pErr } = await supabase.from('profiles').select('email').eq('id', req.user.id).maybeSingle();
-        if (pErr) console.warn('[trigger-campaign] profile lookup error', pErr.message || pErr);
-        if (profile && profile.email) {
-          targetEmail = profile.email;
+        if (supabase) {
+          const { data: profile, error: pErr } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('id', req.user.id)
+            .maybeSingle();
+          console.log('[trigger-campaign] Profile lookup result:', { profile, pErr });
+          if (pErr) console.warn('[trigger-campaign] profile lookup error', pErr.message || pErr);
+          if (profile && profile.email) {
+            targetEmail = profile.email;
+            console.log(`[trigger-campaign] Found target email from profile: ${targetEmail}`);
+          } else {
+            console.log('[trigger-campaign] No email found in profiles table');
+          }
         }
       } catch (e) {
         console.warn('[trigger-campaign] profile lookup failed', e?.message || e);
       }
     }
+    
+    // Strategy 2: Try auth.users table if still no email
+    if (!targetEmail && supabase) {
+      try {
+        console.log('[trigger-campaign] Trying auth.users table...');
+        const { data: authUser, error: authErr } = await supabase.auth.admin.getUserById(req.user.id);
+        
+        if (authUser && authUser.user && authUser.user.email) {
+          targetEmail = authUser.user.email;
+          console.log('[trigger-campaign] Found email in auth.users:', targetEmail);
+        } else {
+          console.log('[trigger-campaign] No email in auth.users');
+        }
+      } catch (e) {
+        console.log('[trigger-campaign] Auth.users lookup failed:', e.message);
+      }
+    }
+    
+    // Strategy 3: Try req.user.email directly
+    if (!targetEmail && req.user.email) {
+      targetEmail = req.user.email;
+      console.log('[trigger-campaign] Using email from req.user:', targetEmail);
+    }
+    
+    // Strategy 4: Try user_metadata
+    if (!targetEmail && req.user.user_metadata && req.user.user_metadata.email) {
+      targetEmail = req.user.user_metadata.email;
+      console.log('[trigger-campaign] Using email from user_metadata:', targetEmail);
+    }
 
-    if (!targetEmail) return res.status(400).json({ error: 'target email not found' });
+    // Strategy 5: Debug user object to see available data
+    if (!targetEmail) {
+      console.log('[trigger-campaign] Available user data:', JSON.stringify({
+        id: req.user.id,
+        email: req.user.email,
+        user_metadata: req.user.user_metadata,
+        app_metadata: req.user.app_metadata,
+        aud: req.user.aud,
+        role: req.user.role
+      }, null, 2));
+    }
+
+    if (!targetEmail) {
+      console.log('[trigger-campaign] Target email not found after all strategies');
+      return res.status(400).json({ 
+        error: 'target email not found',
+        debug: 'User authenticated but no email address found in profiles, auth.users, or user object'
+      });
+    }
+
+    try {
+  await ensureUserProfile(req.user.id, targetEmail);
+} catch (profileError) {
+  console.error('[trigger-campaign] Failed to ensure user profile:', profileError);
+  return res.status(500).json({ 
+    error: 'Failed to prepare user profile for email campaign',
+    note: 'User profile creation failed'
+  });
+}
+
+    console.log(`[trigger-campaign] Final target email: ${targetEmail}`);
 
     // Add contact to HubSpot in the background (fire-and-forget), but not during tests.
     if (process.env.HUBSPOT_API_KEY && process.env.NODE_ENV !== 'test') {
@@ -1215,11 +1439,11 @@ app.post('/api/trigger-campaign', async (req, res) => {
             properties: {
               email: targetEmail,
               lifecyclestage: 'lead',
-              record_source: 'EasyFlow SaaS', // <-- Added here
+              record_source: 'EasyFlow SaaS',
             },
           };
-
-          await axios.post(
+          console.log(`[trigger-campaign] Creating contact in HubSpot: ${targetEmail}`, hubspotPayload);
+          const hubspotRes = await axios.post(
             'https://api.hubapi.com/crm/v3/objects/contacts',
             hubspotPayload,
             {
@@ -1229,8 +1453,9 @@ app.post('/api/trigger-campaign', async (req, res) => {
               },
             }
           );
-          console.log(`[trigger-campaign] Successfully created contact ${targetEmail} in HubSpot.`);
+          console.log(`[trigger-campaign] Successfully created contact ${targetEmail} in HubSpot. Response:`, hubspotRes.status, hubspotRes.data);
         } catch (hubspotError) {
+          console.error('[trigger-campaign] HubSpot error:', hubspotError?.response?.status, hubspotError?.response?.data, hubspotError.message);
           // If contact already exists (409), update them instead.
           if (hubspotError.response?.status === 409 && hubspotError.response?.data?.message) {
             console.log(`[trigger-campaign] Contact ${targetEmail} already exists. Attempting update.`);
@@ -1245,10 +1470,11 @@ app.post('/api/trigger-campaign', async (req, res) => {
                 const updatePayload = {
                   properties: {
                     lifecyclestage: 'lead',
-                    record_source: 'EasyFlow SaaS', // <-- Added here
+                    record_source: 'EasyFlow SaaS',
                   },
                 };
-                await axios.patch(
+                console.log(`[trigger-campaign] Updating contact in HubSpot: ${contactId}`, updatePayload);
+                const updateRes = await axios.patch(
                   `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
                   updatePayload,
                   {
@@ -1258,15 +1484,15 @@ app.post('/api/trigger-campaign', async (req, res) => {
                     },
                   }
                 );
-                console.log(`[trigger-campaign] Successfully updated contact ${targetEmail} in HubSpot.`);
+                console.log(`[trigger-campaign] Successfully updated contact ${targetEmail} in HubSpot. Response:`, updateRes.status, updateRes.data);
               } else {
                 console.warn(`[trigger-campaign] Failed to parse contact ID from HubSpot error: ${message}`);
               }
             } catch (updateError) {
-              console.error(`[trigger-campaign] Failed to update contact ${targetEmail} in HubSpot: ${updateError.message}`);
+              console.error(`[trigger-campaign] Failed to update contact ${targetEmail} in HubSpot:`, updateError.message, updateError?.response?.data);
             }
           } else {
-            console.error(`[trigger-campaign] Failed to create contact ${targetEmail} in HubSpot: ${hubspotError.message}`);
+            console.error(`[trigger-campaign] Failed to create contact ${targetEmail} in HubSpot:`, hubspotError.message, hubspotError?.response?.data);
           }
         }
       })();
@@ -1280,7 +1506,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
     const inserts = [];
 
     switch (campaign) {
-            case 'welcome':
+      case 'welcome':
         inserts.push({
           profile_id: req.user.id,
           to_email: targetEmail,
@@ -1299,27 +1525,466 @@ app.post('/api/trigger-campaign', async (req, res) => {
           status: 'pending',
           created_at: now.toISOString(),
         });
+        console.log(`[trigger-campaign] Enqueuing welcome and followup emails for ${targetEmail}`, inserts);
         break;
       default:
         // Handle other campaigns if you add them
+        console.log(`[trigger-campaign] Unknown campaign: ${campaign}`);
         break;
     }
 
-    if (inserts.length > 0) {
+    if (inserts.length > 0 && supabase) {
       const { error } = await supabase
         .from('email_queue')
         .insert(inserts);
 
       if (error) {
-        console.error('[trigger-campaign] DB insert failed:', error.message);
+        console.error('[trigger-campaign] DB insert failed:', error.message, error);
         return res.status(500).json({ error: 'Failed to enqueue emails.', note: 'Failed to enqueue emails.' });
       }
+      console.log(`[trigger-campaign] Successfully enqueued ${inserts.length} emails for campaign ${campaign}`);
+      
+      // Send welcome notification
+      if (campaign === 'welcome') {
+        try {
+          // Get user info for personalized notification
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('id', req.user.id)
+            .single();
+            
+          const userName = profile?.email?.split('@')[0] || 'there';
+          const notification = NotificationTemplates.welcome(userName);
+          await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
+          console.log(`🔔 Welcome notification sent to user ${req.user.id}`);
+        } catch (notificationError) {
+          console.error('🔔 Failed to send welcome notification:', notificationError.message);
+        }
+      }
+    } else if (!supabase) {
+      console.warn('[trigger-campaign] No Supabase client available - emails not enqueued');
+    } else {
+      console.log(`[trigger-campaign] No emails enqueued for campaign ${campaign}`);
     }
 
     return res.json({ ok: true, enqueued: inserts.length });
   } catch (e) {
-    console.error('[POST /api/trigger-campaign] error', e?.message || e);
+    console.error('[POST /api/trigger-campaign] error', e?.message || e, e);
     return res.status(500).json({ error: 'internal', enqueued: 0, note: e.message || 'No additional error note provided.' });
+  }
+});
+
+// Kafka-based automation endpoints
+const kafkaService = getKafkaService();
+
+// Health check endpoint for the backend
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    service: 'backend',
+    version: '1.0.0'
+  });
+});
+
+// Kafka health endpoint
+app.get('/api/kafka/health', async (req, res) => {
+  try {
+    const health = await kafkaService.getHealth();
+    res.json({
+      kafka: health,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({
+      error: 'Kafka service unavailable',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Queue automation task via Kafka (fire-and-forget)
+app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req, res) => {
+  try {
+    const taskData = req.body;
+    
+    if (!taskData || !taskData.task_type) {
+      return res.status(400).json({ 
+        error: 'task_type is required',
+        accepted_types: ['web_automation', 'form_submission', 'data_extraction', 'file_download']
+      });
+    }
+    
+    // Add user context to task
+    const enrichedTask = {
+      ...taskData,
+      user_id: req.user.id,
+      created_at: new Date().toISOString(),
+      source: 'backend-api'
+    };
+    
+    const result = await kafkaService.sendAutomationTask(enrichedTask);
+    
+    res.status(202).json({
+      success: true,
+      task_id: result.taskId,
+      message: 'Task queued successfully',
+      status: 'queued'
+    });
+    
+  } catch (error) {
+    console.error('[POST /api/automation/queue] error:', error);
+    res.status(500).json({
+      error: 'Failed to queue automation task',
+      details: error.message
+    });
+  }
+});
+
+// Execute automation task via Kafka (with result callback)
+app.post('/api/automation/execute', authMiddleware, automationLimiter, async (req, res) => {
+  try {
+    const taskData = req.body;
+    const timeout = parseInt(req.query.timeout) || 60000; // Default 60 second timeout
+    
+    if (!taskData || !taskData.task_type) {
+      return res.status(400).json({ 
+        error: 'task_type is required',
+        accepted_types: ['web_automation', 'form_submission', 'data_extraction', 'file_download']
+      });
+    }
+    
+    // Add user context to task
+    const enrichedTask = {
+      ...taskData,
+      user_id: req.user.id,
+      created_at: new Date().toISOString(),
+      source: 'backend-api'
+    };
+    
+    console.log(`[POST /api/automation/execute] Executing task for user ${req.user.id}:`, enrichedTask);
+    
+    // Send task and wait for result
+    const result = await kafkaService.sendAutomationTaskWithCallback(enrichedTask, timeout);
+    
+    console.log(`[POST /api/automation/execute] Task completed:`, result);
+    
+    res.json({
+      success: true,
+      task_id: result.task_id,
+      status: result.status,
+      result: result.result,
+      worker_id: result.worker_id,
+      timestamp: result.timestamp
+    });
+    
+  } catch (error) {
+    console.error('[POST /api/automation/execute] error:', error);
+    
+    if (error.message.includes('timed out')) {
+      res.status(408).json({
+        error: 'Task execution timeout',
+        details: error.message,
+        suggestion: 'Try increasing the timeout parameter or use /api/automation/queue for long-running tasks'
+      });
+    } else {
+      res.status(500).json({
+        error: 'Failed to execute automation task',
+        details: error.message
+      });
+    }
+  }
+});
+
+// Legacy automation endpoint (now uses Kafka behind the scenes)
+app.post('/api/trigger-automation', authMiddleware, automationLimiter, async (req, res) => {
+  try {
+    const taskData = req.body;
+    
+    // Convert legacy format to new Kafka format
+    const kafkaTask = {
+      task_type: taskData.action || 'web_automation',
+      url: taskData.url,
+      actions: taskData.steps || taskData.actions || [],
+      user_id: req.user.id,
+      created_at: new Date().toISOString(),
+      source: 'legacy-api'
+    };
+    
+    const result = await kafkaService.sendAutomationTask(kafkaTask);
+    
+    // Return legacy-compatible response
+    res.status(202).json({
+      success: true,
+      task_id: result.taskId,
+      message: 'Task queued successfully via Kafka',
+      kafka_partition: result.result[0]?.partition,
+      kafka_offset: result.result[0]?.offset
+    });
+    
+  } catch (error) {
+    console.error('[POST /api/trigger-automation] error:', error);
+    res.status(500).json({
+      error: 'Failed to trigger automation',
+      details: error.message
+    });
+  }
+});
+
+// User Preferences Endpoints
+// Get user preferences
+app.get('/api/user/preferences', authMiddleware, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('[GET /api/user/preferences] error:', error);
+      return res.status(500).json({ error: 'Failed to fetch preferences' });
+    }
+
+    // Convert database format to API format
+    const preferences = data ? {
+      notification_preferences: {
+        email_notifications: data.email_notifications ?? true,
+        weekly_reports: data.weekly_reports ?? true,
+        sms_alerts: data.sms_notifications ?? false,
+        push_notifications: data.push_notifications ?? true,
+        task_completion: data.task_completion ?? true,
+        task_failures: data.task_failures ?? true,
+        system_alerts: data.system_alerts ?? true,
+        marketing_emails: data.marketing_emails ?? true,
+        security_alerts: data.security_alerts ?? true,
+        deal_updates: data.deal_updates ?? true,
+        customer_alerts: data.customer_alerts ?? true
+      },
+      ui_preferences: {
+        theme: data.theme || 'light',
+        dashboard_layout: data.dashboard_layout || 'grid',
+        timezone: data.timezone || 'UTC',
+        date_format: data.date_format || 'MM/DD/YYYY',
+        language: data.language || 'en'
+      },
+      fcm_token: data.fcm_token || null,
+      phone_number: data.phone_number || null
+    } : {
+      notification_preferences: {
+        email_notifications: true,
+        weekly_reports: true,
+        sms_alerts: false,
+        push_notifications: true,
+        task_completion: true,
+        task_failures: true,
+        system_alerts: true,
+        marketing_emails: true,
+        security_alerts: true,
+        deal_updates: true,
+        customer_alerts: true
+      },
+      ui_preferences: {
+        theme: 'light',
+        dashboard_layout: 'grid',
+        timezone: 'UTC',
+        date_format: 'MM/DD/YYYY',
+        language: 'en'
+      },
+      fcm_token: null,
+      phone_number: null
+    };
+
+    res.json(preferences);
+  } catch (error) {
+    console.error('[GET /api/user/preferences] error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update user preferences
+app.put('/api/user/preferences', authMiddleware, async (req, res) => {
+  try {
+    const { notification_preferences, ui_preferences, fcm_token, phone_number } = req.body;
+
+    // Validate input
+    if (notification_preferences && typeof notification_preferences !== 'object') {
+      return res.status(400).json({ error: 'notification_preferences must be an object' });
+    }
+    if (ui_preferences && typeof ui_preferences !== 'object') {
+      return res.status(400).json({ error: 'ui_preferences must be an object' });
+    }
+
+    // Prepare update data by converting API format to database format
+    const updateData = {};
+    
+    if (notification_preferences) {
+      updateData.email_notifications = notification_preferences.email_notifications;
+      updateData.weekly_reports = notification_preferences.weekly_reports;
+      updateData.sms_notifications = notification_preferences.sms_alerts;
+      updateData.push_notifications = notification_preferences.push_notifications;
+      updateData.task_completion = notification_preferences.task_completion;
+      updateData.task_failures = notification_preferences.task_failures;
+      updateData.system_alerts = notification_preferences.system_alerts;
+      updateData.marketing_emails = notification_preferences.marketing_emails;
+      updateData.security_alerts = notification_preferences.security_alerts;
+      updateData.deal_updates = notification_preferences.deal_updates;
+      updateData.customer_alerts = notification_preferences.customer_alerts;
+    }
+
+    if (ui_preferences) {
+      updateData.theme = ui_preferences.theme;
+      updateData.dashboard_layout = ui_preferences.dashboard_layout;
+      updateData.timezone = ui_preferences.timezone;
+      updateData.date_format = ui_preferences.date_format;
+      updateData.language = ui_preferences.language;
+    }
+
+    if (fcm_token !== undefined) updateData.fcm_token = fcm_token;
+    if (phone_number !== undefined) updateData.phone_number = phone_number;
+
+    // Update preferences in user_settings table
+    const { error } = await supabase
+      .from('user_settings')
+      .upsert({
+        user_id: req.user.id,
+        ...updateData,
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) {
+      console.error('[PUT /api/user/preferences] update error:', error);
+      return res.status(500).json({ error: 'Failed to update preferences' });
+    }
+
+    console.log(`[PUT /api/user/preferences] Updated preferences for user ${req.user.id}`);
+    res.json({ 
+      success: true, 
+      message: 'Preferences updated successfully',
+      preferences: updateData 
+    });
+
+  } catch (error) {
+    console.error('[PUT /api/user/preferences] error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get user notification settings (specific endpoint for notification preferences)
+app.get('/api/user/notifications', authMiddleware, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('[GET /api/user/notifications] error:', error);
+      return res.status(500).json({ error: 'Failed to fetch notification settings' });
+    }
+
+    const notificationSettings = data ? {
+      preferences: {
+        email_notifications: data.email_notifications ?? true,
+        weekly_reports: data.weekly_reports ?? true,
+        sms_alerts: data.sms_notifications ?? false,
+        push_notifications: data.push_notifications ?? true,
+        task_completion: data.task_completion ?? true,
+        task_failures: data.task_failures ?? true,
+        system_alerts: data.system_alerts ?? true,
+        marketing_emails: data.marketing_emails ?? true,
+        security_alerts: data.security_alerts ?? true,
+        deal_updates: data.deal_updates ?? true,
+        customer_alerts: data.customer_alerts ?? true
+      },
+      fcm_token: data.fcm_token || null,
+      phone_number: data.phone_number || null,
+      can_receive_sms: !!data.phone_number,
+      can_receive_push: !!data.fcm_token
+    } : {
+      preferences: {
+        email_notifications: true,
+        weekly_reports: true,
+        sms_alerts: false,
+        push_notifications: true,
+        task_completion: true,
+        task_failures: true,
+        system_alerts: true,
+        marketing_emails: true,
+        security_alerts: true,
+        deal_updates: true,
+        customer_alerts: true
+      },
+      fcm_token: null,
+      phone_number: null,
+      can_receive_sms: false,
+      can_receive_push: false
+    };
+
+    res.json(notificationSettings);
+  } catch (error) {
+    console.error('[GET /api/user/notifications] error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update notification preferences
+app.put('/api/user/notifications', authMiddleware, async (req, res) => {
+  try {
+    const { preferences, phone_number, fcm_token } = req.body;
+
+    if (!preferences || typeof preferences !== 'object') {
+      return res.status(400).json({ error: 'preferences object is required' });
+    }
+
+    // Validate phone number format if provided
+    if (phone_number && !/^\+?[\d\s\-\(\)]+$/.test(phone_number)) {
+      return res.status(400).json({ error: 'Invalid phone number format' });
+    }
+
+    // Convert API format to database format
+    const updateData = {
+      email_notifications: preferences.email_notifications,
+      weekly_reports: preferences.weekly_reports,
+      sms_notifications: preferences.sms_alerts,
+      push_notifications: preferences.push_notifications,
+      task_completion: preferences.task_completion,
+      task_failures: preferences.task_failures,
+      system_alerts: preferences.system_alerts,
+      marketing_emails: preferences.marketing_emails,
+      security_alerts: preferences.security_alerts,
+      deal_updates: preferences.deal_updates,
+      customer_alerts: preferences.customer_alerts,
+      updated_at: new Date().toISOString()
+    };
+
+    if (phone_number !== undefined) updateData.phone_number = phone_number;
+    if (fcm_token !== undefined) updateData.fcm_token = fcm_token;
+
+    const { error } = await supabase
+      .from('user_settings')
+      .upsert({
+        user_id: req.user.id,
+        ...updateData
+      });
+
+    if (error) {
+      console.error('[PUT /api/user/notifications] error:', error);
+      return res.status(500).json({ error: 'Failed to update notification preferences' });
+    }
+
+    console.log(`[PUT /api/user/notifications] Updated notification preferences for user ${req.user.id}`);
+    res.json({ 
+      success: true, 
+      message: 'Notification preferences updated successfully' 
+    });
+
+  } catch (error) {
+    console.error('[PUT /api/user/notifications] error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

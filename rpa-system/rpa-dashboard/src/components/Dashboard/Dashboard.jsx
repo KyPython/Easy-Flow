@@ -1,13 +1,17 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from './Dashboard.module.css';
-import { triggerCampaign } from '../../utils/api';
 import MetricCard from '../MetricCard/MetricCard';
+import OnboardingModal from '../OnboardingModal/OnboardingModal';
+import { useNotifications } from '../../hooks/useNotifications';
 import PropTypes from 'prop-types';
 
 
-const Dashboard = ({ metrics = {}, recentTasks = [] }) => {
+const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
   const navigate = useNavigate();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const { sendTaskCompleted, sendTaskFailed } = useNotifications(user);
+  const [lastTasksLength, setLastTasksLength] = useState(recentTasks.length);
   const metricCards = [
     {
       title: 'Total Tasks',
@@ -38,6 +42,18 @@ const Dashboard = ({ metrics = {}, recentTasks = [] }) => {
       subtitle: 'Files automated'
     }
   ];
+
+  useEffect(() => {
+    if (recentTasks.length > lastTasksLength) {
+      const newTask = recentTasks[0];
+      if (newTask && newTask.status === 'completed') {
+        sendTaskCompleted(newTask.type, newTask.url);
+      } else if (newTask && newTask.status === 'failed') {
+        sendTaskFailed(newTask.type, newTask.url, newTask.error || 'Task failed');
+      }
+    }
+    setLastTasksLength(recentTasks.length);
+  }, [recentTasks, lastTasksLength, sendTaskCompleted, sendTaskFailed]);
 
   return (
     <div className={styles.dashboard}>
@@ -136,35 +152,40 @@ const Dashboard = ({ metrics = {}, recentTasks = [] }) => {
 
           <button
             className={styles.actionCard}
-            onClick={async () => {
-              try {
-                await triggerCampaign({ reason: 'complete_onboarding' });
-              } catch (e) {
-                // Now logs the error to the console for debugging
-                console.error("triggerCampaign failed:", e);
-              }
-            }}
+            onClick={() => setShowOnboarding(true)}
           >
             <div className={styles.actionIcon}>✅</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>Complete onboarding</div>
-              <div className={styles.actionDesc}>Finish setup & get started</div>
+              <div className={styles.actionTitle}>Start Onboarding</div>
+              <div className={styles.actionDesc}>Get started with guided setup</div>
             </div>
           </button>
         </div>
       </div>
+
+      {/* Onboarding Modal */}
+      <OnboardingModal 
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        userEmail={user?.email || 'your email'}
+      />
     </div>
   );
 };
 
 Dashboard.propTypes = {
-  metrics: PropTypes.arrayOf(PropTypes.object),
+  metrics: PropTypes.object,
   recentTasks: PropTypes.arrayOf(PropTypes.object),
+  user: PropTypes.shape({
+    email: PropTypes.string,
+    name: PropTypes.string,
+  }),
 };
 
 Dashboard.defaultProps = {
-  metrics: [],
+  metrics: {},
   recentTasks: [],
+  user: null,
 };
 
 export default Dashboard;

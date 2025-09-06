@@ -23,12 +23,574 @@ import logging
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from kafka import KafkaProducer, KafkaConsumer
+import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+import signal
+import sys
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.logger.setLevel(logging.DEBUG)
+
+# Kafka configuration
+KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
+KAFKA_TASK_TOPIC = os.getenv('KAFKA_TASK_TOPIC', 'automation-tasks')
+KAFKA_RESULT_TOPIC = os.getenv('KAFKA_RESULT_TOPIC', 'automation-results')
+KAFKA_CONSUMER_GROUP = os.getenv('KAFKA_CONSUMER_GROUP', 'automation-workers')
+
+# Thread pool for concurrent task processing
+executor = ThreadPoolExecutor(max_workers=int(os.getenv('MAX_WORKERS', '3')))
+shutdown_event = threading.Event()
+
+# Kafka producer (singleton)
+producer = None
+consumer = None
+
+def get_kafka_producer():
+    global producer
+    if producer is None:
+        try:
+            producer = KafkaProducer(
+                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+                value_serializer=lambda x: json.dumps(x).encode('utf-8'),
+                key_serializer=lambda x: x.encode('utf-8') if x else None,
+                retries=3,
+                retry_backoff_ms=1000,
+                request_timeout_ms=30000,
+                api_version=(0, 10, 1)
+            )
+            logger.info(f"Kafka producer connected to {KAFKA_BOOTSTRAP_SERVERS}")
+        except Exception as e:
+            logger.error(f"Failed to connect Kafka producer: {e}")
+            producer = None
+    return producer
+
+def get_kafka_consumer():
+    global consumer
+    if consumer is None:
+        try:
+            consumer = KafkaConsumer(
+                KAFKA_TASK_TOPIC,
+                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+                group_id=KAFKA_CONSUMER_GROUP,
+                value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+                key_deserializer=lambda x: x.decode('utf-8') if x else None,
+                auto_offset_reset='latest',
+                enable_auto_commit=True,
+                api_version=(0, 10, 1)
+            )
+            logger.info(f"Kafka consumer connected to {KAFKA_BOOTSTRAP_SERVERS}")
+        except Exception as e:
+            logger.error(f"Failed to connect Kafka consumer: {e}")
+            consumer = None
+    return consumer
+
+def send_result_to_kafka(task_id, result, status='completed'):
+    """Send task result back to Kafka"""
+    try:
+        producer = get_kafka_producer()
+        if producer:
+            message = {
+                'task_id': task_id,
+                'status': status,
+                'result': result,
+                'timestamp': datetime.utcnow().isoformat(),
+                'worker_id': os.getenv('HOSTNAME', 'unknown')
+            }
+            
+            future = producer.send(
+                KAFKA_RESULT_TOPIC,
+                key=task_id,
+                value=message
+            )
+            
+            # Wait for acknowledgment
+            record_metadata = future.get(timeout=10)
+            logger.info(f"Result sent to Kafka - Topic: {record_metadata.topic}, Partition: {record_metadata.partition}, Offset: {record_metadata.offset}")
+            return True
+        else:
+            logger.error("Kafka producer not available")
+            return False
+    except Exception as e:
+        logger.error(f"Failed to send result to Kafka: {e}")
+        return False
+
+def get_webdriver(download_dir=None):
+    """Create and return a WebDriver instance"""
+    try:
+        # Try Chrome first
+        try:
+            from selenium.webdriver.chrome.options import Options as ChromeOptions
+            from webdriver_manager.chrome import ChromeDriverManager
+            from selenium.webdriver.chrome.service import Service as ChromeService
+            
+            chrome_options = ChromeOptions()
+            chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920,1080')
+            
+            if download_dir:
+                chrome_options.add_experimental_option("prefs", {
+                    "download.default_directory": download_dir,
+                    "download.prompt_for_download": False,
+                    "download.directory_upgrade": True,
+                    "safebrowsing.enabled": True
+                })
+            
+            service = ChromeService(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            logger.info("Chrome WebDriver initialized successfully")
+            return driver
+            
+        except Exception as chrome_error:
+            logger.warning(f"Chrome driver failed: {chrome_error}, trying Firefox...")
+            
+            # Fallback to Firefox
+            try:
+                from selenium.webdriver.firefox.options import Options as FirefoxOptions
+                from webdriver_manager.firefox import GeckoDriverManager
+                from selenium.webdriver.firefox.service import Service as FirefoxService
+                
+                firefox_options = FirefoxOptions()
+                firefox_options.add_argument('--headless')
+                
+                if download_dir:
+                    firefox_options.set_preference("browser.download.folderList", 2)
+                    firefox_options.set_preference("browser.download.manager.showWhenStarting", False)
+                    firefox_options.set_preference("browser.download.dir", download_dir)
+                    firefox_options.set_preference("browser.helperApps.neverAsk.saveToDisk", 
+                                                 "application/pdf,application/octet-stream,text/csv,application/zip")
+                
+                service = FirefoxService(GeckoDriverManager().install())
+                driver = webdriver.Firefox(service=service, options=firefox_options)
+                logger.info("Firefox WebDriver initialized successfully")
+                return driver
+                
+            except Exception as firefox_error:
+                logger.error(f"Firefox driver failed: {firefox_error}")
+                raise Exception(f"Both Chrome and Firefox drivers failed. Chrome: {chrome_error}, Firefox: {firefox_error}")
+                
+    except Exception as e:
+        logger.error(f"Failed to initialize WebDriver: {e}")
+        raise
+
+def kafka_consumer_loop():
+    """Main Kafka consumer loop"""
+    logger.info("Starting Kafka consumer loop...")
+    
+    while not shutdown_event.is_set():
+        try:
+            consumer = get_kafka_consumer()
+            if not consumer:
+                logger.error("Cannot start consumer loop - Kafka consumer not available")
+                time.sleep(30)
+                continue
+            
+            logger.info(f"Listening for messages on topic: {KAFKA_TASK_TOPIC}")
+            
+            for message in consumer:
+                if shutdown_event.is_set():
+                    break
+                
+                try:
+                    task_data = message.value
+                    task_id = task_data.get('task_id', 'unknown')
+                    
+                    logger.info(f"Received task: {task_id}")
+                    
+                    # Submit task to thread pool for processing
+                    future = executor.submit(process_automation_task, task_data)
+                    
+                    # Optional: Track futures for monitoring
+                    # You could store futures in a dict for monitoring
+                    
+                except Exception as e:
+                    logger.error(f"Error processing Kafka message: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Error in Kafka consumer loop: {e}")
+            time.sleep(10)  # Wait before retry
+    
+    logger.info("Kafka consumer loop stopped")
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals"""
+    logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+    shutdown_event.set()
+    
+    # Close Kafka connections
+    global producer, consumer
+    try:
+        if producer:
+            producer.flush()
+            producer.close()
+            logger.info("Kafka producer closed")
+    except Exception as e:
+        logger.error(f"Error closing Kafka producer: {e}")
+    
+    try:
+        if consumer:
+            consumer.close()
+            logger.info("Kafka consumer closed")
+    except Exception as e:
+        logger.error(f"Error closing Kafka consumer: {e}")
+    
+    # Shutdown thread pool
+    executor.shutdown(wait=True, timeout=30)
+    logger.info("Thread pool shutdown complete")
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+
+# Flask routes
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    try:
+        # Check Kafka connectivity
+        kafka_status = "healthy"
+        try:
+            producer = get_kafka_producer()
+            if not producer:
+                kafka_status = "unhealthy - producer unavailable"
+        except Exception as e:
+            kafka_status = f"unhealthy - {str(e)}"
+        
+        return {
+            'status': 'healthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'worker_id': os.getenv('HOSTNAME', 'unknown'),
+            'kafka_status': kafka_status,
+            'thread_pool_active': executor._threads if hasattr(executor, '_threads') else 0
+        }, 200
+    except Exception as e:
+        return {'status': 'unhealthy', 'error': str(e)}, 500
+
+@app.route('/status', methods=['GET'])
+def status():
+    """Detailed status endpoint"""
+    try:
+        return {
+            'service': 'automation-worker',
+            'version': '1.0.0',
+            'uptime': time.time() - app.start_time if hasattr(app, 'start_time') else 0,
+            'worker_id': os.getenv('HOSTNAME', 'unknown'),
+            'kafka_config': {
+                'bootstrap_servers': KAFKA_BOOTSTRAP_SERVERS,
+                'task_topic': KAFKA_TASK_TOPIC,
+                'result_topic': KAFKA_RESULT_TOPIC,
+                'consumer_group': KAFKA_CONSUMER_GROUP
+            },
+            'thread_pool_max_workers': executor._max_workers if hasattr(executor, '_max_workers') else 0,
+            'timestamp': datetime.utcnow().isoformat()
+        }, 200
+    except Exception as e:
+        return {'error': str(e)}, 500
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    """Basic metrics endpoint"""
+    try:
+        return {
+            'active_threads': executor._threads if hasattr(executor, '_threads') else 0,
+            'max_workers': executor._max_workers if hasattr(executor, '_max_workers') else 0,
+            'timestamp': datetime.utcnow().isoformat()
+        }, 200
+    except Exception as e:
+        return {'error': str(e)}, 500
+
+# Legacy API routes for backward compatibility
+@app.route('/api/trigger-automation', methods=['POST'])
+def trigger_automation():
+    """Legacy API endpoint - forwards to Kafka"""
+    try:
+        task_data = request.get_json()
+        if not task_data:
+            return {'error': 'No task data provided'}, 400
+        
+        # Add task ID if not present
+        if 'task_id' not in task_data:
+            task_data['task_id'] = str(uuid.uuid4())
+        
+        # Send to Kafka instead of processing directly
+        producer = get_kafka_producer()
+        if not producer:
+            return {'error': 'Kafka producer not available'}, 503
+        
+        future = producer.send(
+            KAFKA_TASK_TOPIC,
+            key=task_data['task_id'],
+            value=task_data
+        )
+        
+        # Wait for acknowledgment
+        record_metadata = future.get(timeout=10)
+        
+        return {
+            'success': True,
+            'task_id': task_data['task_id'],
+            'message': 'Task queued successfully',
+            'kafka_partition': record_metadata.partition,
+            'kafka_offset': record_metadata.offset
+        }, 202
+        
+    except Exception as e:
+        logger.error(f"Error in trigger_automation: {e}")
+        return {'error': str(e)}, 500
+
+def start_consumer_thread():
+    """Start the Kafka consumer in a separate thread"""
+    consumer_thread = threading.Thread(target=kafka_consumer_loop, daemon=True)
+    consumer_thread.start()
+    logger.info("Kafka consumer thread started")
+    return consumer_thread
+
+if __name__ == '__main__':
+    # Set startup time for uptime calculation
+    app.start_time = time.time()
+    
+    # Start Kafka consumer thread
+    consumer_thread = start_consumer_thread()
+    
+    # Wait a moment for consumer to initialize
+    time.sleep(2)
+    
+    # Start Flask app
+    port = int(os.getenv('PORT', 5000))
+    host = os.getenv('HOST', '0.0.0.0')
+    
+    logger.info(f"Starting automation service on {host}:{port}")
+    logger.info(f"Kafka bootstrap servers: {KAFKA_BOOTSTRAP_SERVERS}")
+    logger.info(f"Task topic: {KAFKA_TASK_TOPIC}")
+    logger.info(f"Result topic: {KAFKA_RESULT_TOPIC}")
+    
+    try:
+        app.run(host=host, port=port, debug=False, threaded=True)
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt, shutting down...")
+        shutdown_event.set()
+    finally:
+        # Wait for consumer thread to finish
+        if consumer_thread.is_alive():
+            consumer_thread.join(timeout=10)
+
+def process_automation_task(task_data):
+    """Process an automation task received from Kafka"""
+    task_id = task_data.get('task_id', str(uuid.uuid4()))
+    task_type = task_data.get('task_type', 'unknown')
+    
+    logger.info(f"Processing task {task_id} of type {task_type}")
+    
+    try:
+        # Determine the automation type and execute accordingly
+        if task_type == 'web_automation':
+            result = execute_web_automation(task_data)
+        elif task_type == 'form_submission':
+            result = execute_form_submission(task_data)
+        elif task_type == 'data_extraction':
+            result = execute_data_extraction(task_data)
+        elif task_type == 'file_download':
+            result = execute_file_download(task_data)
+        else:
+            result = {'error': f'Unknown task type: {task_type}'}
+            send_result_to_kafka(task_id, result, 'failed')
+            return result
+        
+        # Send successful result to Kafka
+        send_result_to_kafka(task_id, result, 'completed')
+        logger.info(f"Task {task_id} completed successfully")
+        return result
+        
+    except Exception as e:
+        error_result = {
+            'error': str(e),
+            'task_id': task_id,
+            'task_type': task_type
+        }
+        logger.error(f"Task {task_id} failed: {e}")
+        send_result_to_kafka(task_id, error_result, 'failed')
+        return error_result
+
+def execute_web_automation(task_data):
+    """Execute general web automation tasks"""
+    url = task_data.get('url')
+    actions = task_data.get('actions', [])
+    
+    if not url:
+        raise ValueError("URL is required for web automation")
+    
+    driver = get_webdriver()
+    try:
+        driver.get(url)
+        time.sleep(2)
+        
+        results = []
+        for action in actions:
+            action_type = action.get('type')
+            selector = action.get('selector')
+            value = action.get('value', '')
+            
+            if action_type == 'click':
+                element = driver.find_element(By.CSS_SELECTOR, selector)
+                element.click()
+                results.append(f"Clicked element: {selector}")
+                
+            elif action_type == 'input':
+                element = driver.find_element(By.CSS_SELECTOR, selector)
+                element.clear()
+                element.send_keys(value)
+                results.append(f"Input '{value}' into {selector}")
+                
+            elif action_type == 'extract':
+                element = driver.find_element(By.CSS_SELECTOR, selector)
+                text = element.text
+                results.append(f"Extracted from {selector}: {text}")
+                
+            elif action_type == 'wait':
+                time.sleep(float(value))
+                results.append(f"Waited {value} seconds")
+            
+            time.sleep(1)  # Small delay between actions
+        
+        return {
+            'success': True,
+            'url': url,
+            'actions_performed': results,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+    finally:
+        driver.quit()
+
+def execute_form_submission(task_data):
+    """Execute form submission automation"""
+    url = task_data.get('url')
+    form_data = task_data.get('form_data', {})
+    submit_selector = task_data.get('submit_selector', 'input[type="submit"]')
+    
+    if not url:
+        raise ValueError("URL is required for form submission")
+    
+    driver = get_webdriver()
+    try:
+        driver.get(url)
+        time.sleep(2)
+        
+        # Fill form fields
+        for field_name, field_value in form_data.items():
+            try:
+                element = driver.find_element(By.NAME, field_name)
+                element.clear()
+                element.send_keys(field_value)
+            except:
+                # Try by ID if name doesn't work
+                element = driver.find_element(By.ID, field_name)
+                element.clear()
+                element.send_keys(field_value)
+        
+        # Submit the form
+        submit_button = driver.find_element(By.CSS_SELECTOR, submit_selector)
+        submit_button.click()
+        
+        time.sleep(3)  # Wait for submission response
+        
+        return {
+            'success': True,
+            'url': url,
+            'form_submitted': True,
+            'fields_filled': list(form_data.keys()),
+            'current_url': driver.current_url,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+    finally:
+        driver.quit()
+
+def execute_data_extraction(task_data):
+    """Execute data extraction automation"""
+    url = task_data.get('url')
+    selectors = task_data.get('selectors', {})
+    
+    if not url:
+        raise ValueError("URL is required for data extraction")
+    
+    driver = get_webdriver()
+    try:
+        driver.get(url)
+        time.sleep(2)
+        
+        extracted_data = {}
+        
+        for field_name, selector in selectors.items():
+            try:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                if elements:
+                    if len(elements) == 1:
+                        extracted_data[field_name] = elements[0].text
+                    else:
+                        extracted_data[field_name] = [elem.text for elem in elements]
+                else:
+                    extracted_data[field_name] = None
+            except Exception as e:
+                extracted_data[field_name] = f"Error: {str(e)}"
+        
+        return {
+            'success': True,
+            'url': url,
+            'extracted_data': extracted_data,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+    finally:
+        driver.quit()
+
+def execute_file_download(task_data):
+    """Execute file download automation"""
+    url = task_data.get('url')
+    download_selector = task_data.get('download_selector')
+    
+    if not url:
+        raise ValueError("URL is required for file download")
+    
+    # Setup download directory
+    download_dir = "/tmp/downloads"
+    os.makedirs(download_dir, exist_ok=True)
+    
+    driver = get_webdriver(download_dir=download_dir)
+    try:
+        driver.get(url)
+        time.sleep(2)
+        
+        if download_selector:
+            download_element = driver.find_element(By.CSS_SELECTOR, download_selector)
+            download_element.click()
+        else:
+            # Direct file URL
+            driver.get(url)
+        
+        # Wait for download to complete
+        time.sleep(5)
+        
+        # Check for downloaded files
+        downloaded_files = os.listdir(download_dir)
+        
+        return {
+            'success': True,
+            'url': url,
+            'downloaded_files': downloaded_files,
+            'download_directory': download_dir,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+    finally:
+        driver.quit()
 
 # Security validation functions (these were fine, just need to be in the final code)
 def decrypt_credentials(encrypted_data, key):

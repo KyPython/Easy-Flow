@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "name": "easyflow-dashboard",
+  "builds": [
+    {
+      "src": "rpa-system/rpa-dashboard/package.json",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": "rpa-system/rpa-dashboard/build/**"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/rpa-system/rpa-dashboard/build/static/$1"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/rpa-system/rpa-dashboard/build/favicon.ico"
+    },
+    {
+      "src": "/manifest.json",
+      "dest": "/rpa-system/rpa-dashboard/build/manifest.json"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/rpa-system/rpa-dashboard/build/index.html"
+    }
+  ],
+  "build": {
+    "env": {
+      "CI": "false",
+      "GENERATE_SOURCEMAP": "false"
+    }
+  },
+  "env": {
+    "REACT_APP_SUPABASE_URL": "@supabase_url",
+    "REACT_APP_SUPABASE_ANON_KEY": "@supabase_anon_key",
+    "REACT_APP_API_URL": "@api_url",
+    "REACT_APP_FIREBASE_API_KEY": "@firebase_api_key",
+    "REACT_APP_FIREBASE_AUTH_DOMAIN": "@firebase_auth_domain",
+    "REACT_APP_FIREBASE_DATABASE_URL": "@firebase_database_url",
+    "REACT_APP_FIREBASE_PROJECT_ID": "@firebase_project_id",
+    "REACT_APP_FIREBASE_STORAGE_BUCKET": "@firebase_storage_bucket",
+    "REACT_APP_FIREBASE_MESSAGING_SENDER_ID": "@firebase_messaging_sender_id",
+    "REACT_APP_FIREBASE_APP_ID": "@firebase_app_id",
+    "REACT_APP_FIREBASE_MEASUREMENT_ID": "@firebase_measurement_id",
+    "REACT_APP_FIREBASE_VAPID_KEY": "@firebase_vapid_key"
+  },
+  "buildCommand": "cd rpa-system/rpa-dashboard && npm ci && npm run build",
+  "outputDirectory": "rpa-system/rpa-dashboard/build",
+  "installCommand": "cd rpa-system && npm ci",
+  "functions": {
+    "rpa-system/rpa-dashboard/build/**": {
+      "maxDuration": 30
+    }
+  }
+}

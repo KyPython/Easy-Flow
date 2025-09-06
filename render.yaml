@@ -1,0 +1,99 @@
+services:
+  # Main Backend API Service
+  - type: web
+    name: easyflow-backend
+    runtime: node
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: cd rpa-system && npm install
+    startCommand: cd rpa-system && npm run dev:backend
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3030
+      - key: SUPABASE_URL
+        fromDatabase:
+          name: easyflow-postgres
+          property: connectionString
+      - key: SUPABASE_SERVICE_ROLE
+        sync: false # Set manually in Render dashboard
+      - key: SUPABASE_ANON_KEY
+        sync: false # Set manually in Render dashboard
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_DATABASE_URL
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_PATH
+        value: /opt/render/project/src/rpa-system/backend/config/firebase-service-account.json
+      - key: API_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://easyflow-dashboard.vercel.app,https://app.easyflow.com
+      - key: AUTOMATION_URL
+        value: https://easyflow-automation.onrender.com/run
+
+  # Python Automation Service
+  - type: web
+    name: easyflow-automation
+    runtime: python
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: cd rpa-system/automation && pip install -r requirements.txt
+    startCommand: cd rpa-system/automation && python automate.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONPATH
+        value: /opt/render/project/src/rpa-system/automation
+      - key: SUPABASE_URL
+        fromService:
+          type: web
+          name: easyflow-backend
+          envVarKey: SUPABASE_URL
+      - key: SUPABASE_SERVICE_ROLE
+        sync: false
+      - key: PORT
+        value: 7001
+
+  # Email Worker Background Service
+  - type: worker
+    name: easyflow-email-worker
+    runtime: node
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: cd rpa-system && npm install
+    startCommand: cd rpa-system && node backend/workers/email_worker.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        fromService:
+          type: web
+          name: easyflow-backend
+          envVarKey: SUPABASE_URL
+      - key: SUPABASE_SERVICE_ROLE
+        sync: false
+      - key: SEND_EMAIL_WEBHOOK
+        fromService:
+          type: web
+          name: easyflow-backend
+          property: url
+          suffix: /api/send-email-now
+      - key: SEND_EMAIL_WEBHOOK_SECRET
+        generateValue: true
+
+# Database (if using Render's Postgres)
+databases:
+  - name: easyflow-postgres
+    databaseName: easyflow_production
+    region: oregon
+    plan: starter
+
+  # Redis for caching (optional)
+  - name: easyflow-redis
+    region: oregon
+    plan: starter

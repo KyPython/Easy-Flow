@@ -1,0 +1,352 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "EasyFlow - Load Testing Dashboard",
+    "tags": ["easyflow", "load-testing", "performance", "k6"],
+    "style": "dark",
+    "timezone": "browser",
+    "editable": true,
+    "hideControls": false,
+    "graphTooltip": 0,
+    "time": {
+      "from": "now-30m",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"],
+      "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+    },
+    "refresh": "5s",
+    "version": 1,
+    "panels": [
+      {
+        "id": 1,
+        "title": "Virtual Users",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "k6_vus{job=\"k6\"}",
+            "legendFormat": "Active Virtual Users",
+            "refId": "A"
+          },
+          {
+            "expr": "k6_vus_max{job=\"k6\"}",
+            "legendFormat": "Max Virtual Users",
+            "refId": "B"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "yAxes": [
+          {
+            "label": "Users",
+            "min": 0,
+            "show": true
+          },
+          {
+            "show": true
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(k6_http_reqs_total{job=\"k6\"}[1m])",
+            "legendFormat": "Requests/sec",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "yAxes": [
+          {
+            "label": "Requests/sec",
+            "min": 0,
+            "show": true
+          },
+          {
+            "show": true
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Response Times",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "k6_http_req_duration{job=\"k6\",expected_response=\"true\"}",
+            "legendFormat": "Response Time (p{{ quantile }})",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "yAxes": [
+          {
+            "label": "Duration (ms)",
+            "min": 0,
+            "show": true
+          },
+          {
+            "show": true
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "HTTP Status Codes",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum by (status) (k6_http_reqs_total{job=\"k6\"})",
+            "legendFormat": "{{ status }}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "values": ["percent"]
+          },
+          "pieType": "pie",
+          "displayLabels": []
+        }
+      },
+      {
+        "id": 5,
+        "title": "Error Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "(sum(rate(k6_http_reqs_total{job=\"k6\",status!~\"2..\"}[5m])) / sum(rate(k6_http_reqs_total{job=\"k6\"}[5m]))) * 100",
+            "legendFormat": "Error Rate %",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 0,
+          "y": 16
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "background"
+        }
+      },
+      {
+        "id": 6,
+        "title": "Throughput",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(k6_http_reqs_total{job=\"k6\"}[1m]))",
+            "legendFormat": "Total Throughput",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 6,
+          "y": 16
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "reqps"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "background"
+        }
+      },
+      {
+        "id": 7,
+        "title": "Data Transfer",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(k6_data_received_total{job=\"k6\"}[1m])",
+            "legendFormat": "Data Received",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(k6_data_sent_total{job=\"k6\"}[1m])",
+            "legendFormat": "Data Sent",
+            "refId": "B"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        },
+        "yAxes": [
+          {
+            "label": "Bytes/sec",
+            "show": true
+          },
+          {
+            "show": true
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Top URLs by Response Time",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, avg by (url) (k6_http_req_duration{job=\"k6\",expected_response=\"true\"}))",
+            "legendFormat": "{{ url }}",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 24
+        },
+        "styles": [
+          {
+            "alias": "URL",
+            "align": "auto",
+            "colorMode": null,
+            "colors": ["rgba(245, 54, 54, 0.9)", "rgba(237, 129, 40, 0.89)", "rgba(50, 172, 45, 0.97)"],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 2,
+            "mappingType": 1,
+            "pattern": "url",
+            "thresholds": [],
+            "type": "string",
+            "unit": "short"
+          },
+          {
+            "alias": "Avg Response Time (ms)",
+            "align": "auto",
+            "colorMode": "value",
+            "colors": ["rgba(50, 172, 45, 0.97)", "rgba(237, 129, 40, 0.89)", "rgba(245, 54, 54, 0.9)"],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 2,
+            "mappingType": 1,
+            "pattern": "Value",
+            "thresholds": ["500", "1000"],
+            "type": "number",
+            "unit": "ms"
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": "Prometheus",
+          "definition": "label_values(k6_http_reqs_total, url)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "URL",
+          "multi": true,
+          "name": "url",
+          "options": [],
+          "query": "label_values(k6_http_reqs_total, url)",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "tagValuesQuery": "",
+          "tags": [],
+          "tagsQuery": "",
+          "type": "query",
+          "useTags": false
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "schemaVersion": 27,
+    "links": []
+  }
+}

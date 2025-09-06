@@ -107,7 +107,7 @@ const DashboardPage = () => {
     <>
       <ErrorMessage message={error} />
 
-      <Dashboard metrics={metrics} recentTasks={recentTasks} />
+      <Dashboard metrics={metrics} recentTasks={recentTasks} user={user} />
       
       <Chatbot />
     </>

@@ -4,6 +4,7 @@ import styles from './Header.module.css';
 import { supabase } from '../../utils/supabaseClient';
 import PropTypes from 'prop-types';
 import ContactModal from './ContactModal';
+import NotificationCenter from '../NotificationCenter/NotificationCenter';
 
 const Header = ({ user }) => {
   const location = useLocation();
@@ -94,6 +95,8 @@ const Header = ({ user }) => {
               </div>
 
               <div className={styles.userActions}>
+                <NotificationCenter user={user} />
+                
                 <Link className={styles.actionButton} to="/app/settings">
                   Settings
                 </Link>

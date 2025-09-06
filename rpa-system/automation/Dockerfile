@@ -4,28 +4,42 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-# Install Chromium and Chromedriver plus required libs
+# Install Chromium, Firefox and required libs for Kafka-based automation
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    chromium chromium-driver ca-certificates curl fonts-liberation \
+    chromium chromium-driver firefox-esr ca-certificates curl fonts-liberation \
     libnss3 libx11-6 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxi6 libxtst6 \
-    libxrandr2 libgbm1 libgtk-3-0 libasound2 && \
+    libxrandr2 libgbm1 libgtk-3-0 libasound2 xvfb wget gnupg unzip && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy requirements and install
-COPY requirements.txt /app/requirements.txt
-RUN pip install -r /app/requirements.txt
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy automation code
-COPY automation /app/automation
+COPY . .
 
-ENV AUTOMATION_PORT=7001 \
-    PORT=7001 \
+# Create downloads directory
+RUN mkdir -p /tmp/downloads && chmod 777 /tmp/downloads
+
+# Environment variables for Kafka and automation
+ENV AUTOMATION_PORT=5000 \
+    PORT=5000 \
     CHROME_BIN=/usr/bin/chromium \
     CHROMEDRIVER_PATH=/usr/bin/chromedriver \
-    DRY_RUN=0
+    DISPLAY=:99 \
+    KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+    KAFKA_TASK_TOPIC=automation-tasks \
+    KAFKA_RESULT_TOPIC=automation-results \
+    KAFKA_CONSUMER_GROUP=automation-workers \
+    MAX_WORKERS=3
 
-EXPOSE 7001
+EXPOSE 5000
 
-CMD ["python", "automation/automate.py"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+# Start automation service
+CMD ["python", "automate.py"]

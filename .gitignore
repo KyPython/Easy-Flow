@@ -49,6 +49,9 @@ coverage/
 # TypeScript
 *.tsbuildinfo
 
+# Disabled GitHub workflows (VM-related)
+.github/workflows/disabled/
+
 # Optional npm cache directory
 .npm/
 
