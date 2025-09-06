@@ -4,21 +4,19 @@
 
 This guide covers deploying EasyFlow using modern cloud platforms:
 
-- **Backend & Automation**: Render.com
-- **Frontend**: Vercel
+- **Backend API**: Render.com (Node.js)
+- **Python Automation**: Render.com (RPA/Selenium service)
+- **Frontend**: Vercel (React)
 - **Database**: Supabase (managed PostgreSQL)
 - **Real-time & Notifications**: Firebase
 
+**🤖 Architecture**: Your system requires **THREE separate services** on Render.com:
+
+1. Node.js API server (database, auth, webhooks)
+2. Python automation service (browser automation, form filling)
+3. Email worker (background job processing)
+
 ## 📋 Prerequisites
-
-### Required Accounts
-
-- [ ] GitHub account with repository access
-- [ ] Render.com account
-- [ ] Vercel account
-- [ ] Supabase project
-- [ ] Firebase project
-- [ ] Domain name (optional, for custom URLs)
 
 ### Required Tools
 
@@ -123,21 +121,44 @@ This guide covers deploying EasyFlow using modern cloud platforms:
    ```
 
 3. **Deploy Services**
-   ```bash
-   # Render will automatically deploy:
-   # - easyflow-backend (Node.js API)
-   # - easyflow-automation (Python service)
-   # - easyflow-email-worker (Background worker)
-   ```
 
-### C. Verify Backend Deployment
+   The `render.yaml` blueprint will automatically deploy **three separate services**:
+
+   **🟦 easyflow-backend** (Node.js API)
+
+   - Main API server (port 3030)
+   - Database operations, authentication
+   - Webhook endpoints
+
+   **🟨 easyflow-automation** (Python Service)
+
+   - **CRITICAL**: Selenium WebDriver automation
+   - Website scraping and form filling
+   - Credential encryption/decryption
+   - Browser automation (Chrome/Firefox)
+
+   **🟪 easyflow-email-worker** (Background Worker)
+
+   - Email queue processing
+   - SendGrid integration
+
+### C. Verify All Service Deployments
 
 ```bash
-# Check service health
+# Check all three services are running:
+
+# 1. Main API Service
 curl https://easyflow-backend.onrender.com/health
 curl https://easyflow-backend.onrender.com/api/health/databases
+
+# 2. Python Automation Service (REQUIRED for RPA functionality)
 curl https://easyflow-automation.onrender.com/health
+
+# 3. Email Worker Service
+# (Background worker - no health endpoint)
 ```
+
+**⚠️ IMPORTANT**: The Python automation service is **essential** - without it, your RPA system cannot automate websites or fill forms. The Node.js backend cannot perform browser automation.
 
 ## 🌐 Step 3: Frontend Deployment (Vercel)
 
@@ -331,17 +352,7 @@ After successful deployment, you'll have:
 
 - ✅ **Backend API**: Highly available on Render.com
 - ✅ **Frontend App**: Fast global CDN via Vercel
-- ✅ **Database**: Managed PostgreSQL via Supabase
-- ✅ **Real-time**: Firebase for notifications
-- ✅ **CI/CD**: Automated deployments via GitHub Actions
-- ✅ **Monitoring**: Health checks and status endpoints
-- ✅ **Security**: HTTPS, environment isolation
-- ✅ **Scalability**: Auto-scaling infrastructure
 
 **Total Setup Time**: ~2-3 hours
 **Monthly Cost**: ~$20-50 (depending on usage)
 **Availability**: 99.9%+ uptime
-
----
-
-_For issues or questions, check the troubleshooting section or create a GitHub issue._
