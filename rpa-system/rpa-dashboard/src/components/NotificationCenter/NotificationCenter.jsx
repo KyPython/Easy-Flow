@@ -228,7 +228,7 @@ const NotificationCenter = () => {
                   <>
                     <div className={styles.emptyIcon}>🔔</div>
                     <p>No notifications yet</p>
-                    <small>You'll see notifications here when they arrive</small>
+                    <small>You&apos;ll see notifications here when they arrive</small>
                   </>
                 )}
               </div>
