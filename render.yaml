@@ -5,15 +5,17 @@ services:
     runtime: node
     env: node
     region: oregon
-    plan: pro
-    buildCommand: cd rpa-system && npm install
-    startCommand: cd rpa-system && npm run dev:backend
+    plan: free
+    buildCommand: cd rpa-system && npm install --production
+    startCommand: cd rpa-system && node backend/index.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 3030
+      - key: ENABLE_EMAIL_WORKER
+        value: "true"
       - key: SUPABASE_URL
         fromDatabase:
           name: easyflow-postgres
@@ -41,8 +43,8 @@ services:
     runtime: python
     env: python
     region: oregon
-    plan: pro
-    buildCommand: cd rpa-system/automation && pip install -r requirements.txt
+    plan: free
+    buildCommand: cd rpa-system/automation && pip install -r requirements.txt --no-cache-dir
     startCommand: cd rpa-system/automation && python automate.py
     healthCheckPath: /health
     envVars:
@@ -55,36 +57,6 @@ services:
       - key: PORT
         value: 7001
 
-  # Email Worker Background Service
-  - type: worker
-    name: easyflow-email-worker
-    runtime: node
-    env: node
-    region: oregon
-    plan: pro
-    buildCommand: cd rpa-system && npm install
-    startCommand: cd rpa-system && node backend/workers/email_worker.js
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: SUPABASE_URL
-        sync: false # Manual entry required; avoid chaining a referenced env var
-      - key: SUPABASE_SERVICE_ROLE
-        sync: false
-      - key: SEND_EMAIL_WEBHOOK
-        # Render doesn't support 'url' property in fromService. Options:
-        # 1) Manually set full external URL after backend deploy (recommended for simplicity)
-        # 2) Use backend host via fromService (property: host) and construct URL in code.
-        # Here we set a placeholder value; update to real backend URL once known.
-        value: https://easyflow-backend.onrender.com/api/send-email-now
-      - key: SEND_EMAIL_WEBHOOK_HOST
-        fromService:
-          type: web
-          name: easyflow-backend
-          property: host
-      - key: SEND_EMAIL_WEBHOOK_SECRET
-        generateValue: true
-
 # Database (if using Render's Postgres)
 databases:
   - name: easyflow-postgres
@@ -94,4 +66,4 @@ databases:
   # Redis for caching (optional)
   - name: easyflow-redis
     region: oregon
-    plan: free # Updated from legacy 'starter' (adjust to desired tier)
+    plan: free

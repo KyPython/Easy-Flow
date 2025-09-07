@@ -1,5 +1,6 @@
 // Simple email worker: polls email_queue and sends emails via configured webhook or logs (for dev)
-// Usage: NODE_ENV=production node workers/email_worker.js
+// Can run standalone (node workers/email_worker.js) or be embedded inside the main backend
+// when required via startEmailWorker().
 
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
@@ -116,14 +117,13 @@ async function handleItem(item) {
   }
 }
 
-(async function main() {
-  console.log('[email_worker] starting, poll interval', POLL_INTERVAL_MS, 'ms');
+async function startEmailWorker() {
+  console.log('[email_worker] starting (embedded=', !(require.main === module), ') poll interval', POLL_INTERVAL_MS, 'ms');
   let lastHeartbeat = Date.now();
   while (true) {
     try {
       const ok = await processOne();
       if (!ok) await sleep(POLL_INTERVAL_MS);
-
       if (Date.now() - lastHeartbeat > 60000) { // Log a heartbeat every 60 seconds
         console.log(`[email_worker] heartbeat: still running at ${new Date().toISOString()}`);
         lastHeartbeat = Date.now();
@@ -133,4 +133,10 @@ async function handleItem(item) {
       await sleep(POLL_INTERVAL_MS);
     }
   }
-})();
+}
+
+if (require.main === module) {
+  startEmailWorker();
+}
+
+module.exports = { startEmailWorker };

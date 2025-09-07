@@ -13,6 +13,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
  const fs = require('fs');
  const morgan = require('morgan');
  const path = require('path');
+const { startEmailWorker } = require('./workers/email_worker');
 
 const app = express();
 const PORT = process.env.PORT || 3030;
@@ -320,6 +321,12 @@ app.get('/', (_req, res) => {
     }
     return res.type('text').send('Landing page not available');
 });
+
+// Start embedded background workers after routes and middleware have been declared
+if ((process.env.ENABLE_EMAIL_WORKER || 'true').toLowerCase() === 'true') {
+  // Fire and forget; any errors are logged inside the worker loop
+  startEmailWorker();
+}
 
 // Auth route - serve the React auth page
 app.get('/auth', (_req, res) => {
