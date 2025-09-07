@@ -72,6 +72,13 @@ export default function SettingsPage() {
       }
     } catch (err) {
       console.error('Error fetching preferences:', err);
+      
+      // Provide user-friendly error message
+      if (err.message?.includes('Network Error') || err.message?.includes('CORS')) {
+        setPreferencesError('Unable to connect to settings. Please try again in a moment.');
+      } else {
+        setPreferencesError('Unable to load your preferences. Please refresh the page.');
+      }
     } finally {
       setPreferencesLoading(false);
     }
@@ -95,7 +102,13 @@ export default function SettingsPage() {
       }
     } catch (err) {
       console.error('Error saving preferences:', err);
-      setPreferencesError('Error saving preferences');
+      
+      // Provide user-friendly error message
+      if (err.message?.includes('Network Error') || err.message?.includes('CORS')) {
+        setPreferencesError('Unable to save preferences. Please check your connection and try again.');
+      } else {
+        setPreferencesError('Unable to save preferences. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

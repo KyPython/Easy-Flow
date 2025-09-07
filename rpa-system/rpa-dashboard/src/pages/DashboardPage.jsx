@@ -59,7 +59,19 @@ const DashboardPage = () => {
 
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err.message || err);
-      setError(err.message || 'Could not load dashboard data. The backend may be unavailable.');
+      
+      // More user-friendly error messages
+      let userMessage = 'Unable to load dashboard data';
+      
+      if (err.message?.includes('Failed to fetch') || err.message?.includes('CSP') || err.message?.includes('Content Security Policy')) {
+        userMessage = 'Dashboard temporarily unavailable. Please refresh the page or try again in a moment.';
+      } else if (err.message?.includes('Network Error') || err.message?.includes('CORS')) {
+        userMessage = 'Connection error. Please check your internet connection and try again.';
+      } else if (err.message?.includes('not authenticated') || err.message?.includes('unauthorized')) {
+        userMessage = 'Please sign in again to access your dashboard.';
+      }
+      
+      setError(userMessage);
     } finally {
       setLoading(false);
     }

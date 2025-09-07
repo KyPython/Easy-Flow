@@ -80,7 +80,19 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     alert('✅ Task submitted and completed successfully!');
   } catch (error) {
     console.error('Task submission failed:', error);
-    alert('❌ Task submission failed. Check console for details.');
+    
+    // Provide user-friendly error message
+    let userMessage = 'Task submission failed. Please try again.';
+    
+    if (error.message?.includes('Network Error') || error.message?.includes('CORS')) {
+      userMessage = 'Unable to connect to the automation service. Please check your connection and try again.';
+    } else if (error.response?.status === 401) {
+      userMessage = 'Authentication error. Please sign in again.';
+    } else if (error.response?.status >= 500) {
+      userMessage = 'Server error. Please try again in a moment.';
+    }
+    
+    alert(`❌ ${userMessage}`);
   } finally {
     setIsSubmitting(false);
   }
