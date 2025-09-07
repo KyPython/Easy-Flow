@@ -73,15 +73,8 @@ curl https://easyflow-automation.onrender.com/health
 
 ## 🌐 Step 3: Frontend Deployment (Vercel)
 
+
 ### A. Configure Environment
-
-1. **Create Environment File**
-
-   ```bash
-   # Copy rpa-system/rpa-dashboard/.env.vercel.example
-   # to rpa-system/rpa-dashboard/.env.production
-   ```
-
 2. **Set Environment Variables**
    ```bash
    REACT_APP_SUPABASE_URL=https://your-project-ref.supabase.co
