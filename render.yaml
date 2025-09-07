@@ -43,7 +43,7 @@ services:
     runtime: python
     env: python
     region: oregon
-    plan: starter # paid tier to reduce cold starts (set to free if occasional sleep acceptable)
+    plan: free # lowest cost; will sleep when idle
     buildCommand: cd rpa-system/automation && pip install -r requirements.txt --no-cache-dir
     startCommand: cd rpa-system/automation && python automate.py
     healthCheckPath: /health
