@@ -1,32 +1,4 @@
 {
   "version": 2,
-  "name": "easyflow-rpa-system",
-  "builds": [
-    {
-      "src": "backend/index.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/backend/index.js"
-    },
-    {
-      "src": "/health",
-      "dest": "/backend/index.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/backend/index.js"
-    }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "functions": {
-    "backend/index.js": {
-      "maxDuration": 30
-    }
-  }
+  "name": "easyflow-rpa-system"
 }
