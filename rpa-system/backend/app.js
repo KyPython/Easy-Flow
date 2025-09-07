@@ -644,11 +644,14 @@ async function queueTaskRun(runId, taskData) {
     // For real execution, call the automation service
     try {
       let automationResult;
+      let response = null;
+      
       if (automationUrl === 'internal:embedded') {
         // Placeholder synchronous stub; replace with real python invocation via child_process if needed
         automationResult = { message: 'Embedded automation stub executed', url: taskData.url };
+        console.log(`[queueTaskRun] Using embedded automation mode - task simulated successfully`);
       } else {
-        const response = await axios.post(automationUrl, payload, { 
+        response = await axios.post(automationUrl, payload, { 
           timeout: 30000,
           headers: {
             'Content-Type': 'application/json',
@@ -656,10 +659,9 @@ async function queueTaskRun(runId, taskData) {
           }
         });
         automationResult = response.data || { message: 'Execution completed with no data returned' };
+        console.log(`[queueTaskRun] Automation service response:`, 
+          response.status, response.data ? 'data received' : 'no data');
       }
-      
-      console.log(`[queueTaskRun] Automation service response:`, 
-        response.status, response.data ? 'data received' : 'no data');
       
       // Update the run with the result
       await supabase
@@ -1060,7 +1062,7 @@ app.post('/api/tasks/:id/run', async (req, res) => {
     runId = runData.id;
 
     // 3. Call the automation worker
-    const automationUrl = process.env.AUTOMATION_URL || 'http://localhost:7001/run';
+    const automationUrl = process.env.AUTOMATION_URL || 'internal:embedded';
     const payload = { 
       url: task.url, 
       username: task.parameters?.username, 

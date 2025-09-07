@@ -13,6 +13,7 @@ import { getToken, onMessage } from 'firebase/messaging';
 import { ref, push, set, onValue, off, query, orderByChild, limitToLast } from 'firebase/database';
 import { onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { supabase } from './supabaseClient';
+import { buildApiUrl } from './config';
 
 class NotificationService {
   constructor() {
@@ -134,7 +135,10 @@ class NotificationService {
       console.log('🔔 Requesting Firebase custom token for user:', user.id);
       
       // Request custom token from backend
-      const response = await fetch('/api/firebase/token', {
+      const tokenUrl = buildApiUrl('/api/firebase/token');
+      
+      console.log('🔔 Making request to:', tokenUrl);
+      const response = await fetch(tokenUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
