@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+# Install librdkafka for Kafka support
+RUN apk add --no-cache librdkafka-dev
+
 WORKDIR /workspace
 
 # Copy package files and install production dependencies
@@ -11,4 +14,3 @@ COPY . .
 
 EXPOSE 3030
 CMD ["node", "backend/index.js"]
-RUN apt-get update && apt-get install -y librdkafka-dev
