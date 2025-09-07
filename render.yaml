@@ -19,7 +19,7 @@ services:
       fi
       echo "[build] installing python automation deps"
       cd automation
-      pip install -r requirements.txt --no-cache-dir || true
+  python3 -m pip install -r requirements.txt --no-cache-dir || true
     startCommand: cd rpa-system && node backend/index.js
     healthCheckPath: /health
     envVars:
