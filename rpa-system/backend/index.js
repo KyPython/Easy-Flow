@@ -175,8 +175,15 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
   .map(s => s.trim())
   .filter(Boolean);
 
+// Debug logging for CORS configuration
+console.log('🔧 CORS Debug Info:');
+console.log('   ALLOWED_ORIGINS env var:', process.env.ALLOWED_ORIGINS);
+console.log('   Parsed ALLOWED_ORIGINS:', ALLOWED_ORIGINS);
+console.log('   NODE_ENV:', process.env.NODE_ENV);
+
 app.use(cors({
   origin: (origin, cb) => {
+    console.log('🌐 CORS origin check:', origin, 'against:', ALLOWED_ORIGINS);
     if (!origin) return cb(null, true); // non-browser
     if (ALLOWED_ORIGINS.length === 0) return cb(null, true); // dev fallback
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
@@ -2115,5 +2122,3 @@ if (require.main === module) {
     console.log(`Server listening on port ${PORT}`);
   });
 }
-
-// Force Render redeploy - Sun Sep  7 01:27:01 EDT 2025
