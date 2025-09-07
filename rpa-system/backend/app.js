@@ -176,8 +176,9 @@ app.use(cors({
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
     return cb(new Error('CORS: origin not allowed'));
   },
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'apikey', 'x-client-info'],
+  credentials: true,
 }));
 
 // The Polar webhook needs a raw body, so we conditionally skip the JSON parser for it.
