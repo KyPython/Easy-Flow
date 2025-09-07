@@ -5,18 +5,31 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Environment Files (CRITICAL SECURITY)
+# Environment Files (CRITICAL SECURITY) - ALL ENV FILES FORBIDDEN
+.env*
+.environment*
+**/.env*
+**/.environment*
+*.env*
+*.environment*
+
+# Specific environment patterns
 .env
 .env.local
 .env.*.local
 .env.production
 .env.development
 .env.staging
-**/.env
-**/.env.local
-**/.env.production
-**/.env.development
-**/.env.staging
+.env.test
+.env.example
+.env.template
+.env.sample
+.env.render
+.env.vercel
+.env.heroku
+.env.aws
+.env.gcp
+.env.azure
 
 # Logs
 logs
@@ -69,6 +82,8 @@ firebase-service-account.json
 *.key
 **/secrets/
 config/secrets/
+ACTUAL_ENV_VALUES.txt
+**/ACTUAL_ENV_VALUES.txt
 
 # Optional npm cache directory
 .npm/
@@ -120,15 +135,6 @@ venv.bak/
 *.db
 *.db3
 *.lock
-rpa-system/rpa-dashboard/.env
-rpa-system/.env
 
-# Backend service account & sensitive backend config (defensive duplicate)
-rpa-system/backend/config/firebase-service-account.json
-rpa-system/backend/config/*.secret.json
-rpa-system/rpa-dashboard/.env
-
-
-.env
-rpa-system/.env
-.sh
+# CLEANUP: Remove old redundant entries that are now covered above
+# (Keeping this comment for reference - these patterns are now handled by the comprehensive env rules above)

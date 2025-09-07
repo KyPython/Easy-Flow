@@ -14,12 +14,15 @@ __pycache__/
 venv/
 env/
 
-# Env files (secrets)
-.env
-**/.env
-**/.env.local
-**/.env.*.local
+# Env files (secrets) - COMPREHENSIVE COVERAGE
+.env*
+.environment*
+**/.env*
+**/.environment*
+*.env*
+*.environment*
 ACTUAL_ENV_VALUES.txt
+**/ACTUAL_ENV_VALUES.txt
 
 # Firebase service account keys (secrets)
 **/firebase-service-account*.json
