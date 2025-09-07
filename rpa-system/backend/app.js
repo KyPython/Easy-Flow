@@ -2102,9 +2102,11 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Internal Server Error', details: err.message });
 });
 
-// Start server only if this file is run directly (not imported)
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`);
-  });
-}
+
+// Export for serverless and testing
+module.exports = app;
+module.exports.sanitizeInput = sanitizeInput;
+module.exports.isValidUrl = isValidUrl;
+module.exports.encryptCredentials = encryptCredentials;
+module.exports.decryptCredentials = decryptCredentials;
+module.exports.sanitizeError = sanitizeError;
