@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import ReactGA from 'react-ga4';
 import './index.css';
 import App from './App';
+import ErrorBoundary from './components/Diagnostics/ErrorBoundary';
 import reportWebVitals from './reportWebVitals';
 
 // Initialize Google Analytics if a measurement ID is provided
@@ -24,9 +25,23 @@ if (gaMeasurementId) {
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
+
+// Global runtime error diagnostics (helps when mobile shows blank screen)
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (e) => {
+    // eslint-disable-next-line no-console
+    console.error('[GlobalError]', e.message, e.filename, e.lineno, e.colno, e.error);
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    // eslint-disable-next-line no-console
+    console.error('[GlobalUnhandledRejection]', e.reason);
+  });
+}
 root.render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
 // If you want to start measuring performance in your app, pass a function
