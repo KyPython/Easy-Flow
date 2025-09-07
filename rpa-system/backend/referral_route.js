@@ -4,7 +4,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { enqueueEvent } = require('./event_forwarder');
 
 // You may need to initialize supabase here if it was missing
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
 // 1. User submits an email-based referral
 router.post('/generate-referral', async (req, res) => {

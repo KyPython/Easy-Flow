@@ -9,7 +9,13 @@ const { firebaseNotificationService, NotificationTemplates } = require('./utils/
 const { getKafkaService } = require('./utils/kafkaService');
 // Load environment variables from the backend/.env file (absolute, not CWD-dependent)
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
- const { createClient } = require('@supabase/supabase-js');
+// Also load from root level .env file
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+
+// Debug environment variables for deployment troubleshooting
+require('./debug-env');
+
+const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  const morgan = require('morgan');
  const path = require('path');
