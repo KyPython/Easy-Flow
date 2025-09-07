@@ -9,6 +9,24 @@
       content="EasyFlow - Streamline your workflow automation"
     />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    
+    <!-- Google tag (gtag.js) for domain-specific tracking -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QGYCGQFC6D"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      
+      // Configure gtag with proper domain settings
+      gtag('config', 'G-QGYCGQFC6D', {
+        // Set domain for production vs development
+        cookie_domain: window.location.hostname === 'easy-flow-lac.vercel.app' 
+          ? 'easy-flow-lac.vercel.app' 
+          : 'localhost',
+        send_page_view: false // Let React GA handle page views
+      });
+    </script>
+    
     <title>EasyFlow</title>
   </head>
   <body>

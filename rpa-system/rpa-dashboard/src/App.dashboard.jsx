@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ReactGA from 'react-ga4';
+import useAnalytics from './hooks/useAnalytics';
 import Header from './components/Header/Header';
 import DashboardPage from './pages/DashboardPage';
 import TasksPage from './pages/TasksPage';
@@ -22,13 +23,15 @@ import './App.css';
 // This component tracks pageviews whenever the route changes.
 const AnalyticsTracker = () => {
   const location = useLocation();
+  const { trackPageView } = useAnalytics();
 
   useEffect(() => {
     const gaMeasurementId = process.env.REACT_APP_GA_MEASUREMENT_ID;
     if (gaMeasurementId) {
-      ReactGA.send({ hitType: "pageview", page: location.pathname + location.search });
+      // Use the custom analytics hook for domain-aware tracking
+      trackPageView(location.pathname, location.search);
     }
-  }, [location]);
+  }, [location, trackPageView]);
 
   return null; // This component does not render anything
 };

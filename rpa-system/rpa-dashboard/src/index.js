@@ -8,7 +8,18 @@ import reportWebVitals from './reportWebVitals';
 // Initialize Google Analytics if a measurement ID is provided
 const gaMeasurementId = process.env.REACT_APP_GA_MEASUREMENT_ID;
 if (gaMeasurementId) {
-  ReactGA.initialize(gaMeasurementId);
+  ReactGA.initialize(gaMeasurementId, {
+    // Configure for production domain
+    gaOptions: {
+      // Set the domain for your deployed site
+      cookieDomain: process.env.NODE_ENV === 'production' ? 'easy-flow-lac.vercel.app' : 'localhost',
+      siteSpeedSampleRate: 100
+    },
+    gtagOptions: {
+      // Configure gtag for the deployed domain
+      send_page_view: false // We'll handle page views manually in the router
+    }
+  });
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
