@@ -2,9 +2,8 @@
   "version": 2,
   "name": "easyflow-dashboard",
   "framework": null,
-  "buildCommand": "npm ci && npm run build",
+  "buildCommand": "npm run build",
   "outputDirectory": "build",
-  "installCommand": null,
   "routes": [
     {
       "src": "/static/(.*)",
