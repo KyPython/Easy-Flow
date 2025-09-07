@@ -5,7 +5,8 @@
     "dev:backend": "node ./backend/index.js",
     "dev:automation": "python3 ./automation/automate.py",
     "dev": "concurrently \"npm:dev:backend\" \"npm:dev:automation\"",
-    "start": "react-app-rewired start",
+    "start": "node ./backend/index.js",
+    "start:frontend": "react-app-rewired start",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
     "test:backend": "dotenv -- jest --config backend/jest.config.js",
@@ -35,6 +36,10 @@
     "morgan": "^1.10.1",
     "nodemailer": "^7.0.6",
     "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.28.3",
