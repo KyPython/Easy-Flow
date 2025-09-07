@@ -90,7 +90,7 @@ databases:
   - name: easyflow-postgres
     databaseName: easyflow_production
     region: oregon
-    plan: standard # Updated from legacy 'starter'
+  plan: basic # Replaced legacy plan ('standard' deprecated) – change if your account uses a different tier (e.g. pro, plus)
 
   # Redis for caching (optional)
   - name: easyflow-redis
