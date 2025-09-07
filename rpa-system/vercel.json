@@ -1,4 +1,6 @@
 {
   "version": 2,
-  "name": "easyflow-rpa-system"
+  "name": "easyflow-rpa-system",
+  "installCommand": "npm ci",
+  "buildCommand": "echo 'No build required - serverless function'"
 }
