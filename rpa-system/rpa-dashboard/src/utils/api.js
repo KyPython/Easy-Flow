@@ -8,6 +8,15 @@ export const api = axios.create({
   timeout: 15000,
 });
 
+// Expose api globally for debugging in all environments (harmless; same-origin only)
+if (typeof window !== 'undefined') {
+  if (!window._api) {
+    Object.defineProperty(window, '_api', { value: api, writable: false, configurable: false });
+    // eslint-disable-next-line no-console
+    console.info('[api] baseURL (init)', api.defaults.baseURL || '(empty)');
+  }
+}
+
 // Interceptor to add the Supabase auth token to every request
 api.interceptors.request.use(
   async (config) => {
@@ -28,6 +37,7 @@ api.interceptors.request.use(
 // Basic 401 retry logic: attempt a refresh once, then retry original request.
 let isRefreshing = false;
 let queued = [];
+let lastRefreshAttempt = 0; // epoch ms timestamp to throttle refresh attempts
 
 api.interceptors.response.use(
   (resp) => resp,
@@ -35,12 +45,25 @@ api.interceptors.response.use(
     const status = error?.response?.status;
     if (status !== 401) return Promise.reject(error);
 
+    const original = error.config || {};
+
+    // If the request already had an auth header and the endpoint is user/preferences, don't spam refresh.
+    if (original?.url?.includes('/api/user/preferences')) {
+      // eslint-disable-next-line no-console
+      console.warn('[api] 401 on /api/user/preferences - skipping token refresh retry (likely auth mismatch or backend rejection)');
+      return Promise.reject(error);
+    }
+
     // If request already retried once, give up
     if (error.config.__isRetry) return Promise.reject(error);
 
     try {
-      if (!isRefreshing) {
+      const now = Date.now();
+      const throttleWindowMs = 30000; // 30s window between global refresh attempts
+
+      if (!isRefreshing && (now - lastRefreshAttempt) > throttleWindowMs) {
         isRefreshing = true;
+        lastRefreshAttempt = now;
         // Force a refresh (Supabase v2 automatically refreshes, but we request explicitly)
         try {
           await supabase.auth.refreshSession();

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../utils/AuthContext';
 import { useTheme } from '../utils/ThemeContext';
@@ -97,28 +97,35 @@ export default function SettingsPage() {
   };
 
   // Fetch user preferences
+  const fetchedOnceRef = useRef(false);
   const fetchPreferences = useCallback(async () => {
     if (!user) return;
+    if (fetchedOnceRef.current) return; // prevent duplicate invocations (React 18 strict mode / rerenders)
+    fetchedOnceRef.current = true;
     try {
       setPreferencesLoading(true);
       const response = await api.get('/api/user/preferences');
-
       if (response.status === 200) {
-        const data = response.data;
+        const data = response.data || {};
         setPreferences(prev => ({
           ...prev,
           ...data,
           phone_number: formatPhoneForDisplay(data.phone_number)
         }));
       } else {
-        console.error('Failed to fetch preferences');
+        console.error('Failed to fetch preferences (non-200)', response.status);
       }
     } catch (err) {
       console.error('Error fetching preferences:', err);
-      
+      if (err?.response?.status === 401) {
+        // Allow a later manual retry if auth becomes valid
+        fetchedOnceRef.current = false; // so user can trigger via manual action if we add one later
+      }
       // Provide user-friendly error message
       if (err.message?.includes('Network Error') || err.message?.includes('CORS')) {
         setPreferencesError('Unable to connect to settings. Please try again in a moment.');
+      } else if (err?.response?.status === 401) {
+        setPreferencesError('You are not authorized yet. Please re-login or refresh.');
       } else {
         setPreferencesError('Unable to load your preferences. Please refresh the page.');
       }
@@ -415,7 +422,7 @@ export default function SettingsPage() {
                   onClick={savePreferences}
                   disabled={loading}
                 >
-                  {loading ? t('action.saving','Saving...') : t('settings.notification_preferences','Notification Preferences')}
+                  {loading ? t('action.saving','Saving...') : t('settings.save_notification_preferences','Save notification preferences')}
                 </button>
               </div>
             )}

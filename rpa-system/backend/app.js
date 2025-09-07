@@ -110,7 +110,8 @@ app.use(helmet({
       fontSrc: ["'self'", "https:"],
       objectSrc: ["'none'"], // Block object/embed
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"], // Block frames
+  // Allow uChat widget iframe while keeping others blocked
+  frameSrc: ["'self'", 'https://www.uchat.com.au'],
       childSrc: ["'none'"], // Block child contexts
       workerSrc: ["'self'"],
       manifestSrc: ["'self'"],
