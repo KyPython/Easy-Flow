@@ -2,9 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../utils/AuthContext';
 import { useTheme } from '../utils/ThemeContext';
+import { api } from '../utils/api';
 import styles from './SettingsPage.module.css';
 import ReferralForm from '../components/ReferralForm';
-import Chatbot from '../components/Chatbot/Chatbot';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -62,22 +62,16 @@ export default function SettingsPage() {
     if (!user) return;
     try {
       setPreferencesLoading(true);
-      const response = await fetch('/api/user/preferences', {
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        }
-      });
+      const response = await api.get('/api/user/preferences');
 
-      if (response.ok) {
-        const data = await response.json();
-        setPreferences(data);
+      if (response.status === 200) {
+        const data = response.data;
+        setPreferences(prev => ({ ...prev, ...data }));
       } else {
         console.error('Failed to fetch preferences');
-        setPreferencesError('Failed to load preferences');
       }
     } catch (err) {
       console.error('Error fetching preferences:', err);
-      setPreferencesError('Error loading preferences');
     } finally {
       setPreferencesLoading(false);
     }
@@ -91,21 +85,13 @@ export default function SettingsPage() {
     setMessage('');
 
     try {
-      const response = await fetch('/api/user/preferences', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        },
-        body: JSON.stringify(preferences)
-      });
+      const response = await api.put('/api/user/preferences', preferences);
 
-      if (response.ok) {
+      if (response.status === 200) {
         setMessage('Preferences updated successfully');
         setPreferencesModified(false);
       } else {
-        const errorData = await response.json();
-        setPreferencesError(errorData.error || 'Failed to update preferences');
+        setPreferencesError(response.data.error || 'Failed to update preferences');
       }
     } catch (err) {
       console.error('Error saving preferences:', err);
@@ -573,8 +559,6 @@ export default function SettingsPage() {
           </>
         )}
       </section>
-      
-      <Chatbot />
     </div>
   );
 }

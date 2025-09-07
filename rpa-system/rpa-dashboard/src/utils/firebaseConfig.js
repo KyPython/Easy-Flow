@@ -30,8 +30,11 @@ const requiredFields = [
 
 const missingFields = requiredFields.filter(field => !process.env[field]);
 if (missingFields.length > 0) {
-  console.warn('Firebase configuration incomplete. Missing:', missingFields);
-  console.warn('Real-time notifications will be disabled.');
+  // Only show warnings in development
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('Firebase configuration incomplete. Missing:', missingFields);
+    console.warn('Real-time notifications will be disabled.');
+  }
 }
 
 // Initialize Firebase
@@ -59,7 +62,10 @@ if (isFirebaseConfigured) {
     console.error('Firebase initialization error:', error);
   }
 } else {
-  console.warn('🔥 Firebase not configured - real-time features disabled');
+  // Only show warnings in development
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('🔥 Firebase not configured - real-time features disabled');
+  }
 }
 
 export { app, messaging, database, auth, isFirebaseConfigured };

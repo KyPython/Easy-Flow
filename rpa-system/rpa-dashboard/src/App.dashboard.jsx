@@ -13,6 +13,7 @@ import ResetLanding from './pages/ResetLanding';
 import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import SettingsPage from './pages/SettingsPage';
+import Chatbot from './components/Chatbot/Chatbot';
 import './utils/firebaseConfig';
 import './theme.css';
 import './App.css';
@@ -63,6 +64,8 @@ function Shell() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      {/* Global Chatbot - appears on all pages */}
+      <Chatbot />
     </div>
   );
 }
