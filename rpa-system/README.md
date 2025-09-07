@@ -1,4 +1,4 @@
-# RPA System
+# EasyFlow RPA System
 
 Monorepo with a Node.js backend API, Python automation (Flask + Selenium) microservice, and a frontend dashboard.
 
