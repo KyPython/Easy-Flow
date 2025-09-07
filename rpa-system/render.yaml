@@ -75,7 +75,7 @@ services:
       - key: API_KEY
         generateValue: true
       - key: ALLOWED_ORIGINS
-        value: https://easyflow-dashboard.vercel.app,https://app.easyflow.com
+        value: https://easy-flow-lac.vercel.app,https://app.easyflow.com
 
 databases:
   - name: easyflow-postgres
