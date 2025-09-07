@@ -14,87 +14,9 @@ This guide covers deploying EasyFlow using modern cloud platforms:
 2. Python automation service (browser automation, form filling)
 3. Email worker (background job processing)
 
-## 🔧 Step 1: Environment Setup
-
-### A. Supabase Configuration
-
-1. **Create Supabase Project**
-
-   ```bash
-   # Go to https://supabase.com/dashboard
-   # Create new project
-   # Note down: URL, anon key, service role key
-   ```
-
-2. **Run Database Migrations**
-
-   ```sql
-   -- In Supabase SQL Editor, run files in order:
-   -- rpa-system/backend/migrations/000-initial-schema.sql
-   -- rpa-system/backend/migrations/001-create-profiles-and-backfill.sql
-   -- rpa-system/backend/migrations/002-add-user-preferences.sql
-   -- rpa-system/backend/migrations/003-enhance-user-settings.sql
-   ```
-
-3. **Configure Storage**
-   ```bash
-   # Create bucket named 'artifacts' in Supabase Storage
-   # Set policies for authenticated users
-   ```
-
-### B. Firebase Configuration
-
-1. **Create Firebase Project**
-
-   ```bash
-   # Go to https://console.firebase.google.com
-   # Create new project
-   # Enable Realtime Database
-   # Enable Cloud Messaging
-   ```
-
-2. **Generate Service Account**
-
-   ```bash
-   # Project Settings > Service Accounts
-   # Generate new private key
-   # Save as: rpa-system/backend/config/firebase-service-account.json
-   ```
-
-3. **Configure Web App**
-   ```bash
-   # Project Settings > General > Your apps
-   # Add web app
-   # Copy configuration values
-   ```
-
-## 🚀 Step 2: Backend Deployment (Render.com)
-
-### A. Prepare Repository
-
-1. **Push Code to GitHub**
-
-   ```bash
-   git add .
-   git commit -m "🚀 Prepare for deployment"
-   git push origin main
-   ```
-
-2. **Add Service Account to Repository**
-   ```bash
-   # Add firebase-service-account.json to:
-   # rpa-system/backend/config/firebase-service-account.json
-   # Make sure it's gitignored for security
-   ```
+## 🚀 Backend Deployment (Render.com)
 
 ### B. Deploy to Render
-
-1. **Connect Repository**
-
-   - Go to [Render Dashboard](https://dashboard.render.com)
-   - Click "New +" → "Blueprint"
-   - Connect GitHub repository
-   - Select `render.yaml` file
 
 2. **Configure Environment Variables**
 
