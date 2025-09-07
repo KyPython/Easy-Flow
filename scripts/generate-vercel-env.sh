@@ -29,7 +29,7 @@ grep "REACT_APP_SUPABASE_ANON_KEY=" "$FRONTEND_ENV" || grep "SUPABASE_ANON_KEY="
 echo ""
 
 echo "# Backend API (UPDATE AFTER DEPLOYMENT)"
-echo "REACT_APP_API_URL=https://YOUR_BACKEND_URL.onrender.com"
+echo "REACT_APP_API_URL=https://easyflow-backend-ad8e.onrender.com"
 echo ""
 
 echo "# Analytics"

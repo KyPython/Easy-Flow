@@ -41,7 +41,7 @@ echo "# Email Configuration"
 grep "SENDGRID_API_KEY=" "$ENV_FILE"
 grep "SENDGRID_FROM_EMAIL=" "$ENV_FILE"
 grep "SENDGRID_FROM_NAME=" "$ENV_FILE"
-echo "SEND_EMAIL_WEBHOOK=https://YOUR_BACKEND_URL.onrender.com/api/send-email-now"
+echo "SEND_EMAIL_WEBHOOK=https://easyflow-backend-ad8e.onrender.com/api/send-email-now"
 grep "SEND_EMAIL_WEBHOOK_SECRET=" "$ENV_FILE"
 echo ""
 
