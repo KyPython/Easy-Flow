@@ -19,6 +19,7 @@ env/
 **/.env
 **/.env.local
 **/.env.*.local
+ACTUAL_ENV_VALUES.txt
 
 # Firebase service account keys (secrets)
 **/firebase-service-account*.json
