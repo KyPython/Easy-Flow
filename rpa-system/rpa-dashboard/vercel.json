@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "name": "easyflow-dashboard",
+  "framework": null,
+  "buildCommand": "npm ci && npm run build",
+  "outputDirectory": "build",
+  "installCommand": null,
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/favicon.ico"
+    },
+    {
+      "src": "/manifest.json",
+      "dest": "/manifest.json"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
