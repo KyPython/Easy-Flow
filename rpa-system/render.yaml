@@ -43,9 +43,8 @@ services:
       if [ ! -d node_modules/express ]; then
         echo "[build] FATAL: express not installed" && ls -1 node_modules | head && exit 1
       fi
-      echo "[build] installing python automation deps"
-      cd automation
-      python3 -m pip install -r requirements.txt --no-cache-dir || true
+      echo "[build] skipping python automation deps - using stub mode"
+      echo "[build] if you need python automation, set AUTOMATION_MODE=python and install dependencies manually"
     startCommand: cd rpa-system && node backend/index.js
     healthCheckPath: /health
     envVars:

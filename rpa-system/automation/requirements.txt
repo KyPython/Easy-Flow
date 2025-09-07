@@ -6,4 +6,3 @@ requests==2.32.3
 python-magic==0.4.27
 cryptography==42.0.8
 kafka-python==2.0.2
-confluent-kafka==2.3.0
