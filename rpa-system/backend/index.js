@@ -14,6 +14,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
  const morgan = require('morgan');
  const path = require('path');
 const { startEmailWorker } = require('./workers/email_worker');
+const { spawn } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3030;
@@ -326,6 +327,30 @@ app.get('/', (_req, res) => {
 if ((process.env.ENABLE_EMAIL_WORKER || 'true').toLowerCase() === 'true') {
   // Fire and forget; any errors are logged inside the worker loop
   startEmailWorker();
+}
+
+// Optional embedded Python automation supervisor
+if ((process.env.AUTOMATION_MODE || 'stub') === 'python') {
+  let pyProc;
+  const startPython = () => {
+    if (pyProc) return;
+    console.log('[automation-supervisor] launching python automate.py');
+    pyProc = spawn('python', ['automation/automate.py'], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PORT: '7070' }
+    });
+    pyProc.stdout.on('data', d => process.stdout.write('[automation] ' + d));
+    pyProc.stderr.on('data', d => process.stderr.write('[automation:err] ' + d));
+    pyProc.on('exit', code => {
+      console.warn('[automation-supervisor] python exited code', code);
+      pyProc = null;
+      setTimeout(startPython, 5000); // restart after delay
+    });
+  };
+  startPython();
+  process.on('SIGTERM', () => { if (pyProc) pyProc.kill('SIGTERM'); });
+  process.on('SIGINT', () => { if (pyProc) pyProc.kill('SIGINT'); });
 }
 
 // Auth route - serve the React auth page
