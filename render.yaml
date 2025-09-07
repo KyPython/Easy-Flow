@@ -1,5 +1,4 @@
 services:
-  # Main Backend API Service
   - type: web
     name: easyflow-backend
     runtime: node
@@ -38,13 +37,11 @@ services:
       - key: ALLOWED_ORIGINS
         value: https://easyflow-dashboard.vercel.app,https://app.easyflow.com
 
-# Database (if using Render's Postgres)
 databases:
   - name: easyflow-postgres
     databaseName: easyflow_production
     region: oregon
 
-  # Redis for caching (optional)
   - name: easyflow-redis
     region: oregon
     plan: free
