@@ -7,23 +7,12 @@ This guide covers deploying EasyFlow using modern cloud platforms:
 - **Backend API**: Render.com (Node.js)
 - **Python Automation**: Render.com (RPA/Selenium service)
 - **Frontend**: Vercel (React)
-- **Database**: Supabase (managed PostgreSQL)
-- **Real-time & Notifications**: Firebase
 
 **🤖 Architecture**: Your system requires **THREE separate services** on Render.com:
 
 1. Node.js API server (database, auth, webhooks)
 2. Python automation service (browser automation, form filling)
 3. Email worker (background job processing)
-
-## 📋 Prerequisites
-
-### Required Tools
-
-- [ ] Node.js 20.x or later
-- [ ] npm or yarn
-- [ ] Git
-- [ ] Vercel CLI (optional)
 
 ## 🔧 Step 1: Environment Setup
 
