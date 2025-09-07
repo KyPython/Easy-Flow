@@ -597,6 +597,17 @@ class NotificationService {
       return false;
     }
 
+    // Guard: require Firebase authenticated user to satisfy rules.
+    if (!auth?.currentUser) {
+      console.warn('🔔 No Firebase auth user present; falling back to server API notification creation');
+      return await this._sendViaBackendFallback(userId, notification);
+    }
+
+    if (auth.currentUser.uid !== userId) {
+      console.warn('🔔 UID mismatch (auth.currentUser.uid != target userId); using backend fallback');
+      return await this._sendViaBackendFallback(userId, notification);
+    }
+
     // Check if this type of notification is enabled
     if (!this.isNotificationEnabled(notification.type)) {
       console.log(`🔔 Notification type '${notification.type}' is disabled for user, skipping`);
@@ -623,10 +634,47 @@ class NotificationService {
       if (error.code === 'PERMISSION_DENIED') {
         console.error('🔔 Firebase permission denied. Check your Firebase Realtime Database security rules.');
         console.error('🔔 Ensure rules allow authenticated users to write to /notifications/{uid}');
+        console.warn('🔔 Falling back to server API notification creation');
+        return await this._sendViaBackendFallback(userId, notification);
       } else if (error.code === 'NETWORK_ERROR') {
         console.error('🔔 Network error connecting to Firebase. Check internet connection.');
       }
       
+      return false;
+    }
+  }
+
+  // Backend fallback using privileged server endpoint
+  async _sendViaBackendFallback(userId, notification) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.warn('🔔 Cannot use backend fallback: no Supabase session');
+        return false;
+      }
+      const response = await fetch(buildApiUrl('/api/notifications/create'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          type: notification.type || 'system_alert',
+            title: notification.title || 'Notification',
+            body: notification.body || 'You have a new notification',
+            priority: notification.priority || 'normal',
+            data: notification.data || {}
+        })
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(()=>({}));
+        console.error('🔔 Backend fallback failed:', err);
+        return false;
+      }
+      console.log('🔔 Notification stored via backend fallback');
+      return true;
+    } catch (e) {
+      console.error('🔔 Backend fallback error:', e);
       return false;
     }
   }

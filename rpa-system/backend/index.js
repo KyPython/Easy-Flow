@@ -903,6 +903,52 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
   }
 });
 
+// POST /api/notifications/create - server-side notification creation & optional push
+// NOTE: This route existed in app.js but not in the active entrypoint (index.js), causing 404s from the frontend fallback.
+app.post('/api/notifications/create', authMiddleware, async (req, res) => {
+  try {
+    const { type, title, body, priority = 'normal', data = {} } = req.body || {};
+    if (!type || !title || !body) {
+      return res.status(400).json({ error: 'type, title and body are required' });
+    }
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentication failed: user missing on request' });
+    }
+
+    const notification = { type, title, body, priority, data };
+
+    if (!firebaseNotificationService || !firebaseNotificationService.isConfigured) {
+      console.warn('[POST /api/notifications/create] Firebase not fully configured; attempting store only');
+    }
+
+    try {
+      const result = await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
+
+      if (!result.store.success) {
+        return res.status(500).json({
+          error: 'Failed to store notification',
+          store_error: result.store.error,
+          push_error: result.push?.error || null
+        });
+      }
+
+      return res.json({
+        success: true,
+        notification_id: result.store.notificationId,
+        push: result.push,
+        stored: result.store
+      });
+    } catch (innerErr) {
+      console.error('[POST /api/notifications/create] send/store failure:', innerErr);
+      return res.status(500).json({ error: 'Failed to process notification', details: innerErr.message });
+    }
+  } catch (error) {
+    console.error('[POST /api/notifications/create] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // --- Task Management API ---
 
 // GET /api/tasks - Fetch all automation tasks for the user
@@ -1907,18 +1953,30 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
     if (fcm_token !== undefined) updateData.fcm_token = fcm_token;
     if (phone_number !== undefined) updateData.phone_number = phone_number;
 
-    // Update preferences in user_settings table
+    // Update preferences in user_settings table (explicit conflict target for clarity)
     const { error } = await supabase
       .from('user_settings')
       .upsert({
         user_id: req.user.id,
         ...updateData,
         updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id',
+        ignoreDuplicates: false
       });
 
     if (error) {
-      console.error('[PUT /api/user/preferences] update error:', error);
-      return res.status(500).json({ error: 'Failed to update preferences' });
+      console.error('[PUT /api/user/preferences] update error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      return res.status(500).json({ 
+        error: 'Failed to update preferences',
+        code: error.code,
+        details: error.details || error.message
+      });
     }
 
     console.log(`[PUT /api/user/preferences] Updated preferences for user ${req.user.id}`);

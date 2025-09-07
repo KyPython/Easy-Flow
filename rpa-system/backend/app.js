@@ -883,6 +883,42 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
   }
 });
 
+// POST /api/notifications/create - server-side notification creation & optional push
+app.post('/api/notifications/create', authMiddleware, async (req, res) => {
+  try {
+    const { type, title, body, priority = 'normal', data = {} } = req.body || {};
+    if (!type || !title || !body) {
+      return res.status(400).json({ error: 'type, title and body are required' });
+    }
+
+    const notification = { type, title, body, priority, data };
+
+    if (!firebaseNotificationService || !firebaseNotificationService.isConfigured) {
+      console.warn('[POST /api/notifications/create] Firebase not fully configured; attempting store only');
+    }
+
+    const result = await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
+
+    if (!result.store.success) {
+      return res.status(500).json({
+        error: 'Failed to store notification',
+        store_error: result.store.error,
+        push_error: result.push?.error || null
+      });
+    }
+
+    res.json({
+      success: true,
+      notification_id: result.store.notificationId,
+      push: result.push,
+      stored: result.store
+    });
+  } catch (error) {
+    console.error('[POST /api/notifications/create] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // --- Task Management API ---
 
 // GET /api/tasks - Fetch all automation tasks for the user
@@ -1900,8 +1936,17 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
       });
 
     if (error) {
-      console.error('[PUT /api/user/preferences] update error:', error);
-      return res.status(500).json({ error: 'Failed to update preferences' });
+      console.error('[PUT /api/user/preferences] update error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      return res.status(500).json({ 
+        error: 'Failed to update preferences',
+        code: error.code,
+        details: error.details || error.message
+      });
     }
 
     console.log(`[PUT /api/user/preferences] Updated preferences for user ${req.user.id}`);
@@ -1912,8 +1957,8 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[PUT /api/user/preferences] error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[PUT /api/user/preferences] unexpected error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
