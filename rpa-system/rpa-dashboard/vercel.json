@@ -3,7 +3,7 @@
   "name": "easyflow-dashboard",
   "builds": [
     {
-      "src": "rpa-system/rpa-dashboard/package.json",
+      "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
         "distDir": "build"
@@ -28,7 +28,7 @@
       "dest": "/index.html"
     }
   ],
-  "buildCommand": "cd rpa-system/rpa-dashboard && npm ci && npm run build",
-  "outputDirectory": "rpa-system/rpa-dashboard/build",
-  "installCommand": "cd rpa-system && npm ci"
+  "buildCommand": "npm ci && npm run build",
+  "outputDirectory": "build",
+  "installCommand": "npm ci"
 }
