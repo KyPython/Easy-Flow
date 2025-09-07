@@ -1,6 +1,7 @@
 {
   "name": "rpa-system",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev:backend": "node ./backend/index.js",
     "dev:automation": "python3 ./automation/automate.py",

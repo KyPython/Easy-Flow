@@ -1,9 +1,10 @@
-import express from 'express';
+const express = require('express');
 const router = express.Router();
-import { createClient } from '@supabase/supabase-js';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+const { createClient } = require('@supabase/supabase-js');
 const { enqueueEvent } = require('./event_forwarder');
+
+// You may need to initialize supabase here if it was missing
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 // 1. User submits an email-based referral
 router.post('/generate-referral', async (req, res) => {
@@ -191,4 +192,4 @@ function forwardReferralEvent(referral, action = 'created') {
   });
 }
 
-export { router, handleReferralOnSignup };
+module.exports = { router, handleReferralOnSignup };

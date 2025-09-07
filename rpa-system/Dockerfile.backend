@@ -11,3 +11,4 @@ COPY . .
 
 EXPOSE 3030
 CMD ["node", "backend/index.js"]
+RUN apt-get update && apt-get install -y librdkafka-dev
