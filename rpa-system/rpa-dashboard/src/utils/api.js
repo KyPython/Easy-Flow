@@ -25,6 +25,50 @@ api.interceptors.request.use(
   }
 );
 
+// Basic 401 retry logic: attempt a refresh once, then retry original request.
+let isRefreshing = false;
+let queued = [];
+
+api.interceptors.response.use(
+  (resp) => resp,
+  async (error) => {
+    const status = error?.response?.status;
+    if (status !== 401) return Promise.reject(error);
+
+    // If request already retried once, give up
+    if (error.config.__isRetry) return Promise.reject(error);
+
+    try {
+      if (!isRefreshing) {
+        isRefreshing = true;
+        // Force a refresh (Supabase v2 automatically refreshes, but we request explicitly)
+        try {
+          await supabase.auth.refreshSession();
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('Token refresh failed', e?.message || e);
+        } finally {
+          isRefreshing = false;
+          queued.forEach(fn => fn());
+          queued = [];
+        }
+      } else {
+        await new Promise(res => queued.push(res));
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        error.config.headers['Authorization'] = `Bearer ${session.access_token}`;
+        error.config.__isRetry = true;
+        return api.request(error.config);
+      }
+    } catch (e) {
+      // fall through
+    }
+    return Promise.reject(error);
+  }
+);
+
 const getErrorMessage = (error, defaultMessage = 'An unexpected error occurred.') => {
   if (error.response && error.response.data && error.response.data.error) {
     return error.response.data.error;
