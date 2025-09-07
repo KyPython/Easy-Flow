@@ -1,9 +1,0 @@
-# Ignore the rpa-system root package.json to prevent auto-detection
-
-rpa-system/package.json
-rpa-system/node_modules
-rpa-system/package-lock.json
-
-# Only build from the dashboard subdirectory
-
-!rpa-system/rpa-dashboard/

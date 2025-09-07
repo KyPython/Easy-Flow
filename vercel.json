@@ -1,9 +1,10 @@
 {
   "version": 2,
   "name": "easyflow-dashboard",
-  "buildCommand": "cd rpa-system/rpa-dashboard && npm ci && npm run build",
+  "framework": null,
+  "buildCommand": "npm ci --prefix rpa-system/rpa-dashboard && npm run build --prefix rpa-system/rpa-dashboard",
   "outputDirectory": "rpa-system/rpa-dashboard/build",
-  "installCommand": "echo 'Skipping root install'",
+  "installCommand": null,
   "routes": [
     {
       "src": "/static/(.*)",
