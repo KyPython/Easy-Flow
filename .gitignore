@@ -122,6 +122,10 @@ venv.bak/
 *.lock
 rpa-system/rpa-dashboard/.env
 rpa-system/.env
+
+# Backend service account & sensitive backend config (defensive duplicate)
+rpa-system/backend/config/firebase-service-account.json
+rpa-system/backend/config/*.secret.json
 rpa-system/rpa-dashboard/.env
 
 
