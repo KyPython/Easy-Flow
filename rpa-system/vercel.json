@@ -1,4 +1,6 @@
 {
   "version": 2,
-  "name": "easyflow-rpa-system"
+  "name": "easyflow-rpa-system",
+  "buildCommand": "npm install",
+  "installCommand": "npm install"
 }
