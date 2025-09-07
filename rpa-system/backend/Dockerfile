@@ -1,7 +1,7 @@
 FROM node:18-alpine
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Install curl for health checks and librdkafka for Kafka support
+RUN apk add --no-cache curl librdkafka-dev
 
 WORKDIR /app
 
@@ -30,5 +30,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Start the application
 CMD ["node", "index.js"]
-# If you need librdkafka-dev, use apk for Alpine
-RUN apk add --no-cache librdkafka-dev

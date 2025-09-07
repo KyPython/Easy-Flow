@@ -149,15 +149,50 @@ jobs:
           path: nightly-artifacts/
           retention-days: 14
           
-      - name: Post results to Slack
+      - name: Create GitHub Issue for Test Failures
         if: failure() && github.ref == 'refs/heads/main'
-        uses: 8398a7/action-slack@v3
+        uses: actions/github-script@v7
         with:
-          status: failure
-          channel: '#qa-alerts'
-          fields: repo,message,commit,author,action,eventName,ref,workflow
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const title = `[QA Alert] Nightly Test Failure - Node ${{ matrix.node-version }}, Python ${{ matrix.python-version }}`;
+            const body = `🚨 **Nightly QA Test Suite Failed**
+            
+            **Details:**
+            - **Workflow:** ${{ github.workflow }}
+            - **Run:** ${{ github.run_number }}
+            - **Commit:** ${{ github.sha }}
+            - **Author:** ${{ github.actor }}
+            - **Node Version:** ${{ matrix.node-version }}
+            - **Python Version:** ${{ matrix.python-version }}
+            - **Test Type:** ${{ github.event.inputs.test_type || 'full' }}
+            
+            **📋 Actions Taken:**
+            - ✅ Test artifacts uploaded for analysis
+            - ✅ Coverage reports generated
+            - ✅ System logs collected
+            
+            **🔧 Next Steps:**
+            1. Review the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            2. Download and analyze the test artifacts
+            3. Check recent commits for potential causes
+            4. Fix identified issues and re-run tests
+            
+            **📊 Artifact Information:**
+            - **Artifact Name:** nightly-qa-artifacts-node${{ matrix.node-version }}-py${{ matrix.python-version }}
+            - **Retention:** 14 days
+            - **Contents:** Logs, coverage reports, system info
+            
+            ---
+            *This issue was automatically created by the nightly QA workflow*`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['qa-failure', 'nightly-tests', 'high-priority', 'automated']
+            });
           
       - name: Cleanup
         if: always()
