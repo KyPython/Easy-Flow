@@ -49,10 +49,7 @@ services:
       - key: PYTHONPATH
         value: /opt/render/project/src/rpa-system/automation
       - key: SUPABASE_URL
-        fromService:
-          type: web
-          name: easyflow-backend
-          envVarKey: SUPABASE_URL
+  sync: false # Cannot chain-reference another service's referenced var; set manually in dashboard
       - key: SUPABASE_SERVICE_ROLE
         sync: false
       - key: PORT
@@ -71,10 +68,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: SUPABASE_URL
-        fromService:
-          type: web
-          name: easyflow-backend
-          envVarKey: SUPABASE_URL
+  sync: false # Manual entry required; avoid chaining a referenced env var
       - key: SUPABASE_SERVICE_ROLE
         sync: false
       - key: SEND_EMAIL_WEBHOOK
@@ -96,9 +90,9 @@ databases:
   - name: easyflow-postgres
     databaseName: easyflow_production
     region: oregon
-    plan: starter
+  plan: standard # Updated from legacy 'starter'
 
   # Redis for caching (optional)
   - name: easyflow-redis
     region: oregon
-    plan: starter
+  plan: free # Updated from legacy 'starter' (adjust to desired tier)
