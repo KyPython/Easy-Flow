@@ -90,7 +90,6 @@ databases:
   - name: easyflow-postgres
     databaseName: easyflow_production
     region: oregon
-    plan: basic # Database plans are separate from workspace tier; 'pro' is legacy slug
 
   # Redis for caching (optional)
   - name: easyflow-redis
