@@ -5,7 +5,7 @@ services:
     runtime: node
     env: node
     region: oregon
-    plan: free
+    plan: starter # paid tier to keep backend always-on
     buildCommand: cd rpa-system && npm install --production
     startCommand: cd rpa-system && node backend/index.js
     healthCheckPath: /health
@@ -43,7 +43,7 @@ services:
     runtime: python
     env: python
     region: oregon
-    plan: free
+    plan: starter # paid tier to reduce cold starts (set to free if occasional sleep acceptable)
     buildCommand: cd rpa-system/automation && pip install -r requirements.txt --no-cache-dir
     startCommand: cd rpa-system/automation && python automate.py
     healthCheckPath: /health
