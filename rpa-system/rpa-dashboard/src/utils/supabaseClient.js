@@ -23,3 +23,10 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
 		detectSessionInUrl: true
 	}
 });
+
+// Expose globally for diagnostics (read-only) similar to _api
+if (typeof window !== 'undefined' && !window._supabase) {
+	Object.defineProperty(window, '_supabase', { value: supabase, writable: false, configurable: false });
+	// eslint-disable-next-line no-console
+	console.info('[supabase] client exposed globally as window._supabase');
+}

@@ -45,6 +45,13 @@ api.interceptors.response.use(
     const status = error?.response?.status;
     if (status !== 401) return Promise.reject(error);
 
+    // Surface backend diagnostic header if present
+    const reason = error?.response?.headers?.['x-auth-reason'];
+    if (reason) {
+      // eslint-disable-next-line no-console
+      console.warn('[api] 401 x-auth-reason:', reason, 'url:', error.config?.url);
+    }
+
     const original = error.config || {};
 
     // If the request already had an auth header and the endpoint is user/preferences, don't spam refresh.

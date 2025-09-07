@@ -98,12 +98,14 @@ export default function SettingsPage() {
 
   // Fetch user preferences
   const fetchedOnceRef = useRef(false);
+  const fetchAttemptsRef = useRef(0);
   const fetchPreferences = useCallback(async () => {
     if (!user) return;
     if (fetchedOnceRef.current) return; // prevent duplicate invocations (React 18 strict mode / rerenders)
     fetchedOnceRef.current = true;
     try {
       setPreferencesLoading(true);
+      fetchAttemptsRef.current += 1;
       const response = await api.get('/api/user/preferences');
       if (response.status === 200) {
         const data = response.data || {};
@@ -118,8 +120,12 @@ export default function SettingsPage() {
     } catch (err) {
       console.error('Error fetching preferences:', err);
       if (err?.response?.status === 401) {
-        // Allow a later manual retry if auth becomes valid
-        fetchedOnceRef.current = false; // so user can trigger via manual action if we add one later
+        // Diagnostic header from backend (added via x-auth-reason) helps identify cause
+        const reason = err?.response?.headers?.['x-auth-reason'];
+        if (reason) {
+          console.warn('[preferences] 401 x-auth-reason:', reason);
+        }
+        // Do NOT reset fetchedOnceRef automatically to avoid tight 401 loops.
       }
       // Provide user-friendly error message
       if (err.message?.includes('Network Error') || err.message?.includes('CORS')) {

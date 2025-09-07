@@ -28,7 +28,11 @@ const authMiddleware = async (req, res, next) => {
   
   try {
     if (!supabase) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[auth] supabase client missing (check SUPABASE_URL / SUPABASE_SERVICE_ROLE)');
+      }
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      res.set('x-auth-reason', 'no-supabase');
       return res.status(401).json({ error: 'Authentication failed' });
     }
 
@@ -37,14 +41,22 @@ const authMiddleware = async (req, res, next) => {
     const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
     
     if (!token) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[auth] missing bearer token header for path', req.path);
+      }
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      res.set('x-auth-reason', 'no-token');
       return res.status(401).json({ error: 'Authentication failed' });
     }
 
     // validate token via Supabase server client
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data || !data.user) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[auth] token validation failed', { path: req.path, error: error?.message });
+      }
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      res.set('x-auth-reason', 'invalid-token');
       return res.status(401).json({ error: 'Authentication failed' });
     }
 
@@ -58,7 +70,8 @@ const authMiddleware = async (req, res, next) => {
   } catch (err) {
     console.error('[auth middleware] error', err?.message || err);
     await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
-    return res.status(401).json({ error: 'Authentication failed' });
+  res.set('x-auth-reason', 'exception');
+  return res.status(401).json({ error: 'Authentication failed' });
   }
 };
 
