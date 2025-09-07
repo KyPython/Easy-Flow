@@ -427,6 +427,152 @@ class FirebaseNotificationService {
     };
   }
 
+  // Generate Firebase custom token for Supabase user
+  async generateCustomToken(supabaseUserId, additionalClaims = {}) {
+    if (!firebaseAdminApp) {
+      console.warn('🔥 Firebase Admin not configured - cannot generate custom token');
+      return { success: false, error: 'Firebase Admin not configured' };
+    }
+
+    try {
+      // Create custom claims that include Supabase user ID
+      const claims = {
+        supabase_uid: supabaseUserId,
+        auth_time: Math.floor(Date.now() / 1000),
+        provider: 'supabase',
+        ...additionalClaims
+      };
+
+      // Generate custom token with Supabase user ID as the Firebase UID
+      // This creates a consistent mapping between Supabase and Firebase users
+      const customToken = await admin.auth(firebaseAdminApp).createCustomToken(supabaseUserId, claims);
+
+      console.log(`🔥 Generated custom token for Supabase user: ${supabaseUserId}`);
+
+      return {
+        success: true,
+        token: customToken,
+        expiresIn: 3600, // Custom tokens expire in 1 hour
+        claims
+      };
+
+    } catch (error) {
+      console.error('🔥 Error generating custom token:', error);
+      return {
+        success: false,
+        error: error.message,
+        code: error.code
+      };
+    }
+  }
+
+  // Verify Firebase custom token (useful for testing)
+  async verifyCustomToken(idToken) {
+    if (!firebaseAdminApp) {
+      console.warn('🔥 Firebase Admin not configured - cannot verify token');
+      return { success: false, error: 'Firebase Admin not configured' };
+    }
+
+    try {
+      const decodedToken = await admin.auth(firebaseAdminApp).verifyIdToken(idToken);
+
+      return {
+        success: true,
+        uid: decodedToken.uid,
+        supabase_uid: decodedToken.supabase_uid,
+        claims: decodedToken,
+        auth_time: decodedToken.auth_time,
+        provider: decodedToken.provider
+      };
+
+    } catch (error) {
+      console.error('🔥 Error verifying token:', error);
+      return {
+        success: false,
+        error: error.message,
+        code: error.code
+      };
+    }
+  }
+
+  // Create Firebase user record for Supabase user (if needed for advanced features)
+  async createFirebaseUser(supabaseUserId, userProfile = {}) {
+    if (!firebaseAdminApp) {
+      console.warn('🔥 Firebase Admin not configured - cannot create user');
+      return { success: false, error: 'Firebase Admin not configured' };
+    }
+
+    try {
+      // Check if Firebase user already exists
+      try {
+        const existingUser = await admin.auth(firebaseAdminApp).getUser(supabaseUserId);
+        console.log(`🔥 Firebase user already exists: ${supabaseUserId}`);
+        return {
+          success: true,
+          user: existingUser,
+          created: false
+        };
+      } catch (error) {
+        if (error.code !== 'auth/user-not-found') {
+          throw error;
+        }
+        // User doesn't exist, create it
+      }
+
+      // Create new Firebase user with Supabase ID as Firebase UID
+      const userRecord = await admin.auth(firebaseAdminApp).createUser({
+        uid: supabaseUserId,
+        email: userProfile.email || null,
+        displayName: userProfile.displayName || userProfile.email?.split('@')[0] || null,
+        disabled: false,
+        emailVerified: true // Trust Supabase email verification
+      });
+
+      console.log(`🔥 Created Firebase user record: ${supabaseUserId}`);
+
+      return {
+        success: true,
+        user: userRecord,
+        created: true
+      };
+
+    } catch (error) {
+      console.error('🔥 Error creating Firebase user:', error);
+      return {
+        success: false,
+        error: error.message,
+        code: error.code
+      };
+    }
+  }
+
+  // Set custom claims for a Firebase user (useful for role-based access)
+  async setUserClaims(supabaseUserId, claims) {
+    if (!firebaseAdminApp) {
+      console.warn('🔥 Firebase Admin not configured - cannot set claims');
+      return { success: false, error: 'Firebase Admin not configured' };
+    }
+
+    try {
+      await admin.auth(firebaseAdminApp).setCustomUserClaims(supabaseUserId, {
+        supabase_uid: supabaseUserId,
+        ...claims
+      });
+
+      console.log(`🔥 Set custom claims for user ${supabaseUserId}:`, claims);
+
+      return { success: true, claims };
+
+    } catch (error) {
+      console.error('🔥 Error setting user claims:', error);
+      return {
+        success: false,
+        error: error.message,
+        code: error.code
+      };
+    }
+  }
+
   // Determine configuration method
   getConfigurationMethod() {
     const fs = require('fs');

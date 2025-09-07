@@ -1,8 +1,9 @@
 // React Hook for EasyFlow Notifications
 // Provides easy integration of real-time notifications in React components
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import notificationService, { NotificationHelpers } from '../utils/notificationService';
+import { useAuth } from '../utils/AuthContext';
 
 export const useNotifications = (user) => {
   const [notifications, setNotifications] = useState([]);
@@ -10,50 +11,108 @@ export const useNotifications = (user) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [status, setStatus] = useState(notificationService.getStatus());
+  const [authReady, setAuthReady] = useState(false);
+  
+  // Use refs to track state and prevent race conditions
+  const initializingRef = useRef(false);
+  const lastUserIdRef = useRef(null);
+  const authTimeoutRef = useRef(null);
 
-  // Initialize notification service when user changes
+  // Wait for authentication to be ready before initializing notifications
   useEffect(() => {
     let mounted = true;
 
-    const initializeNotifications = async () => {
+    const waitForAuthAndInitialize = async () => {
+      // Early return if no user
       if (!user) {
-        if (isInitialized) {
+        if (isInitialized || notificationService.isInitialized) {
+          console.log('🔔 User logged out, cleaning up notifications');
           notificationService.cleanup();
-          setIsInitialized(false);
-          setNotifications([]);
-          setUnreadCount(0);
+          if (mounted) {
+            setIsInitialized(false);
+            setNotifications([]);
+            setUnreadCount(0);
+            setHasPermission(false);
+            setStatus(notificationService.getStatus());
+            setAuthReady(false);
+          }
         }
+        initializingRef.current = false;
+        lastUserIdRef.current = null;
         return;
       }
 
-      console.log('🔔 Initializing notifications for user:', user.id);
-      
-      try {
-        const success = await notificationService.initialize(user);
-        
+      // Prevent redundant initialization
+      if (initializingRef.current) {
+        console.log('🔔 Initialization already in progress, skipping...');
+        return;
+      }
+
+      // Check if already initialized for the same user
+      if (lastUserIdRef.current === user.id && isInitialized) {
+        console.log('🔔 Already initialized for user:', user.id);
+        return;
+      }
+
+      // Check notification service state
+      if (notificationService.isInitialized && notificationService.currentUser?.id === user.id) {
+        console.log('🔔 NotificationService already initialized for user:', user.id);
         if (mounted) {
-          setIsInitialized(success);
+          setIsInitialized(true);
           setHasPermission(Notification.permission === 'granted');
           setStatus(notificationService.getStatus());
-          
-          if (success) {
-            console.log('🔔 Notifications initialized successfully');
-          }
+          setAuthReady(true);
         }
-      } catch (error) {
-        console.error('🔔 Failed to initialize notifications:', error);
-        if (mounted) {
-          setIsInitialized(false);
-        }
+        lastUserIdRef.current = user.id;
+        return;
       }
+
+      initializingRef.current = true;
+      console.log('🔔 Starting notification initialization for user:', user.id);
+      
+      // Add a small delay to ensure auth context is fully ready
+      if (authTimeoutRef.current) {
+        clearTimeout(authTimeoutRef.current);
+      }
+      
+      authTimeoutRef.current = setTimeout(async () => {
+        try {
+          console.log('🔔 Authentication ready, initializing notifications...');
+          setAuthReady(true);
+          
+          const success = await notificationService.initialize(user);
+          
+          if (mounted) {
+            setIsInitialized(success);
+            setHasPermission(Notification.permission === 'granted');
+            setStatus(notificationService.getStatus());
+            
+            if (success) {
+              lastUserIdRef.current = user.id;
+              console.log('🔔 Notifications initialized successfully');
+            }
+          }
+        } catch (error) {
+          console.error('🔔 Failed to initialize notifications:', error);
+          if (mounted) {
+            setIsInitialized(false);
+            setAuthReady(false);
+          }
+        } finally {
+          initializingRef.current = false;
+        }
+      }, 1000); // 1 second delay to ensure auth is ready
     };
 
-    initializeNotifications();
+    waitForAuthAndInitialize();
 
     return () => {
       mounted = false;
+      if (authTimeoutRef.current) {
+        clearTimeout(authTimeoutRef.current);
+      }
     };
-  }, [user, isInitialized]);
+  }, [user?.id, isInitialized]); // Added isInitialized dependency for cleanup
 
   // Set up event listeners
   useEffect(() => {

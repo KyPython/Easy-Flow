@@ -1892,6 +1892,9 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
         user_id: req.user.id,
         ...updateData,
         updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id',
+        ignoreDuplicates: false
       });
 
     if (error) {
@@ -2009,6 +2012,9 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
       .upsert({
         user_id: req.user.id,
         ...updateData
+      }, {
+        onConflict: 'user_id',
+        ignoreDuplicates: false
       });
 
     if (error) {
@@ -2043,6 +2049,160 @@ const adminAuthMiddleware = (req, res, next) => {
   
   next();
 };
+
+// Firebase custom token endpoint
+app.post('/api/firebase/token', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { additionalClaims } = req.body || {};
+
+    console.log(`🔥 Generating Firebase custom token for user: ${userId}`);
+
+    // Generate custom token using the Firebase Admin service
+    const result = await firebaseNotificationService.generateCustomToken(userId, additionalClaims);
+
+    if (!result.success) {
+      console.error(`🔥 Failed to generate token for user ${userId}:`, result.error);
+      return res.status(500).json({
+        error: 'Failed to generate Firebase token',
+        details: result.error,
+        code: result.code
+      });
+    }
+
+    // Get user profile for Firebase user creation if needed
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', userId)
+      .single();
+
+    // Optionally create Firebase user record (for advanced features)
+    if (profile) {
+      const userResult = await firebaseNotificationService.createFirebaseUser(userId, {
+        email: profile.email,
+        displayName: profile.email?.split('@')[0]
+      });
+
+      if (!userResult.success) {
+        console.warn(`🔥 Failed to create Firebase user record for ${userId}:`, userResult.error);
+        // Don't fail the request, token generation succeeded
+      }
+    }
+
+    console.log(`🔥 Successfully generated Firebase token for user: ${userId}`);
+
+    res.json({
+      success: true,
+      token: result.token,
+      expiresIn: result.expiresIn,
+      claims: result.claims,
+      user: {
+        uid: userId,
+        email: profile?.email || null
+      }
+    });
+
+  } catch (error) {
+    console.error('[POST /api/firebase/token] error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      details: error.message
+    });
+  }
+});
+
+// Firebase token verification endpoint (for testing/debugging)
+app.post('/api/firebase/verify-token', authMiddleware, async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        error: 'idToken is required'
+      });
+    }
+
+    console.log(`🔥 Verifying Firebase ID token for user: ${req.user.id}`);
+
+    const result = await firebaseNotificationService.verifyCustomToken(idToken);
+
+    if (!result.success) {
+      console.error(`🔥 Token verification failed:`, result.error);
+      return res.status(401).json({
+        error: 'Invalid Firebase token',
+        details: result.error,
+        code: result.code
+      });
+    }
+
+    res.json({
+      success: true,
+      valid: true,
+      uid: result.uid,
+      supabase_uid: result.supabase_uid,
+      auth_time: result.auth_time,
+      provider: result.provider,
+      claims: result.claims
+    });
+
+  } catch (error) {
+    console.error('[POST /api/firebase/verify-token] error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      details: error.message
+    });
+  }
+});
+
+// Update user Firebase claims endpoint (for role management)
+app.put('/api/firebase/claims', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { claims } = req.body || {};
+
+    if (!claims || typeof claims !== 'object') {
+      return res.status(400).json({
+        error: 'claims object is required'
+      });
+    }
+
+    // Filter out system claims that users shouldn't modify
+    const systemClaims = ['supabase_uid', 'auth_time', 'provider', 'iss', 'aud', 'exp', 'iat', 'sub', 'uid'];
+    const userClaims = Object.keys(claims)
+      .filter(key => !systemClaims.includes(key))
+      .reduce((obj, key) => {
+        obj[key] = claims[key];
+        return obj;
+      }, {});
+
+    console.log(`🔥 Updating Firebase claims for user ${userId}:`, userClaims);
+
+    const result = await firebaseNotificationService.setUserClaims(userId, userClaims);
+
+    if (!result.success) {
+      console.error(`🔥 Failed to set claims for user ${userId}:`, result.error);
+      return res.status(500).json({
+        error: 'Failed to update Firebase claims',
+        details: result.error,
+        code: result.code
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Firebase claims updated successfully',
+      claims: result.claims
+    });
+
+  } catch (error) {
+    console.error('[PUT /api/firebase/claims] error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      details: error.message
+    });
+  }
+});
 
 // Admin endpoint for email queue statistics
 app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
