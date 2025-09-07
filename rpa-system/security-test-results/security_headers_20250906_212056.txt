@@ -1,0 +1,25 @@
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self';style-src 'self' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=';script-src 'self';img-src 'self' https:;connect-src 'self';font-src 'self' https:;object-src 'none';media-src 'self';frame-src 'none';child-src 'none';worker-src 'self';manifest-src 'self';form-action 'self';frame-ancestors 'none';base-uri 'self';upgrade-insecure-requests;script-src-attr 'none'
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+RateLimit-Policy: 500;w=900
+RateLimit-Limit: 500
+RateLimit-Remaining: 243
+RateLimit-Reset: 805
+Vary: Origin
+Content-Type: application/json; charset=utf-8
+Content-Length: 65
+ETag: W/"41-1GaM9LwFrrgCIDCudw58aNHTHXM"
+Date: Sun, 07 Sep 2025 01:20:56 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+

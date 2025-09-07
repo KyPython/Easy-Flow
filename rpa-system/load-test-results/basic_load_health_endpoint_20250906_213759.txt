@@ -1,0 +1,12 @@
+Basic Load Test Results: health_endpoint
+Timestamp: Sat Sep  6 21:38:01 EDT 2025
+Endpoint: http://localhost:3030/health
+Requests: 100
+Concurrent: 15
+Total Duration: 0s
+Successful Requests: 100
+Failed Requests: 0
+0
+Success Rate: 100%
+Requests/Second: N/A
+Average Response Time: 0.0338873

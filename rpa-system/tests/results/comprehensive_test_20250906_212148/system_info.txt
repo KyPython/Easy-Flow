@@ -1,0 +1,26 @@
+EasyFlow Test Environment Information
+====================================
+Timestamp: Sat Sep  6 21:21:48 EDT 2025
+Test Suite Version: 1.0
+Environment: staging
+Target URL: http://localhost:3030
+Test Type: basic
+
+System Information:
+------------------
+OS: Darwin Mac 24.6.0 Darwin Kernel Version 24.6.0: Mon Jul 14 11:30:51 PDT 2025; root:xnu-11417.140.69~1/RELEASE_ARM64_T8112 arm64
+CPU: Unknown cores
+Memory: Unknown
+Docker Version: Docker version 28.3.2, build 578ccf6
+Docker Compose Version: Docker Compose version v2.32.4
+
+Network Information:
+-------------------
+Target Reachability: ✅ Reachable
+Response Time: 0.000535s
+
+Test Configuration:
+------------------
+Load Tests: Enabled
+Security Tests: Enabled
+Results Directory: tests/results/comprehensive_test_20250906_212148

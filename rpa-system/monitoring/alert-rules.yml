@@ -1,0 +1,117 @@
+# Prometheus Alert Rules for EasyFlow RPA System
+# These rules define conditions for triggering alerts
+
+groups:
+  - name: easyflow_application_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }}% for the last 5 minutes"
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service is down"
+          description: "{{ $labels.instance }} has been down for more than 1 minute"
+
+      - alert: DatabaseConnectionFailure
+        expr: supabase_connection_errors_total > 10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection failures"
+          description: "{{ $value }} database connection failures in the last 2 minutes"
+
+  - name: easyflow_system_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% for the last 5 minutes"
+
+      - alert: HighMemoryUsage
+        expr: memory_usage_percent > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% for the last 5 minutes"
+
+      - alert: DiskSpaceLow
+        expr: disk_free_percent < 10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space"
+          description: "Only {{ $value }}% disk space remaining"
+
+      - alert: ContainerRestartLoop
+        expr: increase(container_restarts_total[15m]) > 5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container restart loop detected"
+          description: "Container {{ $labels.container }} has restarted {{ $value }} times in 15 minutes"
+
+  - name: easyflow_business_alerts
+    rules:
+      - alert: TaskFailureSpike
+        expr: rate(tasks_failed_total[10m]) > rate(tasks_failed_total[1h] offset 1h)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Task failure rate spike"
+          description: "Task failure rate has increased significantly: {{ $value }} failures/min"
+
+      - alert: NoTasksProcessed
+        expr: rate(tasks_completed_total[30m]) == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No tasks processed"
+          description: "No tasks have been completed in the last 30 minutes"
+
+      - alert: EmailDeliveryFailure
+        expr: rate(email_delivery_failures_total[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Email delivery failures"
+          description: "{{ $value }} email delivery failures per minute"
+
+      - alert: UserAuthenticationSpike
+        expr: rate(auth_failures_total[5m]) > 10
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Authentication failure spike"
+          description: "{{ $value }} authentication failures per minute - possible attack"

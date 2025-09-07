@@ -20,6 +20,11 @@ env/
 **/.env.local
 **/.env.*.local
 
+# Firebase service account keys (secrets)
+**/firebase-service-account*.json
+**/firebase-adminsdk*.json
+**/*service-account*.json
+
 # Downloads / Artifacts
 downloads/
 

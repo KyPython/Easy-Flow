@@ -1,0 +1,12 @@
+Basic Load Test Results: database_health
+Timestamp: Sat Sep  6 21:22:57 EDT 2025
+Endpoint: http://localhost:3030/api/health/databases
+Requests: 50
+Concurrent: 10
+Total Duration: 1s
+Successful Requests: 50
+Failed Requests: 0
+0
+Success Rate: 100%
+Requests/Second: 50
+Average Response Time: 0.0967046

@@ -137,8 +137,16 @@ basic_load_test() {
     echo -e "  Total Duration: ${total_duration}s"
     echo -e "  Successful Requests: $success_count"
     echo -e "  Failed Requests: $error_count"
-    echo -e "  Success Rate: $(((success_count * 100) / requests))%"
-    echo -e "  Requests/Second: $((requests / total_duration))"
+    if [[ "$requests" -gt 0 ]]; then
+        echo -e "  Success Rate: $(((success_count * 100) / requests))%"
+    else
+        echo -e "  Success Rate: N/A (no requests)"
+    fi
+    if [[ "$total_duration" -gt 0 ]]; then
+        echo -e "  Requests/Second: $((requests / total_duration))"
+    else
+        echo -e "  Requests/Second: N/A (duration too short)"
+    fi
     if [[ "$avg_time" != "N/A" ]]; then
         echo -e "  Average Response Time: ${avg_time}s"
     fi
@@ -154,7 +162,7 @@ Total Duration: ${total_duration}s
 Successful Requests: $success_count
 Failed Requests: $error_count
 Success Rate: $(((success_count * 100) / requests))%
-Requests/Second: $((requests / total_duration))
+Requests/Second: $(if [[ "$total_duration" -gt 0 ]]; then echo "$((requests / total_duration))"; else echo "N/A"; fi)
 Average Response Time: $avg_time
 EOF
 }

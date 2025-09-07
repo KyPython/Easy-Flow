@@ -4,36 +4,30 @@
   "builds": [
     {
       "src": "rpa-system/rpa-dashboard/package.json",
-      "use": "@vercel/node",
+      "use": "@vercel/static-build",
       "config": {
-        "includeFiles": "rpa-system/rpa-dashboard/build/**"
+        "distDir": "build"
       }
     }
   ],
   "routes": [
     {
       "src": "/static/(.*)",
-      "dest": "/rpa-system/rpa-dashboard/build/static/$1"
+      "dest": "/static/$1"
     },
     {
       "src": "/favicon.ico",
-      "dest": "/rpa-system/rpa-dashboard/build/favicon.ico"
+      "dest": "/favicon.ico"
     },
     {
       "src": "/manifest.json",
-      "dest": "/rpa-system/rpa-dashboard/build/manifest.json"
+      "dest": "/manifest.json"
     },
     {
       "src": "/(.*)",
-      "dest": "/rpa-system/rpa-dashboard/build/index.html"
+      "dest": "/index.html"
     }
   ],
-  "build": {
-    "env": {
-      "CI": "false",
-      "GENERATE_SOURCEMAP": "false"
-    }
-  },
   "env": {
     "REACT_APP_SUPABASE_URL": "@supabase_url",
     "REACT_APP_SUPABASE_ANON_KEY": "@supabase_anon_key",
@@ -50,10 +44,5 @@
   },
   "buildCommand": "cd rpa-system/rpa-dashboard && npm ci && npm run build",
   "outputDirectory": "rpa-system/rpa-dashboard/build",
-  "installCommand": "cd rpa-system && npm ci",
-  "functions": {
-    "rpa-system/rpa-dashboard/build/**": {
-      "maxDuration": 30
-    }
-  }
+  "installCommand": "cd rpa-system && npm ci"
 }
