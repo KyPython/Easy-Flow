@@ -110,9 +110,9 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='"], // Empty inline hash only
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://www.googletagmanager.com"],
       imgSrc: ["'self'", "https:"], // Removed data: protocol
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", "https://www.google-analytics.com", "https://analytics.google.com"],
       fontSrc: ["'self'", "https:"],
       objectSrc: ["'none'"], // Block object/embed
       mediaSrc: ["'self'"],

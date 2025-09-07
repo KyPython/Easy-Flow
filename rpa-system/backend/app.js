@@ -104,9 +104,9 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='"], // Empty inline hash only
-      scriptSrc: ["'self'", "https://www.uchat.com.au", "https://sdk.dfktv2.com"], // Allow chatbot scripts
+      scriptSrc: ["'self'", "https://www.uchat.com.au", "https://sdk.dfktv2.com", "https://www.googletagmanager.com"], // Allow chatbot scripts and GA
       imgSrc: ["'self'", "https:"], // Removed data: protocol
-      connectSrc: ["'self'", "https://sdk.dfktv2.com", "https://www.uchat.com.au"], // Allow chatbot connections
+      connectSrc: ["'self'", "https://sdk.dfktv2.com", "https://www.uchat.com.au", "https://www.google-analytics.com", "https://analytics.google.com"], // Allow chatbot connections and GA
       fontSrc: ["'self'", "https:"],
       objectSrc: ["'none'"], // Block object/embed
       mediaSrc: ["'self'"],
