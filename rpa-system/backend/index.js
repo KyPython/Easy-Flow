@@ -187,6 +187,13 @@ app.use(cors({
     if (!origin) return cb(null, true); // non-browser
     if (ALLOWED_ORIGINS.length === 0) return cb(null, true); // dev fallback
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    
+    // Temporary: Allow Vercel domain even if not in environment variable
+    if (origin === 'https://easy-flow-lac.vercel.app') {
+      console.log('✅ Allowing Vercel domain as temporary fix');
+      return cb(null, true);
+    }
+    
     return cb(new Error('CORS: origin not allowed'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
