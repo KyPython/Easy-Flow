@@ -5,7 +5,7 @@ services:
     runtime: node
     env: node
     region: oregon
-    plan: starter
+  plan: pro
     buildCommand: cd rpa-system && npm install
     startCommand: cd rpa-system && npm run dev:backend
     healthCheckPath: /health
@@ -41,7 +41,7 @@ services:
     runtime: python
     env: python
     region: oregon
-    plan: starter
+  plan: pro
     buildCommand: cd rpa-system/automation && pip install -r requirements.txt
     startCommand: cd rpa-system/automation && python automate.py
     healthCheckPath: /health
@@ -61,7 +61,7 @@ services:
     runtime: node
     env: node
     region: oregon
-    plan: starter
+  plan: pro
     buildCommand: cd rpa-system && npm install
     startCommand: cd rpa-system && node backend/workers/email_worker.js
     envVars:
@@ -90,7 +90,7 @@ databases:
   - name: easyflow-postgres
     databaseName: easyflow_production
     region: oregon
-  plan: basic # Replaced legacy plan ('standard' deprecated) – change if your account uses a different tier (e.g. pro, plus)
+    plan: pro # Upgraded to pro to match workspace plan
 
   # Redis for caching (optional)
   - name: easyflow-redis
