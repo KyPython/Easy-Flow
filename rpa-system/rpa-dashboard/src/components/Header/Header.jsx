@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useI18n } from '../../i18n';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import styles from './Header.module.css';
 import { supabase } from '../../utils/supabaseClient';
@@ -10,6 +11,7 @@ const Header = ({ user }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [showContact, setShowContact] = useState(false);
+  // language features removed
 
   const isActive = (path) => {
     if (location.pathname === path) return true;
@@ -30,6 +32,8 @@ const Header = ({ user }) => {
   function handleSignIn() {
     navigate('/auth');
   }
+
+  const { t } = useI18n();
 
   return (
     <header className={styles.header}>
@@ -55,7 +59,7 @@ const Header = ({ user }) => {
                 : ''
             }`}
           >
-            Dashboard
+            {t('nav.dashboard','Dashboard')}
           </Link>
 
           <Link
@@ -64,7 +68,7 @@ const Header = ({ user }) => {
               isActive('/app/tasks') ? styles.activeNavLink : ''
             }`}
           >
-            Task Management
+            {t('nav.tasks','Task Management')}
           </Link>
 
           <Link
@@ -73,7 +77,7 @@ const Header = ({ user }) => {
               isActive('/app/history') ? styles.activeNavLink : ''
             }`}
           >
-            Automation History
+            {t('nav.history','Automation History')}
           </Link>
         </nav>
 
@@ -98,29 +102,27 @@ const Header = ({ user }) => {
                 <NotificationCenter user={user} />
                 
                 <Link className={styles.actionButton} to="/app/settings">
-                  Settings
+                  {t('nav.settings','Settings')}
                 </Link>
 
                 <button
                   className={styles.actionButton}
                   onClick={() => setShowContact(true)}
                 >
-                  Contact
+                  {t('nav.contact','Contact')}
                 </button>
 
                 <button
                   className={`${styles.actionButton} ${styles.signOutButton}`}
                   onClick={handleSignOut}
                 >
-                  Sign out
+          {t('auth.sign_out','Sign out')}
                 </button>
               </div>
             </>
           ) : (
             <div className={styles.userActions}>
-              <button className={styles.actionButton} onClick={handleSignIn}>
-                Sign In
-              </button>
+  <button className={styles.actionButton} onClick={handleSignIn}>{t('auth.sign_in','Sign In')}</button>
             </div>
           )}
         </div>

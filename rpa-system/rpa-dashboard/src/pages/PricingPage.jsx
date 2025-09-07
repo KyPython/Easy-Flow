@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useI18n } from '../i18n';
 import { supabase } from '../utils/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../utils/AuthContext';
@@ -182,18 +183,19 @@ export default function PricingPage() {
   };
 
   const currentPlanName = userSubscription?.plan?.name || 'Free';
+  const { t } = useI18n();
 
   return (
     <div className={styles.pricingPage}>
       <header className={styles.header}>
-        <h1>Choose Your Plan</h1>
-        <p>Start automating your workflows today with our flexible pricing options</p>
+  <h1>{t('pricing.choose_plan','Choose Your Plan')}</h1>
+  <p>{t('pricing.subtitle','Start automating your workflows today with our flexible pricing options')}</p>
         <div className={styles.trialInfo}>
-          <p>All paid plans include a 14-day free trial.</p>
+          <p>{t('pricing.trial_info','All paid plans include a 14-day free trial.')}</p>
         </div>
         {userSubscription && (
           <div className={styles.currentPlan}>
-            <span>Current plan: {currentPlanName}</span>
+            <span>{t('plan.current_plan_label','Current plan:')} {currentPlanName}</span>
           </div>
         )}
       </header>
@@ -214,7 +216,7 @@ export default function PricingPage() {
               key={plan.id}
               className={`${styles.planCard} ${plan.id === mostPopularId ? styles.popular : ''}`}
             >
-              {plan.id === mostPopularId && <div className={styles.popularBadge}>Most Popular</div>}
+              {plan.id === mostPopularId && <div className={styles.popularBadge}>{t('pricing.most_popular','Most Popular')}</div>}
               <h3>{plan.name}</h3>
               <div className={styles.price}>
                 <span className={styles.currency}>$</span>
@@ -234,7 +236,7 @@ export default function PricingPage() {
                 onClick={() => startPlan(plan)}
                 disabled={userSubscription?.plan_id === plan.id}
               >
-                {userSubscription?.plan_id === plan.id ? 'Current Plan' : 'Start Plan'}
+                {userSubscription?.plan_id === plan.id ? t('plan.current_plan','Current Plan') : t('pricing.start_plan','Start Plan')}
               </button>
             </div>
           );
@@ -242,28 +244,28 @@ export default function PricingPage() {
       </div>
 
       <section className={styles.faq}>
-        <h2>Frequently Asked Questions</h2>
+  <h2>{t('pricing.faq_title','Frequently Asked Questions')}</h2>
         <div className={styles.faqGrid}>
           <div className={styles.faqItem}>
-            <h4>How does the free trial work?</h4>
-            <p>All paid plans come with a 14-day free trial.</p>
+            <h4>{t('pricing.faq_trial_q','How does the free trial work?')}</h4>
+            <p>{t('pricing.faq_trial_a','All paid plans come with a 14-day free trial.')}</p>
           </div>
           <div className={styles.faqItem}>
-            <h4>Can I change plans later?</h4>
-            <p>You can upgrade or downgrade your plan at any time. Changes take effect at the start of your next billing cycle.</p>
+            <h4>{t('pricing.faq_change_q','Can I change plans later?')}</h4>
+            <p>{t('pricing.faq_change_a','You can upgrade or downgrade your plan at any time. Changes take effect at the start of your next billing cycle.')}</p>
           </div>
           <div className={styles.faqItem}>
-            <h4>What happens after my trial ends?</h4>
-            <p>Your account will be upgraded to the paid plan unless cancelled.</p>
+            <h4>{t('pricing.faq_after_q','What happens after my trial ends?')}</h4>
+            <p>{t('pricing.faq_after_a','Your account will be upgraded to the paid plan unless cancelled.')}</p>
           </div>
         </div>
       </section>
 
       <div className={styles.cta}>
-        <h3>Ready to automate your workflow?</h3>
-        <p>Join thousands of businesses saving time and money with EasyFlow</p>
+  <h3>{t('pricing.cta_title','Ready to automate your workflow?')}</h3>
+  <p>{t('pricing.cta_subtitle','Join thousands of businesses saving time and money with EasyFlow')}</p>
         <button className={styles.ctaButton} onClick={() => navigate('/auth')}>
-          Get Started Today
+          {t('pricing.get_started','Get Started Today')}
         </button>
       </div>
     </div>

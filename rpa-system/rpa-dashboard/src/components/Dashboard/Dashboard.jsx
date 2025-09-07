@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useI18n } from '../../i18n';
 import { useNavigate } from 'react-router-dom';
 import styles from './Dashboard.module.css';
 import MetricCard from '../MetricCard/MetricCard';
@@ -12,34 +13,35 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const { sendTaskCompleted, sendTaskFailed } = useNotifications(user);
   const [lastTasksLength, setLastTasksLength] = useState(recentTasks.length);
+  const { t } = useI18n();
   const metricCards = [
     {
-      title: 'Total Tasks',
+      title: t('dashboard.total_tasks','Total Tasks'),
       value: metrics.totalTasks || 0,
       icon: '📊',
       trend: 'up',
-      subtitle: 'All time'
+      subtitle: t('dashboard.all_time','All time')
     },
     {
-      title: 'Completed Tasks',
+      title: t('dashboard.completed_tasks','Completed Tasks'),
       value: metrics.completedTasks || 0,
       icon: '✅',
       trend: 'up',
-      subtitle: `${metrics.totalTasks ? Math.round((metrics.completedTasks / metrics.totalTasks) * 100) : 0}% success rate`
+      subtitle: `${metrics.totalTasks ? Math.round((metrics.completedTasks / metrics.totalTasks) * 100) : 0}% ${t('dashboard.success_rate','success rate')}`
     },
     {
-      title: 'Time Saved',
+      title: t('dashboard.time_saved','Time Saved'),
       value: `${metrics.timeSavedHours || 0}h`,
       icon: '⏰',
       trend: 'up',
-      subtitle: 'This month'
+      subtitle: t('dashboard.this_month','This month')
     },
     {
-      title: 'Documents Processed',
+      title: t('dashboard.documents_processed','Documents Processed'),
       value: metrics.documentsProcessed || 0,
       icon: '📄',
       trend: 'up',
-      subtitle: 'Files automated'
+      subtitle: t('dashboard.files_automated','Files automated')
     }
   ];
 
@@ -59,9 +61,9 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
     <div className={styles.dashboard}>
       {/* Header */}
       <div className={styles.header}>
-        <h1 className={styles.title}>Business Automation Dashboard</h1>
+        <h1 className={styles.title}>{t('dashboard.title','Business Automation Dashboard')}</h1>
         <p className={styles.subtitle}>
-          Streamline your business processes with intelligent automation
+          {t('dashboard.subtitle','Streamline your business processes with intelligent automation')}
         </p>
       </div>
 
@@ -82,8 +84,8 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
       {/* Recent activity */}
       <div className={styles.recentActivity}>
         <div className={styles.activityHeader}>
-          <h2 className={styles.activityTitle}>Recent Activity</h2>
-          <button className={styles.viewAllButton} onClick={() => navigate('/app/history')}>View All Tasks</button>
+          <h2 className={styles.activityTitle}>{t('dashboard.recent_activity','Recent Activity')}</h2>
+          <button className={styles.viewAllButton} onClick={() => navigate('/app/history')}>{t('dashboard.view_all_tasks','View All Tasks')}</button>
         </div>
 
         <div className={styles.activityList}>
@@ -109,44 +111,44 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
               </div>
             ))
           ) : (
-            <p className={styles.noActivityMessage}>No recent activity. Create a new task to get started!</p>
+            <p className={styles.noActivityMessage}>{t('dashboard.no_recent','No recent activity. Create a new task to get started!')}</p>
           )}
         </div>
       </div>
 
       {/* Quick actions */}
       <div className={styles.quickActions}>
-        <h2 className={styles.quickActionsTitle}>Quick Actions</h2>
+  <h2 className={styles.quickActionsTitle}>{t('dashboard.quick_actions','Quick Actions')}</h2>
         <div className={styles.actionGrid}>
           <button className={styles.actionCard} onClick={() => navigate('/app/tasks')}>
             <div className={styles.actionIcon}>🚀</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>New Task</div>
-              <div className={styles.actionDesc}>Create automation task</div>
+              <div className={styles.actionTitle}>{t('dashboard.new_task','New Task')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.new_task_desc','Create automation task')}</div>
             </div>
           </button>
 
           <button className={styles.actionCard} onClick={() => navigate('/app/history')}>
             <div className={styles.actionIcon}>📊</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>View Reports</div>
-              <div className={styles.actionDesc}>Analytics & insights</div>
+              <div className={styles.actionTitle}>{t('dashboard.view_reports','View Reports')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.view_reports_desc','Analytics & insights')}</div>
             </div>
           </button>
 
           <button className={styles.actionCard} onClick={() => navigate('/app/tasks')}>
             <div className={styles.actionIcon}>⚙️</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>Settings</div>
-              <div className={styles.actionDesc}>Configure automation</div>
+              <div className={styles.actionTitle}>{t('dashboard.settings','Settings')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.settings_desc','Configure automation')}</div>
             </div>
           </button>
 
           <button className={styles.actionCard}>
             <div className={styles.actionIcon}>📚</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>Documentation</div>
-              <div className={styles.actionDesc}>Learn & support</div>
+              <div className={styles.actionTitle}>{t('dashboard.documentation','Documentation')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.documentation_desc','Learn & support')}</div>
             </div>
           </button>
 
@@ -156,8 +158,8 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
           >
             <div className={styles.actionIcon}>✅</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>Start Onboarding</div>
-              <div className={styles.actionDesc}>Get started with guided setup</div>
+              <div className={styles.actionTitle}>{t('dashboard.start_onboarding','Start Onboarding')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.start_onboarding_desc','Get started with guided setup')}</div>
             </div>
           </button>
         </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useI18n } from '../i18n';
 import { supabase } from '../utils/supabaseClient';
 import { trackEvent, triggerCampaign } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +13,7 @@ export default function AuthPage() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  // removed language context
 
   // Check if user is already authenticated and redirect
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function AuthPage() {
     setSuccess('');
     const emailTrim = email.trim();
     if (!emailTrim) {
-      setError('Enter your email above first, then click Forgot password.');
+  setError('Enter your email above first, then click Forgot password.');
       return;
     }
     try {
@@ -50,7 +52,7 @@ export default function AuthPage() {
         redirectTo
       });
       if (error) throw error;
-      setSuccess('Password reset email sent. Check your inbox for further instructions.');
+  setSuccess('Password reset email sent. Check your inbox for further instructions.');
     } catch (err) {
       const msg = typeof err?.message === 'string' ? err.message : 'Failed to send reset email';
       setError(msg);
@@ -65,7 +67,7 @@ export default function AuthPage() {
         email: email
       });
       if (error) throw error;
-      setSuccess('Verification email resent! Please check your inbox.');
+  setSuccess('Verification email resent! Please check your inbox.');
     } catch (err) {
       console.debug('resend verification failed', err);
       setError('Failed to resend verification email. Please try again.');
@@ -82,11 +84,11 @@ export default function AuthPage() {
     // Basic client-side validation to reduce 400s
     const isValidEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
     if (!isValidEmail(email)) {
-      setError('Please enter a valid email address.');
+  setError('Please enter a valid email address.');
       return;
     }
     if (!password || password.length < 6) {
-      setError('Password must be at least 6 characters.');
+  setError('Password must be at least 6 characters.');
       return;
     }
 
@@ -117,13 +119,13 @@ export default function AuthPage() {
       const status = err?.status;
       const lower = msg.toLowerCase();
       if (status === 429) {
-        setError('Too many attempts. Please wait a minute and try again.');
+  setError('Too many attempts. Please wait a minute and try again.');
       } else if (lower.includes('email not confirmed')) {
-        setError('Email not confirmed. Please check your inbox for the confirmation link.');
+  setError('Email not confirmed. Please check your inbox for the confirmation link.');
       } else if (lower.includes('user already registered')) {
-        setError('This email is already registered. Try signing in or reset your password.');
+  setError('This email is already registered. Try signing in or reset your password.');
       } else if (status === 400) {
-        setError('Invalid email or password. If signing up, try a different email.');
+  setError('Invalid email or password. If signing up, try a different email.');
       } else {
         setError(msg);
       }
@@ -132,22 +134,24 @@ export default function AuthPage() {
     }
   };
 
+  const { t } = useI18n();
+
   return (
     <div className={styles.page}>
       <div className={styles.card}>
 <div className={styles.header}>
   {/* Google tag (gtag.js) should be included in public/index.html or via useEffect, not directly in JSX */}
-  <h2 className={styles.title}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
-  <p className={styles.subtitle}>Sign {mode === 'login' ? 'in' : 'up'} to continue</p>
+  <h2 className={styles.title}>{mode === 'login' ? t('auth.welcome_back','Welcome back') : t('auth.create_account','Create your account')}</h2>
+  <p className={styles.subtitle}>{mode === 'login' ? t('auth.sign_in_to_continue','Sign in to continue') : t('auth.sign_up_to_continue','Sign up to continue')}</p>
 </div>
         <form onSubmit={onSubmit} className={styles.form}>
           <div className={styles.formGrid}>
             <div className={styles.formGroup}>
-              <label className={styles.label}>Email</label>
+              <label className={styles.label}>{t('auth.email','Email')}</label>
               <input className={styles.input} type="email" value={email} onChange={e => setEmail(e.target.value)} required />
             </div>
             <div className={styles.formGroup}>
-              <label className={styles.label}>Password</label>
+              <label className={styles.label}>{t('auth.password','Password')}</label>
               <input className={styles.input} type="password" value={password} onChange={e => setPassword(e.target.value)} required />
             </div>
           </div>
@@ -167,7 +171,7 @@ export default function AuthPage() {
               disabled={loading}
               style={{ fontSize: '0.9rem', padding: '8px 16px' }}
             >
-              {loading ? 'Sending…' : 'Resend verification'}
+              {loading ? t('action.sending','Sending…') : t('auth.resend_verification','Resend verification')}
             </button>
           </div>
         )}
@@ -185,7 +189,7 @@ export default function AuthPage() {
               disabled={loading}
               style={{ fontSize: '0.9rem', padding: '8px 16px' }}
             >
-              {loading ? 'Sending...' : 'Resend Verification Email'}
+              {loading ? t('action.sending','Sending...') : t('auth.resend_verification_email','Resend Verification Email')}
             </button>
           </div>
         )}
@@ -193,14 +197,14 @@ export default function AuthPage() {
     )}
           <div className={styles.actions}>
             <button type="submit" className={styles.submitButton} disabled={loading}>
-              {loading ? 'Please wait…' : (mode === 'login' ? 'Sign In' : 'Sign Up')}
+              {loading ? t('auth.please_wait','Please wait…') : (mode === 'login' ? t('auth.sign_in','Sign In') : t('auth.sign_up','Sign Up'))}
             </button>
             <button
               type="button"
               className={styles.secondaryButton}
               onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
             >
-              {mode === 'login' ? 'Need an account? Sign Up' : 'Have an account? Sign In'}
+              {mode === 'login' ? t('auth.need_account','Need an account? Sign Up') : t('auth.have_account','Have an account? Sign In')}
             </button>
             {mode === 'login' && (
               <button
@@ -208,7 +212,7 @@ export default function AuthPage() {
                 className={styles.secondaryButton}
                 onClick={handleResetPassword}
               >
-                Forgot password?
+                {t('auth.forgot_password','Forgot password?')}
               </button>
             )}
           </div>

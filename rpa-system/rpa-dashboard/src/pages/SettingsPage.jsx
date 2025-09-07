@@ -5,10 +5,14 @@ import { useTheme } from '../utils/ThemeContext';
 import { api } from '../utils/api';
 import styles from './SettingsPage.module.css';
 import ReferralForm from '../components/ReferralForm';
+import { useLanguage } from '../utils/LanguageContext';
+import { useI18n } from '../i18n';
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const { theme, toggle } = useTheme();
+  const { setLanguage } = useLanguage();
+  const { t } = useI18n();
 
   // UI state
   const [message, setMessage] = useState('');
@@ -57,6 +61,41 @@ export default function SettingsPage() {
   const [preferencesLoading, setPreferencesLoading] = useState(true);
   const [preferencesModified, setPreferencesModified] = useState(false);
 
+  // Helper: format E.164 (+1XXXXXXXXXX) or raw digits to display form: (XXX) XXX-XXXX
+  const formatPhoneForDisplay = (value) => {
+    if (!value) return '';
+    // Strip non-digits
+    let digits = String(value).replace(/\D/g, '');
+    // Remove leading 1 if length > 10 and starts with 1 (US country code)
+    if (digits.length === 11 && digits.startsWith('1')) {
+      digits = digits.slice(1);
+    }
+    if (!digits) return '';
+    digits = digits.slice(0, 10); // limit to 10 national digits
+    const part1 = digits.slice(0, 3);
+    const part2 = digits.slice(3, 6);
+    const part3 = digits.slice(6, 10);
+    let formatted = '';
+    if (part1) formatted = `(${part1}`;
+    if (part1 && part1.length === 3) formatted += ')';
+    if (part2) formatted += ` ${part2}`;
+    if (part3) formatted += `-${part3}`;
+    return formatted.trim();
+  };
+
+  // Helper: normalize display phone to E.164 (+1XXXXXXXXXX) for US numbers
+  const normalizePhoneForSave = (displayValue) => {
+    if (!displayValue) return null;
+    let digits = displayValue.replace(/\D/g, '');
+    if (!digits) return null;
+    // If 10 digits assume US number; prepend country code 1
+    if (digits.length === 10) return `+1${digits}`;
+    // If 11 digits starting with 1 treat as US (already includes country)
+    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+    // Fallback: if already starts with country code and plus sign was removed above
+    return `+${digits}`; // best effort
+  };
+
   // Fetch user preferences
   const fetchPreferences = useCallback(async () => {
     if (!user) return;
@@ -66,7 +105,11 @@ export default function SettingsPage() {
 
       if (response.status === 200) {
         const data = response.data;
-        setPreferences(prev => ({ ...prev, ...data }));
+        setPreferences(prev => ({
+          ...prev,
+          ...data,
+          phone_number: formatPhoneForDisplay(data.phone_number)
+        }));
       } else {
         console.error('Failed to fetch preferences');
       }
@@ -92,11 +135,18 @@ export default function SettingsPage() {
     setMessage('');
 
     try {
-      const response = await api.put('/api/user/preferences', preferences);
+      // Normalize phone number for backend (store E.164) while keeping display version locally
+      const normalizedPhone = normalizePhoneForSave(preferences.phone_number);
+      const payload = { ...preferences, phone_number: normalizedPhone };
+      const response = await api.put('/api/user/preferences', payload);
 
       if (response.status === 200) {
         setMessage('Preferences updated successfully');
         setPreferencesModified(false);
+        // Re-format any stored phone for display after successful save
+        if (normalizedPhone) {
+          setPreferences(prev => ({ ...prev, phone_number: formatPhoneForDisplay(normalizedPhone) }));
+        }
       } else {
         setPreferencesError(response.data.error || 'Failed to update preferences');
       }
@@ -136,6 +186,10 @@ export default function SettingsPage() {
       }
     }));
     setPreferencesModified(true);
+    if (key === 'language') {
+      // apply immediately without altering original copy anywhere else
+      setLanguage(value);
+    }
   };
 
   // Update contact info
@@ -250,7 +304,7 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <h2 className={styles.heading}>Settings</h2>
+  <h2 className={styles.heading}>{t('settings.title','Settings')}</h2>
 
       {/* Show feedback message */}
       {message && <div className={styles.success}>{message}</div>}
@@ -258,7 +312,7 @@ export default function SettingsPage() {
 
       {/* Notification Preferences */}
       <section className={styles.section}>
-        <h3 className={styles.heading}>Notification Preferences</h3>
+  <h3 className={styles.heading}>{t('settings.notification_preferences','Notification Preferences')}</h3>
         {preferencesLoading ? (
           <p className={styles.muted}>Loading preferences...</p>
         ) : (
@@ -361,7 +415,7 @@ export default function SettingsPage() {
                   onClick={savePreferences}
                   disabled={loading}
                 >
-                  {loading ? 'Saving...' : 'Save Notification Preferences'}
+                  {loading ? t('action.saving','Saving...') : t('settings.notification_preferences','Notification Preferences')}
                 </button>
               </div>
             )}
@@ -369,7 +423,7 @@ export default function SettingsPage() {
         )}
       </section>      {/* Contact Information */}
       <section className={styles.section}>
-        <h3 className={styles.heading}>Contact Information</h3>
+  <h3 className={styles.heading}>{t('settings.contact_information','Contact Information')}</h3>
         {!preferencesLoading && (
           <div className={styles.contactForm}>
             <div className={styles.formRow}>
@@ -380,20 +434,34 @@ export default function SettingsPage() {
                   type="tel"
                   placeholder="+1 (555) 123-4567"
                   value={preferences.phone_number || ''}
-                  onChange={(e) => updateContactInfo('phone_number', e.target.value)}
+                  onChange={(e) => {
+                    const formatted = formatPhoneForDisplay(e.target.value);
+                    updateContactInfo('phone_number', formatted);
+                  }}
                 />
               </label>
             </div>
             <p className={styles.muted}>
               Phone number is required to receive SMS alerts. Format: +1 (555) 123-4567
             </p>
+            {preferencesModified && (
+              <div className={styles.savePrompt}>
+                <button
+                  className={`${styles.btn} ${styles.btnPrimary}`}
+                  onClick={savePreferences}
+                  disabled={loading}
+                >
+                  {loading ? 'Saving...' : 'Save Contact Info'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>
 
       {/* UI Preferences */}
       <section className={styles.section}>
-        <h3 className={styles.heading}>Interface Preferences</h3>
+  <h3 className={styles.heading}>{t('settings.interface_preferences','Interface Preferences')}</h3>
         {!preferencesLoading && (
           <div className={styles.uiPreferences}>
             <div className={styles.formRow}>
@@ -467,10 +535,22 @@ export default function SettingsPage() {
           </div>
         )}
       </section>
+      {/* Extra save button near UI section if modified */}
+      {preferencesModified && (
+        <div className={styles.savePrompt}>
+          <button
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            onClick={savePreferences}
+            disabled={loading}
+          >
+            {loading ? t('action.saving','Saving...') : t('action.save','Save')}
+          </button>
+        </div>
+      )}
 
       {/* Theme */}
       <section className={styles.section}>
-        <h3 className={styles.heading}>Theme</h3>
+        <h3 className={styles.heading}>{t('settings.theme','Theme')}</h3>
         <p className={styles.muted}>Current: {theme}</p>
         <button
           className={`${styles.btn} ${styles.btnAlt}`}
@@ -487,7 +567,7 @@ export default function SettingsPage() {
 
       {/* Referrals */}
       <section className={styles.section}>
-        <h3 className={styles.heading}>Referrals</h3>
+        <h3 className={styles.heading}>{t('settings.referrals','Referrals')}</h3>
           <p className={styles.muted}>
           Share EasyFlow and get credit for new signups.<br />
           <strong>How it works:</strong> Enter your friend&apos;s email. We&apos;ll send them an invite. If they sign up, you&apos;ll get <strong>1 month free of the Pro plan</strong> automatically!
@@ -520,7 +600,7 @@ export default function SettingsPage() {
 
       {/* Password */}
       <section className={styles.section}>
-        <h3 className={styles.heading}>Change password</h3>
+  <h3 className={styles.heading}>{t('settings.change_password','Change password')}</h3>
         <form onSubmit={updatePassword} className={styles.formRow}>
           <input
             className={styles.input}
@@ -530,7 +610,7 @@ export default function SettingsPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
           <button className={`${styles.btn} ${styles.btnPrimary}`} type="submit" disabled={loading}>
-            Update password
+            {t('action.update_password','Update password')}
           </button>
         </form>
         {passwordError && <div className={styles.error}>{passwordError}</div>}
@@ -538,7 +618,7 @@ export default function SettingsPage() {
 
       {/* Plans */}
       <section className={styles.section}>
-        <h3 className={styles.heading}>Pricing plan</h3>
+  <h3 className={styles.heading}>{t('settings.pricing_plan','Pricing plan')}</h3>
         {pageLoading ? (
           <p className={styles.muted}>Loading subscription details...</p>
         ) : (
@@ -565,7 +645,7 @@ export default function SettingsPage() {
                 disabled={loading || String(planId) === String(currentPlanId)}
                 title={String(planId) === String(currentPlanId) ? 'Already on this plan' : ''}
               >
-                {String(planId) === String(currentPlanId) ? 'Current Plan' : 'Save plan'}
+                {String(planId) === String(currentPlanId) ? t('plan.current_plan','Current Plan') : t('plan.save_plan','Save plan')}
               </button>
             </form>
             {planError && <div className={styles.error}>{planError}</div>}

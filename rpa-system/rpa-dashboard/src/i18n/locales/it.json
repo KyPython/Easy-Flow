@@ -1,0 +1,22 @@
+{
+  "settings.title": "Impostazioni",
+  "settings.notification_preferences": "Preferenze di notifica",
+  "settings.contact_information": "Informazioni di contatto",
+  "settings.interface_preferences": "Preferenze interfaccia",
+  "settings.theme": "Tema",
+  "settings.referrals": "Referenze",
+  "settings.change_password": "Cambia password",
+  "settings.pricing_plan": "Piano tariffario",
+  "action.save": "Salva",
+  "action.saving": "Salvataggio...",
+  "action.update_password": "Aggiorna password",
+  "plan.current_plan": "Piano attuale",
+  "plan.save_plan": "Salva piano",
+  "nav.dashboard": "Dashboard",
+  "nav.tasks": "Attività",
+  "nav.history": "Cronologia",
+  "nav.settings": "Impostazioni",
+  "nav.contact": "Contatto",
+  "auth.sign_out": "Disconnetti",
+  "auth.sign_in": "Accedi"
+}

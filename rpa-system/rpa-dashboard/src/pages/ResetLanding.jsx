@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useI18n } from '../i18n';
 import { supabase } from '../utils/supabaseClient';
 
 function parseHashParams(hash) {
@@ -16,6 +17,7 @@ export default function ResetLanding() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const { t } = useI18n();
 
   const params = useMemo(() => parseHashParams(window.location.hash || window.location.search), []);
   const accessToken = params.access_token || params.accessToken || null;
@@ -45,22 +47,19 @@ export default function ResetLanding() {
 
   return (
 <div style={{ maxWidth: 720, margin: '4rem auto', fontFamily: 'system-ui, Arial', padding: 20 }}>
-  <h1>Password reset / sign-in</h1>
-  <p>
-    We received a password reset request. This page gives you control over when to continue into the
-    app. Click Continue to sign in using the token that was embedded in the link.
-  </p>
+  <h1>{t('reset.heading','Password reset / sign-in')}</h1>
+  <p>{t('reset.intro','We received a password reset request. This page gives you control over when to continue into the app. Click Continue to sign in using the token that was embedded in the link.')}</p>
 
       <div style={{ marginTop: 24 }}>
         <button onClick={onContinue} disabled={loading || done} style={{ padding: '10px 18px', background: '#2563eb', color: 'white', borderRadius: 6, border: 'none' }}>
-          {loading ? 'Signing in…' : done ? 'Signed in — continuing…' : 'Continue to app'}
+          {loading ? t('reset.signing_in','Signing in…') : done ? t('reset.signed_in_continuing','Signed in — continuing…') : t('reset.continue','Continue to app')}
         </button>
       </div>
 
       {error && <div style={{ color: 'red', marginTop: 12 }}>{error}</div>}
 
       <p style={{ marginTop: 18, color: '#666' }}>
-      If you didn&apos;t request this, please change your password after signing in or contact support.
+  {t('reset.notice','If you didn\'t request this, please change your password after signing in or contact support.')}
       </p>
     </div>
   );

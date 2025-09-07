@@ -1,5 +1,6 @@
 import TaskForm from "../components/TaskForm/TaskForm";
 import Chatbot from "../components/Chatbot/Chatbot";
+import { useI18n } from '../i18n';
 
 const TasksPage = () => {
   const handleTaskSubmit = (completedTask) => {
@@ -7,6 +8,7 @@ const TasksPage = () => {
     // TaskForm handles everything - just log for debugging
   };
 
+  const { t } = useI18n();
   return (
     <div className="tasks-page">
       <div className="task-form-container">

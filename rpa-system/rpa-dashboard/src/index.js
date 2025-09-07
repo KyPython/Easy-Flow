@@ -12,7 +12,8 @@ if (gaMeasurementId) {
     // Configure for production domain
     gaOptions: {
       // Set the domain for your deployed site
-      cookieDomain: process.env.NODE_ENV === 'production' ? 'easy-flow-lac.vercel.app' : 'localhost',
+  // Use auto so GA works on preview, custom and production domains
+  cookieDomain: 'auto',
       siteSpeedSampleRate: 100
     },
     gtagOptions: {

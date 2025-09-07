@@ -1,0 +1,22 @@
+{
+  "settings.title": "Paramètres",
+  "settings.notification_preferences": "Préférences de notification",
+  "settings.contact_information": "Informations de contact",
+  "settings.interface_preferences": "Préférences d'interface",
+  "settings.theme": "Thème",
+  "settings.referrals": "Parrainages",
+  "settings.change_password": "Changer le mot de passe",
+  "settings.pricing_plan": "Forfait",
+  "action.save": "Enregistrer",
+  "action.saving": "Enregistrement...",
+  "action.update_password": "Mettre à jour le mot de passe",
+  "plan.current_plan": "Forfait actuel",
+  "plan.save_plan": "Enregistrer le forfait",
+  "nav.dashboard": "Tableau de bord",
+  "nav.tasks": "Tâches",
+  "nav.history": "Historique",
+  "nav.settings": "Paramètres",
+  "nav.contact": "Contact",
+  "auth.sign_out": "Déconnexion",
+  "auth.sign_in": "Connexion"
+}

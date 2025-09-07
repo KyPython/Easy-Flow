@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
 import Dashboard from '../components/Dashboard/Dashboard';
 import { supabase } from '../utils/supabaseClient';
@@ -106,11 +107,13 @@ const DashboardPage = () => {
     }
   }, [user, authLoading, fetchDashboardData]);
 
+  const { t } = useI18n();
+
   if (loading) {
     return (
       <div className="dashboard-loading">
         <div className="spinner"></div>
-        <p>Loading dashboard...</p>
+        <p>{t('dashboard.loading','Loading dashboard...')}</p>
       </div>
     );
   }

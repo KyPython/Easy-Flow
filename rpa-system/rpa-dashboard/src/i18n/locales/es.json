@@ -1,0 +1,15 @@
+{
+  "settings.title": "Configuración",
+  "settings.notification_preferences": "Preferencias de notificación",
+  "settings.contact_information": "Información de contacto",
+  "settings.interface_preferences": "Preferencias de interfaz",
+  "settings.theme": "Tema",
+  "settings.referrals": "Referidos",
+  "settings.change_password": "Cambiar contraseña",
+  "settings.pricing_plan": "Plan de precios",
+  "action.save": "Guardar",
+  "action.saving": "Guardando...",
+  "action.update_password": "Actualizar contraseña",
+  "plan.current_plan": "Plan actual",
+  "plan.save_plan": "Guardar plan"
+}

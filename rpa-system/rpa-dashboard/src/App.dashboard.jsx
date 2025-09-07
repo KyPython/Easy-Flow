@@ -13,6 +13,7 @@ import LandingPage from './pages/LandingPage';
 import ResetLanding from './pages/ResetLanding';
 import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
+import { LanguageProvider } from './utils/LanguageContext';
 import SettingsPage from './pages/SettingsPage';
 import Chatbot from './components/Chatbot/Chatbot';
 import './utils/firebaseConfig';
@@ -78,8 +79,10 @@ function App() {
     <Router>
       <AuthProvider>
         <ThemeProvider>
-          <AnalyticsTracker />
-          <Shell />
+          <LanguageProvider>
+            <AnalyticsTracker />
+            <Shell />
+          </LanguageProvider>
         </ThemeProvider>
       </AuthProvider>
     </Router>

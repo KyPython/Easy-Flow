@@ -2,55 +2,57 @@ import { useState } from 'react';
 import { triggerCampaign } from '../../utils/api';
 import styles from './OnboardingModal.module.css';
 import PropTypes from 'prop-types';
+import { useI18n } from '../../i18n';
 
 const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
+  const { t } = useI18n();
   const steps = [
     {
-      title: 'Welcome to EasyFlow!',
-      description: 'Let\'s get you set up with automated business processes.',
+      title: t('onboarding.step1.title','Welcome to EasyFlow!'),
+      description: t('onboarding.step1.description','Let\'s get you set up with automated business processes.'),
       icon: '🚀',
       content: (
         <div className={styles.stepContent}>
-          <p>EasyFlow helps you automate repetitive business tasks, saving you time and reducing errors.</p>
+          <p>{t('onboarding.step1.body','EasyFlow helps you automate repetitive business tasks, saving you time and reducing errors.')}</p>
           <ul className={styles.benefitsList}>
-            <li>🔄 Automate data entry and processing</li>
-            <li>📊 Generate reports automatically</li>
-            <li>⏰ Schedule tasks to run when you need them</li>
-            <li>📧 Get notifications when tasks complete</li>
+            <li>🔄 {t('onboarding.step1.benefit1','Automate data entry and processing')}</li>
+            <li>📊 {t('onboarding.step1.benefit2','Generate reports automatically')}</li>
+            <li>⏰ {t('onboarding.step1.benefit3','Schedule tasks to run when you need them')}</li>
+            <li>📧 {t('onboarding.step1.benefit4','Get notifications when tasks complete')}</li>
           </ul>
         </div>
       )
     },
     {
-      title: 'Create Your First Task',
-      description: 'Tasks are the core of EasyFlow - let\'s explore what they can do.',
+      title: t('onboarding.step2.title','Create Your First Task'),
+      description: t('onboarding.step2.description','Tasks are the core of EasyFlow - let\'s explore what they can do.'),
       icon: '📋',
       content: (
         <div className={styles.stepContent}>
-          <p>You can create tasks for:</p>
+          <p>{t('onboarding.step2.intro','You can create tasks for:')}</p>
           <div className={styles.taskTypes}>
             <div className={styles.taskType}>
               <span className={styles.taskIcon}>🌐</span>
               <div>
-                <h4>Web Automation</h4>
-                <p>Extract data from websites, fill forms, monitor changes</p>
+                <h4>{t('onboarding.step2.type_web_title','Web Automation')}</h4>
+                <p>{t('onboarding.step2.type_web_text','Extract data from websites, fill forms, monitor changes')}</p>
               </div>
             </div>
             <div className={styles.taskType}>
               <span className={styles.taskIcon}>📄</span>
               <div>
-                <h4>Document Processing</h4>
-                <p>Process PDFs, extract text, generate reports</p>
+                <h4>{t('onboarding.step2.type_doc_title','Document Processing')}</h4>
+                <p>{t('onboarding.step2.type_doc_text','Process PDFs, extract text, generate reports')}</p>
               </div>
             </div>
             <div className={styles.taskType}>
               <span className={styles.taskIcon}>🔗</span>
               <div>
-                <h4>API Integration</h4>
-                <p>Connect different services and sync data</p>
+                <h4>{t('onboarding.step2.type_api_title','API Integration')}</h4>
+                <p>{t('onboarding.step2.type_api_text','Connect different services and sync data')}</p>
               </div>
             </div>
           </div>
@@ -58,49 +60,49 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
       )
     },
     {
-      title: 'Set Up Your Preferences',
-      description: 'Customize EasyFlow to work best for your business.',
+      title: t('onboarding.step3.title','Set Up Your Preferences'),
+      description: t('onboarding.step3.description','Customize EasyFlow to work best for your business.'),
       icon: '⚙️',
       content: (
         <div className={styles.stepContent}>
-          <p>We recommend setting up:</p>
+          <p>{t('onboarding.step3.intro','We recommend setting up:')}</p>
           <div className={styles.preferencesList}>
             <label className={styles.preference}>
               <input type="checkbox" defaultChecked />
-              <span>Email notifications for completed tasks</span>
+              <span>{t('onboarding.step3.pref_email','Email notifications for completed tasks')}</span>
             </label>
             <label className={styles.preference}>
               <input type="checkbox" defaultChecked />
-              <span>Weekly summary reports</span>
+              <span>{t('onboarding.step3.pref_weekly','Weekly summary reports')}</span>
             </label>
             <label className={styles.preference}>
               <input type="checkbox" />
-              <span>SMS alerts for failed tasks</span>
+              <span>{t('onboarding.step3.pref_sms','SMS alerts for failed tasks')}</span>
             </label>
           </div>
         </div>
       )
     },
     {
-      title: 'You\'re All Set!',
-      description: 'Welcome emails are on their way to help you get started.',
+      title: t('onboarding.step4.title','You\'re All Set!'),
+      description: t('onboarding.step4.description','Welcome emails are on their way to help you get started.'),
       icon: '🎉',
       content: (
         <div className={styles.stepContent}>
-          <p>Congratulations! You&#39;ve completed the onboarding process.</p>
+          <p>{t('onboarding.step4.congrats','Congratulations! You\'ve completed the onboarding process.')}</p>
           <div className={styles.completionContent}>
             <div className={styles.nextSteps}>
-              <h4>What&#39;s next?</h4>
+              <h4>{t('onboarding.step4.whats_next','What\'s next?')}</h4>
               <ul>
-                <li>Check your email ({userEmail}) for getting started guides</li>
-                <li>Create your first automation task</li>
-                <li>Explore our documentation and tutorials</li>
-                <li>Join our community for tips and best practices</li>
+                <li>{t('onboarding.step4.next_email','Check your email ({email}) for getting started guides').replace('{email}', userEmail)}</li>
+                <li>{t('onboarding.step4.next_create','Create your first automation task')}</li>
+                <li>{t('onboarding.step4.next_explore','Explore our documentation and tutorials')}</li>
+                <li>{t('onboarding.step4.next_join','Join our community for tips and best practices')}</li>
               </ul>
             </div>
             <div className={styles.supportInfo}>
-              <h4>Need help?</h4>
-              <p>Our support team is here to help you succeed. Reach out anytime!</p>
+              <h4>{t('onboarding.step4.need_help_title','Need help?')}</h4>
+              <p>{t('onboarding.step4.need_help_text','Our support team is here to help you succeed. Reach out anytime!')}</p>
             </div>
           </div>
         </div>
@@ -169,7 +171,7 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
             />
           </div>
           <button className={styles.skipButton} onClick={handleSkip}>
-            Skip Tour
+            {t('onboarding.skip','Skip Tour')}
           </button>
         </div>
 
@@ -189,7 +191,9 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
 
         <div className={styles.modalFooter}>
           <div className={styles.stepIndicator}>
-            Step {currentStep + 1} of {steps.length}
+            {t('onboarding.step_indicator','Step {current} of {total}')
+              .replace('{current}', currentStep + 1)
+              .replace('{total}', steps.length)}
           </div>
           
           <div className={styles.buttonGroup}>
@@ -199,7 +203,7 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
                 onClick={handlePrevious}
                 disabled={isLoading}
               >
-                Previous
+                {t('onboarding.previous','Previous')}
               </button>
             )}
             
@@ -209,7 +213,7 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
                 onClick={handleNext}
                 disabled={isLoading}
               >
-                Next
+                {t('onboarding.next','Next')}
               </button>
             ) : (
               <button 
@@ -220,10 +224,10 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
                 {isLoading ? (
                   <>
                     <span className={styles.spinner}></span>
-                    Completing...
+                    {t('onboarding.completing','Completing...')}
                   </>
                 ) : (
-                  'Complete Onboarding'
+                  t('onboarding.complete','Complete Onboarding')
                 )}
               </button>
             )}

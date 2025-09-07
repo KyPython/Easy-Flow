@@ -24,6 +24,8 @@ const { spawn } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3030;
+// Build / deploy identifier (update automatically when patched)
+const BACKEND_BUILD_ID = 'backend-index-v2-notifications-route+safe-preferences-upsert';
 
 // Add after imports, before route definitions (around line 100)
 
@@ -33,6 +35,10 @@ const authMiddleware = async (req, res, next) => {
   const minDelay = 100; // Minimum delay in ms to prevent timing attacks
   
   try {
+    // Allow public health/version endpoints without auth
+    if (req.path === '/api/health' || req.path === '/api/healthz') {
+      return next();
+    }
     if (!supabase) {
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
       return res.status(401).json({ error: 'Authentication failed' });
@@ -153,6 +159,22 @@ app.use((req, res, next) => {
     return originalCookie.call(this, name, value, secureOptions);
   };
   next();
+});
+
+// Lightweight health & version endpoint (before auth requirements)
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    build: BACKEND_BUILD_ID,
+    time: new Date().toISOString()
+  });
+});
+app.get('/api/healthz', (req, res) => {
+  res.json({
+    status: 'ok',
+    build: BACKEND_BUILD_ID,
+    time: new Date().toISOString()
+  });
 });
 
 // --- Supabase & App Config ---
@@ -1953,29 +1975,65 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
     if (fcm_token !== undefined) updateData.fcm_token = fcm_token;
     if (phone_number !== undefined) updateData.phone_number = phone_number;
 
-    // Update preferences in user_settings table (explicit conflict target for clarity)
-    const { error } = await supabase
+    // Safe upsert sequence to avoid duplicate key errors when unique(user_id) conflicts occur
+    // 1. Check if row exists
+    const { data: existing, error: selectError } = await supabase
       .from('user_settings')
-      .upsert({
-        user_id: req.user.id,
-        ...updateData,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id',
-        ignoreDuplicates: false
-      });
+      .select('user_id')
+      .eq('user_id', req.user.id)
+      .single();
 
-    if (error) {
-      console.error('[PUT /api/user/preferences] update error details:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint
+    if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = no rows
+      console.error('[PUT /api/user/preferences] select error:', selectError);
+      return res.status(500).json({ error: 'Failed to read existing preferences', code: selectError.code });
+    }
+
+    let mutationError = null;
+    if (existing) {
+      // 2a. Update existing row
+      const { error: updateError } = await supabase
+        .from('user_settings')
+        .update({
+          ...updateData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', req.user.id);
+      mutationError = updateError || null;
+      if (!mutationError) {
+        console.log(`[PUT /api/user/preferences] Updated existing preferences row for user ${req.user.id}`);
+      }
+    } else {
+      // 2b. Insert new row
+      const { error: insertError } = await supabase
+        .from('user_settings')
+        .insert([{ 
+          user_id: req.user.id,
+          ...updateData,
+          updated_at: new Date().toISOString()
+        }]);
+      mutationError = insertError || null;
+      if (!mutationError) {
+        console.log(`[PUT /api/user/preferences] Inserted new preferences row for user ${req.user.id}`);
+      }
+    }
+
+    if (mutationError) {
+      console.error('[PUT /api/user/preferences] mutation error:', {
+        code: mutationError.code,
+        message: mutationError.message,
+        details: mutationError.details,
+        hint: mutationError.hint
       });
+      // Provide targeted guidance for duplicate key / RLS cases
+      let guidance = undefined;
+      if (mutationError.code === '23505') {
+        guidance = 'Unique constraint hit; row exists but update likely blocked by RLS. Ensure an UPDATE policy exists on user_settings for user_id = auth.uid().';
+      }
       return res.status(500).json({ 
-        error: 'Failed to update preferences',
-        code: error.code,
-        details: error.details || error.message
+        error: 'Failed to persist preferences',
+        code: mutationError.code,
+        details: mutationError.details || mutationError.message,
+        guidance
       });
     }
 
