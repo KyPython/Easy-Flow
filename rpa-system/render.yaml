@@ -82,6 +82,38 @@ services:
         value: false
       - key: KAFKA_BROKERS
         value: localhost:9092
+      - key: AUTOMATION_SERVICE_URL
+        value: https://easyflow-automation.onrender.com
+
+  # Python Automation Service (24/7 Cloud)
+  - type: web
+    name: easyflow-automation
+    runtime: python
+    env: python
+    region: oregon
+    plan: starter # $7/month for 24/7 operation
+    buildCommand: |
+      set -e
+      echo "[automation] Installing Python dependencies"
+      cd rpa-system/automation
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      echo "[automation] Python automation service ready"
+    startCommand: cd rpa-system/automation && python production_automation_service.py
+    healthCheckPath: /health
+    envVars:
+      - key: KAFKA_ENABLED
+        value: false # HTTP-only mode for cloud deployment
+      - key: PORT
+        value: 7001
+      - key: HOST
+        value: 0.0.0.0
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: MAX_WORKERS
+        value: 3
+      - key: AUTOMATION_MODE
+        value: production
 
 databases:
   - name: easyflow-postgres
