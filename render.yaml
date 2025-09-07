@@ -10,16 +10,16 @@ services:
       echo "[build] entering rpa-system"
       cd rpa-system
       if [ -f package-lock.json ]; then
-        echo "[build] running npm ci"; npm ci
+        echo "[build] running npm ci" && npm ci
       else
-        echo "[build] running npm install"; npm install
+        echo "[build] running npm install" && npm install
       fi
       if [ ! -d node_modules/express ]; then
-        echo "[build] FATAL: express not installed"; ls -1 node_modules | head; exit 1
+        echo "[build] FATAL: express not installed" && ls -1 node_modules | head && exit 1
       fi
       echo "[build] installing python automation deps"
       cd automation
-  python3 -m pip install -r requirements.txt --no-cache-dir || true
+      python3 -m pip install -r requirements.txt --no-cache-dir || true
     startCommand: cd rpa-system && node backend/index.js
     healthCheckPath: /health
     envVars:
