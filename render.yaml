@@ -78,11 +78,16 @@ services:
       - key: SUPABASE_SERVICE_ROLE
         sync: false
       - key: SEND_EMAIL_WEBHOOK
+        # Render doesn't support 'url' property in fromService. Options:
+        # 1) Manually set full external URL after backend deploy (recommended for simplicity)
+        # 2) Use backend host via fromService (property: host) and construct URL in code.
+        # Here we set a placeholder value; update to real backend URL once known.
+        value: https://easyflow-backend.onrender.com/api/send-email-now
+      - key: SEND_EMAIL_WEBHOOK_HOST
         fromService:
           type: web
           name: easyflow-backend
-          property: url
-          suffix: /api/send-email-now
+          property: host
       - key: SEND_EMAIL_WEBHOOK_SECRET
         generateValue: true
 
