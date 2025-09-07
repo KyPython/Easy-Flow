@@ -1,6 +1,16 @@
 {
   "version": 2,
   "name": "easyflow-rpa-system",
-  "buildCommand": "npm install",
-  "installCommand": "npm install"
+  "builds": [
+    {
+      "src": "backend/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/backend/index.js"
+    }
+  ]
 }
