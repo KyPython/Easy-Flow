@@ -3,7 +3,7 @@
   "name": "easyflow-dashboard",
   "framework": null,
   "installCommand": "npm ci",
-  "buildCommand": "node node_modules/react-app-rewired/scripts/build.js",
+  "buildCommand": "npx react-scripts build",
   "outputDirectory": "build",
   "routes": [
     {
