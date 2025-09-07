@@ -59,6 +59,8 @@ services:
       - key: AUTOMATION_MODE
         value: stub # set to 'python' to run real automate.py as subprocess
       - key: SUPABASE_URL
+        value: https://syxzilyuysdoirnezgii.supabase.co
+      - key: POSTGRES_URL
         fromDatabase:
           name: easyflow-postgres
           property: connectionString
@@ -76,6 +78,10 @@ services:
         generateValue: true
       - key: ALLOWED_ORIGINS
         value: https://easy-flow-lac.vercel.app,https://app.easyflow.com
+      - key: KAFKA_ENABLED
+        value: false
+      - key: KAFKA_BROKERS
+        value: localhost:9092
 
 databases:
   - name: easyflow-postgres

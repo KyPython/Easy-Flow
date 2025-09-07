@@ -3,6 +3,18 @@ const { v4: uuidv4 } = require('uuid');
 
 class KafkaService {
     constructor() {
+        // Check if Kafka should be enabled (disabled by default on Render)
+        this.kafkaEnabled = process.env.KAFKA_ENABLED === 'true';
+        
+        if (!this.kafkaEnabled) {
+            console.log('🔇 Kafka disabled via KAFKA_ENABLED environment variable');
+            this.kafka = null;
+            this.producer = null;
+            this.consumer = null;
+            this.isConnected = false;
+            return;
+        }
+        
         this.kafka = null;
         this.producer = null;
         this.consumer = null;
@@ -19,6 +31,11 @@ class KafkaService {
     }
     
     async initialize() {
+        if (!this.kafkaEnabled) {
+            console.log('🔇 Kafka initialization skipped - service disabled');
+            return;
+        }
+        
         try {
             console.log(`[KafkaService] Initializing Kafka with brokers: ${this.brokers}`);
             
@@ -90,6 +107,15 @@ class KafkaService {
     }
     
     async sendAutomationTask(taskData) {
+        if (!this.kafkaEnabled) {
+            console.log('🔇 Kafka automation task skipped - service disabled');
+            return { 
+                success: true, 
+                task_id: taskData.task_id || 'disabled-' + Date.now(),
+                message: 'Kafka disabled - task simulation' 
+            };
+        }
+        
         if (!this.isConnected || !this.producer) {
             throw new Error('Kafka service is not connected');
         }
