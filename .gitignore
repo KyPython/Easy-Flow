@@ -131,3 +131,4 @@ rpa-system/rpa-dashboard/.env
 
 .env
 rpa-system/.env
+.sh
