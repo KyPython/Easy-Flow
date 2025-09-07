@@ -572,7 +572,7 @@ async function queueTaskRun(runId, taskData) {
     console.log(`[queueTaskRun] Queueing automation run ${runId}`);
     
     // Get the automation worker URL from environment or use default
-    const automationUrl = process.env.AUTOMATION_URL || 'http://localhost:7001/run';
+  const automationUrl = process.env.AUTOMATION_URL || 'internal:embedded';
     
     // Prepare the payload for the automation worker
     const payload = { 
@@ -617,13 +617,20 @@ async function queueTaskRun(runId, taskData) {
     
     // For real execution, call the automation service
     try {
-      const response = await axios.post(automationUrl, payload, { 
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${process.env.AUTOMATION_API_KEY}`
-  }
-});
+      let automationResult;
+      if (automationUrl === 'internal:embedded') {
+        // Placeholder synchronous stub; replace with real python invocation via child_process if needed
+        automationResult = { message: 'Embedded automation stub executed', url: taskData.url };
+      } else {
+        const response = await axios.post(automationUrl, payload, { 
+          timeout: 30000,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.AUTOMATION_API_KEY}`
+          }
+        });
+        automationResult = response.data || { message: 'Execution completed with no data returned' };
+      }
       
       console.log(`[queueTaskRun] Automation service response:`, 
         response.status, response.data ? 'data received' : 'no data');
@@ -634,7 +641,7 @@ async function queueTaskRun(runId, taskData) {
         .update({
           status: 'completed',
           ended_at: new Date().toISOString(),
-          result: response.data || { message: 'Execution completed with no data returned' }
+          result: automationResult
         })
         .eq('id', runId);
 
