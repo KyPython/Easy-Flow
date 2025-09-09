@@ -7,6 +7,7 @@ import Header from './components/Header/Header';
 import DashboardPage from './pages/DashboardPage';
 import TasksPage from './pages/TasksPage';
 import HistoryPage from './pages/HistoryPage';
+import FilesPage from './pages/FilesPage';
 import AuthPage from './pages/AuthPage';
 import PricingPage from './pages/PricingPage';
 import LandingPage from './pages/LandingPage';
@@ -64,6 +65,7 @@ function Shell() {
           <Route path="/app" element={<Protected><DashboardPage /></Protected>} />
           <Route path="/app/tasks" element={<Protected><TasksPage /></Protected>} />
           <Route path="/app/history" element={<Protected><HistoryPage /></Protected>} />
+          <Route path="/app/files" element={<Protected><FilesPage /></Protected>} />
           <Route path="/app/settings" element={<Protected><SettingsPage /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -54,7 +54,8 @@ const Header = ({ user }) => {
             className={`${styles.navLink} ${
               isActive('/app') &&
               !isActive('/app/tasks') &&
-              !isActive('/app/history')
+              !isActive('/app/history') &&
+              !isActive('/app/files')
                 ? styles.activeNavLink
                 : ''
             }`}
@@ -78,6 +79,15 @@ const Header = ({ user }) => {
             }`}
           >
             {t('nav.history','Automation History')}
+          </Link>
+
+          <Link
+            to="/app/files"
+            className={`${styles.navLink} ${
+              isActive('/app/files') ? styles.activeNavLink : ''
+            }`}
+          >
+            {t('nav.files','Files')}
           </Link>
         </nav>
 

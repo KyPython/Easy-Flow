@@ -6,6 +6,10 @@ import App from './App';
 import ErrorBoundary from './components/Diagnostics/ErrorBoundary';
 import reportWebVitals from './reportWebVitals';
 
+// Explicit imports to prevent tree-shaking from dropping global exposures
+import './utils/supabaseClient';
+import './utils/api';
+
 // Initialize Google Analytics if a measurement ID is provided
 const gaMeasurementId = process.env.REACT_APP_GA_MEASUREMENT_ID;
 if (gaMeasurementId) {

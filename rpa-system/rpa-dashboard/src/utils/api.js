@@ -229,3 +229,75 @@ export async function triggerCampaign(payload) {
     return null;
   }
 }
+
+// --- File Management Functions ---
+export const uploadFile = async (file, options = {}) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    if (options.folder_path) {
+      formData.append('folder_path', options.folder_path);
+    }
+    if (options.tags && Array.isArray(options.tags)) {
+      formData.append('tags', options.tags.join(','));
+    }
+
+    const { data } = await api.post('/api/files/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return data;
+  } catch (e) {
+    console.error('uploadFile failed:', e);
+    throw new Error(getErrorMessage(e, 'Failed to upload file. Please try again.'));
+  }
+};
+
+export const getFiles = async (options = {}) => {
+  try {
+    const params = new URLSearchParams();
+    if (options.folder) params.append('folder', options.folder);
+    if (options.search) params.append('search', options.search);
+    if (options.tags) params.append('tags', Array.isArray(options.tags) ? options.tags.join(',') : options.tags);
+    if (options.limit) params.append('limit', options.limit);
+    if (options.offset) params.append('offset', options.offset);
+
+    const { data } = await api.get(`/api/files?${params.toString()}`);
+    return data;
+  } catch (e) {
+    console.error('getFiles failed:', e);
+    throw new Error(getErrorMessage(e, 'Unable to load files. Please refresh or try again later.'));
+  }
+};
+
+export const getFileDownloadUrl = async (fileId) => {
+  try {
+    const { data } = await api.get(`/api/files/${fileId}/download`);
+    return data;
+  } catch (e) {
+    console.error('getFileDownloadUrl failed:', e);
+    throw new Error(getErrorMessage(e, 'Unable to generate download link. Please try again.'));
+  }
+};
+
+export const deleteFile = async (fileId) => {
+  try {
+    const { data } = await api.delete(`/api/files/${fileId}`);
+    return data;
+  } catch (e) {
+    console.error('deleteFile failed:', e);
+    throw new Error(getErrorMessage(e, 'Failed to delete file. Please try again.'));
+  }
+};
+
+export const updateFileMetadata = async (fileId, metadata) => {
+  try {
+    const { data } = await api.put(`/api/files/${fileId}`, metadata);
+    return data;
+  } catch (e) {
+    console.error('updateFileMetadata failed:', e);
+    throw new Error(getErrorMessage(e, 'Failed to update file. Please try again.'));
+  }
+};

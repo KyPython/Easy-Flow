@@ -1,0 +1,208 @@
+/* FilesPage component styles */
+.filesPage {
+  padding: var(--spacing-2xl, 48px);
+  max-width: var(--container-max-width, 1200px);
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  margin-bottom: var(--spacing-2xl, 48px);
+  text-align: center;
+}
+
+.title {
+  font-size: var(--font-size-4xl, 36px);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--text-primary, #111827);
+  margin: 0 0 var(--spacing-sm, 12px) 0;
+  font-family: var(--font-family-secondary, inherit);
+}
+
+.subtitle {
+  font-size: var(--font-size-lg, 18px);
+  color: var(--text-muted, #6b7280);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Sections */
+.uploadSection,
+.manageSection {
+  margin-bottom: var(--spacing-2xl, 48px);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-xl, 24px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--text-primary, #111827);
+  margin: 0 0 var(--spacing-lg, 32px) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 12px);
+}
+
+.sectionTitle::before {
+  content: '';
+  width: 4px;
+  height: 24px;
+  background: var(--primary-500, #3b82f6);
+  border-radius: 2px;
+}
+
+/* Upload section styling */
+.fileUpload {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* File manager styling */
+.fileManager {
+  /* Inherits styling from FileManager component */
+}
+
+/* Alert messages */
+.errorAlert,
+.successAlert {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md, 16px);
+  border-radius: var(--border-radius-md, 8px);
+  margin-bottom: var(--spacing-lg, 24px);
+  font-size: var(--font-size-sm, 14px);
+  font-weight: var(--font-weight-medium, 500);
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  animation: slideIn 0.3s ease-out;
+}
+
+.errorAlert {
+  background: var(--error-50, #fef2f2);
+  border: 1px solid var(--error-200, #fecaca);
+  color: var(--error-700, #b91c1c);
+}
+
+.successAlert {
+  background: var(--success-50, #f0fdf4);
+  border: 1px solid var(--success-200, #bbf7d0);
+  color: var(--success-700, #15803d);
+}
+
+.dismissBtn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.errorAlert .dismissBtn {
+  color: var(--error-500, #ef4444);
+}
+
+.errorAlert .dismissBtn:hover {
+  background: var(--error-100, #fee2e2);
+}
+
+.successAlert .dismissBtn {
+  color: var(--success-500, #22c55e);
+}
+
+.successAlert .dismissBtn:hover {
+  background: var(--success-100, #dcfce7);
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dark theme adjustments */
+:global(.theme-dark) .title {
+  color: var(--text-primary, #f9fafb);
+}
+
+:global(.theme-dark) .subtitle {
+  color: var(--text-muted, #d1d5db);
+}
+
+:global(.theme-dark) .sectionTitle {
+  color: var(--text-primary, #f9fafb);
+}
+
+:global(.theme-dark) .errorAlert {
+  background: var(--error-900, #7f1d1d);
+  border-color: var(--error-700, #b91c1c);
+  color: var(--error-100, #fee2e2);
+}
+
+:global(.theme-dark) .successAlert {
+  background: var(--success-900, #14532d);
+  border-color: var(--success-700, #15803d);
+  color: var(--success-100, #dcfce7);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .filesPage {
+    padding: var(--spacing-lg, 24px);
+  }
+  
+  .header {
+    margin-bottom: var(--spacing-xl, 32px);
+  }
+  
+  .title {
+    font-size: var(--font-size-3xl, 30px);
+  }
+  
+  .subtitle {
+    font-size: var(--font-size-md, 16px);
+  }
+  
+  .uploadSection,
+  .manageSection {
+    margin-bottom: var(--spacing-xl, 32px);
+  }
+  
+  .sectionTitle {
+    font-size: var(--font-size-lg, 20px);
+  }
+  
+  .errorAlert,
+  .successAlert {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .filesPage {
+    padding: var(--spacing-md, 16px);
+  }
+  
+  .title {
+    font-size: var(--font-size-2xl, 24px);
+  }
+  
+  .sectionTitle {
+    font-size: var(--font-size-md, 18px);
+  }
+}

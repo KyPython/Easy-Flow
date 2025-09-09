@@ -136,7 +136,15 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
             </div>
           </button>
 
-          <button className={styles.actionCard} onClick={() => navigate('/app/tasks')}>
+          <button className={styles.actionCard} onClick={() => navigate('/app/files')}>
+            <div className={styles.actionIcon}>📁</div>
+            <div className={styles.actionText}>
+              <div className={styles.actionTitle}>{t('dashboard.files','File Manager')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.files_desc','Upload & manage files')}</div>
+            </div>
+          </button>
+
+          <button className={styles.actionCard} onClick={() => navigate('/app/settings')}>
             <div className={styles.actionIcon}>⚙️</div>
             <div className={styles.actionText}>
               <div className={styles.actionTitle}>{t('dashboard.settings','Settings')}</div>

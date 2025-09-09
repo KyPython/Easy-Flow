@@ -208,6 +208,18 @@ app.use((req, res, next) => {
 // URL-encoded payload limit
 app.use(express.urlencoded({ limit: '100kb', extended: true }));
 
+// File upload middleware
+const fileUpload = require('express-fileupload');
+app.use('/api/files', fileUpload({
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+  abortOnLimit: true,
+  responseOnLimit: 'File size limit exceeded (100MB max)',
+  useTempFiles: true,
+  tempFileDir: '/tmp/',
+  safeFileNames: true,
+  preserveExtension: true,
+}));
+
 // CSRF Protection (after body parsing, before routes)
 const csrfProtection = csrf({
   cookie: {
@@ -2315,6 +2327,203 @@ app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
       error: 'Internal server error', 
       message: e?.message || 'Unknown error' 
     });
+  }
+});
+
+// =====================================================
+// FILE MANAGEMENT API ENDPOINTS
+// =====================================================
+
+// POST /api/files/upload - Upload a new file
+app.post('/api/files/upload', authMiddleware, async (req, res) => {
+  try {
+    if (!req.files || !req.files.file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
+    const file = req.files.file;
+    const userId = req.user.id;
+    
+    // Generate unique file path
+    const timestamp = Date.now();
+    const fileExt = path.extname(file.name).toLowerCase();
+    const baseName = path.basename(file.name, fileExt);
+    const safeName = baseName.replace(/[^a-zA-Z0-9\-_]/g, '_');
+    const filePath = `${userId}/${timestamp}_${safeName}${fileExt}`;
+    
+    // Upload to Supabase storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('user-files')
+      .upload(filePath, file.data, {
+        contentType: file.mimetype,
+        upsert: false
+      });
+      
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      return res.status(500).json({ error: 'Failed to upload file to storage' });
+    }
+    
+    // Calculate MD5 checksum
+    const checksum = crypto.createHash('md5').update(file.data).digest('hex');
+    
+    // Save metadata to files table
+    const { data: fileRecord, error: dbError } = await supabase
+      .from('files')
+      .insert({
+        user_id: userId,
+        original_name: file.name,
+        display_name: file.name,
+        storage_path: filePath,
+        storage_bucket: 'user-files',
+        file_size: file.size,
+        mime_type: file.mimetype,
+        file_extension: fileExt.slice(1),
+        checksum_md5: checksum,
+        folder_path: req.body.folder_path || '/',
+        tags: req.body.tags ? req.body.tags.split(',') : []
+      })
+      .select()
+      .single();
+      
+    if (dbError) {
+      console.error('Database insert error:', dbError);
+      // Clean up uploaded file if database insert fails
+      await supabase.storage.from('user-files').remove([filePath]);
+      return res.status(500).json({ error: 'Failed to save file metadata' });
+    }
+
+    res.status(201).json({
+      ...fileRecord,
+      message: 'File uploaded successfully'
+    });
+    
+  } catch (err) {
+    console.error('[POST /api/files/upload] Error:', err.message);
+    res.status(500).json({ error: 'Upload failed', details: err.message });
+  }
+});
+
+// GET /api/files - Get user's files
+app.get('/api/files', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { folder, limit = 50, offset = 0, search, tags } = req.query;
+    
+    let query = supabase
+      .from('files')
+      .select('*')
+      .eq('user_id', userId)
+      .is('expires_at', null);
+
+    if (folder) {
+      query = query.eq('folder_path', folder);
+    }
+
+    if (search) {
+      query = query.or(`original_name.ilike.%${search}%,display_name.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    if (tags) {
+      const tagArray = tags.split(',');
+      query = query.contains('tags', tagArray);
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+      
+    if (error) {
+      console.error('Files query error:', error);
+      return res.status(500).json({ error: 'Failed to fetch files' });
+    }
+
+    res.json({ files: data || [] });
+    
+  } catch (err) {
+    console.error('[GET /api/files] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch files' });
+  }
+});
+
+// GET /api/files/:id/download - Get download URL for file
+app.get('/api/files/:id/download', authMiddleware, async (req, res) => {
+  try {
+    const { data: file, error } = await supabase
+      .from('files')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+      
+    if (error || !file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const { data: signedUrl, error: urlError } = await supabase.storage
+      .from(file.storage_bucket)
+      .createSignedUrl(file.storage_path, 3600);
+
+    if (urlError) {
+      console.error('Signed URL error:', urlError);
+      return res.status(500).json({ error: 'Failed to generate download URL' });
+    }
+
+    await supabase
+      .from('files')
+      .update({ 
+        download_count: (file.download_count || 0) + 1,
+        last_accessed: new Date().toISOString()
+      })
+      .eq('id', req.params.id);
+
+    res.json({
+      download_url: signedUrl.signedUrl,
+      filename: file.original_name,
+      size: file.file_size,
+      mime_type: file.mime_type
+    });
+    
+  } catch (err) {
+    console.error('[GET /api/files/:id/download] Error:', err.message);
+    res.status(500).json({ error: 'Failed to generate download URL' });
+  }
+});
+
+// DELETE /api/files/:id - Delete file
+app.delete('/api/files/:id', authMiddleware, async (req, res) => {
+  try {
+    const { data: file, error: fetchError } = await supabase
+      .from('files')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+      
+    if (fetchError || !file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    await supabase.storage
+      .from(file.storage_bucket)
+      .remove([file.storage_path]);
+    
+    const { error: deleteError } = await supabase
+      .from('files')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id);
+      
+    if (deleteError) {
+      console.error('Database deletion error:', deleteError);
+      return res.status(500).json({ error: 'Failed to delete file record' });
+    }
+
+    res.json({ message: 'File deleted successfully' });
+    
+  } catch (err) {
+    console.error('[DELETE /api/files/:id] Error:', err.message);
+    res.status(500).json({ error: 'Failed to delete file' });
   }
 });
 
