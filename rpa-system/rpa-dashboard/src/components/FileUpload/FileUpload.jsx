@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import { uploadFile } from '../../utils/api';
 import { useTheme } from '../../utils/ThemeContext';
 import { useI18n } from '../../i18n';
+import { getAllCategories, categorizeFile, getSuggestedTags, cleanTags, AUTOMATION_TAGS } from '../../utils/fileCategories';
 import styles from './FileUpload.module.css';
 import PropTypes from 'prop-types';
 
@@ -17,9 +18,15 @@ const FileUpload = ({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const { theme } = useTheme();
   const { t } = useI18n();
   const fileInputRef = useRef(null);
+
+  const categories = getAllCategories();
 
   const formatFileSize = useCallback((bytes) => {
     if (bytes === 0) return '0 Bytes';
@@ -45,8 +52,49 @@ const FileUpload = ({
     }
   }, [accept, maxSizeBytes, formatFileSize]);
 
+  const addTag = useCallback((tag) => {
+    const cleanedTag = tag.trim().toLowerCase();
+    if (cleanedTag && !tags.includes(cleanedTag) && tags.length < 10) {
+      setTags(prev => [...prev, cleanedTag]);
+    }
+    setTagInput('');
+  }, [tags]);
+
+  const removeTag = useCallback((tagToRemove) => {
+    setTags(prev => prev.filter(tag => tag !== tagToRemove));
+  }, []);
+
+  const handleTagInputKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(tagInput);
+    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+      removeTag(tags[tags.length - 1]);
+    }
+  }, [tagInput, addTag, removeTag, tags]);
+
+  const autoCategorizeFile = useCallback((file) => {
+    const extension = file.name.split('.').pop();
+    const autoCategory = categorizeFile(file.type, extension);
+    
+    if (!selectedCategory && autoCategory) {
+      setSelectedCategory(autoCategory.id);
+    }
+
+    // Add suggested tags if none exist
+    if (tags.length === 0) {
+      const suggestions = getSuggestedTags(autoCategory, file.name).slice(0, 3);
+      setTags(suggestions);
+    }
+  }, [selectedCategory, tags.length]);
+
   const handleFiles = useCallback(async (files) => {
     if (!files.length) return;
+    
+    // Auto-categorize first file for suggestions
+    if (files.length > 0) {
+      autoCategorizeFile(files[0]);
+    }
     
     setUploading(true);
     setUploadProgress(0);
@@ -56,9 +104,15 @@ const FileUpload = ({
       const uploadPromises = filesToUpload.map(async (file, index) => {
         validateFile(file);
         
+        // Auto-categorize each file
+        const extension = file.name.split('.').pop();
+        const autoCategory = categorizeFile(file.type, extension);
+        const categoryToUse = selectedCategory || autoCategory.id;
+        
         const options = {
           folder_path: folder,
-          tags: []
+          category: categoryToUse,
+          tags: cleanTags(tags)
         };
         
         const result = await uploadFile(file, options);
@@ -73,10 +127,14 @@ const FileUpload = ({
       
       onUploadComplete?.(multiple ? results : results[0]);
       
-      // Reset file input
+      // Reset form
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+      setSelectedCategory('');
+      setTags([]);
+      setTagInput('');
+      setShowAdvanced(false);
       
     } catch (error) {
       console.error('File upload error:', error);
@@ -85,7 +143,7 @@ const FileUpload = ({
       setUploading(false);
       setUploadProgress(0);
     }
-  }, [folder, multiple, onUploadComplete, onUploadError, validateFile]);
+  }, [folder, multiple, selectedCategory, tags, onUploadComplete, onUploadError, validateFile, autoCategorizeFile]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
@@ -192,6 +250,116 @@ const FileUpload = ({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Advanced Options */}
+      <div className={styles.advancedOptions}>
+        <button
+          type="button"
+          className={styles.advancedToggle}
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          disabled={uploading}
+        >
+          <span>{showAdvanced ? '▼' : '▶'}</span>
+          {t('files.advanced_options', 'Advanced Options')}
+        </button>
+
+        {showAdvanced && (
+          <div className={styles.advancedContent}>
+            {/* Category Selection */}
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                {t('files.category', 'Category')}
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className={styles.categorySelect}
+                disabled={uploading}
+              >
+                <option value="">{t('files.auto_detect', 'Auto-detect')}</option>
+                {categories.map(category => (
+                  <option key={category.id} value={category.id}>
+                    {category.icon} {category.name}
+                  </option>
+                ))}
+              </select>
+              <small className={styles.hint}>
+                {selectedCategory
+                  ? categories.find(c => c.id === selectedCategory)?.description
+                  : t('files.category_hint', 'Category will be automatically detected based on file type')
+                }
+              </small>
+            </div>
+
+            {/* Tag Management */}
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                {t('files.tags', 'Tags')} ({tags.length}/10)
+              </label>
+              
+              <div className={styles.tagContainer}>
+                {/* Existing Tags */}
+                {tags.map(tag => (
+                  <span key={tag} className={styles.tag}>
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      className={styles.tagRemove}
+                      disabled={uploading}
+                      aria-label={`Remove ${tag}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                
+                {/* Tag Input */}
+                {tags.length < 10 && (
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={handleTagInputKeyDown}
+                    onBlur={() => {
+                      if (tagInput.trim()) {
+                        addTag(tagInput);
+                      }
+                    }}
+                    placeholder={t('files.add_tag', 'Add tag...')}
+                    className={styles.tagInput}
+                    disabled={uploading}
+                  />
+                )}
+              </div>
+
+              {/* Suggested Tags */}
+              <div className={styles.suggestedTags}>
+                <small className={styles.suggestedLabel}>
+                  {t('files.suggested_tags', 'Suggested:')}
+                </small>
+                {AUTOMATION_TAGS.slice(0, 6).map(tag => (
+                  !tags.includes(tag) && tags.length < 10 && (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => addTag(tag)}
+                      className={styles.suggestedTag}
+                      disabled={uploading}
+                    >
+                      + {tag}
+                    </button>
+                  )
+                ))}
+              </div>
+
+              <small className={styles.hint}>
+                {t('files.tag_hint', 'Press Enter or comma to add tags. Use tags to organize and find files easily.')}
+              </small>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

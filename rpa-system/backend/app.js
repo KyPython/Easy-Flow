@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const csrf = require('csurf');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const { firebaseNotificationService, NotificationTemplates } = require('./utils/firebaseAdmin');
 const { getKafkaService } = require('./utils/kafkaService');
 // Load environment variables from the backend/.env file (absolute, not CWD-dependent)
@@ -2381,7 +2382,8 @@ app.post('/api/files/upload', authMiddleware, async (req, res) => {
         file_extension: fileExt.slice(1),
         checksum_md5: checksum,
         folder_path: req.body.folder_path || '/',
-        tags: req.body.tags ? req.body.tags.split(',') : []
+        category: req.body.category || null,
+        tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : req.body.tags.split(',')) : []
       })
       .select()
       .single();
@@ -2408,7 +2410,7 @@ app.post('/api/files/upload', authMiddleware, async (req, res) => {
 app.get('/api/files', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { folder, limit = 50, offset = 0, search, tags } = req.query;
+    const { folder, limit = 50, offset = 0, search, tags, category } = req.query;
     
     let query = supabase
       .from('files')
@@ -2420,13 +2422,20 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       query = query.eq('folder_path', folder);
     }
 
+    if (category) {
+      query = query.eq('category', category);
+    }
+
     if (search) {
       query = query.or(`original_name.ilike.%${search}%,display_name.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
     if (tags) {
-      const tagArray = tags.split(',');
-      query = query.contains('tags', tagArray);
+      const tagArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+      if (tagArray.length > 0) {
+        // Use overlaps operator to find files that have any of the specified tags
+        query = query.overlaps('tags', tagArray);
+      }
     }
 
     const { data, error } = await query
@@ -2524,6 +2533,303 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('[DELETE /api/files/:id] Error:', err.message);
     res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
+// =====================================================
+// FILE SHARING API ENDPOINTS
+// =====================================================
+
+// POST /api/files/shares - Create a new share link
+app.post('/api/files/shares', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { 
+      fileId, 
+      permission = 'view', 
+      requirePassword = false, 
+      password = null,
+      expiresAt = null,
+      allowAnonymous = true,
+      maxDownloads = null,
+      notifyOnAccess = false
+    } = req.body;
+
+    // Verify file ownership
+    const { data: file, error: fileError } = await supabase
+      .from('files')
+      .select('id, original_name')
+      .eq('id', fileId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fileError || !file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Generate unique share token
+    const shareToken = crypto.randomBytes(32).toString('hex');
+    
+    // Hash password if provided
+    let hashedPassword = null;
+    if (requirePassword && password) {
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+
+    // Create share record (using existing schema column names)
+    const shareData = {
+      file_id: fileId,
+      shared_by: userId, // Use existing column name
+      share_token: shareToken,
+      permissions: permission, // Use existing column name
+      password_hash: hashedPassword,
+      expires_at: expiresAt,
+      max_downloads: maxDownloads,
+      require_password: requirePassword,
+      allow_anonymous: allowAnonymous,
+      is_active: true
+    };
+
+    const { data: share, error: shareError } = await supabase
+      .from('file_shares')
+      .insert([shareData])
+      .select()
+      .single();
+
+    if (shareError) {
+      console.error('Share creation error:', shareError);
+      return res.status(500).json({ error: 'Failed to create share link' });
+    }
+
+    // Generate share URL
+    const shareUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/shared/${shareToken}`;
+
+    res.status(201).json({
+      ...share,
+      shareUrl,
+      password_hash: undefined // Don't return password hash
+    });
+
+  } catch (err) {
+    console.error('[POST /api/files/shares] Error:', err.message);
+    res.status(500).json({ error: 'Failed to create share link' });
+  }
+});
+
+// GET /api/files/:id/shares - Get shares for a file
+app.get('/api/files/:id/shares', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const fileId = req.params.id;
+
+    // Verify file ownership
+    const { data: file, error: fileError } = await supabase
+      .from('files')
+      .select('id')
+      .eq('id', fileId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fileError || !file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Get shares (using existing schema column names)
+    const { data: shares, error: sharesError } = await supabase
+      .from('file_shares')
+      .select('*')
+      .eq('file_id', fileId)
+      .eq('shared_by', userId) // Use existing column name
+      .order('created_at', { ascending: false });
+
+    if (sharesError) {
+      console.error('Shares query error:', sharesError);
+      return res.status(500).json({ error: 'Failed to fetch shares' });
+    }
+
+    // Add share URLs and remove password hashes
+    const sharesWithUrls = shares.map(share => ({
+      ...share,
+      shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/shared/${share.share_token}`,
+      password_hash: undefined
+    }));
+
+    res.json({ shares: sharesWithUrls });
+
+  } catch (err) {
+    console.error('[GET /api/files/:id/shares] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch shares' });
+  }
+});
+
+// PUT /api/files/shares/:shareId - Update share settings
+app.put('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shareId = req.params.shareId;
+    const updates = req.body;
+
+    // Hash new password if provided
+    if (updates.password && updates.requirePassword) {
+      updates.password_hash = await bcrypt.hash(updates.password, 10);
+      delete updates.password;
+    }
+
+    // Update share
+    const { data: share, error: updateError } = await supabase
+      .from('file_shares')
+      .update({
+        permissions: updates.permission, // Use existing column name
+        require_password: updates.requirePassword,
+        password_hash: updates.password_hash,
+        expires_at: updates.expiresAt,
+        allow_anonymous: updates.allowAnonymous,
+        max_downloads: updates.maxDownloads,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', shareId)
+      .eq('shared_by', userId) // Use existing column name
+      .select()
+      .single();
+
+    if (updateError || !share) {
+      return res.status(404).json({ error: 'Share not found' });
+    }
+
+    res.json({
+      ...share,
+      shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/shared/${share.share_token}`,
+      password_hash: undefined
+    });
+
+  } catch (err) {
+    console.error('[PUT /api/files/shares/:shareId] Error:', err.message);
+    res.status(500).json({ error: 'Failed to update share' });
+  }
+});
+
+// DELETE /api/files/shares/:shareId - Delete share
+app.delete('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shareId = req.params.shareId;
+
+    const { error: deleteError } = await supabase
+      .from('file_shares')
+      .delete()
+      .eq('id', shareId)
+      .eq('shared_by', userId); // Use existing column name
+
+    if (deleteError) {
+      console.error('Share deletion error:', deleteError);
+      return res.status(500).json({ error: 'Failed to delete share' });
+    }
+
+    res.json({ message: 'Share deleted successfully' });
+
+  } catch (err) {
+    console.error('[DELETE /api/files/shares/:shareId] Error:', err.message);
+    res.status(500).json({ error: 'Failed to delete share' });
+  }
+});
+
+// POST /api/shared/access - Access shared file
+app.post('/api/shared/access', async (req, res) => {
+  try {
+    const { shareToken, password } = req.body;
+
+    if (!shareToken) {
+      return res.status(400).json({ error: 'Share token required' });
+    }
+
+    // Get share details
+    const { data: share, error: shareError } = await supabase
+      .from('file_shares')
+      .select(`
+        *,
+        files (
+          id,
+          original_name,
+          file_size,
+          mime_type,
+          storage_bucket,
+          storage_path
+        )
+      `)
+      .eq('share_token', shareToken)
+      .single();
+
+    if (shareError || !share) {
+      return res.status(404).json({ error: 'Share link not found or expired' });
+    }
+
+    // Check if share has expired
+    if (share.expires_at && new Date(share.expires_at) < new Date()) {
+      return res.status(410).json({ error: 'Share link has expired' });
+    }
+
+    // Check max downloads
+    if (share.max_downloads && share.download_count >= share.max_downloads) {
+      return res.status(410).json({ error: 'Maximum download limit reached' });
+    }
+
+    // Check password if required
+    if (share.require_password) {
+      if (!password) {
+        return res.status(401).json({ error: 'Password required', requirePassword: true });
+      }
+
+      const isValidPassword = await bcrypt.compare(password, share.password_hash);
+      if (!isValidPassword) {
+        return res.status(401).json({ error: 'Invalid password' });
+      }
+    }
+
+    // Generate download URL if permission allows
+    let downloadUrl = null;
+    if (share.permissions === 'download' || share.permissions === 'edit') {
+      const { data: signedUrl, error: urlError } = await supabase.storage
+        .from(share.files.storage_bucket)
+        .createSignedUrl(share.files.storage_path, 3600);
+
+      if (urlError) {
+        console.error('Signed URL error:', urlError);
+        return res.status(500).json({ error: 'Failed to generate download URL' });
+      }
+
+      downloadUrl = signedUrl.signedUrl;
+    }
+
+    // Update download count
+    await supabase
+      .from('file_shares')
+      .update({ 
+        download_count: share.download_count + 1,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', share.id);
+
+    // Send notification if enabled
+    if (share.notify_on_access) {
+      // TODO: Send email notification to file owner
+      console.log(`File shared access: ${share.files.original_name} accessed via share link`);
+    }
+
+    res.json({
+      file: {
+        id: share.files.id,
+        name: share.files.original_name,
+        size: share.files.file_size,
+        mimeType: share.files.mime_type
+      },
+      permission: share.permissions,
+      downloadUrl,
+      accessCount: share.download_count + 1
+    });
+
+  } catch (err) {
+    console.error('[POST /api/shared/access] Error:', err.message);
+    res.status(500).json({ error: 'Failed to access shared file' });
   }
 });
 

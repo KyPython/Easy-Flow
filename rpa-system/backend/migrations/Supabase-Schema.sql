@@ -22,9 +22,10 @@ CREATE TABLE public.automation_runs (
   result jsonb,
   created_at timestamp with time zone DEFAULT now(),
   artifact_url text,
+  file_ids ARRAY DEFAULT '{}'::uuid[],
   CONSTRAINT automation_runs_pkey PRIMARY KEY (id),
-  CONSTRAINT automation_runs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT automation_runs_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id)
+  CONSTRAINT automation_runs_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id),
+  CONSTRAINT automation_runs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.automation_tasks (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -53,6 +54,54 @@ CREATE TABLE public.email_queue (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT email_queue_pkey PRIMARY KEY (id),
   CONSTRAINT email_queue_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.file_shares (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  file_id uuid NOT NULL,
+  shared_by uuid NOT NULL,
+  shared_with uuid,
+  share_token text UNIQUE,
+  permissions text NOT NULL DEFAULT 'view'::text CHECK (permissions = ANY (ARRAY['view'::text, 'download'::text])),
+  max_downloads integer,
+  download_count integer DEFAULT 0,
+  expires_at timestamp with time zone,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT file_shares_pkey PRIMARY KEY (id),
+  CONSTRAINT file_shares_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id),
+  CONSTRAINT file_shares_shared_by_fkey FOREIGN KEY (shared_by) REFERENCES auth.users(id),
+  CONSTRAINT file_shares_shared_with_fkey FOREIGN KEY (shared_with) REFERENCES auth.users(id)
+);
+CREATE TABLE public.files (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  original_name text NOT NULL,
+  display_name text,
+  description text,
+  storage_path text NOT NULL UNIQUE,
+  storage_bucket text NOT NULL DEFAULT 'artifacts'::text,
+  file_size bigint NOT NULL,
+  mime_type text NOT NULL,
+  file_extension text,
+  checksum_md5 text,
+  task_id uuid,
+  run_id uuid,
+  visibility text NOT NULL DEFAULT 'private'::text CHECK (visibility = ANY (ARRAY['private'::text, 'shared'::text, 'public'::text])),
+  is_temporary boolean DEFAULT false,
+  expires_at timestamp with time zone,
+  folder_path text DEFAULT '/'::text,
+  tags ARRAY DEFAULT '{}'::text[],
+  metadata jsonb DEFAULT '{}'::jsonb,
+  thumbnail_path text,
+  download_count integer DEFAULT 0,
+  last_accessed timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT files_pkey PRIMARY KEY (id),
+  CONSTRAINT files_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.automation_runs(id),
+  CONSTRAINT files_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT files_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id)
 );
 CREATE TABLE public.forwarded_event_ids (
   id text NOT NULL,

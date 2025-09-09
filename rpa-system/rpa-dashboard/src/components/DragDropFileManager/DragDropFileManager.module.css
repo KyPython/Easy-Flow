@@ -1,0 +1,335 @@
+/* DragDropFileManager.module.css */
+
+.dragDropFileManager {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+}
+
+.foldersSection {
+  flex-shrink: 0;
+}
+
+.filesSection {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.selectionInfo {
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  padding: var(--spacing-2xs) var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.foldersGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.folderDropZone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface-elevated);
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  min-height: 60px;
+}
+
+.folderDropZone:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.folderDropZone.dragOver {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+  border-style: solid;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.folderIcon {
+  font-size: 24px;
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.folderName {
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fileCount {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.dropIndicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--primary-color);
+  font-weight: 500;
+  font-size: 14px;
+  border-radius: 6px;
+}
+
+.filesGrid {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  padding: 4px;
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  user-select: none;
+}
+
+.fileItem:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.fileItem.selected {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+}
+
+.fileItem.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+}
+
+.fileIcon {
+  font-size: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.fileInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.fileName {
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fileDetails {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.fileSize {
+  background: var(--surface-hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.fileDate {
+  white-space: nowrap;
+}
+
+.fileTags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: 8px;
+}
+
+.fileTag {
+  font-size: 10px;
+  font-weight: 500;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.moreTagsIndicator {
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.selectionIndicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.emptyState svg {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.emptyState h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  max-width: 300px;
+}
+
+/* Drag and drop animations */
+@keyframes dragPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.folderDropZone.dragOver {
+  animation: dragPulse 0.6s ease-in-out infinite;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .filesGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .foldersGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .fileItem {
+    padding: 8px;
+    gap: 8px;
+  }
+  
+  .fileIcon {
+    font-size: 20px;
+    width: 28px;
+    height: 28px;
+  }
+  
+  .folderDropZone {
+    padding: 12px;
+    min-height: 50px;
+  }
+  
+  .folderIcon {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dragDropFileManager {
+    gap: 16px;
+  }
+  
+  .fileTags {
+    display: none; /* Hide tags on very small screens */
+  }
+  
+  .fileDetails {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}

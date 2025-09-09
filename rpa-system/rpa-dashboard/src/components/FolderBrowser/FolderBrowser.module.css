@@ -1,0 +1,378 @@
+/* FolderBrowser.module.css */
+
+.folderBrowser {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+}
+
+.folderBrowser.compact {
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: var(--spacing-sm);
+}
+
+.header.compact {
+  margin-bottom: var(--spacing-sm);
+  padding-bottom: var(--spacing-xs);
+}
+
+.title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.title.compact {
+  font-size: var(--font-size-base);
+}
+
+.createButton {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.createButton:hover {
+  background: var(--color-primary-700);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.createButton.compact {
+  padding: var(--spacing-2xs) var(--spacing-xs);
+  font-size: var(--font-size-xs);
+}
+
+.folderTree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.folderItem {
+  position: relative;
+}
+
+.folderRow {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-sm);
+  margin: var(--spacing-2xs) 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  position: relative;
+}
+
+.folderRow:hover {
+  background: var(--hover-bg);
+}
+
+.folderRow.selected {
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  border-left: 3px solid var(--color-primary-600);
+}
+
+.folderRow.dragging {
+  opacity: 0.5;
+}
+
+.folderRow.dragOver {
+  background: var(--color-primary-100);
+  border: 2px dashed var(--color-primary-600);
+}
+
+.folderContent {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.expandButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-2xs);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+}
+
+.expandButton:hover {
+  color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+.folderIcon {
+  color: var(--primary-color);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.folderName {
+  font-size: 14px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.folderRow.selected .folderName {
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.folderActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.folderRow:hover .folderActions {
+  opacity: 1;
+}
+
+.actionButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.actionButton:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+.folderChildren {
+  margin-left: 20px;
+  border-left: 1px solid var(--border-light);
+  position: relative;
+}
+
+.folderChildren::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--border-light), transparent);
+}
+
+.newFolderForm {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 8px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.newFolderForm h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.formGroup {
+  margin-bottom: 12px;
+}
+
+.formGroup label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.formInput {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--surface-color);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease;
+}
+
+.formInput:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.formActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.formButton {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.formButton.primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.formButton.primary:hover {
+  background: var(--primary-dark);
+}
+
+.formButton.secondary {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.formButton.secondary:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+.contextMenu {
+  position: fixed;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 4px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 160px;
+}
+
+.contextMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.contextMenuItem:hover {
+  background: var(--surface-hover);
+}
+
+.contextMenuItem.danger {
+  color: var(--error-color);
+}
+
+.contextMenuItem.danger:hover {
+  background: var(--error-light);
+}
+
+.emptyState {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-secondary);
+}
+
+.emptyState svg {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.emptyState h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.newFolderForm {
+  animation: slideIn 0.3s ease-out;
+}
+
+.contextMenu {
+  animation: slideIn 0.2s ease-out;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .folderBrowser {
+    padding: 12px;
+  }
+  
+  .folderRow {
+    padding: 6px 8px;
+  }
+  
+  .folderName {
+    font-size: 13px;
+  }
+  
+  .folderChildren {
+    margin-left: 16px;
+  }
+}

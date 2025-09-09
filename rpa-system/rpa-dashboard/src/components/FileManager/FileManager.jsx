@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getFiles, deleteFile, getFileDownloadUrl } from '../../utils/api';
+import { getFiles, deleteFile, getFileDownloadUrl, getFileShares, createFileShare, deleteFileShare } from '../../utils/api';
 import { useTheme } from '../../utils/ThemeContext';
 import { useI18n } from '../../i18n';
+import { getAllCategories, categorizeFile, getCategoryById, getCategoryIcon, getCategoryColor } from '../../utils/fileCategories';
+import FileSharing from '../FileSharing/FileSharing';
 import styles from './FileManager.module.css';
 import PropTypes from 'prop-types';
 
@@ -19,8 +21,14 @@ const FileManager = ({
   const [view, setView] = useState('grid'); // 'grid' or 'list'
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
+  const [sharingFile, setSharingFile] = useState(null);
+  const [fileShares, setFileShares] = useState([]);
   const { theme } = useTheme();
   const { t } = useI18n();
+
+  const categories = getAllCategories();
 
   const loadFiles = useCallback(async () => {
     try {
@@ -29,6 +37,8 @@ const FileManager = ({
       const result = await getFiles({
         folder,
         search: searchQuery.trim() || undefined,
+        category: categoryFilter || undefined,
+        tags: tagFilter || undefined,
         limit: 100
       });
       setFiles(result.files || []);
@@ -38,7 +48,7 @@ const FileManager = ({
     } finally {
       setLoading(false);
     }
-  }, [folder, searchQuery]);
+  }, [folder, searchQuery, categoryFilter, tagFilter]);
 
   useEffect(() => {
     loadFiles();
@@ -63,18 +73,26 @@ const FileManager = ({
     });
   }, []);
 
-  const getFileIcon = useCallback((mimeType, extension) => {
-    if (mimeType?.startsWith('image/')) return '🖼️';
-    if (mimeType?.startsWith('video/')) return '🎥';
-    if (mimeType?.startsWith('audio/')) return '🎵';
-    if (mimeType?.includes('pdf')) return '📄';
-    if (mimeType?.includes('word') || extension === 'docx') return '📝';
-    if (mimeType?.includes('excel') || extension === 'xlsx') return '📊';
-    if (mimeType?.includes('powerpoint') || extension === 'pptx') return '📋';
-    if (mimeType?.includes('zip') || extension === 'zip') return '📦';
-    if (extension === 'json') return '⚙️';
-    if (extension === 'csv') return '📈';
-    return '📎';
+  const getFileIcon = useCallback((file) => {
+    // Use category from database if available
+    if (file.category) {
+      const category = getCategoryById(file.category);
+      if (category) return category.icon;
+    }
+    
+    // Fallback to auto-categorization
+    const category = categorizeFile(file.mime_type, file.file_extension);
+    return getCategoryIcon(category);
+  }, []);
+
+  const getFileCategory = useCallback((file) => {
+    // Use category from database if available
+    if (file.category) {
+      return getCategoryById(file.category);
+    }
+    
+    // Fallback to auto-categorization
+    return categorizeFile(file.mime_type, file.file_extension);
   }, []);
 
   const handleDownload = useCallback(async (file) => {
@@ -131,6 +149,38 @@ const FileManager = ({
       }
       return newSet;
     });
+  }, []);
+
+  const handleShareFile = useCallback(async (file) => {
+    setSharingFile(file);
+    // Load existing shares for this file
+    try {
+      const shares = await getFileShares(file.id);
+      setFileShares(shares);
+    } catch (error) {
+      console.error('Error loading file shares:', error);
+      setFileShares([]);
+    }
+  }, []);
+
+  const handleSharingClose = useCallback(() => {
+    setSharingFile(null);
+  }, []);
+
+  const handleShareCreated = useCallback((newShare) => {
+    setFileShares(prev => [...prev, newShare]);
+  }, []);
+
+  const handleShareUpdated = useCallback((updatedShare) => {
+    setFileShares(prev => 
+      prev.map(share => 
+        share.id === updatedShare.id ? updatedShare : share
+      )
+    );
+  }, []);
+
+  const handleShareDeleted = useCallback((shareId) => {
+    setFileShares(prev => prev.filter(share => share.id !== shareId));
   }, []);
 
   const sortedFiles = React.useMemo(() => {
@@ -210,6 +260,32 @@ const FileManager = ({
           >
             🔄
           </button>
+        </div>
+        
+        {/* Category and Tag Filters */}
+        <div className={styles.filterSection}>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className={styles.categoryFilter}
+            title={t('files.filter_by_category', 'Filter by category')}
+          >
+            <option value="">{t('files.all_categories', 'All Categories')}</option>
+            {categories.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.icon} {category.name}
+              </option>
+            ))}
+          </select>
+          
+          <input
+            type="text"
+            placeholder={t('files.filter_by_tags', 'Filter by tags...')}
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+            className={styles.tagFilter}
+            title={t('files.tag_filter_hint', 'Enter tag names separated by commas')}
+          />
         </div>
         
         <div className={styles.viewControls}>
@@ -301,7 +377,7 @@ const FileManager = ({
             >
               <div className={styles.fileHeader}>
                 <div className={styles.fileIcon}>
-                  {getFileIcon(file.mime_type, file.file_extension)}
+                  {getFileIcon(file)}
                 </div>
                 <div className={styles.fileActions}>
                   <input
@@ -327,6 +403,32 @@ const FileManager = ({
                     📥 {file.download_count} downloads
                   </div>
                 )}
+                
+                {/* Category Display */}
+                <div className={styles.fileCategory}>
+                  <span 
+                    className={styles.categoryBadge}
+                    style={{ backgroundColor: getCategoryColor(getFileCategory(file)) + '20', color: getCategoryColor(getFileCategory(file)) }}
+                  >
+                    {getFileCategory(file).name}
+                  </span>
+                </div>
+                
+                {/* Tags Display */}
+                {file.tags && file.tags.length > 0 && (
+                  <div className={styles.fileTags}>
+                    {file.tags.slice(0, 3).map(tag => (
+                      <span key={tag} className={styles.fileTag}>
+                        {tag}
+                      </span>
+                    ))}
+                    {file.tags.length > 3 && (
+                      <span className={styles.moreTagsIndicator}>
+                        +{file.tags.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               
               <div className={styles.fileActionsBar}>
@@ -343,6 +445,16 @@ const FileManager = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    handleShareFile(file);
+                  }}
+                  className={styles.actionBtn}
+                  title={t('files.share', 'Share')}
+                >
+                  🔗
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
                     handleDelete(file);
                   }}
                   className={`${styles.actionBtn} ${styles.deleteBtn}`}
@@ -354,6 +466,18 @@ const FileManager = ({
             </div>
           ))}
         </div>
+      )}
+      
+      {sharingFile && (
+        <FileSharing
+          file={sharingFile}
+          isOpen={true}
+          onClose={handleSharingClose}
+          onCreateShare={handleShareCreated}
+          onUpdateShare={handleShareUpdated}
+          onDeleteShare={handleShareDeleted}
+          existingShares={fileShares}
+        />
       )}
     </div>
   );

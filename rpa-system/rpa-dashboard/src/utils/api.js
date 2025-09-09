@@ -301,3 +301,72 @@ export const updateFileMetadata = async (fileId, metadata) => {
     throw new Error(getErrorMessage(e, 'Failed to update file. Please try again.'));
   }
 };
+
+// --- File Sharing Functions ---
+export const createFileShare = async (shareData) => {
+  try {
+    const { data } = await api.post('/api/files/shares', shareData);
+    return data;
+  } catch (e) {
+    console.error('createFileShare failed:', e);
+    throw new Error(getErrorMessage(e, 'Failed to create share link. Please try again.'));
+  }
+};
+
+export const getFileShares = async (fileId) => {
+  try {
+    const { data } = await api.get(`/api/files/${fileId}/shares`);
+    return data;
+  } catch (e) {
+    console.error('getFileShares failed:', e);
+    throw new Error(getErrorMessage(e, 'Failed to load share links. Please try again.'));
+  }
+};
+
+export const updateFileShare = async (shareId, updates) => {
+  try {
+    const { data } = await api.put(`/api/files/shares/${shareId}`, updates);
+    return data;
+  } catch (e) {
+    console.error('updateFileShare failed:', e);
+    throw new Error(getErrorMessage(e, 'Failed to update share link. Please try again.'));
+  }
+};
+
+export const deleteFileShare = async (shareId) => {
+  try {
+    const { data } = await api.delete(`/api/files/shares/${shareId}`);
+    return data;
+  } catch (e) {
+    console.error('deleteFileShare failed:', e);
+    throw new Error(getErrorMessage(e, 'Failed to delete share link. Please try again.'));
+  }
+};
+
+export const getSharedFile = async (token, password = null) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/shared/access`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token, password }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to access shared file');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error accessing shared file:', error);
+    throw error;
+  }
+};
+
+// Helper function to get share URL
+export const getShareUrl = (token) => {
+  const baseUrl = window.location.origin;
+  return `${baseUrl}/shared/${token}`;
+};

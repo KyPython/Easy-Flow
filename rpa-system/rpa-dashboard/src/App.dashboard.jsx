@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import { LanguageProvider } from './utils/LanguageContext';
 import SettingsPage from './pages/SettingsPage';
+import SharedFilePage from './pages/SharedFilePage';
 import Chatbot from './components/Chatbot/Chatbot';
 import './utils/firebaseConfig';
 import './theme.css';
@@ -59,6 +60,8 @@ function Shell() {
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/auth/reset" element={<ResetLanding />} />
           <Route path="/pricing" element={<PricingPage />} />
+          {/* Public shared file access - no authentication required */}
+          <Route path="/shared/:token" element={<SharedFilePage />} />
           {/* Public landing page at root for unauthenticated users */}
           <Route path="/" element={<LandingPage />} />
           {/* Protected app routes live under /app */}

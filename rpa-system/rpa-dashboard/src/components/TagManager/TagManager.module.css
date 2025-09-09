@@ -1,0 +1,340 @@
+/* TagManager.module.css */
+
+.tagManager {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: var(--spacing-sm);
+}
+
+.title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.createButton {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.createButton:hover {
+  background: var(--color-primary-700);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.tagForm {
+  background: var(--surface);
+  border: 1px solid var(--color-primary-200);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.tagForm h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.formGroup {
+  margin-bottom: 16px;
+}
+
+.formGroup label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.formInput {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--surface-color);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease;
+}
+
+.formInput:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.colorPicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.colorOption {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.colorOption:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.colorOption.selected {
+  border-color: var(--text-primary);
+  transform: scale(1.15);
+}
+
+.customColorInput {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: none;
+}
+
+.formActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.formButton {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.formButton.primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.formButton.primary:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.formButton.primary:disabled {
+  background: var(--border-color);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+.formButton.secondary {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.formButton.secondary:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+.tagGrid {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 4px;
+}
+
+.tagItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.tagItem:hover {
+  background: var(--surface-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tagItem.selected {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+}
+
+.tagContent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tagColor {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.tagName {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tagCount {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+.tagActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.tagItem:hover .tagActions {
+  opacity: 1;
+}
+
+.actionButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.actionButton:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.emptyState svg {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.emptyState h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  max-width: 300px;
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tagForm {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .tagGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .tagManager {
+    padding: 12px;
+  }
+  
+  .colorPicker {
+    gap: 6px;
+  }
+  
+  .colorOption {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .customColorInput {
+    width: 20px;
+    height: 20px;
+  }
+}

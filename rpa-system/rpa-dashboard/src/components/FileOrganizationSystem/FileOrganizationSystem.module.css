@@ -1,0 +1,121 @@
+/* FileOrganizationSystem.module.css */
+
+.fileOrganizationSystem {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+  padding: var(--spacing-lg);
+  gap: var(--spacing-lg);
+}
+
+.mainContent {
+  display: flex;
+  flex: 1;
+  gap: var(--spacing-xl);
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  overflow: hidden;
+}
+
+.folderSection {
+  flex: 1;
+  min-height: 0;
+}
+
+.tagSection {
+  flex: 1;
+  min-height: 0;
+}
+
+.fileArea {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Responsive design */
+@media (max-width: 1024px) {
+  .mainContent {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    height: 300px;
+  }
+  
+  .folderSection,
+  .tagSection {
+    flex: 1;
+    min-width: 250px;
+  }
+}
+
+@media (max-width: 768px) {
+  .fileOrganizationSystem {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+  
+  .sidebar {
+    flex-direction: column;
+    height: auto;
+  }
+  
+  .folderSection,
+  .tagSection {
+    min-width: 0;
+    height: 200px;
+  }
+}
+
+/* Dark theme adjustments */
+:global(.theme-dark) .fileOrganizationSystem {
+  background: var(--bg);
+}
+
+/* Focus management for accessibility */
+.fileOrganizationSystem:focus-within {
+  outline: none;
+}
+
+/* Smooth transitions */
+.sidebar,
+.fileArea {
+  transition: all 0.3s ease;
+}
+
+/* Loading states */
+.fileOrganizationSystem.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.fileOrganizationSystem.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-primary-200);
+  border-top: 3px solid var(--color-primary-600);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  z-index: 1000;
+}
+
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
