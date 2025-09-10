@@ -130,7 +130,59 @@ class IntegrationTests {
     });
   }
 
-  // Test enhanced user preferences system (Task 1)
+  // Test RPA Task Management System
+  async testRPATaskManagement() {
+    await runTest('Tasks API Authentication Required', async () => {
+      const response = await backendAPI.get('/api/tasks');
+      // Should require authentication, so 401 is expected
+      if (response.status !== 401) {
+        throw new Error(`Expected 401 (auth required), got ${response.status}`);
+      }
+    });
+
+    await runTest('Task Creation Endpoint Validation', async () => {
+      const testTask = {
+        name: 'Test Web Scraping Task',
+        type: 'web_scraping',
+        config: {
+          url: 'https://example.com',
+          selector: '.content',
+          interval: 3600
+        }
+      };
+
+      const response = await backendAPI.post('/api/tasks', testTask);
+      // Should require authentication, so 401 is expected
+      if (response.status !== 401) {
+        throw new Error(`Expected 401 (auth required), got ${response.status}`);
+      }
+    });
+
+    await runTest('Task Execution Endpoint', async () => {
+      const executionPayload = {
+        task_id: 'test-task-123',
+        parameters: {
+          url_override: 'https://test.example.com'
+        }
+      };
+
+      const response = await backendAPI.post('/api/run-task', executionPayload);
+      // Should require authentication, so 401 is expected
+      if (response.status !== 401) {
+        throw new Error(`Expected 401 (auth required), got ${response.status}`);
+      }
+    });
+
+    await runTest('Task Runs History Endpoint', async () => {
+      const response = await backendAPI.get('/api/runs');
+      // Should require authentication, so 401 is expected
+      if (response.status !== 401) {
+        throw new Error(`Expected 401 (auth required), got ${response.status}`);
+      }
+    });
+  }
+
+  // Test User Preferences System
   async testUserPreferencesSystem() {
     await runTest('User Preferences GET Endpoint', async () => {
       const response = await backendAPI.get('/api/user/preferences');
@@ -148,7 +200,7 @@ class IntegrationTests {
       }
     });
 
-    await runTest('User Preferences POST Validation', async () => {
+    await runTest('User Preferences Update Validation', async () => {
       const testPayload = {
         theme: 'dark',
         notifications: {
@@ -162,7 +214,36 @@ class IntegrationTests {
         timezone: 'America/New_York'
       };
 
-      const response = await backendAPI.post('/api/user/preferences', testPayload);
+      const response = await backendAPI.put('/api/user/preferences', testPayload);
+      // Should require authentication, so 401 is expected
+      if (response.status !== 401) {
+        throw new Error(`Expected 401 (auth required), got ${response.status}`);
+      }
+    });
+  }
+
+  // Test Notification System
+  async testNotificationSystem() {
+    await runTest('Notification Creation Endpoint', async () => {
+      const notificationPayload = {
+        title: 'Test Task Completed',
+        body: 'Your web scraping task has finished successfully',
+        type: 'task_complete',
+        data: {
+          task_id: 'test-123',
+          result_count: 150
+        }
+      };
+
+      const response = await backendAPI.post('/api/notifications/create', notificationPayload);
+      // Should require authentication, so 401 is expected
+      if (response.status !== 401) {
+        throw new Error(`Expected 401 (auth required), got ${response.status}`);
+      }
+    });
+
+    await runTest('Dashboard Data Endpoint', async () => {
+      const response = await backendAPI.get('/api/dashboard');
       // Should require authentication, so 401 is expected
       if (response.status !== 401) {
         throw new Error(`Expected 401 (auth required), got ${response.status}`);
@@ -368,10 +449,12 @@ class IntegrationTests {
     console.log('🧪 EasyFlow API Integration Tests');
     console.log('=====================================\n');
 
-    log.info('Testing enhanced system with all improvements...\n');
+    log.info('Testing RPA system with all core functionality...\n');
 
     await this.testBasicConnectivity();
+    await this.testRPATaskManagement();
     await this.testUserPreferencesSystem();
+    await this.testNotificationSystem();
     await this.testDatabaseIntegration();
     await this.testOptimizations();
     await this.testDeploymentReadiness();

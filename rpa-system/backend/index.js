@@ -2241,6 +2241,9 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Internal Server Error', details: err.message });
 });
 
+// Export the app for testing
+module.exports = app;
+
 // Start server only if this file is run directly (not imported)
 if (require.main === module) {
   app.listen(PORT, () => {

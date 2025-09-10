@@ -47,3 +47,11 @@ coverage/
 *.tmp
 *.swp
 *.bak
+.testing/
+.test
+/test-output/
+/test-results/test
+/test-results/
+/test
+test.
+tests.

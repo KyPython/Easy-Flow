@@ -1,0 +1,70 @@
+{
+  "name": "file-sharing-system",
+  "version": "1.0.0",
+  "description": "File sharing testing configuration and dependencies",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:performance": "jest --testPathPattern=performance",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:all": "npm run test && npm run test:e2e",
+    "performance:monitor": "node scripts/performance-monitor.js",
+    "performance:report": "node -e \"const {PerformanceMonitor} = require('./scripts/performance-monitor'); const m = new PerformanceMonitor(); m.generateHTMLReport().then(console.log);\"",
+    "lint": "eslint --ext .js,.jsx .",
+    "lint:fix": "eslint --ext .js,.jsx . --fix"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.1.0",
+    "@testing-library/user-event": "^14.4.3",
+    "@playwright/test": "^1.40.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "supertest": "^6.3.3",
+    "cross-env": "^7.0.3",
+    "jest-axe": "^8.0.0"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
+    "moduleNameMapping": {
+      "\\.(css|less|scss|sass)$": "identity-obj-proxy",
+      "^@/(.*)$": "<rootDir>/src/$1"
+    },
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx}",
+      "!src/**/*.test.{js,jsx}",
+      "!src/index.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    },
+    "testMatch": [
+      "<rootDir>/tests/**/*.test.{js,jsx}",
+      "<rootDir>/src/**/*.test.{js,jsx}"
+    ]
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ],
+    "rules": {
+      "no-console": "warn",
+      "no-unused-vars": "error",
+      "react/prop-types": "error"
+    }
+  }
+}

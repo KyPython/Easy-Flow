@@ -135,6 +135,14 @@ venv.bak/
 *.db
 *.db3
 *.lock
+.testing/
+.test
+/test-output/
+/test-results/test
+/test-results/
+/test
+test.
+tests.
 
 # CLEANUP: Remove old redundant entries that are now covered above
 # (Keeping this comment for reference - these patterns are now handled by the comprehensive env rules above)
