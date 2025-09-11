@@ -49,7 +49,11 @@
   align-items: center;
   gap: var(--spacing-xl);
   flex: 1;
-  justify-content: center;
+  justify-content: flex-start; /* keep first items fully visible */
+  overflow-x: auto; /* allow horizontal scroll when many tabs */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  padding: var(--spacing-sm) 0; /* give the bar a bit more vertical room */
 }
 
 .navLink {

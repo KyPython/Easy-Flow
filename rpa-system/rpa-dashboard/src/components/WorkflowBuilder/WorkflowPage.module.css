@@ -1,23 +1,24 @@
-/* Modern Workflow Page - 2025 Design */
+/* Workflow Page - Following App Theme Structure */
 .workflowPage {
-  height: calc(100vh - 80px); /* Account for main app header */
+  padding: var(--spacing-2xl);
+  max-width: var(--container-max-width);
+  margin: 0 auto;
   background: var(--bg);
-  overflow: hidden;
-  position: relative;
 }
 
 /* Template Gallery Container */
 .templateGalleryContainer {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-secondary-50) 100%);
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
 }
 
 .galleryHeader {
   text-align: center;
-  padding: var(--spacing-3xl) var(--spacing-xl) var(--spacing-2xl);
-  background: linear-gradient(135deg, var(--surface) 0%, var(--color-primary-50) 100%);
+  padding: var(--spacing-2xl);
+  background: var(--surface);
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -25,66 +26,48 @@
   font-size: var(--font-size-4xl);
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
-  margin: 0 0 var(--spacing-md) 0;
-  font-family: var(--font-family-brand);
-  background: linear-gradient(135deg, var(--color-primary-600), var(--color-secondary-600));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  margin: 0 0 var(--spacing-sm) 0;
+  font-family: var(--font-family-secondary);
 }
 
 .galleryHeader p {
   font-size: var(--font-size-lg);
   color: var(--text-muted);
-  margin: 0 0 var(--spacing-2xl) 0;
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
-  line-height: 1.6;
+  margin: 0 0 var(--spacing-xl) 0;
 }
 
 .galleryActions {
   display: flex;
   justify-content: center;
-  gap: var(--spacing-lg);
+  gap: var(--spacing-md);
 }
 
 .createButton {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-lg) var(--spacing-2xl);
-  background: linear-gradient(135deg, var(--color-primary-600), var(--color-primary-700));
-  color: white;
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: var(--color-primary-600);
+  color: var(--on-primary);
   border: none;
-  border-radius: var(--radius-xl);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-lg);
-  position: relative;
-  overflow: hidden;
-}
-
-.createButton::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
 }
 
 .createButton:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-2xl);
+  background: var(--color-primary-700);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
-.createButton:hover::before {
-  left: 100%;
+.createButton:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* Loading and Error States */

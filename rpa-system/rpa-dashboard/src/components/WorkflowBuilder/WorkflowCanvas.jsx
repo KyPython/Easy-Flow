@@ -270,8 +270,8 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
         onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
+  proOptions={{ hideAttribution: true }}
         fitView
-        attributionPosition="bottom-left"
         className={styles.reactFlow}
       >
         <Controls className={styles.controls} />
@@ -281,6 +281,17 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
           maskColor="rgba(0, 0, 0, 0.1)"
         />
         <Background color="var(--color-primary-100)" gap={20} />
+        
+        {/* Empty State */}
+        {nodes.length === 0 && (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyStateContent}>
+              <h3>Start Building Your Workflow</h3>
+              <p>Click on any action from the toolbar to add your first step</p>
+              <div className={styles.emptyStateIcon}>🚀</div>
+            </div>
+          </div>
+        )}
         
         {/* Action Toolbar */}
         {!isReadOnly && (
