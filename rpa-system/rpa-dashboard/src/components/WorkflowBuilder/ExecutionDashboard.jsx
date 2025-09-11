@@ -101,7 +101,7 @@ const ExecutionDashboard = ({ workflowId, workflowName }) => {
         <div className={styles.header}>
           <div>
             <h3 className={styles.title}>Execution History</h3>
-            <p className={styles.subtitle}>Monitor "{workflowName}" executions</p>
+            <p className={styles.subtitle}>Monitor &quot;{workflowName}&quot; executions</p>
           </div>
         </div>
         <ErrorMessage message={error} />
@@ -114,7 +114,7 @@ const ExecutionDashboard = ({ workflowId, workflowName }) => {
       <div className={styles.header}>
         <div>
           <h3 className={styles.title}>Execution History</h3>
-          <p className={styles.subtitle}>Monitor "{workflowName}" executions</p>
+          <p className={styles.subtitle}>Monitor &quot;{workflowName}&quot; executions</p>
         </div>
         <div className={styles.headerActions}>
           <button className={styles.refreshButton} onClick={refreshExecutions}>
@@ -230,8 +230,8 @@ const ExecutionDashboard = ({ workflowId, workflowName }) => {
 // Removed duplicate inline ExecutionCard (using imported component instead)
 
 ExecutionDashboard.propTypes = {
-  workflowId: PropTypes.string,
-  workflowName: PropTypes.string
+  workflowId: PropTypes.string.isRequired,
+  workflowName: PropTypes.string.isRequired
 };
 
 const ExecutionDetailsModal = ({ execution, onClose }) => {
@@ -403,6 +403,31 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
       </div>
     </div>
   );
+};
+
+ExecutionDetailsModal.propTypes = {
+  execution: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    execution_number: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    status: PropTypes.string,
+    triggered_by: PropTypes.string,
+    started_at: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.instanceOf(Date)]),
+    completed_at: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.instanceOf(Date)]),
+    duration_seconds: PropTypes.number,
+    steps_executed: PropTypes.number,
+    steps_total: PropTypes.number,
+    error_message: PropTypes.string,
+    input_data: PropTypes.any,
+    output_data: PropTypes.any,
+    step_executions: PropTypes.arrayOf(PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+      step_name: PropTypes.string,
+      status: PropTypes.string,
+      duration_ms: PropTypes.number,
+      error_message: PropTypes.string
+    }))
+  }).isRequired,
+  onClose: PropTypes.func.isRequired
 };
 
 ExecutionDashboard.propTypes = {

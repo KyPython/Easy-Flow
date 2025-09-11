@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import PropTypes from 'prop-types';
 import styles from './TemplateGallery.module.css';
 import { 
   FaSearch, 
@@ -482,6 +483,47 @@ const TemplatePreviewModal = ({ template, onClose, onUse }) => {
       </div>
     </div>
   );
+};
+
+TemplateGallery.propTypes = {
+  onSelectTemplate: PropTypes.func.isRequired,
+  onClose: PropTypes.func.isRequired
+};
+
+TemplateCard.propTypes = {
+  template: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    thumbnail: PropTypes.string,
+    name: PropTypes.string.isRequired,
+    description: PropTypes.string,
+    author: PropTypes.string,
+    estimatedTime: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    usageCount: PropTypes.number,
+    complexity: PropTypes.string,
+    popularity: PropTypes.number,
+    category: PropTypes.string,
+    steps: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    tags: PropTypes.arrayOf(PropTypes.string)
+  }).isRequired,
+  onSelect: PropTypes.func.isRequired,
+  variant: PropTypes.oneOf(['normal', 'featured']),
+  viewMode: PropTypes.oneOf(['grid', 'list'])
+};
+
+TemplatePreviewModal.propTypes = {
+  template: PropTypes.shape({
+    thumbnail: PropTypes.string,
+    name: PropTypes.string.isRequired,
+    description: PropTypes.string,
+    category: PropTypes.string,
+    complexity: PropTypes.string,
+    estimatedTime: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    steps: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    author: PropTypes.string,
+    tags: PropTypes.arrayOf(PropTypes.string)
+  }).isRequired,
+  onClose: PropTypes.func.isRequired,
+  onUse: PropTypes.func.isRequired
 };
 
 export default TemplateGallery;

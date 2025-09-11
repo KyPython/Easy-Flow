@@ -72,7 +72,7 @@ const ScheduleManager = ({ workflowId, workflowName }) => {
         <div className={styles.header}>
           <div>
             <h3 className={styles.title}>Workflow Schedules</h3>
-            <p className={styles.subtitle}>Automate "{workflowName}" execution</p>
+            <p className={styles.subtitle}>Automate &quot;{workflowName}&quot; execution</p>
           </div>
         </div>
         <ErrorMessage message={error} />
@@ -85,7 +85,7 @@ const ScheduleManager = ({ workflowId, workflowName }) => {
       <div className={styles.header}>
         <div>
           <h3 className={styles.title}>Workflow Schedules</h3>
-          <p className={styles.subtitle}>Automate "{workflowName}" execution</p>
+          <p className={styles.subtitle}>Automate &quot;{workflowName}&quot; execution</p>
         </div>
         <button
           className={styles.createButton}
@@ -312,6 +312,27 @@ const ScheduleCard = ({ schedule, onEdit, onDelete, onTrigger, onViewHistory }) 
   );
 };
 
+ScheduleCard.propTypes = {
+  schedule: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    name: PropTypes.string.isRequired,
+    schedule_type: PropTypes.oneOf(['cron', 'interval', 'webhook']).isRequired,
+    cron_expression: PropTypes.string,
+    interval_seconds: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    timezone: PropTypes.string,
+    is_active: PropTypes.bool,
+    execution_count: PropTypes.number,
+    webhook_url: PropTypes.string,
+    last_triggered_at: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.instanceOf(Date)]),
+    next_trigger_at: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.instanceOf(Date)]),
+    max_executions: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+  }).isRequired,
+  onEdit: PropTypes.func.isRequired,
+  onDelete: PropTypes.func.isRequired,
+  onTrigger: PropTypes.func.isRequired,
+  onViewHistory: PropTypes.func.isRequired
+};
+
 const ScheduleModal = ({ title, schedule, onSave, onClose }) => {
   const [formData, setFormData] = useState({
     name: schedule?.name || '',
@@ -536,6 +557,22 @@ const ScheduleModal = ({ title, schedule, onSave, onClose }) => {
   );
 };
 
+ScheduleModal.propTypes = {
+  title: PropTypes.string.isRequired,
+  schedule: PropTypes.shape({
+    name: PropTypes.string,
+    schedule_type: PropTypes.oneOf(['cron', 'interval', 'webhook']),
+    cron_expression: PropTypes.string,
+    interval_seconds: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    timezone: PropTypes.string,
+    max_executions: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    webhook_secret: PropTypes.string,
+    is_active: PropTypes.bool
+  }),
+  onSave: PropTypes.func.isRequired,
+  onClose: PropTypes.func.isRequired
+};
+
 const ExecutionHistoryModal = ({ schedule, onClose }) => {
   const [executions, setExecutions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -630,6 +667,14 @@ const ExecutionHistoryModal = ({ schedule, onClose }) => {
       </div>
     </div>
   );
+};
+
+ExecutionHistoryModal.propTypes = {
+  schedule: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    name: PropTypes.string
+  }).isRequired,
+  onClose: PropTypes.func.isRequired
 };
 
 ScheduleManager.propTypes = {
