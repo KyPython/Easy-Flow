@@ -2,9 +2,9 @@
   "version": 2,
   "name": "easyflow-dashboard",
   "framework": null,
-  "installCommand": "npm ci",
-  "buildCommand": "npx react-scripts build",
-  "outputDirectory": "build",
+  "installCommand": "cd rpa-dashboard && npm ci",
+  "buildCommand": "cd rpa-dashboard && DISABLE_ESLINT_PLUGIN=true npm run build",
+  "outputDirectory": "rpa-dashboard/build",
   "headers": [
     {
       "source": "/(.*)",
