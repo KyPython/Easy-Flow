@@ -1,0 +1,181 @@
+/* Modern Error Boundary - 2025 Design */
+.errorBoundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: var(--spacing-2xl);
+  background: var(--bg);
+}
+
+.errorContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 500px;
+  width: 100%;
+  padding: var(--spacing-2xl);
+  background: var(--surface);
+  border: 1px solid var(--color-error-200);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-xl);
+}
+
+.errorIcon {
+  font-size: 4rem;
+  color: var(--color-error-500);
+  margin-bottom: var(--spacing-lg);
+  animation: pulse 2s infinite;
+}
+
+.errorTitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-md) 0;
+  font-family: var(--font-family-brand);
+}
+
+.errorMessage {
+  font-size: var(--font-size-base);
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 var(--spacing-xl) 0;
+}
+
+.errorActions {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.errorDetails {
+  margin-top: var(--spacing-xl);
+  width: 100%;
+  text-align: left;
+}
+
+.errorDetails summary {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-error-600);
+  cursor: pointer;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.errorDetails summary:hover {
+  background: var(--color-error-50);
+}
+
+.errorStack {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-error-50);
+  border: 1px solid var(--color-error-200);
+  border-radius: var(--radius-lg);
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: var(--font-size-xs);
+  color: var(--color-error-700);
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+/* Custom Scrollbar */
+.errorStack::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.errorStack::-webkit-scrollbar-track {
+  background: var(--color-error-100);
+  border-radius: var(--radius-full);
+}
+
+.errorStack::-webkit-scrollbar-thumb {
+  background: var(--color-error-300);
+  border-radius: var(--radius-full);
+}
+
+.errorStack::-webkit-scrollbar-thumb:hover {
+  background: var(--color-error-400);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .errorBoundary {
+    padding: var(--spacing-lg);
+    min-height: 300px;
+  }
+
+  .errorContent {
+    padding: var(--spacing-lg);
+  }
+
+  .errorIcon {
+    font-size: 3rem;
+  }
+
+  .errorTitle {
+    font-size: var(--font-size-lg);
+  }
+
+  .errorMessage {
+    font-size: var(--font-size-sm);
+  }
+
+  .errorActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 480px) {
+  .errorBoundary {
+    padding: var(--spacing-md);
+  }
+
+  .errorContent {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-xl);
+  }
+
+  .errorIcon {
+    font-size: 2.5rem;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .errorContent {
+    border-width: 2px;
+  }
+
+  .errorStack {
+    border-width: 2px;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .errorIcon {
+    animation: none;
+  }
+}

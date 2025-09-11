@@ -39,6 +39,7 @@
     "kafkajs": "^2.2.4",
     "morgan": "^1.10.1",
     "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
     "nodemailer": "^7.0.6",
     "react-router-dom": "^7.8.2",
     "uuid": "^9.0.1"

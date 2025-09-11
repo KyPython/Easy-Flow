@@ -4,6 +4,24 @@
 /* Import enhanced theme variables */
 @import './theme.css';
 
+/* Import workflow component styles */
+@import './components/WorkflowBuilder/WorkflowBuilder.module.css';
+@import './components/WorkflowBuilder/TemplateGallery.module.css';
+@import './components/WorkflowBuilder/SearchBar.module.css';
+@import './components/WorkflowBuilder/ExecutionCard.module.css';
+@import './components/WorkflowBuilder/ScheduleCard.module.css';
+@import './components/WorkflowBuilder/Modal.module.css';
+@import './components/WorkflowBuilder/LoadingSpinner.module.css';
+@import './components/WorkflowBuilder/FormField.module.css';
+@import './components/WorkflowBuilder/WorkflowPage.module.css';
+@import './components/WorkflowBuilder/ActionButton.module.css';
+@import './components/WorkflowBuilder/ProgressBar.module.css';
+@import './components/WorkflowBuilder/ConfirmDialog.module.css';
+@import './components/WorkflowBuilder/WorkflowSummary.module.css';
+@import './components/WorkflowBuilder/Toast.module.css';
+@import './components/WorkflowBuilder/ErrorBoundary.module.css';
+@import './components/WorkflowBuilder/Tooltip.module.css';
+
 :root {
   font-synthesis: none;
   text-rendering: optimizeLegibility;

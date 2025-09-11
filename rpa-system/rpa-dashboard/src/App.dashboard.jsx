@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import { LanguageProvider } from './utils/LanguageContext';
 import SettingsPage from './pages/SettingsPage';
+import WorkflowPage from './components/WorkflowBuilder/WorkflowPage';
 import SharedFilePage from './pages/SharedFilePage';
 import Chatbot from './components/Chatbot/Chatbot';
 import './utils/firebaseConfig';
@@ -70,6 +71,12 @@ function Shell() {
           <Route path="/app/history" element={<Protected><HistoryPage /></Protected>} />
           <Route path="/app/files" element={<Protected><FilesPage /></Protected>} />
           <Route path="/app/settings" element={<Protected><SettingsPage /></Protected>} />
+          <Route path="/app/workflows" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/builder" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/templates" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/schedules" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/executions" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/:workflowId/*" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

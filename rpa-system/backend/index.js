@@ -15,6 +15,9 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 // Debug environment variables for deployment troubleshooting
 require('./debug-env');
 
+// Import trigger system
+const { TriggerService } = require('./services/triggerService');
+
 const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  const morgan = require('morgan');
@@ -26,6 +29,9 @@ const app = express();
 const PORT = process.env.PORT || 3030;
 // Build / deploy identifier (update automatically when patched)
 const BACKEND_BUILD_ID = 'backend-index-v2-notifications-route+safe-preferences-upsert';
+
+// Initialize trigger service
+const triggerService = new TriggerService();
 
 // Add after imports, before route definitions (around line 100)
 
@@ -365,6 +371,26 @@ app.get('/', (_req, res) => {
     }
     return res.type('text').send('Landing page not available');
 });
+
+// Import and setup workflow automation routes
+const webhookRoutes = require('./routes/webhookRoutes');
+const scheduleRoutes = require('./routes/scheduleRoutes');
+
+// Mount webhook routes (no auth middleware - handles its own)
+app.use('/api/webhooks', webhookRoutes);
+
+// Mount schedule routes (protected)
+app.use('/api/schedules', authMiddleware, scheduleRoutes);
+
+// Initialize trigger service
+(async () => {
+  try {
+    await triggerService.initialize();
+    console.log('[Backend] Automation trigger system initialized');
+  } catch (error) {
+    console.error('[Backend] Failed to initialize trigger system:', error);
+  }
+})();
 
 // Start embedded background workers after routes and middleware have been declared
 if ((process.env.ENABLE_EMAIL_WORKER || 'true').toLowerCase() === 'true') {
@@ -2243,6 +2269,26 @@ app.use((err, _req, res, _next) => {
 
 // Export the app for testing
 module.exports = app;
+
+// Graceful shutdown handler
+const gracefulShutdown = async (signal) => {
+  console.log(`\n[Backend] Received ${signal}, starting graceful shutdown...`);
+  
+  try {
+    // Stop trigger service
+    await triggerService.shutdown();
+    
+    console.log('[Backend] Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    console.error('[Backend] Error during shutdown:', error);
+    process.exit(1);
+  }
+};
+
+// Register shutdown handlers
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Start server only if this file is run directly (not imported)
 if (require.main === module) {

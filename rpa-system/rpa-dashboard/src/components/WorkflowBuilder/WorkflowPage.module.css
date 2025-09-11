@@ -1,0 +1,133 @@
+/* Modern Workflow Page - 2025 Design */
+.workflowPage {
+  height: calc(100vh - 80px); /* Account for main app header */
+  background: var(--bg);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Template Gallery Container */
+.templateGalleryContainer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-secondary-50) 100%);
+}
+
+.galleryHeader {
+  text-align: center;
+  padding: var(--spacing-3xl) var(--spacing-xl) var(--spacing-2xl);
+  background: linear-gradient(135deg, var(--surface) 0%, var(--color-primary-50) 100%);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.galleryHeader h1 {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-md) 0;
+  font-family: var(--font-family-brand);
+  background: linear-gradient(135deg, var(--color-primary-600), var(--color-secondary-600));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.galleryHeader p {
+  font-size: var(--font-size-lg);
+  color: var(--text-muted);
+  margin: 0 0 var(--spacing-2xl) 0;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+}
+
+.galleryActions {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-lg);
+}
+
+.createButton {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg) var(--spacing-2xl);
+  background: linear-gradient(135deg, var(--color-primary-600), var(--color-primary-700));
+  color: white;
+  border: none;
+  border-radius: var(--radius-xl);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.createButton::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.createButton:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2xl);
+}
+
+.createButton:hover::before {
+  left: 100%;
+}
+
+/* Loading and Error States */
+.workflowPage > div {
+  height: 100%;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .galleryHeader {
+    padding: var(--spacing-2xl) var(--spacing-lg) var(--spacing-xl);
+  }
+
+  .galleryHeader h1 {
+    font-size: var(--font-size-3xl);
+  }
+
+  .galleryHeader p {
+    font-size: var(--font-size-base);
+  }
+
+  .galleryActions {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .createButton {
+    padding: var(--spacing-md) var(--spacing-xl);
+    font-size: var(--font-size-base);
+  }
+}
+
+@media (max-width: 480px) {
+  .galleryHeader {
+    padding: var(--spacing-xl) var(--spacing-md);
+  }
+
+  .galleryHeader h1 {
+    font-size: var(--font-size-2xl);
+  }
+
+  .createButton {
+    width: 100%;
+    justify-content: center;
+  }
+}

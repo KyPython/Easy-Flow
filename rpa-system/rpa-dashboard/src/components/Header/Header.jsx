@@ -55,7 +55,8 @@ const Header = ({ user }) => {
               isActive('/app') &&
               !isActive('/app/tasks') &&
               !isActive('/app/history') &&
-              !isActive('/app/files')
+              !isActive('/app/files') &&
+              !isActive('/app/workflows')
                 ? styles.activeNavLink
                 : ''
             }`}
@@ -88,6 +89,15 @@ const Header = ({ user }) => {
             }`}
           >
             {t('nav.files','Files')}
+          </Link>
+
+          <Link
+            to="/app/workflows"
+            className={`${styles.navLink} ${
+              isActive('/app/workflows') ? styles.activeNavLink : ''
+            }`}
+          >
+            {t('nav.workflows','Workflows')}
           </Link>
         </nav>
 
