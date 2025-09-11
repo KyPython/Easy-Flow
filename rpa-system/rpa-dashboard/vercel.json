@@ -2,7 +2,7 @@
   "version": 2,
   "name": "easyflow-dashboard",
   "framework": null,
-  "installCommand": "npm ci",
+  "installCommand": "cd rpa-dashboard && npm ci --include=dev",
   "buildCommand": "DISABLE_ESLINT_PLUGIN=true npm run build",
   "outputDirectory": "build",
   "headers": [
