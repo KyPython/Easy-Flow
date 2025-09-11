@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
 
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE
     );
 
     const { data: schedules, error } = await supabase
@@ -58,7 +58,7 @@ router.get('/:scheduleId', async (req, res) => {
 
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE
     );
 
     const { data: schedule, error } = await supabase
@@ -130,7 +130,7 @@ router.post('/', async (req, res) => {
     // Verify workflow ownership
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE
     );
 
     const { data: workflow, error: workflowError } = await supabase
@@ -241,7 +241,7 @@ router.put('/:scheduleId', async (req, res) => {
 
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE
     );
 
     // Verify ownership
@@ -314,7 +314,7 @@ router.delete('/:scheduleId', async (req, res) => {
 
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE
     );
 
     // Verify ownership
@@ -351,7 +351,7 @@ router.post('/:scheduleId/trigger', async (req, res) => {
 
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE
     );
 
     // Get schedule
@@ -408,7 +408,7 @@ router.get('/:scheduleId/executions', async (req, res) => {
 
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE
     );
 
     // Verify schedule ownership
