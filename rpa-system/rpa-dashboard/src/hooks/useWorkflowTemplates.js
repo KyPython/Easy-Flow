@@ -1,5 +1,84 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../utils/supabaseClient';
+
+// Mock templates for demo purposes
+const mockTemplates = [
+  {
+    id: 'template-1',
+    name: 'Email Marketing Automation',
+    description: 'Automated email sequences for lead nurturing, welcome series, and customer onboarding.',
+    category: 'email_marketing',
+    rating: 4.8,
+    usage_count: 1250,
+    author: 'KyJahn Smith',
+    tags: ['email', 'marketing', 'automation'],
+    estimated_time: '15 minutes',
+    complexity: 'Medium',
+    steps: 7,
+    is_public: true,
+    is_featured: true
+  },
+  {
+    id: 'template-2',
+    name: 'Web Data Scraping & Processing',
+    description: 'Automatically scrape product data, prices, or content from websites.',
+    category: 'web_automation',
+    rating: 4.6,
+    usage_count: 980,
+    author: 'KyJahn Smith',
+    tags: ['scraping', 'data', 'web'],
+    estimated_time: '18 minutes',
+    complexity: 'Medium',
+    steps: 9,
+    is_public: true,
+    is_featured: true
+  },
+  {
+    id: 'template-3',
+    name: 'Web Scraping Automation',
+    description: 'Extract data from websites automatically',
+    category: 'web_automation',
+    rating: 4.2,
+    usage_count: 750,
+    author: 'KyJahn Smith',
+    tags: ['web', 'scraping', 'data'],
+    estimated_time: '12 minutes',
+    complexity: 'Easy',
+    steps: 6,
+    is_public: true,
+    is_featured: false
+  },
+  {
+    id: 'template-4',
+    name: 'File Processing & Upload',
+    description: 'Automatically process and organize uploaded files',
+    category: 'file_management',
+    rating: 4.4,
+    usage_count: 650,
+    author: 'KyJahn Smith',
+    tags: ['file', 'upload', 'processing'],
+    estimated_time: '10 minutes',
+    complexity: 'Easy',
+    steps: 5,
+    is_public: true,
+    is_featured: false
+  },
+  {
+    id: 'template-5',
+    name: 'API Integration Workflow',
+    description: 'Connect and sync data between different services',
+    category: 'api_integration',
+    rating: 4.7,
+    usage_count: 890,
+    author: 'KyJahn Smith',
+    tags: ['api', 'integration', 'sync'],
+    estimated_time: '18 minutes',
+    complexity: 'Medium',
+    steps: 9,
+    is_public: true,
+    is_featured: true
+  }
+];
 
 export const useWorkflowTemplates = () => {
   const [templates, setTemplates] = useState([]);
@@ -96,135 +175,11 @@ export const useWorkflowTemplates = () => {
         template.id
       ) : [];
 
-  // If no templates found, show fallback templates for better UX
+      // If no templates found, show fallback templates for better UX
       if (data.length === 0) {
         console.log('No database templates found, using fallback templates');
-        setTemplates([
-          {
-            id: 'template-1',
-            name: 'Email Marketing Automation',
-            description: 'Automated email sequences for lead nurturing, welcome series, and customer onboarding. Triggers emails based on user actions and engagement.',
-            category: 'email_marketing',
-            rating: 0.0,
-            usage_count: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            author: 'KyJahn Smith',
-            tags: ['email', 'marketing', 'automation', 'nurturing', 'leads'],
-            estimated_time: '15 minutes',
-            complexity: 'Medium',
-            steps: 7,
-            is_public: true,
-            is_featured: true,
-            template_config: {
-              nodes: [
-                {id: "start", type: "start", position: {x: 100, y: 100}},
-                {id: "trigger", type: "condition", position: {x: 100, y: 200}, data: {label: "User Signup"}},
-                {id: "delay", type: "action", position: {x: 100, y: 300}, data: {action_type: "delay", label: "Wait 1 Hour"}},
-                {id: "email1", type: "action", position: {x: 100, y: 400}, data: {action_type: "email", label: "Welcome Email"}},
-                {id: "delay2", type: "action", position: {x: 100, y: 500}, data: {action_type: "delay", label: "Wait 3 Days"}},
-                {id: "email2", type: "action", position: {x: 100, y: 600}, data: {action_type: "email", label: "Follow-up Email"}},
-                {id: "end", type: "end", position: {x: 100, y: 700}}
-              ],
-              edges: [
-                {id: "e1", source: "start", target: "trigger"},
-                {id: "e2", source: "trigger", target: "delay"},
-                {id: "e3", source: "delay", target: "email1"},
-                {id: "e4", source: "email1", target: "delay2"},
-                {id: "e5", source: "delay2", target: "email2"},
-                {id: "e6", source: "email2", target: "end"}
-              ]
-            }
-          },
-          {
-            id: 'template-2',
-            name: 'Web Data Scraping & Processing',
-            description: 'Automatically scrape product data, prices, or content from websites. Includes data cleaning, transformation, and storage.',
-            category: 'web_automation',
-            rating: 0.0,
-            usage_count: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            author: 'KyJahn Smith',
-            tags: ['scraping', 'data', 'web', 'extraction', 'monitoring'],
-            estimated_time: '18 minutes',
-            complexity: 'Medium',
-            steps: 9,
-            is_public: true,
-            is_featured: true,
-            template_config: {
-              nodes: [
-                {id: "start", type: "start", position: {x: 100, y: 100}},
-                {id: "scrape", type: "action", position: {x: 100, y: 200}, data: {action_type: "web_scrape", label: "Scrape Website"}},
-                {id: "transform", type: "action", position: {x: 100, y: 300}, data: {action_type: "data_transform", label: "Clean Data"}},
-                {id: "condition", type: "condition", position: {x: 100, y: 400}, data: {label: "Data Valid?"}},
-                {id: "store", type: "action", position: {x: 200, y: 500}, data: {action_type: "api_call", label: "Store Data"}},
-                {id: "error", type: "action", position: {x: 0, y: 500}, data: {action_type: "email", label: "Send Error Alert"}},
-                {id: "end", type: "end", position: {x: 100, y: 600}}
-              ],
-              edges: [
-                {id: "e1", source: "start", target: "scrape"},
-                {id: "e2", source: "scrape", target: "transform"},
-                {id: "e3", source: "transform", target: "condition"},
-                {id: "e4", source: "condition", target: "store", data: {condition: "valid"}},
-                {id: "e5", source: "condition", target: "error", data: {condition: "invalid"}},
-                {id: "e6", source: "store", target: "end"},
-                {id: "e7", source: "error", target: "end"}
-              ]
-            }
-          },
-          {
-            id: 'template-3',
-            name: 'Web Scraping Automation',
-            description: 'Extract data from websites automatically',
-            category: 'web_automation',
-            rating: 0.0,
-            usage_count: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            author: 'KyJahn Smith',
-            tags: ['web', 'scraping', 'data'],
-            estimated_time: '12 minutes',
-            complexity: 'Easy',
-            steps: 6,
-            is_public: true,
-            is_featured: false
-          },
-          {
-            id: 'template-4',
-            name: 'File Processing & Upload',
-            description: 'Automatically process and organize uploaded files',
-            category: 'file_management',
-            rating: 0.0,
-            usage_count: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            author: 'KyJahn Smith',
-            tags: ['file', 'upload', 'processing'],
-            estimated_time: '10 minutes',
-            complexity: 'Easy',
-            steps: 5,
-            is_public: true,
-            is_featured: false
-          },
-          {
-            id: 'template-5',
-            name: 'API Integration Workflow',
-            description: 'Connect and sync data between different services',
-            category: 'api_integration',
-            rating: 0.0,
-            usage_count: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            author: 'KyJahn Smith',
-            tags: ['api', 'integration', 'sync'],
-            estimated_time: '18 minutes',
-            complexity: 'Medium',
-            steps: 9,
-            is_public: true,
-            is_featured: true
-          }
-        ]);
+        setTemplates(mockTemplates);
+        setTotal(mockTemplates.length);
       } else {
         setTemplates(data);
         if (typeof count === 'number') setTotal(count);
@@ -235,44 +190,8 @@ export const useWorkflowTemplates = () => {
       console.error('Error loading templates:', err);
       setError(err.message);
       // Provide fallback templates if database is not set up
-      setTemplates([
-        {
-          id: 'template-1',
-          name: 'Email Automation Workflow',
-          description: 'Automatically send personalized emails based on user actions',
-          category: 'email_marketing',
-          popularity: 95,
-          usage_count: 1250,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          author: 'EasyFlow Team',
-          tags: ['email', 'automation', 'marketing'],
-          estimated_time: '15 minutes',
-          complexity: 'Medium',
-          thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=300&fit=crop',
-          steps: 8,
-          is_public: true,
-          is_featured: true
-        },
-        {
-          id: 'template-2',
-          name: 'Data Processing Pipeline',
-          description: 'Process and transform data from multiple sources',
-          category: 'data_processing',
-          popularity: 87,
-          usage_count: 892,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          author: 'EasyFlow Team',
-          tags: ['data', 'processing', 'automation'],
-          estimated_time: '20 minutes',
-          complexity: 'Medium',
-          thumbnail: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=300&fit=crop',
-          steps: 12,
-          is_public: true,
-          is_featured: true
-        }
-      ]);
+      setTemplates(mockTemplates);
+      setTotal(mockTemplates.length);
     } finally {
       setLoading(false);
     }
@@ -351,6 +270,15 @@ export const useWorkflowTemplates = () => {
   // Get template details
   const getTemplateDetails = async (templateId) => {
     try {
+      // Handle demo/mock template IDs (template-1, template-2, etc.)
+      if (templateId.startsWith('template-')) {
+        const mockTemplate = mockTemplates.find(t => t.id === templateId);
+        if (mockTemplate) {
+          return mockTemplate;
+        }
+        // If not found in mock templates, it might be an actual UUID with template- prefix
+      }
+
       // If it's a workflow-based template, get workflow details
       if (templateId.startsWith('workflow-')) {
         const workflowId = templateId.replace('workflow-', '');
@@ -366,6 +294,12 @@ export const useWorkflowTemplates = () => {
 
         if (error) throw error;
         return data;
+      }
+
+      // Validate UUID format before querying database
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(templateId)) {
+        throw new Error(`Invalid template ID format: ${templateId}`);
       }
 
       // Otherwise get from templates table plus versions

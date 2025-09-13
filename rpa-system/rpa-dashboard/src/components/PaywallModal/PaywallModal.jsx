@@ -134,7 +134,7 @@ const PaywallModal = ({
 
           {/* Features List */}
           <div className={styles.featuresSection}>
-            <h3>What you'll get:</h3>
+            <h3>What you&apos;ll get:</h3>
             <ul className={styles.featuresList}>
               {getPlanFeatures().map((feature, index) => (
                 <li key={index} className={styles.featureItem}>

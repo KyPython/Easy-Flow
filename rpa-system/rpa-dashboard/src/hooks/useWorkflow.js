@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../utils/supabaseClient';
 
 export const useWorkflow = (workflowId) => {
   const [workflow, setWorkflow] = useState(null);

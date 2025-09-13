@@ -7,7 +7,7 @@ import { useSchedules } from '../../hooks/useSchedules';
 import ErrorMessage from '../ErrorMessage';
 import LoadingSpinner from './LoadingSpinner';
 // Remove unused/duplicate imports: ScheduleCard (we define local), Modal, FormField, ConfirmDialog, ActionButton
-import { supabase } from '../../utils/supabase';
+import { supabase } from '../../utils/supabaseClient';
 
 const ScheduleManager = ({ workflowId, workflowName }) => {
   const { schedules, loading, error, createSchedule, updateSchedule, deleteSchedule, triggerSchedule, refreshSchedules } = useSchedules(workflowId);

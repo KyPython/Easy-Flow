@@ -3,7 +3,7 @@ const { createClient } = require('@supabase/supabase-js');
 // Initialize Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE
 );
 
 /**
@@ -37,6 +37,21 @@ const getUserPlan = async (userId) => {
 // Middleware: Check if user can create workflow
 const requireWorkflowCreation = async (req, res, next) => {
   try {
+    // Development bypass - full access on localhost
+    if (process.env.NODE_ENV === 'development' || 
+        req.hostname === 'localhost' || 
+        req.hostname === '127.0.0.1' ||
+        process.env.BYPASS_PLAN_LIMITS === 'true') {
+      console.log('🚀 Development mode: Bypassing plan limits for workflow creation');
+      req.planData = {
+        plan: { name: 'Development', id: 'dev' },
+        limits: { workflows: -1, monthly_runs: -1, storage_gb: -1 },
+        can_create_workflow: true,
+        can_run_automation: true
+      };
+      return next();
+    }
+
     const userId = req.user?.id;
     
     if (!userId) {
@@ -67,6 +82,21 @@ const requireWorkflowCreation = async (req, res, next) => {
 // Middleware: Check if user can run automation
 const requireAutomationRun = async (req, res, next) => {
   try {
+    // Development bypass - full access on localhost
+    if (process.env.NODE_ENV === 'development' || 
+        req.hostname === 'localhost' || 
+        req.hostname === '127.0.0.1' ||
+        process.env.BYPASS_PLAN_LIMITS === 'true') {
+      console.log('🚀 Development mode: Bypassing plan limits for automation runs');
+      req.planData = {
+        plan: { name: 'Development', id: 'dev' },
+        limits: { workflows: -1, monthly_runs: -1, storage_gb: -1 },
+        can_create_workflow: true,
+        can_run_automation: true
+      };
+      return next();
+    }
+
     const userId = req.user?.id;
     
     if (!userId) {

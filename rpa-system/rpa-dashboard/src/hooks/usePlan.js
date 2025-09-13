@@ -1,9 +1,9 @@
-import { useState, useEffect, useContext } from 'react';
-import { AuthContext } from '../contexts/AuthContext';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../utils/AuthContext';
 import { supabase } from '../utils/supabaseClient';
 
 export const usePlan = () => {
-  const { user } = useContext(AuthContext);
+  const { user } = useAuth();
   const [planData, setPlanData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,6 +17,41 @@ export const usePlan = () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Development bypass - unlimited access on localhost
+      const isLocalhost = window.location.hostname === 'localhost' || 
+                         window.location.hostname === '127.0.0.1' ||
+                         process.env.NODE_ENV === 'development';
+      
+      if (isLocalhost) {
+        console.log('🚀 Development mode: Using unlimited plan access');
+        setPlanData({
+          plan: {
+            id: 'development',
+            name: 'Development',
+            status: 'active',
+            expires_at: null,
+            is_trial: false
+          },
+          usage: {
+            monthly_runs: 0,
+            storage_bytes: 0,
+            storage_gb: 0
+          },
+          limits: {
+            workflows: -1, // Unlimited
+            monthly_runs: -1, // Unlimited
+            storage_gb: -1, // Unlimited
+            team_members: -1,
+            advanced_features: true,
+            priority_support: true
+          },
+          can_create_workflow: true,
+          can_run_automation: true
+        });
+        setLoading(false);
+        return;
+      }
 
       // Call the Supabase function to get complete plan details
       const { data, error: rpcError } = await supabase

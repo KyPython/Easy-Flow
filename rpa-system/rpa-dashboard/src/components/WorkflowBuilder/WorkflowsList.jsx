@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '../../utils/supabaseClient';
 import styles from './WorkflowsList.module.css';
 import LoadingSpinner from './LoadingSpinner';
 import ActionButton from './ActionButton';
@@ -16,6 +16,7 @@ import {
   FaArchive,
   FaLayerGroup
 } from 'react-icons/fa';
+import PropTypes from 'prop-types';
 
 const WorkflowsList = () => {
   const navigate = useNavigate();
@@ -282,6 +283,23 @@ const WorkflowCard = ({ workflow, onEdit, onRun, onDelete }) => {
       </div>
     </div>
   );
+};
+
+WorkflowCard.propTypes = {
+  workflow: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    name: PropTypes.string.isRequired,
+    description: PropTypes.string,
+    status: PropTypes.string,
+    created_at: PropTypes.string,
+    updated_at: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.instanceOf(Date)]),
+    total_executions: PropTypes.number,
+    successful_executions: PropTypes.number,
+    failed_executions: PropTypes.number,
+  }).isRequired,
+  onEdit: PropTypes.func.isRequired,
+  onRun: PropTypes.func.isRequired,
+  onDelete: PropTypes.func.isRequired,
 };
 
 export default WorkflowsList;

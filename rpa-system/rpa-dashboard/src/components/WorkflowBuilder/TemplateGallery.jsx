@@ -121,7 +121,6 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
   // Load from server whenever filters change
   useEffect(() => {
     setPage(1); // reset page when filters change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, selectedCategory, sortBy]);
 
   useEffect(() => {
@@ -222,127 +221,109 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
         </div>
       </div>
 
-      {/* Filters Panel */}
-      {showFilters && (
-        <div className={styles.filtersPanel}>
-          <div className={styles.filterGroup}>
-            <label className={styles.filterLabel}>Category</label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className={styles.filterSelect}
-            >
-              {categories.map(category => (
-                <option key={category.value} value={category.value}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {/* Featured Templates */}
-      {featuredTemplates.length > 0 && searchQuery === '' && selectedCategory === 'all' && (
-        <div className={styles.featuredSection}>
-          <h3 className={styles.sectionTitle}>
-            <FaStar className={styles.sectionIcon} />
-            Featured Templates
-          </h3>
-          <div className={styles.featuredGrid}>
-            {featuredTemplates.map(template => (
-              <TemplateCard
-                key={template.id}
-                template={template}
-                onSelect={(t) => setSelected(t.id)}
-                variant="featured"
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* All Templates */}
-      <div className={styles.templatesSection}>
-        <div className={styles.sectionHeader}>
-          <h3 className={styles.sectionTitle}>
-            All Templates ({typeof total === 'number' ? total : filteredAndSortedTemplates.length})
-          </h3>
-        </div>
-
-        {filteredAndSortedTemplates.length === 0 ? (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}>📋</div>
-            <h4>No templates found</h4>
-            <p>Try adjusting your search or filter criteria</p>
-          </div>
-        ) : viewMode === 'grid' && filteredAndSortedTemplates.length > 20 ? (
-          <>
-            <VirtualizedGrid
-              items={filteredAndSortedTemplates}
-              renderItem={(template, index) => (
-                <TemplateCard
-                  key={template.id}
-                  template={template}
-                  onSelect={(t) => setSelected(t.id)}
-                  viewMode={viewMode}
-                />
-              )}
-              itemHeight={320}
-              itemWidth={300}
-              gap={24}
-              containerHeight={600}
-              className={styles.virtualizedGrid}
-              loading={loading}
-              loadingComponent={<SkeletonGrid count={6} />}
-            />
-          </>
-        ) : (
-          <>
-            <div className={`${styles.templatesGrid} ${styles[viewMode]}`}>
-              {filteredAndSortedTemplates.map(template => (
-                <TemplateCard
-                  key={template.id}
-                  template={template}
-                  onSelect={(t) => setSelected(t.id)}
-                  viewMode={viewMode}
-                />
-              ))}
+      {/* Scrollable body */}
+      <div className={styles.galleryBody}>
+        {/* Filters Panel */}
+        {showFilters && (
+          <div className={styles.filtersPanel}>
+            <div className={styles.filterGroup}>
+              <label className={styles.filterLabel}>Category</label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className={styles.filterSelect}
+              >
+                {categories.map(category => (
+                  <option key={category.value} value={category.value}>
+                    {category.label}
+                  </option>
+                ))}
+              </select>
             </div>
-
-            {/* Pagination Controls */}
-            <div className={styles.pagination}>
-              <div className={styles.pageInfo}>
-                Page {page} {typeof total === 'number' && total >= 0 && pageSize > 0 ? `of ${Math.max(1, Math.ceil(total / pageSize))}` : ''}
-              </div>
-              <div className={styles.pageControls}>
-                <button
-                  className={styles.pageButton}
-                  disabled={page <= 1}
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                >
-                  Previous
-                </button>
-                <button
-                  className={styles.pageButton}
-                  disabled={typeof total === 'number' ? page >= Math.ceil(total / pageSize) : filteredAndSortedTemplates.length < pageSize}
-                  onClick={() => setPage(page + 1)}
-                >
-                  Next
-                </button>
-                <select
-                  className={styles.pageSizeSelect}
-                  value={pageSize}
-                  onChange={(e) => setPageSize(parseInt(e.target.value, 10) || 24)}
-                >
-                  {[12, 24, 48, 96].map(sz => (
-                    <option key={sz} value={sz}>{sz} / page</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </>
+          </div>
         )}
+
+        {/* Featured Templates */}
+        {featuredTemplates.length > 0 && searchQuery === '' && selectedCategory === 'all' && (
+          <div className={styles.featuredSection}>
+            <h3 className={styles.sectionTitle}>
+              <FaStar className={styles.sectionIcon} />
+              Featured Templates
+            </h3>
+            <div className={styles.featuredGrid}>
+              {featuredTemplates.map(template => (
+                <TemplateCard
+                  key={template.id}
+                  template={template}
+                  onSelect={(t) => setSelected(t.id)}
+                  variant="featured"
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* All Templates */}
+        <div className={styles.templatesSection}>
+          <div className={styles.sectionHeader}>
+            <h3 className={styles.sectionTitle}>
+              All Templates ({typeof total === 'number' ? total : filteredAndSortedTemplates.length})
+            </h3>
+          </div>
+
+          {filteredAndSortedTemplates.length === 0 ? (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyIcon}>📋</div>
+              <h4>No templates found</h4>
+              <p>Try adjusting your search or filter criteria</p>
+            </div>
+          ) : (
+            <>
+              <div className={`${styles.templatesGrid} ${styles[viewMode]}`}>
+                {filteredAndSortedTemplates.map(template => (
+                  <TemplateCard
+                    key={template.id}
+                    template={template}
+                    onSelect={(t) => setSelected(t.id)}
+                    viewMode={viewMode}
+                  />
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              <div className={styles.pagination}>
+                <div className={styles.pageInfo}>
+                  Page {page} {typeof total === 'number' && total >= 0 && pageSize > 0 ? `of ${Math.max(1, Math.ceil(total / pageSize))}` : ''}
+                </div>
+                <div className={styles.pageControls}>
+                  <button
+                    className={styles.pageButton}
+                    disabled={page <= 1}
+                    onClick={() => setPage(Math.max(1, page - 1))}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    className={styles.pageButton}
+                    disabled={typeof total === 'number' ? page >= Math.ceil(total / pageSize) : filteredAndSortedTemplates.length < pageSize}
+                    onClick={() => setPage(page + 1)}
+                  >
+                    Next
+                  </button>
+                  <select
+                    className={styles.pageSizeSelect}
+                    value={pageSize}
+                    onChange={(e) => setPageSize(parseInt(e.target.value, 10) || 24)}
+                  >
+                    {[12, 24, 48, 96].map(sz => (
+                      <option key={sz} value={sz}>{sz} / page</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

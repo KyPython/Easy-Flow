@@ -17,9 +17,13 @@ import CustomNode from './CustomNode';
 import StepConfigPanel from './StepConfigPanel';
 import { useWorkflow } from '../../hooks/useWorkflow';
 
-// Define custom node types
-const nodeTypes = {
+// Define custom node & edge types at module scope to keep identity stable across renders
+const NODE_TYPES = {
   customStep: CustomNode,
+};
+
+const EDGE_TYPES = {
+  // add custom edge components here if needed, e.g., "smoothstep": CustomEdge
 };
 
 // Default edge style matching theme
@@ -40,6 +44,10 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
   
   const { fitView, getViewport } = useReactFlow();
   const { workflow, updateWorkflow, saveWorkflow } = useWorkflow(workflowId);
+
+  // Memoize types to avoid React Flow warning about changing objects (#002)
+  const memoNodeTypes = useMemo(() => NODE_TYPES, []);
+  const memoEdgeTypes = useMemo(() => EDGE_TYPES, []);
 
   // Load workflow data
   useEffect(() => {
@@ -280,7 +288,8 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
         onConnect={onConnect}
         onNodeClick={onNodeClick}
         onNodeDragStop={onNodeDragStop}
-        nodeTypes={nodeTypes}
+  nodeTypes={memoNodeTypes}
+  edgeTypes={memoEdgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
   proOptions={{ hideAttribution: true }}
         fitView

@@ -261,6 +261,18 @@
   animation: fadeIn 0.2s ease-out;
 }
 
+.modalContent {
+  width: min(1100px, 95vw);
+  height: min(80vh, 900px);
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-2xl);
+  border: 1px solid var(--border-color);
+  overflow: hidden; /* contain header corners */
+  display: flex;
+  flex-direction: column;
+}
+
 /* Execution Overlay */
 .executionOverlay {
   position: fixed;

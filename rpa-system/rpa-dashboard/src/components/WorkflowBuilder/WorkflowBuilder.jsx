@@ -24,7 +24,7 @@ import WorkflowTesting from './WorkflowTesting';
 import { useWorkflow } from '../../hooks/useWorkflow';
 import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
 import { usePlan } from '../../hooks/usePlan';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '../../utils/supabaseClient';
 import LoadingSpinner from './LoadingSpinner';
 import ActionButton from './ActionButton';
 import ConfirmDialog from './ConfirmDialog';
@@ -354,10 +354,12 @@ const WorkflowBuilder = () => {
       {/* Template Gallery Modal */}
       {showTemplateGallery && (
         <div className={styles.modalOverlay}>
-          <TemplateGallery
-            onSelectTemplate={handleTemplateSelect}
-            onClose={() => setShowTemplateGallery(false)}
-          />
+          <div className={styles.modalContent} role="dialog" aria-modal="true" aria-label="Template Gallery">
+            <TemplateGallery
+              onSelectTemplate={handleTemplateSelect}
+              onClose={() => setShowTemplateGallery(false)}
+            />
+          </div>
         </div>
       )}
 

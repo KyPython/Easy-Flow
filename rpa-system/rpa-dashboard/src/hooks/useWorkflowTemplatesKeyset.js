@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../utils/supabaseClient';
 import { useKeysetPagination } from './useKeysetPagination';
 
 export const useWorkflowTemplatesKeyset = () => {

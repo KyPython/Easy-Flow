@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../utils/supabaseClient';
 
 export const useWorkflowTesting = (workflowId) => {
   const [testScenarios, setTestScenarios] = useState([]);
