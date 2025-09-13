@@ -48,58 +48,60 @@ const Header = ({ user }) => {
         </div>
 
         {/* Navigation */}
-        <nav className={styles.nav}>
-          <Link
-            to="/app"
-            className={`${styles.navLink} ${
-              isActive('/app') &&
-              !isActive('/app/tasks') &&
-              !isActive('/app/history') &&
-              !isActive('/app/files') &&
-              !isActive('/app/workflows')
-                ? styles.activeNavLink
-                : ''
-            }`}
-          >
-            {t('nav.dashboard','Dashboard')}
-          </Link>
+        {user && (
+          <nav className={styles.nav}>
+            <Link
+              to="/app"
+              className={`${styles.navLink} ${
+                isActive('/app') &&
+                !isActive('/app/tasks') &&
+                !isActive('/app/history') &&
+                !isActive('/app/files') &&
+                !isActive('/app/workflows')
+                  ? styles.activeNavLink
+                  : ''
+              }`}
+            >
+              {t('nav.dashboard','Dashboard')}
+            </Link>
 
-          <Link
-            to="/app/tasks"
-            className={`${styles.navLink} ${
-              isActive('/app/tasks') ? styles.activeNavLink : ''
-            }`}
-          >
-            {t('nav.tasks','Task Management')}
-          </Link>
+            <Link
+              to="/app/tasks"
+              className={`${styles.navLink} ${
+                isActive('/app/tasks') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.tasks','Task Management')}
+            </Link>
 
-          <Link
-            to="/app/history"
-            className={`${styles.navLink} ${
-              isActive('/app/history') ? styles.activeNavLink : ''
-            }`}
-          >
-            {t('nav.history','Automation History')}
-          </Link>
+            <Link
+              to="/app/history"
+              className={`${styles.navLink} ${
+                isActive('/app/history') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.history','Automation History')}
+            </Link>
 
-          <Link
-            to="/app/files"
-            className={`${styles.navLink} ${
-              isActive('/app/files') ? styles.activeNavLink : ''
-            }`}
-          >
-            {t('nav.files','Files')}
-          </Link>
+            <Link
+              to="/app/files"
+              className={`${styles.navLink} ${
+                isActive('/app/files') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.files','Files')}
+            </Link>
 
-          <Link
-            to="/app/workflows"
-            className={`${styles.navLink} ${
-              isActive('/app/workflows') ? styles.activeNavLink : ''
-            }`}
-          >
-            {t('nav.workflows','Workflows')}
-          </Link>
-        </nav>
+            <Link
+              to="/app/workflows"
+              className={`${styles.navLink} ${
+                isActive('/app/workflows') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.workflows','Workflows')}
+            </Link>
+          </nav>
+        )}
 
         {/* User Menu */}
         <div className={styles.userMenu}>
