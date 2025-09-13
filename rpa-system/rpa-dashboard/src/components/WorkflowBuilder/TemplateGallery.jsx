@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import styles from './TemplateGallery.module.css';
 import { 
@@ -14,6 +14,7 @@ import {
 } from 'react-icons/fa';
 import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates';
 import LoadingSpinner from './LoadingSpinner';
+import TemplateDetails from './TemplateDetails';
 
 // Helper moved top-level for reuse in preview modal
 const formatTemplateCategory = (category) => {
@@ -41,11 +42,19 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
   
   // Use the templates hook
   const { 
-    templates, 
-    loading, 
-    error, 
-    createFromTemplate 
+  templates,
+  loading,
+  error,
+  createFromTemplate,
+  loadTemplates,
+  page,
+  pageSize,
+  total,
+  setPage,
+  setPageSize
   } = useWorkflowTemplates();
+
+  const [selected, setSelected] = useState(null);
 
   const handleTemplateSelection = async (template) => {
     try {
@@ -87,63 +96,40 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
     { value: 'name', label: 'Name A-Z' }
   ];
 
-  const filteredAndSortedTemplates = useMemo(() => {
-    console.log('Raw templates from hook:', templates);
-    
-    // Normalize template fields defensively
-    const normalized = templates.map(t => {
-      console.log('Normalizing template:', t);
-      
-      const normalizedTemplate = {
-        ...t,
-        // unify naming differences with safe defaults
-        name: t.name || 'Untitled Template',
-        description: t.description || 'No description available',
-        category: t.category || 'general',
-        complexity: t.complexity || 'Easy',
-        author: t.author || (t.created_by ? 'KyJahn Smith' : 'Unknown'),
-        usageCount: t.usageCount ?? t.usage_count ?? 0,
-        estimatedTime: t.estimatedTime ?? t.estimated_time ?? '—',
-        createdAt: t.createdAt ?? t.created_at ?? t.updated_at ?? new Date().toISOString(),
-        updatedAt: t.updatedAt ?? t.updated_at ?? t.created_at ?? new Date().toISOString(),
-        tags: Array.isArray(t.tags) ? t.tags.filter(tag => tag && typeof tag === 'string') : [],
-        popularity: t.popularity ?? (t.rating > 0 ? Math.round(t.rating * 20) : 0), // Convert rating (0-5) to popularity (0-100)
-        steps: t.steps ?? (t.template_config?.nodes?.length || 0) // Count nodes in template_config
-      };
-      
-      console.log('Normalized template result:', normalizedTemplate);
-      return normalizedTemplate;
-    });
+  // Server-driven list: rely on hook for search/category/sort/pagination
+  const normalizedTemplates = (templates || []).map(t => ({
+    ...t,
+    name: t.name || 'Untitled Template',
+    description: t.description || 'No description available',
+    category: t.category || 'general',
+    complexity: t.complexity || 'Easy',
+    author: t.author || (t.created_by ? 'KyJahn Smith' : 'Unknown'),
+    usageCount: t.usageCount ?? t.usage_count ?? 0,
+    estimatedTime: t.estimatedTime ?? t.estimated_time ?? '—',
+    createdAt: t.createdAt ?? t.created_at ?? t.updated_at ?? new Date().toISOString(),
+    updatedAt: t.updatedAt ?? t.updated_at ?? t.created_at ?? new Date().toISOString(),
+    tags: Array.isArray(t.tags) ? t.tags.filter(tag => tag && typeof tag === 'string') : [],
+    popularity: t.popularity ?? (t.rating > 0 ? Math.round(t.rating * 20) : 0),
+    steps: t.steps ?? (t.template_config?.nodes?.length || 0)
+  }));
 
-    let filtered = normalized.filter(template => {
-      const lQuery = searchQuery.toLowerCase();
-      const matchesSearch = (template.name || '').toLowerCase().includes(lQuery) ||
-        (template.description || '').toLowerCase().includes(lQuery) ||
-        template.tags.some(tag => (tag || '').toLowerCase().includes(lQuery));
-      
-      const matchesCategory = selectedCategory === 'all' || template.category === selectedCategory;
-      
-      return matchesSearch && matchesCategory;
-    });
+  const filteredAndSortedTemplates = normalizedTemplates;
 
-    // Sort templates
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'popularity':
-          return b.popularity - a.popularity;
-        case 'usage':
-          return b.usageCount - a.usageCount;
-        case 'recent':
-          return new Date(b.updatedAt) - new Date(a.updatedAt);
-        case 'name':
-          return a.name.localeCompare(b.name);
-        default:
-          return 0;
-      }
-    });
+  // Load from server whenever filters change
+  useEffect(() => {
+    setPage(1); // reset page when filters change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, selectedCategory, sortBy]);
 
-    return filtered;
-  }, [templates, searchQuery, selectedCategory, sortBy]);
+  useEffect(() => {
+    loadTemplates({
+      search: searchQuery,
+      category: selectedCategory,
+      sortBy,
+      page,
+      pageSize
+    });
+  }, [searchQuery, selectedCategory, sortBy, page, pageSize, loadTemplates]);
 
   const featuredTemplates = templates.filter(template => template.is_featured);
 
@@ -156,6 +142,16 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
   if (error) {
     return (
       <div className={styles.errorState}>\n        <h3>Templates</h3>\n        <p className={styles.errorText}>{error}</p>\n        <button onClick={() => window.location.reload()} className={styles.retryButton}>Retry</button>\n      </div>
+    );
+  }
+
+  if (selected) {
+    return (
+      <TemplateDetails
+        templateId={selected}
+        onBack={() => setSelected(null)}
+        onUse={(wf) => onSelectTemplate(wf)}
+      />
     );
   }
 
@@ -253,7 +249,7 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
               <TemplateCard
                 key={template.id}
                 template={template}
-                onSelect={handleTemplateSelection}
+                onSelect={(t) => setSelected(t.id)}
                 variant="featured"
               />
             ))}
@@ -265,7 +261,7 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
       <div className={styles.templatesSection}>
         <div className={styles.sectionHeader}>
           <h3 className={styles.sectionTitle}>
-            All Templates ({filteredAndSortedTemplates.length})
+            All Templates ({typeof total === 'number' ? total : filteredAndSortedTemplates.length})
           </h3>
         </div>
 
@@ -276,16 +272,50 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
             <p>Try adjusting your search or filter criteria</p>
           </div>
         ) : (
-          <div className={`${styles.templatesGrid} ${styles[viewMode]}`}>
-            {filteredAndSortedTemplates.map(template => (
-              <TemplateCard
-                key={template.id}
-                template={template}
-                onSelect={handleTemplateSelection}
-                viewMode={viewMode}
-              />
-            ))}
-          </div>
+          <>
+            <div className={`${styles.templatesGrid} ${styles[viewMode]}`}>
+              {filteredAndSortedTemplates.map(template => (
+                <TemplateCard
+                  key={template.id}
+                  template={template}
+                  onSelect={(t) => setSelected(t.id)}
+                  viewMode={viewMode}
+                />
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            <div className={styles.pagination}>
+              <div className={styles.pageInfo}>
+                Page {page} {typeof total === 'number' && total >= 0 && pageSize > 0 ? `of ${Math.max(1, Math.ceil(total / pageSize))}` : ''}
+              </div>
+              <div className={styles.pageControls}>
+                <button
+                  className={styles.pageButton}
+                  disabled={page <= 1}
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                >
+                  Previous
+                </button>
+                <button
+                  className={styles.pageButton}
+                  disabled={typeof total === 'number' ? page >= Math.ceil(total / pageSize) : filteredAndSortedTemplates.length < pageSize}
+                  onClick={() => setPage(page + 1)}
+                >
+                  Next
+                </button>
+                <select
+                  className={styles.pageSizeSelect}
+                  value={pageSize}
+                  onChange={(e) => setPageSize(parseInt(e.target.value, 10) || 24)}
+                >
+                  {[12, 24, 48, 96].map(sz => (
+                    <option key={sz} value={sz}>{sz} / page</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

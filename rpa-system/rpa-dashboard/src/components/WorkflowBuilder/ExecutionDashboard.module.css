@@ -464,6 +464,31 @@
   color: var(--text-muted);
 }
 
+.stepRetry {
+  font-size: var(--font-size-xs);
+  color: var(--color-warning-700);
+  background: var(--color-warning-50);
+  border: 1px solid var(--color-warning-200);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+}
+
+.stepMeta {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.metaItem {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  background: var(--color-gray-50);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+}
+
 .stepError {
   margin-top: var(--spacing-sm);
   padding: var(--spacing-sm);

@@ -11,6 +11,77 @@ class WorkflowExecutor {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE
     );
+  // Track running executions to check for cancellation
+  this.runningExecutions = new Map(); // executionId -> { cancelled: boolean }
+  }
+
+  // Generic helpers
+  _sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  _calcBackoff(attempt, baseMs = 300, maxMs = 5000, jitterRatio = 0.2) {
+    // Exponential: base * 2^(attempt-1), capped, with +/- jitter
+    const pow = Math.min(maxMs, baseMs * Math.pow(2, Math.max(0, attempt - 1)));
+    const jitter = pow * jitterRatio;
+    const delta = Math.random() * (2 * jitter) - jitter; // [-jitter, +jitter]
+    const wait = Math.max(0, Math.min(maxMs, Math.floor(pow + delta)));
+    return wait;
+  }
+
+  async _withBackoff(fn, opts = {}) {
+    const {
+      maxAttempts = 3,
+      baseMs = 300,
+      maxMs = 5000,
+      jitterRatio = 0.2,
+      shouldRetry = () => true,
+      isCancelled = async () => false,
+      makeController // optional: () => AbortController
+    } = opts;
+
+    let lastErr;
+    let attempts = 0;
+    let totalWaitMs = 0;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      attempts = attempt;
+      if (await isCancelled()) {
+        const err = new Error('Cancelled');
+        err.code = 'CANCELLED';
+        throw err;
+      }
+      let controller;
+      try {
+        controller = typeof makeController === 'function' ? makeController() : undefined;
+        const result = await fn({ attempt, controller });
+        return { value: result, attempts, totalWaitMs };
+      } catch (err) {
+        lastErr = err;
+        // If explicitly cancelled, propagate immediately
+        if (err?.code === 'CANCELLED') throw err;
+        const retry = await shouldRetry(err, attempt);
+        if (!retry || attempt === maxAttempts) {
+          throw err;
+        }
+        // wait with backoff, but break early if cancelled
+        const wait = this._calcBackoff(attempt, baseMs, maxMs, jitterRatio);
+        const start = Date.now();
+        while (Date.now() - start < wait) {
+          if (await isCancelled()) {
+            const e = new Error('Cancelled');
+            e.code = 'CANCELLED';
+            throw e;
+          }
+          const remaining = wait - (Date.now() - start);
+          await this._sleep(Math.min(remaining, 200));
+        }
+        totalWaitMs += wait;
+      } finally {
+        // best-effort: abort controller on failure path if still active
+        try { controller?.abort?.(); } catch (_) {}
+      }
+    }
+    throw lastErr || new Error('Unknown backoff error');
   }
 
   async startExecution(config) {
@@ -60,10 +131,17 @@ class WorkflowExecutor {
       
       console.log(`[WorkflowExecutor] Created execution ${execution.id}`);
       
+      // Mark as running
+      this.runningExecutions.set(execution.id, { cancelled: false });
+
       // Start execution asynchronously
       this.executeWorkflow(execution, workflow).catch(error => {
         console.error(`[WorkflowExecutor] Execution ${execution.id} failed:`, error);
-        this.failExecution(execution.id, error.message);
+        // If cancelled, don't overwrite cancelled status with failed
+        const run = this.runningExecutions.get(execution.id);
+        if (!run || !run.cancelled) {
+          this.failExecution(execution.id, error.message);
+        }
       });
       
       return execution;
@@ -88,9 +166,16 @@ class WorkflowExecutor {
         throw new Error('No start step found in workflow');
       }
       
-      // Execute workflow steps
-      const result = await this.executeStep(execution, startStep, currentData, workflow);
+  // Execute workflow steps
+  const result = await this.executeStep(execution, startStep, currentData, workflow);
       
+      // On return, check if cancelled
+      const run = this.runningExecutions.get(execution.id);
+      if (run && run.cancelled) {
+        // Already marked cancelled by route; nothing else to do.
+        return;
+      }
+
       if (result.success) {
         await this.completeExecution(execution.id, result.data, stepsExecuted, startTime);
       } else {
@@ -99,12 +184,21 @@ class WorkflowExecutor {
       
     } catch (error) {
       console.error(`[WorkflowExecutor] Workflow execution failed:`, error);
-      await this.failExecution(execution.id, error.message);
+      const run = this.runningExecutions.get(execution.id);
+      if (!run || !run.cancelled) {
+        await this.failExecution(execution.id, error.message);
+      }
+    } finally {
+      this.runningExecutions.delete(execution.id);
     }
   }
 
   async executeStep(execution, step, inputData, workflow, visitedSteps = new Set()) {
     try {
+      // Check cancellation before starting step
+      if (this._isCancelled(execution.id)) {
+        return { success: false, error: 'Execution cancelled', errorStepId: step.id };
+      }
       // Prevent infinite loops
       if (visitedSteps.has(step.id)) {
         throw new Error(`Circular dependency detected at step: ${step.name}`);
@@ -136,10 +230,10 @@ class WorkflowExecutor {
           throw new Error(`Unknown step type: ${step.step_type}`);
       }
       
-      // Update step execution
-      await this.updateStepExecution(stepExecution.id, result);
+  // Update step execution
+  await this.updateStepExecution(stepExecution, result);
       
-      if (!result.success) {
+  if (!result.success) {
         return { success: false, error: result.error, errorStepId: step.id };
       }
       
@@ -156,7 +250,7 @@ class WorkflowExecutor {
         return { success: true, data: result.data };
       }
       
-      // Execute next step(s)
+  // Execute next step(s)
       // For now, we only handle sequential execution (single next step)
       const nextStep = nextSteps[0];
       return await this.executeStep(execution, nextStep, result.data, workflow, visitedSteps);
@@ -187,12 +281,12 @@ class WorkflowExecutor {
         throw new Error(`Action definition not found: ${action_type}`);
       }
       
-      // Execute based on action type
-    switch (action_type) {
+    // Execute based on action type
+  switch (action_type) {
         case 'web_scrape':
-          return await this.executeWebScrapeAction(config, inputData);
+      return await this.executeWebScrapeAction(config, inputData, execution);
         case 'api_call':
-          return await this.executeApiCallAction(config, inputData);
+      return await this.executeApiCallAction(config, inputData, execution);
         case 'data_transform':
           return await this.executeDataTransformAction(config, inputData);
         case 'file_upload':
@@ -200,7 +294,7 @@ class WorkflowExecutor {
         case 'email':
           return await this.executeEmailAction(config, inputData);
         case 'delay':
-          return await this.executeDelayAction(config, inputData);
+          return await this.executeDelayAction(config, inputData, execution);
         default:
           throw new Error(`Unsupported action type: ${action_type}`);
       }
@@ -271,29 +365,62 @@ class WorkflowExecutor {
   }
 
   // Action implementations
-  async executeWebScrapeAction(config, inputData) {
+  async executeWebScrapeAction(config, inputData, execution) {
     try {
       // This is a placeholder - integrate with your existing scraping service
       const { url, selectors, timeout = 30 } = config;
       
       console.log(`[WorkflowExecutor] Web scraping: ${url}`);
       
-      // Call your existing automation service
       const axios = require('axios');
-      const response = await axios.post(`${process.env.AUTOMATION_SERVICE_URL}/scrape`, {
-        url,
-        selectors,
-        timeout
-      }, {
-        timeout: timeout * 1000
-      });
-      
-      return { 
-        success: true, 
-        data: { 
-          ...inputData, 
-          scraped_data: response.data 
+
+      const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
+      const baseMs = Number(config?.retries?.baseMs || 300);
+
+  const backoff = await this._withBackoff(async ({ controller }) => {
+        // Cooperative cancellation: periodic check and abort
+        const cancelTimer = setInterval(async () => {
+          if (execution && await this._isCancelled(execution.id)) {
+            try { controller?.abort?.(); } catch (_) {}
+          }
+        }, 500);
+        try {
+          return await axios.post(`${process.env.AUTOMATION_SERVICE_URL}/scrape`, {
+            url,
+            selectors,
+            timeout
+          }, {
+            timeout: timeout * 1000,
+            signal: controller?.signal
+          });
+        } finally {
+          clearInterval(cancelTimer);
         }
+      }, {
+        maxAttempts,
+        baseMs,
+        shouldRetry: (err) => {
+          // Retry on network errors/timeouts/5xx
+          const status = err?.response?.status;
+          const code = err?.code || '';
+          if (code && ['ECONNRESET','ETIMEDOUT','ENOTFOUND','EAI_AGAIN'].includes(code)) return true;
+          if (status && (status >= 500 || status === 408 || status === 429)) return true;
+          const msg = `${err?.message || ''}`.toLowerCase();
+          if (msg.includes('timeout') || msg.includes('network')) return true;
+          return false;
+        },
+        isCancelled: async () => execution && await this._isCancelled(execution.id),
+        makeController: () => new AbortController()
+      });
+
+      const response = backoff.value;
+      return {
+        success: true,
+        data: {
+          ...inputData,
+          scraped_data: response.data
+        },
+        meta: { attempts: backoff.attempts, backoffWaitMs: backoff.totalWaitMs }
       };
       
     } catch (error) {
@@ -301,28 +428,60 @@ class WorkflowExecutor {
     }
   }
 
-  async executeApiCallAction(config, inputData) {
+  async executeApiCallAction(config, inputData, execution) {
     try {
       const { method, url, headers = {}, body, timeout = 30 } = config;
       
       console.log(`[WorkflowExecutor] API call: ${method} ${url}`);
       
       const axios = require('axios');
-      const response = await axios({
-        method,
-        url,
-        headers,
-        data: body,
-        timeout: timeout * 1000
-      });
-      
-      return { 
-        success: true, 
-        data: { 
-          ...inputData, 
-          api_response: response.data,
-          api_status: response.status 
+
+      const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
+      const baseMs = Number(config?.retries?.baseMs || 300);
+
+  const backoff = await this._withBackoff(async ({ controller }) => {
+        const cancelTimer = setInterval(async () => {
+          if (execution && await this._isCancelled(execution.id)) {
+            try { controller?.abort?.(); } catch (_) {}
+          }
+        }, 500);
+        try {
+          return await axios({
+            method,
+            url,
+            headers,
+            data: body,
+            timeout: timeout * 1000,
+            signal: controller?.signal
+          });
+        } finally {
+          clearInterval(cancelTimer);
         }
+      }, {
+        maxAttempts,
+        baseMs,
+        shouldRetry: (err) => {
+          const status = err?.response?.status;
+          const code = err?.code || '';
+          if (code && ['ECONNRESET','ETIMEDOUT','ENOTFOUND','EAI_AGAIN'].includes(code)) return true;
+          if (status && (status >= 500 || status === 408 || status === 429)) return true;
+          const msg = `${err?.message || ''}`.toLowerCase();
+          if (msg.includes('timeout') || msg.includes('network')) return true;
+          return false;
+        },
+        isCancelled: async () => execution && await this._isCancelled(execution.id),
+        makeController: () => new AbortController()
+      });
+
+      const response = backoff.value;
+      return {
+        success: true,
+        data: {
+          ...inputData,
+          api_response: response.data,
+          api_status: response.status
+        },
+        meta: { attempts: backoff.attempts, backoffWaitMs: backoff.totalWaitMs }
       };
       
     } catch (error) {
@@ -399,10 +558,16 @@ class WorkflowExecutor {
         throw new Error('No upload source resolved');
       }
 
-      const items = Array.isArray(resolved) ? resolved : [resolved];
-      const uploaded = [];
+  const items = Array.isArray(resolved) ? resolved : [resolved];
+  const uploaded = [];
+  let totalAttempts = 0;
+  let totalBackoffWait = 0;
 
       for (const item of items) {
+        // Check cancellation between items in a multi-upload
+        if (await this._isCancelled(execution.id)) {
+          return { success: false, error: 'Execution cancelled during file upload' };
+        }
         const { buffer, mime, filename: srcName } = item;
         const mimeType = cfgMime || mime || 'application/octet-stream';
         const originalName = cfgFilename || srcName || 'file';
@@ -414,51 +579,72 @@ class WorkflowExecutor {
         const timestamp = Date.now();
         const storagePath = `${userId}/${timestamp}_${finalName}`;
 
-        // Upload to Supabase storage in the same bucket the Files UI uses
-        const { data: uploadData, error: uploadError } = await this.supabase.storage
-          .from('user-files')
-          .upload(storagePath, buffer, { contentType: mimeType, upsert: !!overwrite });
-        
-        if (uploadError) {
-          throw new Error(`Storage upload error: ${uploadError.message}`);
-        }
-
+        const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
+        const baseMs = Number(config?.retries?.baseMs || 300);
         const checksum = crypto.createHash('md5').update(buffer).digest('hex');
 
-        // Insert metadata into files table
-        const { data: fileRecord, error: dbError } = await this.supabase
-          .from('files')
-          .insert({
-            user_id: userId,
-            original_name: originalName,
-            display_name: originalName,
-            storage_path: storagePath,
-            storage_bucket: 'user-files',
-            file_size: buffer.length,
-            mime_type: mimeType,
-            file_extension: (ext || '').replace(/^\./, ''),
-            checksum_md5: checksum,
-            folder_path: destination || '/',
-            category: config?.category || null,
-            tags: Array.isArray(config?.tags) ? config.tags : (typeof config?.tags === 'string' ? config.tags.split(',').map(t => t.trim()).filter(Boolean) : [])
-          })
-          .select()
-          .single();
+  const backoff = await this._withBackoff(async () => {
+          // Upload to Supabase storage in the same bucket the Files UI uses
+          const { error: uploadError } = await this.supabase.storage
+            .from('user-files')
+            .upload(storagePath, buffer, { contentType: mimeType, upsert: !!overwrite });
+          if (uploadError) {
+            const e = new Error(`Storage upload error: ${uploadError.message}`);
+            e._upload = true;
+            throw e;
+          }
 
-        if (dbError) {
-          // best-effort cleanup
-          await this.supabase.storage.from('user-files').remove([storagePath]);
-          throw new Error(`Failed to save file metadata: ${dbError.message}`);
-        }
+          // Insert metadata into files table
+          const { data: rec, error: dbError } = await this.supabase
+            .from('files')
+            .insert({
+              user_id: userId,
+              original_name: originalName,
+              display_name: originalName,
+              storage_path: storagePath,
+              storage_bucket: 'user-files',
+              file_size: buffer.length,
+              mime_type: mimeType,
+              file_extension: (ext || '').replace(/^\./, ''),
+              checksum_md5: checksum,
+              folder_path: destination || '/',
+              category: config?.category || null,
+              tags: Array.isArray(config?.tags) ? config.tags : (typeof config?.tags === 'string' ? config.tags.split(',').map(t => t.trim()).filter(Boolean) : [])
+            })
+            .select()
+            .single();
 
-        uploaded.push(fileRecord);
+          if (dbError) {
+            // best-effort cleanup to keep idempotency before retry
+            try { await this.supabase.storage.from('user-files').remove([storagePath]); } catch (_) {}
+            const e = new Error(`Failed to save file metadata: ${dbError.message}`);
+            e._db = true;
+            throw e;
+          }
+          return rec;
+        }, {
+          maxAttempts,
+          baseMs,
+          shouldRetry: (err) => {
+            const msg = `${err?.message || ''}`.toLowerCase();
+            if (msg.includes('timeout') || msg.includes('network') || msg.includes('fetch')) return true;
+            // If upload/db flagged transient via markers
+            if (err?._upload || err?._db) return true;
+            return false;
+          },
+          isCancelled: async () => execution && await this._isCancelled(execution.id)
+        });
+
+  totalAttempts += backoff.attempts;
+  totalBackoffWait += backoff.totalWaitMs;
+  uploaded.push(backoff.value);
       }
 
       const payload = uploaded.length === 1
         ? { uploaded_file: uploaded[0], uploaded_files: uploaded }
         : { uploaded_files: uploaded };
 
-      return { success: true, data: { ...inputData, ...payload } };
+  return { success: true, data: { ...inputData, ...payload }, meta: { attempts: totalAttempts, backoffWaitMs: totalBackoffWait } };
 
     } catch (error) {
       return { success: false, error: `File upload failed: ${error.message}` };
@@ -575,20 +761,31 @@ class WorkflowExecutor {
 
   async executeEmailAction(config, inputData) {
     try {
-      const { to, subject, template, variables = {} } = config;
-      
-      console.log(`[WorkflowExecutor] Sending email to: ${to}`);
-      
-      // This is a placeholder - integrate with your email service
-      const messageId = `msg_${uuidv4()}`;
-      
-      return { 
-        success: true, 
-        data: { 
-          ...inputData, 
-          email_result: { 
-            message_id: messageId, 
-            status: 'sent' 
+      const { to, template, variables = {}, scheduled_at } = config || {};
+      if (!to || !template) {
+        throw new Error('Email step requires `to` and `template`');
+      }
+      console.log(`[WorkflowExecutor] Enqueue email to: ${to}`);
+
+      // Insert into email_queue (processed by email_worker)
+      const insert = {
+        to_email: to,
+        template,
+        data: variables || {},
+        status: 'pending',
+        scheduled_at: scheduled_at || new Date().toISOString()
+      };
+      const { data, error } = await this.supabase.from('email_queue').insert([insert]).select('*');
+      if (error) throw new Error(`Failed to enqueue email: ${error.message}`);
+
+      const item = Array.isArray(data) ? data[0] : data;
+      return {
+        success: true,
+        data: {
+          ...inputData,
+          email_result: {
+            queue_id: item?.id || null,
+            status: 'queued'
           }
         }
       };
@@ -598,7 +795,7 @@ class WorkflowExecutor {
     }
   }
 
-  async executeDelayAction(config, inputData) {
+  async executeDelayAction(config, inputData, execution) {
     try {
       const { duration_seconds, duration_type = 'fixed' } = config;
       
@@ -609,7 +806,15 @@ class WorkflowExecutor {
       
       console.log(`[WorkflowExecutor] Waiting for ${waitTime} seconds`);
       
-      await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+      // Cooperative wait that checks for cancellation every 500ms
+      const start = Date.now();
+      const totalMs = waitTime * 1000;
+      while (Date.now() - start < totalMs) {
+        await new Promise(r => setTimeout(r, 500));
+        if (execution && await this._isCancelled(execution.id)) {
+          return { success: false, error: 'Execution cancelled during delay' };
+        }
+      }
       
       return { 
         success: true, 
@@ -618,7 +823,8 @@ class WorkflowExecutor {
           delay_result: { 
             waited_seconds: waitTime 
           }
-        }
+        },
+        meta: { attempts: 1, backoffWaitMs: 0 }
       };
       
     } catch (error) {
@@ -695,7 +901,7 @@ class WorkflowExecutor {
     return data;
   }
 
-  async updateStepExecution(stepExecutionId, result) {
+  async updateStepExecution(stepExecution, result) {
     const updateData = {
       completed_at: new Date().toISOString(),
       status: result.success ? 'completed' : 'failed',
@@ -706,11 +912,22 @@ class WorkflowExecutor {
     if (!result.success) {
       updateData.error_message = result.error;
     }
+    // Add duration and retry metrics if available
+    if (stepExecution?.started_at) {
+      try {
+        const dur = Date.now() - new Date(stepExecution.started_at).getTime();
+        updateData.duration_ms = Math.max(0, dur);
+      } catch (_) {}
+    }
+    const attempts = result?.meta?.attempts;
+    if (typeof attempts === 'number' && attempts >= 1) {
+      updateData.retry_count = Math.max(0, attempts - 1);
+    }
     
     const { error } = await this.supabase
       .from('step_executions')
       .update(updateData)
-      .eq('id', stepExecutionId);
+      .eq('id', stepExecution.id);
       
     if (error) {
       console.error('Failed to update step execution:', error);
@@ -785,6 +1002,29 @@ class WorkflowExecutor {
         return array;
     }
   }
+
+  // Cancellation helpers
+  async _isCancelled(executionId) {
+    const run = this.runningExecutions.get(executionId);
+    if (run && run.cancelled) return true;
+    // Check DB status as source of truth in case cancel came from API route
+    try {
+      const { data, error } = await this.supabase
+        .from('workflow_executions')
+        .select('status')
+        .eq('id', executionId)
+        .single();
+      if (error) return false;
+      if (data?.status === 'cancelled') {
+        if (run) run.cancelled = true; else this.runningExecutions.set(executionId, { cancelled: true });
+        return true;
+      }
+    } catch (_) {
+      // ignore
+    }
+    return false;
+  }
+
 }
 
 module.exports = { WorkflowExecutor };

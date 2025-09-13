@@ -204,6 +204,34 @@ const WebScrapeConfig = ({ config, updateConfig, isReadOnly }) => (
         disabled={isReadOnly}
       />
     </label>
+
+    <div className={styles.gridRow}>
+      <label className={styles.label}>
+        Max Attempts
+        <input
+          type="number"
+          className={styles.input}
+          value={config.retries?.maxAttempts ?? 3}
+          onChange={(e) => updateConfig({ retries: { ...(config.retries || {}), maxAttempts: parseInt(e.target.value) } })}
+          min="1"
+          max="10"
+          disabled={isReadOnly}
+        />
+      </label>
+      <label className={styles.label}>
+        Base Backoff (ms)
+        <input
+          type="number"
+          className={styles.input}
+          value={config.retries?.baseMs ?? 300}
+          onChange={(e) => updateConfig({ retries: { ...(config.retries || {}), baseMs: parseInt(e.target.value) } })}
+          min="100"
+          max="10000"
+          step="50"
+          disabled={isReadOnly}
+        />
+      </label>
+    </div>
   </div>
 );
 
@@ -281,6 +309,34 @@ const ApiCallConfig = ({ config, updateConfig, isReadOnly }) => (
         disabled={isReadOnly}
       />
     </label>
+
+    <div className={styles.gridRow}>
+      <label className={styles.label}>
+        Max Attempts
+        <input
+          type="number"
+          className={styles.input}
+          value={config.retries?.maxAttempts ?? 3}
+          onChange={(e) => updateConfig({ retries: { ...(config.retries || {}), maxAttempts: parseInt(e.target.value) } })}
+          min="1"
+          max="10"
+          disabled={isReadOnly}
+        />
+      </label>
+      <label className={styles.label}>
+        Base Backoff (ms)
+        <input
+          type="number"
+          className={styles.input}
+          value={config.retries?.baseMs ?? 300}
+          onChange={(e) => updateConfig({ retries: { ...(config.retries || {}), baseMs: parseInt(e.target.value) } })}
+          min="100"
+          max="10000"
+          step="50"
+          disabled={isReadOnly}
+        />
+      </label>
+    </div>
   </div>
 );
 
@@ -492,6 +548,34 @@ const FileUploadConfig = ({ config, updateConfig, isReadOnly }) => (
       />
       Make files publicly accessible
     </label>
+
+    <div className={styles.gridRow}>
+      <label className={styles.label}>
+        Max Attempts
+        <input
+          type="number"
+          className={styles.input}
+          value={config.retries?.maxAttempts ?? 3}
+          onChange={(e) => updateConfig({ retries: { ...(config.retries || {}), maxAttempts: parseInt(e.target.value) } })}
+          min="1"
+          max="10"
+          disabled={isReadOnly}
+        />
+      </label>
+      <label className={styles.label}>
+        Base Backoff (ms)
+        <input
+          type="number"
+          className={styles.input}
+          value={config.retries?.baseMs ?? 300}
+          onChange={(e) => updateConfig({ retries: { ...(config.retries || {}), baseMs: parseInt(e.target.value) } })}
+          min="100"
+          max="10000"
+          step="50"
+          disabled={isReadOnly}
+        />
+      </label>
+    </div>
   </div>
 );
 

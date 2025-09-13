@@ -24,6 +24,7 @@ const { createClient } = require('@supabase/supabase-js');
  const path = require('path');
 const { startEmailWorker } = require('./workers/email_worker');
 const { spawn } = require('child_process');
+const adminTemplatesRouter = require('./routes/adminTemplates');
 
 const app = express();
 const PORT = process.env.PORT || 3030;
@@ -45,14 +46,28 @@ const authMiddleware = async (req, res, next) => {
     if (req.path === '/api/health' || req.path === '/api/healthz') {
       return next();
     }
+    // Test bypass: allow a static bearer token to authenticate as a test user for local/dev/test
+    const allowTestBypass = (process.env.ALLOW_TEST_TOKEN || '').toLowerCase() === 'true';
+    const testToken = process.env.TEST_BEARER_TOKEN || '';
+    const testUserId = process.env.TEST_USER_ID || '';
+
+    const rawAuthHeader = (req.get('authorization') || '').trim();
+    const authParts = rawAuthHeader.split(' ');
+    const bearerToken = authParts.length === 2 && authParts[0].toLowerCase() === 'bearer' ? authParts[1] : null;
+
+    if (allowTestBypass && bearerToken && testToken && bearerToken === testToken && testUserId) {
+      req.user = { id: testUserId };
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      return next();
+    }
     if (!supabase) {
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
       return res.status(401).json({ error: 'Authentication failed' });
     }
 
-    const authHeader = (req.get('authorization') || '').trim();
-    const parts = authHeader.split(' ');
-    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
+    const authHeader = rawAuthHeader;
+    const parts = authParts;
+    const token = bearerToken;
     
     if (!token) {
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
@@ -183,6 +198,18 @@ app.get('/api/healthz', (req, res) => {
   });
 });
 
+// Mount admin moderation routes (protected by x-admin-secret)
+try {
+  const adminTemplatesRouter = require('./routes/adminTemplates');
+  app.use('/admin/templates', apiLimiter, adminTemplatesRouter);
+  console.log('[backend] Admin templates moderation routes mounted at /admin/templates');
+} catch (e) {
+  console.warn('[backend] Failed to mount /admin/templates routes:', e?.message || e);
+}
+
+// Admin routes (secured by X-Admin-Secret); mount before authMiddleware to avoid double auth
+app.use('/api/admin/templates', adminTemplatesRouter);
+
 // --- Supabase & App Config ---
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
@@ -203,22 +230,33 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
   .map(s => s.trim())
   .filter(Boolean);
 
-// Debug logging for CORS configuration
-console.log('🔧 CORS Debug Info:');
-console.log('   ALLOWED_ORIGINS env var:', process.env.ALLOWED_ORIGINS);
-console.log('   Parsed ALLOWED_ORIGINS:', ALLOWED_ORIGINS);
-console.log('   NODE_ENV:', process.env.NODE_ENV);
+// Debug logging for CORS configuration (quiet in production)
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🔧 CORS Debug Info:');
+  console.log('   ALLOWED_ORIGINS env var:', process.env.ALLOWED_ORIGINS);
+  console.log('   Parsed ALLOWED_ORIGINS:', ALLOWED_ORIGINS);
+  console.log('   NODE_ENV:', process.env.NODE_ENV);
+}
 
 app.use(cors({
   origin: (origin, cb) => {
-    console.log('🌐 CORS origin check:', origin, 'against:', ALLOWED_ORIGINS);
+    if (process.env.NODE_ENV !== 'production') {
+      // verbose only in non-production
+      console.log('🌐 CORS origin check:', origin, 'against:', ALLOWED_ORIGINS);
+    }
     if (!origin) return cb(null, true); // non-browser
-    if (ALLOWED_ORIGINS.length === 0) return cb(null, true); // dev fallback
+    if (ALLOWED_ORIGINS.length === 0) {
+      // In dev, allow all; in prod, deny by default if no explicit origins set
+      if (process.env.NODE_ENV !== 'production') return cb(null, true);
+      return cb(new Error('CORS: origin not allowed'));
+    }
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
     
     // Temporary: Allow Vercel domain even if not in environment variable
     if (origin === 'https://easy-flow-lac.vercel.app') {
-      console.log('✅ Allowing Vercel domain as temporary fix');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('✅ Allowing Vercel domain as temporary fix');
+      }
       return cb(null, true);
     }
     
@@ -375,12 +413,16 @@ app.get('/', (_req, res) => {
 // Import and setup workflow automation routes
 const webhookRoutes = require('./routes/webhookRoutes');
 const scheduleRoutes = require('./routes/scheduleRoutes');
+const executionRoutes = require('./routes/executionRoutes');
 
 // Mount webhook routes (no auth middleware - handles its own)
 app.use('/api/webhooks', webhookRoutes);
 
 // Mount schedule routes (protected)
 app.use('/api/schedules', authMiddleware, scheduleRoutes);
+
+// Mount execution routes (protected)
+app.use('/api/executions', authMiddleware, executionRoutes);
 
 // Initialize trigger service
 (async () => {
@@ -504,15 +546,27 @@ app.use('/api', authLimiter, async (req, res, next) => {
   const minDelay = 100; // Minimum delay in ms to prevent timing attacks
   
   try {
+    // Test bypass: allow a static bearer token to authenticate as a test user for local/dev/test
+    const allowTestBypass = (process.env.ALLOW_TEST_TOKEN || '').toLowerCase() === 'true';
+    const testToken = process.env.TEST_BEARER_TOKEN || '';
+    const testUserId = process.env.TEST_USER_ID || '';
+    const rawAuthHeader = (req.get('authorization') || '').trim();
+    const authParts = rawAuthHeader.split(' ');
+    const bearerToken = authParts.length === 2 && authParts[0].toLowerCase() === 'bearer' ? authParts[1] : null;
+    if (allowTestBypass && bearerToken && testToken && bearerToken === testToken && testUserId) {
+      req.user = { id: testUserId };
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      return next();
+    }
     if (!supabase) {
       // Add artificial delay for consistent timing
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
       return res.status(401).json({ error: 'Authentication failed' });
     }
 
-    const authHeader = (req.get('authorization') || '').trim();
-    const parts = authHeader.split(' ');
-    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
+    const authHeader = rawAuthHeader;
+    const parts = authParts;
+    const token = bearerToken;
     
     if (!token) {
       // Add artificial delay for consistent timing
@@ -1425,6 +1479,14 @@ app.post('/api/enqueue-email', async (req, res) => {
     const when = scheduled_at ? new Date(scheduled_at).toISOString() : new Date().toISOString();
 
 // Match the email_queue schema: use `template` and `data` (JSON) fields.
+    // Ensure a profile exists for this user to satisfy FK constraints
+    if (req.user?.id) {
+      try {
+        await ensureUserProfile(req.user.id, req.user.email || null);
+      } catch (e) {
+        console.warn('[enqueue-email] ensureUserProfile failed', e?.message || e);
+      }
+    }
     const emailData = {
       profile_id: req.user?.id || null,
       to_email,
@@ -1451,6 +1513,61 @@ app.post('/api/enqueue-email', async (req, res) => {
     return res.status(500).json({ error: 'internal' });
   }
 });
+
+// --- Test helpers (enabled only when ALLOW_TEST_TOKEN=true) ---
+if ((process.env.ALLOW_TEST_TOKEN || '').toLowerCase() === 'true') {
+  app.post('/api/test/bootstrap', async (req, res) => {
+    try {
+      if (!supabase) return res.status(500).json({ error: 'server misconfigured' });
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: 'auth required' });
+
+      // Ensure profile exists
+      await ensureUserProfile(userId, req.user?.email || 'bootstrap@test.local');
+
+      // Create a workflow with start->delay->end
+      const { data: wf, error: wfErr } = await supabase
+        .from('workflows')
+        .insert({ name: 'Bootstrap WF', status: 'active', user_id: userId })
+        .select('*')
+        .single();
+      if (wfErr) throw wfErr;
+      const workflowId = wf.id;
+
+      const steps = [
+        { id: `start-${workflowId}`, workflow_id: workflowId, step_type: 'start', name: 'Start', step_key: 'start', action_type: null, config: {} },
+        { id: `delay-${workflowId}`, workflow_id: workflowId, step_type: 'action', name: 'Delay', step_key: 'delay', action_type: 'delay', config: { duration_seconds: 3, duration_type: 'fixed' } },
+        { id: `end-${workflowId}`, workflow_id: workflowId, step_type: 'end', name: 'End', step_key: 'end', action_type: null, config: {} },
+      ];
+      const { error: stepsErr } = await supabase.from('workflow_steps').insert(steps);
+      if (stepsErr) throw stepsErr;
+      const conns = [
+        { workflow_id: workflowId, source_step_id: steps[0].id, target_step_id: steps[1].id },
+        { workflow_id: workflowId, source_step_id: steps[1].id, target_step_id: steps[2].id },
+      ];
+      const { error: connErr } = await supabase.from('workflow_connections').insert(conns);
+      if (connErr) throw connErr;
+
+      // Create execution row directly in running status
+      const { data: exec, error: execErr } = await supabase
+        .from('workflow_executions')
+        .insert({ workflow_id: workflowId, user_id: userId, status: 'running', started_at: new Date().toISOString(), steps_total: 3 })
+        .select('*')
+        .single();
+      if (execErr) throw execErr;
+
+      // Create a running step row
+      await supabase
+        .from('step_executions')
+        .insert({ workflow_execution_id: exec.id, step_id: steps[1].id, status: 'running', started_at: new Date().toISOString(), execution_order: 2 });
+
+      return res.json({ workflow_id: workflowId, execution_id: exec.id, step_ids: steps.map(s => s.id) });
+    } catch (e) {
+      console.error('[test/bootstrap] error', e?.message || e);
+      return res.status(500).json({ error: 'bootstrap failed', details: e?.message || String(e) });
+    }
+  });
+}
 
 async function ensureUserProfile(userId, email) {
   try {

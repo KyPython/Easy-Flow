@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import { LanguageProvider } from './utils/LanguageContext';
 import SettingsPage from './pages/SettingsPage';
+import AdminTemplates from './pages/AdminTemplates';
 import WorkflowPage from './components/WorkflowBuilder/WorkflowPage';
 import SharedFilePage from './pages/SharedFilePage';
 import Chatbot from './components/Chatbot/Chatbot';
@@ -86,6 +87,8 @@ function Shell() {
           <Route path="/app/workflows/schedules" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/executions" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/testing" element={<Protected><WorkflowPage /></Protected>} />
+          {/* Minimal Admin route (protect via env secret at backend) */}
+          <Route path="/app/admin/templates" element={<Protected><AdminTemplates /></Protected>} />
           <Route path="/app/workflows/:workflowId/*" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

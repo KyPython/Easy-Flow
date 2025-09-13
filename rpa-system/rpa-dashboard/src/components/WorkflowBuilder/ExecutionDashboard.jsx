@@ -370,7 +370,23 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
                         <span className={styles.stepDuration}>
                           {step.duration_ms ? `${step.duration_ms}ms` : 'N/A'}
                         </span>
+                            {typeof step.retry_count === 'number' && (
+                              <span className={styles.stepRetry} title="Retry attempts (retries)">
+                                attempts: {step.retry_count + 1}
+                              </span>
+                            )}
                       </div>
+                          {/* Backoff/attempt metadata if present in result */}
+                          {step?.result?.meta && (
+                            <div className={styles.stepMeta}>
+                              {typeof step.result.meta.attempts === 'number' && (
+                                <span className={styles.metaItem}>attempts: {step.result.meta.attempts}</span>
+                              )}
+                              {typeof step.result.meta.backoffWaitMs === 'number' && (
+                                <span className={styles.metaItem}>waited: {step.result.meta.backoffWaitMs} ms</span>
+                              )}
+                            </div>
+                          )}
                       {step.error_message && (
                         <div className={styles.stepError}>
                           Error: {step.error_message}

@@ -390,13 +390,15 @@ function getDefaultConfig(nodeType) {
     web_scrape: {
       url: '',
       selectors: [],
-      timeout: 30
+  timeout: 30,
+  retries: { maxAttempts: 3, baseMs: 300 }
     },
     api_call: {
       method: 'GET',
       url: '',
       headers: {},
-      timeout: 30
+  timeout: 30,
+  retries: { maxAttempts: 3, baseMs: 300 }
     },
     data_transform: {
       transformations: [],
@@ -419,7 +421,8 @@ function getDefaultConfig(nodeType) {
   url: '',
   filename: '',
   mime_type: '',
-  tags: []
+  tags: [],
+  retries: { maxAttempts: 3, baseMs: 300 }
     },
     delay: {
       duration_seconds: 5,

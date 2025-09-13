@@ -74,6 +74,18 @@ export const useWorkflowExecutions = (workflowId) => {
   // Get detailed execution information including step executions
   const getExecutionDetails = async (executionId) => {
     try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session?.session?.access_token;
+      if (token) {
+        const resp = await fetch(`/api/executions/${executionId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          return json.execution;
+        }
+      }
+      // Fallback to direct Supabase if REST fails
       const { data: execution, error: execError } = await supabase
         .from('workflow_executions')
         .select(`
@@ -101,9 +113,7 @@ export const useWorkflowExecutions = (workflowId) => {
         `)
         .eq('id', executionId)
         .single();
-
       if (execError) throw execError;
-
       return execution;
     } catch (err) {
       console.error('Error loading execution details:', err);
@@ -213,6 +223,18 @@ export const useWorkflowExecutions = (workflowId) => {
   // Get execution logs
   const getExecutionLogs = async (executionId) => {
     try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session?.session?.access_token;
+      if (token) {
+        const resp = await fetch(`/api/executions/${executionId}/steps`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          return json.steps || [];
+        }
+      }
+      // Fallback to direct Supabase if REST fails
       const { data, error } = await supabase
         .from('step_executions')
         .select(`
@@ -222,6 +244,7 @@ export const useWorkflowExecutions = (workflowId) => {
           started_at,
           completed_at,
           duration_ms,
+          retry_count,
           error_message,
           result,
           workflow_steps(
@@ -233,9 +256,7 @@ export const useWorkflowExecutions = (workflowId) => {
         `)
         .eq('workflow_execution_id', executionId)
         .order('execution_order', { ascending: true });
-
       if (error) throw error;
-
       return data || [];
     } catch (err) {
       console.error('Error loading execution logs:', err);

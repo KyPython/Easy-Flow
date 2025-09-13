@@ -5,23 +5,46 @@ export const useWorkflowTemplates = () => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(24);
+  const [total, setTotal] = useState(0);
 
   // Load workflow templates
-  const loadTemplates = useCallback(async () => {
+  const loadTemplates = useCallback(async (opts = {}) => {
     try {
       setLoading(true);
       setError(null);
+      const {
+        search = '',
+        category = 'all',
+        sortBy = 'popularity',
+        page: p = page,
+        pageSize: ps = pageSize
+      } = opts;
 
-      // Try to load from workflow_templates table first
-      let { data, error: templatesError } = await supabase
-        .from('workflow_templates')
-        .select('*')
-        .eq('is_public', true)
-        .order('created_at', { ascending: false });
+      const from = (p - 1) * ps;
+      const to = from + ps - 1;
+
+      // Try ranked view first for popularity scoring; include search and filters
+      let qry = supabase
+        .from('workflow_templates_ranked')
+        .select('*', { count: 'exact' })
+        .order(sortBy === 'recent' ? 'updated_at' : (sortBy === 'name' ? 'name' : 'popularity_score'), { ascending: sortBy === 'name' })
+        .range(from, to);
+
+      if (category && category !== 'all') {
+        qry = qry.eq('category', category);
+      }
+      if (search) {
+        // name/description/tags search
+        qry = qry.or(`name.ilike.%${search}%,description.ilike.%${search}%,tags.cs.{${search}}`);
+      }
+
+      let { data, error: templatesError, count } = await qry;
 
       console.log('Template query result:', { data, error: templatesError });
 
-      // If templates table doesn't exist or has schema issues, fallback to public workflows
+      // If ranked view or templates table doesn't exist or has schema issues, fallback to public workflows
       if (templatesError && (templatesError.code === '42P01' || templatesError.code === '42703')) {
         const { data: workflowData, error: workflowError } = await supabase
           .from('workflows')
@@ -38,7 +61,7 @@ export const useWorkflowTemplates = () => {
           .eq('is_public', true)
           .eq('status', 'active')
           .order('total_executions', { ascending: false })
-          .limit(20);
+          .range(from, to);
 
         if (workflowError) throw workflowError;
 
@@ -60,6 +83,7 @@ export const useWorkflowTemplates = () => {
           is_public: true,
           is_featured: workflow.total_executions > 100
         })) || [];
+        count = data.length;
       } else if (templatesError) {
         throw templatesError;
       }
@@ -72,7 +96,7 @@ export const useWorkflowTemplates = () => {
         template.id
       ) : [];
 
-      // If no templates found, show fallback templates for better UX
+  // If no templates found, show fallback templates for better UX
       if (data.length === 0) {
         console.log('No database templates found, using fallback templates');
         setTemplates([
@@ -203,6 +227,9 @@ export const useWorkflowTemplates = () => {
         ]);
       } else {
         setTemplates(data);
+        if (typeof count === 'number') setTotal(count);
+        setPage(p);
+        setPageSize(ps);
       }
     } catch (err) {
       console.error('Error loading templates:', err);
@@ -307,14 +334,12 @@ export const useWorkflowTemplates = () => {
 
       if (error) throw error;
 
-      // Increment template usage count
-      await supabase
-        .from('workflow_templates')
-        .update({ 
-          usage_count: supabase.sql`usage_count + 1`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', template.id);
+      // Telemetry: record install via RPC (increments usage_count)
+      try {
+        await supabase.rpc('record_template_install', { p_template_id: template.id });
+      } catch (e) {
+        console.warn('record_template_install RPC failed or unavailable:', e?.message || e);
+      }
 
       return data;
     } catch (err) {
@@ -343,19 +368,73 @@ export const useWorkflowTemplates = () => {
         return data;
       }
 
-      // Otherwise get from templates table
-      const { data, error } = await supabase
+      // Otherwise get from templates table plus versions
+      const { data: template, error: tErr } = await supabase
         .from('workflow_templates')
         .select('*')
         .eq('id', templateId)
         .single();
+      if (tErr) throw tErr;
 
-      if (error) throw error;
-      return data;
+      const { data: versions, error: vErr } = await supabase
+        .from('template_versions')
+        .select('*')
+        .eq('template_id', templateId)
+        .order('created_at', { ascending: false });
+      if (vErr) throw vErr;
+
+      return { ...template, versions };
     } catch (err) {
       console.error('Error loading template details:', err);
       throw err;
     }
+  };
+
+  // Publish a template (owner flow): create template + version (pending_review)
+  const publishTemplate = async ({ name, description, category = 'general', tags = [], is_public = false, version = '1.0.0', changelog = '', config, dependencies = [], screenshots = [] }) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User must be authenticated');
+
+    // Insert template draft
+    const { data: template, error: tErr } = await supabase
+      .from('workflow_templates')
+      .insert({
+        owner_id: user.id,
+        name,
+        description,
+        category,
+        tags,
+        is_public,
+        status: 'pending_review',
+        preview_images: screenshots
+      })
+      .select('*')
+      .single();
+    if (tErr) throw tErr;
+
+    // Insert initial version
+    const { data: ver, error: vErr } = await supabase
+      .from('template_versions')
+      .insert({
+        template_id: template.id,
+        version,
+        changelog,
+        config,
+        dependencies,
+        screenshots,
+        submitted_by: user.id
+      })
+      .select('*')
+      .single();
+    if (vErr) throw vErr;
+
+    // Set latest version pointer
+    await supabase
+      .from('workflow_templates')
+      .update({ latest_version_id: ver.id })
+      .eq('id', template.id);
+
+    return { template, version: ver };
   };
 
   // Rate a template (1-5 stars)
@@ -396,10 +475,16 @@ export const useWorkflowTemplates = () => {
     templates,
     loading,
     error,
-    loadTemplates,
+  loadTemplates,
     createFromTemplate,
     getTemplateDetails,
     rateTemplate,
-    refreshTemplates: loadTemplates
+  publishTemplate,
+  page,
+  pageSize,
+  total,
+  setPage,
+  setPageSize,
+  refreshTemplates: loadTemplates
   };
 };

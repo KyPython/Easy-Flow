@@ -113,3 +113,168 @@ GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT ALL ON user_plans TO authenticated;
 GRANT EXECUTE ON FUNCTION has_active_plan(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_user_plan(UUID) TO authenticated;
+
+-- =============================================
+-- Workflow Templates Marketplace Schema (Templates, Versions, Installs)
+-- =============================================
+
+-- Templates table
+create table if not exists public.workflow_templates (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  description text,
+  category text default 'general',
+  tags text[] default '{}',
+  is_public boolean default false,
+  status text not null default 'draft' check (status in ('draft','pending_review','approved','rejected','archived')),
+  usage_count integer not null default 0,
+  rating numeric(3,2) default 0.00,
+  preview_images text[] default '{}',
+  latest_version_id uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Versions table
+create table if not exists public.template_versions (
+  id uuid primary key default gen_random_uuid(),
+  template_id uuid not null references public.workflow_templates(id) on delete cascade,
+  version text not null, -- semver string
+  changelog text,
+  config jsonb not null, -- nodes/edges/canvas_config
+  dependencies jsonb default '[]'::jsonb, -- [{name, version}]
+  screenshots text[] default '{}',
+  submitted_by uuid references auth.users(id) on delete set null,
+  reviewed_by uuid references auth.users(id) on delete set null,
+  review_notes text,
+  approved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Installs/telemetry table
+create table if not exists public.template_installs (
+  id bigserial primary key,
+  template_id uuid not null references public.workflow_templates(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  source text default 'gallery',
+  created_at timestamptz not null default now()
+);
+
+-- Indices
+create index if not exists idx_workflow_templates_public on public.workflow_templates(is_public, status);
+create index if not exists idx_workflow_templates_category on public.workflow_templates(category);
+create index if not exists idx_workflow_templates_updated_at on public.workflow_templates(updated_at desc);
+create index if not exists idx_template_versions_template on public.template_versions(template_id);
+create index if not exists idx_template_installs_template on public.template_installs(template_id);
+create index if not exists idx_template_installs_user on public.template_installs(user_id);
+
+-- RLS
+alter table public.workflow_templates enable row level security;
+alter table public.template_versions enable row level security;
+alter table public.template_installs enable row level security;
+
+-- Policies: templates
+-- Public can read approved public templates
+create policy if not exists "templates_select_public_approved"
+  on public.workflow_templates for select to authenticated
+  using (is_public = true and status = 'approved');
+
+-- Owners can read their own templates regardless of status
+create policy if not exists "templates_select_owner"
+  on public.workflow_templates for select to authenticated
+  using (owner_id = auth.uid());
+
+-- Owners can insert new templates (draft)
+create policy if not exists "templates_insert_owner"
+  on public.workflow_templates for insert to authenticated
+  with check (owner_id = auth.uid());
+
+-- Owners can update their templates when not approved (draft/pending/rejected)
+create policy if not exists "templates_update_owner_nonapproved"
+  on public.workflow_templates for update to authenticated
+  using (owner_id = auth.uid() and status in ('draft','pending_review','rejected'))
+  with check (owner_id = auth.uid() and status in ('draft','pending_review','rejected'));
+
+-- Service role can update for moderation (approve/reject)
+create policy if not exists "templates_update_moderation_service"
+  on public.workflow_templates for update to service_role
+  using (true) with check (true);
+
+-- Policies: template versions
+-- Public can read versions of approved public templates
+create policy if not exists "versions_select_public"
+  on public.template_versions for select to authenticated
+  using (exists (
+    select 1 from public.workflow_templates t
+    where t.id = template_id and t.is_public = true and t.status = 'approved'
+  ) or submitted_by = auth.uid());
+
+-- Owners can insert new versions for their templates
+create policy if not exists "versions_insert_owner"
+  on public.template_versions for insert to authenticated
+  with check (exists (
+    select 1 from public.workflow_templates t where t.id = template_id and t.owner_id = auth.uid()
+  ));
+
+-- Service role can update versions to mark reviewed/approved
+create policy if not exists "versions_update_service"
+  on public.template_versions for update to service_role
+  using (true) with check (true);
+
+-- Installs: only via RPC (no direct insert)
+create policy if not exists "installs_select_owner"
+  on public.template_installs for select to authenticated
+  using (user_id = auth.uid());
+
+-- Popularity score view: combines usage_count and recent installs
+create or replace view public.workflow_templates_ranked as
+  select
+    t.*,
+    coalesce(t.usage_count,0)
+      + coalesce((select count(*) from public.template_installs i where i.template_id = t.id and i.created_at > now() - interval '30 days'),0) * 2
+      + coalesce((t.rating * 20)::int, 0) as popularity_score
+  from public.workflow_templates t
+  where (t.is_public = true and t.status = 'approved')
+     or (t.owner_id = auth.uid());
+
+-- Trigger to update updated_at
+create or replace function public.set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_workflow_templates_updated_at on public.workflow_templates;
+create trigger trg_workflow_templates_updated_at
+before update on public.workflow_templates
+for each row execute function public.set_updated_at();
+
+-- Telemetry RPC: record install and increment usage_count
+create or replace function public.record_template_install(p_template_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then
+    raise exception 'Authentication required';
+  end if;
+
+  insert into public.template_installs (template_id, user_id)
+  values (p_template_id, v_user)
+  on conflict do nothing;
+
+  update public.workflow_templates
+    set usage_count = coalesce(usage_count,0) + 1,
+        updated_at = now()
+  where id = p_template_id;
+end;
+$$;
+
+grant execute on function public.record_template_install(uuid) to authenticated;
