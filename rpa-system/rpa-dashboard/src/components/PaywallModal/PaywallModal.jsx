@@ -1,0 +1,175 @@
+import React, { useState } from 'react';
+import { usePlan } from '../../hooks/usePlan';
+import { FiX, FiZap, FiArrowRight, FiCheck } from 'react-icons/fi';
+import PropTypes from 'prop-types';
+import styles from './PaywallModal.module.css';
+
+const PaywallModal = ({ 
+  feature, 
+  requiredPlan, 
+  message,
+  onClose 
+}) => {
+  const { planData } = usePlan();
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose?.();
+    }, 200);
+  };
+
+  const handleUpgrade = () => {
+    // Redirect to pricing page
+    window.location.href = '/pricing';
+  };
+
+  const getFeatureTitle = () => {
+    const featureTitles = {
+      'advanced_features': 'Advanced Features',
+      'priority_support': 'Priority Support',
+      'unlimited_workflows': 'Unlimited Workflows',
+      'team_collaboration': 'Team Collaboration',
+      'custom_integrations': 'Custom Integrations',
+      'enterprise_automation': 'Enterprise Automation'
+    };
+
+    return featureTitles[feature] || 'Premium Feature';
+  };
+
+  const getRequiredPlanDisplay = () => {
+    const planDisplayNames = {
+      'starter': 'Starter Plan',
+      'professional': 'Professional Plan', 
+      'enterprise': 'Enterprise Plan'
+    };
+
+    return planDisplayNames[requiredPlan] || 'Premium Plan';
+  };
+
+  const getPlanFeatures = () => {
+    const planFeatures = {
+      'starter': [
+        '5 Automation Workflows',
+        '500 Monthly Runs',
+        '10GB Storage',
+        'Advanced Logging (90 days)',
+        'Email Support',
+        'Basic Analytics'
+      ],
+      'professional': [
+        '25 Automation Workflows',
+        '5,000 Monthly Runs',
+        '100GB Storage',
+        'Priority Support (4-8h)',
+        'Advanced Analytics',
+        'Team Collaboration (5 users)',
+        'Custom Integrations',
+        'Full Logging (1 Year)'
+      ],
+      'enterprise': [
+        'Unlimited Workflows',
+        '50,000 Monthly Runs',
+        'Unlimited Storage',
+        'Dedicated Support (2-4h)',
+        'Advanced Security',
+        'Custom Development',
+        'Enterprise Features (SSO, LDAP)',
+        'SLA Guarantees'
+      ]
+    };
+
+    return planFeatures[requiredPlan] || planFeatures['professional'];
+  };
+
+  const getCurrentPlan = () => {
+    return planData?.plan?.name || 'Hobbyist';
+  };
+
+  return (
+    <div className={`${styles.overlay} ${isClosing ? styles.closing : ''}`}>
+      <div className={`${styles.modal} ${isClosing ? styles.modalClosing : ''}`}>
+        {/* Header */}
+        <div className={styles.header}>
+          <div className={styles.headerContent}>
+            <div className={styles.icon}>
+              <FiZap />
+            </div>
+            <div>
+              <h2>Upgrade Required</h2>
+              <p>Access {getFeatureTitle()}</p>
+            </div>
+          </div>
+          <button onClick={handleClose} className={styles.closeBtn}>
+            <FiX />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className={styles.content}>
+          <div className={styles.messageSection}>
+            <p className={styles.message}>
+              {message || `This feature requires the ${getRequiredPlanDisplay()}. Upgrade now to unlock powerful automation capabilities.`}
+            </p>
+            
+            <div className={styles.planComparison}>
+              <div className={styles.currentPlan}>
+                <span className={styles.planLabel}>Current Plan</span>
+                <span className={styles.planName}>{getCurrentPlan()}</span>
+              </div>
+              
+              <div className={styles.arrow}>
+                <FiArrowRight />
+              </div>
+              
+              <div className={styles.targetPlan}>
+                <span className={styles.planLabel}>Upgrade To</span>
+                <span className={styles.planName}>{getRequiredPlanDisplay()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Features List */}
+          <div className={styles.featuresSection}>
+            <h3>What you'll get:</h3>
+            <ul className={styles.featuresList}>
+              {getPlanFeatures().map((feature, index) => (
+                <li key={index} className={styles.featureItem}>
+                  <FiCheck className={styles.checkIcon} />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Trial Notice */}
+          <div className={styles.trialNotice}>
+            <FiZap className={styles.trialIcon} />
+            <span>Start with a 14-day free trial • Cancel anytime</span>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className={styles.actions}>
+          <button onClick={handleClose} className={styles.cancelBtn}>
+            Maybe Later
+          </button>
+          <button onClick={handleUpgrade} className={styles.upgradeBtn}>
+            <FiZap />
+            Upgrade Now
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+PaywallModal.propTypes = {
+  feature: PropTypes.string,
+  requiredPlan: PropTypes.string,
+  message: PropTypes.string,
+  onClose: PropTypes.func
+};
+
+export default PaywallModal;

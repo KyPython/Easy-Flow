@@ -23,10 +23,13 @@ import ExecutionDashboard from './ExecutionDashboard';
 import WorkflowTesting from './WorkflowTesting';
 import { useWorkflow } from '../../hooks/useWorkflow';
 import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
+import { usePlan } from '../../hooks/usePlan';
 import { supabase } from '../../utils/supabase';
 import LoadingSpinner from './LoadingSpinner';
 import ActionButton from './ActionButton';
 import ConfirmDialog from './ConfirmDialog';
+import PlanGate from '../PlanGate/PlanGate';
+import PaywallModal from '../PaywallModal/PaywallModal';
 
 const WorkflowBuilder = () => {
   const navigate = useNavigate();
@@ -35,6 +38,11 @@ const WorkflowBuilder = () => {
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState(null);
+
+  // Plan checking
+  const { planData, canCreateWorkflow, canRunAutomation, hasFeature } = usePlan();
 
   // Use real workflow data - always call hooks
   const { 
@@ -60,6 +68,13 @@ const WorkflowBuilder = () => {
         await saveWorkflow(currentWorkflow);
         console.log('Workflow updated successfully');
       } else {
+        // Check if user can create new workflow
+        if (!canCreateWorkflow()) {
+          setPaywallFeature('workflow_creation');
+          setShowPaywall(true);
+          return;
+        }
+
         // Create new workflow with timestamp
         const timestamp = new Date().toLocaleString();
         const newWorkflowData = {
@@ -91,11 +106,18 @@ const WorkflowBuilder = () => {
       console.error('Failed to save workflow:', error);
       alert('Failed to save workflow: ' + error.message);
     }
-  }, [currentWorkflow, workflowId, saveWorkflow, createWorkflow, navigate]);
+  }, [currentWorkflow, workflowId, saveWorkflow, createWorkflow, navigate, canCreateWorkflow]);
 
   const handleExecuteWorkflow = useCallback(async () => {
     if (!workflowId) {
       alert('Please save the workflow first before running it.');
+      return;
+    }
+
+    // Check if user can run automation
+    if (!canRunAutomation()) {
+      setPaywallFeature('automation_runs');
+      setShowPaywall(true);
       return;
     }
     
@@ -108,7 +130,7 @@ const WorkflowBuilder = () => {
       alert('Failed to start workflow execution: ' + error.message);
       setIsExecuting(false);
     }
-  }, [workflowId, startExecution]);
+  }, [workflowId, startExecution, canRunAutomation]);
 
   const handleStopExecution = useCallback(async () => {
     // Find the running execution and cancel it
@@ -353,6 +375,22 @@ const WorkflowBuilder = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Paywall Modal */}
+      {showPaywall && (
+        <PaywallModal
+          feature={paywallFeature}
+          requiredPlan="starter"
+          message={
+            paywallFeature === 'workflow_creation' 
+              ? `You've reached your workflow limit of ${planData?.limits?.workflows || 3}. Upgrade to create unlimited workflows.`
+              : paywallFeature === 'automation_runs'
+              ? `You've used ${planData?.usage?.monthly_runs || 0}/${planData?.limits?.monthly_runs || 50} automation runs this month. Upgrade for higher limits.`
+              : undefined
+          }
+          onClose={() => setShowPaywall(false)}
+        />
       )}
     </div>
   );

@@ -25,6 +25,13 @@ const { createClient } = require('@supabase/supabase-js');
 const { startEmailWorker } = require('./workers/email_worker');
 const { spawn } = require('child_process');
 const adminTemplatesRouter = require('./routes/adminTemplates');
+const { 
+  requireWorkflowCreation, 
+  requireAutomationRun, 
+  requireFeature,
+  requirePlan,
+  checkStorageLimit
+} = require('./middleware/planEnforcement');
 
 const app = express();
 const PORT = process.env.PORT || 3030;
@@ -928,8 +935,8 @@ function decryptCredentials(encryptedData, key) {
   return JSON.parse(decrypted);
 }
 
-// POST /api/run-task - Secured automation endpoint
-app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) => {
+// POST /api/run-task - Secured automation endpoint with plan enforcement
+app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimiter, async (req, res) => {
   const { url, title, notes, type, task, username, password, pdf_url } = req.body;
   const user = req.user;
 
@@ -1080,8 +1087,8 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
-// POST /api/tasks - Create a new automation task
-app.post('/api/tasks', async (req, res) => {
+// POST /api/tasks - Create a new automation task with plan enforcement
+app.post('/api/tasks', authMiddleware, requireWorkflowCreation, async (req, res) => {
   try {
     // Defensive check
     if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });

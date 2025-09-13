@@ -15,6 +15,9 @@ import {
 import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates';
 import LoadingSpinner from './LoadingSpinner';
 import TemplateDetails from './TemplateDetails';
+import VirtualizedGrid from '../VirtualizedGrid/VirtualizedGrid';
+import { SkeletonGrid, SkeletonList } from '../Skeleton/Skeleton';
+import LazyImage from '../LazyImage/LazyImage';
 
 // Helper moved top-level for reuse in preview modal
 const formatTemplateCategory = (category) => {
@@ -133,9 +136,11 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
 
   const featuredTemplates = templates.filter(template => template.is_featured);
 
-  if (loading) {
+  if (loading && filteredAndSortedTemplates.length === 0) {
     return (
-      <div className={styles.loadingState}>\n        <LoadingSpinner centered message="Loading templates..." />\n      </div>
+      <div className={styles.loadingState}>
+        {viewMode === 'grid' ? <SkeletonGrid count={6} /> : <SkeletonList count={5} />}
+      </div>
     );
   }
 
@@ -271,6 +276,27 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
             <h4>No templates found</h4>
             <p>Try adjusting your search or filter criteria</p>
           </div>
+        ) : viewMode === 'grid' && filteredAndSortedTemplates.length > 20 ? (
+          <>
+            <VirtualizedGrid
+              items={filteredAndSortedTemplates}
+              renderItem={(template, index) => (
+                <TemplateCard
+                  key={template.id}
+                  template={template}
+                  onSelect={(t) => setSelected(t.id)}
+                  viewMode={viewMode}
+                />
+              )}
+              itemHeight={320}
+              itemWidth={300}
+              gap={24}
+              containerHeight={600}
+              className={styles.virtualizedGrid}
+              loading={loading}
+              loadingComponent={<SkeletonGrid count={6} />}
+            />
+          </>
         ) : (
           <>
             <div className={`${styles.templatesGrid} ${styles[viewMode]}`}>

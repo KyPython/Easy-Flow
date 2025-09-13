@@ -1,0 +1,162 @@
+.skeleton {
+  background: var(--bg-skeleton, #e9ecef);
+  border-radius: 4px;
+}
+
+.skeleton.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-skeleton, #e9ecef) 25%,
+    var(--bg-skeleton-highlight, #f8f9fa) 50%,
+    var(--bg-skeleton, #e9ecef) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton.pulse {
+  animation: pulse 2s infinite;
+}
+
+.skeleton.text {
+  border-radius: 4px;
+  height: 1em;
+}
+
+.skeleton.circular {
+  border-radius: 50%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Skeleton Card Styles */
+.skeletonCard {
+  border: 1px solid var(--border-color, #e9ecef);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-primary, #ffffff);
+}
+
+.cardImage {
+  width: 100%;
+  border-radius: 0;
+}
+
+.cardContent {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cardTitle {
+  border-radius: 6px;
+}
+
+.cardSubtitle {
+  border-radius: 4px;
+}
+
+.cardTags {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cardStats {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.cardActions {
+  padding: 16px;
+  border-top: 1px solid var(--border-color, #e9ecef);
+}
+
+/* Skeleton Grid Styles */
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+  padding: 16px 0;
+}
+
+/* Skeleton List Styles */
+.skeletonList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skeletonListItem {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-color, #e9ecef);
+  border-radius: 8px;
+  background: var(--bg-primary, #ffffff);
+}
+
+.listImage {
+  flex-shrink: 0;
+}
+
+.listContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.listTitle {
+  border-radius: 6px;
+}
+
+.listDescription {
+  border-radius: 4px;
+}
+
+.listMeta {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.listActions {
+  flex-shrink: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .skeletonGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .skeletonListItem {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .listActions {
+    width: 100%;
+  }
+}

@@ -1,6 +1,26 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+CREATE TABLE public.action_definitions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  action_type text NOT NULL UNIQUE,
+  name text NOT NULL,
+  description text NOT NULL,
+  category text NOT NULL DEFAULT 'general'::text,
+  config_schema jsonb NOT NULL,
+  input_schema jsonb DEFAULT '{}'::jsonb,
+  output_schema jsonb DEFAULT '{}'::jsonb,
+  icon_url text,
+  color text DEFAULT '#0066cc'::text,
+  required_plan text DEFAULT 'free'::text,
+  execution_limit integer,
+  version text NOT NULL DEFAULT '1.0.0'::text,
+  is_system boolean DEFAULT true,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT action_definitions_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.automation_logs (
   id bigint NOT NULL DEFAULT nextval('automation_logs_id_seq'::regclass),
   task text,
@@ -24,8 +44,8 @@ CREATE TABLE public.automation_runs (
   artifact_url text,
   file_ids ARRAY DEFAULT '{}'::uuid[],
   CONSTRAINT automation_runs_pkey PRIMARY KEY (id),
-  CONSTRAINT automation_runs_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id),
-  CONSTRAINT automation_runs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT automation_runs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT automation_runs_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id)
 );
 CREATE TABLE public.automation_tasks (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -55,6 +75,18 @@ CREATE TABLE public.email_queue (
   CONSTRAINT email_queue_pkey PRIMARY KEY (id),
   CONSTRAINT email_queue_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.file_share_access_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  share_id uuid NOT NULL,
+  accessed_at timestamp with time zone DEFAULT now(),
+  ip_address inet,
+  user_agent text,
+  access_type character varying NOT NULL DEFAULT 'view'::character varying CHECK (access_type::text = ANY (ARRAY['view'::character varying, 'download'::character varying, 'password_attempt'::character varying]::text[])),
+  success boolean DEFAULT true,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  CONSTRAINT file_share_access_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT file_share_access_logs_share_id_fkey FOREIGN KEY (share_id) REFERENCES public.file_shares(id)
+);
 CREATE TABLE public.file_shares (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   file_id uuid NOT NULL,
@@ -68,10 +100,11 @@ CREATE TABLE public.file_shares (
   is_active boolean DEFAULT true,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  password_hash text,
   CONSTRAINT file_shares_pkey PRIMARY KEY (id),
-  CONSTRAINT file_shares_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id),
   CONSTRAINT file_shares_shared_by_fkey FOREIGN KEY (shared_by) REFERENCES auth.users(id),
-  CONSTRAINT file_shares_shared_with_fkey FOREIGN KEY (shared_with) REFERENCES auth.users(id)
+  CONSTRAINT file_shares_shared_with_fkey FOREIGN KEY (shared_with) REFERENCES auth.users(id),
+  CONSTRAINT file_shares_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id)
 );
 CREATE TABLE public.files (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -99,9 +132,9 @@ CREATE TABLE public.files (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT files_pkey PRIMARY KEY (id),
-  CONSTRAINT files_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.automation_runs(id),
   CONSTRAINT files_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT files_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id)
+  CONSTRAINT files_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id),
+  CONSTRAINT files_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.automation_runs(id)
 );
 CREATE TABLE public.forwarded_event_ids (
   id text NOT NULL,
@@ -188,6 +221,27 @@ CREATE TABLE public.referrals (
   referral_code text,
   CONSTRAINT referrals_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.step_executions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_execution_id uuid NOT NULL,
+  step_id uuid NOT NULL,
+  execution_order integer NOT NULL,
+  status text NOT NULL DEFAULT 'queued'::text CHECK (status = ANY (ARRAY['queued'::text, 'running'::text, 'completed'::text, 'failed'::text, 'skipped'::text])),
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  duration_ms integer,
+  input_data jsonb DEFAULT '{}'::jsonb,
+  output_data jsonb DEFAULT '{}'::jsonb,
+  result jsonb DEFAULT '{}'::jsonb,
+  error_message text,
+  retry_count integer DEFAULT 0,
+  automation_log_id bigint,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT step_executions_pkey PRIMARY KEY (id),
+  CONSTRAINT step_executions_step_id_fkey FOREIGN KEY (step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT step_executions_workflow_execution_id_fkey FOREIGN KEY (workflow_execution_id) REFERENCES public.workflow_executions(id),
+  CONSTRAINT step_executions_automation_log_id_fkey FOREIGN KEY (automation_log_id) REFERENCES public.automation_logs(id)
+);
 CREATE TABLE public.subscriptions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL UNIQUE,
@@ -198,8 +252,26 @@ CREATE TABLE public.subscriptions (
   started_at timestamp with time zone DEFAULT now(),
   expires_at timestamp with time zone,
   CONSTRAINT subscriptions_pkey PRIMARY KEY (id),
-  CONSTRAINT subscriptions_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.plans(id),
-  CONSTRAINT subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT subscriptions_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.plans(id)
+);
+CREATE TABLE public.template_versions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  template_id uuid NOT NULL,
+  version text NOT NULL,
+  changelog text,
+  config jsonb NOT NULL,
+  dependencies jsonb DEFAULT '[]'::jsonb,
+  screenshots ARRAY DEFAULT '{}'::text[],
+  submitted_by uuid,
+  reviewed_by uuid,
+  review_notes text,
+  approved_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT template_versions_pkey PRIMARY KEY (id),
+  CONSTRAINT template_versions_submitted_by_fkey FOREIGN KEY (submitted_by) REFERENCES auth.users(id),
+  CONSTRAINT template_versions_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES auth.users(id),
+  CONSTRAINT template_versions_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.workflow_templates(id)
 );
 CREATE TABLE public.user_features (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -235,4 +307,194 @@ CREATE TABLE public.user_settings (
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT user_settings_pkey PRIMARY KEY (id),
   CONSTRAINT user_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.user_workflow_data (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  workflow_id uuid NOT NULL,
+  data_key text NOT NULL,
+  data_value jsonb NOT NULL,
+  data_type text NOT NULL DEFAULT 'json'::text,
+  expires_at timestamp with time zone,
+  is_encrypted boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_workflow_data_pkey PRIMARY KEY (id),
+  CONSTRAINT user_workflow_data_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT user_workflow_data_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
+);
+CREATE TABLE public.workflow_connections (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  source_step_id uuid NOT NULL,
+  target_step_id uuid NOT NULL,
+  connection_type text NOT NULL DEFAULT 'next'::text CHECK (connection_type = ANY (ARRAY['next'::text, 'success'::text, 'error'::text, 'condition'::text])),
+  condition jsonb DEFAULT '{}'::jsonb,
+  visual_config jsonb DEFAULT '{"color": "#0066cc", "style": "solid", "animated": false}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_connections_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_connections_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_connections_source_step_id_fkey FOREIGN KEY (source_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_connections_target_step_id_fkey FOREIGN KEY (target_step_id) REFERENCES public.workflow_steps(id)
+);
+CREATE TABLE public.workflow_executions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  execution_number integer NOT NULL,
+  status text NOT NULL DEFAULT 'queued'::text CHECK (status = ANY (ARRAY['queued'::text, 'running'::text, 'completed'::text, 'failed'::text, 'cancelled'::text, 'timeout'::text])),
+  started_at timestamp with time zone DEFAULT now(),
+  completed_at timestamp with time zone,
+  duration_seconds integer,
+  input_data jsonb DEFAULT '{}'::jsonb,
+  output_data jsonb DEFAULT '{}'::jsonb,
+  error_message text,
+  error_step_id uuid,
+  triggered_by text DEFAULT 'manual'::text,
+  trigger_data jsonb DEFAULT '{}'::jsonb,
+  steps_executed integer DEFAULT 0,
+  steps_total integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_executions_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_executions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_executions_error_step_id_fkey FOREIGN KEY (error_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_executions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.workflow_schedules (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  schedule_type text NOT NULL CHECK (schedule_type = ANY (ARRAY['cron'::text, 'interval'::text, 'webhook'::text])),
+  cron_expression text,
+  timezone text DEFAULT 'UTC'::text,
+  interval_seconds integer,
+  webhook_token text UNIQUE,
+  webhook_secret text,
+  is_active boolean DEFAULT true,
+  last_triggered_at timestamp with time zone,
+  next_trigger_at timestamp with time zone,
+  max_executions integer,
+  execution_count integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_schedules_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_schedules_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_schedules_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.workflow_steps (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  step_key text NOT NULL,
+  name text NOT NULL,
+  description text,
+  step_type text NOT NULL,
+  position_x real NOT NULL DEFAULT 0,
+  position_y real NOT NULL DEFAULT 0,
+  action_type text,
+  config jsonb DEFAULT '{}'::jsonb,
+  parent_step_id uuid,
+  execution_order integer NOT NULL DEFAULT 0,
+  conditions jsonb DEFAULT '[]'::jsonb,
+  on_success text DEFAULT 'continue'::text,
+  on_error text DEFAULT 'retry'::text,
+  success_step_id uuid,
+  error_step_id uuid,
+  is_enabled boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_steps_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_steps_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_steps_parent_step_id_fkey FOREIGN KEY (parent_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_steps_success_step_id_fkey FOREIGN KEY (success_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_steps_error_step_id_fkey FOREIGN KEY (error_step_id) REFERENCES public.workflow_steps(id)
+);
+CREATE TABLE public.workflow_templates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_by uuid NOT NULL,
+  source_workflow_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  category text NOT NULL DEFAULT 'general'::text,
+  tags ARRAY,
+  template_config jsonb NOT NULL,
+  required_inputs jsonb DEFAULT '[]'::jsonb,
+  expected_outputs jsonb DEFAULT '[]'::jsonb,
+  usage_count integer DEFAULT 0,
+  rating numeric DEFAULT 0.0,
+  is_public boolean DEFAULT false,
+  is_featured boolean DEFAULT false,
+  published_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_templates_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
+  CONSTRAINT workflow_templates_source_workflow_id_fkey FOREIGN KEY (source_workflow_id) REFERENCES public.workflows(id)
+);
+CREATE TABLE public.workflow_test_results (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  scenario_id uuid NOT NULL,
+  workflow_id uuid NOT NULL,
+  status text NOT NULL CHECK (status = ANY (ARRAY['passed'::text, 'failed'::text, 'running'::text, 'cancelled'::text])),
+  execution_time integer NOT NULL DEFAULT 0,
+  step_results jsonb NOT NULL DEFAULT '[]'::jsonb,
+  actual_outputs jsonb NOT NULL DEFAULT '{}'::jsonb,
+  error_message text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT workflow_test_results_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_test_results_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_test_results_scenario_id_fkey FOREIGN KEY (scenario_id) REFERENCES public.workflow_test_scenarios(id)
+);
+CREATE TABLE public.workflow_test_scenarios (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  input_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  expected_outputs jsonb NOT NULL DEFAULT '{}'::jsonb,
+  test_steps jsonb NOT NULL DEFAULT '[]'::jsonb,
+  mock_config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT workflow_test_scenarios_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_test_scenarios_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT workflow_test_scenarios_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
+);
+CREATE TABLE public.workflow_variables (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  variable_name text NOT NULL,
+  variable_type text NOT NULL CHECK (variable_type = ANY (ARRAY['string'::text, 'number'::text, 'boolean'::text, 'json'::text, 'secret'::text])),
+  description text,
+  default_value jsonb,
+  is_required boolean DEFAULT false,
+  is_encrypted boolean DEFAULT false,
+  validation_rules jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_variables_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_variables_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
+);
+CREATE TABLE public.workflows (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  version integer NOT NULL DEFAULT 1,
+  status text NOT NULL DEFAULT 'draft'::text CHECK (status = ANY (ARRAY['draft'::text, 'active'::text, 'paused'::text, 'archived'::text])),
+  canvas_config jsonb DEFAULT '{"edges": [], "nodes": [], "viewport": {"x": 0, "y": 0, "zoom": 1}}'::jsonb,
+  settings jsonb DEFAULT '{"retry_count": 3, "retry_delay": 5, "error_handling": "stop", "max_executions": null, "timeout_minutes": 60, "parallel_execution": false}'::jsonb,
+  total_executions integer DEFAULT 0,
+  successful_executions integer DEFAULT 0,
+  failed_executions integer DEFAULT 0,
+  last_executed_at timestamp with time zone,
+  tags ARRAY,
+  is_template boolean DEFAULT false,
+  is_public boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflows_pkey PRIMARY KEY (id),
+  CONSTRAINT workflows_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );

@@ -1,0 +1,141 @@
+.container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border-color, #e9ecef);
+  border-radius: 8px;
+  background: var(--bg-primary, #ffffff);
+}
+
+.scrollContainer {
+  position: relative;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, #cbd5e1) var(--scrollbar-track, transparent);
+}
+
+.scrollContainer::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollContainer::-webkit-scrollbar-track {
+  background: var(--scrollbar-track, transparent);
+}
+
+.scrollContainer::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, #cbd5e1);
+  border-radius: 4px;
+}
+
+.scrollContainer::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, #94a3b8);
+}
+
+.viewport {
+  position: relative;
+  width: 100%;
+}
+
+.gridItem {
+  box-sizing: border-box;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.gridItem:hover {
+  transform: translateY(-2px);
+  z-index: 1;
+}
+
+.loadingOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.loadingSpinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-primary-200, #e0e7ff);
+  border-top: 3px solid var(--color-primary-600, #4f46e5);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Performance optimizations */
+.container {
+  contain: layout style paint;
+}
+
+.gridItem {
+  contain: layout style paint;
+  will-change: transform;
+}
+
+/* Smooth scrolling for better UX */
+.scrollContainer {
+  scroll-behavior: smooth;
+}
+
+/* Focus styles for accessibility */
+.gridItem:focus-within {
+  outline: 2px solid var(--color-primary-500, #4f46e5);
+  outline-offset: 2px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .container {
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+  }
+  
+  .scrollContainer::-webkit-scrollbar {
+    width: 4px;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .container {
+    border-width: 2px;
+  }
+  
+  .loadingSpinner {
+    border-width: 4px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .gridItem {
+    transition: none;
+  }
+  
+  .gridItem:hover {
+    transform: none;
+  }
+  
+  .scrollContainer {
+    scroll-behavior: auto;
+  }
+  
+  .loadingSpinner {
+    animation: none;
+    border-top-color: var(--color-primary-600, #4f46e5);
+  }
+}
