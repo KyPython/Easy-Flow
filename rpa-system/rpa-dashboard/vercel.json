@@ -11,7 +11,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://www.uchat.com.au https://*.uchat.com.au; connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.uchat.com.au https://*.uchat.com.au; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' https://www.uchat.com.au https://*.uchat.com.au; frame-ancestors 'none'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://www.uchat.com.au https://*.uchat.com.au https://sdk.dfktv2.com; connect-src 'self' https://syxzilyuysdoirnezgii.supabase.co https://easyflow-backend-ad8e.onrender.com https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.uchat.com.au https://*.uchat.com.au https://sdk.dfktv2.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' https://www.uchat.com.au https://*.uchat.com.au; frame-ancestors 'none'; upgrade-insecure-requests"
         }
       ]
     }
