@@ -37,72 +37,73 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 24px 16px 24px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: var(--spacing-xl) var(--spacing-xl) var(--spacing-md) var(--spacing-xl);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .headerContent {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--spacing-md);
 }
 
 .icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
+  background: var(--primary-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 20px;
+  font-size: var(--font-size-xl);
 }
 
 .header h2 {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0 0 4px 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-xs) 0;
+  font-family: var(--font-family-secondary);
 }
 
 .header p {
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .closeBtn {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: none;
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
 }
 
 .closeBtn:hover {
-  background: #e5e7eb;
-  color: #374151;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .content {
-  padding: 24px;
+  padding: var(--spacing-xl);
 }
 
 .messageSection {
-  margin-bottom: 24px;
+  margin-bottom: var(--spacing-xl);
 }
 
 .message {
-  color: #4b5563;
-  line-height: 1.6;
-  margin: 0 0 20px 0;
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0 0 var(--spacing-lg) 0;
 }
 
 .planComparison {

@@ -1,4 +1,10 @@
-const { supabase } = require('../utils/supabase');
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 /**
  * Middleware to enforce plan limits and feature access

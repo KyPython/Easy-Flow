@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { usePlan } from '../../hooks/usePlan';
+import { useTheme } from '../../utils/ThemeContext';
 import { FiX, FiZap, FiArrowRight, FiCheck } from 'react-icons/fi';
 import PropTypes from 'prop-types';
 import styles from './PaywallModal.module.css';
@@ -11,6 +12,7 @@ const PaywallModal = ({
   onClose 
 }) => {
   const { planData } = usePlan();
+  const { theme } = useTheme();
   const [isClosing, setIsClosing] = useState(false);
 
   const handleClose = () => {

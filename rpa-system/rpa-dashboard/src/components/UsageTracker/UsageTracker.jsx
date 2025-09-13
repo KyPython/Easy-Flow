@@ -1,11 +1,13 @@
 import React from 'react';
 import { usePlan } from '../../hooks/usePlan';
+import { useTheme } from '../../utils/ThemeContext';
 import { FiZap, FiHardDrive, FiUsers, FiArrowUp } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styles from './UsageTracker.module.css';
 
 const UsageTracker = ({ showUpgrade = true }) => {
   const { planData, loading, getUsagePercent, isAtLimit } = usePlan();
+  const { theme } = useTheme();
   const navigate = useNavigate();
 
   if (loading) {
