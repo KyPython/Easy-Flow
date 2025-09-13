@@ -431,6 +431,35 @@ app.use('/api/schedules', authMiddleware, scheduleRoutes);
 // Mount execution routes (protected)
 app.use('/api/executions', authMiddleware, executionRoutes);
 
+// Execute a workflow immediately (manual trigger)
+app.post('/api/workflows/execute', authMiddleware, automationLimiter, async (req, res) => {
+  try {
+    const { workflowId, inputData = {}, triggeredBy = 'manual' } = req.body || {};
+    if (!workflowId) {
+      return res.status(400).json({ error: 'workflowId is required' });
+    }
+
+    const { WorkflowExecutor } = require('./services/workflowExecutor');
+    const workflowExecutor = new WorkflowExecutor();
+
+    const execution = await workflowExecutor.startExecution({
+      workflowId,
+      userId: req.user.id,
+      triggeredBy,
+      triggerData: { inputData, source: 'api' }
+    });
+
+    return res.json({
+      message: 'Workflow execution started',
+      execution_id: execution.id,
+      status: execution.status || 'running'
+    });
+  } catch (error) {
+    console.error('[POST /api/workflows/execute] error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to start execution' });
+  }
+});
+
 // Initialize trigger service
 (async () => {
   try {

@@ -175,23 +175,23 @@ export const useWorkflowTemplates = () => {
         template.id
       ) : [];
 
-      // If no templates found, show fallback templates for better UX
-      if (data.length === 0) {
-        console.log('No database templates found, using fallback templates');
-        setTemplates(mockTemplates);
-        setTotal(mockTemplates.length);
-      } else {
-        setTemplates(data);
-        if (typeof count === 'number') setTotal(count);
-        setPage(p);
-        setPageSize(ps);
-      }
+  // If no templates found, keep empty results; only use fallback on actual errors
+  setTemplates(data);
+  if (typeof count === 'number') setTotal(count);
+  else setTotal(Array.isArray(data) ? data.length : 0);
+  setPage(p);
+  setPageSize(ps);
     } catch (err) {
       console.error('Error loading templates:', err);
       setError(err.message);
-      // Provide fallback templates if database is not set up
-      setTemplates(mockTemplates);
-      setTotal(mockTemplates.length);
+      // Provide fallback templates only if the schema is missing or access denied
+      if (err?.code === '42P01' || err?.code === '42703' || String(err?.message || '').toLowerCase().includes('permission')) {
+        setTemplates(mockTemplates);
+        setTotal(mockTemplates.length);
+      } else {
+        setTemplates([]);
+        setTotal(0);
+      }
     } finally {
       setLoading(false);
     }
