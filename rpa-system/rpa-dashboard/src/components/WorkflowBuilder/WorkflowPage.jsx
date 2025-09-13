@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/AuthContext';
 import WorkflowBuilder from './WorkflowBuilder';
 import TemplateGallery from './TemplateGallery';
+import WorkflowsList from './WorkflowsList';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from '../ErrorMessage';
 import styles from './WorkflowPage.module.css';
@@ -10,6 +11,7 @@ import styles from './WorkflowPage.module.css';
 const WorkflowPage = () => {
   const { workflowId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
 
@@ -20,25 +22,33 @@ const WorkflowPage = () => {
     }
   }, [user, authLoading, navigate]);
 
-  // Show template gallery if no workflow ID is provided
-  useEffect(() => {
-    if (!workflowId && user) {
-      setShowTemplateGallery(true);
-    }
-  }, [workflowId, user]);
+  // Determine what to show based on path and workflow ID
+  const getCurrentView = () => {
+    const path = location.pathname;
+    console.log('WorkflowPage - current path:', path);
+    console.log('WorkflowPage - workflowId:', workflowId);
+    
+    // IMPORTANT: Let WorkflowBuilder handle all /builder subroutes
+    if (path.includes('/builder')) return 'builder';
+    
+    if (path.includes('/templates')) return 'templates';
+    if (path.includes('/schedules')) return 'schedules';
+    if (path.includes('/executions')) return 'executions';
+    if (path.includes('/testing')) return 'testing';
+    if (workflowId) return 'builder';
+    return 'list'; // Default to workflows list
+  };
 
-  const handleTemplateSelect = (template) => {
-    // In a real implementation, this would create a new workflow from template
-    console.log('Selected template:', template);
-    setShowTemplateGallery(false);
-    // Navigate to a new workflow or create one
-    navigate('/app/workflows/builder');
+  const handleTemplateSelect = (newWorkflow) => {
+    // This is called after a workflow is created from template
+    console.log('Selected template, created workflow:', newWorkflow);
+    // Navigate to the new workflow builder with the workflow ID
+    navigate(`/app/workflows/builder/${newWorkflow.id}`);
   };
 
   const handleCreateNewWorkflow = () => {
     // Navigate to create new workflow
     navigate('/app/workflows/builder');
-    setShowTemplateGallery(false);
   };
 
   if (authLoading) {
@@ -53,9 +63,14 @@ const WorkflowPage = () => {
     return null; // Will redirect to auth
   }
 
-  if (showTemplateGallery) {
-    return (
-      <div className={styles.workflowPage}>
+  const currentView = getCurrentView();
+  
+  console.log('Rendering WorkflowPage with view:', currentView);
+
+  return (
+    <div className={styles.workflowPage}>
+      {currentView === 'list' && <WorkflowsList />}
+      {currentView === 'templates' && (
         <div className={styles.templateGalleryContainer}>
           <div className={styles.galleryHeader}>
             <h1>Choose a Workflow Template</h1>
@@ -71,16 +86,32 @@ const WorkflowPage = () => {
           </div>
           <TemplateGallery
             onSelectTemplate={handleTemplateSelect}
-            onClose={() => setShowTemplateGallery(false)}
+            onClose={() => navigate('/app/workflows')}
           />
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.workflowPage}>
-      <WorkflowBuilder />
+      )}
+      {currentView === 'schedules' && (
+        <div className={styles.placeholderContainer}>
+          <h2>Workflow Schedules</h2>
+          <p>Schedule your workflows to run automatically</p>
+          <p>This feature will be available when you save your workflow.</p>
+        </div>
+      )}
+      {currentView === 'executions' && (
+        <div className={styles.placeholderContainer}>
+          <h2>Workflow Executions</h2>
+          <p>View execution history and monitor your workflows</p>
+          <p>This feature will be available when you save your workflow.</p>
+        </div>
+      )}
+      {currentView === 'testing' && (
+        <div className={styles.placeholderContainer}>
+          <h2>Workflow Testing</h2>
+          <p>Test and validate your workflows before running them</p>
+          <p>This feature will be available when you save your workflow.</p>
+        </div>
+      )}
+      {currentView === 'builder' && <WorkflowBuilder />}
     </div>
   );
 };

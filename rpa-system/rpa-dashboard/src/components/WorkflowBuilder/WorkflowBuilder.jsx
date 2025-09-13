@@ -12,15 +12,18 @@ import {
   FaPlay,
   FaStop,
   FaCog,
-  FaEye
+  FaEye,
+  FaFlask
 } from 'react-icons/fa';
 
 import WorkflowCanvas from './WorkflowCanvas';
 import TemplateGallery from './TemplateGallery';
 import ScheduleManager from './ScheduleManager';
 import ExecutionDashboard from './ExecutionDashboard';
+import WorkflowTesting from './WorkflowTesting';
 import { useWorkflow } from '../../hooks/useWorkflow';
 import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
+import { supabase } from '../../utils/supabase';
 import LoadingSpinner from './LoadingSpinner';
 import ActionButton from './ActionButton';
 import ConfirmDialog from './ConfirmDialog';
@@ -39,6 +42,7 @@ const WorkflowBuilder = () => {
     loading: workflowLoading, 
     error: workflowError,
     saveWorkflow,
+    createWorkflow,
     executeWorkflow 
   } = useWorkflow(workflowId);
   
@@ -50,19 +54,50 @@ const WorkflowBuilder = () => {
 
   // All callback hooks must be called before any early returns
   const handleSaveWorkflow = useCallback(async () => {
-    if (!currentWorkflow) return;
-    
     try {
-      await saveWorkflow(currentWorkflow);
-      console.log('Workflow saved successfully');
+      if (currentWorkflow && workflowId) {
+        // Update existing workflow
+        await saveWorkflow(currentWorkflow);
+        console.log('Workflow updated successfully');
+      } else {
+        // Create new workflow with timestamp
+        const timestamp = new Date().toLocaleString();
+        const newWorkflowData = {
+          name: `New Workflow - ${timestamp}`,
+          description: 'A new automation workflow created from the canvas',
+          status: 'draft',
+          canvas_config: {
+            nodes: [],
+            edges: [],
+            viewport: { x: 0, y: 0, zoom: 1 }
+          }
+        };
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User must be authenticated');
+        
+        newWorkflowData.user_id = user.id;
+        
+        const newWorkflow = await createWorkflow(newWorkflowData);
+        console.log('New workflow created successfully:', newWorkflow);
+        
+        // Show success message with instructions
+        alert(`Workflow "${newWorkflow.name}" created successfully!\n\nYour workflow has been saved and you can now:\n• Start building by adding steps from the Actions toolbar\n• Use the "Browse Workflows" button to see all your workflows\n• Navigate between different workflow tabs`);
+        
+        // Navigate to the new workflow
+        navigate(`/app/workflows/builder/${newWorkflow.id}`);
+      }
     } catch (error) {
       console.error('Failed to save workflow:', error);
       alert('Failed to save workflow: ' + error.message);
     }
-  }, [currentWorkflow, saveWorkflow]);
+  }, [currentWorkflow, workflowId, saveWorkflow, createWorkflow, navigate]);
 
   const handleExecuteWorkflow = useCallback(async () => {
-    if (!workflowId) return;
+    if (!workflowId) {
+      alert('Please save the workflow first before running it.');
+      return;
+    }
     
     try {
       setIsExecuting(true);
@@ -89,20 +124,72 @@ const WorkflowBuilder = () => {
     }
   }, [executionStats]);
 
-  const handleTemplateSelect = useCallback((template) => {
-    // In a real implementation, this would create a new workflow from template
-    console.log('Selected template:', template);
-    setShowTemplateGallery(false);
-    navigate('/app/workflows/builder');
+  const handleTemplateSelect = useCallback(async (newWorkflow) => {
+    try {
+      console.log('Created workflow from template:', newWorkflow);
+      setShowTemplateGallery(false);
+      
+      // Navigate to the newly created workflow
+      navigate(`/app/workflows/builder/${newWorkflow.id}`);
+      
+    } catch (error) {
+      console.error('Failed to handle template selection:', error);
+      alert('Failed to create workflow from template: ' + error.message);
+    }
   }, [navigate]);
+
+  const getNavigationItems = (workflowId) => [
+    {
+      id: 'canvas',
+      label: 'Workflow Canvas',
+      icon: <FaProjectDiagram />,
+      path: workflowId ? `/app/workflows/builder/${workflowId}` : '/app/workflows/builder',
+      description: 'Visual workflow editor'
+    },
+    {
+      id: 'templates',
+      label: 'Template Gallery',
+      icon: <FaLayerGroup />,
+      path: workflowId ? `/app/workflows/builder/${workflowId}/templates` : '/app/workflows/builder/templates',
+      description: 'Browse workflow templates'
+    },
+    {
+      id: 'schedules',
+      label: 'Schedules',
+      icon: <FaClock />,
+      path: workflowId ? `/app/workflows/builder/${workflowId}/schedules` : '/app/workflows/builder/schedules',
+      description: 'Manage workflow schedules'
+    },
+    {
+      id: 'executions',
+      label: 'Executions',
+      icon: <FaChartLine />,
+      path: workflowId ? `/app/workflows/builder/${workflowId}/executions` : '/app/workflows/builder/executions',
+      description: 'Monitor workflow runs'
+    },
+    {
+      id: 'testing',
+      label: 'Testing',
+      icon: <FaFlask />,
+      path: workflowId ? `/app/workflows/builder/${workflowId}/testing` : '/app/workflows/builder/testing',
+      description: 'Test and validate workflows'
+    }
+  ];
 
   const getCurrentView = () => {
     const path = location.pathname;
-    if (path.includes('/templates')) return 'templates';
-    if (path.includes('/schedules')) return 'schedules';
+    
+    // Check for specific workflow routes in priority order
+    if (path.includes('/testing')) return 'testing';
+    if (path.includes('/schedules')) return 'schedules'; 
     if (path.includes('/executions')) return 'executions';
+    if (path.includes('/templates')) return 'templates';
+    
+    // Default to canvas for builder routes
     return 'canvas';
   };
+
+  const navigationItems = getNavigationItems(workflowId || currentWorkflow?.id);
 
   // Show loading state while workflow is loading
   if (workflowId && workflowLoading) {
@@ -130,7 +217,7 @@ const WorkflowBuilder = () => {
             <p>Error: {workflowError}</p>
             <button 
               className={styles.actionButton}
-              onClick={() => navigate('/workflows/templates')}
+              onClick={() => navigate('/app/workflows/templates')}
             >
               Browse Templates
             </button>
@@ -140,37 +227,6 @@ const WorkflowBuilder = () => {
     );
   }
 
-  const navigationItems = [
-    {
-      id: 'canvas',
-      label: 'Workflow Canvas',
-      icon: <FaProjectDiagram />,
-      path: '/app/workflows/builder',
-      description: 'Visual workflow editor'
-    },
-    {
-      id: 'templates',
-      label: 'Template Gallery',
-      icon: <FaLayerGroup />,
-      path: '/app/workflows/templates',
-      description: 'Browse workflow templates'
-    },
-    {
-      id: 'schedules',
-      label: 'Schedules',
-      icon: <FaClock />,
-      path: '/app/workflows/schedules',
-      description: 'Manage workflow schedules'
-    },
-    {
-      id: 'executions',
-      label: 'Executions',
-      icon: <FaChartLine />,
-      path: '/app/workflows/executions',
-      description: 'Monitor workflow runs'
-    }
-  ];
-
   const currentView = getCurrentView();
 
   return (
@@ -178,8 +234,8 @@ const WorkflowBuilder = () => {
       {/* Workflow Sub-Navigation */}
       <div className={styles.workflowNav}>
         <div className={styles.workflowTitle}>
-          <h2>{currentWorkflow?.name || 'New Workflow'}</h2>
-          <p>{currentWorkflow?.description || 'Create a new automation workflow'}</p>
+          <h2>{currentWorkflow?.name || (workflowId ? 'Loading Workflow...' : 'New Workflow')}</h2>
+          <p>{currentWorkflow?.description || (workflowId ? 'Loading workflow details...' : 'Create a new automation workflow')}</p>
         </div>
         
         <div className={styles.workflowTabs}>
@@ -198,6 +254,13 @@ const WorkflowBuilder = () => {
         
         {currentView === 'canvas' && (
           <div className={styles.workflowActions}>
+            <button
+              className={styles.actionButton}
+              onClick={() => navigate('/app/workflows')}
+              title="Browse all your workflows"
+            >
+              <FaEye /> Browse Workflows
+            </button>
             <button
               className={styles.actionButton}
               onClick={() => setShowTemplateGallery(true)}
@@ -235,25 +298,31 @@ const WorkflowBuilder = () => {
         {getCurrentView() === 'templates' && (
           <TemplateGallery 
             onSelectTemplate={handleTemplateSelect}
-            onClose={() => navigate('/app/workflows/builder')}
+            onClose={() => navigate(workflowId ? `/app/workflows/builder/${workflowId}` : '/app/workflows/builder')}
           />
         )}
         {getCurrentView() === 'schedules' && (
           <ScheduleManager 
-            workflowId={currentWorkflow?.id}
-            workflowName={currentWorkflow?.name}
+            workflowId={workflowId || currentWorkflow?.id}
+            workflowName={currentWorkflow?.name || 'Loading...'}
           />
         )}
         {getCurrentView() === 'executions' && (
           <ExecutionDashboard 
-            workflowId={currentWorkflow?.id}
-            workflowName={currentWorkflow?.name}
+            workflowId={workflowId || currentWorkflow?.id}
+            workflowName={currentWorkflow?.name || 'Loading...'}
+          />
+        )}
+        {getCurrentView() === 'testing' && (
+          <WorkflowTesting 
+            workflowId={workflowId || currentWorkflow?.id}
+            workflowName={currentWorkflow?.name || 'Loading...'}
           />
         )}
         {getCurrentView() === 'canvas' && (
           <ReactFlowProvider>
             <WorkflowCanvas 
-              workflowId={currentWorkflow?.id}
+              workflowId={workflowId || currentWorkflow?.id}
               isReadOnly={false}
             />
           </ReactFlowProvider>
