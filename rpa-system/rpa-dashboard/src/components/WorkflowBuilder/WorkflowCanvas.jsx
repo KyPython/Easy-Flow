@@ -50,6 +50,18 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
         setNodes(savedNodes.map(node => ({
           ...node,
           type: 'customStep',
+          data: {
+            // ensure data object exists and has safe defaults
+            label: 'Step',
+            isConfigured: false,
+            isRunning: false,
+            hasError: false,
+            progress: undefined,
+            isReadOnly: false,
+            ...(node.data || {}),
+            // coerce stepType to string when present
+            stepType: typeof node?.data?.stepType === 'string' ? node.data.stepType : (node?.data?.stepType ? String(node.data.stepType) : 'unknown')
+          }
         })));
       }
       
@@ -277,7 +289,7 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
         <Controls className={styles.controls} />
         <MiniMap 
           className={styles.minimap}
-          nodeColor={(node) => getNodeColor(node.data.stepType)}
+          nodeColor={(node) => getNodeColor(node?.data?.stepType || 'unknown')}
           maskColor="rgba(0, 0, 0, 0.1)"
         />
         <Background color="var(--color-primary-100)" gap={20} />

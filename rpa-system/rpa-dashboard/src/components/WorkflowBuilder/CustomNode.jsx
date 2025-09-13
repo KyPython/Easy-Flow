@@ -12,6 +12,9 @@ import {
 } from 'react-icons/fa';
 
 const CustomNode = ({ data, selected }) => {
+  // Guard against undefined data to avoid runtime errors during fast refresh or partial loads
+  const d = data || {};
+  const stepType = d.stepType || 'unknown';
   const getNodeIcon = (stepType) => {
     const icons = {
       start: '🎬',
@@ -43,24 +46,24 @@ const CustomNode = ({ data, selected }) => {
   };
 
   const getStatusIcon = () => {
-    if (data.isRunning) return <FaClock className={styles.statusIcon} />;
-    if (data.hasError) return <FaExclamationTriangle className={styles.statusIcon} />;
-    if (data.isConfigured) return <FaCheckCircle className={styles.statusIcon} />;
+    if (d.isRunning) return <FaClock className={styles.statusIcon} />;
+    if (d.hasError) return <FaExclamationTriangle className={styles.statusIcon} />;
+    if (d.isConfigured) return <FaCheckCircle className={styles.statusIcon} />;
     return <FaCog className={styles.statusIcon} />;
   };
 
-  const nodeColorClass = getNodeColor(data.stepType);
-  const isControlNode = data.stepType === 'start' || data.stepType === 'end';
+  const nodeColorClass = getNodeColor(stepType);
+  const isControlNode = stepType === 'start' || stepType === 'end';
 
   return (
-    <div className={`${styles.customNode} ${styles[nodeColorClass]} ${selected ? styles.selected : ''} ${data.isRunning ? styles.running : ''}`}>
+    <div className={`${styles.customNode} ${styles[nodeColorClass]} ${selected ? styles.selected : ''} ${d.isRunning ? styles.running : ''}`}>
       {/* Input Handle */}
-      {data.stepType !== 'start' && (
+      {stepType !== 'start' && (
         <Handle
           type="target"
           position={Position.Top}
           className={styles.handle}
-          isConnectable={!data.isReadOnly}
+          isConnectable={!d.isReadOnly}
         />
       )}
 
@@ -68,13 +71,13 @@ const CustomNode = ({ data, selected }) => {
       <div className={styles.nodeContent}>
         <div className={styles.nodeHeader}>
           <span className={styles.nodeIcon}>
-            {getNodeIcon(data.stepType)}
+            {getNodeIcon(stepType)}
           </span>
           <div className={styles.nodeInfo}>
-            <div className={styles.nodeTitle}>{data.label}</div>
-            {data.stepType && (
+            <div className={styles.nodeTitle}>{d.label || 'Step'}</div>
+            {stepType && (
               <div className={styles.nodeType}>
-                {data.stepType.replace('_', ' ')}
+                {stepType.replace('_', ' ')}
               </div>
             )}
           </div>
@@ -86,56 +89,56 @@ const CustomNode = ({ data, selected }) => {
         {/* Configuration Status */}
         {!isControlNode && (
           <div className={styles.configStatus}>
-            <div className={`${styles.configIndicator} ${data.isConfigured ? styles.configured : styles.unconfigured}`}>
-              {data.isConfigured ? 'Configured' : 'Needs Setup'}
+            <div className={`${styles.configIndicator} ${d.isConfigured ? styles.configured : styles.unconfigured}`}>
+              {d.isConfigured ? 'Configured' : 'Needs Setup'}
             </div>
           </div>
         )}
 
         {/* Error Message */}
-        {data.hasError && data.errorMessage && (
+    {d.hasError && d.errorMessage && (
           <div className={styles.errorMessage}>
-            {data.errorMessage}
+      {d.errorMessage}
           </div>
         )}
 
         {/* Execution Progress */}
-        {data.isRunning && data.progress !== undefined && (
+    {d.isRunning && d.progress !== undefined && (
           <div className={styles.progressBar}>
             <div 
               className={styles.progressFill}
-              style={{ width: `${data.progress}%` }}
+        style={{ width: `${d.progress}%` }}
             />
           </div>
         )}
       </div>
 
       {/* Output Handle */}
-      {data.stepType !== 'end' && (
+    {stepType !== 'end' && (
         <Handle
           type="source"
           position={Position.Bottom}
           className={styles.handle}
-          isConnectable={!data.isReadOnly}
+      isConnectable={!d.isReadOnly}
         />
       )}
 
       {/* Conditional Handles for condition nodes */}
-      {data.stepType === 'condition' && (
+    {stepType === 'condition' && (
         <>
           <Handle
             type="source"
             position={Position.Right}
             id="true"
             className={`${styles.handle} ${styles.trueHandle}`}
-            isConnectable={!data.isReadOnly}
+      isConnectable={!d.isReadOnly}
           />
           <Handle
             type="source"
             position={Position.Left}
             id="false"
             className={`${styles.handle} ${styles.falseHandle}`}
-            isConnectable={!data.isReadOnly}
+      isConnectable={!d.isReadOnly}
           />
         </>
       )}
@@ -145,8 +148,8 @@ const CustomNode = ({ data, selected }) => {
 
 CustomNode.propTypes = {
   data: PropTypes.shape({
-    label: PropTypes.string.isRequired,
-    stepType: PropTypes.string.isRequired,
+    label: PropTypes.string,
+    stepType: PropTypes.string,
     actionType: PropTypes.string,
     config: PropTypes.object,
     isConfigured: PropTypes.bool,
@@ -155,7 +158,7 @@ CustomNode.propTypes = {
     errorMessage: PropTypes.string,
     progress: PropTypes.number,
     isReadOnly: PropTypes.bool
-  }).isRequired,
+  }),
   selected: PropTypes.bool
 };
 
