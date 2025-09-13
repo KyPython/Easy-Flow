@@ -80,17 +80,21 @@ const mockTemplates = [
   }
 ];
 
-export const useWorkflowTemplates = () => {
+export const useWorkflowTemplates = (options = {}) => {
+  const { autoLoad = true } = options;
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(24);
   const [total, setTotal] = useState(0);
+  const inFlightRef = React.useRef(false);
 
   // Load workflow templates
   const loadTemplates = useCallback(async (opts = {}) => {
+    if (inFlightRef.current) return; // prevent overlapping fetches
     try {
+      inFlightRef.current = true;
       setLoading(true);
       setError(null);
       const {
@@ -276,6 +280,7 @@ export const useWorkflowTemplates = () => {
         setTotal(0);
       }
     } finally {
+    inFlightRef.current = false;
       setLoading(false);
     }
   }, []);
@@ -483,10 +488,12 @@ export const useWorkflowTemplates = () => {
     }
   }, [loadTemplates]);
 
-  // Load templates on mount
+  // Load templates on mount (optional)
   useEffect(() => {
-    loadTemplates();
-  }, [loadTemplates]);
+    if (autoLoad) {
+      loadTemplates();
+    }
+  }, [autoLoad, loadTemplates]);
 
   return {
     templates,

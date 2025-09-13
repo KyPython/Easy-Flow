@@ -321,8 +321,8 @@ CREATE TABLE public.user_workflow_data (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT user_workflow_data_pkey PRIMARY KEY (id),
-  CONSTRAINT user_workflow_data_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
-  CONSTRAINT user_workflow_data_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT user_workflow_data_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT user_workflow_data_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
 );
 CREATE TABLE public.workflow_connections (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -334,8 +334,8 @@ CREATE TABLE public.workflow_connections (
   visual_config jsonb DEFAULT '{"color": "#0066cc", "style": "solid", "animated": false}'::jsonb,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT workflow_connections_pkey PRIMARY KEY (id),
-  CONSTRAINT workflow_connections_source_step_id_fkey FOREIGN KEY (source_step_id) REFERENCES public.workflow_steps(id),
   CONSTRAINT workflow_connections_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_connections_source_step_id_fkey FOREIGN KEY (source_step_id) REFERENCES public.workflow_steps(id),
   CONSTRAINT workflow_connections_target_step_id_fkey FOREIGN KEY (target_step_id) REFERENCES public.workflow_steps(id)
 );
 CREATE TABLE public.workflow_executions (
@@ -357,8 +357,8 @@ CREATE TABLE public.workflow_executions (
   steps_total integer DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT workflow_executions_pkey PRIMARY KEY (id),
-  CONSTRAINT workflow_executions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
   CONSTRAINT workflow_executions_error_step_id_fkey FOREIGN KEY (error_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_executions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
   CONSTRAINT workflow_executions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.workflow_schedules (

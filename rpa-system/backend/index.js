@@ -144,13 +144,37 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='"], // Empty inline hash only
-      scriptSrc: ["'self'", "https://www.googletagmanager.com"],
+      scriptSrc: [
+        "'self'",
+        "https://www.googletagmanager.com",
+        "https://www.uchat.com.au",
+        "https://*.uchat.com.au",
+        "https://sdk.dfktv2.com",
+        "https://ipapi.co"
+      ],
       imgSrc: ["'self'", "https:"], // Removed data: protocol
-      connectSrc: ["'self'", "https://www.google-analytics.com", "https://analytics.google.com"],
+      connectSrc: [
+        "'self'",
+        "https://www.google-analytics.com",
+        "https://analytics.google.com",
+        // Allow Supabase REST/Realtime/Storage
+        "https://*.supabase.co",
+        "https://supabase.co",
+        // Third-party SDKs/services
+        "https://sdk.dfktv2.com",
+        "https://ipapi.co",
+        "https://www.uchat.com.au",
+        "https://*.uchat.com.au"
+      ],
       fontSrc: ["'self'", "https:"],
       objectSrc: ["'none'"], // Block object/embed
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"], // Block frames
+      frameSrc: [
+        "'self'",
+        "https://www.uchat.com.au",
+        "https://*.uchat.com.au",
+        "https://sdk.dfktv2.com"
+      ], // allow uChat widget and third-party SDK frames
       childSrc: ["'none'"], // Block child contexts
       workerSrc: ["'self'"],
       manifestSrc: ["'self'"],
@@ -203,6 +227,46 @@ app.get('/api/healthz', (req, res) => {
     build: BACKEND_BUILD_ID,
     time: new Date().toISOString()
   });
+});
+
+// Files API: list files from Supabase Storage
+const { supabase: sb } = require('./supabase');
+app.get('/api/files', authMiddleware, apiLimiter, async (req, res) => {
+  try {
+    if (!sb) return res.status(503).json({ error: 'Storage not configured' });
+    const userId = req.user?.id;
+    // Optional: enforce plan/limits here with checkStorageLimit if required
+    const folder = decodeURIComponent(req.query.folder || '/');
+    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 1000);
+    const bucket = process.env.STORAGE_BUCKET || 'artifacts';
+
+    // Supabase Storage list API
+    const { data, error } = await sb
+      .storage
+      .from(bucket)
+      .list(folder === '/' ? '' : folder.replace(/^\//, ''), { limit, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Construct public URLs (if bucket is public) or signed URLs otherwise
+    const isPublic = (process.env.STORAGE_PUBLIC || 'true').toLowerCase() === 'true';
+    const files = await Promise.all((data || []).map(async (f) => {
+      const path = `${folder === '/' ? '' : folder.replace(/^\//, '')}${folder.endsWith('/') || folder === '/' ? '' : '/'}${f.name}`.replace(/^\//, '');
+      let url = null;
+      if (isPublic) {
+        const { data: pub } = sb.storage.from(bucket).getPublicUrl(path);
+        url = pub?.publicUrl || null;
+      } else {
+        const { data: signed, error: sErr } = await sb.storage.from(bucket).createSignedUrl(path, 60 * 10);
+        if (!sErr) url = signed?.signedUrl || null;
+      }
+      return { ...f, path, url };
+    }));
+
+    return res.json({ folder, bucket, files });
+  } catch (e) {
+    console.error('[files] list error', e?.message || e);
+    return res.status(500).json({ error: 'Failed to list files' });
+  }
 });
 
 // Mount admin moderation routes (protected by x-admin-secret)

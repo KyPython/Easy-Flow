@@ -5,7 +5,7 @@ import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates';
 import LoadingSpinner from './LoadingSpinner';
 
 const TemplateDetails = ({ templateId, onBack, onUse }) => {
-  const { getTemplateDetails, createFromTemplate } = useWorkflowTemplates();
+  const { getTemplateDetails, createFromTemplate } = useWorkflowTemplates({ autoLoad: false });
   const [template, setTemplate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
