@@ -18,8 +18,8 @@
 .loadingSpinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--surface-secondary, #f3f4f6);
-  border-top: 3px solid var(--primary-500, #3b82f6);
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--color-primary-600);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: var(--spacing-md, 16px);
@@ -52,10 +52,10 @@
 .categoryFilter,
 .tagFilter {
   padding: var(--spacing-sm) var(--spacing-md);
-  border: 1px solid var(--color-gray-300);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background: var(--surface, #fff);
-  color: var(--color-gray-900);
+  background: var(--surface);
+  color: var(--text-primary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   transition: all 0.2s ease;
@@ -89,34 +89,34 @@
 .searchInput {
   flex: 1;
   padding: var(--spacing-sm, 12px) var(--spacing-md, 16px);
-  border: 1px solid var(--border-color, #d1d5db);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md, 8px);
-  background: var(--surface-primary, #ffffff);
-  color: var(--text-primary, #111827);
+  background: var(--surface);
+  color: var(--text-primary);
   font-size: var(--font-size-sm, 14px);
   transition: all 0.2s ease-in-out;
 }
 
 .searchInput:focus {
   outline: none;
-  border-color: var(--primary-500, #3b82f6);
-  box-shadow: 0 0 0 3px var(--primary-100, rgba(59, 130, 246, 0.1));
+  border-color: var(--color-primary-600);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary-600) 10%, transparent);
 }
 
 .refreshBtn {
   padding: var(--spacing-sm, 12px);
-  border: 1px solid var(--border-color, #d1d5db);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md, 8px);
-  background: var(--surface-primary, #ffffff);
-  color: var(--text-secondary, #6b7280);
+  background: var(--surface);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease-in-out;
   font-size: 16px;
 }
 
 .refreshBtn:hover {
-  background: var(--surface-hover, #f9fafb);
-  border-color: var(--primary-300, #93c5fd);
+  background: var(--surface-hover);
+  border-color: var(--color-primary-300);
 }
 
 .viewControls {
@@ -127,43 +127,43 @@
 
 .sortSelect {
   padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
-  border: 1px solid var(--border-color, #d1d5db);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md, 6px);
-  background: var(--surface-primary, #ffffff);
-  color: var(--text-primary, #111827);
+  background: var(--surface);
+  color: var(--text-primary);
   font-size: var(--font-size-sm, 14px);
   cursor: pointer;
 }
 
 .sortOrderBtn {
   padding: var(--spacing-sm, 8px);
-  border: 1px solid var(--border-color, #d1d5db);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md, 6px);
-  background: var(--surface-primary, #ffffff);
+  background: var(--surface);
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s ease-in-out;
 }
 
 .sortOrderBtn:hover {
-  background: var(--surface-hover, #f9fafb);
+  background: var(--surface-hover);
 }
 
 .viewToggle {
   display: flex;
-  border: 1px solid var(--border-color, #d1d5db);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md, 6px);
   overflow: hidden;
 }
 
 .viewBtn {
   padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
-  background: var(--surface-primary, #ffffff);
+  background: var(--surface);
   border: none;
   cursor: pointer;
   font-size: 16px;
   transition: all 0.2s ease-in-out;
-  border-right: 1px solid var(--border-color, #d1d5db);
+  border-right: 1px solid var(--border-color);
 }
 
 .viewBtn:last-child {
@@ -171,12 +171,12 @@
 }
 
 .viewBtn:hover {
-  background: var(--surface-hover, #f9fafb);
+  background: var(--surface-hover);
 }
 
 .viewBtn.active {
-  background: var(--primary-500, #3b82f6);
-  color: white;
+  background: var(--color-primary-600);
+  color: var(--on-primary);
 }
 
 /* Bulk actions */
@@ -185,41 +185,41 @@
   align-items: center;
   gap: var(--spacing-md, 16px);
   padding: var(--spacing-md, 16px);
-  background: var(--surface-secondary, #f8fafc);
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md, 8px);
   margin-bottom: var(--spacing-lg, 24px);
 }
 
 .selectedCount {
   font-size: var(--font-size-sm, 14px);
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
   font-weight: var(--font-weight-medium, 500);
 }
 
 .bulkDeleteBtn,
 .clearSelectionBtn {
   padding: var(--spacing-xs, 6px) var(--spacing-md, 16px);
-  border: 1px solid var(--border-color, #d1d5db);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm, 6px);
-  background: var(--surface-primary, #ffffff);
+  background: var(--surface);
   cursor: pointer;
   font-size: var(--font-size-sm, 14px);
   transition: all 0.2s ease-in-out;
 }
 
 .bulkDeleteBtn {
-  color: var(--error-600, #dc2626);
-  border-color: var(--error-200, #fecaca);
+  color: var(--color-error-600);
+  border-color: var(--color-error-200);
 }
 
 .bulkDeleteBtn:hover {
-  background: var(--error-50, #fef2f2);
-  border-color: var(--error-300, #fca5a5);
+  background: var(--color-error-50);
+  border-color: var(--color-error-300);
 }
 
 .clearSelectionBtn:hover {
-  background: var(--surface-hover, #f9fafb);
+  background: var(--surface-hover);
 }
 
 /* Error message */
@@ -228,11 +228,11 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-md, 16px);
-  background: var(--error-50, #fef2f2);
-  border: 1px solid var(--error-200, #fecaca);
+  background: var(--color-error-50);
+  border: 1px solid var(--color-error-200);
   border-radius: var(--border-radius-md, 8px);
   margin-bottom: var(--spacing-lg, 24px);
-  color: var(--error-700, #b91c1c);
+  color: var(--color-error-700);
   font-size: var(--font-size-sm, 14px);
 }
 
@@ -241,7 +241,7 @@
   border: none;
   font-size: 20px;
   cursor: pointer;
-  color: var(--error-500, #ef4444);
+  color: var(--color-error-500);
   padding: 0;
   width: 24px;
   height: 24px;
@@ -265,12 +265,12 @@
 .emptyState h3 {
   font-size: var(--font-size-xl, 20px);
   font-weight: var(--font-weight-medium, 500);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   margin: 0 0 var(--spacing-md, 16px) 0;
 }
 
 .emptyState p {
-  color: var(--text-muted, #6b7280);
+  color: var(--text-muted);
   font-size: var(--font-size-md, 16px);
   margin: 0;
 }
@@ -291,8 +291,8 @@
 
 /* File card */
 .fileCard {
-  background: var(--surface-primary, #ffffff);
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--surface);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg, 12px);
   padding: var(--spacing-lg, 20px);
   transition: all 0.2s ease-in-out;
@@ -301,14 +301,14 @@
 }
 
 .fileCard:hover {
-  border-color: var(--primary-300, #93c5fd);
+  border-color: var(--color-primary-300);
   box-shadow: 0 4px 12px var(--shadow-sm, rgba(0, 0, 0, 0.05));
   transform: translateY(-2px);
 }
 
 .fileCard.selected {
-  border-color: var(--primary-500, #3b82f6);
-  background: var(--primary-50, #eff6ff);
+  border-color: var(--color-primary-600);
+  background: var(--color-primary-50);
 }
 
 .fileHeader {
@@ -341,7 +341,7 @@
 .fileName {
   font-size: var(--font-size-md, 16px);
   font-weight: var(--font-weight-medium, 500);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   margin: 0 0 var(--spacing-sm, 8px) 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -353,12 +353,12 @@
   justify-content: space-between;
   align-items: center;
   font-size: var(--font-size-sm, 14px);
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
 }
 
 .downloadCount {
   font-size: var(--font-size-xs, 12px);
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted);
   margin-top: var(--spacing-xs, 4px);
 }
 
@@ -409,32 +409,32 @@
   display: flex;
   gap: var(--spacing-sm, 8px);
   padding-top: var(--spacing-md, 16px);
-  border-top: 1px solid var(--border-light, #f3f4f6);
+  border-top: 1px solid var(--border-color);
 }
 
 .actionBtn {
   flex: 1;
   padding: var(--spacing-sm, 8px);
-  border: 1px solid var(--border-color, #d1d5db);
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm, 6px);
-  background: var(--surface-primary, #ffffff);
+  background: var(--surface);
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s ease-in-out;
 }
 
 .actionBtn:hover {
-  background: var(--surface-hover, #f9fafb);
+  background: var(--surface-hover);
 }
 
 .deleteBtn {
-  border-color: var(--error-200, #fecaca);
-  color: var(--error-600, #dc2626);
+  border-color: var(--color-error-200);
+  color: var(--color-error-600);
 }
 
 .deleteBtn:hover {
-  background: var(--error-50, #fef2f2);
-  border-color: var(--error-300, #fca5a5);
+  background: var(--color-error-50);
+  border-color: var(--color-error-300);
 }
 
 /* List view adjustments */
@@ -469,7 +469,7 @@
 
 /* Dark theme adjustments */
 :global(.theme-dark) .container {
-  color: var(--text-primary, #f9fafb);
+  color: var(--text-primary);
 }
 
 :global(.theme-dark) .searchInput,
@@ -478,39 +478,39 @@
 :global(.theme-dark) .sortOrderBtn,
 :global(.theme-dark) .viewBtn,
 :global(.theme-dark) .actionBtn {
-  background: var(--surface-primary, #1f2937);
-  border-color: var(--border-color, #374151);
-  color: var(--text-primary, #f9fafb);
+  background: var(--surface-secondary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
 }
 
 :global(.theme-dark) .searchInput:focus {
-  border-color: var(--primary-400, #60a5fa);
-  box-shadow: 0 0 0 3px var(--primary-900, rgba(96, 165, 250, 0.1));
+  border-color: var(--color-primary-400);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary-600) 10%, transparent);
 }
 
 :global(.theme-dark) .fileCard {
-  background: var(--surface-primary, #1f2937);
-  border-color: var(--border-color, #374151);
+  background: var(--surface-secondary);
+  border-color: var(--border-color);
 }
 
 :global(.theme-dark) .fileCard:hover {
-  border-color: var(--primary-400, #60a5fa);
+  border-color: var(--color-primary-400);
 }
 
 :global(.theme-dark) .fileCard.selected {
-  background: var(--primary-900, #1e3a8a);
-  border-color: var(--primary-400, #60a5fa);
+  background: var(--color-primary-900);
+  border-color: var(--color-primary-400);
 }
 
 :global(.theme-dark) .bulkActions {
-  background: var(--surface-secondary, #111827);
-  border-color: var(--border-color, #374151);
+  background: var(--surface-secondary);
+  border-color: var(--border-color);
 }
 
 :global(.theme-dark) .error {
-  background: var(--error-900, #7f1d1d);
-  border-color: var(--error-700, #b91c1c);
-  color: var(--error-100, #fee2e2);
+  background: var(--color-error-900);
+  border-color: var(--color-error-700);
+  color: var(--color-error-100);
 }
 
 :global(.theme-dark) .categoryFilter,

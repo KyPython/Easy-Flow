@@ -293,14 +293,14 @@ export const findFolderByPath = (tree = [], path) => {
 
 // Predefined tag colors
 export const TAG_COLORS = [
-  { name: 'Blue', value: '#3b82f6', bg: '#eff6ff' },
-  { name: 'Green', value: '#10b981', bg: '#f0fdf4' },
-  { name: 'Purple', value: '#8b5cf6', bg: '#f5f3ff' },
-  { name: 'Red', value: '#ef4444', bg: '#fef2f2' },
-  { name: 'Orange', value: '#f59e0b', bg: '#fffbeb' },
-  { name: 'Pink', value: '#ec4899', bg: '#fdf2f8' },
-  { name: 'Teal', value: '#14b8a6', bg: '#f0fdfa' },
-  { name: 'Gray', value: '#6b7280', bg: '#f9fafb' }
+  { name: 'Blue', value: 'var(--color-primary-600)', bg: 'var(--color-primary-50)' },
+  { name: 'Green', value: 'var(--color-success-600)', bg: 'var(--color-success-50)' },
+  { name: 'Purple', value: 'var(--color-secondary-600, var(--color-primary-600))', bg: 'var(--color-secondary-50, var(--color-primary-50))' },
+  { name: 'Red', value: 'var(--color-error-600)', bg: 'var(--color-error-50)' },
+  { name: 'Orange', value: 'var(--color-warning-600)', bg: 'var(--color-warning-50)' },
+  { name: 'Pink', value: 'var(--color-pink-600, var(--color-secondary-600, var(--color-primary-600)))', bg: 'var(--color-pink-50, var(--color-secondary-50, var(--color-primary-50)))' },
+  { name: 'Teal', value: 'var(--color-teal-600, var(--color-success-600))', bg: 'var(--color-teal-50, var(--color-success-50))' },
+  { name: 'Gray', value: 'var(--color-gray-600)', bg: 'var(--color-gray-100)' }
 ];
 
 /**

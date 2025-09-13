@@ -73,9 +73,19 @@ function Shell() {
           <Route path="/app/settings" element={<Protected><SettingsPage /></Protected>} />
           <Route path="/app/workflows" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/builder" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/builder/templates" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/builder/schedules" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/builder/executions" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/builder/testing" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/builder/:workflowId" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/builder/:workflowId/templates" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/builder/:workflowId/schedules" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/builder/:workflowId/executions" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/builder/:workflowId/testing" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/templates" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/schedules" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/executions" element={<Protected><WorkflowPage /></Protected>} />
+          <Route path="/app/workflows/testing" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/:workflowId/*" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

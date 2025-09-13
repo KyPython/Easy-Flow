@@ -114,39 +114,39 @@
 }
 
 .actionButton.move {
-  background: var(--primary-color);
-  color: white;
+  background: var(--color-primary-600);
+  color: var(--on-primary);
 }
 
 .actionButton.move:not(:disabled):hover {
-  background: var(--primary-dark);
+  background: var(--color-primary-700);
 }
 
 .actionButton.tag {
-  background: #10b981;
-  color: white;
+  background: var(--color-success-600);
+  color: var(--on-primary);
 }
 
 .actionButton.tag:not(:disabled):hover {
-  background: #059669;
+  background: var(--color-success-700);
 }
 
 .actionButton.download {
-  background: #f59e0b;
-  color: white;
+  background: var(--color-warning-600);
+  color: var(--on-primary);
 }
 
 .actionButton.download:not(:disabled):hover {
-  background: #d97706;
+  background: var(--color-warning-700);
 }
 
 .actionButton.delete {
-  background: var(--error-color);
-  color: white;
+  background: var(--color-error-600);
+  color: var(--on-primary);
 }
 
 .actionButton.delete:not(:disabled):hover {
-  background: var(--error-dark);
+  background: var(--color-error-700);
 }
 
 /* Dialog Styles */
@@ -359,12 +359,12 @@
 }
 
 .dialogButton.primary {
-  background: var(--primary-color);
-  color: white;
+  background: var(--color-primary-600);
+  color: var(--on-primary);
 }
 
 .dialogButton.primary:not(:disabled):hover {
-  background: var(--primary-dark);
+  background: var(--color-primary-700);
   transform: translateY(-1px);
 }
 

@@ -51,14 +51,14 @@ export default function ResetLanding() {
   <p>{t('reset.intro','We received a password reset request. This page gives you control over when to continue into the app. Click Continue to sign in using the token that was embedded in the link.')}</p>
 
       <div style={{ marginTop: 24 }}>
-        <button onClick={onContinue} disabled={loading || done} style={{ padding: '10px 18px', background: '#2563eb', color: 'white', borderRadius: 6, border: 'none' }}>
+        <button onClick={onContinue} disabled={loading || done} style={{ padding: '10px 18px', background: 'var(--color-primary-600)', color: 'var(--on-primary)', borderRadius: 6, border: 'none' }}>
           {loading ? t('reset.signing_in','Signing in…') : done ? t('reset.signed_in_continuing','Signed in — continuing…') : t('reset.continue','Continue to app')}
         </button>
       </div>
 
-      {error && <div style={{ color: 'red', marginTop: 12 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--color-error-600)', marginTop: 12 }}>{error}</div>}
 
-      <p style={{ marginTop: 18, color: '#666' }}>
+      <p style={{ marginTop: 18, color: 'var(--text-muted)' }}>
   {t('reset.notice','If you didn\'t request this, please change your password after signing in or contact support.')}
       </p>
     </div>

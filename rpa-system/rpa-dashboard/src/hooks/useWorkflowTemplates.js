@@ -19,6 +19,8 @@ export const useWorkflowTemplates = () => {
         .eq('is_public', true)
         .order('created_at', { ascending: false });
 
+      console.log('Template query result:', { data, error: templatesError });
+
       // If templates table doesn't exist or has schema issues, fallback to public workflows
       if (templatesError && (templatesError.code === '42P01' || templatesError.code === '42703')) {
         const { data: workflowData, error: workflowError } = await supabase
@@ -54,7 +56,6 @@ export const useWorkflowTemplates = () => {
           tags: workflow.tags || [],
           estimated_time: '10-15 minutes',
           complexity: workflow.total_executions > 50 ? 'Medium' : 'Easy',
-          thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=300&fit=crop',
           steps: 5,
           is_public: true,
           is_featured: workflow.total_executions > 100
@@ -63,7 +64,146 @@ export const useWorkflowTemplates = () => {
         throw templatesError;
       }
 
-      setTemplates(data || []);
+      // Ensure data is always an array and filter out any invalid entries
+      data = Array.isArray(data) ? data.filter(template => 
+        template && 
+        typeof template === 'object' && 
+        template.name && 
+        template.id
+      ) : [];
+
+      // If no templates found, show fallback templates for better UX
+      if (data.length === 0) {
+        console.log('No database templates found, using fallback templates');
+        setTemplates([
+          {
+            id: 'template-1',
+            name: 'Email Marketing Automation',
+            description: 'Automated email sequences for lead nurturing, welcome series, and customer onboarding. Triggers emails based on user actions and engagement.',
+            category: 'email_marketing',
+            rating: 0.0,
+            usage_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            author: 'KyJahn Smith',
+            tags: ['email', 'marketing', 'automation', 'nurturing', 'leads'],
+            estimated_time: '15 minutes',
+            complexity: 'Medium',
+            steps: 7,
+            is_public: true,
+            is_featured: true,
+            template_config: {
+              nodes: [
+                {id: "start", type: "start", position: {x: 100, y: 100}},
+                {id: "trigger", type: "condition", position: {x: 100, y: 200}, data: {label: "User Signup"}},
+                {id: "delay", type: "action", position: {x: 100, y: 300}, data: {action_type: "delay", label: "Wait 1 Hour"}},
+                {id: "email1", type: "action", position: {x: 100, y: 400}, data: {action_type: "email", label: "Welcome Email"}},
+                {id: "delay2", type: "action", position: {x: 100, y: 500}, data: {action_type: "delay", label: "Wait 3 Days"}},
+                {id: "email2", type: "action", position: {x: 100, y: 600}, data: {action_type: "email", label: "Follow-up Email"}},
+                {id: "end", type: "end", position: {x: 100, y: 700}}
+              ],
+              edges: [
+                {id: "e1", source: "start", target: "trigger"},
+                {id: "e2", source: "trigger", target: "delay"},
+                {id: "e3", source: "delay", target: "email1"},
+                {id: "e4", source: "email1", target: "delay2"},
+                {id: "e5", source: "delay2", target: "email2"},
+                {id: "e6", source: "email2", target: "end"}
+              ]
+            }
+          },
+          {
+            id: 'template-2',
+            name: 'Web Data Scraping & Processing',
+            description: 'Automatically scrape product data, prices, or content from websites. Includes data cleaning, transformation, and storage.',
+            category: 'web_automation',
+            rating: 0.0,
+            usage_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            author: 'KyJahn Smith',
+            tags: ['scraping', 'data', 'web', 'extraction', 'monitoring'],
+            estimated_time: '18 minutes',
+            complexity: 'Medium',
+            steps: 9,
+            is_public: true,
+            is_featured: true,
+            template_config: {
+              nodes: [
+                {id: "start", type: "start", position: {x: 100, y: 100}},
+                {id: "scrape", type: "action", position: {x: 100, y: 200}, data: {action_type: "web_scrape", label: "Scrape Website"}},
+                {id: "transform", type: "action", position: {x: 100, y: 300}, data: {action_type: "data_transform", label: "Clean Data"}},
+                {id: "condition", type: "condition", position: {x: 100, y: 400}, data: {label: "Data Valid?"}},
+                {id: "store", type: "action", position: {x: 200, y: 500}, data: {action_type: "api_call", label: "Store Data"}},
+                {id: "error", type: "action", position: {x: 0, y: 500}, data: {action_type: "email", label: "Send Error Alert"}},
+                {id: "end", type: "end", position: {x: 100, y: 600}}
+              ],
+              edges: [
+                {id: "e1", source: "start", target: "scrape"},
+                {id: "e2", source: "scrape", target: "transform"},
+                {id: "e3", source: "transform", target: "condition"},
+                {id: "e4", source: "condition", target: "store", data: {condition: "valid"}},
+                {id: "e5", source: "condition", target: "error", data: {condition: "invalid"}},
+                {id: "e6", source: "store", target: "end"},
+                {id: "e7", source: "error", target: "end"}
+              ]
+            }
+          },
+          {
+            id: 'template-3',
+            name: 'Web Scraping Automation',
+            description: 'Extract data from websites automatically',
+            category: 'web_automation',
+            rating: 0.0,
+            usage_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            author: 'KyJahn Smith',
+            tags: ['web', 'scraping', 'data'],
+            estimated_time: '12 minutes',
+            complexity: 'Easy',
+            steps: 6,
+            is_public: true,
+            is_featured: false
+          },
+          {
+            id: 'template-4',
+            name: 'File Processing & Upload',
+            description: 'Automatically process and organize uploaded files',
+            category: 'file_management',
+            rating: 0.0,
+            usage_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            author: 'KyJahn Smith',
+            tags: ['file', 'upload', 'processing'],
+            estimated_time: '10 minutes',
+            complexity: 'Easy',
+            steps: 5,
+            is_public: true,
+            is_featured: false
+          },
+          {
+            id: 'template-5',
+            name: 'API Integration Workflow',
+            description: 'Connect and sync data between different services',
+            category: 'api_integration',
+            rating: 0.0,
+            usage_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            author: 'KyJahn Smith',
+            tags: ['api', 'integration', 'sync'],
+            estimated_time: '18 minutes',
+            complexity: 'Medium',
+            steps: 9,
+            is_public: true,
+            is_featured: true
+          }
+        ]);
+      } else {
+        setTemplates(data);
+      }
     } catch (err) {
       console.error('Error loading templates:', err);
       setError(err.message);
@@ -119,15 +259,46 @@ export const useWorkflowTemplates = () => {
         throw new Error('Template not found');
       }
 
+      // Get template configuration (nodes and edges)
+      let canvasConfig = { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } };
+      
+      if (template.template_config) {
+        // For database templates, use template_config
+        canvasConfig = {
+          ...canvasConfig,
+          ...template.template_config
+        };
+      } else if (template.id.startsWith('template-')) {
+        // For fallback templates, create a sample configuration
+        canvasConfig = {
+          nodes: [
+            { id: 'start-1', type: 'start', position: { x: 100, y: 100 }, data: { label: 'Start' } },
+            { id: 'end-1', type: 'end', position: { x: 100, y: 300 }, data: { label: 'End' } }
+          ],
+          edges: [
+            { id: 'edge-1', source: 'start-1', target: 'end-1' }
+          ],
+          viewport: { x: 0, y: 0, zoom: 1 }
+        };
+      }
+
+      // Get current user for RLS policy
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User must be authenticated to create workflows');
+      }
+
       // Create new workflow based on template
       const { data, error } = await supabase
         .from('workflows')
         .insert({
+          user_id: user.id,
           name: workflowName || `${template.name} (Copy)`,
           description: template.description,
           tags: template.tags,
           status: 'draft',
           is_public: false,
+          canvas_config: canvasConfig,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -135,6 +306,15 @@ export const useWorkflowTemplates = () => {
         .single();
 
       if (error) throw error;
+
+      // Increment template usage count
+      await supabase
+        .from('workflow_templates')
+        .update({ 
+          usage_count: supabase.sql`usage_count + 1`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', template.id);
 
       return data;
     } catch (err) {
@@ -178,6 +358,35 @@ export const useWorkflowTemplates = () => {
     }
   };
 
+  // Rate a template (1-5 stars)
+  const rateTemplate = async (templateId, rating) => {
+    try {
+      if (rating < 1 || rating > 5) {
+        throw new Error('Rating must be between 1 and 5');
+      }
+
+      // In a real app, you'd track individual user ratings and calculate averages
+      // For now, we'll update the rating directly (simplified approach)
+      const { error } = await supabase
+        .from('workflow_templates')
+        .update({ 
+          rating: rating,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', templateId);
+
+      if (error) throw error;
+
+      // Refresh templates to show updated rating
+      await loadTemplates();
+      
+      return true;
+    } catch (err) {
+      console.error('Error rating template:', err);
+      throw err;
+    }
+  };
+
   // Load templates on mount
   useEffect(() => {
     loadTemplates();
@@ -190,6 +399,7 @@ export const useWorkflowTemplates = () => {
     loadTemplates,
     createFromTemplate,
     getTemplateDetails,
+    rateTemplate,
     refreshTemplates: loadTemplates
   };
 };

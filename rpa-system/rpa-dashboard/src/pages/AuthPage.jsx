@@ -161,7 +161,7 @@ export default function AuthPage() {
         {/* If rate-limited, offer a clearer instruction and a resend button for signups */}
         {mode === 'signup' && email && error.toLowerCase().includes('too many attempts') && (
           <div style={{ marginTop: 12, textAlign: 'center' }}>
-            <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: 8 }}>
+            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: 8 }}>
               Try again in a minute, check your Spam folder, or click Resend to attempt once more.
             </div>
             <button

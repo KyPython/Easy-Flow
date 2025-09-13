@@ -1,68 +1,69 @@
 // File categorization system for EasyFlow
 // Provides predefined categories, automatic categorization, and utilities
 
+// Prefer theme token names for colors; fall back to hex for non-themed consumers
 export const FILE_CATEGORIES = {
   DOCUMENTS: {
     id: 'documents',
     name: 'Documents',
     icon: '📄',
-    color: '#3b82f6',
+  color: 'var(--color-primary-600)',
     description: 'Text documents, PDFs, presentations'
   },
   IMAGES: {
     id: 'images',
     name: 'Images',
     icon: '🖼️',
-    color: '#10b981',
+  color: 'var(--color-success-600)',
     description: 'Photos, graphics, screenshots'
   },
   VIDEOS: {
     id: 'videos',
     name: 'Videos',
     icon: '🎥',
-    color: '#8b5cf6',
+  color: 'var(--color-secondary-600, var(--color-primary-600))',
     description: 'Video files and recordings'
   },
   AUDIO: {
     id: 'audio',
     name: 'Audio',
     icon: '🎵',
-    color: '#f59e0b',
+  color: 'var(--color-warning-600)',
     description: 'Music, recordings, sound files'
   },
   SPREADSHEETS: {
     id: 'spreadsheets',
     name: 'Spreadsheets',
     icon: '📊',
-    color: '#059669',
+  color: 'var(--color-success-700)',
     description: 'Excel, CSV, data files'
   },
   PRESENTATIONS: {
     id: 'presentations',
     name: 'Presentations',
     icon: '📋',
-    color: '#dc2626',
+  color: 'var(--color-error-600)',
     description: 'PowerPoint, slide decks'
   },
   ARCHIVES: {
     id: 'archives',
     name: 'Archives',
     icon: '📦',
-    color: '#6b7280',
+  color: 'var(--color-gray-500)',
     description: 'ZIP, compressed files'
   },
   CODE: {
     id: 'code',
     name: 'Code',
     icon: '⚙️',
-    color: '#1f2937',
+  color: 'var(--text-primary)',
     description: 'Source code, configuration'
   },
   OTHER: {
     id: 'other',
     name: 'Other',
     icon: '📎',
-    color: '#9ca3af',
+  color: 'var(--text-muted)',
     description: 'Uncategorized files'
   }
 };
@@ -255,6 +256,7 @@ export const getCategoryIcon = (category) => {
  * @returns {string} - The color hex code
  */
 export const getCategoryColor = (category) => {
+  // Returns a CSS value; consumers can apply directly to style props
   return category?.color || FILE_CATEGORIES.OTHER.color;
 };
 

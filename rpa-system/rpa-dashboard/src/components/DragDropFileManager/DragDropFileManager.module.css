@@ -71,20 +71,20 @@
 
 .folderDropZone:hover {
   background: var(--surface-hover);
-  border-color: var(--primary-color);
+  border-color: var(--color-primary-600);
   transform: translateY(-1px);
 }
 
 .folderDropZone.dragOver {
-  background: var(--primary-light);
-  border-color: var(--primary-color);
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-600);
   border-style: solid;
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
 }
 
 .folderIcon {
   font-size: 24px;
-  color: var(--primary-color);
+  color: var(--color-primary-600);
   flex-shrink: 0;
 }
 
@@ -117,7 +117,7 @@
   justify-content: center;
   gap: 8px;
   background: rgba(59, 130, 246, 0.1);
-  color: var(--primary-color);
+  color: var(--color-primary-600);
   font-weight: 500;
   font-size: 14px;
   border-radius: 6px;
@@ -148,14 +148,14 @@
 
 .fileItem:hover {
   background: var(--surface-hover);
-  border-color: var(--primary-light);
+  border-color: var(--color-primary-300);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .fileItem.selected {
-  background: var(--primary-light);
-  border-color: var(--primary-color);
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-600);
 }
 
 .fileItem.dragging {
@@ -236,7 +236,7 @@
   right: 4px;
   width: 20px;
   height: 20px;
-  background: var(--primary-color);
+  background: var(--color-primary-600);
   color: white;
   border-radius: 50%;
   display: flex;

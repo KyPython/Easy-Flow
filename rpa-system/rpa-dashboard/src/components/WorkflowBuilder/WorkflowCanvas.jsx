@@ -412,9 +412,14 @@ function getDefaultConfig(nodeType) {
       template: ''
     },
     file_upload: {
-      destination: '',
-      overwrite: false,
-      public: false
+  destination: '',
+  overwrite: false,
+  public: false,
+  source_field: '',
+  url: '',
+  filename: '',
+  mime_type: '',
+  tags: []
     },
     delay: {
       duration_seconds: 5,

@@ -137,7 +137,7 @@
 }
 
 .folderIcon {
-  color: var(--primary-color);
+  color: var(--color-primary-600);
   font-size: 16px;
   flex-shrink: 0;
 }
@@ -152,7 +152,7 @@
 }
 
 .folderRow.selected .folderName {
-  color: var(--primary-color);
+  color: var(--color-primary-600);
   font-weight: 500;
 }
 
@@ -242,8 +242,8 @@
 
 .formInput:focus {
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--primary-light);
+  border-color: var(--color-primary-600);
+  box-shadow: 0 0 0 2px var(--color-primary-100);
 }
 
 .formActions {
@@ -262,12 +262,12 @@
 }
 
 .formButton.primary {
-  background: var(--primary-color);
+  background: var(--color-primary-600);
   color: white;
 }
 
 .formButton.primary:hover {
-  background: var(--primary-dark);
+  background: var(--color-primary-700);
 }
 
 .formButton.secondary {

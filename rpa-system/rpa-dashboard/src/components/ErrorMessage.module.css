@@ -1,7 +1,7 @@
 .errorContainer {
-  background: #FFFBEB; /* A light, non-intrusive yellow */
-  border: 1px solid #FEE2E2;
-  color: #B91C1C; /* A dark red for high contrast and readability */
+  background: var(--error-50, #fef2f2);
+  border: 1px solid var(--error-200, #fecaca);
+  color: var(--error-700, #b91c1c);
   padding: 1rem;
   border-radius: 8px;
   margin: 1rem;

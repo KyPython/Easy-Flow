@@ -396,6 +396,34 @@ const DataTransformConfig = ({ config, updateConfig, isReadOnly }) => (
 const FileUploadConfig = ({ config, updateConfig, isReadOnly }) => (
   <div className={styles.formGroup}>
     <label className={styles.label}>
+      Source Field
+      <input
+        type="text"
+        className={styles.input}
+        value={config.source_field || ''}
+        onChange={(e) => updateConfig({ source_field: e.target.value })}
+        placeholder="e.g. scraped_data.file, api_response.url, downloaded_files[0]"
+        disabled={isReadOnly}
+      />
+    </label>
+
+    <div className={styles.helpText}>
+      Optional: Provide a field from previous step output that resolves to a Buffer, data URL/base64, URL, or array of these. If empty, you can specify a direct URL below.
+    </div>
+
+    <label className={styles.label}>
+      Direct URL
+      <input
+        type="text"
+        className={styles.input}
+        value={config.url || ''}
+        onChange={(e) => updateConfig({ url: e.target.value })}
+        placeholder="https://example.com/path/to/file.pdf"
+        disabled={isReadOnly}
+      />
+    </label>
+
+    <label className={styles.label}>
       Destination Path *
       <input
         type="text"
@@ -403,6 +431,44 @@ const FileUploadConfig = ({ config, updateConfig, isReadOnly }) => (
         value={config.destination || ''}
         onChange={(e) => updateConfig({ destination: e.target.value })}
         placeholder="uploads/documents/"
+        disabled={isReadOnly}
+      />
+    </label>
+
+    <div className={styles.gridRow}>
+      <label className={styles.label}>
+        Suggested Filename
+        <input
+          type="text"
+          className={styles.input}
+          value={config.filename || ''}
+          onChange={(e) => updateConfig({ filename: e.target.value })}
+          placeholder="Optional: report.pdf"
+          disabled={isReadOnly}
+        />
+      </label>
+
+      <label className={styles.label}>
+        MIME Type
+        <input
+          type="text"
+          className={styles.input}
+          value={config.mime_type || ''}
+          onChange={(e) => updateConfig({ mime_type: e.target.value })}
+          placeholder="Optional: application/pdf"
+          disabled={isReadOnly}
+        />
+      </label>
+    </div>
+
+    <label className={styles.label}>
+      Tags (comma-separated)
+      <input
+        type="text"
+        className={styles.input}
+        value={Array.isArray(config.tags) ? config.tags.join(', ') : (config.tags || '')}
+        onChange={(e) => updateConfig({ tags: e.target.value })}
+        placeholder="e.g. receipts, 2025, finance"
         disabled={isReadOnly}
       />
     </label>

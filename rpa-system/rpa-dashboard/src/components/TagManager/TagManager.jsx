@@ -17,12 +17,14 @@ const TagManager = ({
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingTag, setEditingTag] = useState(null);
   const [newTagName, setNewTagName] = useState('');
-  const [newTagColor, setNewTagColor] = useState('#3b82f6');
+  const [newTagColor, setNewTagColor] = useState('var(--color-primary-600)');
 
   const predefinedColors = [
-    '#3b82f6', '#ef4444', '#10b981', '#f59e0b',
-    '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
-    '#f97316', '#6366f1', '#14b8a6', '#eab308'
+    'var(--color-primary-600)', 'var(--color-error-600)', 'var(--color-success-600)', 'var(--color-warning-600)',
+    'var(--color-secondary-600, var(--color-primary-600))', 'var(--color-pink-600, var(--color-secondary-600, var(--color-primary-600)))',
+    'var(--color-teal-600, var(--color-success-600))', 'var(--color-green-600, var(--color-success-600))',
+    'var(--color-orange-600, var(--color-warning-600))', 'var(--color-indigo-600, var(--color-secondary-600, var(--color-primary-600)))',
+    'var(--color-cyan-600, var(--color-success-600))', 'var(--color-amber-600, var(--color-warning-600))'
   ];
 
   const handleCreateTag = useCallback(() => {
@@ -33,7 +35,7 @@ const TagManager = ({
         createdAt: new Date().toISOString()
       });
       setNewTagName('');
-      setNewTagColor('#3b82f6');
+  setNewTagColor('var(--color-primary-600)');
       setShowCreateForm(false);
     }
   }, [newTagName, newTagColor, onTagCreate]);
@@ -47,7 +49,7 @@ const TagManager = ({
       });
       setEditingTag(null);
       setNewTagName('');
-      setNewTagColor('#3b82f6');
+  setNewTagColor('var(--color-primary-600)');
     }
   }, [editingTag, newTagName, newTagColor, onTagUpdate]);
 

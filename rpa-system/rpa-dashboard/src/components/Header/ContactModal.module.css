@@ -11,10 +11,10 @@
   z-index: 1200;
 }
 .modal {
-  background: #fff;
+  background: var(--surface);
   padding: 20px;
   border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-md);
   max-width: 420px;
   width: 90%;
 }
@@ -24,18 +24,18 @@
 
 /* Dark Mode Styles */
 .modal.dark {
-  background-color: #2d3748; /* A dark gray, adjust as needed */
-  color: #f7fafc; /* A light gray for text */
-  border: 1px solid #4a5568;
+  background-color: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .modal.dark a {
-  color: #63b3ed; /* A light blue for links */
+  color: var(--color-primary-300);
 }
 
 .modal.dark .actions button {
-  background-color: #4a5568;
-  color: #f7fafc;
-  border: 1px solid #718096;
+  background-color: var(--hover-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 

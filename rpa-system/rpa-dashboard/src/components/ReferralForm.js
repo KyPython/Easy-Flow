@@ -32,11 +32,11 @@ export default function ReferralForm({ referrerEmail, proPlan, onClose, onSucces
       className={`${styles.formRow} ${theme === 'dark' ? styles.dark : ''}`}
       style={{
         marginTop: '1em',
-        border: theme === 'dark' ? '1px solid #4a5568' : '1px solid #eee',
+        border: '1px solid var(--border-color)',
         padding: '1em',
         borderRadius: 8,
-        background: theme === 'dark' ? '#2d3748' : '#fafbfc',
-        color: theme === 'dark' ? '#f7fafc' : undefined,
+        background: 'var(--surface)',
+        color: 'var(--text-primary)',
       }}
       onSubmit={handleSubmit}
     >
@@ -54,16 +54,16 @@ export default function ReferralForm({ referrerEmail, proPlan, onClose, onSucces
         disabled={loading}
         style={{
           marginBottom: '0.5em',
-          background: theme === 'dark' ? '#4a5568' : undefined,
-          color: theme === 'dark' ? '#f7fafc' : undefined,
-          border: theme === 'dark' ? '1px solid #718096' : undefined,
+          background: 'var(--surface)',
+          color: 'var(--text-primary)',
+          border: '1px solid var(--border-color)',
         }}
       />
       <div
         className={styles.muted}
         style={{
           marginBottom: '0.5em',
-          color: theme === 'dark' ? '#a0aec0' : undefined,
+          color: 'var(--text-muted)',
         }}
       >
   If your friend signs up, you&apos;ll get <strong>1 month free</strong> of the <strong>{proPlan?.name || 'Pro'}</strong> plan!
@@ -74,9 +74,9 @@ export default function ReferralForm({ referrerEmail, proPlan, onClose, onSucces
           type="submit"
           disabled={loading}
           style={{
-            background: theme === 'dark' ? '#4a5568' : undefined,
-            color: theme === 'dark' ? '#f7fafc' : undefined,
-            border: theme === 'dark' ? '1px solid #718096' : undefined,
+            background: 'var(--color-primary-600)',
+            color: 'var(--on-primary)',
+            border: '1px solid var(--color-primary-600)',
           }}
         >
           {loading ? 'Sending...' : 'Send Referral'}
@@ -87,9 +87,9 @@ export default function ReferralForm({ referrerEmail, proPlan, onClose, onSucces
           onClick={onClose}
           disabled={loading}
           style={{
-            background: theme === 'dark' ? '#2d3748' : undefined,
-            color: theme === 'dark' ? '#f7fafc' : undefined,
-            border: theme === 'dark' ? '1px solid #718096' : undefined,
+            background: 'var(--surface)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-color)',
           }}
         >
           Cancel

@@ -1,5 +1,9 @@
 const { createClient } = require('@supabase/supabase-js');
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const axios = require('axios');
 
 class WorkflowExecutor {
   constructor() {
@@ -115,12 +119,12 @@ class WorkflowExecutor {
       let result = { success: true, data: inputData };
       
       // Execute based on step type
-      switch (step.step_type) {
+    switch (step.step_type) {
         case 'start':
           result = await this.executeStartStep(step, inputData);
           break;
         case 'action':
-          result = await this.executeActionStep(step, inputData);
+      result = await this.executeActionStep(step, inputData, execution);
           break;
         case 'condition':
           result = await this.executeConditionStep(step, inputData);
@@ -168,7 +172,7 @@ class WorkflowExecutor {
     return { success: true, data: inputData };
   }
 
-  async executeActionStep(step, inputData) {
+  async executeActionStep(step, inputData, execution) {
     try {
       const { action_type, config } = step;
       
@@ -184,7 +188,7 @@ class WorkflowExecutor {
       }
       
       // Execute based on action type
-      switch (action_type) {
+    switch (action_type) {
         case 'web_scrape':
           return await this.executeWebScrapeAction(config, inputData);
         case 'api_call':
@@ -192,7 +196,7 @@ class WorkflowExecutor {
         case 'data_transform':
           return await this.executeDataTransformAction(config, inputData);
         case 'file_upload':
-          return await this.executeFileUploadAction(config, inputData);
+      return await this.executeFileUploadAction(config, inputData, execution);
         case 'email':
           return await this.executeEmailAction(config, inputData);
         case 'delay':
@@ -371,31 +375,202 @@ class WorkflowExecutor {
     }
   }
 
-  async executeFileUploadAction(config, inputData) {
+  async executeFileUploadAction(config, inputData, execution) {
     try {
-      const { destination, overwrite = false, public: isPublic = false } = config;
-      
-      // This is a placeholder - integrate with your file upload service
-      console.log(`[WorkflowExecutor] File upload to: ${destination}`);
-      
-      // In production, implement actual file upload logic
-      const fileId = uuidv4();
-      const fileUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/${destination}/${fileId}`;
-      
-      return { 
-        success: true, 
-        data: { 
-          ...inputData, 
-          uploaded_file: { 
-            file_id: fileId, 
-            file_url: fileUrl 
-          }
+      const {
+        source_field, // e.g., 'downloaded_files[0]' or 'artifact'
+        url, // optional direct URL to fetch
+        file_path, // optional local path
+        filename: cfgFilename, // suggested filename
+        mime_type: cfgMime, // suggested mime
+        destination = '/', // logical folder within Files UI
+        overwrite = false,
+        public: isPublic = false // kept for future; we use signed URLs for private by default
+      } = config || {};
+
+      const userId = execution?.user_id;
+      if (!userId) {
+        throw new Error('Missing execution user_id for file upload');
+      }
+
+      // Resolve one or many sources
+      const resolved = await this._resolveUploadSources({ source_field, url, file_path, inputData });
+      if (!resolved || (Array.isArray(resolved) && resolved.length === 0)) {
+        throw new Error('No upload source resolved');
+      }
+
+      const items = Array.isArray(resolved) ? resolved : [resolved];
+      const uploaded = [];
+
+      for (const item of items) {
+        const { buffer, mime, filename: srcName } = item;
+        const mimeType = cfgMime || mime || 'application/octet-stream';
+        const originalName = cfgFilename || srcName || 'file';
+
+        const ext = path.extname(originalName) || this._extFromMime(mimeType);
+        const baseName = path.basename(originalName, ext);
+        const safeName = baseName.replace(/[^a-zA-Z0-9\-_]/g, '_');
+        const finalName = `${safeName}${ext}`;
+        const timestamp = Date.now();
+        const storagePath = `${userId}/${timestamp}_${finalName}`;
+
+        // Upload to Supabase storage in the same bucket the Files UI uses
+        const { data: uploadData, error: uploadError } = await this.supabase.storage
+          .from('user-files')
+          .upload(storagePath, buffer, { contentType: mimeType, upsert: !!overwrite });
+        
+        if (uploadError) {
+          throw new Error(`Storage upload error: ${uploadError.message}`);
         }
-      };
-      
+
+        const checksum = crypto.createHash('md5').update(buffer).digest('hex');
+
+        // Insert metadata into files table
+        const { data: fileRecord, error: dbError } = await this.supabase
+          .from('files')
+          .insert({
+            user_id: userId,
+            original_name: originalName,
+            display_name: originalName,
+            storage_path: storagePath,
+            storage_bucket: 'user-files',
+            file_size: buffer.length,
+            mime_type: mimeType,
+            file_extension: (ext || '').replace(/^\./, ''),
+            checksum_md5: checksum,
+            folder_path: destination || '/',
+            category: config?.category || null,
+            tags: Array.isArray(config?.tags) ? config.tags : (typeof config?.tags === 'string' ? config.tags.split(',').map(t => t.trim()).filter(Boolean) : [])
+          })
+          .select()
+          .single();
+
+        if (dbError) {
+          // best-effort cleanup
+          await this.supabase.storage.from('user-files').remove([storagePath]);
+          throw new Error(`Failed to save file metadata: ${dbError.message}`);
+        }
+
+        uploaded.push(fileRecord);
+      }
+
+      const payload = uploaded.length === 1
+        ? { uploaded_file: uploaded[0], uploaded_files: uploaded }
+        : { uploaded_files: uploaded };
+
+      return { success: true, data: { ...inputData, ...payload } };
+
     } catch (error) {
       return { success: false, error: `File upload failed: ${error.message}` };
     }
+  }
+
+  // Helpers
+  async _resolveUploadSources({ source_field, url, file_path, inputData }) {
+    // 1) From source_field in inputData
+    if (source_field) {
+    const value = this.getNestedValue(inputData, source_field);
+    const baseDir = inputData?.download_directory;
+      if (Array.isArray(value)) {
+        const results = [];
+        for (const v of value) {
+      const r = await this._coerceToBuffer(v, baseDir);
+          if (r) results.push(r);
+        }
+        return results;
+      }
+    const single = await this._coerceToBuffer(value, baseDir);
+      if (single) return single;
+    }
+
+    // 2) Direct URL
+    if (url) {
+      return await this._coerceToBuffer(url);
+    }
+
+    // 3) Local path
+    if (file_path) {
+      const baseDir = inputData?.download_directory;
+      return await this._coerceToBuffer(file_path, baseDir);
+    }
+
+    return null;
+  }
+
+  async _coerceToBuffer(value, baseDir) {
+    try {
+      if (!value) return null;
+      // If already a Buffer
+      if (Buffer.isBuffer(value)) {
+        return { buffer: value, mime: 'application/octet-stream', filename: 'file' };
+      }
+      // If object { data, mime_type, filename }
+      if (typeof value === 'object' && (value.data || value.buffer)) {
+        const buf = value.buffer ? value.buffer : (typeof value.data === 'string' ? this._decodeBase64Maybe(value.data) : Buffer.from(value.data));
+        return { buffer: buf, mime: value.mime_type || 'application/octet-stream', filename: value.filename || 'file' };
+      }
+      if (typeof value === 'string') {
+        // data URL/base64
+        if (value.startsWith('data:')) {
+          const match = value.match(/^data:([^;]+);base64,(.*)$/);
+          if (match) {
+            const mime = match[1];
+            const buf = Buffer.from(match[2], 'base64');
+            return { buffer: buf, mime, filename: 'file' };
+          }
+        }
+        // URL
+        if (/^https?:\/\//i.test(value)) {
+          const resp = await axios.get(value, { responseType: 'arraybuffer', timeout: 30000 });
+          // Try to derive a name from URL path
+          const u = new URL(value);
+          const nameGuess = path.basename(u.pathname || '') || 'file';
+          return { buffer: Buffer.from(resp.data), mime: resp.headers['content-type'] || 'application/octet-stream', filename: nameGuess };
+        }
+        // Local path
+        if (fs.existsSync(value) && fs.statSync(value).isFile()) {
+          const buf = fs.readFileSync(value);
+          return { buffer: buf, mime: 'application/octet-stream', filename: path.basename(value) };
+        }
+        if (baseDir) {
+          const joined = path.join(baseDir, value);
+          if (fs.existsSync(joined) && fs.statSync(joined).isFile()) {
+            const buf = fs.readFileSync(joined);
+            return { buffer: buf, mime: 'application/octet-stream', filename: path.basename(joined) };
+          }
+        }
+        // plain base64 string (no data: prefix)
+        if (/^[A-Za-z0-9+/=]+$/.test(value)) {
+          const buf = this._decodeBase64Maybe(value);
+          if (buf) return { buffer: buf, mime: 'application/octet-stream', filename: 'file' };
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  _decodeBase64Maybe(str) {
+    try {
+      return Buffer.from(str, 'base64');
+    } catch {
+      return null;
+    }
+  }
+
+  _extFromMime(mime) {
+    if (!mime) return '';
+    const map = {
+      'image/png': '.png',
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/gif': '.gif',
+      'application/pdf': '.pdf',
+      'text/plain': '.txt',
+      'application/json': '.json'
+    };
+    return map[mime] || '';
   }
 
   async executeEmailAction(config, inputData) {
@@ -582,7 +757,13 @@ class WorkflowExecutor {
   }
 
   getNestedValue(obj, path) {
-    return path.split('.').reduce((current, key) => current?.[key], obj);
+    if (!path || !obj) return undefined;
+    // Normalize bracket notation: a[0].b -> a.0.b ; a['x'] -> a.x
+    const normalized = path
+      .replace(/\[(\d+)\]/g, '.$1')
+      .replace(/\[['"]([^\]]+)['"]\]/g, '.$1')
+      .replace(/^\./, '');
+    return normalized.split('.').reduce((current, key) => (current == null ? undefined : current[key]), obj);
   }
 
   evaluateFilterCondition(item, condition) {

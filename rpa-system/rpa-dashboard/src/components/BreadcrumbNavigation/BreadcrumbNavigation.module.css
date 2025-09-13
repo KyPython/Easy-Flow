@@ -79,7 +79,7 @@
 }
 
 .separator {
-  color: var(--text-disabled);
+  color: var(--text-muted);
   flex-shrink: 0;
   margin: 0 2px;
 }
@@ -209,7 +209,7 @@
   }
   
   .breadcrumbPath::-webkit-scrollbar-track {
-    background: var(--surface-hover);
+    background: var(--hover-bg);
     border-radius: 2px;
   }
   
@@ -219,14 +219,14 @@
   }
   
   .breadcrumbPath::-webkit-scrollbar-thumb:hover {
-    background: var(--text-disabled);
+    background: var(--text-muted);
   }
 }
 
 /* Focus styles for accessibility */
 .breadcrumbItem:focus,
 .actionButton:focus {
-  outline: 2px solid var(--primary-color);
+  outline: 2px solid var(--color-primary-600);
   outline-offset: 2px;
 }
 
@@ -237,12 +237,12 @@
   }
   
   .breadcrumbItem.current {
-    border-color: var(--primary-color);
+    border-color: var(--color-primary-600);
     border-width: 2px;
   }
   
   .actionButton {
-    border: 1px solid var(--primary-dark);
+    border: 1px solid var(--color-primary-700);
   }
 }
 

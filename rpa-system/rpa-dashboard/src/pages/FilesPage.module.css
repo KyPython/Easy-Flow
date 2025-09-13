@@ -15,14 +15,14 @@
 .title {
   font-size: var(--font-size-4xl, 36px);
   font-weight: var(--font-weight-bold, 700);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   margin: 0 0 var(--spacing-sm, 12px) 0;
   font-family: var(--font-family-secondary, inherit);
 }
 
 .subtitle {
   font-size: var(--font-size-lg, 18px);
-  color: var(--text-muted, #6b7280);
+  color: var(--text-muted);
   margin: 0;
   line-height: 1.6;
 }
@@ -36,7 +36,7 @@
 .sectionTitle {
   font-size: var(--font-size-xl, 24px);
   font-weight: var(--font-weight-semibold, 600);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   margin: 0 0 var(--spacing-lg, 32px) 0;
   display: flex;
   align-items: center;
@@ -47,7 +47,7 @@
   content: '';
   width: 4px;
   height: 24px;
-  background: var(--primary-500, #3b82f6);
+  background: var(--color-primary-600);
   border-radius: 2px;
 }
 
@@ -57,10 +57,7 @@
   margin: 0 auto;
 }
 
-/* File manager styling */
-.fileManager {
-  /* Inherits styling from FileManager component */
-}
+/* File manager styling - inherits from FileManager component */
 
 /* Alert messages */
 .errorAlert,
@@ -80,15 +77,15 @@
 }
 
 .errorAlert {
-  background: var(--error-50, #fef2f2);
-  border: 1px solid var(--error-200, #fecaca);
-  color: var(--error-700, #b91c1c);
+  background: var(--color-error-50);
+  border: 1px solid var(--color-error-200);
+  color: var(--color-error-700);
 }
 
 .successAlert {
-  background: var(--success-50, #f0fdf4);
-  border: 1px solid var(--success-200, #bbf7d0);
-  color: var(--success-700, #15803d);
+  background: var(--color-success-50);
+  border: 1px solid var(--color-success-200);
+  color: var(--color-success-700);
 }
 
 .dismissBtn {
@@ -107,19 +104,19 @@
 }
 
 .errorAlert .dismissBtn {
-  color: var(--error-500, #ef4444);
+  color: var(--color-error-500);
 }
 
 .errorAlert .dismissBtn:hover {
-  background: var(--error-100, #fee2e2);
+  background: var(--color-error-100);
 }
 
 .successAlert .dismissBtn {
-  color: var(--success-500, #22c55e);
+  color: var(--color-success-500);
 }
 
 .successAlert .dismissBtn:hover {
-  background: var(--success-100, #dcfce7);
+  background: var(--color-success-100);
 }
 
 /* Animations */
@@ -136,27 +133,27 @@
 
 /* Dark theme adjustments */
 :global(.theme-dark) .title {
-  color: var(--text-primary, #f9fafb);
+  color: var(--text-primary);
 }
 
 :global(.theme-dark) .subtitle {
-  color: var(--text-muted, #d1d5db);
+  color: var(--text-muted);
 }
 
 :global(.theme-dark) .sectionTitle {
-  color: var(--text-primary, #f9fafb);
+  color: var(--text-primary);
 }
 
 :global(.theme-dark) .errorAlert {
-  background: var(--error-900, #7f1d1d);
-  border-color: var(--error-700, #b91c1c);
-  color: var(--error-100, #fee2e2);
+  background: var(--color-error-900);
+  border-color: var(--color-error-700);
+  color: var(--color-error-100);
 }
 
 :global(.theme-dark) .successAlert {
-  background: var(--success-900, #14532d);
-  border-color: var(--success-700, #15803d);
-  color: var(--success-100, #dcfce7);
+  background: var(--color-success-900);
+  border-color: var(--color-success-700);
+  color: var(--color-success-100);
 }
 
 /* Responsive adjustments */

@@ -25,15 +25,15 @@ export default class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: 24, fontFamily: 'system-ui', color: '#222' }}>
+  <div style={{ padding: 24, fontFamily: 'system-ui', color: 'var(--text-primary)' }}>
           <h1 style={{ fontSize: 20 }}>Something went wrong</h1>
           <p style={{ marginTop: 8 }}>The app encountered a runtime error and stopped rendering.</p>
           {this.state.error && (
-            <pre style={{ whiteSpace: 'pre-wrap', background: '#f5f5f5', padding: 12, borderRadius: 6, maxHeight: 240, overflow: 'auto', fontSize: 12 }}>
+            <pre style={{ whiteSpace: 'pre-wrap', background: 'var(--color-gray-100)', padding: 12, borderRadius: 6, maxHeight: 240, overflow: 'auto', fontSize: 12 }}>
               {String(this.state.error?.message || this.state.error)}
             </pre>
           )}
-          <button onClick={this.handleReload} style={{ marginTop: 16, padding: '8px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4 }}>
+          <button onClick={this.handleReload} style={{ marginTop: 16, padding: '8px 14px', background: 'var(--color-primary-600)', color: 'var(--on-primary)', border: 'none', borderRadius: 4 }}>
             Reload
           </button>
         </div>

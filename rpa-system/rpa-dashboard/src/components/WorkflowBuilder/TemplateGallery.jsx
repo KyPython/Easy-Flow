@@ -6,7 +6,6 @@ import {
   FaFilter, 
   FaStar, 
   FaDownload, 
-  FaEye, 
   FaTag,
   FaClock,
   FaUser,
@@ -15,7 +14,6 @@ import {
 } from 'react-icons/fa';
 import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates';
 import LoadingSpinner from './LoadingSpinner';
-import Modal from './Modal';
 
 // Helper moved top-level for reuse in preview modal
 const formatTemplateCategory = (category) => {
@@ -49,6 +47,25 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
     createFromTemplate 
   } = useWorkflowTemplates();
 
+  const handleTemplateSelection = async (template) => {
+    try {
+      console.log('Creating workflow from template:', template);
+      
+      // Generate a workflow name based on the template
+      const workflowName = `${template.name} - ${new Date().toLocaleDateString()}`;
+      
+      // Create the workflow from template
+      const newWorkflow = await createFromTemplate(template.id, workflowName);
+      
+      // Pass the created workflow back to parent
+      onSelectTemplate(newWorkflow);
+      
+    } catch (error) {
+      console.error('Failed to create workflow from template:', error);
+      alert('Failed to create workflow from template: ' + error.message);
+    }
+  };
+
   // Removed inner formatter, using top-level function
 
   const categories = [
@@ -71,22 +88,38 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
   ];
 
   const filteredAndSortedTemplates = useMemo(() => {
+    console.log('Raw templates from hook:', templates);
+    
     // Normalize template fields defensively
-    const normalized = templates.map(t => ({
-      ...t,
-      // unify naming differences
-      usageCount: t.usageCount ?? t.usage_count ?? 0,
-      estimatedTime: t.estimatedTime ?? t.estimated_time ?? '—',
-      createdAt: t.createdAt ?? t.created_at ?? t.updated_at ?? new Date().toISOString(),
-      updatedAt: t.updatedAt ?? t.updated_at ?? t.created_at ?? new Date().toISOString(),
-      tags: Array.isArray(t.tags) ? t.tags : []
-    }));
+    const normalized = templates.map(t => {
+      console.log('Normalizing template:', t);
+      
+      const normalizedTemplate = {
+        ...t,
+        // unify naming differences with safe defaults
+        name: t.name || 'Untitled Template',
+        description: t.description || 'No description available',
+        category: t.category || 'general',
+        complexity: t.complexity || 'Easy',
+        author: t.author || (t.created_by ? 'KyJahn Smith' : 'Unknown'),
+        usageCount: t.usageCount ?? t.usage_count ?? 0,
+        estimatedTime: t.estimatedTime ?? t.estimated_time ?? '—',
+        createdAt: t.createdAt ?? t.created_at ?? t.updated_at ?? new Date().toISOString(),
+        updatedAt: t.updatedAt ?? t.updated_at ?? t.created_at ?? new Date().toISOString(),
+        tags: Array.isArray(t.tags) ? t.tags.filter(tag => tag && typeof tag === 'string') : [],
+        popularity: t.popularity ?? (t.rating > 0 ? Math.round(t.rating * 20) : 0), // Convert rating (0-5) to popularity (0-100)
+        steps: t.steps ?? (t.template_config?.nodes?.length || 0) // Count nodes in template_config
+      };
+      
+      console.log('Normalized template result:', normalizedTemplate);
+      return normalizedTemplate;
+    });
 
     let filtered = normalized.filter(template => {
       const lQuery = searchQuery.toLowerCase();
-      const matchesSearch = template.name.toLowerCase().includes(lQuery) ||
+      const matchesSearch = (template.name || '').toLowerCase().includes(lQuery) ||
         (template.description || '').toLowerCase().includes(lQuery) ||
-        template.tags.some(tag => tag.toLowerCase().includes(lQuery));
+        template.tags.some(tag => (tag || '').toLowerCase().includes(lQuery));
       
       const matchesCategory = selectedCategory === 'all' || template.category === selectedCategory;
       
@@ -220,7 +253,7 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
               <TemplateCard
                 key={template.id}
                 template={template}
-                onSelect={onSelectTemplate}
+                onSelect={handleTemplateSelection}
                 variant="featured"
               />
             ))}
@@ -248,7 +281,7 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
               <TemplateCard
                 key={template.id}
                 template={template}
-                onSelect={onSelectTemplate}
+                onSelect={handleTemplateSelection}
                 viewMode={viewMode}
               />
             ))}
@@ -260,10 +293,8 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
 };
 
 const TemplateCard = ({ template, onSelect, variant = 'normal', viewMode = 'grid' }) => {
-  const [showPreview, setShowPreview] = useState(false);
-
   const getComplexityColor = (complexity) => {
-    switch (complexity.toLowerCase()) {
+    switch ((complexity || '').toLowerCase()) {
       case 'easy': return 'success';
       case 'medium': return 'warning';
       case 'hard': return 'error';
@@ -276,11 +307,6 @@ const TemplateCard = ({ template, onSelect, variant = 'normal', viewMode = 'grid
       <div className={`${styles.templateCard} ${styles.listView} ${variant === 'featured' ? styles.featured : ''}`}>
         <div className={styles.cardContent}>
           <div className={styles.cardLeft}>
-            <img
-              src={template.thumbnail}
-              alt={template.name}
-              className={styles.thumbnail}
-            />
             <div className={styles.templateInfo}>
               <h4 className={styles.templateName}>{template.name}</h4>
               <p className={styles.templateDescription}>{template.description}</p>
@@ -292,7 +318,7 @@ const TemplateCard = ({ template, onSelect, variant = 'normal', viewMode = 'grid
                   <FaClock /> {template.estimatedTime}
                 </span>
                 <span className={styles.metaItem}>
-                  <FaDownload /> {template.usageCount} uses
+                  <FaDownload /> {template.usageCount > 0 ? `${template.usageCount} uses` : 'No uses yet'}
                 </span>
               </div>
             </div>
@@ -308,12 +334,6 @@ const TemplateCard = ({ template, onSelect, variant = 'normal', viewMode = 'grid
             </div>
             <div className={styles.cardActions}>
               <button
-                className={styles.previewButton}
-                onClick={() => setShowPreview(true)}
-              >
-                <FaEye /> Preview
-              </button>
-              <button
                 className={styles.useButton}
                 onClick={() => onSelect(template)}
               >
@@ -328,21 +348,6 @@ const TemplateCard = ({ template, onSelect, variant = 'normal', viewMode = 'grid
 
   return (
     <div className={`${styles.templateCard} ${variant === 'featured' ? styles.featured : ''}`}>
-      <div className={styles.cardHeader}>
-        <img
-          src={template.thumbnail}
-          alt={template.name}
-          className={styles.thumbnail}
-        />
-        <div className={styles.cardOverlay}>
-          <button
-            className={styles.previewButton}
-            onClick={() => setShowPreview(true)}
-          >
-            <FaEye /> Preview
-          </button>
-        </div>
-      </div>
 
       <div className={styles.cardContent}>
         <div className={styles.cardTop}>
@@ -402,88 +407,10 @@ const TemplateCard = ({ template, onSelect, variant = 'normal', viewMode = 'grid
         </button>
       </div>
 
-      {/* Template Preview Modal */}
-      {showPreview && (
-        <TemplatePreviewModal
-          template={template}
-          onClose={() => setShowPreview(false)}
-          onUse={() => {
-            setShowPreview(false);
-            onSelect(template);
-          }}
-        />
-      )}
     </div>
   );
 };
 
-const TemplatePreviewModal = ({ template, onClose, onUse }) => {
-  return (
-    <div className={styles.modalOverlay}>
-      <div className={styles.previewModal}>
-        <div className={styles.modalHeader}>
-          <h3>{template.name}</h3>
-          <button className={styles.closeButton} onClick={onClose}>×</button>
-        </div>
-
-        <div className={styles.modalContent}>
-          <div className={styles.previewImage}>
-            <img src={template.thumbnail} alt={template.name} />
-          </div>
-
-          <div className={styles.previewDetails}>
-            <p className={styles.previewDescription}>{template.description}</p>
-
-            <div className={styles.previewMeta}>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>Category:</span>
-                <span>{formatTemplateCategory(template.category)}</span>
-              </div>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>Complexity:</span>
-                <span className={`${styles.complexityBadge} ${styles[template.complexity.toLowerCase()]}`}>
-                  {template.complexity}
-                </span>
-              </div>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>Estimated Time:</span>
-                <span>{template.estimatedTime}</span>
-              </div>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>Steps:</span>
-                <span>{template.steps}</span>
-              </div>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>Author:</span>
-                <span>{template.author}</span>
-              </div>
-            </div>
-
-            <div className={styles.previewTags}>
-              <h4>Tags:</h4>
-              <div className={styles.tagsList}>
-                {template.tags.map(tag => (
-                  <span key={tag} className={styles.tag}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className={styles.modalFooter}>
-          <button className={styles.cancelButton} onClick={onClose}>
-            Cancel
-          </button>
-          <button className={styles.useButton} onClick={onUse}>
-            Use This Template
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 TemplateGallery.propTypes = {
   onSelectTemplate: PropTypes.func.isRequired,
@@ -493,7 +420,6 @@ TemplateGallery.propTypes = {
 TemplateCard.propTypes = {
   template: PropTypes.shape({
     id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-    thumbnail: PropTypes.string,
     name: PropTypes.string.isRequired,
     description: PropTypes.string,
     author: PropTypes.string,
@@ -510,20 +436,5 @@ TemplateCard.propTypes = {
   viewMode: PropTypes.oneOf(['grid', 'list'])
 };
 
-TemplatePreviewModal.propTypes = {
-  template: PropTypes.shape({
-    thumbnail: PropTypes.string,
-    name: PropTypes.string.isRequired,
-    description: PropTypes.string,
-    category: PropTypes.string,
-    complexity: PropTypes.string,
-    estimatedTime: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    steps: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    author: PropTypes.string,
-    tags: PropTypes.arrayOf(PropTypes.string)
-  }).isRequired,
-  onClose: PropTypes.func.isRequired,
-  onUse: PropTypes.func.isRequired
-};
 
 export default TemplateGallery;

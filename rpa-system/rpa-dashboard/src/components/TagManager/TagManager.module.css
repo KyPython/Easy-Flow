@@ -93,8 +93,8 @@
 
 .formInput:focus {
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--primary-light);
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 2px var(--color-primary-100);
 }
 
 .colorPicker {
@@ -150,12 +150,12 @@
 }
 
 .formButton.primary {
-  background: var(--primary-color);
+  background: var(--color-primary-600);
   color: white;
 }
 
 .formButton.primary:hover:not(:disabled) {
-  background: var(--primary-dark);
+  background: var(--color-primary-700);
 }
 
 .formButton.primary:disabled {
@@ -203,8 +203,8 @@
 }
 
 .tagItem.selected {
-  background: var(--primary-light);
-  border-color: var(--primary-color);
+  background: var(--color-primary-100);
+  border-color: var(--color-primary-500);
 }
 
 .tagContent {

@@ -19,18 +19,18 @@
 }
 
 .dropzone:hover {
-  border-color: var(--primary-500, #3b82f6);
+  border-color: var(--color-primary-600);
   background: var(--surface-hover, #f8fafc);
 }
 
 .dropzone:focus {
-  border-color: var(--primary-500, #3b82f6);
-  box-shadow: 0 0 0 3px var(--primary-100, rgba(59, 130, 246, 0.1));
+  border-color: var(--color-primary-600);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary-600) 10%, transparent);
 }
 
 .dragOver {
-  border-color: var(--primary-500, #3b82f6) !important;
-  background: var(--primary-50, #eff6ff) !important;
+  border-color: var(--color-primary-600) !important;
+  background: var(--color-primary-50) !important;
   transform: scale(1.02);
 }
 
@@ -101,7 +101,7 @@
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, var(--primary-500, #3b82f6), var(--primary-400, #60a5fa));
+  background: linear-gradient(90deg, var(--color-primary-600), var(--color-primary-400));
   transition: width 0.3s ease-in-out;
   border-radius: 4px;
 }
@@ -114,12 +114,12 @@
 
 :global(.theme-dark) .dropzone:hover {
   background: var(--surface-hover, #111827);
-  border-color: var(--primary-400, #60a5fa);
+  border-color: var(--color-primary-400);
 }
 
 :global(.theme-dark) .dragOver {
-  background: var(--primary-900, #1e3a8a) !important;
-  border-color: var(--primary-400, #60a5fa) !important;
+  background: var(--color-primary-900) !important;
+  border-color: var(--color-primary-400) !important;
 }
 
 :global(.theme-dark) .uploadText h3 {
@@ -288,7 +288,7 @@
 .tagRemove {
   background: none;
   border: none;
-  color: var(--primary-500, #3b82f6);
+  color: var(--color-primary-600);
   cursor: pointer;
   padding: 0;
   width: 16px;
@@ -445,14 +445,14 @@
 
 /* Accessibility improvements */
 .dropzone:focus-visible {
-  outline: 2px solid var(--primary-500, #3b82f6);
+  outline: 2px solid var(--color-primary-600);
   outline-offset: 2px;
 }
 
 .advancedToggle:focus-visible,
 .categorySelect:focus-visible,
 .tagInput:focus-visible {
-  outline: 2px solid var(--primary-500, #3b82f6);
+  outline: 2px solid var(--color-primary-600);
   outline-offset: 2px;
 }
 
