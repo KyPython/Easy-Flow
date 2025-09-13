@@ -115,54 +115,130 @@ export const useWorkflowTemplates = () => {
         qry = qry.eq('category', category);
       }
       if (search) {
-        // name/description/tags search
-        qry = qry.or(`name.ilike.%${search}%,description.ilike.%${search}%,tags.cs.{${search}}`);
+        // name/description search (avoid tags.cs which can 400 if type mismatch)
+        qry = qry.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
       }
 
       let { data, error: templatesError, count } = await qry;
 
-      console.log('Template query result:', { data, error: templatesError });
+      if (templatesError) {
+        console.warn('[Templates] Ranked view query error:', {
+          code: templatesError.code,
+          message: templatesError.message,
+          details: templatesError.details,
+          hint: templatesError.hint
+        });
+      } else {
+        console.debug('[Templates] Ranked view query ok:', {
+          count,
+          rows: Array.isArray(data) ? data.length : 0
+        });
+      }
 
-      // If ranked view or templates table doesn't exist or has schema issues, fallback to public workflows
+      // If ranked view is missing or has schema issues, try a safer re-query, then fall back to base templates table
       if (templatesError && (templatesError.code === '42P01' || templatesError.code === '42703')) {
-        const { data: workflowData, error: workflowError } = await supabase
-          .from('workflows')
-          .select(`
-            id,
-            name,
-            description,
-            tags,
-            created_at,
-            updated_at,
-            total_executions,
-            successful_executions
-          `)
-          .eq('is_public', true)
-          .eq('status', 'active')
-          .order('total_executions', { ascending: false })
-          .range(from, to);
+        // If it's an undefined column (likely popularity_score), try again ordering by updated_at
+        if (templatesError.code === '42703') {
+          try {
+            let safeQry = supabase
+              .from('workflow_templates_ranked')
+              .select('*', { count: 'exact' })
+              .order(sortBy === 'name' ? 'name' : 'updated_at', { ascending: sortBy === 'name' })
+              .range(from, to);
+            if (category && category !== 'all') safeQry = safeQry.eq('category', category);
+            if (search) safeQry = safeQry.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+            const safeRes = await safeQry;
+            if (!safeRes.error) {
+              data = Array.isArray(safeRes.data) ? safeRes.data : [];
+              count = typeof safeRes.count === 'number' ? safeRes.count : (Array.isArray(safeRes.data) ? safeRes.data.length : 0);
+              // Use the successful re-query and skip deeper fallbacks
+            } else {
+              // Continue to base table fallback
+              throw safeRes.error;
+            }
+          } catch (_reErr) {
+            // proceed to base table fallback below
+          }
+        }
+        // If data is still undefined from the safe retry, proceed with base table fallback
+        if (!Array.isArray(data)) {
+        try {
+          let baseQry = supabase
+            .from('workflow_templates')
+            .select('*', { count: 'exact' })
+            // Prefer sensible sort mapping when popularity_score is unavailable
+            .order(
+              sortBy === 'recent' ? 'updated_at' : (sortBy === 'name' ? 'name' : 'rating'),
+              { ascending: sortBy === 'name' }
+            )
+            .range(from, to);
 
-        if (workflowError) throw workflowError;
+          // Only show public templates by default
+          baseQry = baseQry.eq('is_public', true);
 
-        // Transform workflows to template format
-        data = workflowData?.map(workflow => ({
-          id: workflow.id,
-          name: workflow.name,
-          description: workflow.description || 'No description available',
-          category: 'general',
-          popularity: Math.min(100, Math.round((workflow.successful_executions / Math.max(1, workflow.total_executions)) * 100)),
-          usage_count: workflow.total_executions || 0,
-          created_at: workflow.created_at,
-          updated_at: workflow.updated_at,
-          author: 'EasyFlow Community',
-          tags: workflow.tags || [],
-          estimated_time: '10-15 minutes',
-          complexity: workflow.total_executions > 50 ? 'Medium' : 'Easy',
-          steps: 5,
-          is_public: true,
-          is_featured: workflow.total_executions > 100
-        })) || [];
-        count = data.length;
+          if (category && category !== 'all') {
+            baseQry = baseQry.eq('category', category);
+          }
+          if (search) {
+            // Safe search across name/description; avoid relying on tags.cs which may not exist
+            baseQry = baseQry.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+          }
+
+          const baseRes = await baseQry;
+          if (baseRes.error) {
+            // If base table query still has schema/permission issues, fall back to public workflows
+            if (baseRes.error.code === '42P01' || baseRes.error.code === '42703' || String(baseRes.error.message || '').toLowerCase().includes('permission')) {
+              const { data: workflowData, error: workflowError } = await supabase
+                .from('workflows')
+                .select(`
+                  id,
+                  name,
+                  description,
+                  tags,
+                  created_at,
+                  updated_at,
+                  total_executions,
+                  successful_executions
+                `)
+                .eq('is_public', true)
+                .eq('status', 'active')
+                .order('total_executions', { ascending: false })
+                .range(from, to);
+
+              if (workflowError) throw workflowError;
+
+              // Transform workflows to template-like format
+              data = workflowData?.map(workflow => ({
+                id: workflow.id,
+                name: workflow.name,
+                description: workflow.description || 'No description available',
+                category: 'general',
+                popularity: Math.min(100, Math.round((workflow.successful_executions / Math.max(1, workflow.total_executions)) * 100)),
+                usage_count: workflow.total_executions || 0,
+                created_at: workflow.created_at,
+                updated_at: workflow.updated_at,
+                author: 'EasyFlow Community',
+                tags: workflow.tags || [],
+                estimated_time: '10-15 minutes',
+                complexity: workflow.total_executions > 50 ? 'Medium' : 'Easy',
+                steps: 5,
+                is_public: true,
+                is_featured: workflow.total_executions > 100
+              })) || [];
+              count = data.length;
+            } else {
+              // Other errors bubble up to be handled by catch
+              throw baseRes.error;
+            }
+          } else {
+            data = Array.isArray(baseRes.data) ? baseRes.data : [];
+            count = typeof baseRes.count === 'number' ? baseRes.count : (Array.isArray(baseRes.data) ? baseRes.data.length : 0);
+          }
+        } catch (fallbackErr) {
+          // Re-throw to be handled by the outer catch, which may decide on mock fallback
+          throw fallbackErr;
+        }
+        }
       } else if (templatesError) {
         throw templatesError;
       }
@@ -182,8 +258,15 @@ export const useWorkflowTemplates = () => {
   setPage(p);
   setPageSize(ps);
     } catch (err) {
-      console.error('Error loading templates:', err);
-      setError(err.message);
+      // Normalize error details for logging and UI
+      const normalized = {
+        code: err?.code,
+        message: err?.message || String(err),
+        details: err?.details,
+        hint: err?.hint
+      };
+      console.error('Error loading templates:', normalized);
+      setError(`${normalized.message}${normalized.code ? ` (code ${normalized.code})` : ''}`);
       // Provide fallback templates only if the schema is missing or access denied
       if (err?.code === '42P01' || err?.code === '42703' || String(err?.message || '').toLowerCase().includes('permission')) {
         setTemplates(mockTemplates);
@@ -198,7 +281,7 @@ export const useWorkflowTemplates = () => {
   }, []);
 
   // Create workflow from template
-  const createFromTemplate = async (templateId, workflowName) => {
+  const createFromTemplate = useCallback(async (templateId, workflowName) => {
     try {
       const template = templates.find(t => t.id === templateId);
       if (!template) {
@@ -265,10 +348,10 @@ export const useWorkflowTemplates = () => {
       console.error('Error creating workflow from template:', err);
       throw err;
     }
-  };
+  }, [templates]);
 
   // Get template details
-  const getTemplateDetails = async (templateId) => {
+  const getTemplateDetails = useCallback(async (templateId) => {
     try {
       // Handle demo/mock template IDs (template-1, template-2, etc.)
       if (templateId.startsWith('template-')) {
@@ -322,10 +405,10 @@ export const useWorkflowTemplates = () => {
       console.error('Error loading template details:', err);
       throw err;
     }
-  };
+  }, []);
 
   // Publish a template (owner flow): create template + version (pending_review)
-  const publishTemplate = async ({ name, description, category = 'general', tags = [], is_public = false, version = '1.0.0', changelog = '', config, dependencies = [], screenshots = [] }) => {
+  const publishTemplate = useCallback(async ({ name, description, category = 'general', tags = [], is_public = false, version = '1.0.0', changelog = '', config, dependencies = [], screenshots = [] }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User must be authenticated');
 
@@ -369,10 +452,10 @@ export const useWorkflowTemplates = () => {
       .eq('id', template.id);
 
     return { template, version: ver };
-  };
+  }, []);
 
   // Rate a template (1-5 stars)
-  const rateTemplate = async (templateId, rating) => {
+  const rateTemplate = useCallback(async (templateId, rating) => {
     try {
       if (rating < 1 || rating > 5) {
         throw new Error('Rating must be between 1 and 5');
@@ -398,7 +481,7 @@ export const useWorkflowTemplates = () => {
       console.error('Error rating template:', err);
       throw err;
     }
-  };
+  }, [loadTemplates]);
 
   // Load templates on mount
   useEffect(() => {

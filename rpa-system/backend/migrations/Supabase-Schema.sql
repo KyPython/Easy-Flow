@@ -102,9 +102,9 @@ CREATE TABLE public.file_shares (
   updated_at timestamp with time zone DEFAULT now(),
   password_hash text,
   CONSTRAINT file_shares_pkey PRIMARY KEY (id),
-  CONSTRAINT file_shares_shared_by_fkey FOREIGN KEY (shared_by) REFERENCES auth.users(id),
   CONSTRAINT file_shares_shared_with_fkey FOREIGN KEY (shared_with) REFERENCES auth.users(id),
-  CONSTRAINT file_shares_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id)
+  CONSTRAINT file_shares_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id),
+  CONSTRAINT file_shares_shared_by_fkey FOREIGN KEY (shared_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.files (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -238,8 +238,8 @@ CREATE TABLE public.step_executions (
   automation_log_id bigint,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT step_executions_pkey PRIMARY KEY (id),
-  CONSTRAINT step_executions_step_id_fkey FOREIGN KEY (step_id) REFERENCES public.workflow_steps(id),
   CONSTRAINT step_executions_workflow_execution_id_fkey FOREIGN KEY (workflow_execution_id) REFERENCES public.workflow_executions(id),
+  CONSTRAINT step_executions_step_id_fkey FOREIGN KEY (step_id) REFERENCES public.workflow_steps(id),
   CONSTRAINT step_executions_automation_log_id_fkey FOREIGN KEY (automation_log_id) REFERENCES public.automation_logs(id)
 );
 CREATE TABLE public.subscriptions (
@@ -268,10 +268,11 @@ CREATE TABLE public.template_versions (
   review_notes text,
   approved_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  status text DEFAULT 'draft'::text CHECK (status = ANY (ARRAY['draft'::text, 'pending_review'::text, 'published'::text, 'rejected'::text, 'archived'::text])),
   CONSTRAINT template_versions_pkey PRIMARY KEY (id),
   CONSTRAINT template_versions_submitted_by_fkey FOREIGN KEY (submitted_by) REFERENCES auth.users(id),
-  CONSTRAINT template_versions_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES auth.users(id),
-  CONSTRAINT template_versions_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.workflow_templates(id)
+  CONSTRAINT template_versions_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.workflow_templates(id),
+  CONSTRAINT template_versions_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.user_features (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -320,8 +321,8 @@ CREATE TABLE public.user_workflow_data (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT user_workflow_data_pkey PRIMARY KEY (id),
-  CONSTRAINT user_workflow_data_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT user_workflow_data_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
+  CONSTRAINT user_workflow_data_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT user_workflow_data_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.workflow_connections (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -333,8 +334,8 @@ CREATE TABLE public.workflow_connections (
   visual_config jsonb DEFAULT '{"color": "#0066cc", "style": "solid", "animated": false}'::jsonb,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT workflow_connections_pkey PRIMARY KEY (id),
-  CONSTRAINT workflow_connections_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
   CONSTRAINT workflow_connections_source_step_id_fkey FOREIGN KEY (source_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_connections_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
   CONSTRAINT workflow_connections_target_step_id_fkey FOREIGN KEY (target_step_id) REFERENCES public.workflow_steps(id)
 );
 CREATE TABLE public.workflow_executions (
