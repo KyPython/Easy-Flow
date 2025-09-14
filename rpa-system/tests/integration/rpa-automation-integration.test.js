@@ -3,8 +3,8 @@ const request = require('supertest');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
-// Import the app
-const app = require('../../backend/index.js');
+// Import the app (server entry is server.js, app is exported from app.js)
+const app = require('../../backend/app.js');
 
 // Supabase client for direct database operations
 const supabase = createClient(

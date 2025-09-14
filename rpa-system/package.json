@@ -2,10 +2,10 @@
   "name": "rpa-system",
   "private": true,
   "scripts": {
-    "dev:backend": "node ./backend/index.js",
+    "dev:backend": "node ./backend/server.js",
     "dev:automation": "python3 ./automation/automate.py",
     "dev": "concurrently \"npm:dev:backend\" \"npm:dev:automation\"",
-    "start": "node ./backend/index.js",
+    "start": "node ./backend/server.js",
     "start:frontend": "react-app-rewired start",
     "build": "react-app-rewired build",
     "test": "jest",
@@ -18,7 +18,7 @@
     "test:security": "dotenv -- jest --config backend/jest.config.js --testNamePattern='security|Security'",
     "test:integration": "dotenv -- jest --config backend/jest.config.js --testNamePattern='integration|Integration'",
     "eject": "react-scripts eject",
-    "test:services": "dotenv concurrently --names \"BACKEND,WORKER,PROBE\" \"node backend/index.js\" \"cross-env SEND_EMAIL_WEBHOOK=http://localhost:4001/api/send-email-now node backend/workers/email_worker.js\" \"node backend/hooks_probe.js\"",
+    "test:services": "dotenv concurrently --names \"BACKEND,WORKER,PROBE\" \"node backend/server.js\" \"cross-env SEND_EMAIL_WEBHOOK=http://localhost:4001/api/send-email-now node backend/workers/email_worker.js\" \"node backend/hooks_probe.js\"",
     "qa:run": "../scripts/run-qa-tests.sh",
     "qa:backend": "npm run test:backend && npm run test:performance && npm run test:security",
     "qa:full": "npm run qa:backend && cd rpa-dashboard && npm test -- --watchAll=false && cd ../automation && python3 -m pytest -v"
