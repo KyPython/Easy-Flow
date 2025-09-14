@@ -144,8 +144,15 @@ export const useWorkflowExecutions = (workflowId) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to start execution');
+        let errorData = null;
+        try {
+          errorData = await response.json();
+        } catch (_) {
+          // ignore parse failure
+        }
+        const err = new Error(errorData?.error || 'Failed to start execution');
+        err.status = response.status;
+        throw err;
       }
 
       const result = await response.json();

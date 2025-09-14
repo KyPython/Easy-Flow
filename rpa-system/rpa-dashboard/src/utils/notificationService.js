@@ -10,7 +10,7 @@ import {
   NOTIFICATION_TYPES,
   NOTIFICATION_PRIORITIES 
 } from './firebaseConfig';
-import { getToken, onMessage } from 'firebase/messaging';
+import { getToken, onMessage, deleteToken } from 'firebase/messaging';
 import { ref, push, set, onValue, off, query, orderByChild, limitToLast } from 'firebase/database';
 import { onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { supabase } from './supabaseClient';
@@ -24,6 +24,7 @@ class NotificationService {
     this.unsubscribers = new Map();
     this.fcmToken = null;
     this.userPreferences = null;
+  this.pushEnabled = false;
     this.isInitializing = false;
     this.isInitialized = false;
     this.initializationPromise = null;
@@ -31,6 +32,7 @@ class NotificationService {
     this.authStateListener = null;
     this.tokenRefreshTimeout = null;
     this.lastTokenRefresh = null;
+  this._loggedBackendFallbackOnce = false;
     
     console.log('🔔 NotificationService initialized:', {
       isSupported: this.isSupported,
@@ -377,14 +379,17 @@ class NotificationService {
 
       if (response.ok) {
         this.userPreferences = await response.json();
+        this.pushEnabled = !!this.userPreferences?.preferences?.push_notifications;
         console.log('🔔 User preferences loaded:', this.userPreferences);
       } else {
         console.warn('🔔 Failed to load user preferences, using defaults');
         this.userPreferences = this.getDefaultPreferences();
+        this.pushEnabled = !!this.userPreferences?.preferences?.push_notifications;
       }
     } catch (error) {
       console.error('🔔 Error loading user preferences:', error);
       this.userPreferences = this.getDefaultPreferences();
+      this.pushEnabled = !!this.userPreferences?.preferences?.push_notifications;
     }
   }
 
@@ -407,6 +412,99 @@ class NotificationService {
       can_receive_sms: false,
       can_receive_push: false
     };
+  }
+
+  // Helper: get merged preferences with overrides
+  _mergePreferences(overrides = {}) {
+    const base = (this.userPreferences && this.userPreferences.preferences)
+      ? { ...this.userPreferences.preferences }
+      : { ...this.getDefaultPreferences().preferences };
+    return { ...base, ...overrides };
+  }
+
+  // Enable push notifications in-app (persist preference and token)
+  async enablePush() {
+    if (!this.currentUser) return false;
+    // Ensure permission
+    const permitted = await this.requestPermission();
+    if (!permitted) return false;
+    // Ensure token
+    const token = await this.getFCMToken();
+    if (!token) return false;
+
+    // Persist via backend API
+    try {
+      const merged = this._mergePreferences({ push_notifications: true });
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch(buildApiUrl('/api/user/notifications'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({
+          preferences: merged,
+          fcm_token: token,
+          phone_number: this.userPreferences?.phone_number || null
+        })
+      });
+      if (!resp.ok) throw new Error(`Failed to save push preference (${resp.status})`);
+      // Update local state
+      if (!this.userPreferences) this.userPreferences = this.getDefaultPreferences();
+      this.userPreferences.preferences = merged;
+      this.userPreferences.fcm_token = token;
+      this.userPreferences.can_receive_push = true;
+      this.pushEnabled = true;
+      this.dispatchEvent('preferences_updated', { preferences: this.userPreferences });
+      return true;
+    } catch (e) {
+      console.error('🔔 Failed to persist push enable:', e);
+      return false;
+    }
+  }
+
+  // Disable push notifications in-app (persist preference and revoke token)
+  async disablePush() {
+    if (!this.currentUser) return false;
+    try {
+      // Best-effort revoke token locally
+      try {
+        if (messaging) {
+          await deleteToken(messaging);
+          this.fcmToken = null;
+        }
+      } catch (revokeErr) {
+        console.warn('🔔 Failed to delete FCM token (continuing):', revokeErr?.message || revokeErr);
+      }
+
+      const merged = this._mergePreferences({ push_notifications: false });
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch(buildApiUrl('/api/user/notifications'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({
+          preferences: merged,
+          fcm_token: null,
+          phone_number: this.userPreferences?.phone_number || null
+        })
+      });
+      if (!resp.ok) throw new Error(`Failed to save push disable (${resp.status})`);
+
+      // Update local state
+      if (!this.userPreferences) this.userPreferences = this.getDefaultPreferences();
+      this.userPreferences.preferences = merged;
+      this.userPreferences.fcm_token = null;
+      this.userPreferences.can_receive_push = false;
+      this.pushEnabled = false;
+      this.dispatchEvent('preferences_updated', { preferences: this.userPreferences });
+      return true;
+    } catch (e) {
+      console.error('🔔 Failed to persist push disable:', e);
+      return false;
+    }
   }
 
   // Check if a specific type of notification is enabled
@@ -503,45 +601,31 @@ class NotificationService {
   // Save FCM token to backend
   async saveFCMTokenToBackend(token) {
     try {
-      // Check if token already exists for this user to avoid redundant updates
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('fcm_token')
-        .eq('id', this.currentUser.id)
-        .single();
-
-      // Skip update if token hasn't changed
-      if (existingProfile?.fcm_token === token) {
-        console.log('🔔 FCM token unchanged, skipping backend update');
-        return;
-      }
-
-      // Update user profile with FCM token
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: this.currentUser.id,
+      // Persist via backend preferences endpoint so server sees fcm_token
+      const merged = this._mergePreferences({ push_notifications: true });
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch(buildApiUrl('/api/user/notifications'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({
+          preferences: merged,
           fcm_token: token,
-          notification_preferences: {
-            push_enabled: true,
-            email_enabled: true,
-            task_updates: true,
-            system_alerts: true
-          },
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) {
-        console.error('🔔 Error saving FCM token:', error);
-        
-        // Provide specific error guidance
-        if (error.code === 'PGRST301') {
-          console.error('🔔 Supabase authentication error. Check if user is properly logged in.');
-        } else if (error.message?.includes('profiles')) {
-          console.error('🔔 Profiles table error. Check if table exists and user has access.');
-        }
+          phone_number: this.userPreferences?.phone_number || null
+        })
+      });
+      if (!resp.ok) {
+        console.error('🔔 Error saving FCM token via API:', resp.status);
       } else {
-        console.log('🔔 FCM token saved successfully');
+        console.log('🔔 FCM token saved via API');
+        if (!this.userPreferences) this.userPreferences = this.getDefaultPreferences();
+        this.userPreferences.preferences = merged;
+        this.userPreferences.fcm_token = token;
+        this.userPreferences.can_receive_push = true;
+        this.pushEnabled = true;
+        this.dispatchEvent('preferences_updated', { preferences: this.userPreferences });
       }
     } catch (error) {
       console.error('🔔 Error saving FCM token to backend:', error);
@@ -615,12 +699,18 @@ class NotificationService {
 
     // Guard: require Firebase authenticated user to satisfy rules.
     if (!auth?.currentUser) {
-      console.warn('🔔 No Firebase auth user present; falling back to server API notification creation');
+      if (!this._loggedBackendFallbackOnce) {
+        console.info('🔔 No Firebase auth user present; using backend fallback for notifications');
+        this._loggedBackendFallbackOnce = true;
+      }
       return await this._sendViaBackendFallback(userId, notification);
     }
 
     if (auth.currentUser.uid !== userId) {
-      console.warn('🔔 UID mismatch (auth.currentUser.uid != target userId); using backend fallback');
+      if (!this._loggedBackendFallbackOnce) {
+        console.info('🔔 UID mismatch; using backend fallback for notifications');
+        this._loggedBackendFallbackOnce = true;
+      }
       return await this._sendViaBackendFallback(userId, notification);
     }
 
@@ -855,7 +945,8 @@ class NotificationService {
       isConfigured: isFirebaseConfigured,
       hasPermission: Notification.permission === 'granted',
       currentUser: this.currentUser?.id || null,
-      hasFCMToken: !!this.fcmToken
+  hasFCMToken: !!this.fcmToken,
+  pushEnabled: !!this.pushEnabled
     };
   }
 }

@@ -270,6 +270,21 @@ export const useNotifications = (user) => {
     return notificationService.sendNotification(user.id, notification);
   }, [user]);
 
+  // Enable push notifications (persist preference + token)
+  const enablePush = useCallback(async () => {
+    const ok = await notificationService.enablePush();
+    setStatus(notificationService.getStatus());
+    setHasPermission(Notification.permission === 'granted');
+    return ok;
+  }, []);
+
+  // Disable push notifications (persist preference + revoke token)
+  const disablePush = useCallback(async () => {
+    const ok = await notificationService.disablePush();
+    setStatus(notificationService.getStatus());
+    return ok;
+  }, []);
+
   return {
     // State
     notifications,
@@ -284,6 +299,8 @@ export const useNotifications = (user) => {
     markAsRead,
     markAllAsRead,
     clearAll,
+    enablePush,
+    disablePush,
     
     // Notification helpers
     sendTaskCompleted,

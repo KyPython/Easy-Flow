@@ -15,6 +15,8 @@ const NotificationCenter = () => {
     hasPermission,
     status,
     requestPermission,
+  enablePush,
+  disablePush,
     sendTestNotification,
     markAsRead,
     markAllAsRead,
@@ -41,6 +43,18 @@ const NotificationCenter = () => {
 
   const handleRequestPermission = async () => {
     await requestPermission();
+  };
+
+  const handleTogglePush = async () => {
+    if (!hasPermission) {
+      await requestPermission();
+      return;
+    }
+    if (status.pushEnabled) {
+      await disablePush();
+    } else {
+      await enablePush();
+    }
   };
 
   const handleSendTest = async () => {
@@ -127,13 +141,13 @@ const NotificationCenter = () => {
           <div className={styles.header}>
             <h3>Notifications</h3>
             <div className={styles.headerActions}>
-              {!hasPermission && (
+              {(!hasPermission || status.pushEnabled === false || status.pushEnabled === true) && (
                 <button 
                   className={styles.permissionButton}
-                  onClick={handleRequestPermission}
-                  title="Enable browser notifications"
+                  onClick={handleTogglePush}
+                  title={hasPermission ? (status.pushEnabled ? 'Disable push notifications' : 'Enable push notifications') : 'Enable browser notifications'}
                 >
-                  🔔 Enable
+                  {hasPermission ? (status.pushEnabled ? '🔕 Disable' : '🔔 Enable') : '🔔 Enable'}
                 </button>
               )}
               {process.env.NODE_ENV === 'development' && (

@@ -9,6 +9,21 @@ let firebaseApp = null;
 let messaging = null;
 let database = null;
 
+// Helper to safely read environment variables (treat blank/whitespace/'null'/'undefined' as missing)
+function getSanitizedEnv(name) {
+  try {
+    const raw = process.env[name];
+    if (raw === undefined || raw === null) return undefined;
+    const val = String(raw).trim();
+    if (!val) return undefined;
+    const lower = val.toLowerCase();
+    if (lower === 'null' || lower === 'undefined' || lower === '""' || lower === "''") return undefined;
+    return val;
+  } catch {
+    return undefined;
+  }
+}
+
 const initializeFirebaseAdmin = () => {
   console.log('🔍 [DEBUG] Firebase Admin initialization starting...');
   if (process.env.NODE_ENV === 'development') {
@@ -104,6 +119,13 @@ const initializeFirebaseAdmin = () => {
 let firebaseAdminApp = null;
 let firebaseMessaging = null;
 let firebaseDatabase = null;
+let hasLoggedSupabaseMissing = false;
+
+function isSupabaseServerConfigured() {
+  const url = getSanitizedEnv('SUPABASE_URL');
+  const key = getSanitizedEnv('SUPABASE_SERVICE_ROLE') || getSanitizedEnv('SUPABASE_SERVICE_ROLE_KEY') || getSanitizedEnv('SUPABASE_KEY');
+  return !!(url && key);
+}
 
 // Notification service class
 class FirebaseNotificationService {
@@ -147,12 +169,19 @@ class FirebaseNotificationService {
     try {
       // Get user's FCM token from Supabase
       const { createClient } = require('@supabase/supabase-js');
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
-      if (!process.env.SUPABASE_URL || !supabaseKey) {
+      const SUPABASE_URL = getSanitizedEnv('SUPABASE_URL');
+      const supabaseKey = getSanitizedEnv('SUPABASE_SERVICE_ROLE') || getSanitizedEnv('SUPABASE_SERVICE_ROLE_KEY') || getSanitizedEnv('SUPABASE_KEY');
+      if (!SUPABASE_URL || !supabaseKey) {
         console.warn('🔥 Supabase not configured for notification lookups');
         return { success: false, error: 'Supabase not configured' };
       }
-      const supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
+      let supabase;
+      try {
+        supabase = createClient(SUPABASE_URL, supabaseKey);
+      } catch (e) {
+        console.warn('🔥 Supabase client creation failed for notifications:', e?.message || e);
+        return { success: false, error: 'Supabase client init failed' };
+      }
 
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -349,8 +378,18 @@ class FirebaseNotificationService {
   // Send both push notification and store in database
   async sendAndStoreNotification(userId, notification) {
     await this.ensureInitialized();
+    const pushPromise = isSupabaseServerConfigured()
+      ? this.sendNotificationToUser(userId, notification)
+      : (async () => {
+          if (!hasLoggedSupabaseMissing) {
+            console.warn('🔥 Supabase not configured for push lookups; skipping push send');
+            hasLoggedSupabaseMissing = true;
+          }
+          return { success: false, error: 'supabase_not_configured' };
+        })();
+
     const [pushResult, storeResult] = await Promise.allSettled([
-      this.sendNotificationToUser(userId, notification),
+      pushPromise,
       this.storeNotification(userId, notification)
     ]);
 
@@ -374,12 +413,19 @@ class FirebaseNotificationService {
       
       // Get user email from Supabase
       const { createClient } = require('@supabase/supabase-js');
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
-      if (!process.env.SUPABASE_URL || !supabaseKey) {
+      const SUPABASE_URL = getSanitizedEnv('SUPABASE_URL');
+      const supabaseKey = getSanitizedEnv('SUPABASE_SERVICE_ROLE') || getSanitizedEnv('SUPABASE_SERVICE_ROLE_KEY') || getSanitizedEnv('SUPABASE_KEY');
+      if (!SUPABASE_URL || !supabaseKey) {
         console.warn('🔥 Supabase not configured for critical email fallback');
         return;
       }
-      const supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
+      let supabase;
+      try {
+        supabase = createClient(SUPABASE_URL, supabaseKey);
+      } catch (e) {
+        console.warn('🔥 Supabase client creation failed for critical fallback:', e?.message || e);
+        return;
+      }
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -416,12 +462,19 @@ class FirebaseNotificationService {
     if (!userIds) {
       // If no specific users, get all users with FCM tokens
       const { createClient } = require('@supabase/supabase-js');
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
-      if (!process.env.SUPABASE_URL || !supabaseKey) {
+      const SUPABASE_URL = getSanitizedEnv('SUPABASE_URL');
+      const supabaseKey = getSanitizedEnv('SUPABASE_SERVICE_ROLE') || getSanitizedEnv('SUPABASE_SERVICE_ROLE_KEY') || getSanitizedEnv('SUPABASE_KEY');
+      if (!SUPABASE_URL || !supabaseKey) {
         console.warn('🔥 Supabase not configured for system notifications');
         return { success: false, error: 'Supabase not configured' };
       }
-      const supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
+      let supabase;
+      try {
+        supabase = createClient(SUPABASE_URL, supabaseKey);
+      } catch (e) {
+        console.warn('🔥 Supabase client creation failed for system notification:', e?.message || e);
+        return { success: false, error: 'Supabase client init failed' };
+      }
 
       const { data: profiles } = await supabase
         .from('profiles')

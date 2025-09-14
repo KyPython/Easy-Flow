@@ -345,13 +345,26 @@ try {
       if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
 
       const executor = new WorkflowExecutor();
-      const execution = await executor.startExecution({
-        workflowId,
-        userId,
-        triggeredBy,
-        triggerData,
-        inputData
-      });
+      console.log('[API] execute request', { userId, workflowId, triggeredBy });
+      let execution;
+      try {
+        execution = await executor.startExecution({
+          workflowId,
+          userId,
+          triggeredBy,
+          triggerData,
+          inputData
+        });
+      } catch (e) {
+        const msg = e?.message || '';
+        if (msg.startsWith('Workflow not found')) {
+          return res.status(404).json({ error: msg });
+        }
+        if (msg.startsWith('Workflow is not active')) {
+          return res.status(409).json({ error: msg });
+        }
+        throw e;
+      }
 
       return res.json({ execution });
     } catch (err) {

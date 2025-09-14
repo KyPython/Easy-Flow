@@ -5,6 +5,7 @@ import './index.css';
 import App from './App';
 import ErrorBoundary from './components/Diagnostics/ErrorBoundary';
 import reportWebVitals from './reportWebVitals';
+import { ToastProvider } from './components/WorkflowBuilder/Toast';
 
 // Explicit imports to prevent tree-shaking from dropping global exposures
 import './utils/supabaseClient';
@@ -47,9 +48,11 @@ if (typeof window !== 'undefined') {
 }
 root.render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
+    <ToastProvider>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </ToastProvider>
   </React.StrictMode>
 );
 // If you want to start measuring performance in your app, pass a function

@@ -30,6 +30,7 @@ import ActionButton from './ActionButton';
 import ConfirmDialog from './ConfirmDialog';
 import PlanGate from '../PlanGate/PlanGate';
 import PaywallModal from '../PaywallModal/PaywallModal';
+import { useToast } from './Toast';
 
 const WorkflowBuilder = () => {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ const WorkflowBuilder = () => {
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallFeature, setPaywallFeature] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const { error: showError, warning: showWarning, success: showSuccess, info: showInfo } = useToast();
 
   // Plan checking
   const { planData, canCreateWorkflow, canRunAutomation, hasFeature } = usePlan();
@@ -115,7 +117,7 @@ const WorkflowBuilder = () => {
 
   const handleExecuteWorkflow = useCallback(async () => {
     if (!workflowId) {
-      alert('Please save the workflow first before running it.');
+  showWarning('Select a saved workflow first');
       return;
     }
 
@@ -131,10 +133,17 @@ const WorkflowBuilder = () => {
       const result = await startExecution();
       const execId = result?.execution?.id || result?.id || null;
       if (execId) setCurrentExecutionId(execId);
-      console.log('Workflow execution started');
+      showInfo('Workflow execution started');
     } catch (error) {
       console.error('Failed to start workflow execution:', error);
-      alert('Failed to start workflow execution: ' + error.message);
+      // Friendlier messages based on backend status codes
+      if (error?.status === 404) {
+        showWarning('Select a saved workflow first');
+      } else if (error?.status === 409) {
+        showWarning('Activate workflow before running');
+      } else {
+        showError('Failed to start workflow: ' + (error?.message || 'Unknown error'));
+      }
       setIsExecuting(false);
     }
   }, [workflowId, startExecution, canRunAutomation]);

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../../utils/api';
 import styles from './TaskForm.module.css';
 import PropTypes from 'prop-types';
+import { useToast } from '../WorkflowBuilder/Toast';
 
 const token = localStorage.getItem('sb-syxzilyuysdoirnezgii-auth-token');
 const parsedToken = (() => {
@@ -14,6 +15,7 @@ const parsedToken = (() => {
 const accessToken = parsedToken?.access_token || parsedToken;
 
 const TaskForm = ({ onTaskSubmit, loading }) => {
+  const { error: showError, warning: showWarning, success: showSuccess } = useToast();
   const [form, setForm] = useState({
     url: '',
     username: '',
@@ -77,22 +79,22 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     onTaskSubmit?.(completedTask);
 
     setForm({ url: '', username: '', password: '', task: 'invoice_download', pdf_url: '' });
-    alert('✅ Task submitted and completed successfully!');
+    showSuccess('Task queued for processing');
   } catch (error) {
     console.error('Task submission failed:', error);
     
     // Provide user-friendly error message
     let userMessage = 'Task submission failed. Please try again.';
-    
-    if (error.message?.includes('Network Error') || error.message?.includes('CORS')) {
-      userMessage = 'Unable to connect to the automation service. Please check your connection and try again.';
+    if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
+      userMessage = 'Request timed out. The task is heavy or the server is busy. Please check the Runs tab shortly.';
+    } else if (error.message?.includes('Network Error') || error.message?.includes('CORS')) {
+      userMessage = 'Unable to reach the server. Is the backend running on :3030?';
     } else if (error.response?.status === 401) {
       userMessage = 'Authentication error. Please sign in again.';
     } else if (error.response?.status >= 500) {
       userMessage = 'Server error. Please try again in a moment.';
     }
-    
-    alert(`❌ ${userMessage}`);
+    showWarning(userMessage);
   } finally {
     setIsSubmitting(false);
   }
