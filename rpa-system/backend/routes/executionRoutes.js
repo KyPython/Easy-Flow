@@ -10,7 +10,10 @@ router.get('/:executionId', async (req, res) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const { executionId } = req.params;
-    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
+    );
 
     const { data: execution, error } = await supabase
       .from('workflow_executions')
@@ -35,7 +38,10 @@ router.get('/:executionId/steps', async (req, res) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const { executionId } = req.params;
-    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
+    );
 
     // Verify ownership via execution
     const { data: execution, error: execError } = await supabase
@@ -72,7 +78,7 @@ router.post('/:executionId/cancel', async (req, res) => {
 
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
+      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
     );
 
     // Verify execution exists and belongs to user

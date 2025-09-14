@@ -7,10 +7,12 @@ const axios = require('axios');
 
 class WorkflowExecutor {
   constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
+    this.supabase = (url && key) ? createClient(url, key) : null;
+    if (!this.supabase) {
+      console.warn('[WorkflowExecutor] Supabase not configured (missing SUPABASE_URL or key). Some features will be disabled.');
+    }
   // Track running executions to check for cancellation
   this.runningExecutions = new Map(); // executionId -> { cancelled: boolean }
   }

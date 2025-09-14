@@ -12,8 +12,8 @@ router.use((req, res, next) => {
   next();
 });
 
-const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE
-  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE)
+const supabase = process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY)
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY)
   : null;
 
 if (!supabase) {

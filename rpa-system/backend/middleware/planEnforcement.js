@@ -1,10 +1,12 @@
 const { createClient } = require('@supabase/supabase-js');
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE
-);
+// Initialize Supabase client (resilient to missing keys in CI)
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+if (!supabase) {
+  console.warn('[planEnforcement] Supabase not configured; plan checks will fail gracefully.');
+}
 
 /**
  * Middleware to enforce plan limits and feature access
@@ -13,6 +15,7 @@ const supabase = createClient(
 // Get user's plan details
 const getUserPlan = async (userId) => {
   try {
+  if (!supabase) throw new Error('Supabase not configured');
     const { data, error } = await supabase
       .rpc('get_user_plan_details', { user_uuid: userId });
 

@@ -5,10 +5,14 @@ const { WorkflowExecutor } = require('./workflowExecutor');
 
 class TriggerService {
   constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
+    if (url && key) {
+      this.supabase = createClient(url, key);
+    } else {
+      this.supabase = null;
+      console.warn('[TriggerService] Supabase not configured (missing SUPABASE_URL or key). Scheduler disabled.');
+    }
     this.workflowExecutor = new WorkflowExecutor();
     this.activeJobs = new Map(); // Track active cron jobs
     this.initialized = false;
@@ -16,6 +20,11 @@ class TriggerService {
 
   async initialize() {
     if (this.initialized) return;
+    if (!this.supabase) {
+      console.warn('[TriggerService] Skipping initialization: Supabase client unavailable.');
+      this.initialized = true;
+      return;
+    }
     
     console.log('[TriggerService] Initializing automation trigger system...');
     
@@ -33,6 +42,7 @@ class TriggerService {
 
   async loadActiveSchedules() {
     try {
+  if (!this.supabase) return;
       const { data: schedules, error } = await this.supabase
         .from('workflow_schedules')
         .select(`

@@ -14,21 +14,24 @@ dotenv.config({ path: process.env.DOTENV_PATH || undefined });
 let supa; // lazy client
 function getSupabase() {
   if (supa) return supa;
-  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE } = process.env;
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
-    throw new Error('Supabase not configured: SUPABASE_URL/SUPABASE_SERVICE_ROLE missing');
+  const { SUPABASE_URL } = process.env;
+  const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY;
+  if (!SUPABASE_URL || !key) {
+    console.warn('[email_worker] Supabase not configured; worker will be idle.');
+    return null;
   }
-  supa = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
+  supa = createClient(SUPABASE_URL, key, {
     auth: { persistSession: false, autoRefreshToken: false }
   });
   // quick presence log (don't print the full service role)
-  console.log('[email_worker] SUPABASE configured:', true, 'SERVICE_ROLE present:', true);
+  console.log('[email_worker] SUPABASE configured:', true, 'SERVICE_KEY present:', true);
   return supa;
 }
 
 // RPC helper: use supabase.rpc when present; fall back to REST call (useful in tests/mocks)
 async function callRpc(fnName, args) {
   const client = getSupabase();
+  if (!client) return { data: null, error: { message: 'supabase unavailable' } };
   if (typeof client.rpc === 'function') {
     return client.rpc(fnName, args);
   }

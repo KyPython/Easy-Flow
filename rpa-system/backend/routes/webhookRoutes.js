@@ -66,7 +66,7 @@ router.get('/schedule/:scheduleId/webhook', async (req, res) => {
     const { createClient } = require('@supabase/supabase-js');
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
+      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
     );
 
     const { data: schedule, error } = await supabase
@@ -114,7 +114,7 @@ router.post('/test/:token', async (req, res) => {
     const { createClient } = require('@supabase/supabase-js');
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
+      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
     );
 
     const { data: schedule, error } = await supabase
