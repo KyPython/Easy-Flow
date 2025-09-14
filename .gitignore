@@ -21,9 +21,13 @@ pnpm-debug.log*
 .env.development
 .env.staging
 .env.test
-.env.example
-.env.template
-.env.sample
+# allow examples/templates to be tracked
+!.env.example
+!.env.sample
+!.env.template
+!**/.env.example
+!**/.env.sample
+!**/.env.template
 .env.render
 .env.vercel
 .env.heroku
@@ -42,7 +46,8 @@ logs
 Thumbs.db
 
 # IDEs
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 .idea/
 *.sublime-workspace
 *.sublime-project
@@ -60,6 +65,7 @@ bower_components/
 # Misc
 *.swp
 *.bak
+*.backup
 *.tmp
 *.orig
 
@@ -78,12 +84,17 @@ coverage/
 # Secrets and keys (CRITICAL)
 firebase-service-account.json
 **/firebase-service-account.json
+**/*service-account*.json
 *.pem
 *.key
 **/secrets/
 config/secrets/
 ACTUAL_ENV_VALUES.txt
 **/ACTUAL_ENV_VALUES.txt
+**/.vercel/
+**/.expo/
+**/.pytest_cache/
+**/__pycache__/
 
 # Optional npm cache directory
 .npm/
@@ -143,6 +154,9 @@ venv.bak/
 /test
 test.
 tests.
+tmp/
+**/downloads/
+**/load-test-results/
 
 # Development and Internal Files
 *.sh

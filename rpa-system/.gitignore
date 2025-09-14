@@ -21,6 +21,13 @@ env/
 **/.environment*
 *.env*
 *.environment*
+# allow examples/templates to be tracked
+!.env.example
+!**/.env.example
+!.env.sample
+!**/.env.sample
+!.env.template
+!**/.env.template
 ACTUAL_ENV_VALUES.txt
 **/ACTUAL_ENV_VALUES.txt
 
@@ -31,6 +38,10 @@ ACTUAL_ENV_VALUES.txt
 
 # Downloads / Artifacts
 downloads/
+load-test-results/
+tmp/
+**/__pycache__/
+**/.pytest_cache/
 
 # OS / IDE
 .DS_Store
