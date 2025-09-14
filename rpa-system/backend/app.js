@@ -299,6 +299,43 @@ app.use('/api', sendEmailRoute);
 const { router: referralRouter } = require('./referral_route');
 app.use('/api', referralRouter);
 
+// Execution routes: details, steps, cancel
+try {
+  const executionRoutes = require('./routes/executionRoutes');
+  app.use('/api/executions', authMiddleware, apiLimiter, executionRoutes);
+} catch (e) {
+  console.warn('[boot] executionRoutes not mounted:', e?.message || e);
+}
+
+// Start a workflow execution
+try {
+  const { WorkflowExecutor } = require('./services/workflowExecutor');
+  app.post('/api/workflows/execute', authMiddleware, apiLimiter, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+      const { workflowId, inputData = {}, triggeredBy = 'manual', triggerData = {} } = req.body || {};
+      if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
+
+      const executor = new WorkflowExecutor();
+      const execution = await executor.startExecution({
+        workflowId,
+        userId,
+        triggeredBy,
+        triggerData,
+        inputData
+      });
+
+      return res.json({ execution });
+    } catch (err) {
+      console.error('[API] /api/workflows/execute error:', err);
+      return res.status(500).json({ error: err?.message || 'Failed to start execution' });
+    }
+  });
+} catch (e) {
+  console.warn('[boot] workflows execute route not mounted:', e?.message || e);
+}
+
 // Use morgan for detailed, standardized request logging.
 // The 'dev' format is great for development, providing color-coded status codes.
 app.use(morgan('dev'));
