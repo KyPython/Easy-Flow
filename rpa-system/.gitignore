@@ -67,23 +67,7 @@ coverage/
 test.
 tests.
 
-# Development Scripts and Documentation
-*.sh
-scripts/
-monitoring/*.sh
-tests/security/*.sh
-backend/run-*.sh
-deploy*.sh
-run-*.sh
-monitor-*.sh
-COMPLETION_SUMMARY.sh
-optimization-summary.sh
-
-# Internal Documentation
-KAFKA_PYTHON_INIT_GUIDE.md
-FILE_SHARING_GUIDE.md
-PAYWALL_INTEGRATION_GUIDE.md
-backend/PAYMENTS_OPS.md
+# Internal Documentation (folders)
 **/internal-docs/
 
 # Test Results and Reports

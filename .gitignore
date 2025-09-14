@@ -158,31 +158,6 @@ tmp/
 **/downloads/
 **/load-test-results/
 
-# Development and Internal Files
-*.sh
-scripts/
-deploy/
-deployment/
-**/scripts/*.sh
-**/deploy*.sh
-**/test*.sh
-**/run*.sh
-**/monitoring/*.sh
-
-# Internal Documentation
-DEMO_CHECKLIST.md
-TESTING_GUIDE.md
-DEPLOYMENT_GUIDE.md
-PRODUCTION_FIX_URGENT.md
-CLOUD_DEPLOYMENT_STRATEGY.md
-DATA_RETENTION.md
-KAFKA_PYTHON_INIT_GUIDE.md
-PAYMENTS_OPS.md
-FILE_SHARING_GUIDE.md
-PAYWALL_INTEGRATION_GUIDE.md
-**/internal-docs/
-**/dev-docs/
-
 # Test Results and Reports
 tests/results/
 security-test-results/
@@ -191,7 +166,3 @@ test-results/
 **/coverage-reports/
 *.test-results
 test-output/
-
-# Build and Deploy Artifacts
-optimization-summary.sh
-COMPLETION_SUMMARY.sh
