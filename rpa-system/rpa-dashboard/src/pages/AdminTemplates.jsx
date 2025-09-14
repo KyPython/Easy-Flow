@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import styles from './AdminTemplates.module.css';
 
 const AdminTemplates = () => {
@@ -10,7 +10,7 @@ const AdminTemplates = () => {
   const ADMIN_BASE = process.env.REACT_APP_API_BASE || '';
   const ADMIN_SECRET = process.env.REACT_APP_ADMIN_SECRET;
 
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -24,7 +24,7 @@ const AdminTemplates = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [ADMIN_BASE, ADMIN_SECRET, status]);
 
   const act = async (id, action) => {
     const url = `${ADMIN_BASE}/admin/templates/${id}/${action}`;
@@ -56,8 +56,7 @@ const AdminTemplates = () => {
 
   useEffect(() => {
     fetchTemplates();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [fetchTemplates]);
 
   return (
     <div className={styles.wrapper}>
