@@ -50,6 +50,7 @@ const WorkflowBuilder = () => {
     workflow: currentWorkflow, 
     loading: workflowLoading, 
     error: workflowError,
+  updateWorkflow,
     saveWorkflow,
     createWorkflow,
     executeWorkflow 
@@ -219,6 +220,20 @@ const WorkflowBuilder = () => {
   const hasWorkflowId = Boolean(workflowId || currentWorkflow?.id);
   const canClickRun = hasWorkflowId && isActive; // plan gating still enforced in handler
 
+  const toggleActivation = useCallback(async () => {
+    if (!hasWorkflowId) {
+      alert('Please save the workflow before changing its status.');
+      return;
+    }
+    try {
+      const nextStatus = isActive ? 'draft' : 'active';
+      await updateWorkflow({ status: nextStatus });
+    } catch (e) {
+      console.error('Failed to update workflow status:', e);
+      alert('Failed to update workflow status: ' + (e.message || e));
+    }
+  }, [hasWorkflowId, isActive, updateWorkflow]);
+
   // Show loading state while workflow is loading
   if (workflowId && workflowLoading) {
     return (
@@ -316,6 +331,13 @@ const WorkflowBuilder = () => {
               onClick={handleSaveWorkflow}
             >
               <FaSave /> Save
+            </button>
+            <button
+              className={styles.actionButton}
+              onClick={toggleActivation}
+              title={isActive ? 'Set status to draft (disable running)' : 'Activate this workflow to enable Run'}
+            >
+              <FaCog /> {isActive ? 'Deactivate' : 'Activate'}
             </button>
             {isExecuting ? (
               <button
