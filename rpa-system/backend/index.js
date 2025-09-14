@@ -528,6 +528,65 @@ app.post('/api/workflows/execute', authMiddleware, automationLimiter, async (req
   }
 });
 
+// Execute a single workflow step (testing/helper endpoint)
+app.post('/api/workflows/execute-step', authMiddleware, automationLimiter, async (req, res) => {
+  try {
+    const { workflow_id, step_id, step_config, input_data = {} } = req.body || {};
+    if (!workflow_id || !step_id) {
+      return res.status(400).json({ error: 'workflow_id and step_id are required' });
+    }
+
+    const { WorkflowExecutor } = require('./services/workflowExecutor');
+    const exec = new WorkflowExecutor();
+
+    // Load workflow with steps to find the specific step
+    const { data: workflow, error: wfErr } = await exec.supabase
+      .from('workflows')
+      .select('*, workflow_steps(*), workflow_connections(*)')
+      .eq('id', workflow_id)
+      .single();
+    if (wfErr || !workflow) {
+      return res.status(404).json({ error: 'Workflow not found' });
+    }
+
+    const step = workflow.workflow_steps.find(s => s.id === step_id);
+    if (!step) return res.status(404).json({ error: 'Step not found in workflow' });
+    if (step_config && typeof step_config === 'object') {
+      step.config = { ...(step.config || {}), ...step_config };
+    }
+
+    // Create a transient execution row for audit consistency
+    const { data: execution, error: exErr } = await exec.supabase
+      .from('workflow_executions')
+      .insert({
+        workflow_id,
+        user_id: req.user.id,
+        status: 'running',
+        started_at: new Date().toISOString(),
+        input_data,
+        triggered_by: 'step_test',
+        trigger_data: { source: 'api', step_id }
+      })
+      .select()
+      .single();
+    if (exErr) return res.status(500).json({ error: 'Failed to create execution context' });
+
+    const result = await exec.executeStep(execution, step, input_data, workflow);
+
+    // Mark execution based on result
+    if (result?.success) {
+      await exec.completeExecution(execution.id, result.data, 1, Date.now());
+    } else {
+      await exec.failExecution(execution.id, result?.error || 'Step failed', step.id);
+    }
+
+    return res.json(result);
+  } catch (error) {
+    console.error('[POST /api/workflows/execute-step] error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to execute step' });
+  }
+});
+
 // Initialize trigger service
 (async () => {
   try {

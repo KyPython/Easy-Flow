@@ -1,82 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
-// Mock templates for demo purposes
-const mockTemplates = [
+// Emergency fallback templates - only used when database is completely unavailable
+const emergencyFallbackTemplates = [
   {
-    id: 'template-1',
-    name: 'Email Marketing Automation',
-    description: 'Automated email sequences for lead nurturing, welcome series, and customer onboarding.',
-    category: 'email_marketing',
-    rating: 4.8,
-    usage_count: 1250,
-    author: 'KyJahn Smith',
-    tags: ['email', 'marketing', 'automation'],
-    estimated_time: '15 minutes',
-    complexity: 'Medium',
-    steps: 7,
-    is_public: true,
-    is_featured: true
-  },
-  {
-    id: 'template-2',
-    name: 'Web Data Scraping & Processing',
-    description: 'Automatically scrape product data, prices, or content from websites.',
+    id: 'fallback-1',
+    name: 'Basic Web Scraping',
+    description: 'Simple web scraping template (emergency fallback)',
     category: 'web_automation',
-    rating: 4.6,
-    usage_count: 980,
-    author: 'KyJahn Smith',
-    tags: ['scraping', 'data', 'web'],
-    estimated_time: '18 minutes',
-    complexity: 'Medium',
-    steps: 9,
-    is_public: true,
-    is_featured: true
-  },
-  {
-    id: 'template-3',
-    name: 'Web Scraping Automation',
-    description: 'Extract data from websites automatically',
-    category: 'web_automation',
-    rating: 4.2,
-    usage_count: 750,
-    author: 'KyJahn Smith',
-    tags: ['web', 'scraping', 'data'],
-    estimated_time: '12 minutes',
-    complexity: 'Easy',
-    steps: 6,
-    is_public: true,
-    is_featured: false
-  },
-  {
-    id: 'template-4',
-    name: 'File Processing & Upload',
-    description: 'Automatically process and organize uploaded files',
-    category: 'file_management',
-    rating: 4.4,
-    usage_count: 650,
-    author: 'KyJahn Smith',
-    tags: ['file', 'upload', 'processing'],
+    rating: 4.0,
+    usage_count: 0,
+    author: 'System',
+    tags: ['web', 'scraping'],
     estimated_time: '10 minutes',
     complexity: 'Easy',
-    steps: 5,
+    steps: 3,
     is_public: true,
-    is_featured: false
-  },
-  {
-    id: 'template-5',
-    name: 'API Integration Workflow',
-    description: 'Connect and sync data between different services',
-    category: 'api_integration',
-    rating: 4.7,
-    usage_count: 890,
-    author: 'KyJahn Smith',
-    tags: ['api', 'integration', 'sync'],
-    estimated_time: '18 minutes',
-    complexity: 'Medium',
-    steps: 9,
-    is_public: true,
-    is_featured: true
+    is_featured: false,
+    is_fallback: true
   }
 ];
 
@@ -88,7 +29,7 @@ export const useWorkflowTemplates = (options = {}) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(24);
   const [total, setTotal] = useState(0);
-  const inFlightRef = React.useRef(false);
+  const inFlightRef = useRef(false);
 
   // Load workflow templates
   const loadTemplates = useCallback(async (opts = {}) => {
@@ -273,8 +214,8 @@ export const useWorkflowTemplates = (options = {}) => {
       setError(`${normalized.message}${normalized.code ? ` (code ${normalized.code})` : ''}`);
       // Provide fallback templates only if the schema is missing or access denied
       if (err?.code === '42P01' || err?.code === '42703' || String(err?.message || '').toLowerCase().includes('permission')) {
-        setTemplates(mockTemplates);
-        setTotal(mockTemplates.length);
+        setTemplates(emergencyFallbackTemplates);
+        setTotal(emergencyFallbackTemplates.length);
       } else {
         setTemplates([]);
         setTotal(0);
@@ -302,7 +243,7 @@ export const useWorkflowTemplates = (options = {}) => {
           ...canvasConfig,
           ...template.template_config
         };
-      } else if (template.id.startsWith('template-')) {
+  } else if (template.is_fallback || template.id.startsWith('fallback-') || template.id.startsWith('template-')) {
         // For fallback templates, create a sample configuration
         canvasConfig = {
           nodes: [
