@@ -38,6 +38,7 @@ const WorkflowBuilder = () => {
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [currentExecutionId, setCurrentExecutionId] = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallFeature, setPaywallFeature] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -127,7 +128,9 @@ const WorkflowBuilder = () => {
     
     try {
       setIsExecuting(true);
-      await startExecution();
+      const result = await startExecution();
+      const execId = result?.execution?.id || result?.id || null;
+      if (execId) setCurrentExecutionId(execId);
       console.log('Workflow execution started');
     } catch (error) {
       console.error('Failed to start workflow execution:', error);
@@ -141,14 +144,28 @@ const WorkflowBuilder = () => {
     const runningExecution = executionStats?.running > 0;
     if (runningExecution) {
       try {
-        // This would need the execution ID - simplified for now
+        if (!currentExecutionId) {
+          alert('Unable to determine the running execution. Please open Executions to cancel a specific run.');
+          return;
+        }
+        await cancelExecution(currentExecutionId);
         setIsExecuting(false);
-        console.log('Workflow execution stopped');
+        setCurrentExecutionId(null);
+        console.log('Workflow execution cancellation requested');
       } catch (error) {
         console.error('Failed to stop workflow execution:', error);
+        alert('Failed to stop execution: ' + (error.message || error));
       }
     }
-  }, [executionStats]);
+  }, [executionStats, cancelExecution, currentExecutionId]);
+
+  // Auto-hide overlay when no runs are active anymore
+  useEffect(() => {
+    if (isExecuting && (executionStats?.running || 0) === 0) {
+      setIsExecuting(false);
+      setCurrentExecutionId(null);
+    }
+  }, [executionStats?.running]);
 
   const handleTemplateSelect = useCallback(async (newWorkflow) => {
     try {
@@ -343,6 +360,8 @@ const WorkflowBuilder = () => {
               <button
                 className={`${styles.actionButton} ${styles.stopButton}`}
                 onClick={handleStopExecution}
+                disabled={!currentExecutionId}
+                title={!currentExecutionId ? 'No active execution id found' : 'Stop the current execution'}
               >
                 <FaStop /> Stop
               </button>
@@ -421,6 +440,8 @@ const WorkflowBuilder = () => {
             <button 
               className={styles.stopButton}
               onClick={handleStopExecution}
+              disabled={!currentExecutionId}
+              title={!currentExecutionId ? 'No active execution id found' : 'Stop the current execution'}
             >
               <FaStop /> Stop Execution
             </button>
