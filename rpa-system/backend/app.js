@@ -2392,13 +2392,16 @@ app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
 
 // POST /api/files/upload - Upload a new file
 app.post('/api/files/upload', authMiddleware, async (req, res) => {
+  console.log('[FILE UPLOAD] Starting file upload process');
   try {
     if (!req.files || !req.files.file) {
+      console.log('[FILE UPLOAD] Error: No file provided');
       return res.status(400).json({ error: 'No file provided' });
     }
 
     const file = req.files.file;
     const userId = req.user.id;
+    console.log(`[FILE UPLOAD] File: ${file.name}, Size: ${file.size}, User: ${userId}`);
     
     // Generate unique file path
     const timestamp = Date.now();
@@ -2408,6 +2411,7 @@ app.post('/api/files/upload', authMiddleware, async (req, res) => {
     const filePath = `${userId}/${timestamp}_${safeName}${fileExt}`;
     
     // Upload to Supabase storage
+    console.log(`[FILE UPLOAD] Uploading to Supabase storage: ${filePath}`);
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('user-files')
       .upload(filePath, file.data, {
@@ -2416,47 +2420,62 @@ app.post('/api/files/upload', authMiddleware, async (req, res) => {
       });
       
     if (uploadError) {
-      console.error('Storage upload error:', uploadError);
+      console.error('[FILE UPLOAD] Storage upload error:', uploadError);
       return res.status(500).json({ error: 'Failed to upload file to storage' });
     }
+    console.log(`[FILE UPLOAD] Storage upload successful: ${uploadData?.path}`);
     
     // Calculate MD5 checksum
     const checksum = crypto.createHash('md5').update(file.data).digest('hex');
     
     // Save metadata to files table
+    console.log(`[FILE UPLOAD] Saving metadata to database for file: ${file.name}`);
+    const fileMetadata = {
+      user_id: userId,
+      original_name: file.name,
+      display_name: file.name,
+      storage_path: filePath,
+      storage_bucket: 'user-files',
+      file_size: file.size,
+      mime_type: file.mimetype,
+      file_extension: fileExt.slice(1),
+      checksum_md5: checksum,
+      folder_path: req.body.folder_path || '/',
+      tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : req.body.tags.split(',')) : [],
+      metadata: req.body.category ? { category: req.body.category } : {}
+    };
+    console.log(`[FILE UPLOAD] Metadata object:`, JSON.stringify(fileMetadata, null, 2));
+    
     const { data: fileRecord, error: dbError } = await supabase
       .from('files')
-      .insert({
-        user_id: userId,
-        original_name: file.name,
-        display_name: file.name,
-        storage_path: filePath,
-        storage_bucket: 'user-files',
-        file_size: file.size,
-        mime_type: file.mimetype,
-        file_extension: fileExt.slice(1),
-        checksum_md5: checksum,
-        folder_path: req.body.folder_path || '/',
-        tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : req.body.tags.split(',')) : [],
-        metadata: req.body.category ? { category: req.body.category } : {}
-      })
+      .insert(fileMetadata)
       .select()
       .single();
       
     if (dbError) {
-      console.error('Database insert error:', dbError);
+      console.error('[FILE UPLOAD] Database insert error:', dbError);
+      console.error('[FILE UPLOAD] Database error details:', {
+        code: dbError.code,
+        message: dbError.message,
+        details: dbError.details,
+        hint: dbError.hint
+      });
       // Clean up uploaded file if database insert fails
+      console.log(`[FILE UPLOAD] Cleaning up uploaded file: ${filePath}`);
       await supabase.storage.from('user-files').remove([filePath]);
       return res.status(500).json({ error: 'Failed to save file metadata' });
     }
+    console.log(`[FILE UPLOAD] Database insert successful: ${fileRecord.id}`);
 
+    console.log(`[FILE UPLOAD] Upload completed successfully for file: ${file.name}`);
     res.status(201).json({
       ...fileRecord,
       message: 'File uploaded successfully'
     });
     
   } catch (err) {
-    console.error('[POST /api/files/upload] Error:', err.message);
+    console.error('[FILE UPLOAD] Unexpected error:', err);
+    console.error('[FILE UPLOAD] Stack trace:', err.stack);
     res.status(500).json({ error: 'Upload failed', details: err.message });
   }
 });

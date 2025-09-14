@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useI18n } from '../i18n';
 import { supabase } from '../utils/supabaseClient';
+import styles from './ResetLanding.module.css';
 
 function parseHashParams(hash) {
   if (!hash) return {};
@@ -46,20 +47,20 @@ export default function ResetLanding() {
   };
 
   return (
-<div style={{ maxWidth: 720, margin: '4rem auto', fontFamily: 'system-ui, Arial', padding: 20 }}>
-  <h1>{t('reset.heading','Password reset / sign-in')}</h1>
-  <p>{t('reset.intro','We received a password reset request. This page gives you control over when to continue into the app. Click Continue to sign in using the token that was embedded in the link.')}</p>
+    <div className={styles.container}>
+      <h1>{t('reset.heading','Password reset / sign-in')}</h1>
+      <p>{t('reset.intro','We received a password reset request. This page gives you control over when to continue into the app. Click Continue to sign in using the token that was embedded in the link.')}</p>
 
-      <div style={{ marginTop: 24 }}>
-        <button onClick={onContinue} disabled={loading || done} style={{ padding: '10px 18px', background: 'var(--color-primary-600)', color: 'var(--on-primary)', borderRadius: 6, border: 'none' }}>
+      <div className={styles.actions}>
+        <button onClick={onContinue} disabled={loading || done} className={styles.button}>
           {loading ? t('reset.signing_in','Signing in…') : done ? t('reset.signed_in_continuing','Signed in — continuing…') : t('reset.continue','Continue to app')}
         </button>
       </div>
 
-      {error && <div style={{ color: 'var(--color-error-600)', marginTop: 12 }}>{error}</div>}
+      {error && <div className={styles.error}>{error}</div>}
 
-      <p style={{ marginTop: 18, color: 'var(--text-muted)' }}>
-  {t('reset.notice','If you didn\'t request this, please change your password after signing in or contact support.')}
+      <p className={styles.description}>
+        {t('reset.notice','If you didn\'t request this, please change your password after signing in or contact support.')}
       </p>
     </div>
   );
