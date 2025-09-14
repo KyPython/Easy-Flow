@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ReactFlowProvider } from 'reactflow';
 import styles from './WorkflowBuilder.module.css';
@@ -44,6 +44,9 @@ const WorkflowBuilder = () => {
   const [paywallFeature, setPaywallFeature] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const { error: showError, warning: showWarning, success: showSuccess, info: showInfo } = useToast();
+  
+  // Ref to access WorkflowCanvas methods
+  const canvasRef = useRef(null);
 
   // Plan checking
   const { planData, canCreateWorkflow, canRunAutomation, hasFeature } = usePlan();
@@ -84,15 +87,19 @@ const WorkflowBuilder = () => {
 
         // Create new workflow with timestamp
         const timestamp = new Date().toLocaleString();
+        
+        // Get current canvas state if available
+        const currentCanvasState = canvasRef.current?.getCurrentCanvasState() || {
+          nodes: [],
+          edges: [],
+          viewport: { x: 0, y: 0, zoom: 1 }
+        };
+        
         const newWorkflowData = {
           name: `New Workflow - ${timestamp}`,
           description: 'A new automation workflow created from the canvas',
           status: 'draft',
-          canvas_config: {
-            nodes: [],
-            edges: [],
-            viewport: { x: 0, y: 0, zoom: 1 }
-          }
+          canvas_config: currentCanvasState
         };
         
         const { data: { user } } = await supabase.auth.getUser();
@@ -421,6 +428,7 @@ const WorkflowBuilder = () => {
         {getCurrentView() === 'canvas' && (
           <ReactFlowProvider>
             <WorkflowCanvas 
+              ref={canvasRef}
               workflowId={workflowId || currentWorkflow?.id}
               isReadOnly={false}
             />

@@ -5,5 +5,5 @@ COPY package*.json ./
 # Use npm install to be robust when package-lock.json is missing in some dev clones
 RUN npm install --silent
 COPY . .
-EXPOSE 3000
-CMD ["node", "index.js"]
+EXPOSE 3030
+CMD ["node", "server.js"]

@@ -282,6 +282,36 @@ def trigger_automation():
         logger.error(f"Unexpected error: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/automate', methods=['POST'])
+@app.route('/automate/<task_type>', methods=['POST'])
+def direct_automation(task_type=None):
+    """Direct automation endpoint that processes tasks synchronously without Kafka."""
+    try:
+        task_data = request.get_json()
+        if not task_data:
+            return jsonify({'error': 'No task data provided'}), 400
+        
+        task_id = task_data.get('task_id', str(uuid.uuid4()))
+        if task_type:
+            task_data['task_type'] = task_type
+            
+        task_data['task_id'] = task_id
+        
+        logger.info(f"🔧 Direct automation request: task_id={task_id}, task_type={task_data.get('task_type', 'unknown')}")
+        
+        # Process the task directly (synchronously)
+        process_automation_task(task_data)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Automation task completed',
+            'task_id': task_id
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Direct automation error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.start_time = time.time()
     logger.info("🚀 Starting EasyFlow Automation Worker...")

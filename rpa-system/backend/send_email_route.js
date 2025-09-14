@@ -1,6 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const sgMail = require('@sendgrid/mail');
+let sgMail;
+try {
+	sgMail = require('@sendgrid/mail');
+} catch (e) {
+	// In lightweight local/dev setups the sendgrid package may not be installed.
+	// Provide a minimal stub so the module can be required without crashing.
+	sgMail = {
+		setApiKey: () => {},
+		send: async () => { throw new Error('SendGrid client not installed'); }
+	};
+}
 
 // Configure SendGrid if available
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';

@@ -99,6 +99,8 @@ class WorkflowExecutor {
       let workflow, workflowError;
       
       try {
+        console.log(`[WorkflowExecutor] Querying workflow with ID: ${workflowId}`);
+        
         const result = await this.supabase
           .from('workflows')
           .select(`
@@ -111,10 +113,19 @@ class WorkflowExecutor {
           .limit(1)
           .maybeSingle();
 
+        console.log(`[WorkflowExecutor] Query result:`, {
+          error: result.error,
+          dataExists: !!result.data,
+          dataId: result.data?.id,
+          workflowName: result.data?.name
+        });
+
         if (result.error) {
+          console.error(`[WorkflowExecutor] Database error:`, result.error);
           workflowError = result.error;
           workflow = null;
         } else if (!result.data) {
+          console.warn(`[WorkflowExecutor] No workflow found with ID: ${workflowId}`);
           workflowError = { message: 'No workflow found with this ID' };
           workflow = null;
         } else {

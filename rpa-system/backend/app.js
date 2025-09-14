@@ -277,17 +277,31 @@ app.use((req, res, next) => {
 // URL-encoded payload limit
 app.use(express.urlencoded({ limit: '100kb', extended: true }));
 
-// File upload middleware
-const fileUpload = require('express-fileupload');
-app.use('/api/files', fileUpload({
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
-  abortOnLimit: true,
-  responseOnLimit: 'File size limit exceeded (100MB max)',
-  useTempFiles: true,
-  tempFileDir: '/tmp/',
-  safeFileNames: true,
-  preserveExtension: true,
-}));
+// File upload middleware (guarded for lightweight dev setups)
+let fileUpload;
+try {
+  fileUpload = require('express-fileupload');
+} catch (e) {
+  console.warn('⚠️ express-fileupload not installed; file upload endpoints will respond with 501 in dev');
+  fileUpload = null;
+}
+
+if (fileUpload) {
+  app.use('/api/files', fileUpload({
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+    abortOnLimit: true,
+    responseOnLimit: 'File size limit exceeded (100MB max)',
+    useTempFiles: true,
+    tempFileDir: '/tmp/',
+    safeFileNames: true,
+    preserveExtension: true,
+  }));
+} else {
+  // Basic fallback to avoid breaking routes that mount `/api/files`
+  app.use('/api/files', (req, res) => {
+    res.status(501).json({ error: 'file-upload-middleware-not-installed', message: 'Install express-fileupload to enable file uploads in dev' });
+  });
+}
 
 // CSRF Protection (after body parsing, before routes)
 const csrfProtection = csrf({
@@ -316,6 +330,170 @@ app.use('/api', (req, res, next) => {
 // CSRF token endpoint
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.json({ csrfToken: req.csrfToken() });
+});
+
+// Development convenience: return default user preferences when unauthenticated
+// This allows the dashboard to render in local dev without a full auth setup.
+app.get('/api/user/preferences', async (req, res, next) => {
+  try {
+    const authHeader = (req.get('authorization') || '').trim();
+    const hasToken = authHeader.split(' ').length === 2;
+    if (process.env.NODE_ENV !== 'production' && !hasToken) {
+      // Richer default preferences used by the dashboard in local dev
+      // Includes a sample user id and feature flags to simulate feature gating.
+      return res.json({
+        ok: true,
+        source: 'dev-fallback',
+        userId: process.env.DEV_USER_ID || 'dev-user-12345',
+        theme: (process.env.DEV_THEME || 'light'),
+        language: (process.env.DEV_LANGUAGE || 'en'),
+        builderView: 'builder',
+        shortcuts: {},
+        featureFlags: {
+          enableNewBuilder: (process.env.DEV_ENABLE_NEW_BUILDER || 'false') === 'true',
+          enableBetaActions: (process.env.DEV_ENABLE_BETA_ACTIONS || 'false') === 'true',
+        },
+        clock: new Date().toISOString()
+      });
+    }
+    // otherwise fall through to auth-protected routes (or the auth middleware)
+    return next();
+  } catch (e) {
+    return res.status(500).json({ error: 'preferences-error', detail: e?.message || String(e) });
+  }
+});
+
+// Dev-only: seed a minimal workflow into the DB for local testing
+app.post('/api/dev/seed-sample-workflow', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).json({ error: 'not-available' });
+    }
+    if (!supabase) {
+      return res.status(400).json({ error: 'supabase-not-configured', message: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE in backend .env to use the dev seeder.' });
+    }
+
+    const allowDraft = (process.env.ALLOW_DRAFT_EXECUTION || '').toLowerCase() === 'true';
+    const status = allowDraft ? 'draft' : 'active';
+
+    // Minimal workflow
+    const canvas_config = { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } };
+    // Determine a valid user_id to attach the seeded workflow to.
+    // Prefer an existing profile in the DB; fall back to DEV_USER_ID env if it exists and matches a profile.
+    let userIdToUse = null;
+    try {
+      const { data: someProfiles } = await supabase.from('profiles').select('id').limit(1);
+      if (someProfiles && someProfiles.length > 0) {
+        userIdToUse = someProfiles[0].id;
+      }
+    } catch (e) {
+      // ignore - we'll validate below
+    }
+
+    const defaultDevUserId = process.env.DEV_USER_ID;
+    if (!userIdToUse && defaultDevUserId) {
+      // verify the provided DEV_USER_ID exists
+      try {
+        const { data: p } = await supabase.from('profiles').select('id').eq('id', defaultDevUserId).limit(1).maybeSingle();
+        if (p && p.id) userIdToUse = p.id;
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (!userIdToUse) {
+        // Attempt to create a dev user using the Supabase Admin API (requires service role key)
+        try {
+          const email = process.env.DEV_USER_EMAIL || `dev+${Date.now()}@example.com`;
+          const password = process.env.DEV_USER_PASSWORD || crypto.randomBytes(8).toString('hex');
+          // Preferred: use the JS client admin API when available
+          if (supabase && supabase.auth && supabase.auth.admin && typeof supabase.auth.admin.createUser === 'function') {
+            console.log('[dev seeder] creating dev user via supabase.admin.createUser', { email });
+            const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
+            if (createErr || !newUser) {
+              console.error('[dev seeder] failed to create dev user via admin API:', createErr);
+            } else {
+              userIdToUse = newUser.id || (newUser.user && newUser.user.id) || null;
+            }
+          }
+
+          // Fallback: call Supabase Admin REST API directly (works when service role key is available)
+          if (!userIdToUse) {
+            try {
+              const adminUrl = `${(process.env.SUPABASE_URL || '').replace(/\/$/, '')}/auth/v1/admin/users`;
+              console.log('[dev seeder] attempting Supabase Admin REST API createUser', { adminUrl, email });
+              const resp = await axios.post(adminUrl, { email, password, email_confirm: true }, {
+                headers: {
+                  Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+                  apikey: process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+                  'Content-Type': 'application/json'
+                },
+                timeout: 10000
+              });
+              const data = resp.data || {};
+              userIdToUse = data?.id || data?.user?.id || data?.user?.uid || null;
+              console.log('[dev seeder] admin REST create user resp:', { status: resp.status, id: userIdToUse });
+            } catch (e) {
+              console.error('[dev seeder] admin REST createUser failed:', e?.message || e);
+            }
+          }
+
+          if (!userIdToUse) {
+            return res.status(400).json({
+              error: 'no-valid-user',
+              message: 'No existing Supabase user found and automatic creation failed. Create a user in Supabase or set DEV_USER_ID in backend .env to a valid auth user id.'
+            });
+          }
+        } catch (e) {
+          console.error('[dev seeder] admin createUser failed:', e?.message || e);
+          return res.status(500).json({ error: 'create-user-failed', detail: e?.message || String(e) });
+        }
+    }
+
+    const { data: wf, error: wfError } = await supabase
+      .from('workflows')
+      .insert([{ name: 'Dev Sample Workflow', description: 'Seeded for local development', status, canvas_config, user_id: userIdToUse }])
+      .select()
+      .maybeSingle();
+
+    if (wfError || !wf) {
+      console.error('[dev seeder] failed to create workflow:', wfError);
+      return res.status(500).json({ error: 'create-workflow-failed', detail: wfError?.message || String(wfError) });
+    }
+
+    // Minimal steps: start -> end
+    const steps = [
+      {
+        workflow_id: wf.id,
+        name: 'Start',
+        step_type: 'start',
+        action_type: null,
+        config: {},
+        step_key: 'start',
+        order_index: 1
+      },
+      {
+        workflow_id: wf.id,
+        name: 'End',
+        step_type: 'end',
+        action_type: null,
+        config: { success: true, message: 'Completed by dev seeder' },
+        step_key: 'end',
+        order_index: 2
+      }
+    ];
+
+    const { data: stepData, error: stepError } = await supabase.from('workflow_steps').insert(steps).select();
+    if (stepError) {
+      console.error('[dev seeder] failed to insert steps:', stepError);
+      return res.status(500).json({ error: 'create-steps-failed', detail: stepError?.message || String(stepError) });
+    }
+
+    return res.json({ ok: true, workflow: wf, steps: stepData });
+  } catch (e) {
+    console.error('[dev seeder] unexpected error:', e?.message || e);
+    return res.status(500).json({ error: 'unexpected', detail: e?.message || String(e) });
+  }
 });
 
 // --- API Route Setup ---

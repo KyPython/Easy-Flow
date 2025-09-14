@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import PropTypes from 'prop-types';
 import {
   ReactFlow,
@@ -38,7 +38,7 @@ const defaultEdgeOptions = {
 // Stable React Flow pro options (avoid recreating objects per render)
 const PRO_OPTIONS = Object.freeze({ hideAttribution: true });
 
-const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
+const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -106,6 +106,16 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
       console.error('Failed to save canvas state:', error);
     }
   }, [nodes, edges, getViewport, updateWorkflow, workflow, isReadOnly]);
+
+  // Expose methods to parent component via ref
+  useImperativeHandle(ref, () => ({
+    getCurrentCanvasState: () => ({
+      nodes,
+      edges,
+      viewport: getViewport()
+    }),
+    saveCanvasState
+  }), [nodes, edges, getViewport, saveCanvasState]);
 
   // Debounced auto-save
   useEffect(() => {
@@ -291,10 +301,10 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
         onConnect={onConnect}
         onNodeClick={onNodeClick}
         onNodeDragStop={onNodeDragStop}
-  nodeTypes={memoizedNodeTypes}
-  edgeTypes={memoizedEdgeTypes}
+        nodeTypes={memoizedNodeTypes}
+        edgeTypes={memoizedEdgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
-  proOptions={PRO_OPTIONS}
+        proOptions={PRO_OPTIONS}
         fitView
         className={styles.reactFlow}
       >
@@ -372,7 +382,9 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
       )}
     </div>
   );
-};
+});
+
+WorkflowCanvas.displayName = 'WorkflowCanvas';
 
 // Helper functions
 function getNodeLabel(nodeType) {

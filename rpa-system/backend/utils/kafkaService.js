@@ -1,5 +1,13 @@
-const { Kafka } = require('kafkajs');
-const { v4: uuidv4 } = require('uuid');
+let Kafka;
+let uuidv4;
+try {
+    Kafka = require('kafkajs').Kafka;
+    uuidv4 = require('uuid').v4;
+} catch (e) {
+    console.warn('⚠️ kafkajs or uuid not available; Kafka will be disabled in this environment');
+    Kafka = null;
+    uuidv4 = () => 'uuid-missing-' + Date.now();
+}
 
 class KafkaService {
     constructor() {
@@ -28,6 +36,17 @@ class KafkaService {
         
         this.resultCallbacks = new Map(); // Store callbacks for task results
         
+        // If kafkajs is not available, mark as disabled to avoid throwing on require
+        if (!Kafka) {
+            console.warn('⚠️ Kafka client not present; Kafka functionality disabled');
+            this.kafkaEnabled = false;
+            this.kafka = null;
+            this.producer = null;
+            this.consumer = null;
+            this.isConnected = false;
+            return;
+        }
+
         this.initialize();
     }
     

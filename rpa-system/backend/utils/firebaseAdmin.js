@@ -1,7 +1,16 @@
 // Firebase Admin SDK for EasyFlow Backend
 // Handles server-side Firebase operations for notifications
 
-const admin = require('firebase-admin');
+let admin;
+try {
+  admin = require('firebase-admin');
+} catch (e) {
+  // If firebase-admin is not installed (common in lightweight dev setups),
+  // provide a no-op shim so the app can start and feature flags / notifications
+  // are simply disabled.
+  console.warn('⚠️ firebase-admin not available; Firebase notifications disabled for local dev');
+  admin = null;
+}
 const path = require('path');
 
 // Firebase Admin configuration
@@ -62,6 +71,7 @@ const initializeFirebaseAdmin = () => {
 
     // Try to use service account file first, then environment variables
     try {
+      if (!admin) throw new Error('firebase-admin not loaded');
       if (require('fs').existsSync(serviceAccountPath)) {
         credential = admin.credential.cert(serviceAccountPath);
         if (process.env.NODE_ENV === 'development') console.log('🔥 Using Firebase service account file');
@@ -94,6 +104,11 @@ const initializeFirebaseAdmin = () => {
         console.warn('Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, and FIREBASE_DATABASE_URL');
         return { app: null, messaging: null, database: null };
       }
+    }
+
+    if (!admin) {
+      console.warn('⚠️ firebase-admin is not installed; skipping initialization');
+      return { app: null, messaging: null, database: null };
     }
 
     // Initialize Firebase Admin
@@ -130,9 +145,10 @@ function isSupabaseServerConfigured() {
 // Notification service class
 class FirebaseNotificationService {
   constructor() {
-    this.messaging = firebaseMessaging;
-    this.database = firebaseDatabase;
-    this.isConfigured = !!firebaseMessaging && !!firebaseDatabase;
+    // Don't initialize Firebase here - use lazy initialization
+    this.messaging = null;
+    this.database = null;
+    this.isConfigured = false;
   }
 
   // Ensure Firebase Admin is initialized lazily (call after dotenv has loaded)
