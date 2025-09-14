@@ -11,7 +11,7 @@ services:
       cd rpa-system
       if [ -f package-lock.json ]; then
         echo "[build] running npm ci"
-        npm ci || (echo "[build] npm ci failed; falling back to npm install" && npm install)
+        npm ci || { echo "[build] npm ci failed; falling back to npm install"; (test -f package.json || cd rpa-system); npm install; }
       else
         echo "[build] running npm install" && npm install
       fi
