@@ -732,7 +732,13 @@ async function queueTaskRun(runId, taskData) {
         automationResult = { message: 'Embedded automation stub executed', url: taskData.url };
         console.log(`[queueTaskRun] Using embedded automation mode - task simulated successfully`);
       } else {
-        const fullAutomationUrl = automationUrl + '/automate';
+        // Ensure URL has protocol
+        let normalizedUrl = automationUrl;
+        if (!automationUrl.startsWith('http://') && !automationUrl.startsWith('https://')) {
+          normalizedUrl = `http://${automationUrl}`;
+        }
+        const fullAutomationUrl = normalizedUrl + '/automate';
+        
         response = await axios.post(fullAutomationUrl, payload, { 
           timeout: 30000,
           headers: {
@@ -1383,6 +1389,55 @@ app.get('/api/subscription', async (req, res) => {
   } catch (err) {
     console.error('[GET /api/subscription] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch subscription data', details: err.message });
+  }
+});
+
+// GET /api/schedules - Fetch workflow schedules for the authenticated user
+app.get('/api/schedules', authMiddleware, async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { data: schedules, error } = await supabase
+      .from('workflow_schedules')
+      .select(`
+        id,
+        workflow_id,
+        schedule_type,
+        cron_expression,
+        interval_seconds,
+        timezone,
+        is_active,
+        next_trigger_at,
+        execution_count,
+        max_executions,
+        created_at,
+        updated_at,
+        workflow:workflows (
+          id,
+          name,
+          description
+        )
+      `)
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[GET /api/schedules] Database error:', error);
+      return res.status(500).json({ 
+        error: 'Failed to fetch schedules',
+        details: error.message 
+      });
+    }
+
+    res.json(schedules || []);
+  } catch (err) {
+    console.error('[GET /api/schedules] Error:', err.message);
+    res.status(500).json({ 
+      error: 'Failed to fetch schedules', 
+      details: err.message 
+    });
   }
 });
 

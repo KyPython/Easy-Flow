@@ -92,19 +92,39 @@ class WorkflowExecutor {
     try {
       console.log(`[WorkflowExecutor] Starting execution for workflow ${workflowId}`);
       
-      // Get workflow definition
-      const { data: workflow, error: workflowError } = await this.supabase
-        .from('workflows')
-        .select(`
-          *,
-          workflow_steps(*),
-          workflow_connections(*)
-        `)
-        .eq('id', workflowId)
-        .single();
+      // Get workflow definition - first try to find the workflow
+      let workflow, workflowError;
+      
+      try {
+        const result = await this.supabase
+          .from('workflows')
+          .select(`
+            *,
+            workflow_steps(*),
+            workflow_connections(*)
+          `)
+          .eq('id', workflowId);
+          
+        if (result.error) {
+          workflowError = result.error;
+          workflow = null;
+        } else if (!result.data || result.data.length === 0) {
+          workflowError = { message: 'No workflow found with this ID' };
+          workflow = null;
+        } else if (result.data.length > 1) {
+          console.warn(`[WorkflowExecutor] Multiple workflows found with ID ${workflowId}, using first one`);
+          workflow = result.data[0];
+        } else {
+          workflow = result.data[0];
+        }
+      } catch (queryError) {
+        console.error(`[WorkflowExecutor] Database query error:`, queryError);
+        workflowError = { message: `Database query failed: ${queryError.message}` };
+        workflow = null;
+      }
         
       if (workflowError || !workflow) {
-        throw new Error(`Workflow not found: ${workflowError?.message}`);
+        throw new Error(`Workflow not found: ${workflowError?.message || 'Unknown error'}`);
       }
       
       const allowDraft = (process.env.ALLOW_DRAFT_EXECUTION || '').toLowerCase() === 'true' || process.env.NODE_ENV === 'test';

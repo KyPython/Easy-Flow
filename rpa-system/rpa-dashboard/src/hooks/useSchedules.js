@@ -39,11 +39,16 @@ export const useSchedules = (workflowId) => {
       const data = await response.json();
       
       // Filter schedules for this workflow
-      const workflowSchedules = data.schedules.filter(
-        schedule => schedule.workflow_id === workflowId
-      );
-      
-      setSchedules(workflowSchedules);
+      // Handle case where data might be undefined or null
+      if (data && Array.isArray(data)) {
+        const workflowSchedules = data.filter(
+          schedule => schedule.workflow_id === workflowId
+        );
+        setSchedules(workflowSchedules);
+      } else {
+        // If data is not an array, set empty array
+        setSchedules([]);
+      }
     } catch (err) {
       console.error('Error loading schedules:', err);
       setError(err.message);
