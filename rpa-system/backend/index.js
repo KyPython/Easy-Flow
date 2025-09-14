@@ -303,7 +303,8 @@ const DOWNLOADS_DIR_HOST = process.env.DOWNLOADS_DIR_HOST || (process.cwd().incl
 
 
 // CORS: allow all in dev (when no whitelist provided); restrict in prod
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+// Tip: set ALLOWED_ORIGINS env as comma-separated list. We include Vercel host as a safe default allowlist entry.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://easy-flow-lac.vercel.app')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
@@ -330,13 +331,7 @@ const corsOptions = {
     }
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
     
-    // Temporary: Allow Vercel domain even if not in environment variable
-    if (origin === 'https://easy-flow-lac.vercel.app') {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('✅ Allowing Vercel domain as temporary fix');
-      }
-      return cb(null, true);
-    }
+  // Note: Vercel domain is included in default ALLOWED_ORIGINS above
     
     return cb(new Error('CORS: origin not allowed'));
   },
@@ -1044,8 +1039,30 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
   const { url, title, notes, type, task, username, password, pdf_url } = req.body;
   const user = req.user;
 
+  // Basic validation: url required and must be valid
   if (!url) {
     return res.status(400).json({ error: 'url is required' });
+  }
+  try {
+    // Validate URL format
+    new URL(url);
+  } catch {
+    return res.status(400).json({ error: 'Invalid URL format' });
+  }
+
+  // Ensure Supabase admin client is available
+  if (!supabase) {
+    const resp = { error: 'Server misconfiguration: database client unavailable' };
+    if (process.env.NODE_ENV !== 'production') {
+      resp.debug = {
+        hint: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE in the backend environment',
+        env_present: {
+          SUPABASE_URL: !!process.env.SUPABASE_URL,
+          SUPABASE_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE,
+        }
+      };
+    }
+    return res.status(500).json(resp);
   }
 
   try {
@@ -1130,7 +1147,14 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
     
   } catch (error) {
     console.error('[run-task] Unhandled error:', error.message || error);
-    return res.status(500).json({ error: 'Failed to process request' });
+    const resp = { error: process.env.NODE_ENV !== 'production' ? (error.message || 'Failed to process request') : 'Failed to process request' };
+    if (process.env.NODE_ENV !== 'production') {
+      resp.debug = {
+        name: error.name,
+        stack: (error.stack || '').split('\n').slice(0, 3).join('\n')
+      };
+    }
+    return res.status(500).json(resp);
   }
 });
 
