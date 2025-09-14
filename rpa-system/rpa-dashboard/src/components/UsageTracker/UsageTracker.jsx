@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import { usePlan } from '../../hooks/usePlan';
 import { useTheme } from '../../utils/ThemeContext';
 import { FiZap, FiHardDrive, FiUsers, FiArrowUp } from 'react-icons/fi';
@@ -149,3 +150,7 @@ const UsageTracker = ({ showUpgrade = true }) => {
 };
 
 export default UsageTracker;
+
+UsageTracker.propTypes = {
+  showUpgrade: PropTypes.bool,
+};
