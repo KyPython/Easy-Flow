@@ -139,6 +139,12 @@ app.use(helmet({
     maxAge: 31536000,
     includeSubDomains: true,
     preload: true
+  },
+  permissionsPolicy: {
+    fullscreen: [],
+    camera: [],
+    microphone: [],
+    geolocation: []
   }
 }));
 
@@ -2431,8 +2437,8 @@ app.post('/api/files/upload', authMiddleware, async (req, res) => {
         file_extension: fileExt.slice(1),
         checksum_md5: checksum,
         folder_path: req.body.folder_path || '/',
-        category: req.body.category || null,
-        tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : req.body.tags.split(',')) : []
+        tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : req.body.tags.split(',')) : [],
+        metadata: req.body.category ? { category: req.body.category } : {}
       })
       .select()
       .single();
