@@ -138,6 +138,15 @@ CREATE TABLE public.files (
   CONSTRAINT files_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id),
   CONSTRAINT files_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
+  -- Backfill: ensure required columns exist if table was created earlier without them
+  alter table public.files add column if not exists file_path text;
+  alter table public.files add column if not exists file_size bigint;
+  alter table public.files add column if not exists file_type text;
+  alter table public.files add column if not exists storage_bucket text;
+  alter table public.files add column if not exists storage_key text;
+  alter table public.files add column if not exists automation_run_id uuid;
+  alter table public.files add column if not exists created_at timestamptz not null default now();
+
 CREATE TABLE public.forwarded_event_ids (
   id text NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
