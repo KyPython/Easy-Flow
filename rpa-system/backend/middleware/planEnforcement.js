@@ -1,3 +1,8 @@
+// Load environment variables if not already loaded
+if (!process.env.SUPABASE_URL) {
+  require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+}
+
 const { createClient } = require('@supabase/supabase-js');
 
 // Initialize Supabase client (resilient to missing keys in CI)

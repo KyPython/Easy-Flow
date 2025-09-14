@@ -32,7 +32,7 @@ const initializeFirebaseAdmin = () => {
     try {
       if (require('fs').existsSync(serviceAccountPath)) {
         credential = admin.credential.cert(serviceAccountPath);
-        console.log('🔥 Using Firebase service account file');
+        if (process.env.NODE_ENV === 'development') console.log('🔥 Using Firebase service account file');
       } else {
         throw new Error('Service account file not found');
       }
@@ -43,7 +43,7 @@ const initializeFirebaseAdmin = () => {
           clientEmail,
           privateKey
         });
-        console.log('🔥 Using Firebase environment variables');
+        if (process.env.NODE_ENV === 'development') console.log('🔥 Using Firebase environment variables');
       } else {
         console.warn('🔥 Firebase Admin not configured - notifications will be disabled');
         console.warn('Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, and FIREBASE_DATABASE_URL');
@@ -61,7 +61,7 @@ const initializeFirebaseAdmin = () => {
     messaging = admin.messaging(firebaseApp);
     database = admin.database(firebaseApp);
 
-    console.log('🔥 Firebase Admin initialized successfully');
+    if (process.env.NODE_ENV === 'development') console.log('🔥 Firebase Admin initialized successfully');
     return { app: firebaseApp, messaging, database };
 
   } catch (error) {
@@ -133,7 +133,7 @@ class FirebaseNotificationService {
       };
 
       const response = await this.messaging.send(message);
-      console.log(`🔥 Push notification sent to user ${userId}:`, response);
+      if (process.env.NODE_ENV === 'development') console.log(`🔥 Push notification sent to user ${userId}:`, response);
 
       return { success: true, messageId: response };
 
@@ -157,7 +157,7 @@ class FirebaseNotificationService {
     const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
     const failed = results.length - successful;
 
-    console.log(`🔥 Bulk notification results: ${successful} successful, ${failed} failed`);
+    if (process.env.NODE_ENV === 'development') console.log(`🔥 Bulk notification results: ${successful} successful, ${failed} failed`);
 
     return {
       success: successful > 0,
@@ -229,7 +229,7 @@ class FirebaseNotificationService {
       totalProcessed: acc.totalProcessed + (result.totalProcessed || 0)
     }), { successful: 0, failed: 0, totalProcessed: 0 });
 
-    console.log(`🔥 Batch notification summary: ${totals.successful} successful, ${totals.failed} failed, ${totals.totalProcessed} total`);
+    if (process.env.NODE_ENV === 'development') console.log(`🔥 Batch notification summary: ${totals.successful} successful, ${totals.failed} failed, ${totals.totalProcessed} total`);
 
     return {
       success: totals.successful > 0,
@@ -256,7 +256,7 @@ class FirebaseNotificationService {
       const ref = this.database.ref(`notifications/${userId}`);
       const newNotificationRef = await ref.push(notificationData);
 
-      console.log(`🔥 Notification stored for user ${userId}:`, newNotificationRef.key);
+      if (process.env.NODE_ENV === 'development') console.log(`🔥 Notification stored for user ${userId}:`, newNotificationRef.key);
 
       // Clean up old notifications (keep only last 100)
       const snapshot = await ref.orderByChild('timestamp').once('value');
@@ -274,7 +274,7 @@ class FirebaseNotificationService {
           toDelete.map(notif => ref.child(notif.key).remove())
         );
 
-        console.log(`🔥 Cleaned up ${toDelete.length} old notifications for user ${userId}`);
+        if (process.env.NODE_ENV === 'development') console.log(`🔥 Cleaned up ${toDelete.length} old notifications for user ${userId}`);
       }
 
       return { success: true, notificationId: newNotificationRef.key };
@@ -340,7 +340,7 @@ class FirebaseNotificationService {
             status: 'pending'
           });
 
-        console.log(`🔥 Critical notification added to email queue for user ${userId}`);
+        if (process.env.NODE_ENV === 'development') console.log(`🔥 Critical notification added to email queue for user ${userId}`);
       }
     } catch (error) {
       console.error('🔥 Critical notification fallback failed:', error);
@@ -447,7 +447,7 @@ class FirebaseNotificationService {
       // This creates a consistent mapping between Supabase and Firebase users
       const customToken = await admin.auth(firebaseAdminApp).createCustomToken(supabaseUserId, claims);
 
-      console.log(`🔥 Generated custom token for Supabase user: ${supabaseUserId}`);
+      if (process.env.NODE_ENV === 'development') console.log(`🔥 Generated custom token for Supabase user: ${supabaseUserId}`);
 
       return {
         success: true,
@@ -506,7 +506,7 @@ class FirebaseNotificationService {
       // Check if Firebase user already exists
       try {
         const existingUser = await admin.auth(firebaseAdminApp).getUser(supabaseUserId);
-        console.log(`🔥 Firebase user already exists: ${supabaseUserId}`);
+        if (process.env.NODE_ENV === 'development') console.log(`🔥 Firebase user already exists: ${supabaseUserId}`);
         return {
           success: true,
           user: existingUser,
@@ -528,7 +528,7 @@ class FirebaseNotificationService {
         emailVerified: true // Trust Supabase email verification
       });
 
-      console.log(`🔥 Created Firebase user record: ${supabaseUserId}`);
+      if (process.env.NODE_ENV === 'development') console.log(`🔥 Created Firebase user record: ${supabaseUserId}`);
 
       return {
         success: true,
@@ -559,7 +559,7 @@ class FirebaseNotificationService {
         ...claims
       });
 
-      console.log(`🔥 Set custom claims for user ${supabaseUserId}:`, claims);
+      if (process.env.NODE_ENV === 'development') console.log(`🔥 Set custom claims for user ${supabaseUserId}:`, claims);
 
       return { success: true, claims };
 

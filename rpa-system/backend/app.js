@@ -638,37 +638,7 @@ async function queueTaskRun(runId, taskData) {
     
     console.log(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
     
-    // In development mode, we can bypass the actual automation call
-    if (process.env.NODE_ENV === 'development' && process.env.DEV_MOCK_AUTOMATION === 'true') {
-      console.log('[queueTaskRun] DEV MODE: Simulating successful automation');
-      
-      // Update the run with simulated success
-      await supabase
-        .from('automation_runs')
-        .update({
-          status: 'completed',
-          ended_at: new Date().toISOString(),
-          result: JSON.stringify({ 
-            message: 'Development mode: Simulated successful execution',
-            url: taskData.url
-          })
-        })
-        .eq('id', runId);
-
-      // Send notification for task completion
-      try {
-        const taskName = taskData.title || 'Automation Task';
-        const notification = NotificationTemplates.taskCompleted(taskName);
-        await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
-        console.log(`🔔 Task completion notification sent to user ${taskData.user_id}`);
-      } catch (notificationError) {
-        console.error('🔔 Failed to send task completion notification:', notificationError.message);
-      }
-        
-      return { success: true, simulated: true };
-    }
-    
-    // For real execution, call the automation service
+    // Call the real automation service
     try {
       let automationResult;
       let response = null;
@@ -678,7 +648,8 @@ async function queueTaskRun(runId, taskData) {
         automationResult = { message: 'Embedded automation stub executed', url: taskData.url };
         console.log(`[queueTaskRun] Using embedded automation mode - task simulated successfully`);
       } else {
-        response = await axios.post(automationUrl, payload, { 
+        const fullAutomationUrl = automationUrl + '/automate';
+        response = await axios.post(fullAutomationUrl, payload, { 
           timeout: 30000,
           headers: {
             'Content-Type': 'application/json',

@@ -319,20 +319,18 @@ if (process.env.NODE_ENV !== 'production') {
 
 const corsOptions = {
   origin: (origin, cb) => {
-    if (process.env.NODE_ENV !== 'production') {
-      // verbose only in non-production
-      console.log('🌐 CORS origin check:', origin, 'against:', ALLOWED_ORIGINS);
-    }
+    // Only log CORS failures, not every successful check
     if (!origin) return cb(null, true); // non-browser
     if (ALLOWED_ORIGINS.length === 0) {
       // In dev, allow all; in prod, deny by default if no explicit origins set
       if (process.env.NODE_ENV !== 'production') return cb(null, true);
+      console.warn('🚫 CORS blocked: No allowed origins configured');
       return cb(new Error('CORS: origin not allowed'));
     }
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
     
-  // Note: Vercel domain is included in default ALLOWED_ORIGINS above
-    
+    // Log only when blocking unknown origins
+    console.warn('🚫 CORS blocked origin:', origin);
     return cb(new Error('CORS: origin not allowed'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -786,6 +784,7 @@ function isPrivateIP(hostname) {
   return false;
 }
 
+
 // Error sanitization function to prevent information disclosure
 function sanitizeError(error, isDevelopment = false) {
   if (!error) return 'Unknown error occurred';
@@ -839,37 +838,7 @@ async function queueTaskRun(runId, taskData) {
     
     console.log(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
     
-    // In development mode, we can bypass the actual automation call
-    if (process.env.NODE_ENV === 'development' && process.env.DEV_MOCK_AUTOMATION === 'true') {
-      console.log('[queueTaskRun] DEV MODE: Simulating successful automation');
-      
-      // Update the run with simulated success
-      await supabase
-        .from('automation_runs')
-        .update({
-          status: 'completed',
-          ended_at: new Date().toISOString(),
-          result: JSON.stringify({ 
-            message: 'Development mode: Simulated successful execution',
-            url: taskData.url
-          })
-        })
-        .eq('id', runId);
-
-      // Send notification for task completion
-      try {
-        const taskName = taskData.title || 'Automation Task';
-        const notification = NotificationTemplates.taskCompleted(taskName);
-        await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
-        console.log(`🔔 Task completion notification sent to user ${taskData.user_id}`);
-      } catch (notificationError) {
-        console.error('🔔 Failed to send task completion notification:', notificationError.message);
-      }
-        
-      return { success: true, simulated: true };
-    }
-    
-    // For real execution, call the automation service
+    // Call the real automation service
     try {
       let automationResult;
       let response = null;
@@ -879,7 +848,8 @@ async function queueTaskRun(runId, taskData) {
         automationResult = { message: 'Embedded automation stub executed', url: taskData.url };
         console.log(`[queueTaskRun] Using embedded automation mode - task simulated successfully`);
       } else {
-        response = await axios.post(automationUrl, payload, { 
+        const fullAutomationUrl = automationUrl + '/automate';
+        response = await axios.post(fullAutomationUrl, payload, { 
           timeout: 30000,
           headers: {
             'Content-Type': 'application/json',
@@ -891,6 +861,29 @@ async function queueTaskRun(runId, taskData) {
           response.status, response.data ? 'data received' : 'no data');
       }
       
+      // Process files from real automation service
+      if (automationResult && automationResult.files_created && automationResult.files_created.length > 0) {
+        const fileRecords = automationResult.files_created.map(file => ({
+          user_id: taskData.user_id,
+          filename: file.filename,
+          file_path: file.path,
+          file_size: file.size,
+          file_type: file.type,
+          automation_run_id: runId,
+          created_at: new Date().toISOString()
+        }));
+
+        const { error: filesError } = await supabase
+          .from('files')
+          .insert(fileRecords);
+
+        if (filesError) {
+          console.error('Error creating file records:', filesError);
+        } else {
+          console.log(`📁 Created ${fileRecords.length} file records from real automation`);
+        }
+      }
+
       // Update the run with the result
       await supabase
         .from('automation_runs')
@@ -911,7 +904,7 @@ async function queueTaskRun(runId, taskData) {
         console.error('🔔 Failed to send task completion notification:', notificationError.message);
       }
         
-      return response.data;
+      return response.data || automationResult;
     } catch (error) {
       console.error(`[queueTaskRun] Automation service error:`, error.message);
       
@@ -1391,7 +1384,8 @@ app.post('/api/tasks/:id/run', async (req, res) => {
       pdf_url: task.parameters?.pdf_url
     };
     
-    const response = await axios.post(automationUrl, payload, { timeout: 120000 });
+    const fullAutomationUrl = automationUrl + '/automate';
+    const response = await axios.post(fullAutomationUrl, payload, { timeout: 120000 });
     const result = response.data?.result ?? null;
 
     // Add detailed logging for the result from the automation service
@@ -1732,7 +1726,7 @@ async function ensureUserProfile(userId, email) {
       .maybeSingle();
     
     if (!existingProfile) {
-      console.log(`[ensureUserProfile] Creating missing profile for user ${userId}, email: ${email}`);
+      if (process.env.NODE_ENV === 'development') console.log(`[ensureUserProfile] Creating missing profile for user ${userId}, email: ${email}`);
       const { error: insertError } = await supabase
         .from('profiles')
         .insert([{
@@ -1745,7 +1739,7 @@ async function ensureUserProfile(userId, email) {
         console.error('[ensureUserProfile] Failed to create profile:', insertError);
         throw insertError;
       }
-      console.log(`[ensureUserProfile] Successfully created profile for user ${userId}`);
+      if (process.env.NODE_ENV === 'development') console.log(`[ensureUserProfile] Successfully created profile for user ${userId}`);
     }
     return true;
   } catch (error) {
@@ -1759,20 +1753,20 @@ app.post('/api/trigger-campaign', async (req, res) => {
   try {
     // Defensive check
     if (!req.user || !req.user.id) {
-      console.log('[trigger-campaign] No user found on request');
+      if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] No user found on request');
       return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
     }
     const { campaign, to_email } = req.body || {};
-    console.log(`[trigger-campaign] Received request: campaign=${campaign}, to_email=${to_email}, user_id=${req.user.id}`);
+    if (process.env.NODE_ENV === 'development') console.log(`[trigger-campaign] Received request: campaign=${campaign}, to_email=${to_email}, user_id=${req.user.id}`);
     if (!campaign) {
-      console.log('[trigger-campaign] No campaign specified');
+      if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] No campaign specified');
       return res.status(400).json({ error: 'campaign is required' });
     }
 
     // Enhanced email lookup with multiple strategies
     let targetEmail = to_email || null;
     if (!targetEmail) {
-      console.log('[trigger-campaign] Looking up user email - trying multiple sources...');
+      if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] Looking up user email - trying multiple sources...');
       
       // Strategy 1: Try profiles table (existing logic)
       try {
@@ -1782,52 +1776,52 @@ app.post('/api/trigger-campaign', async (req, res) => {
             .select('email')
             .eq('id', req.user.id)
             .maybeSingle();
-          console.log('[trigger-campaign] Profile lookup result:', { profile, pErr });
-          if (pErr) console.warn('[trigger-campaign] profile lookup error', pErr.message || pErr);
+          if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] Profile lookup result:', { profile, pErr });
+          if (pErr && process.env.NODE_ENV === 'development') console.warn('[trigger-campaign] profile lookup error', pErr.message || pErr);
           if (profile && profile.email) {
             targetEmail = profile.email;
-            console.log(`[trigger-campaign] Found target email from profile: ${targetEmail}`);
+            if (process.env.NODE_ENV === 'development') console.log(`[trigger-campaign] Found target email from profile: ${targetEmail}`);
           } else {
-            console.log('[trigger-campaign] No email found in profiles table');
+            if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] No email found in profiles table');
           }
         }
       } catch (e) {
-        console.warn('[trigger-campaign] profile lookup failed', e?.message || e);
+        if (process.env.NODE_ENV === 'development') console.warn('[trigger-campaign] profile lookup failed', e?.message || e);
       }
     }
     
     // Strategy 2: Try auth.users table if still no email
     if (!targetEmail && supabase) {
       try {
-        console.log('[trigger-campaign] Trying auth.users table...');
+        if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] Trying auth.users table...');
         const { data: authUser, error: authErr } = await supabase.auth.admin.getUserById(req.user.id);
         
         if (authUser && authUser.user && authUser.user.email) {
           targetEmail = authUser.user.email;
-          console.log('[trigger-campaign] Found email in auth.users:', targetEmail);
+          if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] Found email in auth.users:', targetEmail);
         } else {
-          console.log('[trigger-campaign] No email in auth.users');
+          if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] No email in auth.users');
         }
       } catch (e) {
-        console.log('[trigger-campaign] Auth.users lookup failed:', e.message);
+        if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] Auth.users lookup failed:', e.message);
       }
     }
     
     // Strategy 3: Try req.user.email directly
     if (!targetEmail && req.user.email) {
       targetEmail = req.user.email;
-      console.log('[trigger-campaign] Using email from req.user:', targetEmail);
+      if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] Using email from req.user:', targetEmail);
     }
     
     // Strategy 4: Try user_metadata
     if (!targetEmail && req.user.user_metadata && req.user.user_metadata.email) {
       targetEmail = req.user.user_metadata.email;
-      console.log('[trigger-campaign] Using email from user_metadata:', targetEmail);
+      if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] Using email from user_metadata:', targetEmail);
     }
 
     // Strategy 5: Debug user object to see available data
     if (!targetEmail) {
-      console.log('[trigger-campaign] Available user data:', JSON.stringify({
+      if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] Available user data:', JSON.stringify({
         id: req.user.id,
         email: req.user.email,
         user_metadata: req.user.user_metadata,
@@ -1838,7 +1832,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
     }
 
     if (!targetEmail) {
-      console.log('[trigger-campaign] Target email not found after all strategies');
+      if (process.env.NODE_ENV === 'development') console.log('[trigger-campaign] Target email not found after all strategies');
       return res.status(400).json({ 
         error: 'target email not found',
         debug: 'User authenticated but no email address found in profiles, auth.users, or user object'
@@ -1855,7 +1849,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
   });
 }
 
-    console.log(`[trigger-campaign] Final target email: ${targetEmail}`);
+    if (process.env.NODE_ENV === 'development') console.log(`[trigger-campaign] Final target email: ${targetEmail}`);
 
     // Add contact to HubSpot in the background (fire-and-forget), but not during tests.
     if (process.env.HUBSPOT_API_KEY && process.env.NODE_ENV !== 'test') {
@@ -1951,11 +1945,11 @@ app.post('/api/trigger-campaign', async (req, res) => {
           status: 'pending',
           created_at: now.toISOString(),
         });
-        console.log(`[trigger-campaign] Enqueuing welcome and followup emails for ${targetEmail}`, inserts);
+        if (process.env.NODE_ENV === 'development') console.log(`[trigger-campaign] Enqueuing welcome and followup emails for ${targetEmail}`, inserts);
         break;
       default:
         // Handle other campaigns if you add them
-        console.log(`[trigger-campaign] Unknown campaign: ${campaign}`);
+        if (process.env.NODE_ENV === 'development') console.log(`[trigger-campaign] Unknown campaign: ${campaign}`);
         break;
     }
 
@@ -1968,7 +1962,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
         console.error('[trigger-campaign] DB insert failed:', error.message, error);
         return res.status(500).json({ error: 'Failed to enqueue emails.', note: 'Failed to enqueue emails.' });
       }
-      console.log(`[trigger-campaign] Successfully enqueued ${inserts.length} emails for campaign ${campaign}`);
+      if (process.env.NODE_ENV === 'development') console.log(`[trigger-campaign] Successfully enqueued ${inserts.length} emails for campaign ${campaign}`);
       
       // Send welcome notification
       if (campaign === 'welcome') {
@@ -1983,15 +1977,15 @@ app.post('/api/trigger-campaign', async (req, res) => {
           const userName = profile?.email?.split('@')[0] || 'there';
           const notification = NotificationTemplates.welcome(userName);
           await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
-          console.log(`🔔 Welcome notification sent to user ${req.user.id}`);
+          if (process.env.NODE_ENV === 'development') console.log(`🔔 Welcome notification sent to user ${req.user.id}`);
         } catch (notificationError) {
           console.error('🔔 Failed to send welcome notification:', notificationError.message);
         }
       }
     } else if (!supabase) {
-      console.warn('[trigger-campaign] No Supabase client available - emails not enqueued');
+      if (process.env.NODE_ENV === 'development') console.warn('[trigger-campaign] No Supabase client available - emails not enqueued');
     } else {
-      console.log(`[trigger-campaign] No emails enqueued for campaign ${campaign}`);
+      if (process.env.NODE_ENV === 'development') console.log(`[trigger-campaign] No emails enqueued for campaign ${campaign}`);
     }
 
     return res.json({ ok: true, enqueued: inserts.length });
