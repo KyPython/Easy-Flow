@@ -18,7 +18,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
-  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       CI: true
       
     # Remove built-in postgres service since docker-compose.test.yml provides it
