@@ -357,11 +357,18 @@ try {
         });
       } catch (e) {
         const msg = e?.message || '';
+        // Map domain errors to explicit HTTP statuses for clearer client handling
         if (msg.includes('Workflow not found')) {
+          console.warn('[API] workflow not found:', { workflowId, userId, message: msg });
           return res.status(404).json({ error: msg });
         }
         if (msg.includes('Workflow is not active')) {
+          console.warn('[API] workflow not active:', { workflowId, userId, message: msg });
           return res.status(409).json({ error: msg });
+        }
+        // For other well-known executor errors that might indicate bad input, map to 400
+        if (msg.includes('Invalid') || msg.includes('missing')) {
+          return res.status(400).json({ error: msg });
         }
         throw e;
       }
@@ -780,11 +787,13 @@ async function queueTaskRun(runId, taskData) {
         automationResult = { message: 'Simulated automation run (embedded mode)', url: taskData.url };
         console.log(`[queueTaskRun] Using embedded automation mode - task simulated successfully`);
       } else {
-        // Ensure URL has protocol
+        // Ensure URL has protocol; accept values like 'localhost:5001' and normalize to 'http://localhost:5001'
         let normalizedUrl = automationUrl;
-        if (!automationUrl.startsWith('http://') && !automationUrl.startsWith('https://')) {
-          normalizedUrl = `http://${automationUrl}`;
+        if (!/^https?:\/\//i.test(normalizedUrl)) {
+          normalizedUrl = `http://${normalizedUrl}`;
         }
+        // Ensure no accidental whitespace
+        normalizedUrl = normalizedUrl.trim();
         // Try type-specific endpoints first, then fall back to generic /automate
         const taskTypeSlug = String(payload.type || 'general').toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-');
         const candidates = [
@@ -795,7 +804,9 @@ async function queueTaskRun(runId, taskData) {
 
         let lastError;
         for (const pathSuffix of candidates) {
-          const fullAutomationUrl = (normalizedUrl.replace(/\/$/, '')) + pathSuffix;
+          const base = normalizedUrl.replace(/\/$/, '');
+          const fullAutomationUrl = `${base}${pathSuffix}`;
+          console.log(`[queueTaskRun] Trying automation endpoint: ${fullAutomationUrl}`);
           try {
             const headers = { 'Content-Type': 'application/json' };
             if (process.env.AUTOMATION_API_KEY) {
@@ -818,7 +829,8 @@ async function queueTaskRun(runId, taskData) {
       }
       
       // Update the run with the result
-    await supabase
+      const sb = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
+    await sb
         .from('automation_runs')
         .update({
           status: 'completed',
@@ -843,7 +855,8 @@ async function queueTaskRun(runId, taskData) {
       console.error(`[queueTaskRun] Automation service error:`, error.message);
       
       // Update the run with the error
-  await supabase
+  const sb2 = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
+  await sb2
         .from('automation_runs')
         .update({
           status: 'failed',
@@ -3085,6 +3098,12 @@ app.use((err, _req, res, _next) => {
 
 // Export for serverless and testing
 module.exports = app;
+// Expose internal helpers for testing
+try {
+  module.exports.queueTaskRun = queueTaskRun; // attach helper to exported app
+} catch (e) {
+  // noop
+}
 module.exports.sanitizeInput = sanitizeInput;
 module.exports.isValidUrl = isValidUrl;
 module.exports.encryptCredentials = encryptCredentials;

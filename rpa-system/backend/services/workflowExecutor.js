@@ -107,6 +107,8 @@ class WorkflowExecutor {
             workflow_connections(*)
           `)
           .eq('id', workflowId)
+          // ensure PostgREST returns at most one row to avoid coercion errors
+          .limit(1)
           .maybeSingle();
 
         if (result.error) {
