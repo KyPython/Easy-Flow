@@ -9,6 +9,10 @@ import reportWebVitals from './reportWebVitals';
 // Explicit imports to prevent tree-shaking from dropping global exposures
 import './utils/supabaseClient';
 import './utils/api';
+// Dev-only network logger to surface failing POST URLs/status codes
+if (process.env.NODE_ENV === 'development') {
+  require('./utils/devNetLogger');
+}
 
 // Initialize Google Analytics if a measurement ID is provided
 const gaMeasurementId = process.env.REACT_APP_GA_MEASUREMENT_ID;

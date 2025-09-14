@@ -20,7 +20,7 @@ const Chatbot = () => {
         return mount;
       };
 
-      ensureMount();
+      const mount = ensureMount();
 
       const runtimeEnv = (typeof window !== 'undefined' && window._env) ? window._env : {};
       const widgetId = runtimeEnv.REACT_APP_UCHAT_WIDGET_ID || process.env.REACT_APP_UCHAT_WIDGET_ID || '3cpyqxve97diqnsu';
@@ -28,8 +28,8 @@ const Chatbot = () => {
         console.warn('[Chatbot] No valid widget ID configured (REACT_APP_UCHAT_WIDGET_ID). Skipping load.');
         return;
       }
-      // Check if the script is already loaded
-      if (document.querySelector('script[src*="uchat.com.au"]')) {
+      // Check if the script is already loaded (by id or src)
+      if (document.getElementById('uchat-script') || document.querySelector('script[src*="uchat.com.au"]')) {
         // Verify widget mount exists if script is present
         ensureMount();
         return; // Script already exists, don't load again
@@ -39,6 +39,7 @@ const Chatbot = () => {
       script.async = true;
       script.defer = true;
       script.src = src;
+      script.id = 'uchat-script';
       script.onload = () => {
         console.info('[Chatbot] uChat script loaded');
         // Post-load verification after a short delay
@@ -64,16 +65,36 @@ const Chatbot = () => {
         console.error('[Chatbot] failed to load uChat script', e);
       };
       document.head.appendChild(script);
+
+      // Mutation observer: some widgets recreate iframes; strip fullscreen each time
+      const observer = new MutationObserver(() => {
+        const iframe = mount.querySelector('iframe');
+        if (iframe) {
+          iframe.removeAttribute('allowfullscreen');
+          const current = iframe.getAttribute('allow') || '';
+          const perms = ['microphone', 'camera', 'geolocation', 'clipboard-read', 'clipboard-write'];
+          iframe.setAttribute('allow', Array.from(new Set(current.split(';').map(s=>s.trim()).filter(Boolean).concat(perms))).join('; '));
+        }
+      });
+      observer.observe(mount, { childList: true, subtree: true });
+      mount.__uchatObserver = observer;
       console.info('[Chatbot] Injecting uChat script', { src, widgetId, origin: window.location.origin });
     } catch (e) {
       console.error('[Chatbot] unexpected error setting up script', e);
     }
     return () => {
       try {
-        const existingScript = document.querySelector('script[src*="uchat.com.au"]');
+        const existingScript = document.getElementById('uchat-script') || document.querySelector('script[src*="uchat.com.au"]');
         if (existingScript) existingScript.remove();
         const chatWidget = document.querySelector('#uchat-widget');
         if (chatWidget) chatWidget.remove();
+        const container = containerRef.current;
+        const mount = container?.querySelector('#uchat-widget');
+        const obs = mount?.__uchatObserver;
+        if (obs) {
+          try { obs.disconnect(); } catch {}
+          delete mount.__uchatObserver;
+        }
       } catch (e) {
         // swallow cleanup errors
       }

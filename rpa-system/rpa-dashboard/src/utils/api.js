@@ -43,6 +43,16 @@ api.interceptors.response.use(
   (resp) => resp,
   async (error) => {
     const status = error?.response?.status;
+    // Development: log failing POSTs even when collapsed as generic errors
+    if (process.env.NODE_ENV === 'development') {
+      const method = (error?.config?.method || 'get').toUpperCase();
+      if (method === 'POST') {
+        const url = error?.config?.url || '(unknown)';
+        const code = status ?? '(no-status)';
+        // eslint-disable-next-line no-console
+        console.warn('[api] POST failed', { url, status: code, message: error?.message });
+      }
+    }
     if (status !== 401) return Promise.reject(error);
 
     // Surface backend diagnostic header if present
