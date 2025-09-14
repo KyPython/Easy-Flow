@@ -91,6 +91,9 @@ class WorkflowExecutor {
     
     try {
       console.log(`[WorkflowExecutor] Starting execution for workflow ${workflowId}`);
+      if (!this.supabase) {
+        throw new Error('Workflow not found: Database unavailable');
+      }
       
       // Get workflow definition - first try to find the workflow
       let workflow, workflowError;
@@ -103,19 +106,17 @@ class WorkflowExecutor {
             workflow_steps(*),
             workflow_connections(*)
           `)
-          .eq('id', workflowId);
-          
+          .eq('id', workflowId)
+          .maybeSingle();
+
         if (result.error) {
           workflowError = result.error;
           workflow = null;
-        } else if (!result.data || result.data.length === 0) {
+        } else if (!result.data) {
           workflowError = { message: 'No workflow found with this ID' };
           workflow = null;
-        } else if (result.data.length > 1) {
-          console.warn(`[WorkflowExecutor] Multiple workflows found with ID ${workflowId}, using first one`);
-          workflow = result.data[0];
         } else {
-          workflow = result.data[0];
+          workflow = result.data;
         }
       } catch (queryError) {
         console.error(`[WorkflowExecutor] Database query error:`, queryError);

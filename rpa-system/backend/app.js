@@ -357,10 +357,10 @@ try {
         });
       } catch (e) {
         const msg = e?.message || '';
-        if (msg.startsWith('Workflow not found')) {
+        if (msg.includes('Workflow not found')) {
           return res.status(404).json({ error: msg });
         }
-        if (msg.startsWith('Workflow is not active')) {
+        if (msg.includes('Workflow is not active')) {
           return res.status(409).json({ error: msg });
         }
         throw e;
