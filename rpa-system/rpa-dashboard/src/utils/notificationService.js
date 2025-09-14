@@ -14,7 +14,6 @@ import { ref, push, set, onValue, off, query, orderByChild, limitToLast } from '
 import { onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { supabase } from './supabaseClient';
 import { buildApiUrl } from './config';
-import { buildApiUrl } from './config';
 
 class NotificationService {
   constructor() {

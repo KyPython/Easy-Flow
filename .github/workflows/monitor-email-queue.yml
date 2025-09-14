@@ -9,6 +9,9 @@ on:
 jobs:
   check-queue:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - name: Fetch email queue stats
         id: stats

@@ -2,23 +2,52 @@
 // Can run standalone (node workers/email_worker.js) or be embedded inside the main backend
 // when required via startEmailWorker().
 
-const { createClient } = require('@supabase/supabase-js');
+// Handle ESM/CJS interop that can occur in test runners
+const supabaseLib = require('@supabase/supabase-js');
+const createClient = supabaseLib.createClient || supabaseLib.default?.createClient;
 const axios = require('axios');
 const dotenv = require('dotenv');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 dotenv.config({ path: process.env.DOTENV_PATH || undefined });
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
-  console.error('Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE in env.');
-  process.exit(1);
+let supa; // lazy client
+function getSupabase() {
+  if (supa) return supa;
+  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE } = process.env;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
+    throw new Error('Supabase not configured: SUPABASE_URL/SUPABASE_SERVICE_ROLE missing');
+  }
+  supa = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  // quick presence log (don't print the full service role)
+  console.log('[email_worker] SUPABASE configured:', true, 'SERVICE_ROLE present:', true);
+  return supa;
 }
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
 
-// quick presence log (don't print the full service role)
-console.log('[email_worker] SUPABASE configured:', !!SUPABASE_URL, 'SERVICE_ROLE present:', !!SUPABASE_SERVICE_ROLE);
+// RPC helper: use supabase.rpc when present; fall back to REST call (useful in tests/mocks)
+async function callRpc(fnName, args) {
+  const client = getSupabase();
+  if (typeof client.rpc === 'function') {
+    return client.rpc(fnName, args);
+  }
+  const url = `${process.env.SUPABASE_URL}/rest/v1/rpc/${fnName}`;
+  try {
+    const resp = await axios.post(url, args || {}, {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      timeout: 15000
+    });
+    return { data: resp.data, error: null };
+  } catch (e) {
+    return { data: null, error: { message: e?.message || 'rpc rest call failed' } };
+  }
+}
 
 const SEND_EMAIL_WEBHOOK = process.env.SEND_EMAIL_WEBHOOK || ''; // optional: a webhook that accepts {to_email, template, data}
 const POLL_INTERVAL_MS = parseInt(process.env.EMAIL_WORKER_POLL_MS || '5000', 10);
@@ -28,12 +57,19 @@ async function processOne() {
   try {
     // pick one pending item scheduled in the past and mark as sending (simple race-safe attempt via UPDATE ... RETURNING)
     const now = new Date().toISOString();
-    const { data: items, error: fetchErr } = await supabase.rpc('claim_email_queue_item', { now_ts: now }).limit(1);
+    const { data: rpcData, error: fetchErr } = await callRpc('claim_email_queue_item', { now_ts: now });
 
     if (fetchErr) {
       // Fallback: select then update (less safe)
       console.warn('[email_worker] rpc claim failed, falling back to simple select', fetchErr && (fetchErr.message || JSON.stringify(fetchErr)));
-      const { data: selectData, error: selectError } = await supabase.from('email_queue').select('*').eq('status', 'pending').lte('scheduled_at', now).order('created_at', { ascending: true }).limit(1);
+      const client = getSupabase();
+      const { data: selectData, error: selectError } = await client
+        .from('email_queue')
+        .select('*')
+        .eq('status', 'pending')
+        .lte('scheduled_at', now)
+        .order('created_at', { ascending: true })
+        .limit(1);
       if (selectError) {
         console.error('[email_worker] fallback select error', selectError.message);
         return false;
@@ -42,7 +78,13 @@ async function processOne() {
       const itemToClaim = selectData[0];
 
       // Try to claim the item by updating its status.
-      const { data: updatedData, error: updateError } = await supabase.from('email_queue').update({ status: 'sending', attempts: (itemToClaim.attempts || 0) + 1 }).eq('id', itemToClaim.id).eq('status', 'pending').select('*').single();
+      const { data: updatedData, error: updateError } = await client
+        .from('email_queue')
+        .update({ status: 'sending', attempts: (itemToClaim.attempts || 0) + 1 })
+        .eq('id', itemToClaim.id)
+        .eq('status', 'pending')
+        .select('*')
+        .single();
       if (updateError) {
         console.warn('[email_worker] fallback update error', updateError.message || updateError);
         return false;
@@ -55,6 +97,7 @@ async function processOne() {
       return await handleItem(updatedData);
     }
 
+    const items = Array.isArray(rpcData) ? rpcData : (rpcData ? [rpcData] : []);
     if (!items || items.length === 0) return false;
     const item = items[0];
     return await handleItem(item);
@@ -93,7 +136,12 @@ async function handleItem(item) {
     }
 
     if (sent) {
-      const { data: sentData, error: sentErr } = await supabase.from('email_queue').update({ status: 'sent', attempts: item.attempts || 0, last_error: null }).eq('id', item.id).select('*');
+      const client = getSupabase();
+      const { data: sentData, error: sentErr } = await client
+        .from('email_queue')
+        .update({ status: 'sent', attempts: item.attempts || 0, last_error: null })
+        .eq('id', item.id)
+        .select('*');
       if (sentErr) {
         console.error('[email_worker] failed to mark sent', sentErr.message || sentErr);
         return false;
@@ -107,7 +155,12 @@ async function handleItem(item) {
       const attempts = (item.attempts || 0) + 1;
       const last_error = 'send failed';
       const status = attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
-      const { data: failData, error: failErr } = await supabase.from('email_queue').update({ attempts, last_error, status }).eq('id', item.id).select('*');
+      const client = getSupabase();
+      const { data: failData, error: failErr } = await client
+        .from('email_queue')
+        .update({ attempts, last_error, status })
+        .eq('id', item.id)
+        .select('*');
       if (failErr) console.warn('[email_worker] failed to persist failure state', failErr.message || failErr);
       return false;
     }
@@ -118,6 +171,16 @@ async function handleItem(item) {
 }
 
 async function startEmailWorker() {
+  // Validate config and client init up front
+  try {
+    getSupabase();
+  } catch (e) {
+    console.error('[email_worker] startup error:', e.message || e);
+    if (require.main === module) {
+      process.exit(1);
+    }
+    throw e;
+  }
   console.log('[email_worker] starting (embedded=', !(require.main === module), ') poll interval', POLL_INTERVAL_MS, 'ms');
   let lastHeartbeat = Date.now();
   while (true) {
