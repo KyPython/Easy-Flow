@@ -61,7 +61,7 @@ services:
       - key: ALLOWED_ORIGINS
         value: https://easyflow-dashboard.vercel.app,https://app.easyflow.com
 
-  - type: private
+  - type: worker
     name: automation-worker
     runtime: python
     env: python
@@ -93,7 +93,7 @@ services:
       - key: AUTOMATION_API_KEY
         generateValue: true
 
-  - type: private
+  - type: worker
     name: easyflow-kafka
     runtime: docker
     region: oregon
