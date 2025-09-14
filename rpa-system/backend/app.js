@@ -763,7 +763,9 @@ async function queueTaskRun(runId, taskData) {
       title: taskData.title || 'Untitled Task',
       run_id: runId,
       task_id: taskData.task_id,
-      user_id: taskData.user_id
+      user_id: taskData.user_id,
+      type: taskData.task_type || taskData.type || 'general',
+      parameters: taskData.parameters || {}
     };
     
     console.log(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
@@ -783,18 +785,36 @@ async function queueTaskRun(runId, taskData) {
         if (!automationUrl.startsWith('http://') && !automationUrl.startsWith('https://')) {
           normalizedUrl = `http://${automationUrl}`;
         }
-        const fullAutomationUrl = normalizedUrl + '/automate';
-        
-        response = await axios.post(fullAutomationUrl, payload, { 
-          timeout: 30000,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.AUTOMATION_API_KEY}`
+        // Try type-specific endpoints first, then fall back to generic /automate
+        const taskTypeSlug = String(payload.type || 'general').toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-');
+        const candidates = [
+          `/automate/${encodeURIComponent(taskTypeSlug)}`,
+          `/${encodeURIComponent(taskTypeSlug)}`,
+          '/automate'
+        ];
+
+        let lastError;
+        for (const pathSuffix of candidates) {
+          const fullAutomationUrl = (normalizedUrl.replace(/\/$/, '')) + pathSuffix;
+          try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (process.env.AUTOMATION_API_KEY) {
+              headers['Authorization'] = `Bearer ${process.env.AUTOMATION_API_KEY}`;
+            }
+            response = await axios.post(fullAutomationUrl, payload, {
+              timeout: 30000,
+              headers
+            });
+            automationResult = response.data || { message: 'Execution completed with no data returned' };
+            console.log(`[queueTaskRun] Automation service response (${pathSuffix}):`,
+              response.status, response.data ? 'data received' : 'no data');
+            break;
+          } catch (err) {
+            lastError = err;
+            console.warn(`[queueTaskRun] Endpoint ${pathSuffix} failed:`, err?.response?.status || err?.message || err);
           }
-        });
-        automationResult = response.data || { message: 'Execution completed with no data returned' };
-        console.log(`[queueTaskRun] Automation service response:`, 
-          response.status, response.data ? 'data received' : 'no data');
+        }
+        if (!automationResult && lastError) throw lastError;
       }
       
       // Update the run with the result
@@ -818,7 +838,7 @@ async function queueTaskRun(runId, taskData) {
         console.error('🔔 Failed to send task completion notification:', notificationError.message);
       }
         
-      return response.data;
+  return response?.data ?? automationResult;
     } catch (error) {
       console.error(`[queueTaskRun] Automation service error:`, error.message);
       
@@ -954,8 +974,8 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
     console.log(`[run-task] Processing automation for user ${user.id}`);
     
     // First, create or find a task in automation_tasks
-    const taskName = title || (type && type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || (task && task.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'Automation Task';
-    const taskType = type || task || 'general';
+  const taskName = title || (type && type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || (task && task.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'Automation Task';
+  const taskType = (type || task || 'general').toLowerCase();
     
     const { data: taskRecord, error: taskError } = await supabase
       .from('automation_tasks')
@@ -1002,11 +1022,18 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
     // Respond immediately; background worker will update run status and send notifications
     setImmediate(async () => {
       try {
+        // Parse parameters back to object for worker payload
+        let paramsObj = {};
+        try {
+          paramsObj = taskRecord?.parameters ? JSON.parse(taskRecord.parameters) : {};
+        } catch (_) {}
         await queueTaskRun(run.id, {
           url,
           title: taskName,
           task_id: taskRecord.id,
-          user_id: user.id
+          user_id: user.id,
+          task_type: taskType,
+          parameters: paramsObj
         });
       } catch (error) {
         console.error('[run-task background] Error processing run', run.id, error?.message || error);

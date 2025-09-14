@@ -959,7 +959,9 @@ class NotificationService {
     return {
       isSupported: this.isSupported,
       isConfigured: isFirebaseConfigured,
-      hasPermission: Notification.permission === 'granted',
+      hasPermission: (typeof Notification !== 'undefined' && 'permission' in Notification)
+        ? Notification.permission === 'granted'
+        : false,
       currentUser: this.currentUser?.id || null,
   hasFCMToken: !!this.fcmToken,
   pushEnabled: !!this.pushEnabled
