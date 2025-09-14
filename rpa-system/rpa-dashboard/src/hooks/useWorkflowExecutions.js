@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { buildApiUrl } from '../utils/config';
 
 export const useWorkflowExecutions = (workflowId) => {
   const [executions, setExecutions] = useState([]);
@@ -77,7 +78,7 @@ export const useWorkflowExecutions = (workflowId) => {
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
       if (token) {
-        const resp = await fetch(`/api/executions/${executionId}`, {
+  const resp = await fetch(buildApiUrl(`/api/executions/${executionId}`), {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (resp.ok) {
@@ -129,7 +130,7 @@ export const useWorkflowExecutions = (workflowId) => {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch('/api/workflows/execute', {
+  const response = await fetch(buildApiUrl('/api/workflows/execute'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.session.access_token}`,
@@ -167,7 +168,7 @@ export const useWorkflowExecutions = (workflowId) => {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`/api/executions/${executionId}/cancel`, {
+  const response = await fetch(buildApiUrl(`/api/executions/${executionId}/cancel`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.session.access_token}`,
@@ -226,7 +227,7 @@ export const useWorkflowExecutions = (workflowId) => {
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
       if (token) {
-        const resp = await fetch(`/api/executions/${executionId}/steps`, {
+  const resp = await fetch(buildApiUrl(`/api/executions/${executionId}/steps`), {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (resp.ok) {

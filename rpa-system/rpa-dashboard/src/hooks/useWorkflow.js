@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { buildApiUrl } from '../utils/config';
 
 export const useWorkflow = (workflowId) => {
   const [workflow, setWorkflow] = useState(null);
@@ -218,7 +219,7 @@ export const useWorkflow = (workflowId) => {
     if (!workflowId) return;
 
     try {
-      const response = await fetch('/api/workflows/execute', {
+  const response = await fetch(buildApiUrl('/api/workflows/execute'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

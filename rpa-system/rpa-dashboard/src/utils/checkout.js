@@ -1,5 +1,7 @@
+import { buildApiUrl } from '../utils/config';
+
 export async function startCheckout(planId, userId) {
-  const resp = await fetch('/api/create-checkout-session', {
+  const resp = await fetch(buildApiUrl('/api/create-checkout-session'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

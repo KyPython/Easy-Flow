@@ -158,8 +158,11 @@ app.use(helmet({
         "https://www.google-analytics.com",
         "https://analytics.google.com",
         // Allow Supabase REST/Realtime/Storage
-        "https://*.supabase.co",
-        "https://supabase.co",
+  "https://*.supabase.co",
+  "https://supabase.co",
+  // Supabase Realtime (WebSocket)
+  "wss://*.supabase.co",
+  "wss://syxzilyuysdoirnezgii.supabase.co",
         // Third-party SDKs/services
         "https://sdk.dfktv2.com",
         "https://ipapi.co",
@@ -233,7 +236,9 @@ app.get('/api/healthz', (req, res) => {
 const { supabase: sb } = require('./supabase');
 app.get('/api/files', authMiddleware, apiLimiter, async (req, res) => {
   try {
-    if (!sb) return res.status(503).json({ error: 'Storage not configured' });
+  // Prefer service-role client placed on app.locals later, else fall back to anon client
+  const client = req.app && req.app.locals && req.app.locals.supaAdmin ? req.app.locals.supaAdmin : sb;
+  if (!client) return res.status(503).json({ error: 'Storage not configured' });
     const userId = req.user?.id;
     // Optional: enforce plan/limits here with checkStorageLimit if required
     const folder = decodeURIComponent(req.query.folder || '/');
@@ -241,7 +246,7 @@ app.get('/api/files', authMiddleware, apiLimiter, async (req, res) => {
     const bucket = process.env.STORAGE_BUCKET || 'artifacts';
 
     // Supabase Storage list API
-    const { data, error } = await sb
+  const { data, error } = await client
       .storage
       .from(bucket)
       .list(folder === '/' ? '' : folder.replace(/^\//, ''), { limit, offset: 0, sortBy: { column: 'name', order: 'asc' } });
@@ -249,14 +254,14 @@ app.get('/api/files', authMiddleware, apiLimiter, async (req, res) => {
 
     // Construct public URLs (if bucket is public) or signed URLs otherwise
     const isPublic = (process.env.STORAGE_PUBLIC || 'true').toLowerCase() === 'true';
-    const files = await Promise.all((data || []).map(async (f) => {
+  const files = await Promise.all((data || []).map(async (f) => {
       const path = `${folder === '/' ? '' : folder.replace(/^\//, '')}${folder.endsWith('/') || folder === '/' ? '' : '/'}${f.name}`.replace(/^\//, '');
       let url = null;
       if (isPublic) {
-        const { data: pub } = sb.storage.from(bucket).getPublicUrl(path);
+    const { data: pub } = client.storage.from(bucket).getPublicUrl(path);
         url = pub?.publicUrl || null;
       } else {
-        const { data: signed, error: sErr } = await sb.storage.from(bucket).createSignedUrl(path, 60 * 10);
+    const { data: signed, error: sErr } = await client.storage.from(bucket).createSignedUrl(path, 60 * 10);
         if (!sErr) url = signed?.signedUrl || null;
       }
       return { ...f, path, url };
@@ -288,6 +293,8 @@ const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE ? createClient(SUPABASE_U
 if (!supabase) {
   console.warn('⚠️ Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE environment variables.');
 }
+// Expose admin client via app.locals for use in early-declared routes
+app.locals.supaAdmin = supabase || null;
 const ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
 const USE_SIGNED_URLS = (process.env.SUPABASE_USE_SIGNED_URLS || 'true').toLowerCase() !== 'false';
 const SIGNED_URL_EXPIRES = Math.max(60, parseInt(process.env.SUPABASE_SIGNED_URL_EXPIRES || '86400', 10));
@@ -309,7 +316,7 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('   NODE_ENV:', process.env.NODE_ENV);
 }
 
-app.use(cors({
+const corsOptions = {
   origin: (origin, cb) => {
     if (process.env.NODE_ENV !== 'production') {
       // verbose only in non-production
@@ -336,7 +343,11 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'apikey', 'x-client-info'],
   credentials: true,
-}));
+};
+
+app.use(cors(corsOptions));
+// Ensure preflight requests are handled consistently
+app.options('*', cors(corsOptions));
 
 // The Polar webhook needs a raw body, so we conditionally skip the JSON parser for it.
 // For all other routes, this middleware will parse the JSON body.
@@ -1064,7 +1075,16 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
     
     if (taskError) {
       console.error('[run-task] Error creating automation task:', taskError);
-      return res.status(500).json({ error: 'Failed to create automation task' });
+      const resp = { error: 'Failed to create automation task' };
+      if (process.env.NODE_ENV !== 'production') {
+        resp.debug = {
+          code: taskError.code,
+          message: taskError.message,
+          details: taskError.details,
+          hint: taskError.hint
+        };
+      }
+      return res.status(500).json(resp);
     }
     
     // Now create a run record in automation_runs
@@ -1082,7 +1102,16 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
     
     if (runError) {
       console.error('[run-task] Error creating automation run:', runError);
-      return res.status(500).json({ error: 'Failed to create automation run' });
+      const resp = { error: 'Failed to create automation run' };
+      if (process.env.NODE_ENV !== 'production') {
+        resp.debug = {
+          code: runError.code,
+          message: runError.message,
+          details: runError.details,
+          hint: runError.hint
+        };
+      }
+      return res.status(500).json(resp);
     }
     
     // Queue the task processing - update this to use automation_runs instead of task_runs

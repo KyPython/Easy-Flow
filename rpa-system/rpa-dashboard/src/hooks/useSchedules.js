@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { buildApiUrl } from '../utils/config';
 
 export const useSchedules = (workflowId) => {
   const [schedules, setSchedules] = useState([]);
@@ -24,7 +25,7 @@ export const useSchedules = (workflowId) => {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch('/api/schedules', {
+  const response = await fetch(buildApiUrl('/api/schedules'), {
         headers: {
           'Authorization': `Bearer ${session.session.access_token}`,
           'Content-Type': 'application/json'
@@ -59,7 +60,7 @@ export const useSchedules = (workflowId) => {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch('/api/schedules', {
+  const response = await fetch(buildApiUrl('/api/schedules'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.session.access_token}`,
@@ -102,7 +103,7 @@ export const useSchedules = (workflowId) => {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`/api/schedules/${scheduleId}`, {
+  const response = await fetch(buildApiUrl(`/api/schedules/${scheduleId}`), {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${session.session.access_token}`,
@@ -140,7 +141,7 @@ export const useSchedules = (workflowId) => {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`/api/schedules/${scheduleId}`, {
+  const response = await fetch(buildApiUrl(`/api/schedules/${scheduleId}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session.session.access_token}`
@@ -170,7 +171,7 @@ export const useSchedules = (workflowId) => {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`/api/schedules/${scheduleId}/trigger`, {
+  const response = await fetch(buildApiUrl(`/api/schedules/${scheduleId}/trigger`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.session.access_token}`,
@@ -200,7 +201,7 @@ export const useSchedules = (workflowId) => {
       }
 
       const response = await fetch(
-        `/api/schedules/${scheduleId}/executions?limit=${limit}&offset=${offset}`,
+        buildApiUrl(`/api/schedules/${scheduleId}/executions?limit=${limit}&offset=${offset}`),
         {
           headers: {
             'Authorization': `Bearer ${session.session.access_token}`
