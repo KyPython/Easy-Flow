@@ -40,6 +40,7 @@ const WorkflowBuilder = () => {
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallFeature, setPaywallFeature] = useState(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Plan checking
   const { planData, canCreateWorkflow, canRunAutomation, hasFeature } = usePlan();
@@ -67,6 +68,8 @@ const WorkflowBuilder = () => {
         // Update existing workflow
         await saveWorkflow(currentWorkflow);
         console.log('Workflow updated successfully');
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2500);
       } else {
         // Check if user can create new workflow
         if (!canCreateWorkflow()) {
@@ -256,6 +259,22 @@ const WorkflowBuilder = () => {
 
   return (
     <div className={styles.workflowBuilder}>
+      {saveSuccess && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            margin: '12px',
+            padding: '10px 12px',
+            borderRadius: 8,
+            background: 'rgba(16, 185, 129, 0.12)',
+            color: 'rgb(5, 122, 85)',
+            border: '1px solid rgba(16,185,129,0.35)'
+          }}
+        >
+          Workflow updated successfully
+        </div>
+      )}
       {/* Workflow Sub-Navigation */}
       <div className={styles.workflowNav}>
         <div className={styles.workflowTitle}>

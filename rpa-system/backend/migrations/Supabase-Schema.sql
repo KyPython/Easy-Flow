@@ -44,8 +44,8 @@ CREATE TABLE public.automation_runs (
   artifact_url text,
   file_ids ARRAY DEFAULT '{}'::uuid[],
   CONSTRAINT automation_runs_pkey PRIMARY KEY (id),
-  CONSTRAINT automation_runs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT automation_runs_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id)
+  CONSTRAINT automation_runs_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id),
+  CONSTRAINT automation_runs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.automation_tasks (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -103,8 +103,8 @@ CREATE TABLE public.file_shares (
   password_hash text,
   CONSTRAINT file_shares_pkey PRIMARY KEY (id),
   CONSTRAINT file_shares_shared_with_fkey FOREIGN KEY (shared_with) REFERENCES auth.users(id),
-  CONSTRAINT file_shares_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id),
-  CONSTRAINT file_shares_shared_by_fkey FOREIGN KEY (shared_by) REFERENCES auth.users(id)
+  CONSTRAINT file_shares_shared_by_fkey FOREIGN KEY (shared_by) REFERENCES auth.users(id),
+  CONSTRAINT file_shares_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id)
 );
 CREATE TABLE public.files (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -132,11 +132,14 @@ CREATE TABLE public.files (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   automation_run_id uuid,
+  file_path text,
+  file_type text,
+  storage_key text,
   CONSTRAINT files_pkey PRIMARY KEY (id),
-  CONSTRAINT files_automation_run_id_fkey FOREIGN KEY (automation_run_id) REFERENCES public.automation_runs(id),
   CONSTRAINT files_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.automation_runs(id),
   CONSTRAINT files_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id),
-  CONSTRAINT files_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT files_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT files_automation_run_id_fkey FOREIGN KEY (automation_run_id) REFERENCES public.automation_runs(id)
 );
 CREATE TABLE public.forwarded_event_ids (
   id text NOT NULL,
@@ -240,9 +243,9 @@ CREATE TABLE public.step_executions (
   automation_log_id bigint,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT step_executions_pkey PRIMARY KEY (id),
+  CONSTRAINT step_executions_automation_log_id_fkey FOREIGN KEY (automation_log_id) REFERENCES public.automation_logs(id),
   CONSTRAINT step_executions_workflow_execution_id_fkey FOREIGN KEY (workflow_execution_id) REFERENCES public.workflow_executions(id),
-  CONSTRAINT step_executions_step_id_fkey FOREIGN KEY (step_id) REFERENCES public.workflow_steps(id),
-  CONSTRAINT step_executions_automation_log_id_fkey FOREIGN KEY (automation_log_id) REFERENCES public.automation_logs(id)
+  CONSTRAINT step_executions_step_id_fkey FOREIGN KEY (step_id) REFERENCES public.workflow_steps(id)
 );
 CREATE TABLE public.subscriptions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -336,9 +339,9 @@ CREATE TABLE public.workflow_connections (
   visual_config jsonb DEFAULT '{"color": "#0066cc", "style": "solid", "animated": false}'::jsonb,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT workflow_connections_pkey PRIMARY KEY (id),
-  CONSTRAINT workflow_connections_target_step_id_fkey FOREIGN KEY (target_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_connections_source_step_id_fkey FOREIGN KEY (source_step_id) REFERENCES public.workflow_steps(id),
   CONSTRAINT workflow_connections_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
-  CONSTRAINT workflow_connections_source_step_id_fkey FOREIGN KEY (source_step_id) REFERENCES public.workflow_steps(id)
+  CONSTRAINT workflow_connections_target_step_id_fkey FOREIGN KEY (target_step_id) REFERENCES public.workflow_steps(id)
 );
 CREATE TABLE public.workflow_executions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -359,9 +362,9 @@ CREATE TABLE public.workflow_executions (
   steps_total integer DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT workflow_executions_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_executions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT workflow_executions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
-  CONSTRAINT workflow_executions_error_step_id_fkey FOREIGN KEY (error_step_id) REFERENCES public.workflow_steps(id),
-  CONSTRAINT workflow_executions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT workflow_executions_error_step_id_fkey FOREIGN KEY (error_step_id) REFERENCES public.workflow_steps(id)
 );
 CREATE TABLE public.workflow_schedules (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -382,8 +385,8 @@ CREATE TABLE public.workflow_schedules (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT workflow_schedules_pkey PRIMARY KEY (id),
-  CONSTRAINT workflow_schedules_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT workflow_schedules_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
+  CONSTRAINT workflow_schedules_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_schedules_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.workflow_steps (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -431,8 +434,8 @@ CREATE TABLE public.workflow_templates (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT workflow_templates_pkey PRIMARY KEY (id),
-  CONSTRAINT workflow_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
-  CONSTRAINT workflow_templates_source_workflow_id_fkey FOREIGN KEY (source_workflow_id) REFERENCES public.workflows(id)
+  CONSTRAINT workflow_templates_source_workflow_id_fkey FOREIGN KEY (source_workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.workflow_test_results (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -445,8 +448,8 @@ CREATE TABLE public.workflow_test_results (
   error_message text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT workflow_test_results_pkey PRIMARY KEY (id),
-  CONSTRAINT workflow_test_results_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
-  CONSTRAINT workflow_test_results_scenario_id_fkey FOREIGN KEY (scenario_id) REFERENCES public.workflow_test_scenarios(id)
+  CONSTRAINT workflow_test_results_scenario_id_fkey FOREIGN KEY (scenario_id) REFERENCES public.workflow_test_scenarios(id),
+  CONSTRAINT workflow_test_results_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
 );
 CREATE TABLE public.workflow_test_scenarios (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -462,8 +465,8 @@ CREATE TABLE public.workflow_test_scenarios (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT workflow_test_scenarios_pkey PRIMARY KEY (id),
-  CONSTRAINT workflow_test_scenarios_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT workflow_test_scenarios_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
+  CONSTRAINT workflow_test_scenarios_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_test_scenarios_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.workflow_variables (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -498,6 +501,9 @@ CREATE TABLE public.workflows (
   is_public boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  workflow_connections jsonb,
+  workflow_executions integer DEFAULT 0,
+  workflow_steps jsonb DEFAULT '[]'::jsonb,
   CONSTRAINT workflows_pkey PRIMARY KEY (id),
   CONSTRAINT workflows_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );

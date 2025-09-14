@@ -178,23 +178,64 @@ const DOWNLOADS_DIR_CONTAINER = process.env.DOWNLOADS_DIR_CONTAINER || '/downloa
 const DOWNLOADS_DIR_HOST = process.env.DOWNLOADS_DIR_HOST || (process.cwd().includes('/workspace') ? '/workspace/downloads' : path.join(process.cwd(), 'downloads'));
 
 
-// CORS: allow all in dev (when no whitelist provided); restrict in prod
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+// CORS: sensible defaults in dev; restrict in prod via ALLOWED_ORIGINS
+// Tip: set ALLOWED_ORIGINS as a comma-separated list of exact origins.
+// Optional: set ALLOWED_ORIGIN_SUFFIXES for wildcard-like suffix matches (e.g. ".vercel.app").
+const DEFAULT_DEV_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+];
+const DEFAULT_PROD_ORIGINS = [
+  'https://easy-flow-lac.vercel.app',
+];
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || (process.env.NODE_ENV === 'production'
+  ? DEFAULT_PROD_ORIGINS.join(',')
+  : DEFAULT_DEV_ORIGINS.concat(DEFAULT_PROD_ORIGINS).join(',')))
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
 
-app.use(cors({
+// Debug logging for CORS configuration (quiet in production)
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🔧 CORS Debug Info (app.js):');
+  console.log('   ALLOWED_ORIGINS env var:', process.env.ALLOWED_ORIGINS);
+  console.log('   Parsed ALLOWED_ORIGINS:', ALLOWED_ORIGINS);
+  console.log('   NODE_ENV:', process.env.NODE_ENV);
+}
+
+const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // non-browser
-    if (ALLOWED_ORIGINS.length === 0) return cb(null, true); // dev fallback
+    // Allow non-browser requests (no Origin header)
+    if (!origin) return cb(null, true);
+
+    // Exact allow-list
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+
+    // Suffix-based allow (e.g., preview deployments like *.vercel.app)
+    if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) return cb(null, true);
+
+    // As a last resort in dev, be permissive when not explicitly configured
+    if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== 'production') return cb(null, true);
+
+    console.warn('🚫 CORS blocked origin (app.js):', origin);
     return cb(new Error('CORS: origin not allowed'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'apikey', 'x-client-info'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  // When allowedHeaders is omitted, the cors package reflects the request's Access-Control-Request-Headers
   credentials: true,
-}));
+  optionsSuccessStatus: 204,
+  exposedHeaders: ['Content-Disposition'],
+};
+
+app.use(cors(corsOptions));
+// Ensure preflight requests are handled consistently
+app.options('*', cors(corsOptions));
 
 // The Polar webhook needs a raw body, so we conditionally skip the JSON parser for it.
 // For all other routes, this middleware will parse the JSON body.

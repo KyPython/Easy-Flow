@@ -36,7 +36,8 @@ export const usePlan = () => {
           usage: {
             monthly_runs: 0,
             storage_bytes: 0,
-            storage_gb: 0
+            storage_gb: 0,
+            workflows: 0
           },
           limits: {
             workflows: -1, // Unlimited
@@ -78,7 +79,8 @@ export const usePlan = () => {
         usage: {
           monthly_runs: 0,
           storage_bytes: 0,
-          storage_gb: 0
+          storage_gb: 0,
+          workflows: 0
         },
         limits: {
           workflows: 3,
@@ -123,6 +125,8 @@ export const usePlan = () => {
         return usage?.monthly_runs >= limit;
       case 'storage_gb':
         return usage?.storage_gb >= limit;
+      case 'workflows':
+        return usage?.workflows >= limit;
       default:
         return false;
     }
@@ -141,6 +145,8 @@ export const usePlan = () => {
         return Math.round((usage?.monthly_runs / limit) * 100);
       case 'storage_gb':
         return Math.round((usage?.storage_gb / limit) * 100);
+      case 'workflows':
+        return Math.round((usage?.workflows / limit) * 100);
       default:
         return 0;
     }
@@ -158,6 +164,16 @@ export const usePlan = () => {
     fetchPlanData();
   };
 
+  const trialDaysLeft = () => {
+    const expires = planData?.plan?.expires_at;
+    const isTrial = !!planData?.plan?.is_trial;
+    if (!isTrial || !expires) return 0;
+    const end = new Date(expires).getTime();
+    const now = Date.now();
+    if (end <= now) return 0;
+    return Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+  };
+
   return {
     planData,
     loading,
@@ -168,6 +184,7 @@ export const usePlan = () => {
     getUsagePercent,
     canCreateWorkflow,
     canRunAutomation,
-    refresh
+  refresh,
+  trialDaysLeft
   };
 };

@@ -5,6 +5,7 @@ import styles from './Header.module.css';
 import { supabase } from '../../utils/supabaseClient';
 import PropTypes from 'prop-types';
 import ContactModal from './ContactModal';
+import { usePlan } from '../../hooks/usePlan';
 import NotificationCenter from '../NotificationCenter/NotificationCenter';
 
 const Header = ({ user }) => {
@@ -34,6 +35,7 @@ const Header = ({ user }) => {
   }
 
   const { t } = useI18n();
+  const { planData, trialDaysLeft } = usePlan();
 
   return (
     <header className={styles.header}>
@@ -115,6 +117,24 @@ const Header = ({ user }) => {
                   {user?.role || 'Member'}
                 </span>
               </div>
+
+              {/* Trial countdown pill */}
+              {planData?.plan?.is_trial && planData?.plan?.expires_at && (
+                <div
+                  title={`Trial ends ${new Date(planData.plan.expires_at).toLocaleDateString()}`}
+                  style={{
+                    marginRight: 12,
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    background: 'rgba(59,130,246,0.12)',
+                    color: '#1d4ed8',
+                    border: '1px solid rgba(59,130,246,0.35)',
+                    fontSize: 12,
+                  }}
+                >
+                  {trialDaysLeft()}d left trial
+                </div>
+              )}
 
               <div className={styles.avatar}>
                 {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}

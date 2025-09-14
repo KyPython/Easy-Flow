@@ -30,6 +30,10 @@ export const useWorkflowTemplates = (options = {}) => {
   const [pageSize, setPageSize] = useState(24);
   const [total, setTotal] = useState(0);
   const inFlightRef = useRef(false);
+  // Shared UUID validator
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  // Safe mock templates placeholder to avoid reference errors in special ID branches
+  const mockTemplates = [];
 
   // Load workflow templates
   const loadTemplates = useCallback(async (opts = {}) => {
@@ -229,22 +233,64 @@ export const useWorkflowTemplates = (options = {}) => {
   // Create workflow from template
   const createFromTemplate = useCallback(async (templateId, workflowName) => {
     try {
-      const template = templates.find(t => t.id === templateId);
+      const idStr = String(templateId);
+
+      // Try to find in-memory first (normalize id types)
+      let template = templates.find(t => String(t.id) === idStr);
+
+      // If not found in memory, attempt to fetch from DB depending on ID shape
       if (!template) {
-        throw new Error('Template not found');
+        // Fallback/mock ids produce a minimal template
+        if (idStr.startsWith('fallback-') || idStr.startsWith('template-')) {
+          template = emergencyFallbackTemplates[0];
+        } else if (uuidRegex.test(idStr)) {
+          // Fetch base template row
+          const { data: tRow, error: tErr } = await supabase
+            .from('workflow_templates')
+            .select('*')
+            .eq('id', idStr)
+            .single();
+          if (tErr) throw tErr;
+
+          // Try to get latest version config
+          let latestConfig = null;
+          try {
+            const { data: ver, error: vErr } = await supabase
+              .from('template_versions')
+              .select('config')
+              .eq('template_id', idStr)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+            if (!vErr) latestConfig = ver?.config || null;
+          } catch (_) {
+            // ignore, we'll rely on template_config if present
+          }
+
+          template = {
+            ...tRow,
+            // Some schemas store config on the template row as template_config
+            template_config: tRow?.template_config || latestConfig || null
+          };
+        } else {
+          // Unknown id shape
+          throw new Error('Template not found');
+        }
       }
 
-      // Get template configuration (nodes and edges)
+      // Build canvas config (nodes/edges/viewport)
       let canvasConfig = { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } };
-      
-      if (template.template_config) {
-        // For database templates, use template_config
+      const cfg = template.template_config || template.config || null;
+      if (cfg && typeof cfg === 'object') {
+        // Support both flattened and nested canvas_config
+        const c = cfg.canvas_config && typeof cfg.canvas_config === 'object' ? cfg.canvas_config : cfg;
         canvasConfig = {
-          ...canvasConfig,
-          ...template.template_config
+          nodes: Array.isArray(c.nodes) ? c.nodes : [],
+          edges: Array.isArray(c.edges) ? c.edges : [],
+          viewport: c.viewport && typeof c.viewport === 'object' ? c.viewport : { x: 0, y: 0, zoom: 1 }
         };
-  } else if (template.is_fallback || template.id.startsWith('fallback-') || template.id.startsWith('template-')) {
-        // For fallback templates, create a sample configuration
+      } else if (template.is_fallback || idStr.startsWith('fallback-') || idStr.startsWith('template-')) {
+        // Minimal default for fallbacks
         canvasConfig = {
           nodes: [
             { id: 'start-1', type: 'start', position: { x: 100, y: 100 }, data: { label: 'Start' } },
@@ -268,9 +314,9 @@ export const useWorkflowTemplates = (options = {}) => {
         .from('workflows')
         .insert({
           user_id: user.id,
-          name: workflowName || `${template.name} (Copy)`,
+          name: workflowName || `${template.name || 'Untitled Template'} (Copy)`,
           description: template.description,
-          tags: template.tags,
+          tags: Array.isArray(template.tags) ? template.tags : [],
           status: 'draft',
           is_public: false,
           canvas_config: canvasConfig,
@@ -282,11 +328,13 @@ export const useWorkflowTemplates = (options = {}) => {
 
       if (error) throw error;
 
-      // Telemetry: record install via RPC (increments usage_count)
-      try {
-        await supabase.rpc('record_template_install', { p_template_id: template.id });
-      } catch (e) {
-        console.warn('record_template_install RPC failed or unavailable:', e?.message || e);
+      // Telemetry: record install via RPC (increments usage_count) only for UUID templates
+      if (uuidRegex.test(idStr)) {
+        try {
+          await supabase.rpc('record_template_install', { p_template_id: idStr });
+        } catch (e) {
+          console.warn('record_template_install RPC failed or unavailable:', e?.message || e);
+        }
       }
 
       return data;
@@ -326,8 +374,7 @@ export const useWorkflowTemplates = (options = {}) => {
       }
 
       // Validate UUID format before querying database
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(templateId)) {
+  if (!uuidRegex.test(templateId)) {
         throw new Error(`Invalid template ID format: ${templateId}`);
       }
 

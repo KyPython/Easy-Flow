@@ -56,12 +56,41 @@ export const useWorkflow = (workflowId) => {
 
     try {
       setSaving(true);
+      // sanitize updates to only include valid columns
+      const {
+        name,
+        description,
+        status,
+        canvas_config,
+        total_executions,
+        successful_executions,
+        failed_executions,
+        last_executed_at,
+        // exclude relations/unknown keys
+        workflow_steps: _relSteps,
+        workflow_connections: _relConns,
+        workflow_executions: _relExecs,
+        steps: _steps,
+        connections: _connections,
+        ..._rest
+      } = updates || {};
+
+      const finite = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+      const payload = {
+        ...(name !== undefined ? { name } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(status !== undefined ? { status } : {}),
+        ...(canvas_config !== undefined ? { canvas_config } : {}),
+        ...(finite(total_executions) !== undefined ? { total_executions: finite(total_executions) } : {}),
+        ...(finite(successful_executions) !== undefined ? { successful_executions: finite(successful_executions) } : {}),
+        ...(finite(failed_executions) !== undefined ? { failed_executions: finite(failed_executions) } : {}),
+        ...(last_executed_at !== undefined ? { last_executed_at } : {}),
+        updated_at: new Date().toISOString(),
+      };
+
       const { data, error } = await supabase
         .from('workflows')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
+        .update(payload)
         .eq('id', workflowId)
         .select()
         .single();
@@ -83,13 +112,43 @@ export const useWorkflow = (workflowId) => {
     try {
       setSaving(true);
       
-      // Update main workflow
+      // Sanitize payload: only send valid columns with correct types
+      const {
+        name,
+        description,
+        status,
+        canvas_config,
+        total_executions,
+        successful_executions,
+        failed_executions,
+        last_executed_at,
+        // relational/aux data not sent in main update
+        steps,
+        connections,
+        workflow_steps: _relSteps,
+        workflow_connections: _relConns,
+        workflow_executions: _relExecs,
+        ...rest
+      } = workflowData || {};
+
+      // helper to include only finite numbers
+      const finite = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+      const updatePayload = {
+        ...(name !== undefined ? { name } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(status !== undefined ? { status } : {}),
+        ...(canvas_config !== undefined ? { canvas_config } : {}),
+        ...(finite(total_executions) !== undefined ? { total_executions: finite(total_executions) } : {}),
+        ...(finite(successful_executions) !== undefined ? { successful_executions: finite(successful_executions) } : {}),
+        ...(finite(failed_executions) !== undefined ? { failed_executions: finite(failed_executions) } : {}),
+        ...(last_executed_at !== undefined ? { last_executed_at } : {}),
+        updated_at: new Date().toISOString(),
+      };
+
+      // Update main workflow (exclude unknown keys like relation arrays)
       const { data: updatedWorkflow, error: workflowError } = await supabase
         .from('workflows')
-        .update({
-          ...workflowData,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', workflowId)
         .select()
         .single();
@@ -97,7 +156,7 @@ export const useWorkflow = (workflowId) => {
       if (workflowError) throw workflowError;
 
       // Update workflow steps if provided
-      if (workflowData.steps) {
+      if (steps) {
         // Delete existing steps
         await supabase
           .from('workflow_steps')
@@ -105,10 +164,10 @@ export const useWorkflow = (workflowId) => {
           .eq('workflow_id', workflowId);
 
         // Insert new steps
-        if (workflowData.steps.length > 0) {
+        if (steps.length > 0) {
           const { error: stepsError } = await supabase
             .from('workflow_steps')
-            .insert(workflowData.steps.map(step => ({
+            .insert(steps.map(step => ({
               ...step,
               workflow_id: workflowId
             })));
@@ -118,7 +177,7 @@ export const useWorkflow = (workflowId) => {
       }
 
       // Update workflow connections if provided
-      if (workflowData.connections) {
+      if (connections) {
         // Delete existing connections
         await supabase
           .from('workflow_connections')
@@ -126,10 +185,10 @@ export const useWorkflow = (workflowId) => {
           .eq('workflow_id', workflowId);
 
         // Insert new connections
-        if (workflowData.connections.length > 0) {
+        if (connections.length > 0) {
           const { error: connectionsError } = await supabase
             .from('workflow_connections')
-            .insert(workflowData.connections.map(conn => ({
+            .insert(connections.map(conn => ({
               ...conn,
               workflow_id: workflowId
             })));

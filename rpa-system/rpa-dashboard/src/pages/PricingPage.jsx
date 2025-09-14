@@ -3,11 +3,13 @@ import { useI18n } from '../i18n';
 import { supabase } from '../utils/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../utils/AuthContext';
+import { usePlan } from '../hooks/usePlan';
 import styles from './PricingPage.module.css';
 
 export default function PricingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { planData, trialDaysLeft } = usePlan();
   const [plans, setPlans] = useState([]);
   const [featureLabels, setFeatureLabels] = useState({});
   const [userSubscription, setUserSubscription] = useState(null);
@@ -191,7 +193,13 @@ export default function PricingPage() {
   <h1>{t('pricing.choose_plan','Choose Your Plan')}</h1>
   <p>{t('pricing.subtitle','Start automating your workflows today with our flexible pricing options')}</p>
         <div className={styles.trialInfo}>
-          <p>{t('pricing.trial_info','All paid plans include a 14-day free trial.')}</p>
+          {planData?.plan?.is_trial && planData?.plan?.expires_at ? (
+            <p>
+              {t('pricing.trial_active','Trial active')}: {trialDaysLeft()} {t('pricing.days_left','days left')} (ends {new Date(planData.plan.expires_at).toLocaleDateString()})
+            </p>
+          ) : (
+            <p>{t('pricing.trial_info','All paid plans include a 14-day free trial.')}</p>
+          )}
         </div>
         {userSubscription && (
           <div className={styles.currentPlan}>

@@ -240,32 +240,32 @@ const WorkflowTesting = ({ workflowId, workflowName }) => {
       )}
 
       {/* Create Test Modal */}
-      {showCreateModal && (
-        <Modal
-          title="Create Test Scenario"
-          onClose={() => setShowCreateModal(false)}
-        >
-          <CreateTestScenarioForm
-            workflowId={workflowId}
-            onSubmit={handleCreateScenario}
-            onCancel={() => setShowCreateModal(false)}
-          />
-        </Modal>
-      )}
+      <Modal
+        isOpen={showCreateModal}
+        title="Create Test Scenario"
+        onClose={() => setShowCreateModal(false)}
+      >
+        <CreateTestScenarioForm
+          workflowId={workflowId}
+          onSubmit={handleCreateScenario}
+          onCancel={() => setShowCreateModal(false)}
+        />
+      </Modal>
 
       {/* Test Results Modal */}
-      {showResultsModal && selectedScenario && (
-        <Modal
-          title={`Test Results: ${selectedScenario.name}`}
-          onClose={() => setShowResultsModal(false)}
-          size="large"
-        >
+      <Modal
+        isOpen={showResultsModal && !!selectedScenario}
+        title={`Test Results: ${selectedScenario ? selectedScenario.name : ''}`}
+        onClose={() => setShowResultsModal(false)}
+        size="large"
+      >
+        {selectedScenario && (
           <TestResultsView 
             scenario={selectedScenario}
             onClose={() => setShowResultsModal(false)}
           />
-        </Modal>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };
