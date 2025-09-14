@@ -35,6 +35,9 @@ const defaultEdgeOptions = {
   },
 };
 
+// Stable React Flow pro options (avoid recreating objects per render)
+const PRO_OPTIONS = Object.freeze({ hideAttribution: true });
+
 const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -291,7 +294,7 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
   nodeTypes={memoNodeTypes}
   edgeTypes={memoEdgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
-  proOptions={{ hideAttribution: true }}
+  proOptions={PRO_OPTIONS}
         fitView
         className={styles.reactFlow}
       >

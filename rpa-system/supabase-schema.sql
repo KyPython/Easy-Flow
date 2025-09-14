@@ -1,280 +1,503 @@
--- EasyFlow User Plans and Subscriptions Schema
--- Run this in your Supabase SQL editor
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
--- Create user_plans table
-CREATE TABLE IF NOT EXISTS user_plans (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  plan_id TEXT NOT NULL CHECK (plan_id IN ('free', 'starter', 'professional', 'enterprise')),
-  status TEXT NOT NULL CHECK (status IN ('trial', 'active', 'cancelled', 'expired')),
-  trial_start TIMESTAMP WITH TIME ZONE,
-  trial_end TIMESTAMP WITH TIME ZONE,
-  current_period_start TIMESTAMP WITH TIME ZONE NOT NULL,
-  current_period_end TIMESTAMP WITH TIME ZONE NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE public.action_definitions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  action_type text NOT NULL UNIQUE,
+  name text NOT NULL,
+  description text NOT NULL,
+  category text NOT NULL DEFAULT 'general'::text,
+  config_schema jsonb NOT NULL,
+  input_schema jsonb DEFAULT '{}'::jsonb,
+  output_schema jsonb DEFAULT '{}'::jsonb,
+  icon_url text,
+  color text DEFAULT '#0066cc'::text,
+  required_plan text DEFAULT 'free'::text,
+  execution_limit integer,
+  version text NOT NULL DEFAULT '1.0.0'::text,
+  is_system boolean DEFAULT true,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT action_definitions_pkey PRIMARY KEY (id)
 );
-
--- Create unique constraint on user_id (one plan per user)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_user_plans_user_id ON user_plans(user_id);
-
--- Create index on plan_id for faster lookups
-CREATE INDEX IF NOT EXISTS idx_user_plans_plan_id ON user_plans(plan_id);
-
--- Create index on status for filtering
-CREATE INDEX IF NOT EXISTS idx_user_plans_status ON user_plans(status);
-
--- Create index on trial_end for trial management
-CREATE INDEX IF NOT EXISTS idx_user_plans_trial_end ON user_plans(trial_end);
-
--- Enable Row Level Security (RLS)
-ALTER TABLE user_plans ENABLE ROW LEVEL SECURITY;
-
--- Create RLS policies
--- Users can only see their own plan
-CREATE POLICY "Users can view own plan" ON user_plans
-  FOR SELECT USING (auth.uid() = user_id);
-
--- Users can insert their own plan
-CREATE POLICY "Users can insert own plan" ON user_plans
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- Users can update their own plan
-CREATE POLICY "Users can update own plan" ON user_plans
-  FOR UPDATE USING (auth.uid() = user_id);
-
--- Create function to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Create trigger to automatically update updated_at
-CREATE TRIGGER update_user_plans_updated_at
-  BEFORE UPDATE ON user_plans
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
-
--- Create function to check if user has active plan
-CREATE OR REPLACE FUNCTION has_active_plan(user_uuid UUID)
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM user_plans 
-    WHERE user_id = user_uuid 
-    AND status IN ('active', 'trial')
-    AND (trial_end IS NULL OR trial_end > NOW())
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Create function to get user's current plan
-CREATE OR REPLACE FUNCTION get_user_plan(user_uuid UUID)
-RETURNS TABLE (
-  plan_id TEXT,
-  status TEXT,
-  trial_end TIMESTAMP WITH TIME ZONE,
-  days_left INTEGER
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 
-    up.plan_id,
-    up.status,
-    up.trial_end,
-    CASE 
-      WHEN up.status = 'trial' AND up.trial_end IS NOT NULL 
-      THEN GREATEST(0, EXTRACT(DAY FROM (up.trial_end - NOW())))
-      ELSE NULL
-    END as days_left
-  FROM user_plans up
-  WHERE up.user_id = user_uuid
-  AND up.status IN ('active', 'trial');
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Insert default free plan for existing users (optional)
--- This will give all existing users access to the free tier
-INSERT INTO user_plans (user_id, plan_id, status, current_period_start, current_period_end)
-SELECT 
-  id,
-  'free',
-  'active',
-  NOW(),
-  NOW() + INTERVAL '100 years'
-FROM auth.users
-WHERE id NOT IN (SELECT user_id FROM user_plans);
-
--- Grant necessary permissions
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT ALL ON user_plans TO authenticated;
-GRANT EXECUTE ON FUNCTION has_active_plan(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_user_plan(UUID) TO authenticated;
-
--- =============================================
--- Workflow Templates Marketplace Schema (Templates, Versions, Installs)
--- =============================================
-
--- Templates table
-create table if not exists public.workflow_templates (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null references auth.users(id) on delete cascade,
-  name text not null,
+CREATE TABLE public.automation_logs (
+  id bigint NOT NULL DEFAULT nextval('automation_logs_id_seq'::regclass),
+  task text,
+  url text,
+  username text,
+  status text CHECK (status = ANY (ARRAY['completed'::text, 'failed'::text])),
+  artifact_url text,
+  result jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT automation_logs_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.automation_runs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  task_id uuid,
+  user_id uuid,
+  status text NOT NULL CHECK (status = ANY (ARRAY['running'::text, 'completed'::text, 'failed'::text])),
+  started_at timestamp with time zone DEFAULT now(),
+  ended_at timestamp with time zone,
+  result jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  artifact_url text,
+  file_ids ARRAY DEFAULT '{}'::uuid[],
+  CONSTRAINT automation_runs_pkey PRIMARY KEY (id),
+  CONSTRAINT automation_runs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT automation_runs_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id)
+);
+CREATE TABLE public.automation_tasks (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  name text NOT NULL,
   description text,
-  category text default 'general',
-  tags text[] default '{}',
-  is_public boolean default false,
-  status text not null default 'draft' check (status in ('draft','pending_review','approved','rejected','archived')),
-  usage_count integer not null default 0,
-  rating numeric(3,2) default 0.00,
-  preview_images text[] default '{}',
-  latest_version_id uuid,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  url text,
+  parameters jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  task_type text,
+  CONSTRAINT automation_tasks_pkey PRIMARY KEY (id),
+  CONSTRAINT automation_tasks_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-
--- Versions table
-create table if not exists public.template_versions (
-  id uuid primary key default gen_random_uuid(),
-  template_id uuid not null references public.workflow_templates(id) on delete cascade,
-  version text not null, -- semver string
+CREATE TABLE public.email_queue (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  profile_id uuid,
+  to_email text NOT NULL,
+  template text NOT NULL,
+  data jsonb,
+  status text NOT NULL DEFAULT 'pending'::text,
+  attempts integer NOT NULL DEFAULT 0,
+  last_error text,
+  scheduled_at timestamp with time zone NOT NULL DEFAULT now(),
+  claimed_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT email_queue_pkey PRIMARY KEY (id),
+  CONSTRAINT email_queue_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.file_share_access_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  share_id uuid NOT NULL,
+  accessed_at timestamp with time zone DEFAULT now(),
+  ip_address inet,
+  user_agent text,
+  access_type character varying NOT NULL DEFAULT 'view'::character varying CHECK (access_type::text = ANY (ARRAY['view'::character varying, 'download'::character varying, 'password_attempt'::character varying]::text[])),
+  success boolean DEFAULT true,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  CONSTRAINT file_share_access_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT file_share_access_logs_share_id_fkey FOREIGN KEY (share_id) REFERENCES public.file_shares(id)
+);
+CREATE TABLE public.file_shares (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  file_id uuid NOT NULL,
+  shared_by uuid NOT NULL,
+  shared_with uuid,
+  share_token text UNIQUE,
+  permissions text NOT NULL DEFAULT 'view'::text CHECK (permissions = ANY (ARRAY['view'::text, 'download'::text])),
+  max_downloads integer,
+  download_count integer DEFAULT 0,
+  expires_at timestamp with time zone,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  password_hash text,
+  CONSTRAINT file_shares_pkey PRIMARY KEY (id),
+  CONSTRAINT file_shares_shared_with_fkey FOREIGN KEY (shared_with) REFERENCES auth.users(id),
+  CONSTRAINT file_shares_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id),
+  CONSTRAINT file_shares_shared_by_fkey FOREIGN KEY (shared_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.files (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  original_name text NOT NULL,
+  display_name text,
+  description text,
+  storage_path text NOT NULL UNIQUE,
+  storage_bucket text NOT NULL DEFAULT 'artifacts'::text,
+  file_size bigint NOT NULL,
+  mime_type text NOT NULL,
+  file_extension text,
+  checksum_md5 text,
+  task_id uuid,
+  run_id uuid,
+  visibility text NOT NULL DEFAULT 'private'::text CHECK (visibility = ANY (ARRAY['private'::text, 'shared'::text, 'public'::text])),
+  is_temporary boolean DEFAULT false,
+  expires_at timestamp with time zone,
+  folder_path text DEFAULT '/'::text,
+  tags ARRAY DEFAULT '{}'::text[],
+  metadata jsonb DEFAULT '{}'::jsonb,
+  thumbnail_path text,
+  download_count integer DEFAULT 0,
+  last_accessed timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  automation_run_id uuid,
+  CONSTRAINT files_pkey PRIMARY KEY (id),
+  CONSTRAINT files_automation_run_id_fkey FOREIGN KEY (automation_run_id) REFERENCES public.automation_runs(id),
+  CONSTRAINT files_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.automation_runs(id),
+  CONSTRAINT files_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.automation_tasks(id),
+  CONSTRAINT files_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.forwarded_event_ids (
+  id text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT forwarded_event_ids_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.marketing_events (
+  id bigint NOT NULL DEFAULT nextval('marketing_events_id_seq'::regclass),
+  user_id text,
+  event_name text NOT NULL,
+  properties jsonb DEFAULT '{}'::jsonb,
+  utm jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT marketing_events_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.orders (
+  id integer NOT NULL DEFAULT nextval('orders_id_seq'::regclass),
+  user_id uuid NOT NULL,
+  sales numeric DEFAULT 0,
+  completed boolean DEFAULT false,
+  CONSTRAINT orders_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.payments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  customer_id uuid NOT NULL,
+  amount_cents integer NOT NULL CHECK (amount_cents >= 0),
+  currency text NOT NULL DEFAULT 'USD'::text,
+  status text NOT NULL CHECK (status = ANY (ARRAY['succeeded'::text, 'failed'::text, 'pending'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  description text,
+  CONSTRAINT payments_pkey PRIMARY KEY (id),
+  CONSTRAINT payments_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.plan_feature_labels (
+  feature_key text NOT NULL,
+  feature_label text NOT NULL,
+  CONSTRAINT plan_feature_labels_pkey PRIMARY KEY (feature_key)
+);
+CREATE TABLE public.plans (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  price_cents integer NOT NULL CHECK (price_cents >= 0),
+  billing_interval USER-DEFINED NOT NULL DEFAULT 'month'::billing_interval,
+  external_product_id text UNIQUE,
+  feature_flags jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  polar_url text,
+  description text,
+  is_most_popular boolean DEFAULT false,
+  CONSTRAINT plans_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.profiles (
+  id uuid NOT NULL,
+  email text UNIQUE,
+  full_name text,
+  avatar_url text,
+  created_at timestamp with time zone DEFAULT now(),
+  notification_preferences jsonb DEFAULT '{"sms_alerts": false, "system_alerts": true, "task_failures": true, "weekly_reports": true, "security_alerts": true, "task_completion": true, "marketing_emails": true, "push_notifications": true, "email_notifications": true}'::jsonb,
+  ui_preferences jsonb DEFAULT '{"theme": "light", "language": "en", "timezone": "UTC", "date_format": "MM/DD/YYYY", "dashboard_layout": "grid"}'::jsonb,
+  fcm_token text,
+  phone_number text,
+  plan_id text DEFAULT 'free'::text,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.profiles_int (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  email text NOT NULL UNIQUE,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT profiles_int_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.referrals (
+  id bigint NOT NULL DEFAULT nextval('referrals_id_seq'::regclass),
+  code text NOT NULL UNIQUE,
+  owner_user_id uuid,
+  redeemed_by_user_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  redeemed_at timestamp with time zone,
+  reward_granted boolean DEFAULT false,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  status text NOT NULL DEFAULT 'pending'::text,
+  referred_user_id uuid,
+  referral_code text,
+  CONSTRAINT referrals_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.step_executions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_execution_id uuid NOT NULL,
+  step_id uuid NOT NULL,
+  execution_order integer NOT NULL,
+  status text NOT NULL DEFAULT 'queued'::text CHECK (status = ANY (ARRAY['queued'::text, 'running'::text, 'completed'::text, 'failed'::text, 'skipped'::text])),
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  duration_ms integer,
+  input_data jsonb DEFAULT '{}'::jsonb,
+  output_data jsonb DEFAULT '{}'::jsonb,
+  result jsonb DEFAULT '{}'::jsonb,
+  error_message text,
+  retry_count integer DEFAULT 0,
+  automation_log_id bigint,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT step_executions_pkey PRIMARY KEY (id),
+  CONSTRAINT step_executions_workflow_execution_id_fkey FOREIGN KEY (workflow_execution_id) REFERENCES public.workflow_executions(id),
+  CONSTRAINT step_executions_step_id_fkey FOREIGN KEY (step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT step_executions_automation_log_id_fkey FOREIGN KEY (automation_log_id) REFERENCES public.automation_logs(id)
+);
+CREATE TABLE public.subscriptions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  plan_id uuid NOT NULL,
+  status text NOT NULL CHECK (status = ANY (ARRAY['active'::text, 'canceled'::text, 'past_due'::text, 'trialing'::text])),
+  external_payment_id text UNIQUE,
+  created_at timestamp with time zone DEFAULT now(),
+  started_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone,
+  CONSTRAINT subscriptions_pkey PRIMARY KEY (id),
+  CONSTRAINT subscriptions_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.plans(id),
+  CONSTRAINT subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.template_versions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  template_id uuid NOT NULL,
+  version text NOT NULL,
   changelog text,
-  config jsonb not null, -- nodes/edges/canvas_config
-  dependencies jsonb default '[]'::jsonb, -- [{name, version}]
-  screenshots text[] default '{}',
-  submitted_by uuid references auth.users(id) on delete set null,
-  reviewed_by uuid references auth.users(id) on delete set null,
+  config jsonb NOT NULL,
+  dependencies jsonb DEFAULT '[]'::jsonb,
+  screenshots ARRAY DEFAULT '{}'::text[],
+  submitted_by uuid,
+  reviewed_by uuid,
   review_notes text,
-  approved_at timestamptz,
-  created_at timestamptz not null default now()
+  approved_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  status text DEFAULT 'draft'::text CHECK (status = ANY (ARRAY['draft'::text, 'pending_review'::text, 'published'::text, 'rejected'::text, 'archived'::text])),
+  CONSTRAINT template_versions_pkey PRIMARY KEY (id),
+  CONSTRAINT template_versions_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.workflow_templates(id),
+  CONSTRAINT template_versions_submitted_by_fkey FOREIGN KEY (submitted_by) REFERENCES auth.users(id),
+  CONSTRAINT template_versions_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES auth.users(id)
 );
-
--- Installs/telemetry table
-create table if not exists public.template_installs (
-  id bigserial primary key,
-  template_id uuid not null references public.workflow_templates(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  source text default 'gallery',
-  created_at timestamptz not null default now()
+CREATE TABLE public.user_features (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  feature_name text NOT NULL,
+  enabled boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_features_pkey PRIMARY KEY (id),
+  CONSTRAINT user_features_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-
--- Indices
-create index if not exists idx_workflow_templates_public on public.workflow_templates(is_public, status);
-create index if not exists idx_workflow_templates_category on public.workflow_templates(category);
-create index if not exists idx_workflow_templates_updated_at on public.workflow_templates(updated_at desc);
-create index if not exists idx_template_versions_template on public.template_versions(template_id);
-create index if not exists idx_template_installs_template on public.template_installs(template_id);
-create index if not exists idx_template_installs_user on public.template_installs(user_id);
-
--- RLS
-alter table public.workflow_templates enable row level security;
-alter table public.template_versions enable row level security;
-alter table public.template_installs enable row level security;
-
--- Policies: templates
--- Public can read approved public templates
-create policy if not exists "templates_select_public_approved"
-  on public.workflow_templates for select to authenticated
-  using (is_public = true and status = 'approved');
-
--- Owners can read their own templates regardless of status
-create policy if not exists "templates_select_owner"
-  on public.workflow_templates for select to authenticated
-  using (owner_id = auth.uid());
-
--- Owners can insert new templates (draft)
-create policy if not exists "templates_insert_owner"
-  on public.workflow_templates for insert to authenticated
-  with check (owner_id = auth.uid());
-
--- Owners can update their templates when not approved (draft/pending/rejected)
-create policy if not exists "templates_update_owner_nonapproved"
-  on public.workflow_templates for update to authenticated
-  using (owner_id = auth.uid() and status in ('draft','pending_review','rejected'))
-  with check (owner_id = auth.uid() and status in ('draft','pending_review','rejected'));
-
--- Service role can update for moderation (approve/reject)
-create policy if not exists "templates_update_moderation_service"
-  on public.workflow_templates for update to service_role
-  using (true) with check (true);
-
--- Policies: template versions
--- Public can read versions of approved public templates
-create policy if not exists "versions_select_public"
-  on public.template_versions for select to authenticated
-  using (exists (
-    select 1 from public.workflow_templates t
-    where t.id = template_id and t.is_public = true and t.status = 'approved'
-  ) or submitted_by = auth.uid());
-
--- Owners can insert new versions for their templates
-create policy if not exists "versions_insert_owner"
-  on public.template_versions for insert to authenticated
-  with check (exists (
-    select 1 from public.workflow_templates t where t.id = template_id and t.owner_id = auth.uid()
-  ));
-
--- Service role can update versions to mark reviewed/approved
-create policy if not exists "versions_update_service"
-  on public.template_versions for update to service_role
-  using (true) with check (true);
-
--- Installs: only via RPC (no direct insert)
-create policy if not exists "installs_select_owner"
-  on public.template_installs for select to authenticated
-  using (user_id = auth.uid());
-
--- Popularity score view: combines usage_count and recent installs
-create or replace view public.workflow_templates_ranked as
-  select
-    t.*,
-    coalesce(t.usage_count,0)
-      + coalesce((select count(*) from public.template_installs i where i.template_id = t.id and i.created_at > now() - interval '30 days'),0) * 2
-      + coalesce((t.rating * 20)::int, 0) as popularity_score
-  from public.workflow_templates t
-  where (t.is_public = true and t.status = 'approved')
-     or (t.owner_id = auth.uid());
-
--- Trigger to update updated_at
-create or replace function public.set_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language plpgsql;
-
-drop trigger if exists trg_workflow_templates_updated_at on public.workflow_templates;
-create trigger trg_workflow_templates_updated_at
-before update on public.workflow_templates
-for each row execute function public.set_updated_at();
-
--- Telemetry RPC: record install and increment usage_count
-create or replace function public.record_template_install(p_template_id uuid)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_user uuid := auth.uid();
-begin
-  if v_user is null then
-    raise exception 'Authentication required';
-  end if;
-
-  insert into public.template_installs (template_id, user_id)
-  values (p_template_id, v_user)
-  on conflict do nothing;
-
-  update public.workflow_templates
-    set usage_count = coalesce(usage_count,0) + 1,
-        updated_at = now()
-  where id = p_template_id;
-end;
-$$;
-
-grant execute on function public.record_template_install(uuid) to authenticated;
+CREATE TABLE public.user_settings (
+  id bigint NOT NULL DEFAULT nextval('user_settings_id_seq'::regclass),
+  user_id uuid NOT NULL UNIQUE,
+  email_notifications boolean DEFAULT true,
+  weekly_reports boolean DEFAULT true,
+  sms_notifications boolean DEFAULT false,
+  push_notifications boolean DEFAULT true,
+  task_completion boolean DEFAULT true,
+  task_failures boolean DEFAULT true,
+  system_alerts boolean DEFAULT true,
+  marketing_emails boolean DEFAULT true,
+  security_alerts boolean DEFAULT true,
+  deal_updates boolean DEFAULT true,
+  customer_alerts boolean DEFAULT true,
+  theme text DEFAULT 'light'::text CHECK (theme = ANY (ARRAY['light'::text, 'dark'::text])),
+  dashboard_layout text DEFAULT 'grid'::text CHECK (dashboard_layout = ANY (ARRAY['grid'::text, 'list'::text])),
+  timezone text DEFAULT 'UTC'::text,
+  date_format text DEFAULT 'MM/DD/YYYY'::text,
+  language text DEFAULT 'en'::text,
+  fcm_token text,
+  phone_number text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_settings_pkey PRIMARY KEY (id),
+  CONSTRAINT user_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.user_workflow_data (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  workflow_id uuid NOT NULL,
+  data_key text NOT NULL,
+  data_value jsonb NOT NULL,
+  data_type text NOT NULL DEFAULT 'json'::text,
+  expires_at timestamp with time zone,
+  is_encrypted boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_workflow_data_pkey PRIMARY KEY (id),
+  CONSTRAINT user_workflow_data_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT user_workflow_data_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.workflow_connections (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  source_step_id uuid NOT NULL,
+  target_step_id uuid NOT NULL,
+  connection_type text NOT NULL DEFAULT 'next'::text CHECK (connection_type = ANY (ARRAY['next'::text, 'success'::text, 'error'::text, 'condition'::text])),
+  condition jsonb DEFAULT '{}'::jsonb,
+  visual_config jsonb DEFAULT '{"color": "#0066cc", "style": "solid", "animated": false}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_connections_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_connections_target_step_id_fkey FOREIGN KEY (target_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_connections_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_connections_source_step_id_fkey FOREIGN KEY (source_step_id) REFERENCES public.workflow_steps(id)
+);
+CREATE TABLE public.workflow_executions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  execution_number integer NOT NULL,
+  status text NOT NULL DEFAULT 'queued'::text CHECK (status = ANY (ARRAY['queued'::text, 'running'::text, 'completed'::text, 'failed'::text, 'cancelled'::text, 'timeout'::text])),
+  started_at timestamp with time zone DEFAULT now(),
+  completed_at timestamp with time zone,
+  duration_seconds integer,
+  input_data jsonb DEFAULT '{}'::jsonb,
+  output_data jsonb DEFAULT '{}'::jsonb,
+  error_message text,
+  error_step_id uuid,
+  triggered_by text DEFAULT 'manual'::text,
+  trigger_data jsonb DEFAULT '{}'::jsonb,
+  steps_executed integer DEFAULT 0,
+  steps_total integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_executions_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_executions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_executions_error_step_id_fkey FOREIGN KEY (error_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_executions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.workflow_schedules (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  schedule_type text NOT NULL CHECK (schedule_type = ANY (ARRAY['cron'::text, 'interval'::text, 'webhook'::text])),
+  cron_expression text,
+  timezone text DEFAULT 'UTC'::text,
+  interval_seconds integer,
+  webhook_token text UNIQUE,
+  webhook_secret text,
+  is_active boolean DEFAULT true,
+  last_triggered_at timestamp with time zone,
+  next_trigger_at timestamp with time zone,
+  max_executions integer,
+  execution_count integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_schedules_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_schedules_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT workflow_schedules_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
+);
+CREATE TABLE public.workflow_steps (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  step_key text NOT NULL,
+  name text NOT NULL,
+  description text,
+  step_type text NOT NULL,
+  position_x real NOT NULL DEFAULT 0,
+  position_y real NOT NULL DEFAULT 0,
+  action_type text,
+  config jsonb DEFAULT '{}'::jsonb,
+  parent_step_id uuid,
+  execution_order integer NOT NULL DEFAULT 0,
+  conditions jsonb DEFAULT '[]'::jsonb,
+  on_success text DEFAULT 'continue'::text,
+  on_error text DEFAULT 'retry'::text,
+  success_step_id uuid,
+  error_step_id uuid,
+  is_enabled boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_steps_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_steps_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_steps_parent_step_id_fkey FOREIGN KEY (parent_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_steps_success_step_id_fkey FOREIGN KEY (success_step_id) REFERENCES public.workflow_steps(id),
+  CONSTRAINT workflow_steps_error_step_id_fkey FOREIGN KEY (error_step_id) REFERENCES public.workflow_steps(id)
+);
+CREATE TABLE public.workflow_templates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_by uuid NOT NULL,
+  source_workflow_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  category text NOT NULL DEFAULT 'general'::text,
+  tags ARRAY,
+  template_config jsonb NOT NULL,
+  required_inputs jsonb DEFAULT '[]'::jsonb,
+  expected_outputs jsonb DEFAULT '[]'::jsonb,
+  usage_count integer DEFAULT 0,
+  rating numeric DEFAULT 0.0,
+  is_public boolean DEFAULT false,
+  is_featured boolean DEFAULT false,
+  published_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_templates_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
+  CONSTRAINT workflow_templates_source_workflow_id_fkey FOREIGN KEY (source_workflow_id) REFERENCES public.workflows(id)
+);
+CREATE TABLE public.workflow_test_results (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  scenario_id uuid NOT NULL,
+  workflow_id uuid NOT NULL,
+  status text NOT NULL CHECK (status = ANY (ARRAY['passed'::text, 'failed'::text, 'running'::text, 'cancelled'::text])),
+  execution_time integer NOT NULL DEFAULT 0,
+  step_results jsonb NOT NULL DEFAULT '[]'::jsonb,
+  actual_outputs jsonb NOT NULL DEFAULT '{}'::jsonb,
+  error_message text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT workflow_test_results_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_test_results_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id),
+  CONSTRAINT workflow_test_results_scenario_id_fkey FOREIGN KEY (scenario_id) REFERENCES public.workflow_test_scenarios(id)
+);
+CREATE TABLE public.workflow_test_scenarios (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  input_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  expected_outputs jsonb NOT NULL DEFAULT '{}'::jsonb,
+  test_steps jsonb NOT NULL DEFAULT '[]'::jsonb,
+  mock_config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT workflow_test_scenarios_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_test_scenarios_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT workflow_test_scenarios_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
+);
+CREATE TABLE public.workflow_variables (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workflow_id uuid NOT NULL,
+  variable_name text NOT NULL,
+  variable_type text NOT NULL CHECK (variable_type = ANY (ARRAY['string'::text, 'number'::text, 'boolean'::text, 'json'::text, 'secret'::text])),
+  description text,
+  default_value jsonb,
+  is_required boolean DEFAULT false,
+  is_encrypted boolean DEFAULT false,
+  validation_rules jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflow_variables_pkey PRIMARY KEY (id),
+  CONSTRAINT workflow_variables_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id)
+);
+CREATE TABLE public.workflows (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  version integer NOT NULL DEFAULT 1,
+  status text NOT NULL DEFAULT 'draft'::text CHECK (status = ANY (ARRAY['draft'::text, 'active'::text, 'paused'::text, 'archived'::text])),
+  canvas_config jsonb DEFAULT '{"edges": [], "nodes": [], "viewport": {"x": 0, "y": 0, "zoom": 1}}'::jsonb,
+  settings jsonb DEFAULT '{"retry_count": 3, "retry_delay": 5, "error_handling": "stop", "max_executions": null, "timeout_minutes": 60, "parallel_execution": false}'::jsonb,
+  total_executions integer DEFAULT 0,
+  successful_executions integer DEFAULT 0,
+  failed_executions integer DEFAULT 0,
+  last_executed_at timestamp with time zone,
+  tags ARRAY,
+  is_template boolean DEFAULT false,
+  is_public boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflows_pkey PRIMARY KEY (id),
+  CONSTRAINT workflows_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
