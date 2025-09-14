@@ -533,19 +533,19 @@ class NotificationService {
 
   // Request notification permission from user
   async requestPermission() {
-    if (!('Notification' in window)) {
-      console.warn('This browser does not support notifications');
-      return false;
-    }
-
-    if (typeof Notification === 'undefined') {
+    if (typeof window === 'undefined' || !('Notification' in window) || typeof Notification === 'undefined') {
       console.info('🔔 Notification API not available in this environment');
       return false;
     }
     let permission = Notification.permission;
     
     if (permission === 'default') {
-  permission = await Notification.requestPermission();
+      try {
+        permission = await Notification.requestPermission();
+      } catch (e) {
+        console.warn('🔔 Notification.requestPermission failed:', e?.message || e);
+        return false;
+      }
     }
     
     if (permission === 'granted') {
@@ -791,6 +791,11 @@ class NotificationService {
 
   // Show browser notification
   showBrowserNotification({ title, body, icon, data }) {
+    // Hard guards for environments without the Notification API (iOS webviews, older browsers)
+    if (typeof window === 'undefined' || typeof Notification === 'undefined' || !('Notification' in window)) {
+      return;
+    }
+
     if (Notification.permission !== 'granted') return;
 
     // Check if push notifications are enabled
@@ -805,14 +810,21 @@ class NotificationService {
       return;
     }
 
-    const notification = new Notification(title, {
-      body,
-      icon: icon || '/favicon.ico',
-      badge: '/badge-icon.png',
-      tag: data?.type || 'general',
-      requireInteraction: data?.priority === NOTIFICATION_PRIORITIES.CRITICAL,
-      silent: data?.priority === NOTIFICATION_PRIORITIES.LOW
-    });
+    let notification;
+    try {
+      notification = new Notification(title, {
+        body,
+        icon: icon || '/favicon.ico',
+        badge: '/badge-icon.png',
+        tag: data?.type || 'general',
+        requireInteraction: data?.priority === NOTIFICATION_PRIORITIES.CRITICAL,
+        silent: data?.priority === NOTIFICATION_PRIORITIES.LOW
+      });
+    } catch (err) {
+      // Some platforms expose Notification but don't allow constructing it
+      console.warn('🔔 Unable to create Notification instance:', err?.message || err);
+      return;
+    }
 
     // Handle notification click
     notification.onclick = (event) => {
