@@ -11,14 +11,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     libxrandr2 libgbm1 libgtk-3-0 libasound2 xvfb wget gnupg unzip && \
     rm -rf /var/lib/apt/lists/*
 
+# Switch to parent context copying so Dockerfile can access requirements.txt and service code
 WORKDIR /app
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt .
+COPY ../requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy automation code
-COPY . .
+# Copy automation-service directory contents into the image
+COPY ./automation-service ./
 
 # Create downloads directory
 RUN mkdir -p /tmp/downloads && chmod 777 /tmp/downloads
@@ -42,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
 # Start automation service
-CMD ["python", "automate.py"]
+CMD ["python", "production_automation_service.py"]
