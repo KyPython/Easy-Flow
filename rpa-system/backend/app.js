@@ -462,6 +462,8 @@ app.post('/api/dev/seed-sample-workflow', async (req, res) => {
     }
 
     // Minimal steps: start -> end
+    // Minimal step shape - avoid DB-specific columns like 'order_index' which may not be
+    // present in all PostgREST/migration configurations. Keep only common columns.
     const steps = [
       {
         workflow_id: wf.id,
@@ -469,8 +471,7 @@ app.post('/api/dev/seed-sample-workflow', async (req, res) => {
         step_type: 'start',
         action_type: null,
         config: {},
-        step_key: 'start',
-        order_index: 1
+        step_key: 'start'
       },
       {
         workflow_id: wf.id,
@@ -478,8 +479,7 @@ app.post('/api/dev/seed-sample-workflow', async (req, res) => {
         step_type: 'end',
         action_type: null,
         config: { success: true, message: 'Completed by dev seeder' },
-        step_key: 'end',
-        order_index: 2
+        step_key: 'end'
       }
     ];
 
@@ -559,6 +559,35 @@ try {
   });
 } catch (e) {
   console.warn('[boot] workflows execute route not mounted:', e?.message || e);
+}
+
+// Dev convenience: allow executing workflows without a bearer token in local dev
+// Enable by setting DEV_ALLOW_EXECUTE=true and DEV_USER_ID to a valid profile id
+if (process.env.NODE_ENV !== 'production' && (process.env.DEV_ALLOW_EXECUTE || '').toLowerCase() === 'true') {
+  try {
+    const { WorkflowExecutor } = require('./services/workflowExecutor');
+    app.post('/api/dev/workflows/execute', apiLimiter, async (req, res) => {
+      try {
+        const workflowId = req.body?.workflowId;
+        if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
+        const devUser = process.env.DEV_USER_ID || null;
+        if (!devUser) return res.status(400).json({ error: 'DEV_USER_ID not set in backend .env' });
+        const executor = new WorkflowExecutor();
+        const execution = await executor.startExecution({ workflowId, userId: devUser, triggeredBy: 'dev-console', inputData: req.body.inputData || {} });
+        return res.json({ execution });
+      } catch (err) {
+        const msg = err?.message || String(err);
+        if (msg.includes('Workflow not found')) return res.status(404).json({ error: msg });
+        if (msg.includes('Workflow is not active')) return res.status(409).json({ error: msg });
+        if (msg.includes('Invalid') || msg.includes('missing')) return res.status(400).json({ error: msg });
+        console.error('[dev execute] unexpected error', err);
+        return res.status(500).json({ error: 'failed', detail: msg });
+      }
+    });
+    console.log('[dev execute] /api/dev/workflows/execute available in dev');
+  } catch (e) {
+    console.warn('[dev execute] could not mount dev execute route:', e?.message || e);
+  }
 }
 
 // Use morgan for detailed, standardized request logging.
