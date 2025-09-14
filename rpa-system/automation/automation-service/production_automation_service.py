@@ -242,7 +242,8 @@ def health_check():
         'timestamp': datetime.utcnow().isoformat(),
         'worker_id': os.getenv('HOSTNAME', 'unknown'),
         'kafka_status': "healthy" if get_kafka_producer() else "unhealthy",
-        'active_threads': executor._threads if hasattr(executor, '_threads') else 0
+        # executor._threads is a set of Thread objects (not JSON serializable) — return its size
+        'active_threads': (len(executor._threads) if hasattr(executor, '_threads') and executor._threads is not None else 0)
     }
     return jsonify(status), 200
 

@@ -49,6 +49,7 @@ services:
       - ./rpa-system/backend/.env
     volumes:
       - ./rpa-system/backend:/usr/src/app
+      - backend_node_modules:/usr/src/app/node_modules
     ports:
       - '3000:3000'
     depends_on:
@@ -88,3 +89,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  backend_node_modules:
