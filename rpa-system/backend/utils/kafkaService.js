@@ -20,7 +20,8 @@ class KafkaService {
         this.consumer = null;
         this.isConnected = false;
         
-        this.brokers = process.env.KAFKA_BOOTSTRAP_SERVERS || 'kafka:9092';
+    const defaultBroker = process.env.NODE_ENV === 'development' ? 'localhost:9092' : 'kafka:9092';
+    this.brokers = process.env.KAFKA_BOOTSTRAP_SERVERS || defaultBroker;
         this.taskTopic = process.env.KAFKA_TASK_TOPIC || 'automation-tasks';
         this.resultTopic = process.env.KAFKA_RESULT_TOPIC || 'automation-results';
         this.consumerGroup = process.env.KAFKA_CONSUMER_GROUP || 'backend-service';

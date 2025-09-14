@@ -6,10 +6,11 @@ const helmet = require('helmet');
 const csrf = require('csurf');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+// Load environment variables from the backend/.env file early so modules that
+// require configuration (Firebase, Supabase, etc.) see the variables on require-time.
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { firebaseNotificationService, NotificationTemplates } = require('./utils/firebaseAdmin');
 const { getKafkaService } = require('./utils/kafkaService');
-// Load environment variables from the backend/.env file (absolute, not CWD-dependent)
-require('dotenv').config({ path: require('path').join(__dirname, '.env') });
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  const morgan = require('morgan');
@@ -92,6 +93,26 @@ const authLimiter = rateLimit({
   max: 100, // Increased for development
   message: {
     error: 'Too many authentication attempts, please try again later.'
+  }
+});
+
+// Email queue schema probe (helps debug Supabase schema issues quickly)
+app.get('/api/health/email-schema', async (_req, res) => {
+  const probe = { has_table: false, has_function: false, errors: {} };
+  try {
+    if (!supabase) throw new Error('supabase unavailable');
+    // Probe table existence
+    const { error: tableErr } = await supabase.from('email_queue').select('id').limit(1);
+    probe.has_table = !tableErr;
+    if (tableErr) probe.errors.table = tableErr.message;
+    // Probe function existence
+    const now = new Date(0).toISOString();
+    const { error: funcErr } = await supabase.rpc('claim_email_queue_item', { now_ts: now });
+    probe.has_function = !funcErr;
+    if (funcErr) probe.errors.function = funcErr.message;
+    return res.json({ ok: true, probe });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e?.message || String(e), probe });
   }
 });
 
@@ -419,6 +440,17 @@ app.get('/api/health/databases', async (_req, res) => {
       overall: { status: 'error' },
       error: error.message
     });
+  }
+});
+
+// Kafka health endpoint (no auth) to quickly verify broker connectivity and config
+app.get('/api/kafka/health', async (_req, res) => {
+  try {
+    const kafka = getKafkaService();
+    const health = await kafka.getHealth();
+    res.json({ ok: true, kafka: health });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err?.message || String(err) });
   }
 });
 
@@ -951,15 +983,34 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
       return res.status(500).json({ error: 'Failed to create automation run' });
     }
     
-    // Queue the task processing - update this to use automation_runs instead of task_runs
-    await queueTaskRun(run.id, { 
-      url, 
-      title: taskName, 
-      task_id: taskRecord.id,
-      user_id: user.id 
+    // Queue the task processing in the background to avoid request timeouts
+    // Respond immediately; background worker will update run status and send notifications
+    setImmediate(async () => {
+      try {
+        await queueTaskRun(run.id, {
+          url,
+          title: taskName,
+          task_id: taskRecord.id,
+          user_id: user.id
+        });
+      } catch (error) {
+        console.error('[run-task background] Error processing run', run.id, error?.message || error);
+        try {
+          await supabase
+            .from('automation_runs')
+            .update({
+              status: 'failed',
+              ended_at: new Date().toISOString(),
+              result: JSON.stringify({ error: 'Background processing failed', message: error?.message || String(error) })
+            })
+            .eq('id', run.id);
+        } catch (updateErr) {
+          console.error('[run-task background] Failed to mark run failed:', updateErr?.message || updateErr);
+        }
+      }
     });
-    
-    return res.status(200).json({ 
+
+    return res.status(200).json({
       id: run.id,
       status: 'queued',
       message: 'Task queued for processing'

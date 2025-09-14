@@ -10,6 +10,7 @@ let messaging = null;
 let database = null;
 
 const initializeFirebaseAdmin = () => {
+  console.log('🔍 [DEBUG] Firebase Admin initialization starting...');
   if (process.env.NODE_ENV === 'development') {
     console.log('🔍 Initializing Firebase Admin...');
   }
@@ -30,13 +31,13 @@ const initializeFirebaseAdmin = () => {
     const databaseURL = process.env.FIREBASE_DATABASE_URL;
     
     // Debug output for troubleshooting
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 Firebase initialization - environment check:');
-      console.log('  FIREBASE_PROJECT_ID:', projectId ? 'set' : 'missing');
-      console.log('  FIREBASE_CLIENT_EMAIL:', clientEmail ? 'set' : 'missing');
-      console.log('  FIREBASE_PRIVATE_KEY:', privateKey ? `set (${privateKey.length} chars)` : 'missing');
-      console.log('  FIREBASE_DATABASE_URL:', databaseURL ? 'set' : 'missing');
-    }
+    console.log('🔍 [DEBUG] Firebase environment variables check:');
+    console.log('  NODE_ENV:', process.env.NODE_ENV);
+    console.log('  FIREBASE_PROJECT_ID:', projectId ? 'set' : 'missing');
+    console.log('  FIREBASE_CLIENT_EMAIL:', clientEmail ? 'set' : 'missing'); 
+    console.log('  FIREBASE_PRIVATE_KEY:', privateKey ? `set (${privateKey.length} chars)` : 'missing');
+    console.log('  FIREBASE_DATABASE_URL:', databaseURL ? 'set' : 'missing');
+    console.log('  Condition check (projectId && clientEmail && privateKey):', !!(projectId && clientEmail && privateKey));
 
     // Check if service account key file exists
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 
@@ -99,8 +100,10 @@ const initializeFirebaseAdmin = () => {
   }
 };
 
-// Initialize Firebase Admin
-const { app: firebaseAdminApp, messaging: firebaseMessaging, database: firebaseDatabase } = initializeFirebaseAdmin();
+// Firebase instances - will be initialized lazily
+let firebaseAdminApp = null;
+let firebaseMessaging = null;
+let firebaseDatabase = null;
 
 // Notification service class
 class FirebaseNotificationService {
@@ -110,8 +113,32 @@ class FirebaseNotificationService {
     this.isConfigured = !!firebaseMessaging && !!firebaseDatabase;
   }
 
+  // Ensure Firebase Admin is initialized lazily (call after dotenv has loaded)
+  async ensureInitialized() {
+    if (firebaseAdminApp && firebaseMessaging && firebaseDatabase) {
+      // already initialized
+      this.messaging = firebaseMessaging;
+      this.database = firebaseDatabase;
+      this.isConfigured = !!this.messaging && !!this.database;
+      return;
+    }
+
+    const { app, messaging: msg, database: db } = initializeFirebaseAdmin() || {};
+    firebaseAdminApp = app || null;
+    firebaseMessaging = msg || null;
+    firebaseDatabase = db || null;
+
+    this.messaging = firebaseMessaging;
+    this.database = firebaseDatabase;
+    this.isConfigured = !!this.messaging && !!this.database;
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [DEBUG] Firebase lazy initialization complete; configured=', this.isConfigured);
+    }
+  }
+
   // Send push notification to a specific user
   async sendNotificationToUser(userId, notification) {
+    await this.ensureInitialized();
     if (!this.isConfigured) {
       console.warn('🔥 Firebase not configured - notification not sent');
       return { success: false, error: 'Firebase not configured' };
@@ -120,10 +147,12 @@ class FirebaseNotificationService {
     try {
       // Get user's FCM token from Supabase
       const { createClient } = require('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE
-      );
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+      if (!process.env.SUPABASE_URL || !supabaseKey) {
+        console.warn('🔥 Supabase not configured for notification lookups');
+        return { success: false, error: 'Supabase not configured' };
+      }
+      const supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
 
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -174,6 +203,7 @@ class FirebaseNotificationService {
 
   // Send notification to multiple users
   async sendNotificationToUsers(userIds, notification) {
+    await this.ensureInitialized();
     if (!this.isConfigured) {
       console.warn('🔥 Firebase not configured - notifications not sent');
       return { success: false, error: 'Firebase not configured' };
@@ -198,6 +228,7 @@ class FirebaseNotificationService {
 
   // Optimized batch notification system
   async sendBatchNotifications(notifications) {
+    await this.ensureInitialized();
     if (!this.isConfigured) {
       console.warn('🔥 Firebase not configured - batch notifications not sent');
       return { success: false, error: 'Firebase not configured' };
@@ -269,6 +300,7 @@ class FirebaseNotificationService {
 
   // Store notification in real-time database
   async storeNotification(userId, notification) {
+    await this.ensureInitialized();
     if (!this.database) {
       console.warn('🔥 Firebase database not configured');
       return { success: false, error: 'Database not configured' };
@@ -316,6 +348,7 @@ class FirebaseNotificationService {
 
   // Send both push notification and store in database
   async sendAndStoreNotification(userId, notification) {
+    await this.ensureInitialized();
     const [pushResult, storeResult] = await Promise.allSettled([
       this.sendNotificationToUser(userId, notification),
       this.storeNotification(userId, notification)
@@ -341,10 +374,12 @@ class FirebaseNotificationService {
       
       // Get user email from Supabase
       const { createClient } = require('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE
-      );
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+      if (!process.env.SUPABASE_URL || !supabaseKey) {
+        console.warn('🔥 Supabase not configured for critical email fallback');
+        return;
+      }
+      const supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -381,10 +416,12 @@ class FirebaseNotificationService {
     if (!userIds) {
       // If no specific users, get all users with FCM tokens
       const { createClient } = require('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE
-      );
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+      if (!process.env.SUPABASE_URL || !supabaseKey) {
+        console.warn('🔥 Supabase not configured for system notifications');
+        return { success: false, error: 'Supabase not configured' };
+      }
+      const supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
 
       const { data: profiles } = await supabase
         .from('profiles')
@@ -420,7 +457,8 @@ class FirebaseNotificationService {
 
   // Get detailed health status
   async getHealthStatus() {
-    const status = this.getStatus();
+  await this.ensureInitialized();
+  const status = this.getStatus();
     
     // Test Firebase connection
     let databaseHealth = false;
@@ -458,6 +496,7 @@ class FirebaseNotificationService {
 
   // Generate Firebase custom token for Supabase user
   async generateCustomToken(supabaseUserId, additionalClaims = {}) {
+    await this.ensureInitialized();
     if (!firebaseAdminApp) {
       console.warn('🔥 Firebase Admin not configured - cannot generate custom token');
       return { success: false, error: 'Firebase Admin not configured' };
@@ -497,6 +536,7 @@ class FirebaseNotificationService {
 
   // Verify Firebase custom token (useful for testing)
   async verifyCustomToken(idToken) {
+    await this.ensureInitialized();
     if (!firebaseAdminApp) {
       console.warn('🔥 Firebase Admin not configured - cannot verify token');
       return { success: false, error: 'Firebase Admin not configured' };
@@ -526,6 +566,7 @@ class FirebaseNotificationService {
 
   // Create Firebase user record for Supabase user (if needed for advanced features)
   async createFirebaseUser(supabaseUserId, userProfile = {}) {
+    await this.ensureInitialized();
     if (!firebaseAdminApp) {
       console.warn('🔥 Firebase Admin not configured - cannot create user');
       return { success: false, error: 'Firebase Admin not configured' };
@@ -577,6 +618,7 @@ class FirebaseNotificationService {
 
   // Set custom claims for a Firebase user (useful for role-based access)
   async setUserClaims(supabaseUserId, claims) {
+    await this.ensureInitialized();
     if (!firebaseAdminApp) {
       console.warn('🔥 Firebase Admin not configured - cannot set claims');
       return { success: false, error: 'Firebase Admin not configured' };
