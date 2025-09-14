@@ -10,9 +10,16 @@ let messaging = null;
 let database = null;
 
 const initializeFirebaseAdmin = () => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔍 Initializing Firebase Admin...');
+  }
+  
   try {
     // Check if Firebase is already initialized
     if (firebaseApp) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔍 Firebase already initialized, returning existing instance');
+      }
       return { app: firebaseApp, messaging, database };
     }
 
@@ -21,6 +28,15 @@ const initializeFirebaseAdmin = () => {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
     const databaseURL = process.env.FIREBASE_DATABASE_URL;
+    
+    // Debug output for troubleshooting
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Firebase initialization - environment check:');
+      console.log('  FIREBASE_PROJECT_ID:', projectId ? 'set' : 'missing');
+      console.log('  FIREBASE_CLIENT_EMAIL:', clientEmail ? 'set' : 'missing');
+      console.log('  FIREBASE_PRIVATE_KEY:', privateKey ? `set (${privateKey.length} chars)` : 'missing');
+      console.log('  FIREBASE_DATABASE_URL:', databaseURL ? 'set' : 'missing');
+    }
 
     // Check if service account key file exists
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 
@@ -37,13 +53,26 @@ const initializeFirebaseAdmin = () => {
         throw new Error('Service account file not found');
       }
     } catch (fileError) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔍 Firebase environment variables check:');
+        console.log('  FIREBASE_PROJECT_ID:', projectId ? 'set' : 'missing');
+        console.log('  FIREBASE_CLIENT_EMAIL:', clientEmail ? 'set' : 'missing');
+        console.log('  FIREBASE_PRIVATE_KEY:', privateKey ? `set (${privateKey.length} chars)` : 'missing');
+        console.log('  FIREBASE_DATABASE_URL:', databaseURL ? 'set' : 'missing');
+      }
+      
       if (projectId && clientEmail && privateKey) {
-        credential = admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey
-        });
-        if (process.env.NODE_ENV === 'development') console.log('🔥 Using Firebase environment variables');
+        try {
+          credential = admin.credential.cert({
+            projectId,
+            clientEmail,
+            privateKey
+          });
+          if (process.env.NODE_ENV === 'development') console.log('🔥 Using Firebase environment variables');
+        } catch (credentialError) {
+          console.error('🔥 Failed to create Firebase credential:', credentialError.message);
+          return { app: null, messaging: null, database: null };
+        }
       } else {
         console.warn('🔥 Firebase Admin not configured - notifications will be disabled');
         console.warn('Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, and FIREBASE_DATABASE_URL');
