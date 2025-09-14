@@ -6,6 +6,7 @@ import {
   database, 
   auth,
   isFirebaseConfigured,
+  isMessagingConfigured,
   NOTIFICATION_TYPES,
   NOTIFICATION_PRIORITIES 
 } from './firebaseConfig';
@@ -40,7 +41,7 @@ class NotificationService {
   // Check if notifications are supported
   checkSupport() {
     return (
-      isFirebaseConfigured &&
+  isFirebaseConfigured && isMessagingConfigured &&
       typeof window !== 'undefined' &&
       'Notification' in window &&
       'serviceWorker' in navigator &&
@@ -465,8 +466,23 @@ class NotificationService {
     }
 
     try {
+      // Ensure the messaging SW is registered before requesting a token
+      // Note: CRA serves public/* at the root, so this path is correct in dev/prod
+      let swReg = null;
+      try {
+        swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        await navigator.serviceWorker.ready;
+        console.log('🔔 Messaging service worker ready');
+      } catch (swErr) {
+        console.warn('🔔 Unable to register messaging service worker:', swErr?.message || swErr);
+      }
+
+      const runtimeEnv = (typeof window !== 'undefined' && window._env) ? window._env : {};
+      const vapidKey = runtimeEnv.REACT_APP_FIREBASE_VAPID_KEY || process.env.REACT_APP_FIREBASE_VAPID_KEY;
+
       const token = await getToken(messaging, {
-        vapidKey: process.env.REACT_APP_FIREBASE_VAPID_KEY
+        vapidKey,
+        serviceWorkerRegistration: swReg || undefined
       });
       
       this.fcmToken = token;

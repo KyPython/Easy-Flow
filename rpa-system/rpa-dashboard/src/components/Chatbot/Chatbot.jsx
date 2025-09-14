@@ -46,6 +46,17 @@ const Chatbot = () => {
           const injected = document.querySelector('#uchat-widget');
             if (!injected) {
               console.warn('[Chatbot] Script loaded but widget DOM not found. Possible domain mismatch or CSP frame restriction.');
+            } else {
+              // If iframe exists, ensure it does not request fullscreen permission to avoid policy violations
+              const iframe = injected.querySelector('iframe');
+              if (iframe) {
+                // Remove legacy attributes the widget might add
+                iframe.removeAttribute('allowfullscreen');
+                // Provide a safe allow list without fullscreen
+                const current = iframe.getAttribute('allow') || '';
+                const perms = ['microphone', 'camera', 'geolocation', 'clipboard-read', 'clipboard-write'];
+                iframe.setAttribute('allow', Array.from(new Set(current.split(';').map(s=>s.trim()).filter(Boolean).concat(perms))).join('; '));
+              }
             }
         }, 1500);
       };
