@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import ReactGA from 'react-ga4';
 import useAnalytics from './hooks/useAnalytics';
 import Header from './components/Header/Header';
@@ -52,6 +52,13 @@ Protected.propTypes = {
   children: PropTypes.node.isRequired,
 };
 
+// Local redirect component to avoid duplicating WorkflowPage mounts
+function WorkflowIdRedirect() {
+  const { workflowId, '*': rest } = useParams();
+  const suffix = rest ? `/${rest}` : '';
+  return <Navigate to={`/app/workflows/builder/${workflowId}${suffix}`} replace />;
+}
+
 function Shell() {
   const { user } = useAuth();
   return (
@@ -76,8 +83,9 @@ function Shell() {
           <Route path="/app/workflows/builder" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/builder/templates" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/builder/schedules" element={<Protected><WorkflowPage /></Protected>} />
-          <Route path="/app/workflows/builder/executions" element={<Protected><WorkflowPage /></Protected>} />
-          <Route path="/app/workflows/builder/testing" element={<Protected><WorkflowPage /></Protected>} />
+          
+          {/* Redirect legacy /app/workflows/:workflowId/* to canonical builder path to avoid double mounts */}
+          <Route path="/app/workflows/:workflowId/*" element={<WorkflowIdRedirect />} />
           <Route path="/app/workflows/builder/:workflowId" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/builder/:workflowId/templates" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/builder/:workflowId/schedules" element={<Protected><WorkflowPage /></Protected>} />
@@ -89,7 +97,6 @@ function Shell() {
           <Route path="/app/workflows/testing" element={<Protected><WorkflowPage /></Protected>} />
           {/* Minimal Admin route (protect via env secret at backend) */}
           <Route path="/app/admin/templates" element={<Protected><AdminTemplates /></Protected>} />
-          <Route path="/app/workflows/:workflowId/*" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
