@@ -64,7 +64,8 @@ const AdminTemplates = () => {
       <div className={styles.header}>
         <h2>Template Moderation</h2>
         <div className={styles.controls}>
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <label htmlFor="admin-status-filter" style={{display:'none'}}>Status</label>
+          <select id="admin-status-filter" name="status" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="pending_review">Pending Review</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>

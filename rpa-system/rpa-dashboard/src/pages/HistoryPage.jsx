@@ -126,8 +126,26 @@ const HistoryPage = () => {
             <h3>{t('history.edit_task','Edit Task')}</h3>
             <form onSubmit={handleEditSubmit}>
               {editError && <p className={styles.formError}>{editError}</p>}
-              <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className={styles.input} required />
-              <input type="url" value={editUrl} onChange={e => setEditUrl(e.target.value)} className={styles.input} required />
+              <input
+                id="edit-task-name"
+                name="task_name"
+                type="text"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                className={styles.input}
+                required
+                autoComplete="off"
+              />
+              <input
+                id="edit-task-url"
+                name="task_url"
+                type="url"
+                value={editUrl}
+                onChange={e => setEditUrl(e.target.value)}
+                className={styles.input}
+                required
+                autoComplete="url"
+              />
               <button type="submit" className={styles.submitButton}>{t('action.save','Save')}</button>
               <button type="button" className={styles.cancelButton} onClick={() => setEditingTask(null)}>{t('action.cancel','Cancel')}</button>
             </form>

@@ -147,12 +147,30 @@ export default function AuthPage() {
         <form onSubmit={onSubmit} className={styles.form}>
           <div className={styles.formGrid}>
             <div className={styles.formGroup}>
-              <label className={styles.label}>{t('auth.email','Email')}</label>
-              <input className={styles.input} type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+              <label className={styles.label} htmlFor="auth-email">{t('auth.email','Email')}</label>
+              <input
+                id="auth-email"
+                name="email"
+                className={styles.input}
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+              />
             </div>
             <div className={styles.formGroup}>
-              <label className={styles.label}>{t('auth.password','Password')}</label>
-              <input className={styles.input} type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+              <label className={styles.label} htmlFor="auth-password">{t('auth.password','Password')}</label>
+              <input
+                id="auth-password"
+                name="password"
+                className={styles.input}
+                type="password"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+              />
             </div>
           </div>
     {error && (
