@@ -9,9 +9,9 @@ services:
       set -e
       echo "[build] entering rpa-system"
       cd rpa-system
-      if [ -f package-lock.json ]; then
+      if [ -f package.json ] && [ -f package-lock.json ]; then
         echo "[build] running npm ci"
-        npm ci || { echo "[build] npm ci failed; falling back to npm install"; (test -f package.json || cd rpa-system); npm install; }
+        npm ci || { echo "[build] npm ci failed; falling back to npm install"; npm install; }
       else
         echo "[build] running npm install" && npm install
       fi
@@ -21,7 +21,7 @@ services:
       echo "[build] installing python automation deps"
       cd automation
       python3 -m pip install -r requirements.txt --no-cache-dir || true
-    startCommand: cd rpa-system && node backend/index.js
+  startCommand: cd rpa-system && node backend/server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
