@@ -212,6 +212,9 @@ const WorkflowBuilder = () => {
   };
 
   const navigationItems = getNavigationItems(workflowId || currentWorkflow?.id);
+  const isActive = (currentWorkflow?.status === 'active');
+  const hasWorkflowId = Boolean(workflowId || currentWorkflow?.id);
+  const canClickRun = hasWorkflowId && isActive; // plan gating still enforced in handler
 
   // Show loading state while workflow is loading
   if (workflowId && workflowLoading) {
@@ -306,6 +309,11 @@ const WorkflowBuilder = () => {
               <button
                 className={`${styles.actionButton} ${styles.executeButton}`}
                 onClick={handleExecuteWorkflow}
+                disabled={!canClickRun}
+                aria-disabled={!canClickRun}
+                title={!hasWorkflowId
+                  ? 'Save the workflow before running'
+                  : (!isActive ? 'Activate the workflow (status = active) to run' : 'Run this workflow')}
               >
                 <FaPlay /> Run
               </button>
