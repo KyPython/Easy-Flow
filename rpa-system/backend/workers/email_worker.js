@@ -15,7 +15,7 @@ let supa; // lazy client
 function getSupabase() {
   if (supa) return supa;
   const { SUPABASE_URL } = process.env;
-  const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
   if (!SUPABASE_URL || !key) {
     console.warn('[email_worker] Supabase not configured; worker will be idle.');
     return null;
@@ -66,6 +66,7 @@ async function processOne() {
       // Fallback: select then update (less safe)
       console.warn('[email_worker] rpc claim failed, falling back to simple select', fetchErr && (fetchErr.message || JSON.stringify(fetchErr)));
       const client = getSupabase();
+      if (!client) return false;
       const { data: selectData, error: selectError } = await client
         .from('email_queue')
         .select('*')
@@ -81,7 +82,7 @@ async function processOne() {
       const itemToClaim = selectData[0];
 
       // Try to claim the item by updating its status.
-      const { data: updatedData, error: updateError } = await client
+  const { data: updatedData, error: updateError } = await client
         .from('email_queue')
         .update({ status: 'sending', attempts: (itemToClaim.attempts || 0) + 1 })
         .eq('id', itemToClaim.id)
@@ -140,6 +141,7 @@ async function handleItem(item) {
 
     if (sent) {
       const client = getSupabase();
+      if (!client) return true; // treat as sent for dev mode when DB is unavailable
       const { data: sentData, error: sentErr } = await client
         .from('email_queue')
         .update({ status: 'sent', attempts: item.attempts || 0, last_error: null })
@@ -159,6 +161,7 @@ async function handleItem(item) {
       const last_error = 'send failed';
       const status = attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
       const client = getSupabase();
+      if (!client) return false;
       const { data: failData, error: failErr } = await client
         .from('email_queue')
         .update({ attempts, last_error, status })

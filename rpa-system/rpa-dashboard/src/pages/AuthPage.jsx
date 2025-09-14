@@ -115,19 +115,34 @@ export default function AuthPage() {
           try { triggerCampaign({ email, reason: 'signup' }); } catch (e) { console.debug('triggerCampaign failed', e); }
       }
     } catch (err) {
+      console.error('Authentication error:', err);
       const msg = typeof err?.message === 'string' ? err.message : 'Authentication failed';
       const status = err?.status;
       const lower = msg.toLowerCase();
+      
       if (status === 429) {
-  setError('Too many attempts. Please wait a minute and try again.');
+        setError('Too many attempts. Please wait a minute and try again.');
       } else if (lower.includes('email not confirmed')) {
-  setError('Email not confirmed. Please check your inbox for the confirmation link.');
+        setError('Email not confirmed. Please check your inbox for the confirmation link.');
       } else if (lower.includes('user already registered')) {
-  setError('This email is already registered. Try signing in or reset your password.');
+        setError('This email is already registered. Try signing in or reset your password.');
+      } else if (lower.includes('invalid login credentials')) {
+        setError('Invalid email or password. Please double-check your credentials and try again.');
+      } else if (lower.includes('invalid email or password')) {
+        setError('Invalid email or password. Please double-check your credentials and try again.');
+      } else if (lower.includes('user not found')) {
+        setError('No account found with this email address. Please check your email or sign up for a new account.');
+      } else if (lower.includes('wrong password') || lower.includes('incorrect password')) {
+        setError('Incorrect password. Please try again or use "Forgot password?" to reset it.');
       } else if (status === 400) {
-  setError('Invalid email or password. If signing up, try a different email.');
+        setError('Invalid email or password. Please double-check your credentials and try again.');
+      } else if (status === 401) {
+        setError('Authentication failed. Please check your email and password.');
+      } else if (status === 422) {
+        setError('Invalid email format. Please enter a valid email address.');
       } else {
-        setError(msg);
+        // Fallback to a user-friendly message instead of technical error
+        setError('Unable to sign in. Please check your credentials and try again.');
       }
     } finally {
       setLoading(false);
@@ -155,7 +170,11 @@ export default function AuthPage() {
                 type="email"
                 autoComplete="email"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={e => {
+                  setEmail(e.target.value);
+                  // Clear error when user starts typing
+                  if (error) setError('');
+                }}
                 required
               />
             </div>
@@ -168,7 +187,11 @@ export default function AuthPage() {
                 type="password"
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={e => {
+                  setPassword(e.target.value);
+                  // Clear error when user starts typing
+                  if (error) setError('');
+                }}
                 required
               />
             </div>
@@ -220,7 +243,12 @@ export default function AuthPage() {
             <button
               type="button"
               className={styles.secondaryButton}
-              onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+              onClick={() => {
+                setMode(mode === 'login' ? 'signup' : 'login');
+                // Clear error and success messages when switching modes
+                setError('');
+                setSuccess('');
+              }}
             >
               {mode === 'login' ? t('auth.need_account','Need an account? Sign Up') : t('auth.have_account','Have an account? Sign In')}
             </button>

@@ -11,8 +11,11 @@
       content="EasyFlow - Streamline your workflow automation"
     />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+  <!-- Runtime environment injection: provides window._env (e.g., REACT_APP_SUPABASE_URL) -->
+  <script src="%PUBLIC_URL%/env.js" defer onerror="console.warn('env.js not found; falling back to defaults'); window._env = window._env || {};"></script>
+  <script>window._env = window._env || {};</script>
     
-    <!-- Google tag (gtag.js) for domain-specific tracking -->
+  <!-- Google tag (gtag.js) for domain-specific tracking -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-QGYCGQFC6D"></script>
     <script>
       window.dataLayer = window.dataLayer || [];

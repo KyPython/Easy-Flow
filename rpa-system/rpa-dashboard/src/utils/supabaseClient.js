@@ -1,32 +1,61 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Prefer runtime-provided values (window._env) when available. This allows the
-// deployed build to pick up keys from /env.js served by the webserver without
-// rebuilding the bundle.
+// Prefer runtime-provided values (window._env) when available.
 const runtimeEnv = (typeof window !== 'undefined' && window._env) ? window._env : {};
 const supabaseUrl = runtimeEnv.REACT_APP_SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
 const supabaseAnonKey = runtimeEnv.REACT_APP_SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey || supabaseAnonKey.includes('...')) {
-	// Don't throw here to allow runtime injection via /env.js in production.
-	// Log a clear warning so CI/builds still surface the missing config.
-	// If you prefer strict build-time failure, revert this to an exception.
-	// During development you can set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY in .env.local.
-	 
-	console.warn('[Supabase] Missing or placeholder env vars at build time. Expecting runtime window._env to provide them.');
+function createStubSupabase() {
+  const noop = async () => ({ data: null, error: new Error('Supabase not configured') });
+  const from = () => ({
+    select: noop,
+    insert: noop,
+    update: noop,
+    upsert: noop,
+    delete: noop,
+    eq: () => ({ select: noop, update: noop, delete: noop })
+  });
+  return {
+    from,
+    auth: {
+      getUser: async () => ({ data: { user: null }, error: new Error('Supabase not configured') }),
+  getSession: async () => ({ data: { session: null }, error: new Error('Supabase not configured') }),
+  signInWithPassword: async () => ({ data: { user: null, session: null }, error: new Error('Supabase not configured') }),
+  signUp: async () => ({ data: { user: null, session: null }, error: new Error('Supabase not configured') }),
+  resetPasswordForEmail: async () => ({ data: null, error: new Error('Supabase not configured') }),
+  updateUser: async () => ({ data: null, error: new Error('Supabase not configured') }),
+  resend: async () => ({ data: null, error: new Error('Supabase not configured') }),
+      signInWithOtp: noop,
+      signOut: noop,
+      onAuthStateChange: (cb) => {
+        // Immediately invoke with a null session to keep app flows happy
+        try { cb && cb('SIGNED_OUT', null); } catch (_) {}
+        return { data: { subscription: { unsubscribe() {} } } };
+      }
+    }
+  };
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
-	auth: {
-		autoRefreshToken: true,
-		persistSession: true,
-		detectSessionInUrl: true
-	}
-});
+let supabase;
+if (supabaseUrl && supabaseAnonKey && !supabaseAnonKey.includes('...')) {
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    }
+  });
+} else {
+  // Do not throw during development; allow runtime env to load
+  console.warn('[Supabase] Missing REACT_APP_SUPABASE_URL/ANON_KEY. Using stub until runtime env is provided.');
+  supabase = createStubSupabase();
+}
 
-// Expose globally for diagnostics (read-only) similar to _api
+export { supabase };
+
+// Expose globally for diagnostics (read-only)
 if (typeof window !== 'undefined' && !window._supabase) {
-	Object.defineProperty(window, '_supabase', { value: supabase, writable: false, configurable: false });
-	// eslint-disable-next-line no-console
-	console.info('[supabase] client exposed globally as window._supabase');
+  Object.defineProperty(window, '_supabase', { value: supabase, writable: false, configurable: false });
+  // eslint-disable-next-line no-console
+  console.info('[supabase] client exposed globally as window._supabase');
 }
