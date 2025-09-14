@@ -200,7 +200,18 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                   </a>
                 </td>
                 <td>
-                  <StatusBadge status={task.status} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <StatusBadge status={task.status} />
+                    {(() => {
+                      try {
+                        const r = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
+                        if (r?.simulated || r?.mode === 'embedded') {
+                          return <span style={{ fontSize: 12, padding: '2px 6px', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-muted)' }}>Simulated</span>;
+                        }
+                      } catch (_) {}
+                      return null;
+                    })()}
+                  </div>
                 </td>
                 <td>
                   {task.artifact_url ? (

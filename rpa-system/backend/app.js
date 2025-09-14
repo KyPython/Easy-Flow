@@ -755,6 +755,7 @@ async function queueTaskRun(runId, taskData) {
     
     // Get the automation worker URL from environment or use default
   const automationUrl = process.env.AUTOMATION_URL || 'internal:embedded';
+    const isEmbedded = automationUrl === 'internal:embedded';
     
     // Prepare the payload for the automation worker
     const payload = { 
@@ -772,9 +773,9 @@ async function queueTaskRun(runId, taskData) {
       let automationResult;
       let response = null;
       
-      if (automationUrl === 'internal:embedded') {
+      if (isEmbedded) {
         // Placeholder synchronous stub; replace with real python invocation via child_process if needed
-        automationResult = { message: 'Embedded automation stub executed', url: taskData.url };
+        automationResult = { message: 'Simulated automation run (embedded mode)', url: taskData.url };
         console.log(`[queueTaskRun] Using embedded automation mode - task simulated successfully`);
       } else {
         // Ensure URL has protocol
@@ -797,19 +798,20 @@ async function queueTaskRun(runId, taskData) {
       }
       
       // Update the run with the result
-      await supabase
+    await supabase
         .from('automation_runs')
         .update({
           status: 'completed',
           ended_at: new Date().toISOString(),
-          result: automationResult
+      result: isEmbedded ? { ...automationResult, mode: 'embedded', simulated: true } : automationResult
         })
         .eq('id', runId);
 
       // Send notification for task completion
       try {
         const taskName = taskData.title || 'Automation Task';
-        const notification = NotificationTemplates.taskCompleted(taskName);
+        const note = isEmbedded ? ' [SIMULATED]' : '';
+        const notification = NotificationTemplates.taskCompleted(`${taskName}${note}`);
         await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
         console.log(`🔔 Task completion notification sent to user ${taskData.user_id}`);
       } catch (notificationError) {
@@ -821,7 +823,7 @@ async function queueTaskRun(runId, taskData) {
       console.error(`[queueTaskRun] Automation service error:`, error.message);
       
       // Update the run with the error
-      await supabase
+  await supabase
         .from('automation_runs')
         .update({
           status: 'failed',
@@ -996,7 +998,7 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
       return res.status(500).json({ error: 'Failed to create automation run' });
     }
     
-    // Queue the task processing in the background to avoid request timeouts
+  // Queue the task processing in the background to avoid request timeouts
     // Respond immediately; background worker will update run status and send notifications
     setImmediate(async () => {
       try {
@@ -1023,15 +1025,36 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
       }
     });
 
+    // Surface mode information to the client so UX can clarify simulation vs real processing
+    const automationUrl = process.env.AUTOMATION_URL || 'internal:embedded';
+    const isEmbedded = automationUrl === 'internal:embedded';
     return res.status(200).json({
       id: run.id,
       status: 'queued',
-      message: 'Task queued for processing'
+      message: 'Task queued for processing',
+      mode: isEmbedded ? 'embedded' : 'external',
+      target: isEmbedded ? null : automationUrl
     });
     
   } catch (error) {
     console.error('[run-task] Unhandled error:', error.message || error);
     return res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+// Automation health/config endpoint for quick diagnostics
+app.get('/api/health/automation', async (_req, res) => {
+  const automationUrl = process.env.AUTOMATION_URL || 'internal:embedded';
+  const isEmbedded = automationUrl === 'internal:embedded';
+  const info = { mode: isEmbedded ? 'embedded' : 'external', target: isEmbedded ? null : automationUrl };
+  if (isEmbedded) return res.json({ ok: true, ...info });
+  try {
+    // try optional health probe on external worker
+    const url = (automationUrl.startsWith('http') ? automationUrl : `http://${automationUrl}`).replace(/\/$/, '') + '/health';
+    const { data } = await axios.get(url, { timeout: 3000 });
+    return res.json({ ok: true, ...info, worker: data });
+  } catch (e) {
+    return res.status(200).json({ ok: false, ...info, error: e?.message || String(e) });
   }
 });
 

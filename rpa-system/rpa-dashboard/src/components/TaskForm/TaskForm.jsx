@@ -79,7 +79,14 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     onTaskSubmit?.(completedTask);
 
     setForm({ url: '', username: '', password: '', task: 'invoice_download', pdf_url: '' });
-    showSuccess('Task queued for processing');
+    if (completedTask?.mode === 'embedded') {
+      showSuccess('Task queued (simulation mode). Configure AUTOMATION_URL to run for real.');
+    } else if (completedTask?.mode === 'external') {
+      const t = completedTask?.target ? ` → ${completedTask.target}` : '';
+      showSuccess(`Task queued and dispatched${t}`);
+    } else {
+      showSuccess('Task queued for processing');
+    }
   } catch (error) {
     console.error('Task submission failed:', error);
     

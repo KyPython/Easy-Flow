@@ -45,7 +45,7 @@ class NotificationService {
     return (
   isFirebaseConfigured && isMessagingConfigured &&
       typeof window !== 'undefined' &&
-      'Notification' in window &&
+  typeof Notification !== 'undefined' && 'Notification' in window &&
       'serviceWorker' in navigator &&
       messaging !== null
     );
@@ -538,10 +538,14 @@ class NotificationService {
       return false;
     }
 
+    if (typeof Notification === 'undefined') {
+      console.info('🔔 Notification API not available in this environment');
+      return false;
+    }
     let permission = Notification.permission;
     
     if (permission === 'default') {
-      permission = await Notification.requestPermission();
+  permission = await Notification.requestPermission();
     }
     
     if (permission === 'granted') {

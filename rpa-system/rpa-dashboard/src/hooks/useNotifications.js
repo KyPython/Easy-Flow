@@ -59,7 +59,8 @@ export const useNotifications = (user) => {
         console.log('🔔 NotificationService already initialized for user:', user.id);
         if (mounted) {
           setIsInitialized(true);
-          setHasPermission(Notification.permission === 'granted');
+          const perm = typeof Notification !== 'undefined' ? Notification.permission === 'granted' : false;
+          setHasPermission(perm);
           setStatus(notificationService.getStatus());
           setAuthReady(true);
         }
@@ -84,7 +85,8 @@ export const useNotifications = (user) => {
           
           if (mounted) {
             setIsInitialized(success);
-            setHasPermission(Notification.permission === 'granted');
+            const perm = typeof Notification !== 'undefined' ? Notification.permission === 'granted' : false;
+            setHasPermission(perm);
             setStatus(notificationService.getStatus());
             
             if (success) {
@@ -274,7 +276,8 @@ export const useNotifications = (user) => {
   const enablePush = useCallback(async () => {
     const ok = await notificationService.enablePush();
     setStatus(notificationService.getStatus());
-    setHasPermission(Notification.permission === 'granted');
+  const perm = typeof Notification !== 'undefined' ? Notification.permission === 'granted' : false;
+  setHasPermission(perm);
     return ok;
   }, []);
 
