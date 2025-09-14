@@ -99,12 +99,13 @@ services:
     region: oregon
     plan: starter
     autoDeploy: false
-    dockerImage: redpandadata/redpanda:latest
-    dockerCommand: >-
-      redpanda start --smp 1 --memory 1024M --overprovisioned --node-id 0 \
-      --kafka-addr 0.0.0.0:9092 \
-      --advertise-kafka-addr easyflow-kafka:9092 \
-      --check=false
+    docker:
+      image: redpandadata/redpanda:latest
+      command: >-
+        redpanda start --smp 1 --memory 1024M --overprovisioned --node-id 0
+        --kafka-addr 0.0.0.0:9092
+        --advertise-kafka-addr easyflow-kafka:9092
+        --check=false
     disk:
       name: kafka-data
       mountPath: /var/lib/redpanda/data

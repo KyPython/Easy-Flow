@@ -49,7 +49,9 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
   const { workflow, updateWorkflow, saveWorkflow } = useWorkflow(workflowId);
 
   // Use stable module-level types to avoid React Flow warnings about changing objects
-
+  // Memoize node/edge types to ensure stable identity across renders
+  const memoizedNodeTypes = useMemo(() => NODE_TYPES, []);
+  const memoizedEdgeTypes = useMemo(() => EDGE_TYPES, []);
   // Load workflow data
   useEffect(() => {
     if (workflow && workflow.canvas_config) {
@@ -289,8 +291,8 @@ const WorkflowCanvas = ({ workflowId, isReadOnly = false }) => {
         onConnect={onConnect}
         onNodeClick={onNodeClick}
         onNodeDragStop={onNodeDragStop}
-        nodeTypes={NODE_TYPES}
-        edgeTypes={EDGE_TYPES}
+  nodeTypes={memoizedNodeTypes}
+  edgeTypes={memoizedEdgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
   proOptions={PRO_OPTIONS}
         fitView
