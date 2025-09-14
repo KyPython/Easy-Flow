@@ -21,7 +21,7 @@ services:
       echo "[build] installing python automation deps"
       cd automation
       python3 -m pip install -r requirements.txt --no-cache-dir || true
-  startCommand: cd rpa-system && node backend/server.js
+    startCommand: cd rpa-system && node backend/server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
