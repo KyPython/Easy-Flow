@@ -7,6 +7,8 @@ on:
 jobs:
   enqueue:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Call enqueue-welcome endpoint
         env:

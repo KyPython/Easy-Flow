@@ -2,19 +2,19 @@ name: QA — Nightly Full Test Suite
 
 on:
   schedule:
-    - cron: '0 3 * * *'  # Daily at 3 AM UTC
+    - cron: "0 3 * * *" # Daily at 3 AM UTC
   workflow_dispatch:
     inputs:
       test_type:
-        description: 'Test type to run'
+        description: "Test type to run"
         required: true
-        default: 'full'
+        default: "full"
         type: choice
         options:
-        - full
-        - performance
-        - security
-        - integration
+          - full
+          - performance
+          - security
+          - integration
 
 jobs:
   nightly-qa:
@@ -23,20 +23,20 @@ jobs:
     permissions:
       contents: read
       issues: write
-    
+
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
       CI: true
       NODE_ENV: test
-      
+
     strategy:
       matrix:
         node-version: [20, 22]
         python-version: [3.11, 3.12]
       fail-fast: false
-        
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: |
             rpa-system/package-lock.json
             rpa-system/backend/package-lock.json
@@ -60,7 +60,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver postgresql-client
-          
+
       - name: Cache Python dependencies
         uses: actions/cache@v3
         with:
@@ -74,14 +74,14 @@ jobs:
         run: |
           echo "Starting test services..."
           docker compose -f docker-compose.test.yml up -d
-          
+
           echo "Waiting for services to be ready..."
           # Wait for PostgreSQL to be ready
           timeout 60s bash -c 'until docker compose -f docker-compose.test.yml exec -T postgres pg_isready -U postgres -d testdb; do sleep 2; done'
-          
+
           # Wait for backend to be ready
           timeout 60s bash -c 'until curl -f http://localhost:3030/api/health >/dev/null 2>&1; do sleep 2; done' || echo "Backend health check timeout (continuing anyway)"
-          
+
           echo "Services are ready!"
           docker compose -f docker-compose.test.yml ps
 
@@ -108,27 +108,27 @@ jobs:
           CHROME_BIN: /usr/bin/chromium-browser
           CHROMEDRIVER_PATH: /usr/bin/chromedriver
         run: npm test --silent -- --watchAll=false || true
-          
+
       - name: Run extended performance tests
         if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'performance' }}
         working-directory: rpa-system
         run: |
           npm run test:backend -- --testNamePattern="Performance" --verbose
-          
+
       - name: Run security audit
         if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'security' }}
         run: |
           npm audit --audit-level=moderate || true
           cd rpa-system && npm audit --audit-level=moderate || true
           cd rpa-system/rpa-dashboard && npm audit --audit-level=moderate || true
-          
+
       - name: Run dependency vulnerability check
         if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'security' }}
         working-directory: rpa-system/automation
         run: |
           pip install safety
           safety check || true
-          
+
       - name: Generate test coverage report
         if: ${{ github.event.inputs.test_type == 'full' }}
         run: |
@@ -136,7 +136,7 @@ jobs:
           npm run test:backend -- --coverage --coverageReporters=lcov
           cd rpa-dashboard
           CI=true npm test -- --coverage --watchAll=false --coverageReporters=lcov
-          
+
       - name: Upload coverage to Codecov
         if: ${{ github.event.inputs.test_type == 'full' }}
         uses: codecov/codecov-action@v3
@@ -145,7 +145,7 @@ jobs:
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
-          
+
       - name: Run load testing
         if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'performance' }}
         working-directory: rpa-system
@@ -155,22 +155,22 @@ jobs:
           if [ -f "load-test.yml" ]; then
             artillery run load-test.yml || true
           fi
-          
+
       - name: Collect comprehensive logs
         if: always()
         run: |
           mkdir -p nightly-artifacts
-          
+
           # System information
           echo "=== System Info ===" > nightly-artifacts/system-info.txt
           uname -a >> nightly-artifacts/system-info.txt
           node --version >> nightly-artifacts/system-info.txt
           npm --version >> nightly-artifacts/system-info.txt
           python3 --version >> nightly-artifacts/system-info.txt
-          
+
           # Docker logs if available
           docker compose -f rpa-system/docker-compose.test.yml logs --no-color > nightly-artifacts/docker-logs.txt 2>/dev/null || true
-          
+
           # Test results
           find . -name "*.log" -o -name "test-results*" -o -name "coverage" -type d | while read -r file; do
             if [ -f "$file" ]; then
@@ -179,7 +179,7 @@ jobs:
               cp -r "$file" nightly-artifacts/ 2>/dev/null || true
             fi
           done
-          
+
       - name: Upload nightly artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -187,7 +187,7 @@ jobs:
           name: nightly-qa-artifacts-node${{ matrix.node-version }}-py${{ matrix.python-version }}
           path: nightly-artifacts/
           retention-days: 14
-          
+
       - name: Create GitHub Issue for Test Failures
         if: failure() && github.ref == 'refs/heads/main'
         uses: actions/github-script@v7
@@ -196,7 +196,7 @@ jobs:
           script: |
             const title = `[QA Alert] Nightly Test Failure - Node ${{ matrix.node-version }}, Python ${{ matrix.python-version }}`;
             const body = `🚨 **Nightly QA Test Suite Failed**
-            
+
             **Details:**
             - **Workflow:** ${{ github.workflow }}
             - **Run:** ${{ github.run_number }}
@@ -205,26 +205,26 @@ jobs:
             - **Node Version:** ${{ matrix.node-version }}
             - **Python Version:** ${{ matrix.python-version }}
             - **Test Type:** ${{ github.event.inputs.test_type || 'full' }}
-            
+
             **📋 Actions Taken:**
             - ✅ Test artifacts uploaded for analysis
             - ✅ Coverage reports generated
             - ✅ System logs collected
-            
+
             **🔧 Next Steps:**
             1. Review the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             2. Download and analyze the test artifacts
             3. Check recent commits for potential causes
             4. Fix identified issues and re-run tests
-            
+
             **📊 Artifact Information:**
             - **Artifact Name:** nightly-qa-artifacts-node${{ matrix.node-version }}-py${{ matrix.python-version }}
             - **Retention:** 14 days
             - **Contents:** Logs, coverage reports, system info
-            
+
             ---
             *This issue was automatically created by the nightly QA workflow*`;
-            
+
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -232,7 +232,7 @@ jobs:
               body: body,
               labels: ['qa-failure', 'nightly-tests', 'high-priority', 'automated']
             });
-          
+
       - name: Cleanup
         if: always()
         run: |
