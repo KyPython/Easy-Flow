@@ -11,4 +11,6 @@ window._env = {
   REACT_APP_FIREBASE_MESSAGING_SENDER_ID: window._env?.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || '',
   REACT_APP_FIREBASE_APP_ID: window._env?.REACT_APP_FIREBASE_APP_ID || '',
   REACT_APP_FIREBASE_MEASUREMENT_ID: window._env?.REACT_APP_FIREBASE_MEASUREMENT_ID || '',
+  // Analytics toggle: set to 'true' in production to enable GA
+  ENABLE_ANALYTICS: window._env?.ENABLE_ANALYTICS || 'false',
 };

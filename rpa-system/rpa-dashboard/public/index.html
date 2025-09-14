@@ -14,21 +14,29 @@
   <!-- Load runtime environment variables (optional). Provide public/env.js that sets window._env = {...} -->
   <script src="%PUBLIC_URL%/env.js" defer></script>
     
-    <!-- Google tag (gtag.js) for domain-specific tracking -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QGYCGQFC6D"></script>
+    <!-- Google Analytics (disabled by default on localhost). To enable, set window._env.ENABLE_ANALYTICS = true in env.js -->
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      
-      // Configure gtag with proper domain settings
-      gtag('config', 'G-QGYCGQFC6D', {
-        // Set domain for production vs development
-        cookie_domain: window.location.hostname === 'easy-flow-lac.vercel.app' 
-          ? 'easy-flow-lac.vercel.app' 
-          : 'localhost',
-        send_page_view: false // Let React GA handle page views
-      });
+      (function(){
+        var isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+        var enable = (window._env && String(window._env.ENABLE_ANALYTICS).toLowerCase() === 'true');
+        var allow = !isLocal && enable;
+        if (!allow) {
+          return; // Skip loading GA in dev or when not enabled
+        }
+        var gaId = 'G-QGYCGQFC6D';
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId;
+        document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){ dataLayer.push(arguments); }
+        window.gtag = gtag;
+        gtag('js', new Date());
+        gtag('config', gaId, {
+          cookie_domain: window.location.hostname,
+          send_page_view: false
+        });
+      })();
     </script>
     
     <title>EasyFlow</title>
