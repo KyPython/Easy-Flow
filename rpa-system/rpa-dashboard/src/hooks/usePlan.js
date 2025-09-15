@@ -18,41 +18,7 @@ export const usePlan = () => {
       setLoading(true);
       setError(null);
 
-      // Development bypass - unlimited access on localhost
-      const isLocalhost = window.location.hostname === 'localhost' || 
-                         window.location.hostname === '127.0.0.1' ||
-                         process.env.NODE_ENV === 'development';
-      
-      if (isLocalhost) {
-        console.log('🚀 Development mode: Using unlimited plan access');
-        setPlanData({
-          plan: {
-            id: 'development',
-            name: 'Development',
-            status: 'active',
-            expires_at: null,
-            is_trial: false
-          },
-          usage: {
-            monthly_runs: 0,
-            storage_bytes: 0,
-            storage_gb: 0,
-            workflows: 0
-          },
-          limits: {
-            workflows: -1, // Unlimited
-            monthly_runs: -1, // Unlimited
-            storage_gb: -1, // Unlimited
-            team_members: -1,
-            advanced_features: true,
-            priority_support: true
-          },
-          can_create_workflow: true,
-          can_run_automation: true
-        });
-        setLoading(false);
-        return;
-      }
+      // Note: Development mode now respects real plan limits for security
 
       // Call the Supabase function to get complete plan details
       const { data, error: rpcError } = await supabase
