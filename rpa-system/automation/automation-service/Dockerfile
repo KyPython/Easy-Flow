@@ -15,11 +15,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 WORKDIR /app
 
 # Copy requirements and install Python dependencies
-COPY ../requirements.txt ./
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy automation-service directory contents into the image
-COPY ./automation-service ./
+COPY . ./
 
 # Create downloads directory
 RUN mkdir -p /tmp/downloads && chmod 777 /tmp/downloads
@@ -43,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
 # Start automation service
-CMD ["python", "automation-service/production_automation_service.py"]
+CMD ["python", "production_automation_service.py"]

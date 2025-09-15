@@ -343,22 +343,79 @@
 }
 
 /* Responsive Design */
-@media (max-width: 768px) {
-  .header {
-    padding: var(--spacing-md);
+@media (max-width: 1024px) {
+  .workflowBuilder {
+    padding: var(--spacing-xl);
+  }
+  
+  .workflowNav {
+    padding: var(--spacing-lg);
     flex-direction: column;
     gap: var(--spacing-md);
     align-items: stretch;
   }
-
-  .headerLeft,
-  .headerRight {
+  
+  .workflowTabs {
     justify-content: center;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--spacing-xs) 0;
+  }
+  
+  .workflowActions {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+}
+
+@media (max-width: 768px) {
+  .workflowBuilder {
+    padding: var(--spacing-lg);
+  }
+  
+  .workflowNav {
+    padding: var(--spacing-md);
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    align-items: stretch;
+  }
+  
+  .workflowTitle h2 {
+    font-size: var(--font-size-xl);
+    text-align: center;
+  }
+  
+  .workflowTitle p {
+    text-align: center;
+  }
+  
+  .workflowTabs {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    align-items: stretch;
+  }
+  
+  .tabItem {
+    justify-content: center;
+    min-height: 44px;
   }
 
   .workflowActions {
     justify-content: center;
     flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+  
+  .actionButton {
+    flex: 1;
+    min-width: 80px;
+    justify-content: center;
+  }
+
+  .content {
+    padding: var(--spacing-md);
+    min-height: calc(100vh - 300px);
   }
 
   .navigation {
@@ -371,5 +428,41 @@
 
   .navLabel {
     display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .workflowBuilder {
+    padding: var(--spacing-md);
+  }
+  
+  .workflowNav {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-xs);
+  }
+  
+  .workflowTitle h2 {
+    font-size: var(--font-size-lg);
+  }
+  
+  .workflowActions {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+  
+  .actionButton {
+    min-height: 44px;
+    font-size: var(--font-size-sm);
+  }
+  
+  .content {
+    padding: var(--spacing-sm);
+    min-height: calc(100vh - 250px);
+  }
+  
+  .modalContent {
+    width: 95vw;
+    height: 90vh;
+    margin: 5vh auto;
   }
 }

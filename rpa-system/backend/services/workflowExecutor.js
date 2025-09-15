@@ -426,7 +426,7 @@ class WorkflowExecutor {
           }
         }, 500);
         try {
-          return await axios.post(`${process.env.AUTOMATION_SERVICE_URL}/scrape`, {
+          return await axios.post(`${process.env.AUTOMATION_URL}/scrape`, {
             url,
             selectors,
             timeout

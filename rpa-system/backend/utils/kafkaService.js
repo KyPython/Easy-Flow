@@ -132,7 +132,7 @@ class KafkaService {
             return { 
                 success: true, 
                 task_id: taskData.task_id || 'disabled-' + Date.now(),
-                message: 'Kafka disabled - task simulation' 
+                message: 'Kafka disabled - task processed without queueing' 
             };
         }
         

@@ -967,9 +967,11 @@ async function queueTaskRun(runId, taskData) {
   try {
     console.log(`[queueTaskRun] Queueing automation run ${runId}`);
     
-    // Get the automation worker URL from environment or use default
-  const automationUrl = process.env.AUTOMATION_URL || 'internal:embedded';
-    const isEmbedded = automationUrl === 'internal:embedded';
+    // Get the automation worker URL from environment
+    const automationUrl = process.env.AUTOMATION_URL;
+    if (!automationUrl) {
+      throw new Error('AUTOMATION_URL environment variable is required');
+    }
     
     // Prepare the payload for the automation worker
     const payload = { 
@@ -989,11 +991,7 @@ async function queueTaskRun(runId, taskData) {
       let automationResult;
       let response = null;
       
-      if (isEmbedded) {
-        // Placeholder synchronous stub; replace with real python invocation via child_process if needed
-        automationResult = { message: 'Simulated automation run (embedded mode)', url: taskData.url };
-        console.log(`[queueTaskRun] Using embedded automation mode - task simulated successfully`);
-      } else {
+      {
         // Ensure URL has protocol; accept values like 'localhost:5001' and normalize to 'http://localhost:5001'
         let normalizedUrl = automationUrl;
         if (!/^https?:\/\//i.test(normalizedUrl)) {
@@ -1042,15 +1040,14 @@ async function queueTaskRun(runId, taskData) {
         .update({
           status: 'completed',
           ended_at: new Date().toISOString(),
-      result: isEmbedded ? { ...automationResult, mode: 'embedded', simulated: true } : automationResult
+      result: automationResult
         })
         .eq('id', runId);
 
       // Send notification for task completion
       try {
         const taskName = taskData.title || 'Automation Task';
-        const note = isEmbedded ? ' [SIMULATED]' : '';
-        const notification = NotificationTemplates.taskCompleted(`${taskName}${note}`);
+        const notification = NotificationTemplates.taskCompleted(taskName);
         await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
         console.log(`🔔 Task completion notification sent to user ${taskData.user_id}`);
       } catch (notificationError) {
@@ -1272,15 +1269,10 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
       }
     });
 
-    // Surface mode information to the client so UX can clarify simulation vs real processing
-    const automationUrl = process.env.AUTOMATION_URL || 'internal:embedded';
-    const isEmbedded = automationUrl === 'internal:embedded';
     return res.status(200).json({
       id: run.id,
       status: 'queued',
-      message: 'Task queued for processing',
-      mode: isEmbedded ? 'embedded' : 'external',
-      target: isEmbedded ? null : automationUrl
+      message: 'Task queued for processing'
     });
     
   } catch (error) {
@@ -1291,17 +1283,18 @@ app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) =>
 
 // Automation health/config endpoint for quick diagnostics
 app.get('/api/health/automation', async (_req, res) => {
-  const automationUrl = process.env.AUTOMATION_URL || 'internal:embedded';
-  const isEmbedded = automationUrl === 'internal:embedded';
-  const info = { mode: isEmbedded ? 'embedded' : 'external', target: isEmbedded ? null : automationUrl };
-  if (isEmbedded) return res.json({ ok: true, ...info });
+  const automationUrl = process.env.AUTOMATION_URL;
+  if (!automationUrl) {
+    return res.status(500).json({ ok: false, error: 'AUTOMATION_URL not configured' });
+  }
+  
   try {
-    // try optional health probe on external worker
+    // Health probe on automation worker
     const url = (automationUrl.startsWith('http') ? automationUrl : `http://${automationUrl}`).replace(/\/$/, '') + '/health';
     const { data } = await axios.get(url, { timeout: 3000 });
-    return res.json({ ok: true, ...info, worker: data });
+    return res.json({ ok: true, target: automationUrl, worker: data });
   } catch (e) {
-    return res.status(200).json({ ok: false, ...info, error: e?.message || String(e) });
+    return res.status(200).json({ ok: false, target: automationUrl, error: e?.message || String(e) });
   }
 });
 
@@ -1520,7 +1513,10 @@ app.post('/api/tasks/:id/run', async (req, res) => {
     runId = runData.id;
 
     // 3. Call the automation worker
-    const automationUrl = process.env.AUTOMATION_URL || 'internal:embedded';
+    const automationUrl = process.env.AUTOMATION_URL;
+    if (!automationUrl) {
+      throw new Error('AUTOMATION_URL environment variable is required');
+    }
     const payload = { 
       url: task.url, 
       username: task.parameters?.username, 
