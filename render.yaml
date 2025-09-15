@@ -69,7 +69,8 @@ services:
     plan: starter
     repo: https://github.com/KyPython/Easy-Flow
     branch: main
-    rootDir: rpa-system/automation/automation service
+    rootDir: rpa-system/automation/automation-service
+  rootDir: rpa-system/automation/automation-service
     autoDeploy: true
     buildCommand: |
       set -e
@@ -95,17 +96,17 @@ services:
 
   - type: worker
     name: easyflow-kafka
-    runtime: docker
+    env: docker
     region: oregon
     plan: starter
     autoDeploy: false
-    docker:
-      image: redpandadata/redpanda:latest
-      command: >-
-        redpanda start --smp 1 --memory 1024M --overprovisioned --node-id 0
-        --kafka-addr 0.0.0.0:9092
-        --advertise-kafka-addr easyflow-kafka:9092
-        --check=false
+    dockerImage: redpandadata/redpanda:latest
+    # Use startCommand for the container's entry; render will run this command when starting the container
+    startCommand: >-
+      redpanda start --smp 1 --memory 1024M --overprovisioned --node-id 0
+      --kafka-addr 0.0.0.0:9092
+      --advertise-kafka-addr easyflow-kafka:9092
+      --check=false
     disk:
       name: kafka-data
       mountPath: /var/lib/redpanda/data
