@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import PropTypes from 'prop-types';
 import {
   ReactFlow,
@@ -46,6 +46,8 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
   const [isLoading, setIsLoading] = useState(true);
   
   const { fitView, getViewport } = useReactFlow();
+  // track whether we've applied the initial fitView so we don't re-center on subsequent updates
+  const initialFitRef = useRef(false);
   const { workflow, updateWorkflow, saveWorkflow } = useWorkflow(workflowId);
 
   // Use stable module-level types to avoid React Flow warnings about changing objects
@@ -80,8 +82,16 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
         setEdges(savedEdges);
       }
       
-      if (viewport) {
-        fitView({ duration: 200 });
+      if (viewport && !initialFitRef.current) {
+        // Only fit view the first time we load a viewport from the saved workflow.
+        // Subsequent changes (user pans/zooms) should not be overridden.
+        try {
+          fitView({ duration: 200 });
+        } catch (err) {
+          // swallow; fitView may not be ready synchronously in some versions
+          console.debug('fitView failed during initial load', err);
+        }
+        initialFitRef.current = true;
       }
     }
     setIsLoading(false);
