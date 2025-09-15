@@ -4,145 +4,60 @@ services:
     runtime: node
     env: node
     region: oregon
-    plan: starter # paid tier to keep backend always-on
+    plan: starter
     repo: https://github.com/KyPython/Easy-Flow
     branch: main
     rootDir: rpa-system
     autoDeploy: true
     pullRequestPreviewsEnabled: true
-      autoDeploy: true
+    buildCommand: |
       set -e
       echo "[build] entering rpa-system"
       if [ -f package.json ] && [ -f package-lock.json ]; then
-        echo "[build] running npm ci"
-        npm ci || { echo "[build] npm ci failed; falling back to npm install"; npm install; }
+        npm ci
       else
-        echo "[build] running npm install" && npm install
-      services:
-        - type: web
-          name: easyflow-backend
-          services:
-            - type: web
-              name: easyflow-backend
-              runtime: node
-              env: node
-              region: oregon
-              plan: starter
-              repo: https://github.com/KyPython/Easy-Flow
-              branch: main
-              rootDir: rpa-system
-              autoDeploy: true
-              pullRequestPreviewsEnabled: true
-              buildCommand: |
-                set -e
-                echo "[build] entering rpa-system"
-                if [ -f package.json ] && [ -f package-lock.json ]; then
-                  echo "[build] running npm ci"
-                  npm ci || { echo "[build] npm ci failed; falling back to npm install"; npm install; }
-                else
-                  echo "[build] running npm install" && npm install
-                fi
-                if [ ! -d node_modules/express ]; then
-                  echo "[build] FATAL: express not installed" && ls -1 node_modules | head && exit 1
-                fi
-                echo "[build] installing python automation deps"
-                cd automation
-                python3 -m pip install -r requirements.txt --no-cache-dir || true
-              startCommand: node backend/server.js
-              services:
-                - type: web
-                  name: easyflow-backend
-                  runtime: node
-                  env: node
-                  region: oregon
-                  plan: starter
-                  repo: https://github.com/KyPython/Easy-Flow
-                  branch: main
-                  rootDir: rpa-system
-                  autoDeploy: true
-                  pullRequestPreviewsEnabled: true
-                  buildCommand: |
-                    set -e
-                    echo "[build] entering rpa-system"
-                    if [ -f package.json ] && [ -f package-lock.json ]; then
-                      echo "[build] running npm ci"
-                      npm ci || { echo "[build] npm ci failed; falling back to npm install"; npm install; }
-                    else
-                      echo "[build] running npm install" && npm install
-                    fi
-                    if [ ! -d node_modules/express ]; then
-                      echo "[build] FATAL: express not installed" && ls -1 node_modules | head && exit 1
-                    fi
-                    echo "[build] installing python automation deps"
-                    cd automation
-                    python3 -m pip install -r requirements.txt --no-cache-dir || true
-                  startCommand: node backend/server.js
-                  healthCheckPath: /health
-                  envVars:
-                    - key: NODE_ENV
-                      value: production
-                    - key: PORT
-                      value: "3030"
-                    - key: ENABLE_EMAIL_WORKER
-                      value: "true"
-                    - key: NODE_VERSION
-                      value: "20.16.0"
-                    - key: AUTOMATION_MODE
-                      value: stub
-                    - key: AUTOMATION_URL
-                      value: http://automation-worker:7001
-                    - key: KAFKA_ENABLED
-                      value: "true"
-                    - key: KAFKA_BROKERS
-                      value: easyflow-kafka:9092
+        npm install
+      fi
+    startCommand: node backend/server.js
 
-                - type: worker
-                  name: automation-worker
-                  runtime: python
-                  env: python
-                  region: oregon
-                  plan: starter
-                  repo: https://github.com/KyPython/Easy-Flow
-                  branch: main
-                  rootDir: rpa-system/automation/automation-service
-                  autoDeploy: true
-                  buildCommand: |
-                    set -e
-                    python3 -m pip install --upgrade pip
-                    python3 -m pip install -r ../requirements.txt --no-cache-dir
-                  startCommand: python3 production_automation_service.py
-                  healthCheckPath: /health
-                  envVars:
-                    - key: PORT
-                      value: "7001"
-                    - key: HOST
-                      value: 0.0.0.0
-                    - key: KAFKA_BOOTSTRAP_SERVERS
-                      value: easyflow-kafka:9092
+  - type: worker
+    name: automation-worker
+    runtime: python
+    env: python
+    region: oregon
+    plan: starter
+    repo: https://github.com/KyPython/Easy-Flow
+    branch: main
+    rootDir: rpa-system/automation/automation-service
+    autoDeploy: true
+    buildCommand: |
+      python3 -m pip install --upgrade pip
+      python3 -m pip install -r ../requirements.txt --no-cache-dir
+    startCommand: python3 production_automation_service.py
 
-                - type: worker
-                  name: easyflow-kafka
-                  env: docker
-                  region: oregon
-                  plan: starter
-                  autoDeploy: false
-                  dockerImage: redpandadata/redpanda:latest
-                  startCommand: >-
-                    redpanda start --smp 1 --memory 1024M --overprovisioned --node-id 0
-                    --kafka-addr 0.0.0.0:9092
-                    --advertise-kafka-addr easyflow-kafka:9092
-                    --check=false
-                  disk:
-                    name: kafka-data
-                    mountPath: /var/lib/redpanda/data
-                    sizeGB: 5
+  - type: worker
+    name: easyflow-kafka
+    env: docker
+    region: oregon
+    plan: starter
+    autoDeploy: false
+    dockerImage: redpandadata/redpanda:latest
+    startCommand: >-
+      redpanda start --smp 1 --memory 1024M --overprovisioned --node-id 0
+      --kafka-addr 0.0.0.0:9092
+      --advertise-kafka-addr easyflow-kafka:9092
+      --check=false
+    disk:
+      name: kafka-data
+      mountPath: /var/lib/redpanda/data
+      sizeGB: 5
 
-                - type: redis
-                  name: easyflow-redis
-                  plan: free
-                  region: oregon
+  - type: redis
+    name: easyflow-redis
+    plan: free
+    region: oregon
 
-              databases:
-                - name: easyflow-postgres
-                  databaseName: easyflow_production
-                  region: oregon
+databases:
+  - name: easyflow-postgres
+    databaseName: easyflow_production
+    region: oregon
