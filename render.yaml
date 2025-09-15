@@ -10,7 +10,7 @@ services:
     rootDir: rpa-system
     autoDeploy: true
     pullRequestPreviewsEnabled: true
-    buildCommand: |
+      autoDeploy: true
       set -e
       echo "[build] entering rpa-system"
       if [ -f package.json ] && [ -f package-lock.json ]; then
@@ -71,7 +71,7 @@ services:
     branch: main
     rootDir: rpa-system/automation/automation-service
   rootDir: rpa-system/automation/automation-service
-    autoDeploy: true
+      autoDeploy: true
     buildCommand: |
       set -e
       python3 -m pip install --upgrade pip

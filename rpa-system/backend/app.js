@@ -174,6 +174,14 @@ app.use(globalLimiter);
 
 app.use(express.json()); // ensure body parser present
 
+// Dev bypass middleware (attach req.devBypass and req.devUser when header matches)
+try {
+  const devBypass = require('./middleware/devBypass');
+  app.use(devBypass);
+} catch (err) {
+  console.warn('[boot] devBypass middleware not mounted:', err?.message || err);
+}
+
 // Set secure session cookie defaults
 app.use((req, res, next) => {
   // Set secure cookie defaults for all cookies

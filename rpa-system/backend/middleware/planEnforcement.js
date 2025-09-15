@@ -45,10 +45,18 @@ const getUserPlan = async (userId) => {
 // Middleware: Check if user can create workflow
 const requireWorkflowCreation = async (req, res, next) => {
   try {
-    // Note: Development mode now respects real plan limits for security
+    // Allow explicit dev bypass token to short-circuit plan checks
+    if (req.devBypass) {
+      req.planData = {
+        plan: { name: 'Development', id: 'dev' },
+        limits: { workflows: -1, monthly_runs: -1, storage_gb: -1 },
+        can_create_workflow: true,
+        can_run_automation: true
+      };
+      return next();
+    }
 
     const userId = req.user?.id;
-    
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -77,12 +85,8 @@ const requireWorkflowCreation = async (req, res, next) => {
 // Middleware: Check if user can run automation
 const requireAutomationRun = async (req, res, next) => {
   try {
-    // Development bypass - full access on localhost
-    if (process.env.NODE_ENV === 'development' || 
-        req.hostname === 'localhost' || 
-        req.hostname === '127.0.0.1' ||
-        process.env.BYPASS_PLAN_LIMITS === 'true') {
-      console.log('🚀 Development mode: Bypassing plan limits for automation runs');
+    // Allow explicit dev bypass token to short-circuit plan checks
+    if (req.devBypass) {
       req.planData = {
         plan: { name: 'Development', id: 'dev' },
         limits: { workflows: -1, monthly_runs: -1, storage_gb: -1 },
@@ -93,7 +97,6 @@ const requireAutomationRun = async (req, res, next) => {
     }
 
     const userId = req.user?.id;
-    
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -123,6 +126,16 @@ const requireAutomationRun = async (req, res, next) => {
 const requireFeature = (featureKey) => {
   return async (req, res, next) => {
     try {
+      // allow dev bypass to skip feature checks
+      if (req.devBypass) {
+        req.planData = {
+          plan: { name: 'Development', id: 'dev' },
+          limits: { workflows: -1, monthly_runs: -1, storage_gb: -1 },
+          can_create_workflow: true,
+          can_run_automation: true
+        };
+        return next();
+      }
       const userId = req.user?.id;
       
       if (!userId) {
@@ -163,6 +176,16 @@ const requirePlan = (minPlan) => {
 
   return async (req, res, next) => {
     try {
+      // allow dev bypass to skip plan checks
+      if (req.devBypass) {
+        req.planData = {
+          plan: { name: 'Development', id: 'dev' },
+          limits: { workflows: -1, monthly_runs: -1, storage_gb: -1 },
+          can_create_workflow: true,
+          can_run_automation: true
+        };
+        return next();
+      }
       const userId = req.user?.id;
       
       if (!userId) {
