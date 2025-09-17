@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import styles from './Dashboard.module.css';
 import MetricCard from '../MetricCard/MetricCard';
 import OnboardingModal from '../OnboardingModal/OnboardingModal';
+import UsageTracker from '../UsageTracker/UsageTracker';
 import { useNotifications } from '../../hooks/useNotifications';
 import PropTypes from 'prop-types';
 
@@ -171,6 +172,12 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
             </div>
           </button>
         </div>
+      </div>
+
+      {/* Usage Information Section - placed at bottom for mobile */}
+      <div className={styles.usageSection}>
+        <h2 className={styles.usageTitle}>{t('dashboard.current_usage','Current Usage & Plan')}</h2>
+        <UsageTracker showUpgrade={true} />
       </div>
 
       {/* Onboarding Modal */}

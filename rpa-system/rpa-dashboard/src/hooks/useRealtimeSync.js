@@ -1,0 +1,230 @@
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../utils/supabaseClient';
+import { useAuth } from '../utils/AuthContext';
+
+export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate }) => {
+  const { user } = useAuth();
+  const [isConnected, setIsConnected] = useState(false);
+  const channelsRef = useRef([]);
+  const lastUpdateRef = useRef({
+    plan: null,
+    usage: null,
+    workflows: null
+  });
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const setupRealtimeSubscriptions = async () => {
+      try {
+        // Plan changes subscription
+        const planChannel = supabase
+          .channel(`plan-changes-${user.id}`)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${user.id}`
+          }, (payload) => {
+            const newPlan = payload.new?.plan_id;
+            const oldPlan = payload.old?.plan_id;
+            
+            if (newPlan !== oldPlan && onPlanChange) {
+              console.log('Plan changed:', { oldPlan, newPlan });
+              onPlanChange({
+                oldPlan,
+                newPlan,
+                changedAt: payload.new?.plan_changed_at,
+                expiresAt: payload.new?.plan_expires_at
+              });
+            }
+          })
+          .subscribe((status) => {
+            console.log('Plan subscription status:', status);
+            setIsConnected(status === 'SUBSCRIBED');
+          });
+
+        // Usage tracking subscription  
+        const usageChannel = supabase
+          .channel(`usage-updates-${user.id}`)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'usage_tracking',
+            filter: `user_id=eq.${user.id}`
+          }, (payload) => {
+            if (onUsageUpdate) {
+              const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
+              const updateMonth = payload.new?.tracking_month;
+              
+              // Only notify for current month updates
+              if (updateMonth === currentMonth) {
+                console.log('Usage updated:', payload.new);
+                onUsageUpdate({
+                  monthlyRuns: payload.new?.monthly_runs,
+                  storageBytes: payload.new?.storage_bytes,
+                  workflows: payload.new?.workflows_count,
+                  lastUpdated: payload.new?.last_updated
+                });
+              }
+            }
+          })
+          .subscribe();
+
+        // Workflow executions subscription (for real-time run tracking)
+        const executionsChannel = supabase
+          .channel(`executions-${user.id}`)
+          .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'workflow_executions',
+            filter: `user_id=eq.${user.id}`
+          }, (payload) => {
+            if (onUsageUpdate) {
+              console.log('New workflow execution:', payload.new);
+              // Trigger usage refresh when new execution starts
+              onUsageUpdate({
+                type: 'execution_started',
+                executionId: payload.new?.id,
+                workflowId: payload.new?.workflow_id
+              });
+            }
+          })
+          .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'workflow_executions',
+            filter: `user_id=eq.${user.id}`
+          }, (payload) => {
+            if (onUsageUpdate && payload.new?.status !== payload.old?.status) {
+              console.log('Workflow execution status changed:', {
+                id: payload.new?.id,
+                oldStatus: payload.old?.status,
+                newStatus: payload.new?.status
+              });
+              // Trigger usage refresh when execution completes
+              onUsageUpdate({
+                type: 'execution_updated',
+                executionId: payload.new?.id,
+                oldStatus: payload.old?.status,
+                newStatus: payload.new?.status
+              });
+            }
+          })
+          .subscribe();
+
+        // Workflow changes subscription
+        const workflowsChannel = supabase
+          .channel(`workflows-${user.id}`)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'workflows',
+            filter: `user_id=eq.${user.id}`
+          }, (payload) => {
+            if (onWorkflowUpdate) {
+              console.log('Workflow updated:', payload);
+              onWorkflowUpdate({
+                event: payload.eventType,
+                workflow: payload.new || payload.old,
+                oldWorkflow: payload.old
+              });
+            }
+          })
+          .subscribe();
+
+        // Store channel references for cleanup
+        channelsRef.current = [planChannel, usageChannel, executionsChannel, workflowsChannel];
+
+        console.log('Realtime subscriptions established for user:', user.id);
+
+      } catch (error) {
+        console.error('Failed to setup realtime subscriptions:', error);
+        setIsConnected(false);
+      }
+    };
+
+    setupRealtimeSubscriptions();
+
+    // Cleanup function
+    return () => {
+      channelsRef.current.forEach(channel => {
+        if (channel) {
+          supabase.removeChannel(channel);
+        }
+      });
+      channelsRef.current = [];
+      setIsConnected(false);
+      console.log('Realtime subscriptions cleaned up');
+    };
+  }, [user?.id, onPlanChange, onUsageUpdate, onWorkflowUpdate]);
+
+  // Manual refresh function
+  const refreshData = async () => {
+    if (!user?.id) return;
+
+    try {
+      // Fetch latest plan data
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('plan_id, plan_changed_at, plan_expires_at')
+        .eq('id', user.id)
+        .single();
+
+      if (!profileError && profile && onPlanChange) {
+        const currentPlan = lastUpdateRef.current.plan;
+        if (currentPlan !== profile.plan_id) {
+          onPlanChange({
+            oldPlan: currentPlan,
+            newPlan: profile.plan_id,
+            changedAt: profile.plan_changed_at,
+            expiresAt: profile.plan_expires_at
+          });
+          lastUpdateRef.current.plan = profile.plan_id;
+        }
+      }
+
+      // Fetch latest usage data
+      const { data: usage, error: usageError } = await supabase
+        .rpc('get_monthly_usage', { user_uuid: user.id });
+
+      if (!usageError && usage && onUsageUpdate) {
+        onUsageUpdate(usage);
+        lastUpdateRef.current.usage = usage;
+      }
+
+    } catch (error) {
+      console.error('Manual refresh failed:', error);
+    }
+  };
+
+  // Connection health check
+  const healthCheck = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user?.id)
+        .limit(1);
+
+      return !error;
+    } catch {
+      return false;
+    }
+  };
+
+  return {
+    isConnected,
+    refreshData,
+    healthCheck,
+    reconnect: () => {
+      // Force reconnection by cleaning up and re-establishing subscriptions
+      channelsRef.current.forEach(channel => {
+        if (channel) {
+          supabase.removeChannel(channel);
+        }
+      });
+      // The useEffect will re-run and establish new connections
+    }
+  };
+};

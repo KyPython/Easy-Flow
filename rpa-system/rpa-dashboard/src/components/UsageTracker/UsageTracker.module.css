@@ -6,6 +6,118 @@
   border: 1px solid var(--border-color);
 }
 
+.compact {
+  padding: var(--spacing-md);
+}
+
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.skeleton {
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.planHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+}
+
+.planInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.pro {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.free {
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+}
+
+.renewalInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: var(--color-gray-50);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.calendarIcon {
+  color: var(--color-gray-500);
+}
+
+.renewalText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2xs);
+}
+
+.renewalLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-600);
+  font-weight: var(--font-weight-medium);
+}
+
+.renewalDate {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-900);
+  font-weight: var(--font-weight-semibold);
+}
+
+.renewalWarning {
+  font-size: var(--font-size-xs);
+  color: var(--color-warning-700);
+  font-weight: var(--font-weight-medium);
+}
+
+.compactUsage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.compactUsageItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.compactLabel {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-600);
+}
+
+.compactValue {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-900);
+}
+
+.compactLimit {
+  color: var(--color-gray-500);
+  font-weight: var(--font-weight-normal);
+}
+
 .loading {
   display: flex;
   align-items: center;
@@ -121,8 +233,16 @@
   display: block;
   font-size: 14px;
   color: #6b7280;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   font-weight: 500;
+}
+
+.usageDescription {
+  display: block;
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 4px;
+  font-weight: 400;
 }
 
 .usageValue {

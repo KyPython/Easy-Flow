@@ -244,6 +244,23 @@
   color: var(--text-muted);
 }
 
+/* Usage section */
+.usageSection {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-gray-200);
+  margin-bottom: var(--spacing-2xl);
+}
+
+.usageTitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-gray-900);
+  margin: 0 0 var(--spacing-lg) 0;
+}
+
 /* Focus visibility for accessibility */
 .button:focus-visible,
 .actionCard:focus-visible,
@@ -272,5 +289,13 @@
   .actionIcon {
     width: 48px;
     height: 48px;
+  }
+  .usageSection {
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+    order: 10;
+  }
+  .usageTitle {
+    font-size: var(--font-size-lg);
   }
 }

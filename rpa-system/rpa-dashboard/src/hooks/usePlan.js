@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../utils/AuthContext';
 import { supabase } from '../utils/supabaseClient';
+import { useRealtimeSync } from './useRealtimeSync';
 
 export const usePlan = () => {
   const { user } = useAuth();
   const [planData, setPlanData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [lastRefresh, setLastRefresh] = useState(Date.now());
 
   const fetchPlanData = async () => {
     if (!user?.id) {
@@ -126,9 +128,60 @@ export const usePlan = () => {
     return planData?.can_run_automation ?? false;
   };
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
+    setLastRefresh(Date.now());
     fetchPlanData();
-  };
+  }, []);
+
+  // Realtime sync callbacks
+  const handlePlanChange = useCallback((planChangeData) => {
+    console.log('Plan changed in realtime:', planChangeData);
+    // Immediately refresh plan data when plan changes
+    fetchPlanData();
+  }, []);
+
+  const handleUsageUpdate = useCallback((usageData) => {
+    console.log('Usage updated in realtime:', usageData);
+    // Update the plan data with new usage information
+    setPlanData(prevData => {
+      if (!prevData) return prevData;
+      
+      // If it's just an execution event, refresh after a short delay
+      if (usageData.type === 'execution_started' || usageData.type === 'execution_updated') {
+        setTimeout(() => fetchPlanData(), 1000);
+        return prevData;
+      }
+      
+      // For direct usage updates, merge the new data
+      if (usageData.monthlyRuns !== undefined) {
+        return {
+          ...prevData,
+          usage: {
+            ...prevData.usage,
+            monthly_runs: usageData.monthlyRuns,
+            storage_bytes: usageData.storageBytes,
+            storage_gb: Math.round((usageData.storageBytes || 0) / (1024 * 1024 * 1024) * 100) / 100,
+            workflows: usageData.workflows
+          }
+        };
+      }
+      
+      return prevData;
+    });
+  }, []);
+
+  const handleWorkflowUpdate = useCallback((workflowData) => {
+    console.log('Workflow updated in realtime:', workflowData);
+    // Refresh usage data when workflows change
+    setTimeout(() => fetchPlanData(), 500);
+  }, []);
+
+  // Initialize realtime sync
+  const { isConnected, refreshData } = useRealtimeSync({
+    onPlanChange: handlePlanChange,
+    onUsageUpdate: handleUsageUpdate,
+    onWorkflowUpdate: handleWorkflowUpdate
+  });
 
   const trialDaysLeft = () => {
     const expires = planData?.plan?.expires_at;
@@ -150,7 +203,9 @@ export const usePlan = () => {
     getUsagePercent,
     canCreateWorkflow,
     canRunAutomation,
-  refresh,
-  trialDaysLeft
+    refresh,
+    trialDaysLeft,
+    isRealtimeConnected: isConnected,
+    lastRefresh
   };
 };

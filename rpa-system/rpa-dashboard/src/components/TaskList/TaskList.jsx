@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import styles from './TaskList.module.css';
 import StatusBadge from '../StatusBadge/StatusBadge';
+import { FiDownload, FiExternalLink } from 'react-icons/fi';
 import { formatDateTime, formatTaskType } from '../../utils/formatters';
 
 const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
@@ -12,6 +13,57 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [downloadingFiles, setDownloadingFiles] = useState(new Set());
+
+  const handleFileDownload = async (task) => {
+    if (!task.artifact_url) return;
+    
+    setDownloadingFiles(prev => new Set(prev).add(task.id));
+    
+    try {
+      // Create a safe download method that doesn't cause black screen
+      const response = await fetch(task.artifact_url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/pdf,application/octet-stream,*/*'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Get filename from URL or create a default one
+      const urlPath = new URL(task.artifact_url).pathname;
+      const filename = urlPath.split('/').pop() || `task-${task.id}-result.pdf`;
+      
+      // Create download link and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the blob URL
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Fallback to direct link opening in new tab
+      window.open(task.artifact_url, '_blank', 'noopener,noreferrer');
+    } finally {
+      setDownloadingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(task.id);
+        return newSet;
+      });
+    }
+  };
 
   // Helper to get the task type with fallbacks
   const getTaskType = (task) =>
@@ -215,9 +267,19 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                 </td>
                 <td>
                   {task.artifact_url ? (
-                    <a href={task.artifact_url} target="_blank" rel="noopener noreferrer">
-                      Download
-                    </a>
+                    <button
+                      onClick={() => handleFileDownload(task)}
+                      className={styles.downloadButton}
+                      disabled={downloadingFiles.has(task.id)}
+                      title="Download Result File"
+                    >
+                      {downloadingFiles.has(task.id) ? (
+                        <span className={styles.spinner}></span>
+                      ) : (
+                        <FiDownload />
+                      )}
+                      {downloadingFiles.has(task.id) ? 'Downloading...' : 'Download'}
+                    </button>
                   ) : (
                     <span className={styles.muted}>—</span>
                   )}

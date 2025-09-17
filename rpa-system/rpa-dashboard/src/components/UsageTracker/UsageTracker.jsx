@@ -1,14 +1,28 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePlan } from '../../hooks/usePlan';
 import { useTheme } from '../../utils/ThemeContext';
-import { FiZap, FiHardDrive, FiUsers, FiArrowUp } from 'react-icons/fi';
+import { FiZap, FiHardDrive, FiGitBranch, FiArrowUp, FiCalendar, FiActivity } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styles from './UsageTracker.module.css';
 
-const UsageTracker = ({ showUpgrade = true }) => {
-  const { planData, loading, getUsagePercent, isAtLimit } = usePlan();
+const UsageTracker = ({ showUpgrade = true, compact = false }) => {
+  const { planData, loading, getUsagePercent, isAtLimit, refresh } = usePlan();
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const [refreshInterval, setRefreshInterval] = useState(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refresh();
+    }, 30000);
+    setRefreshInterval(interval);
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [refresh]);
 
   if (loading) {
     return (
@@ -27,14 +41,40 @@ const UsageTracker = ({ showUpgrade = true }) => {
 
   const { plan, usage, limits } = planData;
 
+  const calculateDaysRemaining = () => {
+    if (!planData?.renewal_info?.renewal_date) {
+      return null;
+    }
+    
+    const renewalDate = new Date(planData.renewal_info.renewal_date);
+    const today = new Date();
+    const diffTime = renewalDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays);
+  };
+
+  const formatRenewalDate = () => {
+    if (!planData?.renewal_info?.renewal_date) {
+      return 'No expiry';
+    }
+    
+    const date = new Date(planData.renewal_info.renewal_date);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric', 
+      year: 'numeric'
+    });
+  };
+
   const usageItems = [
     {
       key: 'monthly_runs',
-      icon: <FiZap />,
+      icon: <FiActivity />,
       label: 'Automation Runs',
       current: usage.monthly_runs || 0,
       limit: limits.monthly_runs,
       unit: 'runs',
+      description: 'This month',
       color: '#3b82f6'
     },
     {
@@ -44,15 +84,17 @@ const UsageTracker = ({ showUpgrade = true }) => {
       current: usage.storage_gb || 0,
       limit: limits.storage_gb,
       unit: 'GB',
+      description: 'Total files',
       color: '#10b981'
     },
     {
       key: 'workflows',
-      icon: <FiUsers />,
-      label: 'Workflows',
+      icon: <FiGitBranch />,
+      label: 'Active Workflows',
       current: usage.workflows || 0,
       limit: limits.workflows,
       unit: 'workflows',
+      description: 'Currently active',
       color: '#8b5cf6'
     }
   ];
@@ -61,13 +103,75 @@ const UsageTracker = ({ showUpgrade = true }) => {
     navigate('/pricing');
   };
 
+  const daysRemaining = calculateDaysRemaining();
+  const isPro = plan.name !== 'Hobbyist';
+
+  if (compact) {
+    return (
+      <div className={`${styles.container} ${styles.compact}`}>
+        <div className={styles.planHeader}>
+          <div className={styles.planInfo}>
+            <span className={`${styles.planBadge} ${isPro ? styles.pro : styles.free}`}>
+              {isPro && <FiZap />}
+              {plan.name}
+            </span>
+            {plan.is_trial && <span className={styles.trialBadge}>Trial</span>}
+          </div>
+          {!isPro && (
+            <button onClick={handleUpgrade} className={styles.upgradeBtn}>
+              <FiArrowUp />
+              Upgrade
+            </button>
+          )}
+        </div>
+        
+        <div className={styles.compactUsage}>
+          {usageItems.slice(0, 2).map((item) => (
+            <div key={item.key} className={styles.compactUsageItem}>
+              <span className={styles.compactLabel}>{item.label}</span>
+              <span className={styles.compactValue}>
+                {item.current.toLocaleString()}
+                {item.limit !== -1 && (
+                  <span className={styles.compactLimit}>
+                    /{item.limit.toLocaleString()}
+                  </span>
+                )}
+                {item.limit === -1 && <span className={styles.unlimited}>∞</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
         <h3>Current Usage</h3>
         <div className={styles.planBadge}>
-          <span className={styles.planName}>{plan.name}</span>
+          <span className={`${styles.planName} ${isPro ? styles.pro : styles.free}`}>
+            {isPro && <FiZap />}
+            {plan.name}
+          </span>
           {plan.is_trial && <span className={styles.trialBadge}>Trial</span>}
+        </div>
+      </div>
+
+      <div className={styles.renewalInfo}>
+        <FiCalendar className={styles.calendarIcon} />
+        <div className={styles.renewalText}>
+          <span className={styles.renewalLabel}>
+            {plan.name === 'Hobbyist' ? 'Free Plan' : 'Renews'}
+          </span>
+          <span className={styles.renewalDate}>
+            {plan.name === 'Hobbyist' ? 'No expiry' : formatRenewalDate()}
+          </span>
+          {daysRemaining !== null && daysRemaining <= 7 && plan.name !== 'Hobbyist' && (
+            <span className={styles.renewalWarning}>
+              {daysRemaining === 0 ? 'Expires today!' : `${daysRemaining} days left`}
+            </span>
+          )}
         </div>
       </div>
 
@@ -88,6 +192,7 @@ const UsageTracker = ({ showUpgrade = true }) => {
                 </div>
                 <div className={styles.usageInfo}>
                   <span className={styles.usageLabel}>{item.label}</span>
+                  <span className={styles.usageDescription}>{item.description}</span>
                   <span className={styles.usageValue}>
                     {typeof item.current === 'number' ? item.current.toLocaleString() : item.current}
                     {!isUnlimited && (
