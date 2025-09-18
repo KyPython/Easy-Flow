@@ -336,6 +336,10 @@ class WorkflowExecutor {
           return await this.executeEmailAction(config, inputData);
         case 'delay':
           return await this.executeDelayAction(config, inputData, execution);
+        case 'form_submit':
+          return await this.executeFormSubmitAction(config, inputData, execution);
+        case 'invoice_ocr':
+          return await this.executeInvoiceOcrAction(config, inputData, execution);
         default:
           throw new Error(`Unsupported action type: ${action_type}`);
       }
@@ -870,6 +874,186 @@ class WorkflowExecutor {
       
     } catch (error) {
       return { success: false, error: `Delay failed: ${error.message}` };
+    }
+  }
+
+  async executeFormSubmitAction(config, inputData, execution) {
+    try {
+      const { url, form_data, selectors, wait_after_submit = 3 } = config;
+      
+      if (!url) {
+        throw new Error('URL is required for form submission');
+      }
+      
+      console.log(`[WorkflowExecutor] Submitting form: ${url}`);
+      
+      const axios = require('axios');
+      const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
+      const baseMs = Number(config?.retries?.baseMs || 300);
+
+      const backoff = await this._withBackoff(async ({ controller }) => {
+        const cancelTimer = setInterval(async () => {
+          if (execution && await this._isCancelled(execution.id)) {
+            try { controller?.abort?.(); } catch (_) {}
+          }
+        }, 500);
+        
+        try {
+          return await axios.post(`${process.env.AUTOMATION_URL}/form-submit`, {
+            url,
+            form_data,
+            selectors,
+            wait_after_submit
+          }, {
+            timeout: 60000, // Forms can take longer
+            signal: controller?.signal
+          });
+        } finally {
+          clearInterval(cancelTimer);
+        }
+      }, {
+        maxAttempts,
+        baseMs,
+        shouldRetry: (err) => {
+          const status = err?.response?.status;
+          const code = err?.code || '';
+          if (code && ['ECONNRESET','ETIMEDOUT','ENOTFOUND','EAI_AGAIN'].includes(code)) return true;
+          if (status && (status >= 500 || status === 408 || status === 429)) return true;
+          const msg = `${err?.message || ''}`.toLowerCase();
+          if (msg.includes('timeout') || msg.includes('network')) return true;
+          return false;
+        },
+        isCancelled: async () => execution && await this._isCancelled(execution.id),
+        makeController: () => new AbortController()
+      });
+
+      const response = backoff.value;
+      return {
+        success: true,
+        data: {
+          ...inputData,
+          form_submission_result: response.data,
+          form_submitted_to: url
+        },
+        meta: { attempts: backoff.attempts, backoffWaitMs: backoff.totalWaitMs }
+      };
+      
+    } catch (error) {
+      return { success: false, error: `Form submission failed: ${error.message}` };
+    }
+  }
+
+  async executeInvoiceOcrAction(config, inputData, execution) {
+    try {
+      const { 
+        file_source,        // 'url', 'file_path', or 'input_data_field'
+        file_url,          // Direct URL to invoice file
+        file_path,         // Local path to invoice file
+        input_field,       // Field in inputData containing file info
+        extract_fields = ['vendor', 'amount', 'date', 'invoice_number'], // Fields to extract
+        validation = {}    // Validation rules
+      } = config;
+      
+      console.log(`[WorkflowExecutor] Processing invoice OCR`);
+      
+      // Resolve file source
+      let fileToProcess = null;
+      
+      if (file_source === 'url' && file_url) {
+        fileToProcess = { type: 'url', value: file_url };
+      } else if (file_source === 'file_path' && file_path) {
+        fileToProcess = { type: 'file_path', value: file_path };
+      } else if (file_source === 'input_data_field' && input_field) {
+        const fieldValue = this.getNestedValue(inputData, input_field);
+        if (fieldValue) {
+          // Handle different field value formats
+          if (typeof fieldValue === 'string') {
+            if (fieldValue.startsWith('http')) {
+              fileToProcess = { type: 'url', value: fieldValue };
+            } else {
+              fileToProcess = { type: 'file_path', value: fieldValue };
+            }
+          } else if (fieldValue.storage_path) {
+            // From file upload action
+            fileToProcess = { type: 'storage_path', value: fieldValue.storage_path };
+          }
+        }
+      }
+      
+      if (!fileToProcess) {
+        throw new Error('No valid file source found for invoice OCR processing');
+      }
+      
+      const axios = require('axios');
+      const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
+      const baseMs = Number(config?.retries?.baseMs || 300);
+
+      const backoff = await this._withBackoff(async ({ controller }) => {
+        const cancelTimer = setInterval(async () => {
+          if (execution && await this._isCancelled(execution.id)) {
+            try { controller?.abort?.(); } catch (_) {}
+          }
+        }, 500);
+        
+        try {
+          return await axios.post(`${process.env.AUTOMATION_URL}/invoice-ocr`, {
+            file_source: fileToProcess,
+            extract_fields,
+            validation
+          }, {
+            timeout: 120000, // OCR can take longer
+            signal: controller?.signal
+          });
+        } finally {
+          clearInterval(cancelTimer);
+        }
+      }, {
+        maxAttempts,
+        baseMs,
+        shouldRetry: (err) => {
+          const status = err?.response?.status;
+          const code = err?.code || '';
+          if (code && ['ECONNRESET','ETIMEDOUT','ENOTFOUND','EAI_AGAIN'].includes(code)) return true;
+          if (status && (status >= 500 || status === 408 || status === 429)) return true;
+          const msg = `${err?.message || ''}`.toLowerCase();
+          if (msg.includes('timeout') || msg.includes('network')) return true;
+          return false;
+        },
+        isCancelled: async () => execution && await this._isCancelled(execution.id),
+        makeController: () => new AbortController()
+      });
+
+      const response = backoff.value;
+      const ocrResult = response.data;
+      
+      // Apply validation if specified
+      const validationResults = {};
+      if (validation.amount_threshold && ocrResult.extracted_data?.amount) {
+        const amount = parseFloat(ocrResult.extracted_data.amount.replace(/[^\d.-]/g, ''));
+        validationResults.amount_threshold = amount <= validation.amount_threshold;
+      }
+      
+      if (validation.required_vendor && ocrResult.extracted_data?.vendor) {
+        const vendor = ocrResult.extracted_data.vendor.toLowerCase();
+        validationResults.vendor_approved = validation.required_vendor.some(v => 
+          vendor.includes(v.toLowerCase())
+        );
+      }
+      
+      return {
+        success: true,
+        data: {
+          ...inputData,
+          invoice_ocr_result: ocrResult,
+          extracted_invoice_data: ocrResult.extracted_data || {},
+          validation_results: validationResults,
+          ocr_confidence: ocrResult.confidence || 0
+        },
+        meta: { attempts: backoff.attempts, backoffWaitMs: backoff.totalWaitMs }
+      };
+      
+    } catch (error) {
+      return { success: false, error: `Invoice OCR failed: ${error.message}` };
     }
   }
 
