@@ -14,8 +14,8 @@ const PlanStatus = ({ compact = false }) => {
     return null;
   }
 
-  const { plan, usage, limits } = planData;
-  const isPro = plan.name !== 'Hobbyist' && plan.name !== 'Starter';
+  const { plan = {}, usage = {}, limits = {} } = planData;
+  const isPro = plan?.name !== 'Hobbyist' && plan?.name !== 'Starter';
 
   const handleUpgrade = () => {
     navigate('/pricing');
@@ -27,7 +27,7 @@ const PlanStatus = ({ compact = false }) => {
         <div className={styles.planInfo}>
           <span className={`${styles.planBadge} ${isPro ? styles.pro : styles.free}`}>
             {isPro && <FiZap />}
-            {plan.name}
+            {plan?.name || 'Hobbyist'}
           </span>
           {!isPro && (
             <button onClick={handleUpgrade} className={styles.upgradeBtn}>
@@ -43,16 +43,16 @@ const PlanStatus = ({ compact = false }) => {
   const quickStats = [
     {
       label: 'Monthly Runs',
-      current: usage.automations || usage.monthly_runs || 0,
-      limit: limits.automations || limits.monthly_runs,
-      isUnlimited: (limits.automations || limits.monthly_runs) === -1
+      current: usage?.automations || usage?.monthly_runs || 0,
+      limit: limits?.automations || limits?.monthly_runs || 50,
+      isUnlimited: (limits?.automations || limits?.monthly_runs) === -1
     },
     // Only show workflows for non-hobbyist plans
-    ...(limits.has_workflows !== false ? [{
+    ...((limits?.has_workflows !== false && limits?.workflows) ? [{
       label: 'Workflows',
-      current: usage.workflows || 0,
-      limit: limits.workflows,
-      isUnlimited: limits.workflows === -1
+      current: usage?.workflows || 0,
+      limit: limits?.workflows || 0,
+      isUnlimited: limits?.workflows === -1
     }] : [])
   ];
 
@@ -62,9 +62,9 @@ const PlanStatus = ({ compact = false }) => {
         <div className={styles.planInfo}>
           <span className={`${styles.planBadge} ${isPro ? styles.pro : styles.free}`}>
             {isPro && <FiZap />}
-            {plan.name}
+            {plan?.name || 'Hobbyist'}
           </span>
-          {plan.is_trial && <span className={styles.trialBadge}>Trial</span>}
+          {plan?.is_trial && <span className={styles.trialBadge}>Trial</span>}
         </div>
         {!isPro && (
           <button onClick={handleUpgrade} className={styles.upgradeBtn}>

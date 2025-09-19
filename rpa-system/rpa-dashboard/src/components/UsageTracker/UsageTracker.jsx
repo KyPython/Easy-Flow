@@ -40,7 +40,7 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
     return null;
   }
 
-  const { plan, usage, limits } = planData;
+  const { plan = {}, usage = {}, limits = {} } = planData;
 
   const calculateDaysRemaining = () => {
     if (!planData?.renewal_info?.renewal_date) {
@@ -72,8 +72,8 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
       key: 'automations',
       icon: <FiActivity />,
       label: 'Automation Runs',
-      current: usage.automations || usage.monthly_runs || 0,
-      limit: limits.automations || limits.monthly_runs,
+      current: usage?.automations || usage?.monthly_runs || 0,
+      limit: limits?.automations || limits?.monthly_runs || 50,
       unit: 'runs',
       description: 'This month',
       color: '#3b82f6'
@@ -82,19 +82,19 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
       key: 'storage_gb',
       icon: <FiHardDrive />,
       label: 'Storage Used',
-      current: usage.storage_gb || 0,
-      limit: limits.storage_gb,
+      current: usage?.storage_gb || 0,
+      limit: limits?.storage_gb || 5,
       unit: 'GB',
       description: 'Total files',
       color: '#10b981'
     },
     // Only show workflows for plans that have them
-    ...(limits.has_workflows !== false ? [{
+    ...((limits?.has_workflows !== false && limits?.workflows) ? [{
       key: 'workflows',
       icon: <FiGitBranch />,
       label: 'Active Workflows',
-      current: usage.workflows || 0,
-      limit: limits.workflows,
+      current: usage?.workflows || 0,
+      limit: limits?.workflows || 0,
       unit: 'workflows',
       description: 'Currently active',
       color: '#8b5cf6'
@@ -106,7 +106,7 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
   };
 
   const daysRemaining = calculateDaysRemaining();
-  const isPro = plan.name !== 'Hobbyist' && plan.name !== 'Starter';
+  const isPro = plan?.name !== 'Hobbyist' && plan?.name !== 'Starter';
 
   if (compact) {
     return (
@@ -115,9 +115,9 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
           <div className={styles.planInfo}>
             <span className={`${styles.planBadge} ${isPro ? styles.pro : styles.free}`}>
               {isPro && <FiZap />}
-              {plan.name}
+              {plan?.name || 'Hobbyist'}
             </span>
-            {plan.is_trial && <span className={styles.trialBadge}>Trial</span>}
+            {plan?.is_trial && <span className={styles.trialBadge}>Trial</span>}
           </div>
           {!isPro && (
             <button onClick={handleUpgrade} className={styles.upgradeBtn}>
@@ -154,9 +154,9 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
         <div className={styles.planBadge}>
           <span className={`${styles.planName} ${isPro ? styles.pro : styles.free}`}>
             {isPro && <FiZap />}
-            {plan.name}
+            {plan?.name || 'Hobbyist'}
           </span>
-          {plan.is_trial && <span className={styles.trialBadge}>Trial</span>}
+          {plan?.is_trial && <span className={styles.trialBadge}>Trial</span>}
         </div>
       </div>
 
@@ -164,12 +164,12 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
         <FiCalendar className={styles.calendarIcon} />
         <div className={styles.renewalText}>
           <span className={styles.renewalLabel}>
-            {(plan.name === 'Starter' || plan.name === 'Hobbyist') ? 'Free Plan' : 'Renews'}
+            {(plan?.name === 'Starter' || plan?.name === 'Hobbyist') ? 'Free Plan' : 'Renews'}
           </span>
           <span className={styles.renewalDate}>
-            {(plan.name === 'Starter' || plan.name === 'Hobbyist') ? 'No expiry' : formatRenewalDate()}
+            {(plan?.name === 'Starter' || plan?.name === 'Hobbyist') ? 'No expiry' : formatRenewalDate()}
           </span>
-          {daysRemaining !== null && daysRemaining <= 7 && plan.name !== 'Starter' && plan.name !== 'Hobbyist' && (
+          {daysRemaining !== null && daysRemaining <= 7 && plan?.name !== 'Starter' && plan?.name !== 'Hobbyist' && (
             <span className={styles.renewalWarning}>
               {daysRemaining === 0 ? 'Expires today!' : `${daysRemaining} days left`}
             </span>
@@ -231,7 +231,7 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
         })}
       </div>
 
-      {showUpgrade && (plan.name === 'Starter' || plan.name === 'Hobbyist') && (
+      {showUpgrade && (plan?.name === 'Starter' || plan?.name === 'Hobbyist' || !plan?.name) && (
         <div className={styles.upgradeSection}>
           <div className={styles.upgradeContent}>
             <div>
@@ -246,7 +246,7 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
         </div>
       )}
 
-      {plan.expires_at && new Date(plan.expires_at) > new Date() && (
+      {plan?.expires_at && new Date(plan.expires_at) > new Date() && (
         <div className={styles.expiryNotice}>
           Plan expires on {new Date(plan.expires_at).toLocaleDateString()}
         </div>
