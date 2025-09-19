@@ -22,12 +22,7 @@ const { spawn } = require('child_process');
 const app = express();
 const PORT = process.env.PORT || 3030;
 
-// --- CORS configuration for development ---
-// Allow requests from frontend dev server
-app.use(cors({
-  origin: 'http://localhost:3001',
-  credentials: true
-}));
+// --- Old CORS configuration removed - using comprehensive CORS config below ---
 
 // Add after imports, before route definitions (around line 100)
 

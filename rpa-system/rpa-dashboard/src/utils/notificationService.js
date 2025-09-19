@@ -131,7 +131,7 @@ class NotificationService {
           unsubscribe();
           
           if (firebaseUser) {
-            if (import.meta.env.MODE !== 'production') {
+            if (isDev) {
               console.log('🔔 Firebase user authenticated:', firebaseUser.uid);
             }
             this.firebaseAuthUser = firebaseUser;
@@ -161,7 +161,7 @@ class NotificationService {
       // Request custom token from backend
       const tokenUrl = buildApiUrl('/api/firebase/token');
       
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Making request to:', tokenUrl);
       }
       const response = await fetch(tokenUrl, {
@@ -189,7 +189,7 @@ class NotificationService {
         throw new Error('Invalid token response from server');
       }
 
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Received Firebase custom token, signing in...');
       }
       
@@ -197,7 +197,7 @@ class NotificationService {
       const userCredential = await signInWithCustomToken(auth, tokenData.token);
       const firebaseUser = userCredential.user;
       
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Successfully authenticated with Firebase:', firebaseUser.uid);
       }
       this.firebaseAuthUser = firebaseUser;
@@ -211,7 +211,7 @@ class NotificationService {
       console.error('🔔 Firebase authentication with custom token failed:', error);
       
       // Fallback to application-level authentication
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Falling back to application-level authentication');
       }
       this.firebaseAuthUser = { uid: user.id };
@@ -233,7 +233,7 @@ class NotificationService {
     
     this.tokenRefreshTimeout = setTimeout(async () => {
       try {
-        if (import.meta.env.MODE !== 'production') {
+        if (isDev) {
           console.log('🔔 Refreshing Firebase token for user:', user.id);
         }
         await this.refreshFirebaseToken(user);
@@ -244,7 +244,7 @@ class NotificationService {
       }
     }, refreshInterval);
 
-    if (import.meta.env.MODE !== 'production') {
+    if (isDev) {
       console.log('🔔 Token refresh scheduled for', new Date(Date.now() + refreshInterval).toISOString());
     }
   }
@@ -270,7 +270,7 @@ class NotificationService {
       
       if (success) {
         this.lastTokenRefresh = new Date().toISOString();
-        if (import.meta.env.MODE !== 'production') {
+        if (isDev) {
           console.log('🔔 Firebase token refreshed successfully');
         }
         
@@ -314,7 +314,7 @@ class NotificationService {
     switch (error.code) {
       case 'auth/id-token-expired':
       case 'auth/token-expired':
-        if (import.meta.env.MODE !== 'production') {
+        if (isDev) {
           console.log('🔔 Token expired, attempting refresh...');
         }
         if (this.currentUser) {
@@ -323,7 +323,7 @@ class NotificationService {
         break;
         
       case 'auth/network-request-failed':
-        if (import.meta.env.MODE !== 'production') {
+        if (isDev) {
           console.log('🔔 Network error, will retry...');
         }
         // Emit network error event for UI feedback
@@ -331,7 +331,7 @@ class NotificationService {
         break;
         
       case 'auth/too-many-requests':
-        if (import.meta.env.MODE !== 'production') {
+        if (isDev) {
           console.log('🔔 Rate limited, backing off...');
         }
         // Implement exponential backoff
@@ -339,7 +339,7 @@ class NotificationService {
         break;
         
       case 'permission-denied':
-        if (import.meta.env.MODE !== 'production') {
+        if (isDev) {
           console.log('🔔 Permission denied, may need to refresh token...');
         }
         if (this.currentUser) {
@@ -363,7 +363,7 @@ class NotificationService {
     this.currentUser = user;
     
     try {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Starting initialization for user:', user?.id);
       }
       
@@ -389,13 +389,13 @@ class NotificationService {
       if (authReady) {
         this.setupRealtimeListener();
       } else {
-        if (import.meta.env.MODE !== 'production') {
+        if (isDev) {
           console.log('🔔 Skipping real-time listener setup due to auth issues');
         }
       }
       
       this.isInitialized = true;
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 NotificationService initialization completed for user:', user?.id);
       }
       return true;
@@ -415,7 +415,7 @@ class NotificationService {
 
     // Skip loading if preferences already exist for this user
     if (this.userPreferences) {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 User preferences already loaded, skipping...');
       }
       return;
@@ -431,7 +431,7 @@ class NotificationService {
       if (response.ok) {
         this.userPreferences = await response.json();
         this.pushEnabled = !!this.userPreferences?.preferences?.push_notifications;
-        if (import.meta.env.MODE !== 'production') {
+        if (isDev) {
           console.log('🔔 User preferences loaded:', this.userPreferences);
         }
       } else {
@@ -602,7 +602,7 @@ class NotificationService {
     }
     
     if (permission === 'granted') {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Notification permission granted');
       }
       return true;
@@ -618,7 +618,7 @@ class NotificationService {
 
     // Return existing token if already obtained
     if (this.fcmToken) {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 FCM Token already exists, reusing...');
       }
       return this.fcmToken;
@@ -631,7 +631,7 @@ class NotificationService {
       try {
         swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         await navigator.serviceWorker.ready;
-        if (import.meta.env.MODE !== 'production') {
+        if (isDev) {
           console.log('🔔 Messaging service worker ready');
         }
       } catch (swErr) {
@@ -647,7 +647,7 @@ class NotificationService {
       });
       
       this.fcmToken = token;
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 FCM Token obtained:', token ? 'Success' : 'Failed');
       }
       
@@ -684,7 +684,7 @@ class NotificationService {
       if (!resp.ok) {
         console.error('🔔 Error saving FCM token via API:', resp.status);
       } else {
-        if (import.meta.env.MODE !== 'production') {
+        if (isDev) {
           console.log('🔔 FCM token saved via API');
         }
         if (!this.userPreferences) this.userPreferences = this.getDefaultPreferences();
@@ -704,7 +704,7 @@ class NotificationService {
     if (!messaging) return;
 
     onMessage(messaging, (payload) => {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Foreground message received:', payload);
       }
       
@@ -747,7 +747,7 @@ class NotificationService {
         });
       });
       
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Real-time notifications updated:', notifications.length);
       }
       
@@ -787,7 +787,7 @@ class NotificationService {
 
     // Check if this type of notification is enabled
     if (!this.isNotificationEnabled(notification.type)) {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log(`🔔 Notification type '${notification.type}' is disabled for user, skipping`);
       }
       return false;
@@ -804,7 +804,7 @@ class NotificationService {
       const userNotificationsRef = ref(database, `notifications/${userId}`);
       await push(userNotificationsRef, notificationData);
       
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Notification sent to Firebase:', notificationData);
       }
       return true;
@@ -852,7 +852,7 @@ class NotificationService {
         console.error('🔔 Backend fallback failed:', err);
         return false;
       }
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Notification stored via backend fallback');
       }
       return true;
@@ -873,7 +873,7 @@ class NotificationService {
 
     // Check if push notifications are enabled
     if (!this.isNotificationEnabled('push')) {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Push notifications are disabled, skipping browser notification');
       }
       return;
@@ -881,7 +881,7 @@ class NotificationService {
 
     // Check specific notification type if provided
     if (data?.type && !this.isNotificationEnabled(data.type)) {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log(`🔔 Notification type '${data.type}' is disabled, skipping browser notification`);
       }
       return;
@@ -970,7 +970,7 @@ class NotificationService {
     try {
       const notificationRef = ref(database, `notifications/${this.currentUser.id}/${notificationId}`);
       await set(notificationRef, { read: true });
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Notification marked as read:', notificationId);
       }
       return true;
@@ -987,7 +987,7 @@ class NotificationService {
     try {
       const userNotificationsRef = ref(database, `notifications/${this.currentUser.id}`);
       await set(userNotificationsRef, null);
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 All notifications cleared');
       }
       return true;
@@ -999,14 +999,14 @@ class NotificationService {
 
   // Cleanup when user logs out
   cleanup() {
-    if (import.meta.env.MODE !== 'production') {
+    if (isDev) {
       console.log('🔔 Cleaning up NotificationService');
     }
     
     // Remove all database listeners
     this.unsubscribers.forEach((unsubscribe, key) => {
       unsubscribe();
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log(`🔔 Unsubscribed from ${key}`);
       }
     });
@@ -1025,7 +1025,7 @@ class NotificationService {
     if (this.tokenRefreshTimeout) {
       clearTimeout(this.tokenRefreshTimeout);
       this.tokenRefreshTimeout = null;
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Cleared token refresh timeout');
       }
     }
