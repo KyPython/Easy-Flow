@@ -87,7 +87,8 @@ const ExecutionCard = ({
               onClick={() => onView?.(execution.id)}
               title="View details"
             />
-            {execution.status === 'running' && onCancel && (
+            {/* Only show Cancel for cancellable statuses */}
+            {['running', 'pending', 'scheduled'].includes(execution.status) && onCancel && (
               <ActionButton
                 variant="ghost"
                 size="small"

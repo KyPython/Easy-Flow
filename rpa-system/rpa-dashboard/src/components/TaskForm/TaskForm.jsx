@@ -44,6 +44,13 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     if (form.username && !isValidEmail(form.username)) {
       newErrors.username = 'Please enter a valid email address';
     }
+    if (form.task === 'invoice_download') {
+      if (!form.pdf_url.trim()) {
+        newErrors.pdf_url = 'PDF URL is required for Invoice Download';
+      } else if (!isValidUrl(form.pdf_url)) {
+        newErrors.pdf_url = 'Please enter a valid PDF URL';
+      }
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -180,16 +187,21 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="pdf_url" className={styles.label}>PDF URL (Optional)</label>
+            <label htmlFor="pdf_url" className={styles.label}>
+              PDF URL{form.task === 'invoice_download' ? ' (Required)' : ' (Optional)'}
+              {form.task === 'invoice_download' && <span className={styles.required}>*</span>}
+            </label>
             <input
               type="text"
               id="pdf_url"
               name="pdf_url"
               value={form.pdf_url}
               onChange={handleChange}
-              placeholder="Optional PDF URL or relative path"
-              className={styles.input}
+              placeholder={form.task === 'invoice_download' ? 'https://example.com/invoice.pdf' : 'Optional PDF URL or relative path'}
+              className={`${styles.input} ${errors.pdf_url ? styles.error : ''}`}
+              required={form.task === 'invoice_download'}
             />
+            {errors.pdf_url && <span className={styles.errorText}>{errors.pdf_url}</span>}
           </div>
         </div>
 

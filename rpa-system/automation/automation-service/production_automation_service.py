@@ -148,6 +148,13 @@ def process_automation_task(task_data):
             result = {'success': True, 'message': 'Processed web_automation task.'}
         elif task_type == 'data_extraction':
             result = {'success': True, 'message': 'Processed data_extraction task.'}
+        elif task_type == 'invoice_download':
+            pdf_url = task_data.get('pdf_url')
+            if not pdf_url:
+                result = {'success': False, 'error': 'Missing required field: pdf_url'}
+            else:
+                # Simulate invoice download logic
+                result = {'success': True, 'message': f'Invoice downloaded from {pdf_url}'}
         else:
             result = {'success': False, 'error': f'Unknown task type: {task_type}'}
 
