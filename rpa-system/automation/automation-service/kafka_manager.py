@@ -26,9 +26,11 @@ class KafkaManager:
         self.result_topic = os.getenv('KAFKA_RESULT_TOPIC', 'automation-results')
         self.consumer_group = os.getenv('KAFKA_CONSUMER_GROUP', 'automation-workers')
         
-        # Connection settings
+        # Connection settings with exponential backoff
         self.retry_attempts = int(os.getenv('KAFKA_RETRY_ATTEMPTS', '5'))
-        self.retry_delay = int(os.getenv('KAFKA_RETRY_DELAY', '10'))
+        self.initial_retry_delay = int(os.getenv('KAFKA_INITIAL_RETRY_DELAY', '1'))
+        self.max_retry_delay = int(os.getenv('KAFKA_MAX_RETRY_DELAY', '60'))
+        self.retry_multiplier = float(os.getenv('KAFKA_RETRY_MULTIPLIER', '2.0'))
         
         # Internal state
         self.producer: Optional[AIOKafkaProducer] = None
@@ -71,8 +73,13 @@ class KafkaManager:
         logger.info("🎉 Kafka initialization completed successfully")
         return True
 
+    def _calculate_backoff_delay(self, attempt: int) -> float:
+        """Calculate exponential backoff delay"""
+        delay = self.initial_retry_delay * (self.retry_multiplier ** attempt)
+        return min(delay, self.max_retry_delay)
+
     async def _initialize_producer(self) -> bool:
-        """Initialize AIOKafkaProducer with retry logic"""
+        """Initialize AIOKafkaProducer with exponential backoff retry logic"""
         for attempt in range(self.retry_attempts):
             try:
                 logger.info(f"🔄 Producer initialization attempt {attempt + 1}/{self.retry_attempts}")
@@ -95,16 +102,19 @@ class KafkaManager:
             except NoBrokersAvailable:
                 logger.warning(f"⚠️ No Kafka brokers available at {self.bootstrap_servers}")
                 if attempt < self.retry_attempts - 1:
-                    logger.info(f"⏱️ Retrying in {self.retry_delay} seconds...")
-                    await asyncio.sleep(self.retry_delay)
+                    delay = self._calculate_backoff_delay(attempt)
+                    logger.info(f"⏱️ Retrying in {delay:.1f} seconds with exponential backoff...")
+                    await asyncio.sleep(delay)
             except Exception as e:
                 logger.error(f"❌ Producer initialization error: {e}")
                 if attempt < self.retry_attempts - 1:
-                    await asyncio.sleep(self.retry_delay)
+                    delay = self._calculate_backoff_delay(attempt)
+                    logger.info(f"⏱️ Retrying in {delay:.1f} seconds...")
+                    await asyncio.sleep(delay)
         return False
 
     async def _initialize_consumer(self) -> bool:
-        """Initialize AIOKafkaConsumer with retry logic"""
+        """Initialize AIOKafkaConsumer with exponential backoff retry logic"""
         for attempt in range(self.retry_attempts):
             try:
                 logger.info(f"🔄 Consumer initialization attempt {attempt + 1}/{self.retry_attempts}")
@@ -128,11 +138,15 @@ class KafkaManager:
             except KafkaError as e:
                 logger.error(f"❌ Consumer initialization Kafka error: {e}")
                 if attempt < self.retry_attempts - 1:
-                    await asyncio.sleep(self.retry_delay)
+                    delay = self._calculate_backoff_delay(attempt)
+                    logger.info(f"⏱️ Retrying in {delay:.1f} seconds with exponential backoff...")
+                    await asyncio.sleep(delay)
             except Exception as e:
                 logger.error(f"❌ Consumer initialization error: {e}")
                 if attempt < self.retry_attempts - 1:
-                    await asyncio.sleep(self.retry_delay)
+                    delay = self._calculate_backoff_delay(attempt)
+                    logger.info(f"⏱️ Retrying in {delay:.1f} seconds...")
+                    await asyncio.sleep(delay)
         return False
 
     def register_message_handler(self, task_type: str, handler: Callable):

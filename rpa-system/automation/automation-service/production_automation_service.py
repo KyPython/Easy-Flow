@@ -16,6 +16,25 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
+# Prometheus metrics
+try:
+    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST
+    METRICS_AVAILABLE = True
+    
+    # Create custom registry to avoid conflicts
+    registry = CollectorRegistry()
+    
+    # Define metrics
+    tasks_processed = Counter('automation_tasks_processed_total', 'Total number of automation tasks processed', ['status'], registry=registry)
+    task_duration = Histogram('automation_task_duration_seconds', 'Time spent processing automation tasks', registry=registry)
+    active_workers = Gauge('automation_active_workers', 'Number of active worker threads/processes', registry=registry)
+    kafka_messages = Counter('kafka_messages_total', 'Total Kafka messages sent/received', ['topic', 'operation'], registry=registry)
+    error_count = Counter('automation_errors_total', 'Total automation errors', ['error_type'], registry=registry)
+    
+except ImportError:
+    METRICS_AVAILABLE = False
+    logger.warning("⚠️ Prometheus client not available - metrics endpoint disabled")
+
 # Try to import Kafka library
 try:
     from kafka import KafkaProducer, KafkaConsumer
@@ -51,8 +70,21 @@ kafka_consumer = None
 kafka_lock = threading.Lock()
 shutdown_event = threading.Event()
 
-# Thread pool for concurrent task processing
-executor = ThreadPoolExecutor(max_workers=int(os.getenv('MAX_WORKERS', '3')))
+# Enhanced thread pool configuration
+MAX_WORKERS = int(os.getenv('MAX_WORKERS', '3'))
+USE_PROCESS_POOL = os.getenv('USE_PROCESS_POOL', 'false').lower() == 'true'
+POOL_TYPE = os.getenv('POOL_TYPE', 'thread')  # 'thread' or 'process'
+
+# Import ProcessPoolExecutor for CPU-bound tasks
+from concurrent.futures import ProcessPoolExecutor
+
+# Initialize the appropriate executor based on configuration
+if USE_PROCESS_POOL or POOL_TYPE == 'process':
+    executor = ProcessPoolExecutor(max_workers=MAX_WORKERS)
+    logger.info(f"🔧 Using ProcessPoolExecutor with {MAX_WORKERS} processes for CPU-bound tasks")
+else:
+    executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+    logger.info(f"🔧 Using ThreadPoolExecutor with {MAX_WORKERS} threads for I/O-bound tasks")
 
 def get_kafka_producer():
     """Thread-safe way to get the Kafka producer instance."""
@@ -69,7 +101,7 @@ def get_kafka_producer():
                         value_serializer=lambda x: json.dumps(x).encode('utf-8'),
                         key_serializer=lambda x: x.encode('utf-8') if x else None,
                         retries=3,
-                        retry_backoff_ms=1000,
+                        retry_backoff_ms=int(os.getenv('KAFKA_RETRY_BACKOFF_MS', '1000')),
                         request_timeout_ms=30000,
                         api_version=(0, 10, 1)
                     )
@@ -129,6 +161,11 @@ def send_result_to_kafka(task_id, result, status='completed'):
         # Wait for acknowledgment
         record_metadata = future.get(timeout=10)
         logger.info(f"✅ Result sent to Kafka - Topic: {record_metadata.topic}, Partition: {record_metadata.partition}, Offset: {record_metadata.offset}")
+        
+        # Track Kafka message sent
+        if METRICS_AVAILABLE:
+            kafka_messages.labels(topic=KAFKA_RESULT_TOPIC, operation='send').inc()
+        
         return True
     except Exception as e:
         logger.error(f"❌ Failed to send result to Kafka: {e}")
@@ -140,7 +177,9 @@ def process_automation_task(task_data):
     task_type = task_data.get('task_type', 'unknown')
 
     logger.info(f"⚙️ Processing task {task_id} of type {task_type}")
-
+    
+    # Start timing for metrics
+    start_time = time.time() if METRICS_AVAILABLE else None
 
     try:
         # --- Your specific automation logic goes here ---
@@ -172,10 +211,23 @@ def process_automation_task(task_data):
             result = {'success': False, 'error': f'Unknown task type: {task_type}'}
 
         send_result_to_kafka(task_id, result)
+        
+        # Record successful task completion
+        if METRICS_AVAILABLE:
+            tasks_processed.labels(status='success').inc()
+            if start_time:
+                task_duration.observe(time.time() - start_time)
 
     except Exception as e:
         logger.error(f"❌ Task {task_id} processing failed: {e}")
         send_result_to_kafka(task_id, {'error': str(e)}, status='failed')
+        
+        # Record failed task
+        if METRICS_AVAILABLE:
+            tasks_processed.labels(status='failed').inc()
+            error_count.labels(error_type=type(e).__name__).inc()
+            if start_time:
+                task_duration.observe(time.time() - start_time)
 
 def kafka_consumer_loop():
     """Main Kafka consumer loop that polls for messages."""
@@ -206,6 +258,10 @@ def kafka_consumer_loop():
                         task_data['task_id'] = task_id
 
                         logger.info(f"📨 Received Kafka task: {task_id}")
+                        
+                        # Track Kafka message received
+                        if METRICS_AVAILABLE:
+                            kafka_messages.labels(topic=KAFKA_TASK_TOPIC, operation='receive').inc()
 
                         # Submit task to thread pool
                         executor.submit(process_automation_task, task_data)
@@ -255,16 +311,39 @@ signal.signal(signal.SIGINT, signal_handler)
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
+    active_thread_count = 0
+    try:
+        if hasattr(executor, '_threads') and executor._threads is not None:
+            active_thread_count = len(executor._threads)
+        elif hasattr(executor, '_processes') and executor._processes is not None:
+            active_thread_count = len(executor._processes)
+    except:
+        pass
+    
+    # Update active workers gauge
+    if METRICS_AVAILABLE:
+        active_workers.set(active_thread_count)
+    
     status = {
         'status': 'healthy',
         'service': 'automation-worker',
         'timestamp': datetime.utcnow().isoformat(),
         'worker_id': os.getenv('HOSTNAME', 'unknown'),
         'kafka_status': "healthy" if get_kafka_producer() else "unhealthy",
-        # executor._threads is a set of Thread objects (not JSON serializable) — return its size
-        'active_threads': (len(executor._threads) if hasattr(executor, '_threads') and executor._threads is not None else 0)
+        'active_workers': active_thread_count,
+        'executor_type': 'process' if USE_PROCESS_POOL or POOL_TYPE == 'process' else 'thread',
+        'max_workers': MAX_WORKERS,
+        'metrics_enabled': METRICS_AVAILABLE
     }
     return jsonify(status), 200
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    """Prometheus metrics endpoint"""
+    if not METRICS_AVAILABLE:
+        return "Prometheus client not available", 503
+    
+    return generate_latest(registry), 200, {'Content-Type': CONTENT_TYPE_LATEST}
 
 @app.route('/api/trigger-automation', methods=['POST'])
 def trigger_automation():
