@@ -250,31 +250,6 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
         </div>
       )}
 
-      {/* Debug: Plan management section */}
-      <div style={{ marginTop: '16px', padding: '16px', border: '1px solid #ddd', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
-        <h4>Debug: Update Plan</h4>
-        <p>Current plan: {plan.name} (ID: {plan.id})</p>
-        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-          <button 
-            onClick={() => updateUserPlan('starter')}
-            style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
-            Set to Starter
-          </button>
-          <button 
-            onClick={() => updateUserPlan('professional')}
-            style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
-            Set to Professional
-          </button>
-          <button 
-            onClick={() => updateUserPlan('free')}
-            style={{ padding: '8px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
-            Set to Free/Hobbyist
-          </button>
-        </div>
-      </div>
     </div>
   );
 };
