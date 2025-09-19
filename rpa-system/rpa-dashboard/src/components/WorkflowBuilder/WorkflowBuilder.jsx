@@ -265,7 +265,7 @@ const WorkflowBuilder = () => {
       console.error('Failed to update workflow status:', e);
       alert('Failed to update workflow status: ' + (e.message || e));
     }
-  }, [hasWorkflowId, isActive, updateWorkflow]);
+  }, [hasWorkflowId, isActive, workflowId]);
 
   // Show loading state while workflow is loading
   if (workflowId && workflowLoading) {
