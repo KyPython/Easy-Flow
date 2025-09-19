@@ -30,6 +30,7 @@ export const usePlan = () => {
         throw rpcError;
       }
 
+      console.log('Plan data received:', data);
       setPlanData(data);
     } catch (err) {
       console.error('Error fetching plan data:', err);
@@ -107,11 +108,65 @@ export const usePlan = () => {
     fetchPlanData();
   }, []);
 
+  const updateUserPlan = async (newPlanId) => {
+    if (!user?.id) return false;
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          plan_id: newPlanId,
+          plan_changed_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        console.error('Error updating plan:', error);
+        return false;
+      }
+
+      // Refresh plan data after update
+      await fetchPlanData();
+      return true;
+    } catch (err) {
+      console.error('Error updating user plan:', err);
+      return false;
+    }
+  };
+
   // Realtime sync callbacks
   const handlePlanChange = useCallback((planChangeData) => {
     console.log('Plan changed in realtime:', planChangeData);
     // Immediately refresh plan data when plan changes
     fetchPlanData();
+  }, []);
+
+  // Poll for plan updates when returning from external payment pages
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, checking for plan updates...');
+        // Delay slightly to allow any webhooks to process
+        setTimeout(() => {
+          fetchPlanData();
+        }, 2000);
+      }
+    };
+
+    const handleFocus = () => {
+      console.log('Window focused, checking for plan updates...');
+      setTimeout(() => {
+        fetchPlanData();
+      }, 1000);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const handleUsageUpdate = useCallback((usageData) => {
@@ -178,6 +233,7 @@ export const usePlan = () => {
     canCreateWorkflow,
     canRunAutomation,
     refresh,
+    updateUserPlan,
     trialDaysLeft,
     isRealtimeConnected: isConnected,
     lastRefresh

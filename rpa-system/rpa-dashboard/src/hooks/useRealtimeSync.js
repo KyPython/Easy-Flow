@@ -133,8 +133,24 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
           })
           .subscribe();
 
+        // Plan notifications broadcast channel (for webhook-triggered updates)
+        const planNotificationsChannel = supabase
+          .channel('plan-notifications')
+          .on('broadcast', { event: 'plan_updated' }, (payload) => {
+            console.log('Plan update broadcast received:', payload);
+            if (payload.payload?.user_id === user.id && onPlanChange) {
+              console.log('Plan updated via webhook for current user, refreshing data...');
+              onPlanChange({
+                trigger: 'webhook',
+                newPlan: payload.payload.plan_id,
+                updatedAt: payload.payload.updated_at
+              });
+            }
+          })
+          .subscribe();
+
         // Store channel references for cleanup
-        channelsRef.current = [planChannel, usageChannel, executionsChannel, workflowsChannel];
+        channelsRef.current = [planChannel, usageChannel, executionsChannel, workflowsChannel, planNotificationsChannel];
 
         console.log('Realtime subscriptions established for user:', user.id);
 
