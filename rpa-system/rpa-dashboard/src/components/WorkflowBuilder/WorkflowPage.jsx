@@ -30,6 +30,10 @@ const WorkflowPage = () => {
   const canAccessWorkflows = () => {
     if (planLoading) return true; // Allow loading
     
+    // Development bypass
+    const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
+    if (isDevelopment) return true;
+    
     return planData?.limits?.has_workflows !== false && 
            (planData?.limits?.workflows > 0);
   };

@@ -14,6 +14,9 @@ const PaywallModal = ({
   const { planData } = usePlan();
   const { theme } = useTheme();
   const [isClosing, setIsClosing] = useState(false);
+  
+  // Development bypass
+  const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
 
   const handleClose = () => {
     setIsClosing(true);
@@ -25,6 +28,11 @@ const PaywallModal = ({
   const handleUpgrade = () => {
     // Redirect to pricing page
     window.location.href = '/pricing';
+  };
+
+  const handleBypass = () => {
+    // Development bypass - close modal and allow access
+    onClose?.();
   };
 
   const getFeatureTitle = () => {
@@ -180,6 +188,11 @@ const PaywallModal = ({
           <button onClick={handleClose} className={styles.cancelBtn}>
             Maybe Later
           </button>
+          {isDevelopment && (
+            <button onClick={handleBypass} className={styles.cancelBtn} style={{backgroundColor: '#10b981', color: 'white'}}>
+              🚀 Dev Bypass
+            </button>
+          )}
           <button onClick={handleUpgrade} className={styles.upgradeBtn}>
             <FiZap />
             Upgrade Now
