@@ -184,7 +184,7 @@ export default function PricingPage() {
     window.open(plan.polar_url, '_blank');
   };
 
-  const currentPlanName = userSubscription?.plan?.name || 'Free';
+  const currentPlanName = planData?.plan?.name || 'Free';
   const { t } = useI18n();
 
   return (
@@ -242,9 +242,9 @@ export default function PricingPage() {
               <button
                 className={styles.planButton}
                 onClick={() => startPlan(plan)}
-                disabled={userSubscription?.plan_id === plan.id}
+                disabled={planData?.plan?.name === plan.name}
               >
-                {userSubscription?.plan_id === plan.id ? t('plan.current_plan','Current Plan') : t('pricing.start_plan','Start Plan')}
+                {planData?.plan?.name === plan.name ? t('plan.current_plan','Current Plan') : t('pricing.start_plan','Start Plan')}
               </button>
             </div>
           );

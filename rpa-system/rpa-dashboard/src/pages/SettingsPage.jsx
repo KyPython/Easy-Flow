@@ -7,12 +7,14 @@ import styles from './SettingsPage.module.css';
 import ReferralForm from '../components/ReferralForm';
 import { useLanguage } from '../utils/LanguageContext';
 import { useI18n } from '../i18n';
+import { usePlan } from '../hooks/usePlan';
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const { theme, toggle } = useTheme();
   const { setLanguage } = useLanguage();
   const { t } = useI18n();
+  const { planData } = usePlan();
 
   // UI state
   const [message, setMessage] = useState('');
@@ -637,7 +639,7 @@ export default function SettingsPage() {
         ) : (
           <>
             <p className={styles.muted}>
-              Current plan: <strong>{subscription?.plan?.name || 'Free'}</strong>
+              Current plan: <strong>{planData?.plan?.name || 'Free'}</strong>
             </p>
             <form onSubmit={changePlan} className={styles.formRow}>
               <select
