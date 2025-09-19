@@ -2368,19 +2368,51 @@ app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req,
   }
 });
 
-// Execute automation task via Kafka (with result callback)
+//
+// Expected payload for /api/automation/execute:
+// {
+//   task_type: 'web_automation' | 'form_submission' | 'data_extraction' | 'file_download',
+//   url: string, // required for most types
+//   username?: string,
+//   password?: string,
+//   pdf_url?: string,
+//   ...other task-specific fields
+// }
+//
 app.post('/api/automation/execute', authMiddleware, automationLimiter, async (req, res) => {
   try {
     const taskData = req.body;
     const timeout = parseInt(req.query.timeout) || 60000; // Default 60 second timeout
 
-    if (!taskData || !taskData.task_type) {
+    // DEV: Log incoming payload for debugging
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEV DEBUG] Incoming /api/automation/execute payload:', JSON.stringify(taskData, null, 2));
+    }
+
+    // Validate payload
+    if (!taskData || typeof taskData !== 'object') {
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('[DEV DEBUG] Missing or invalid task_type in request body:', taskData);
+        console.warn('[DEV DEBUG] Missing or invalid request body:', taskData);
       }
-      return res.status(400).json({ 
+      return res.status(400).json({
+        error: 'Request body must be a JSON object with required fields.'
+      });
+    }
+    if (!taskData.task_type) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[DEV DEBUG] Missing task_type in request body:', taskData);
+      }
+      return res.status(400).json({
         error: 'task_type is required',
         accepted_types: ['web_automation', 'form_submission', 'data_extraction', 'file_download']
+      });
+    }
+    if (!taskData.url && ['web_automation', 'form_submission', 'data_extraction', 'file_download'].includes(taskData.task_type)) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[DEV DEBUG] Missing url in request body for task_type', taskData.task_type, taskData);
+      }
+      return res.status(400).json({
+        error: 'url is required for this task_type.'
       });
     }
 
@@ -2393,7 +2425,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
     };
 
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[DEV DEBUG] /api/automation/execute payload:', enrichedTask);
+      console.log('[DEV DEBUG] /api/automation/execute enriched payload:', JSON.stringify(enrichedTask, null, 2));
     }
 
     // Send task and wait for result
