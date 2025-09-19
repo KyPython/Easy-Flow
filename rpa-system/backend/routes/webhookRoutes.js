@@ -11,7 +11,9 @@ router.post('/trigger/:token', async (req, res) => {
   const payload = req.body;
   const headers = req.headers;
 
-  console.log(`[WebhookRoutes] Webhook trigger received: ${token}`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[WebhookRoutes] Webhook trigger received: ${token}`);
+  }
 
   try {
     // Validate token format

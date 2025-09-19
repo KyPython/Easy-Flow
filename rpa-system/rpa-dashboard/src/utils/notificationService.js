@@ -34,10 +34,12 @@ class NotificationService {
     this.lastTokenRefresh = null;
   this._loggedBackendFallbackOnce = false;
     
-    console.log('🔔 NotificationService initialized:', {
-      isSupported: this.isSupported,
-      firebaseConfigured: isFirebaseConfigured
-    });
+    if (import.meta.env.MODE !== 'production') {
+      console.log('🔔 NotificationService initialized:', {
+        isSupported: this.isSupported,
+        firebaseConfigured: isFirebaseConfigured
+      });
+    }
   }
 
   // Check if notifications are supported
@@ -60,19 +62,25 @@ class NotificationService {
 
     // Return existing promise if initialization is already in progress
     if (this.initializationPromise) {
-      console.log('🔔 Returning existing initialization promise...');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Returning existing initialization promise...');
+      }
       return await this.initializationPromise;
     }
 
     // Check if already initialized for this user
     if (this.isInitialized && this.currentUser?.id === user?.id) {
-      console.log('🔔 Notifications already initialized for user:', user.id);
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Notifications already initialized for user:', user.id);
+      }
       return true;
     }
 
     // If switching users, cleanup first
     if (this.isInitialized && this.currentUser?.id !== user?.id) {
-      console.log('🔔 Switching users, cleaning up previous initialization');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Switching users, cleaning up previous initialization');
+      }
       this.cleanup();
     }
 
@@ -114,7 +122,9 @@ class NotificationService {
           unsubscribe();
           
           if (firebaseUser) {
-            console.log('🔔 Firebase user authenticated:', firebaseUser.uid);
+            if (import.meta.env.MODE !== 'production') {
+              console.log('🔔 Firebase user authenticated:', firebaseUser.uid);
+            }
             this.firebaseAuthUser = firebaseUser;
             resolve(true);
           } else {
@@ -135,12 +145,16 @@ class NotificationService {
   // Authenticate Firebase using Supabase session
   async _authenticateWithSupabase(session, user) {
     try {
-      console.log('🔔 Requesting Firebase custom token for user:', user.id);
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Requesting Firebase custom token for user:', user.id);
+      }
       
       // Request custom token from backend
       const tokenUrl = buildApiUrl('/api/firebase/token');
       
-      console.log('🔔 Making request to:', tokenUrl);
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Making request to:', tokenUrl);
+      }
       const response = await fetch(tokenUrl, {
         method: 'POST',
         headers: {
@@ -166,13 +180,17 @@ class NotificationService {
         throw new Error('Invalid token response from server');
       }
 
-      console.log('🔔 Received Firebase custom token, signing in...');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Received Firebase custom token, signing in...');
+      }
       
       // Sign in to Firebase with custom token
       const userCredential = await signInWithCustomToken(auth, tokenData.token);
       const firebaseUser = userCredential.user;
       
-      console.log('🔔 Successfully authenticated with Firebase:', firebaseUser.uid);
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Successfully authenticated with Firebase:', firebaseUser.uid);
+      }
       this.firebaseAuthUser = firebaseUser;
       
       // Set up token refresh for custom tokens (they expire in 1 hour)
@@ -184,7 +202,9 @@ class NotificationService {
       console.error('🔔 Firebase authentication with custom token failed:', error);
       
       // Fallback to application-level authentication
-      console.log('🔔 Falling back to application-level authentication');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Falling back to application-level authentication');
+      }
       this.firebaseAuthUser = { uid: user.id };
       
       // Still return true to allow initialization to continue with limited functionality
@@ -204,7 +224,9 @@ class NotificationService {
     
     this.tokenRefreshTimeout = setTimeout(async () => {
       try {
-        console.log('🔔 Refreshing Firebase token for user:', user.id);
+        if (import.meta.env.MODE !== 'production') {
+          console.log('🔔 Refreshing Firebase token for user:', user.id);
+        }
         await this.refreshFirebaseToken(user);
       } catch (error) {
         console.error('🔔 Failed to refresh Firebase token:', error);
@@ -213,7 +235,9 @@ class NotificationService {
       }
     }, refreshInterval);
 
-    console.log('🔔 Token refresh scheduled for', new Date(Date.now() + refreshInterval).toISOString());
+    if (import.meta.env.MODE !== 'production') {
+      console.log('🔔 Token refresh scheduled for', new Date(Date.now() + refreshInterval).toISOString());
+    }
   }
 
   // Refresh Firebase authentication token
@@ -237,7 +261,9 @@ class NotificationService {
       
       if (success) {
         this.lastTokenRefresh = new Date().toISOString();
-        console.log('🔔 Firebase token refreshed successfully');
+        if (import.meta.env.MODE !== 'production') {
+          console.log('🔔 Firebase token refreshed successfully');
+        }
         
         // Emit refresh event for any listeners
         this.dispatchEvent('token_refreshed', {
@@ -279,26 +305,34 @@ class NotificationService {
     switch (error.code) {
       case 'auth/id-token-expired':
       case 'auth/token-expired':
-        console.log('🔔 Token expired, attempting refresh...');
+        if (import.meta.env.MODE !== 'production') {
+          console.log('🔔 Token expired, attempting refresh...');
+        }
         if (this.currentUser) {
           this.refreshFirebaseToken(this.currentUser);
         }
         break;
         
       case 'auth/network-request-failed':
-        console.log('🔔 Network error, will retry...');
+        if (import.meta.env.MODE !== 'production') {
+          console.log('🔔 Network error, will retry...');
+        }
         // Emit network error event for UI feedback
         this.dispatchEvent('network_error', errorInfo);
         break;
         
       case 'auth/too-many-requests':
-        console.log('🔔 Rate limited, backing off...');
+        if (import.meta.env.MODE !== 'production') {
+          console.log('🔔 Rate limited, backing off...');
+        }
         // Implement exponential backoff
         this.dispatchEvent('rate_limit_error', errorInfo);
         break;
         
       case 'permission-denied':
-        console.log('🔔 Permission denied, may need to refresh token...');
+        if (import.meta.env.MODE !== 'production') {
+          console.log('🔔 Permission denied, may need to refresh token...');
+        }
         if (this.currentUser) {
           // Wait a bit before retrying to avoid spam
           setTimeout(() => this.refreshFirebaseToken(this.currentUser), 2000);
@@ -320,7 +354,9 @@ class NotificationService {
     this.currentUser = user;
     
     try {
-      console.log('🔔 Starting initialization for user:', user?.id);
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Starting initialization for user:', user?.id);
+      }
       
       // Ensure Firebase auth is ready before proceeding
       const authReady = await this._ensureFirebaseAuth(user);
@@ -344,11 +380,15 @@ class NotificationService {
       if (authReady) {
         this.setupRealtimeListener();
       } else {
-        console.log('🔔 Skipping real-time listener setup due to auth issues');
+        if (import.meta.env.MODE !== 'production') {
+          console.log('🔔 Skipping real-time listener setup due to auth issues');
+        }
       }
       
       this.isInitialized = true;
-      console.log('🔔 NotificationService initialization completed for user:', user?.id);
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 NotificationService initialization completed for user:', user?.id);
+      }
       return true;
       
     } catch (error) {
@@ -366,7 +406,9 @@ class NotificationService {
 
     // Skip loading if preferences already exist for this user
     if (this.userPreferences) {
-      console.log('🔔 User preferences already loaded, skipping...');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 User preferences already loaded, skipping...');
+      }
       return;
     }
 
@@ -380,7 +422,9 @@ class NotificationService {
       if (response.ok) {
         this.userPreferences = await response.json();
         this.pushEnabled = !!this.userPreferences?.preferences?.push_notifications;
-        console.log('🔔 User preferences loaded:', this.userPreferences);
+        if (import.meta.env.MODE !== 'production') {
+          console.log('🔔 User preferences loaded:', this.userPreferences);
+        }
       } else {
         console.warn('🔔 Failed to load user preferences, using defaults');
         this.userPreferences = this.getDefaultPreferences();
@@ -549,7 +593,9 @@ class NotificationService {
     }
     
     if (permission === 'granted') {
-      console.log('🔔 Notification permission granted');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Notification permission granted');
+      }
       return true;
     } else {
       console.warn('🔔 Notification permission denied');
@@ -563,7 +609,9 @@ class NotificationService {
 
     // Return existing token if already obtained
     if (this.fcmToken) {
-      console.log('🔔 FCM Token already exists, reusing...');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 FCM Token already exists, reusing...');
+      }
       return this.fcmToken;
     }
 
@@ -574,7 +622,9 @@ class NotificationService {
       try {
         swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         await navigator.serviceWorker.ready;
-        console.log('🔔 Messaging service worker ready');
+        if (import.meta.env.MODE !== 'production') {
+          console.log('🔔 Messaging service worker ready');
+        }
       } catch (swErr) {
         console.warn('🔔 Unable to register messaging service worker:', swErr?.message || swErr);
       }
@@ -588,7 +638,9 @@ class NotificationService {
       });
       
       this.fcmToken = token;
-      console.log('🔔 FCM Token obtained:', token ? 'Success' : 'Failed');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 FCM Token obtained:', token ? 'Success' : 'Failed');
+      }
       
       // Save token to backend for sending notifications
       if (token && this.currentUser) {
@@ -623,7 +675,9 @@ class NotificationService {
       if (!resp.ok) {
         console.error('🔔 Error saving FCM token via API:', resp.status);
       } else {
-        console.log('🔔 FCM token saved via API');
+        if (import.meta.env.MODE !== 'production') {
+          console.log('🔔 FCM token saved via API');
+        }
         if (!this.userPreferences) this.userPreferences = this.getDefaultPreferences();
         this.userPreferences.preferences = merged;
         this.userPreferences.fcm_token = token;
@@ -641,7 +695,9 @@ class NotificationService {
     if (!messaging) return;
 
     onMessage(messaging, (payload) => {
-      console.log('🔔 Foreground message received:', payload);
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Foreground message received:', payload);
+      }
       
       const { notification, data } = payload;
       
@@ -682,7 +738,9 @@ class NotificationService {
         });
       });
       
-      console.log('🔔 Real-time notifications updated:', notifications.length);
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Real-time notifications updated:', notifications.length);
+      }
       
       // Trigger event with all notifications
       this.triggerNotificationEvent({
@@ -720,7 +778,9 @@ class NotificationService {
 
     // Check if this type of notification is enabled
     if (!this.isNotificationEnabled(notification.type)) {
-      console.log(`🔔 Notification type '${notification.type}' is disabled for user, skipping`);
+      if (import.meta.env.MODE !== 'production') {
+        console.log(`🔔 Notification type '${notification.type}' is disabled for user, skipping`);
+      }
       return false;
     }
 
@@ -735,7 +795,9 @@ class NotificationService {
       const userNotificationsRef = ref(database, `notifications/${userId}`);
       await push(userNotificationsRef, notificationData);
       
-      console.log('🔔 Notification sent to Firebase:', notificationData);
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Notification sent to Firebase:', notificationData);
+      }
       return true;
     } catch (error) {
       console.error('🔔 Error sending notification:', error);
@@ -781,7 +843,9 @@ class NotificationService {
         console.error('🔔 Backend fallback failed:', err);
         return false;
       }
-      console.log('🔔 Notification stored via backend fallback');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Notification stored via backend fallback');
+      }
       return true;
     } catch (e) {
       console.error('🔔 Backend fallback error:', e);
@@ -800,13 +864,17 @@ class NotificationService {
 
     // Check if push notifications are enabled
     if (!this.isNotificationEnabled('push')) {
-      console.log('🔔 Push notifications are disabled, skipping browser notification');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Push notifications are disabled, skipping browser notification');
+      }
       return;
     }
 
     // Check specific notification type if provided
     if (data?.type && !this.isNotificationEnabled(data.type)) {
-      console.log(`🔔 Notification type '${data.type}' is disabled, skipping browser notification`);
+      if (import.meta.env.MODE !== 'production') {
+        console.log(`🔔 Notification type '${data.type}' is disabled, skipping browser notification`);
+      }
       return;
     }
 
@@ -893,7 +961,9 @@ class NotificationService {
     try {
       const notificationRef = ref(database, `notifications/${this.currentUser.id}/${notificationId}`);
       await set(notificationRef, { read: true });
-      console.log('🔔 Notification marked as read:', notificationId);
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Notification marked as read:', notificationId);
+      }
       return true;
     } catch (error) {
       console.error('🔔 Error marking notification as read:', error);
@@ -908,7 +978,9 @@ class NotificationService {
     try {
       const userNotificationsRef = ref(database, `notifications/${this.currentUser.id}`);
       await set(userNotificationsRef, null);
-      console.log('🔔 All notifications cleared');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 All notifications cleared');
+      }
       return true;
     } catch (error) {
       console.error('🔔 Error clearing notifications:', error);
@@ -918,12 +990,16 @@ class NotificationService {
 
   // Cleanup when user logs out
   cleanup() {
-    console.log('🔔 Cleaning up NotificationService');
+    if (import.meta.env.MODE !== 'production') {
+      console.log('🔔 Cleaning up NotificationService');
+    }
     
     // Remove all database listeners
     this.unsubscribers.forEach((unsubscribe, key) => {
       unsubscribe();
-      console.log(`🔔 Unsubscribed from ${key}`);
+      if (import.meta.env.MODE !== 'production') {
+        console.log(`🔔 Unsubscribed from ${key}`);
+      }
     });
     this.unsubscribers.clear();
     
@@ -940,7 +1016,9 @@ class NotificationService {
     if (this.tokenRefreshTimeout) {
       clearTimeout(this.tokenRefreshTimeout);
       this.tokenRefreshTimeout = null;
-      console.log('🔔 Cleared token refresh timeout');
+      if (import.meta.env.MODE !== 'production') {
+        console.log('🔔 Cleared token refresh timeout');
+      }
     }
     
     // Reset state

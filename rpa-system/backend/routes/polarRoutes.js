@@ -126,7 +126,9 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
     if (profileError) {
       console.error('Error updating profile plan:', profileError);
     } else {
-      console.log(`Profile plan updated for user ${userId} to plan ${planId}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Profile plan updated for user ${userId} to plan ${planId}`);
+      }
       
       // Send a realtime notification to ensure frontend updates
       try {
@@ -172,7 +174,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     }
 
     const payload = JSON.parse(req.body.toString());
-    console.log('Received Polar webhook:', {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Received Polar webhook:', {
       type: payload.type,
       id: payload.data?.id,
       timestamp: new Date().toISOString()
@@ -213,7 +216,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           return res.status(500).json({ error: 'Failed to update subscription' });
         }
 
-        console.log(`Subscription ${result.action} for user ${userId}:`, {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`Subscription ${result.action} for user ${userId}:`, {
           planId,
           externalPaymentId: subscription.id,
           status: subscription.status
@@ -256,7 +260,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           return res.status(500).json({ error: 'Failed to cancel subscription' });
         }
 
-        console.log(`Subscription canceled for user ${userId}:`, {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`Subscription canceled for user ${userId}:`, {
           externalPaymentId: subscription.id
         });
 
@@ -269,7 +274,9 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       }
 
       default:
-        console.log(`Unhandled webhook type: ${payload.type}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`Unhandled webhook type: ${payload.type}`);
+        }
         return res.status(200).json({
           success: true,
           message: 'Webhook received but not processed',

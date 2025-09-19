@@ -238,10 +238,12 @@ const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
 
 // Debug logging for CORS configuration (quiet in production)
 if (process.env.NODE_ENV !== 'production') {
-  console.log('🔧 CORS Debug Info (app.js):');
-  console.log('   ALLOWED_ORIGINS env var:', process.env.ALLOWED_ORIGINS);
-  console.log('   Parsed ALLOWED_ORIGINS:', ALLOWED_ORIGINS);
-  console.log('   NODE_ENV:', process.env.NODE_ENV);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('🔧 CORS Debug Info (app.js):');
+    console.log('   ALLOWED_ORIGINS env var:', process.env.ALLOWED_ORIGINS);
+    console.log('   Parsed ALLOWED_ORIGINS:', ALLOWED_ORIGINS);
+    console.log('   NODE_ENV:', process.env.NODE_ENV);
+  }
 }
 
 const corsOptions = {
