@@ -94,17 +94,15 @@ const Header = ({ user }) => {
               {t('nav.files','Files')}
             </Link>
 
-            {/* Only show workflows link for plans that support workflows */}
-            {(planData?.limits?.has_workflows !== false && planData?.limits?.workflows > 0) && (
-              <Link
-                to="/app/workflows"
-                className={`${styles.navLink} ${
-                  isActive('/app/workflows') ? styles.activeNavLink : ''
-                }`}
-              >
-                {t('nav.workflows','Workflows')}
-              </Link>
-            )}
+            {/* Always show workflows link - paywall will handle access control */}
+            <Link
+              to="/app/workflows"
+              className={`${styles.navLink} ${
+                isActive('/app/workflows') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.workflows','Workflows')}
+            </Link>
           </nav>
         )}
 
