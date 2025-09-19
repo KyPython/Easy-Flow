@@ -18,6 +18,7 @@ const WorkflowPage = () => {
   const { planData, loading: planLoading } = usePlan();
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [bypassPaywall, setBypassPaywall] = useState(false);
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -26,13 +27,15 @@ const WorkflowPage = () => {
     }
   }, [user, authLoading, navigate]);
 
+  // Development bypass
+  const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
+
   // Check if user has access to workflows
   const canAccessWorkflows = () => {
     if (planLoading) return true; // Allow loading
     
     // Development bypass
-    const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
-    if (isDevelopment) return true;
+    if (isDevelopment || bypassPaywall) return true;
     
     return planData?.limits?.has_workflows !== false && 
            (planData?.limits?.workflows > 0);
@@ -42,8 +45,10 @@ const WorkflowPage = () => {
   useEffect(() => {
     if (!planLoading && !canAccessWorkflows()) {
       setShowPaywall(true);
+    } else {
+      setShowPaywall(false);
     }
-  }, [planLoading, planData]);
+  }, [planLoading, planData, bypassPaywall]);
 
   // Determine what to show based on path and workflow ID
   const getCurrentView = () => {
@@ -98,7 +103,14 @@ const WorkflowPage = () => {
           feature="unlimited_workflows"
           requiredPlan="starter"
           message="Workflows are not available on the Hobbyist plan. Upgrade to create automated workflows."
-          onClose={() => navigate('/app')}
+          onClose={() => {
+            if (isDevelopment) {
+              setBypassPaywall(true);
+              setShowPaywall(false);
+            } else {
+              navigate('/app');
+            }
+          }}
         />
       )}
 

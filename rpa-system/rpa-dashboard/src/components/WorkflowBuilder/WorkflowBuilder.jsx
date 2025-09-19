@@ -50,6 +50,9 @@ const WorkflowBuilder = () => {
 
   // Plan checking
   const { planData, canCreateWorkflow, canRunAutomation, hasFeature } = usePlan();
+  
+  // Development bypass
+  const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
 
   // Use real workflow data - always call hooks
   const { 
@@ -78,8 +81,8 @@ const WorkflowBuilder = () => {
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 2500);
       } else {
-        // Check if user can create new workflow
-        if (!canCreateWorkflow()) {
+        // Check if user can create new workflow (bypass in development)
+        if (!isDevelopment && !canCreateWorkflow()) {
           setPaywallFeature('workflow_creation');
           setShowPaywall(true);
           return;
@@ -128,8 +131,8 @@ const WorkflowBuilder = () => {
       return;
     }
 
-    // Check if user can run automation
-    if (!canRunAutomation()) {
+    // Check if user can run automation (bypass in development)
+    if (!isDevelopment && !canRunAutomation()) {
       setPaywallFeature('automation_runs');
       setShowPaywall(true);
       return;
@@ -480,7 +483,11 @@ const WorkflowBuilder = () => {
               ? `You've used ${planData?.usage?.automations || planData?.usage?.monthly_runs || 0}/${planData?.limits?.automations || planData?.limits?.monthly_runs || 50} automation runs this month. Upgrade for higher limits.`
               : undefined
           }
-          onClose={() => setShowPaywall(false)}
+          onClose={() => {
+            setShowPaywall(false);
+            // In development, bypassing should allow the action to continue
+            // Note: This just closes the modal - the action will have already been prevented
+          }}
         />
       )}
     </div>

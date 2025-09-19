@@ -32,7 +32,10 @@ const PaywallModal = ({
 
   const handleBypass = () => {
     // Development bypass - close modal and allow access
-    onClose?.();
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose?.();
+    }, 200);
   };
 
   const getFeatureTitle = () => {
