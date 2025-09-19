@@ -86,7 +86,20 @@ const PaywallModal = ({
   };
 
   const getCurrentPlan = () => {
-    return planData?.plan?.name || 'Unknown';
+    // Handle different plan data structures
+    return planData?.plan?.name || planData?.plan_name || planData?.planName || 'Hobbyist';
+  };
+
+  const getCurrentUsageData = () => {
+    return {
+      automations: planData?.usage?.automations || planData?.usage?.monthly_runs || 0,
+      automationLimit: planData?.limits?.automations || planData?.limits?.monthly_runs || 50,
+      workflows: planData?.usage?.workflows || 0,
+      workflowLimit: planData?.limits?.workflows || 0,
+      storage: planData?.usage?.storage_gb || 0,
+      storageLimit: planData?.limits?.storage_gb || 5,
+      hasWorkflows: planData?.limits?.has_workflows !== false
+    };
   };
 
   return (
@@ -119,6 +132,13 @@ const PaywallModal = ({
               <div className={styles.currentPlan}>
                 <span className={styles.planLabel}>Current Plan</span>
                 <span className={styles.planName}>{getCurrentPlan()}</span>
+                <div className={styles.currentUsage}>
+                  <div>{getCurrentUsageData().automations}/{getCurrentUsageData().automationLimit} Runs</div>
+                  {getCurrentUsageData().hasWorkflows && (
+                    <div>{getCurrentUsageData().workflows}/{getCurrentUsageData().workflowLimit} Workflows</div>
+                  )}
+                  <div>{getCurrentUsageData().storage.toFixed(1)}/{getCurrentUsageData().storageLimit}GB Storage</div>
+                </div>
               </div>
               
               <div className={styles.arrow}>

@@ -69,7 +69,7 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     // Include both the original form data and add type field based on task selection
     const payload = { ...form, type: form.task };
 
-    const response = await api.post('/api/run-task', payload, {
+    const response = await api.post('/api/automation/execute', payload, {
       headers: {
         'Authorization': `Bearer ${accessToken}`
       }

@@ -473,9 +473,11 @@ const WorkflowBuilder = () => {
           requiredPlan="starter"
           message={
             paywallFeature === 'workflow_creation' 
-              ? `You've reached your workflow limit of ${planData?.limits?.workflows || 3}. Upgrade to create unlimited workflows.`
+              ? planData?.limits?.has_workflows === false
+                ? `Workflows are not available on the Hobbyist plan. Upgrade to create automated workflows.`
+                : `You've reached your workflow limit of ${planData?.limits?.workflows || 3}. Upgrade to create unlimited workflows.`
               : paywallFeature === 'automation_runs'
-              ? `You've used ${planData?.usage?.monthly_runs || 0}/${planData?.limits?.monthly_runs || 50} automation runs this month. Upgrade for higher limits.`
+              ? `You've used ${planData?.usage?.automations || planData?.usage?.monthly_runs || 0}/${planData?.limits?.automations || planData?.limits?.monthly_runs || 50} automation runs this month. Upgrade for higher limits.`
               : undefined
           }
           onClose={() => setShowPaywall(false)}

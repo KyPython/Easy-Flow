@@ -120,7 +120,16 @@ export const usePlan = () => {
   };
 
   const canCreateWorkflow = () => {
-    return planData?.can_create_workflow ?? false;
+    // For Hobbyist plans, workflows are not available at all
+    if (planData?.limits?.has_workflows === false) {
+      return false;
+    }
+    
+    // For plans with workflows, check if they're at the limit
+    const currentWorkflows = planData?.usage?.workflows || 0;
+    const workflowLimit = planData?.limits?.workflows || 0;
+    
+    return workflowLimit > 0 && currentWorkflows < workflowLimit;
   };
 
   const canRunAutomation = () => {
