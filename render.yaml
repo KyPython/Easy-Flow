@@ -35,22 +35,6 @@ services:
       python3 -m pip install -r ../requirements.txt --no-cache-dir
     startCommand: python3 production_automation_service.py
 
-  - type: web
-    name: easyflow-kafka
-    region: oregon
-    plan: starter
-    autoDeploy: false
-    docker:
-      image: "vectorized/redpanda:latest"
-    startCommand: >-
-      redpanda start --smp 1 --memory 1024M --overprovisioned --node-id 0
-      --kafka-addr 0.0.0.0:9092
-      --advertise-kafka-addr easyflow-kafka:9092
-      --check=false
-    disk:
-      name: kafka-data
-      mountPath: /var/lib/redpanda/data
-      sizeGB: 5
 
   - type: redis
     name: easyflow-redis
