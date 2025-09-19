@@ -261,9 +261,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         }
 
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`Subscription canceled for user ${userId}:`, {
+	  console.log(`Subscription canceled for user ${userId}:`, {
             externalPaymentId: subscription.id
           });
+        }
 
         return res.status(200).json({
           success: true,
@@ -283,6 +284,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           type: payload.type
         });
     }
+  }
 
   } catch (error) {
     console.error('Error processing Polar webhook:', error);
