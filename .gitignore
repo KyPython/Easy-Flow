@@ -140,12 +140,16 @@ ENV/
 env.bak/
 venv.bak/
 
-# Others
+# Database files
 *.sqlite
 *.sqlite3
 *.db
 *.db3
 *.lock
+*.sql
+**/*.sql
+migrations/*.sql
+**/migrations/*.sql
 .testing/
 .test
 /test-output/

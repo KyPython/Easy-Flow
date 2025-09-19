@@ -2,3 +2,9 @@
 *firebase*adminsdk*.json
 *firebase-service-account*.json
 config/firebase-service-account.json
+
+# Database files
+*.sql
+**/*.sql
+migrations/*.sql
+**/migrations/*.sql

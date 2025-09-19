@@ -47,3 +47,9 @@ dev-docs/
 # Build artifacts
 /build
 /dist
+
+# Database files
+*.sql
+**/*.sql
+migrations/*.sql
+**/migrations/*.sql
