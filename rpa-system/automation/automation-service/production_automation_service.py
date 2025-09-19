@@ -141,13 +141,26 @@ def process_automation_task(task_data):
 
     logger.info(f"⚙️ Processing task {task_id} of type {task_type}")
 
+
     try:
         # --- Your specific automation logic goes here ---
         # Example logic based on task_type
         if task_type == 'web_automation':
             result = {'success': True, 'message': 'Processed web_automation task.'}
         elif task_type == 'data_extraction':
-            result = {'success': True, 'message': 'Processed data_extraction task.'}
+            url = task_data.get('url')
+            if not url:
+                result = {'success': False, 'error': 'Missing required field: url'}
+            else:
+                try:
+                    from . import generic_scraper
+                except ImportError:
+                    import generic_scraper
+                scrape_result = generic_scraper.scrape_web_page(url, task_data)
+                if scrape_result.get('status') == 'success':
+                    result = {'success': True, 'data': scrape_result}
+                else:
+                    result = {'success': False, 'error': scrape_result.get('error', 'Scraping failed'), 'details': scrape_result}
         elif task_type == 'invoice_download':
             pdf_url = task_data.get('pdf_url')
             if not pdf_url:

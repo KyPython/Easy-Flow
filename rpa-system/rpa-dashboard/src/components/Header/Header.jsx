@@ -5,6 +5,7 @@ import styles from './Header.module.css';
 import { supabase } from '../../utils/supabaseClient';
 import PropTypes from 'prop-types';
 import ContactModal from './ContactModal';
+import DocumentationGuide from '../DocumentationGuide/DocumentationGuide';
 import { usePlan } from '../../hooks/usePlan';
 import NotificationCenter from '../NotificationCenter/NotificationCenter';
 
@@ -12,6 +13,7 @@ const Header = ({ user }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [showContact, setShowContact] = useState(false);
+  const [showDocs, setShowDocs] = useState(false);
   // language features removed
 
   const isActive = (path) => {
@@ -143,23 +145,27 @@ const Header = ({ user }) => {
 
               <div className={styles.userActions}>
                 <NotificationCenter user={user} />
-                
                 <Link className={styles.actionButton} to="/app/settings">
                   {t('nav.settings','Settings')}
                 </Link>
-
+                <button
+                  className={styles.actionButton}
+                  onClick={() => setShowDocs(true)}
+                  title="Learn & Support"
+                >
+                  {t('nav.documentation','Documentation')}
+                </button>
                 <button
                   className={styles.actionButton}
                   onClick={() => setShowContact(true)}
                 >
                   {t('nav.contact','Contact')}
                 </button>
-
                 <button
                   className={`${styles.actionButton} ${styles.signOutButton}`}
                   onClick={handleSignOut}
                 >
-          {t('auth.sign_out','Sign out')}
+                  {t('auth.sign_out','Sign out')}
                 </button>
               </div>
             </>
@@ -171,6 +177,15 @@ const Header = ({ user }) => {
         </div>
       </div>
 
+      {/* Documentation Modal */}
+      {showDocs && (
+        <div className={styles.modalOverlay} onClick={() => setShowDocs(false)}>
+          <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+            <button className={styles.closeButton} onClick={() => setShowDocs(false)}>&times;</button>
+            <DocumentationGuide />
+          </div>
+        </div>
+      )}
       {/* Contact Modal */}
       <ContactModal
         open={showContact}

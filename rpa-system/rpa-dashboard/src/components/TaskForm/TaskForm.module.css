@@ -1,3 +1,17 @@
+.helperText {
+  color: var(--text-muted, #888);
+  font-size: 0.97em;
+  margin: 4px 0 0 0;
+  padding-left: 2px;
+  line-height: 1.5;
+}
+code {
+  background: #f3f4f6;
+  color: #2563eb;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.95em;
+}
 .root {
   background: var(--card-bg);
   padding: var(--spacing-lg);

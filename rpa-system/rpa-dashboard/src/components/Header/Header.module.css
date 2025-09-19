@@ -1,3 +1,55 @@
+/* Documentation Modal Styles */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.35);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s;
+}
+
+.modalContent {
+  background: var(--surface, #fff);
+  border-radius: 18px;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.18);
+  padding: 0;
+  max-width: 650px;
+  width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  animation: popIn 0.2s;
+}
+
+.closeButton {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: var(--color-gray-400, #888);
+  cursor: pointer;
+  z-index: 2;
+  transition: color 0.15s;
+}
+.closeButton:hover {
+  color: var(--color-primary-600, #2563eb);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes popIn {
+  from { transform: scale(0.97); opacity: 0.7; }
+  to { transform: scale(1); opacity: 1; }
+}
 .header {
   background: var(--surface);
   border-bottom: 1px solid var(--color-gray-200);

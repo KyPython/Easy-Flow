@@ -79,7 +79,6 @@ const TagManager = ({
   const renderTagForm = (isEdit = false) => (
     <div className={styles.tagForm}>
       <h4>{isEdit ? t('tags.edit_tag', 'Edit Tag') : t('tags.create_tag', 'Create New Tag')}</h4>
-      
       <div className={styles.formGroup}>
         <label>{t('tags.name_label', 'Tag Name')}</label>
         <input
@@ -94,7 +93,11 @@ const TagManager = ({
           placeholder={t('tags.name_placeholder', 'Enter tag name')}
           className={styles.formInput}
           autoFocus
+          title="Type a name for your tag."
         />
+        <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.97em', margin: '2px 0 8px 2px' }}>
+          <b>What is this?</b> Give your tag a short, clear name. Example: <code>Urgent</code> or <code>Invoices</code>
+        </div>
       </div>
 
       <div className={styles.formGroup}>
@@ -116,6 +119,9 @@ const TagManager = ({
             className={styles.customColorInput}
             title={t('tags.custom_color', 'Custom color')}
           />
+        </div>
+        <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.97em', margin: '2px 0 8px 2px' }}>
+          <b>What is this?</b> Pick a color to help you spot this tag quickly. You can use the palette or pick your own.
         </div>
       </div>
 

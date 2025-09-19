@@ -21,7 +21,8 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     username: '',
     password: '',
     task: 'invoice_download',
-    pdf_url: ''
+    pdf_url: '',
+    selector: '' // for data_extraction
   });
 
   const [errors, setErrors] = useState({});
@@ -50,6 +51,14 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
       } else if (!isValidUrl(form.pdf_url)) {
         newErrors.pdf_url = 'Please enter a valid PDF URL';
       }
+    }
+    if (form.task === 'data_extraction') {
+      if (!form.url.trim()) {
+        newErrors.url = 'URL is required for Data Extraction';
+      } else if (!isValidUrl(form.url)) {
+        newErrors.url = 'Please enter a valid URL';
+      }
+      // Selector is optional for data_extraction
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -137,11 +146,15 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
               onChange={handleChange}
               className={styles.select}
               required
+              title="Choose what you want EasyFlow to do for you."
             >
               {taskTypes.map(type => (
                 <option key={type.value} value={type.value}>{type.label}</option>
               ))}
             </select>
+            <div className={styles.helperText}>
+              <b>What is this?</b> Select the kind of automation you want. For example, &apos;Invoice Download&apos; will fetch a PDF from a website for you.
+            </div>
           </div>
 
           <div className={styles.formGroup}>
@@ -155,7 +168,11 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
               placeholder="https://example.com"
               className={`${styles.input} ${errors.url ? styles.error : ''}`}
               required
+              title="Paste the website address you want to automate."
             />
+            <div className={styles.helperText}>
+              <b>What is this?</b> The web address (URL) of the page you want EasyFlow to work with. Example: <code>https://amazon.com/invoice</code>
+            </div>
             {errors.url && <span className={styles.errorText}>{errors.url}</span>}
           </div>
 
@@ -169,7 +186,11 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
               onChange={handleChange}
               placeholder="user@example.com"
               className={`${styles.input} ${errors.username ? styles.error : ''}`}
+              title="If the website needs you to log in, enter your email here."
             />
+            <div className={styles.helperText}>
+              <b>What is this?</b> Only needed if the website asks for a login. Example: <code>myemail@gmail.com</code>
+            </div>
             {errors.username && <span className={styles.errorText}>{errors.username}</span>}
           </div>
 
@@ -183,7 +204,11 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
               onChange={handleChange}
               placeholder="••••••••"
               className={styles.input}
+              title="If the website needs a password, enter it here."
             />
+            <div className={styles.helperText}>
+              <b>What is this?</b> Only needed if the website asks for a password. We keep your info safe!
+            </div>
           </div>
 
           <div className={styles.formGroup}>
@@ -200,9 +225,37 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
               placeholder={form.task === 'invoice_download' ? 'https://example.com/invoice.pdf' : 'Optional PDF URL or relative path'}
               className={`${styles.input} ${errors.pdf_url ? styles.error : ''}`}
               required={form.task === 'invoice_download'}
+              title="If you want to download a PDF, paste its link here."
             />
+            <div className={styles.helperText}>
+              <b>What is this?</b> For Invoice Download, paste the direct link to the PDF file. Example: <code>https://example.com/invoice.pdf</code>
+            </div>
             {errors.pdf_url && <span className={styles.errorText}>{errors.pdf_url}</span>}
           </div>
+
+          {/* Data Extraction: Selector field (optional) */}
+          {form.task === 'data_extraction' && (
+            <div className={styles.formGroup}>
+              <label htmlFor="selector" className={styles.label}>
+                Selector <span className={styles.optional}>(Optional)</span>
+              </label>
+              <input
+                type="text"
+                id="selector"
+                name="selector"
+                value={form.selector}
+                onChange={handleChange}
+                placeholder="e.g. #main-content .price"
+                className={`${styles.input} ${errors.selector ? styles.error : ''}`}
+                required={false}
+                title="If you want to extract something specific, paste its CSS selector here."
+              />
+              <div className={styles.helperText}>
+                <b>What is this?</b> (Optional) If you want to grab a specific part of the page, paste its selector. Example: <code>#main-content .price</code>
+              </div>
+              {errors.selector && <span className={styles.errorText}>{errors.selector}</span>}
+            </div>
+          )}
         </div>
 
         <div className={styles.actions}>

@@ -272,7 +272,11 @@ const FolderBrowser = ({
                   className={styles.editInput}
                   autoFocus
                   onBlur={() => setEditingFolder(null)}
+                  title="Type a new name for this folder."
                 />
+                <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.97em', margin: '2px 0 8px 2px' }}>
+                  <b>What is this?</b> Change the folder’s name to anything you want. Example: <code>2025 Projects</code>
+                </div>
               </form>
             ) : (
               <>
@@ -339,7 +343,11 @@ const FolderBrowser = ({
                   className={styles.input}
                   autoFocus
                   required
+                  title="Type a name for your new folder."
                 />
+                <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.97em', margin: '2px 0 8px 2px' }}>
+                  <b>What is this?</b> Pick any name you like. Example: <code>Invoices</code> or <code>My Documents</code>
+                </div>
               </div>
               <div className={styles.formActions}>
                 <button type="button" onClick={() => setShowNewFolderForm(false)} className={styles.cancelButton}>

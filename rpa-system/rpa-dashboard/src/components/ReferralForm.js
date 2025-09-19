@@ -43,6 +43,9 @@ export default function ReferralForm({ referrerEmail, proPlan, onClose, onSucces
       <label className={styles.label} htmlFor="referral-email">
         Enter your friend&apos;s email to refer them:
       </label>
+      <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.97em', margin: '2px 0 8px 2px' }}>
+        <b>What is this?</b> Type your friend’s email address. We’ll send them an invite to try EasyFlow. Example: <code>friend@email.com</code>
+      </div>
       <input
         id="referral-email"
         className={styles.input}
@@ -52,6 +55,7 @@ export default function ReferralForm({ referrerEmail, proPlan, onClose, onSucces
         onChange={e => setReferredEmail(e.target.value)}
         required
         disabled={loading}
+        title="Type your friend’s email address here."
         style={{
           marginBottom: '0.5em',
           background: 'var(--surface)',

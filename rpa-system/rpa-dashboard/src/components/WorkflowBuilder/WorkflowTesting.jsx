@@ -384,9 +384,12 @@ const CreateTestScenarioForm = ({ workflowId, onSubmit, onCancel }) => {
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder="e.g., Basic Email Flow Test"
           required
+          title="Give your test a short, clear name. Example: 'Basic Email Flow Test'"
         />
+        <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.97em', margin: '2px 0 8px 2px' }}>
+          <b>What is this?</b> Name your test so you can find it later. Example: <code>Basic Email Flow Test</code>
+        </div>
       </div>
-      
       <div className={styles.formGroup}>
         <label>Description</label>
         <textarea
@@ -394,9 +397,12 @@ const CreateTestScenarioForm = ({ workflowId, onSubmit, onCancel }) => {
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           placeholder="Describe what this test validates..."
           rows={3}
+          title="Describe what this test checks. Example: 'Checks if the email is sent when a user signs up.'"
         />
+        <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.97em', margin: '2px 0 8px 2px' }}>
+          <b>What is this?</b> Write a short note about what this test does. Example: <code>Checks if the email is sent when a user signs up.</code>
+        </div>
       </div>
-      
       <div className={styles.formGroup}>
         <label>Input Data (JSON)</label>
         <textarea
@@ -405,9 +411,12 @@ const CreateTestScenarioForm = ({ workflowId, onSubmit, onCancel }) => {
           placeholder='{"user_email": "test@example.com", "user_name": "Test User"}'
           rows={4}
           className={styles.codeInput}
+          title={'Paste the input data for your workflow as JSON. Example: {"user_email": "test@example.com"}'}
         />
+        <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.97em', margin: '2px 0 8px 2px' }}>
+          <b>What is this?</b> Enter the data your workflow will use. Example: <code>{'{"user_email": "test@example.com", "user_name": "Test User"}'}</code>
+        </div>
       </div>
-      
       <div className={styles.formGroup}>
         <label>Expected Outputs (JSON)</label>
         <textarea
@@ -416,9 +425,12 @@ const CreateTestScenarioForm = ({ workflowId, onSubmit, onCancel }) => {
           placeholder='{"emails_sent": 2, "completion_status": "success"}'
           rows={4}
           className={styles.codeInput}
+          title={'Paste the expected output as JSON. Example: {"emails_sent": 2, "completion_status": "success"}'}
         />
+        <div style={{ color: 'var(--text-muted, #888)', fontSize: '0.97em', margin: '2px 0 8px 2px' }}>
+          <b>What is this?</b> What should happen if the workflow works? Example: <code>{'{"emails_sent": 2, "completion_status": "success"}'}</code>
+        </div>
       </div>
-      
       <div className={styles.formActions}>
         <ActionButton type="button" variant="secondary" onClick={onCancel}>
           Cancel
