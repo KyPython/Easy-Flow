@@ -91,14 +91,17 @@ const PaywallModal = ({
   };
 
   const getCurrentUsageData = () => {
+    const hasWorkflows = planData?.limits?.has_workflows !== false && 
+                        (planData?.limits?.workflows > 0);
+    
     return {
       automations: planData?.usage?.automations || planData?.usage?.monthly_runs || 0,
       automationLimit: planData?.limits?.automations || planData?.limits?.monthly_runs || 50,
       workflows: planData?.usage?.workflows || 0,
-      workflowLimit: planData?.limits?.workflows || 0,
+      workflowLimit: hasWorkflows ? (planData?.limits?.workflows || 0) : 0,
       storage: planData?.usage?.storage_gb || 0,
       storageLimit: planData?.limits?.storage_gb || 5,
-      hasWorkflows: planData?.limits?.has_workflows !== false
+      hasWorkflows: hasWorkflows
     };
   };
 
@@ -134,7 +137,7 @@ const PaywallModal = ({
                 <span className={styles.planName}>{getCurrentPlan()}</span>
                 <div className={styles.currentUsage}>
                   <div>{getCurrentUsageData().automations}/{getCurrentUsageData().automationLimit} Runs</div>
-                  {getCurrentUsageData().hasWorkflows && (
+                  {(getCurrentUsageData().hasWorkflows && getCurrentUsageData().workflowLimit > 0) && (
                     <div>{getCurrentUsageData().workflows}/{getCurrentUsageData().workflowLimit} Workflows</div>
                   )}
                   <div>{getCurrentUsageData().storage.toFixed(1)}/{getCurrentUsageData().storageLimit}GB Storage</div>
