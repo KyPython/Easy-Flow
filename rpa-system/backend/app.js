@@ -727,8 +727,8 @@ if ((process.env.AUTOMATION_MODE || 'stub') === 'python') {
   let pyProc;
   const startPython = () => {
     if (pyProc) return;
-    console.log('[automation-supervisor] launching python automate.py');
-    pyProc = spawn('python', ['automation/automate.py'], {
+    console.log('[automation-supervisor] launching python automation-service/production_automation_service.py');
+    pyProc = spawn('python', ['automation/automation-service/production_automation_service.py'], {
       cwd: path.join(__dirname, '..'),
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, PORT: '7070' }
