@@ -94,14 +94,17 @@ const Header = ({ user }) => {
               {t('nav.files','Files')}
             </Link>
 
-            <Link
-              to="/app/workflows"
-              className={`${styles.navLink} ${
-                isActive('/app/workflows') ? styles.activeNavLink : ''
-              }`}
-            >
-              {t('nav.workflows','Workflows')}
-            </Link>
+            {/* Only show workflows link for plans that support workflows */}
+            {(planData?.limits?.has_workflows !== false && planData?.limits?.workflows > 0) && (
+              <Link
+                to="/app/workflows"
+                className={`${styles.navLink} ${
+                  isActive('/app/workflows') ? styles.activeNavLink : ''
+                }`}
+              >
+                {t('nav.workflows','Workflows')}
+              </Link>
+            )}
           </nav>
         )}
 

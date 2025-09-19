@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/AuthContext';
+import { usePlan } from '../../hooks/usePlan';
 import WorkflowBuilder from './WorkflowBuilder';
 import TemplateGallery from './TemplateGallery';
 import WorkflowsList from './WorkflowsList';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from '../ErrorMessage';
+import PaywallModal from '../PaywallModal/PaywallModal';
 import styles from './WorkflowPage.module.css';
 
 const WorkflowPage = () => {
@@ -13,7 +15,9 @@ const WorkflowPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
+  const { planData, loading: planLoading } = usePlan();
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -21,6 +25,21 @@ const WorkflowPage = () => {
       navigate('/auth');
     }
   }, [user, authLoading, navigate]);
+
+  // Check if user has access to workflows
+  const canAccessWorkflows = () => {
+    if (planLoading) return true; // Allow loading
+    
+    return planData?.limits?.has_workflows !== false && 
+           (planData?.limits?.workflows > 0);
+  };
+
+  // Show paywall if user doesn't have workflow access
+  useEffect(() => {
+    if (!planLoading && !canAccessWorkflows()) {
+      setShowPaywall(true);
+    }
+  }, [planLoading, planData]);
 
   // Determine what to show based on path and workflow ID
   const getCurrentView = () => {
@@ -69,49 +88,64 @@ const WorkflowPage = () => {
 
   return (
     <div className={styles.workflowPage}>
-      {currentView === 'list' && <WorkflowsList />}
-      {currentView === 'templates' && (
-        <div className={styles.templateGalleryContainer}>
-          <div className={styles.galleryHeader}>
-            <h1>Choose a Workflow Template</h1>
-            <p>Get started quickly with a pre-built template or create from scratch</p>
-            <div className={styles.galleryActions}>
-              <button 
-                className={styles.createButton}
-                onClick={handleCreateNewWorkflow}
-              >
-                Create Blank Workflow
-              </button>
+      {/* Show paywall if user doesn't have workflow access */}
+      {showPaywall && (
+        <PaywallModal
+          feature="unlimited_workflows"
+          requiredPlan="starter"
+          message="Workflows are not available on the Hobbyist plan. Upgrade to create automated workflows."
+          onClose={() => navigate('/app')}
+        />
+      )}
+
+      {/* Only show workflow content if user has access */}
+      {!showPaywall && (
+        <>
+          {currentView === 'list' && <WorkflowsList />}
+          {currentView === 'templates' && (
+            <div className={styles.templateGalleryContainer}>
+              <div className={styles.galleryHeader}>
+                <h1>Choose a Workflow Template</h1>
+                <p>Get started quickly with a pre-built template or create from scratch</p>
+                <div className={styles.galleryActions}>
+                  <button 
+                    className={styles.createButton}
+                    onClick={handleCreateNewWorkflow}
+                  >
+                    Create Blank Workflow
+                  </button>
+                </div>
+              </div>
+              <TemplateGallery
+                onSelectTemplate={handleTemplateSelect}
+                onClose={() => navigate('/app/workflows')}
+              />
             </div>
-          </div>
-          <TemplateGallery
-            onSelectTemplate={handleTemplateSelect}
-            onClose={() => navigate('/app/workflows')}
-          />
-        </div>
+          )}
+          {currentView === 'schedules' && (
+            <div className={styles.placeholderContainer}>
+              <h2>Workflow Schedules</h2>
+              <p>Schedule your workflows to run automatically</p>
+              <p>This feature will be available when you save your workflow.</p>
+            </div>
+          )}
+          {currentView === 'executions' && (
+            <div className={styles.placeholderContainer}>
+              <h2>Workflow Executions</h2>
+              <p>View execution history and monitor your workflows</p>
+              <p>This feature will be available when you save your workflow.</p>
+            </div>
+          )}
+          {currentView === 'testing' && (
+            <div className={styles.placeholderContainer}>
+              <h2>Workflow Testing</h2>
+              <p>Test and validate your workflows before running them</p>
+              <p>This feature will be available when you save your workflow.</p>
+            </div>
+          )}
+          {currentView === 'builder' && <WorkflowBuilder />}
+        </>
       )}
-      {currentView === 'schedules' && (
-        <div className={styles.placeholderContainer}>
-          <h2>Workflow Schedules</h2>
-          <p>Schedule your workflows to run automatically</p>
-          <p>This feature will be available when you save your workflow.</p>
-        </div>
-      )}
-      {currentView === 'executions' && (
-        <div className={styles.placeholderContainer}>
-          <h2>Workflow Executions</h2>
-          <p>View execution history and monitor your workflows</p>
-          <p>This feature will be available when you save your workflow.</p>
-        </div>
-      )}
-      {currentView === 'testing' && (
-        <div className={styles.placeholderContainer}>
-          <h2>Workflow Testing</h2>
-          <p>Test and validate your workflows before running them</p>
-          <p>This feature will be available when you save your workflow.</p>
-        </div>
-      )}
-      {currentView === 'builder' && <WorkflowBuilder />}
     </div>
   );
 };
