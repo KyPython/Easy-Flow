@@ -227,11 +227,12 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           success: true,
           action: result.action,
           userId,
-          duration_ms: Date.now() - startTime
-        });
+            duration_ms: Date.now() - startTime
+          });
+        }
+        break;
       }
-
-      case 'subscription.canceled':
+        case 'subscription.canceled':
       case 'subscription.revoked': {
         const subscription = payload.data;
         const userEmail = subscription.customer?.email || subscription.user?.email;
