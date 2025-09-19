@@ -2373,14 +2373,17 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
   try {
     const taskData = req.body;
     const timeout = parseInt(req.query.timeout) || 60000; // Default 60 second timeout
-    
+
     if (!taskData || !taskData.task_type) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[DEV DEBUG] Missing or invalid task_type in request body:', taskData);
+      }
       return res.status(400).json({ 
         error: 'task_type is required',
         accepted_types: ['web_automation', 'form_submission', 'data_extraction', 'file_download']
       });
     }
-    
+
     // Add user context to task
     const enrichedTask = {
       ...taskData,
@@ -2388,14 +2391,18 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       created_at: new Date().toISOString(),
       source: 'backend-api'
     };
-    
-    console.log(`[POST /api/automation/execute] Executing task for user ${req.user.id}:`, enrichedTask);
-    
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEV DEBUG] /api/automation/execute payload:', enrichedTask);
+    }
+
     // Send task and wait for result
     const result = await kafkaService.sendAutomationTaskWithCallback(enrichedTask, timeout);
-    
-    console.log(`[POST /api/automation/execute] Task completed:`, result);
-    
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEV DEBUG] /api/automation/execute result:', result);
+    }
+
     res.json({
       success: true,
       task_id: result.task_id,
@@ -2404,20 +2411,26 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       worker_id: result.worker_id,
       timestamp: result.timestamp
     });
-    
+
   } catch (error) {
-    console.error('[POST /api/automation/execute] error:', error);
-    
-    if (error.message.includes('timed out')) {
+    // Only log full error details in non-production
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[DEV DEBUG] /api/automation/execute error:', error);
+    } else {
+      // In production, log only critical error summary, no sensitive info
+      console.error('[POST /api/automation/execute] error:', error.message);
+    }
+
+    if (error.message && error.message.includes('timed out')) {
       res.status(408).json({
         error: 'Task execution timeout',
-        details: error.message,
-        suggestion: 'Try increasing the timeout parameter or use /api/automation/queue for long-running tasks'
+        details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+        suggestion: process.env.NODE_ENV !== 'production' ? 'Try increasing the timeout parameter or use /api/automation/queue for long-running tasks' : undefined
       });
     } else {
       res.status(500).json({
         error: 'Failed to execute automation task',
-        details: error.message
+        details: process.env.NODE_ENV !== 'production' ? error.message : undefined
       });
     }
   }
