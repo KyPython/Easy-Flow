@@ -54,8 +54,7 @@ services:
   - type: redis
     name: easyflow-redis
     plan: free
-    region: oregon
-
+    - name: easyflow-kafka
 databases:
   - name: easyflow-postgres
     databaseName: easyflow_production
