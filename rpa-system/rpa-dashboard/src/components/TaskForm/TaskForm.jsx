@@ -74,60 +74,77 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm(prev => {
+      const updated = { ...prev, [name]: value };
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.debug('[TaskForm] handleChange', name, value, updated);
+      }
+      return updated;
+    });
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()) return;
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  setIsSubmitting(true);
-  try {
-    // Include both the original form data and add type field based on task selection
-    const payload = { ...form, type: form.task };
-    // Debug: log the payload being sent
-    console.log('[TaskForm] Submitting payload:', payload);
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.debug('[TaskForm] handleSubmit form state:', form);
+    }
 
-    const response = await api.post('/api/automation/execute', payload, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
+    setIsSubmitting(true);
+    try {
+      // Include both the original form data and add type field based on task selection
+      const payload = { ...form, type: form.task };
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.debug('[TaskForm] Submitting payload:', payload);
       }
-    });
 
-    const completedTask = response.data;
-    onTaskSubmit?.(completedTask);
+      const response = await api.post('/api/automation/execute', payload, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
 
-    setForm({ url: '', username: '', password: '', task: 'invoice_download', pdf_url: '' });
-    
-    // Show success feedback based on actual response data
-    if (completedTask?.status === 'queued') {
-      const taskId = completedTask.id ? ` (ID: ${completedTask.id.slice(0, 8)}...)` : '';
-      showSuccess(`✅ Task submitted successfully${taskId}! Check the Automation History tab for progress.`);
-    } else if (completedTask?.message) {
-      showSuccess(completedTask.message);
-    } else {
-      showSuccess('Task submitted successfully!');
+      const completedTask = response.data;
+      onTaskSubmit?.(completedTask);
+
+      setForm({ url: '', username: '', password: '', task: 'invoice_download', pdf_url: '' });
+      
+      // Show success feedback based on actual response data
+      if (completedTask?.status === 'queued') {
+        const taskId = completedTask.id ? ` (ID: ${completedTask.id.slice(0, 8)}...)` : '';
+        showSuccess(`✅ Task submitted successfully${taskId}! Check the Automation History tab for progress.`);
+      } else if (completedTask?.message) {
+        showSuccess(completedTask.message);
+      } else {
+        showSuccess('Task submitted successfully!');
+      }
+    } catch (error) {
+      // Only log error in non-production
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.error('Task submission failed:', error);
+      }
+      // Provide user-friendly error message
+      let userMessage = 'Task submission failed. Please try again.';
+      if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
+        userMessage = 'Request timed out. The task is heavy or the server is busy. Please check the Runs tab shortly.';
+      } else if (error.message?.includes('Network Error') || error.message?.includes('CORS')) {
+        userMessage = 'Unable to reach the server. Is the backend running on :3030?';
+      } else if (error.response?.status === 401) {
+        userMessage = 'Authentication error. Please sign in again.';
+      } else if (error.response?.status >= 500) {
+        userMessage = 'Server error. Please try again in a moment.';
+      }
+      showWarning(userMessage);
+    } finally {
+      setIsSubmitting(false);
     }
-  } catch (error) {
-    console.error('Task submission failed:', error);
-    
-    // Provide user-friendly error message
-    let userMessage = 'Task submission failed. Please try again.';
-    if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
-      userMessage = 'Request timed out. The task is heavy or the server is busy. Please check the Runs tab shortly.';
-    } else if (error.message?.includes('Network Error') || error.message?.includes('CORS')) {
-      userMessage = 'Unable to reach the server. Is the backend running on :3030?';
-    } else if (error.response?.status === 401) {
-      userMessage = 'Authentication error. Please sign in again.';
-    } else if (error.response?.status >= 500) {
-      userMessage = 'Server error. Please try again in a moment.';
-    }
-    showWarning(userMessage);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
 
   return (
