@@ -8,3 +8,19 @@ config/firebase-service-account.json
 **/*.sql
 migrations/*.sql
 **/migrations/*.sql
+
+# Environment files
+.env
+.env.*
+backend/.env
+backend/.env.*
+rpa-dashboard/.env
+rpa-dashboard/.env.*
+
+# New Relic monitoring files
+newrelic_agent.log
+newrelic.js
+
+# Dashboard exports and configs
+**/dashboard*.json
+**/*newrelic*.json

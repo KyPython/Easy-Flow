@@ -1,3 +1,9 @@
+// Initialize New Relic monitoring FIRST
+if (process.env.NEW_RELIC_LICENSE_KEY) {
+  require('./newrelic');
+  console.log('🚀 New Relic monitoring initialized for', process.env.NEW_RELIC_APP_NAME || 'EasyFlow-Automation-Service');
+}
+
 // Minimal HTTP server bootstrap for production
 const app = require('./app');
 
