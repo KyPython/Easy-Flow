@@ -1721,6 +1721,81 @@ app.delete('/api/tasks/:id', async (req, res) => {
   }
 });
 
+// GET /api/usage/debug - Debug user usage data
+app.get('/api/usage/debug', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    console.log(`[DEBUG] Checking usage for user: ${req.user.id}`);
+
+    // Check if user_usage table exists
+    let tableExists = false;
+    try {
+      const { data: usageData, error: usageError } = await supabase
+        .from('user_usage')
+        .select('*')
+        .eq('user_id', req.user.id)
+        .single();
+      
+      tableExists = !usageError || usageError.code !== '42P01';
+      console.log(`[DEBUG] user_usage table exists: ${tableExists}`);
+      console.log(`[DEBUG] Current usage record:`, usageData);
+    } catch (e) {
+      console.log(`[DEBUG] user_usage table check error:`, e.message);
+    }
+
+    // Check automation runs
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const { data: runs, count: runsCount, error: runsError } = await supabase
+      .from('automation_runs')
+      .select('id, status, created_at', { count: 'exact' })
+      .eq('user_id', req.user.id)
+      .gte('created_at', startOfMonth.toISOString());
+
+    const completedRuns = runs?.filter(run => run.status === 'completed').length || 0;
+
+    // Check workflows
+    const { data: workflows, count: workflowsCount, error: workflowsError } = await supabase
+      .from('automation_tasks')
+      .select('id, name, is_active', { count: 'exact' })
+      .eq('user_id', req.user.id);
+
+    const activeWorkflows = workflows?.filter(wf => wf.is_active !== false).length || 0;
+
+    // Check plan details
+    const { data: planData, error: planError } = await supabase
+      .rpc('get_user_plan_details', { user_uuid: req.user.id });
+
+    res.json({
+      user_id: req.user.id,
+      table_exists: tableExists,
+      raw_data: {
+        total_runs: runsCount || 0,
+        completed_runs_this_month: completedRuns,
+        total_workflows: workflowsCount || 0,
+        active_workflows: activeWorkflows,
+        runs_data: runs?.slice(0, 5), // Show first 5 runs
+        workflows_data: workflows?.slice(0, 5) // Show first 5 workflows
+      },
+      plan_function_result: planData,
+      errors: {
+        runs_error: runsError,
+        workflows_error: workflowsError,
+        plan_error: planError
+      }
+    });
+
+  } catch (error) {
+    console.error('[GET /api/usage/debug] Error:', error);
+    res.status(500).json({ error: 'Debug failed', details: error.message });
+  }
+});
+
 // GET /api/usage/refresh - Refresh user usage metrics
 app.post('/api/usage/refresh', authMiddleware, async (req, res) => {
   try {
