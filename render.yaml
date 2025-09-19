@@ -41,7 +41,8 @@ services:
     region: oregon
     plan: starter
     autoDeploy: false
-    image: "vectorized/redpanda:latest"
+    docker:
+      image: "vectorized/redpanda:latest"
     startCommand: >-
       redpanda start --smp 1 --memory 1024M --overprovisioned --node-id 0
       --kafka-addr 0.0.0.0:9092
