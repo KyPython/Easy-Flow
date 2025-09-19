@@ -572,10 +572,10 @@ class FirebaseNotificationService {
     }
 
     try {
-      // Create custom claims that include Supabase user ID
+
+      // Create custom claims that include Supabase user ID (do NOT include reserved fields like 'auth_time')
       const claims = {
         supabase_uid: supabaseUserId,
-        auth_time: Math.floor(Date.now() / 1000),
         provider: 'supabase',
         ...additionalClaims
       };

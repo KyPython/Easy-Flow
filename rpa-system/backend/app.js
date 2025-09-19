@@ -1,3 +1,24 @@
+// Poll automation task status/result by task_id
+app.get('/api/automation/status/:task_id', authMiddleware, async (req, res) => {
+  const { task_id } = req.params;
+  if (!task_id) {
+    return res.status(400).json({ error: 'Missing task_id parameter.' });
+  }
+  const status = taskStatusStore.get(task_id);
+  if (!status) {
+    return res.status(404).json({ error: 'Task not found or expired.' });
+  }
+  // Only allow the user who submitted the task to view status
+  if (status.user_id && status.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden: You do not have access to this task.' });
+  }
+  res.json({
+    task_id,
+    status: status.status,
+    result: status.result,
+    updated_at: status.updated_at
+  });
+});
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -11,6 +32,7 @@ const bcrypt = require('bcrypt');
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { firebaseNotificationService, NotificationTemplates } = require('./utils/firebaseAdmin');
 const { getKafkaService } = require('./utils/kafkaService');
+const taskStatusStore = require('./utils/taskStatusStore');
 const { usageTracker } = require('./utils/usageTracker');
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
@@ -2379,10 +2401,10 @@ app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req,
 //   ...other task-specific fields
 // }
 //
+
 app.post('/api/automation/execute', authMiddleware, automationLimiter, async (req, res) => {
   try {
     const taskData = req.body;
-    const timeout = parseInt(req.query.timeout) || 60000; // Default 60 second timeout
 
     // DEV: Log incoming payload for debugging
     if (process.env.NODE_ENV !== 'production') {
@@ -2428,43 +2450,36 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       console.log('[DEV DEBUG] /api/automation/execute enriched payload:', JSON.stringify(enrichedTask, null, 2));
     }
 
-    // Send task and wait for result
-    const result = await kafkaService.sendAutomationTaskWithCallback(enrichedTask, timeout);
+    // Send task asynchronously (fire-and-forget)
+    const result = await kafkaService.sendAutomationTask(enrichedTask);
+    const task_id = result.taskId;
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[DEV DEBUG] /api/automation/execute result:', result);
-    }
+    // Store initial status in memory (for demo/dev)
+    taskStatusStore.set(task_id, {
+      status: 'queued',
+      result: null,
+      updated_at: new Date().toISOString(),
+      user_id: req.user.id,
+      task: enrichedTask
+    });
 
-    res.json({
+    res.status(202).json({
       success: true,
-      task_id: result.task_id,
-      status: result.status,
-      result: result.result,
-      worker_id: result.worker_id,
-      timestamp: result.timestamp
+      task_id,
+      status: 'queued',
+      message: 'Task accepted and queued for execution.'
     });
 
   } catch (error) {
-    // Only log full error details in non-production
     if (process.env.NODE_ENV !== 'production') {
       console.error('[DEV DEBUG] /api/automation/execute error:', error);
     } else {
-      // In production, log only critical error summary, no sensitive info
       console.error('[POST /api/automation/execute] error:', error.message);
     }
-
-    if (error.message && error.message.includes('timed out')) {
-      res.status(408).json({
-        error: 'Task execution timeout',
-        details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
-        suggestion: process.env.NODE_ENV !== 'production' ? 'Try increasing the timeout parameter or use /api/automation/queue for long-running tasks' : undefined
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to execute automation task',
-        details: process.env.NODE_ENV !== 'production' ? error.message : undefined
-      });
-    }
+    res.status(500).json({
+      error: 'Failed to queue automation task',
+      details: process.env.NODE_ENV !== 'production' ? error.message : undefined
+    });
   }
 });
 

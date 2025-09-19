@@ -46,6 +46,15 @@ describe('Execution Routes and Email Enqueue', () => {
     if (wfErr) throw wfErr;
     workflowId = wf.id;
 
+    // Insert required workflow steps: start, action, end
+    const steps = [
+      { id: `start-${workflowId}`, workflow_id: workflowId, step_type: 'start', name: 'Start', step_key: 'start', action_type: null, config: {} },
+      { id: `action-${workflowId}`, workflow_id: workflowId, step_type: 'action', name: 'Action', step_key: 'action', action_type: 'noop', config: {} },
+      { id: `end-${workflowId}`, workflow_id: workflowId, step_type: 'end', name: 'End', step_key: 'end', action_type: null, config: {} },
+    ];
+    const { error: stepsErr } = await supabase.from('workflow_steps').insert(steps);
+    if (stepsErr) throw stepsErr;
+
     // Insert an execution row
     const { data: exec, error: execErr } = await supabase
       .from('workflow_executions')
@@ -55,10 +64,10 @@ describe('Execution Routes and Email Enqueue', () => {
     if (execErr) throw execErr;
     executionId = exec.id;
 
-    // Insert a step execution row
+    // Insert a step execution row for the start step
     await supabase
       .from('step_executions')
-      .insert({ workflow_execution_id: executionId, step_id: 'step-1', status: 'running', started_at: new Date().toISOString(), execution_order: 1 });
+      .insert({ workflow_execution_id: executionId, step_id: `start-${workflowId}`, status: 'running', started_at: new Date().toISOString(), execution_order: 1 });
   });
 
   it('GET /api/executions/:id returns execution details', async () => {

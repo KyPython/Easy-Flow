@@ -50,6 +50,8 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
         newErrors.pdf_url = 'PDF URL is required for Invoice Download';
       } else if (!isValidUrl(form.pdf_url)) {
         newErrors.pdf_url = 'Please enter a valid PDF URL';
+      } else if (!/\.pdf(\?.*)?$/i.test(form.pdf_url.trim())) {
+        newErrors.pdf_url = 'PDF URL must end with .pdf';
       }
     }
     if (form.task === 'data_extraction') {

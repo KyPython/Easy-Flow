@@ -199,6 +199,23 @@ class KafkaService {
                         
                         console.log(`[KafkaService] Received result for task ${taskId}:`, result);
                         
+
+                        // Update taskStatusStore for status polling endpoint
+                        try {
+                            const taskStatusStore = require('./taskStatusStore');
+                            if (taskId) {
+                                taskStatusStore.set(taskId, {
+                                    status: result.status || 'finished',
+                                    result: result.result || result,
+                                    updated_at: new Date().toISOString(),
+                                    worker_id: result.worker_id,
+                                    error: result.error
+                                });
+                            }
+                        } catch (e) {
+                            console.error('[KafkaService] Could not update taskStatusStore:', e);
+                        }
+
                         // Check if we have a callback for this task
                         if (this.resultCallbacks.has(taskId)) {
                             const callback = this.resultCallbacks.get(taskId);
