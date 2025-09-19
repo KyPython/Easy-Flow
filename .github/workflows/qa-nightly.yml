@@ -69,6 +69,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-${{ matrix.python-version }}-
 
+      - name: Create backend .env file from secrets
+        run: |
+          mkdir -p rpa-system/backend
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> rpa-system/backend/.env
+          echo "REDIS_URL=${{ secrets.REDIS_URL }}" >> rpa-system/backend/.env
+          echo "KAFKA_BROKERS=${{ secrets.KAFKA_BROKERS }}" >> rpa-system/backend/.env
+          echo "AUTOMATION_URL=${{ secrets.AUTOMATION_URL }}" >> rpa-system/backend/.env
+          echo "ALLOW_DRAFT_EXECUTION=true" >> rpa-system/backend/.env
+
       - name: Start test services (docker-compose)
         working-directory: rpa-system
         run: |

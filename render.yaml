@@ -37,7 +37,6 @@ services:
 
   - type: worker
     name: easyflow-kafka
-    # This line has been removed as it's not a valid field for Docker services.
     region: oregon
     plan: starter
     autoDeploy: false
