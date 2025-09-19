@@ -20,24 +20,31 @@ class UsageTracker {
     try {
       // Only count completed runs towards monthly quota
       if (status === 'completed') {
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
+        // Get user's current billing period instead of calendar month
+        const { data: billingPeriod, error: billingError } = await this.supabase
+          .rpc('get_user_billing_period', { user_uuid: userId })
+          .single();
 
-        // Get current month's run count
+        if (billingError) {
+          console.error('[UsageTracker] Error getting billing period:', billingError);
+          return;
+        }
+
+        // Get current billing period's run count
         const { count, error: countError } = await this.supabase
           .from('automation_runs')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId)
           .eq('status', 'completed')
-          .gte('created_at', startOfMonth.toISOString());
+          .gte('created_at', billingPeriod.period_start)
+          .lte('created_at', billingPeriod.period_end);
 
         if (countError) {
           console.error('[UsageTracker] Error counting automation runs:', countError);
           return;
         }
 
-        console.log(`[UsageTracker] User ${userId} has ${count} completed runs this month`);
+        console.log(`[UsageTracker] User ${userId} has ${count} completed runs this billing period`);
 
         // Update or insert usage record
         await this.updateUserUsage(userId, {
@@ -59,12 +66,12 @@ class UsageTracker {
     }
 
     try {
-      // Count active workflows
+      // Count ONLY explicitly active workflows (not NULL)
       const { count, error: countError } = await this.supabase
         .from('automation_tasks')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .eq('is_active', true);
+        .eq('is_active', true); // Only count explicitly active ones
 
       if (countError) {
         console.error('[UsageTracker] Error counting workflows:', countError);
@@ -92,42 +99,25 @@ class UsageTracker {
     }
 
     try {
-      // Calculate total storage used by summing file sizes
-      // This is a simplified approach - in production you might want to store file metadata
-      const { data: runs, error: runsError } = await this.supabase
-        .from('automation_runs')
-        .select('result_data')
-        .eq('user_id', userId)
-        .not('result_data', 'is', null);
+      // Calculate total storage from user_files table (where files are tracked)
+      const { data: filesData, error: filesError } = await this.supabase
+        .from('user_files')
+        .select('file_size')
+        .eq('user_id', userId);
 
-      if (runsError) {
-        console.error('[UsageTracker] Error calculating storage:', runsError);
+      if (filesError) {
+        console.error('[UsageTracker] Error calculating storage from user_files:', filesError);
         return;
       }
 
       let totalBytes = 0;
-      runs.forEach(run => {
-        if (run.result_data) {
-          // Estimate storage based on JSON size
-          totalBytes += JSON.stringify(run.result_data).length;
-        }
-      });
-
-      // Add file uploads if any
-      const { data: files, error: filesError } = await this.supabase
-        .storage
-        .from('user-files')
-        .list(`${userId}/`, { limit: 1000 });
-
-      if (!filesError && files) {
-        files.forEach(file => {
-          totalBytes += file.metadata?.size || 0;
-        });
+      if (filesData && filesData.length > 0) {
+        totalBytes = filesData.reduce((sum, file) => sum + (file.file_size || 0), 0);
       }
 
       const storageGB = totalBytes / (1024 * 1024 * 1024);
 
-      console.log(`[UsageTracker] User ${userId} using ${storageGB.toFixed(3)} GB storage`);
+      console.log(`[UsageTracker] User ${userId} using ${storageGB.toFixed(3)} GB storage (${filesData?.length || 0} files)`);
 
       // Update usage record
       await this.updateUserUsage(userId, {
@@ -223,24 +213,31 @@ class UsageTracker {
     console.log(`[UsageTracker] Refreshing all usage data for user ${userId}`);
     
     try {
-      // Refresh automation runs count
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
+      // Get user's billing period
+      const { data: billingPeriod, error: billingError } = await this.supabase
+        .rpc('get_user_billing_period', { user_uuid: userId })
+        .single();
 
+      if (billingError) {
+        console.error('[UsageTracker] Error getting billing period for refresh:', billingError);
+        return;
+      }
+
+      // Refresh automation runs count for current billing period
       const { count: runsCount } = await this.supabase
         .from('automation_runs')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
         .eq('status', 'completed')
-        .gte('created_at', startOfMonth.toISOString());
+        .gte('created_at', billingPeriod.period_start)
+        .lte('created_at', billingPeriod.period_end);
 
-      // Refresh workflows count
+      // Refresh workflows count - ONLY explicitly active workflows
       const { count: workflowsCount } = await this.supabase
         .from('automation_tasks')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .eq('is_active', true);
+        .eq('is_active', true); // Only count explicitly active ones
 
       // Update usage with fresh counts
       await this.updateUserUsage(userId, {

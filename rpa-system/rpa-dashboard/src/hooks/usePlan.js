@@ -20,14 +20,30 @@ export const usePlan = () => {
       setLoading(true);
       setError(null);
 
-      // Note: Development mode now respects real plan limits for security
+      console.log('Fetching plan data for user:', user.id);
 
       // Call the Supabase function to get complete plan details
       const { data, error: rpcError } = await supabase
         .rpc('get_user_plan_details', { user_uuid: user.id });
 
+      console.log('RPC call result:', { data, error: rpcError });
+
       if (rpcError) {
+        console.error('RPC Error details:', rpcError);
         throw rpcError;
+      }
+
+      if (!data) {
+        console.warn('No data returned from get_user_plan_details');
+        // Set fallback data
+        setPlanData({
+          plan: { name: 'Hobbyist', status: 'active', is_trial: false },
+          limits: { monthly_runs: 50, storage_gb: 5, workflows: 3 },
+          usage: { monthly_runs: 0, storage_gb: 0, workflows: 0 },
+          can_create_workflow: true,
+          can_run_automation: true
+        });
+        return;
       }
 
       console.log('Plan data received:', data);
@@ -35,7 +51,15 @@ export const usePlan = () => {
     } catch (err) {
       console.error('Error fetching plan data:', err);
       setError(err.message);
-      setPlanData(null);
+      
+      // Set fallback data on error
+      setPlanData({
+        plan: { name: 'Hobbyist', status: 'active', is_trial: false },
+        limits: { monthly_runs: 50, storage_gb: 5, workflows: 3 },
+        usage: { monthly_runs: 0, storage_gb: 0, workflows: 0 },
+        can_create_workflow: true,
+        can_run_automation: true
+      });
     } finally {
       setLoading(false);
     }
