@@ -68,9 +68,9 @@ export default function DocumentationGuide() {
   return (
     <div className={styles.guide} data-theme={theme}>
       <h2 className={styles.title}>📚 EasyFlow Documentation</h2>
-      <ol className={styles.steps}>
+      <div className={styles.steps}>
         {steps.map((step, i) => (
-          <li key={i} className={styles.step}>
+          <div key={i} className={styles.step}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
               <strong>{i > 0 ? `${i}. ${step.title}` : step.title}</strong>
               {step.button && (
@@ -84,9 +84,9 @@ export default function DocumentationGuide() {
               )}
             </div>
             <div>{step.description}</div>
-          </li>
+          </div>
         ))}
-      </ol>
+      </div>
       <div className={styles.footer}>
         <span>Still stuck? Email <a href="mailto:kyjahntsmith@gmail.com">kyjahntsmith@gmail.com</a> for help!</span>
       </div>
