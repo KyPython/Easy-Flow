@@ -314,7 +314,10 @@ export default function SettingsPage() {
     }
   }
 
-  const currentPlanId = subscription?.plan?.id || null;
+  // Use planData from usePlan hook for consistency
+  const currentPlanName = planData?.plan?.name || 'Hobbyist';
+  const currentPlanFromDb = plans.find(p => p.name === currentPlanName);
+  const currentPlanId = currentPlanFromDb?.id || null;
   const proPlan = plans.find(p => p.price_cents > 0 && p.name.toLowerCase().includes('pro')) || plans.find(p => p.price_cents > 0);
 
   return (
