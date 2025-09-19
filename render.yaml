@@ -37,11 +37,11 @@ services:
 
   - type: worker
     name: easyflow-kafka
+    runtime: image
+    image: vectorized/redpanda:latest
     region: oregon
     plan: starter
     autoDeploy: false
-    docker:
-      image: "vectorized/redpanda:latest"
     startCommand: >-
       redpanda start --smp 1 --memory 1024M --overprovisioned --node-id 0
       --kafka-addr 0.0.0.0:9092
