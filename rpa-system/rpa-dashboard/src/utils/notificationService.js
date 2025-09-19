@@ -1,4 +1,13 @@
 // Real-time Notification Service for EasyFlow
+
+// Robust environment detection for both Vite and Webpack/CRA
+let MODE = 'development';
+if (typeof import.meta !== 'undefined' && import.meta.env && typeof import.meta.env.MODE === 'string') {
+  MODE = import.meta.env.MODE;
+} else if (typeof process !== 'undefined' && process.env && typeof process.env.NODE_ENV === 'string') {
+  MODE = process.env.NODE_ENV;
+}
+const isDev = MODE !== 'production';
 // Handles Firebase Cloud Messaging and Real-time Database notifications
 
 import { 
@@ -34,7 +43,7 @@ class NotificationService {
     this.lastTokenRefresh = null;
   this._loggedBackendFallbackOnce = false;
     
-    if (import.meta.env.MODE !== 'production') {
+    if (isDev) {
       console.log('🔔 NotificationService initialized:', {
         isSupported: this.isSupported,
         firebaseConfigured: isFirebaseConfigured
@@ -62,7 +71,7 @@ class NotificationService {
 
     // Return existing promise if initialization is already in progress
     if (this.initializationPromise) {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Returning existing initialization promise...');
       }
       return await this.initializationPromise;
@@ -70,7 +79,7 @@ class NotificationService {
 
     // Check if already initialized for this user
     if (this.isInitialized && this.currentUser?.id === user?.id) {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Notifications already initialized for user:', user.id);
       }
       return true;
@@ -78,7 +87,7 @@ class NotificationService {
 
     // If switching users, cleanup first
     if (this.isInitialized && this.currentUser?.id !== user?.id) {
-      if (import.meta.env.MODE !== 'production') {
+      if (isDev) {
         console.log('🔔 Switching users, cleaning up previous initialization');
       }
       this.cleanup();
