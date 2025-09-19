@@ -5,38 +5,44 @@
 const getApiBaseUrl = () => {
   // Priority order for API URL determination:
   // 1. Explicit REACT_APP_API_URL
-  // 2. REACT_APP_BACKEND_URL 
-  // 3. Auto-detect based on environment
-  
+  // 2. REACT_APP_API_BASE
+  // 3. REACT_APP_BACKEND_URL
+  // 4. Auto-detect based on environment (hostname)
+  // 5. Fallback: ''
+
   if (process.env.REACT_APP_API_URL) {
     return process.env.REACT_APP_API_URL;
   }
-  
+
+  if (process.env.REACT_APP_API_BASE) {
+    return process.env.REACT_APP_API_BASE;
+  }
+
   if (process.env.REACT_APP_BACKEND_URL) {
     return process.env.REACT_APP_BACKEND_URL;
   }
-  
-  // Auto-detection based on hostname
+
+  // Auto-detection based on hostname (only if env vars are not set)
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    
+
     // Production environments
-    if (hostname === 'easy-flow-lac.vercel.app') {
-      // Vercel frontend should connect to Render backend
-      return 'https://easyflow-backend-ad8e.onrender.com';
-    }
-    
     if (hostname === 'app.easyflow.com') {
       // Custom domain setup
       return 'https://api.easyflow.com';
     }
-    
+
     // Development environments
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://localhost:3030';
     }
+
+    // Vercel frontend (fallback only)
+    if (hostname === 'easy-flow-lac.vercel.app') {
+      return 'https://easyflow-backend-ad8e.onrender.com';
+    }
   }
-  
+
   // Fallback for server-side rendering or unknown environments
   return '';
 };
