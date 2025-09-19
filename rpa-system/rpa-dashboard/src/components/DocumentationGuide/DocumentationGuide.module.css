@@ -1,3 +1,21 @@
+.guideButton {
+  background: var(--primary, #2563eb);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+.guideButton:hover {
+  background: #174ea6;
+}
+.guideButton:active {
+  background: #113366;
+}
 .guide {
   background: var(--background, #fff);
   color: var(--text, #222);
