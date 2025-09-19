@@ -11,7 +11,9 @@ class WorkflowExecutor {
     const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
     this.supabase = (url && key) ? createClient(url, key) : null;
     if (!this.supabase) {
-      console.warn('[WorkflowExecutor] Supabase not configured (missing SUPABASE_URL or key). Some features will be disabled.');
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[WorkflowExecutor] Supabase not configured (missing SUPABASE_URL or key). Some features will be disabled.');
+      }
     }
   // Track running executions to check for cancellation
   this.runningExecutions = new Map(); // executionId -> { cancelled: boolean }
@@ -90,7 +92,9 @@ class WorkflowExecutor {
     const { workflowId, userId, triggeredBy = 'manual', triggerData = {}, inputData = {} } = config;
     
     try {
-      console.log(`[WorkflowExecutor] Starting execution for workflow ${workflowId}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[WorkflowExecutor] Starting execution for workflow ${workflowId}`);
+      }
       if (!this.supabase) {
         throw new Error('Workflow not found: Database unavailable');
       }
@@ -99,7 +103,9 @@ class WorkflowExecutor {
       let workflow, workflowError;
       
       try {
-        console.log(`[WorkflowExecutor] Querying workflow with ID: ${workflowId}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[WorkflowExecutor] Querying workflow with ID: ${workflowId}`);
+        }
         
         const result = await this.supabase
           .from('workflows')
@@ -113,12 +119,14 @@ class WorkflowExecutor {
           .limit(1)
           .maybeSingle();
 
-        console.log(`[WorkflowExecutor] Query result:`, {
-          error: result.error,
-          dataExists: !!result.data,
-          dataId: result.data?.id,
-          workflowName: result.data?.name
-        });
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[WorkflowExecutor] Query result:`, {
+            error: result.error,
+            dataExists: !!result.data,
+            dataId: result.data?.id,
+            workflowName: result.data?.name
+          });
+        }
 
         if (result.error) {
           console.error(`[WorkflowExecutor] Database error:`, result.error);
@@ -170,7 +178,9 @@ class WorkflowExecutor {
         throw new Error(`Failed to create execution: ${executionError.message}`);
       }
       
-      console.log(`[WorkflowExecutor] Created execution ${execution.id}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[WorkflowExecutor] Created execution ${execution.id}`);
+      }
       
       // Mark as running
       this.runningExecutions.set(execution.id, { cancelled: false });
@@ -199,7 +209,9 @@ class WorkflowExecutor {
     let stepsExecuted = 0;
     
     try {
-      console.log(`[WorkflowExecutor] Executing workflow ${workflow.name} (${execution.id})`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[WorkflowExecutor] Executing workflow ${workflow.name} (${execution.id})`);
+      }
       
       // Find the start step
       const startStep = workflow.workflow_steps.find(step => step.step_type === 'start');

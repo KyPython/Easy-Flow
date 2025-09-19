@@ -11,7 +11,9 @@ class TriggerService {
       this.supabase = createClient(url, key);
     } else {
       this.supabase = null;
-      console.warn('[TriggerService] Supabase not configured (missing SUPABASE_URL or key). Scheduler disabled.');
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[TriggerService] Supabase not configured (missing SUPABASE_URL or key). Scheduler disabled.');
+      }
     }
     this.workflowExecutor = new WorkflowExecutor();
     this.activeJobs = new Map(); // Track active cron jobs
@@ -21,12 +23,15 @@ class TriggerService {
   async initialize() {
     if (this.initialized) return;
     if (!this.supabase) {
-      console.warn('[TriggerService] Skipping initialization: Supabase client unavailable.');
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[TriggerService] Skipping initialization: Supabase client unavailable.');
+      }
       this.initialized = true;
       return;
     }
-    
-    console.log('[TriggerService] Initializing automation trigger system...');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[TriggerService] Initializing automation trigger system...');
+    }
     
     // Load and schedule all active workflows
     await this.loadActiveSchedules();
@@ -37,7 +42,9 @@ class TriggerService {
     });
     
     this.initialized = true;
-    console.log('[TriggerService] Automation trigger system initialized');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[TriggerService] Automation trigger system initialized');
+    }
   }
 
   async loadActiveSchedules() {
@@ -56,7 +63,9 @@ class TriggerService {
         return;
       }
 
-      console.log(`[TriggerService] Loading ${schedules.length} active schedules`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[TriggerService] Loading ${schedules.length} active schedules`);
+      }
       
       for (const schedule of schedules) {
         await this.scheduleWorkflow(schedule);
@@ -86,7 +95,9 @@ class TriggerService {
           task.start();
           this.activeJobs.set(id, task);
           
-          console.log(`[TriggerService] Scheduled cron workflow: ${workflow.name} (${cron_expression})`);
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[TriggerService] Scheduled cron workflow: ${workflow.name} (${cron_expression})`);
+          }
           
           // Update next trigger time
           await this.updateNextTriggerTime(id, this.getNextCronTime(cron_expression, schedule.timezone));
@@ -104,7 +115,9 @@ class TriggerService {
         
         this.activeJobs.set(id, { type: 'interval', intervalId });
         
-        console.log(`[TriggerService] Scheduled interval workflow: ${workflow.name} (every ${interval_seconds}s)`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[TriggerService] Scheduled interval workflow: ${workflow.name} (every ${interval_seconds}s)`);
+        }
         
         // Update next trigger time
         const nextTrigger = new Date(Date.now() + intervalMs);
@@ -120,11 +133,15 @@ class TriggerService {
     try {
       const { workflow_id, user_id, id: schedule_id } = schedule;
       
-      console.log(`[TriggerService] Executing scheduled workflow: ${workflow_id}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[TriggerService] Executing scheduled workflow: ${workflow_id}`);
+      }
       
       // Check execution limits
       if (schedule.max_executions && schedule.execution_count >= schedule.max_executions) {
-        console.log(`[TriggerService] Schedule ${schedule_id} reached max executions, deactivating`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[TriggerService] Schedule ${schedule_id} reached max executions, deactivating`);
+        }
         await this.deactivateSchedule(schedule_id);
         return;
       }
@@ -140,7 +157,9 @@ class TriggerService {
       // Update schedule stats
       await this.updateScheduleStats(schedule_id);
       
-      console.log(`[TriggerService] Started execution ${execution.id} for schedule ${schedule_id}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[TriggerService] Started execution ${execution.id} for schedule ${schedule_id}`);
+      }
       
     } catch (error) {
       console.error(`[TriggerService] Failed to execute scheduled workflow:`, error);
@@ -149,7 +168,9 @@ class TriggerService {
 
   async refreshSchedules() {
     try {
-      console.log('[TriggerService] Refreshing schedules...');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[TriggerService] Refreshing schedules...');
+      }
       
       // Get current active schedules from database
       const { data: currentSchedules, error } = await this.supabase
@@ -198,7 +219,9 @@ class TriggerService {
         clearInterval(job.intervalId);
       }
       this.activeJobs.delete(scheduleId);
-      console.log(`[TriggerService] Stopped schedule: ${scheduleId}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[TriggerService] Stopped schedule: ${scheduleId}`);
+      }
     }
   }
 
@@ -457,7 +480,9 @@ class TriggerService {
   }
 
   async shutdown() {
-    console.log('[TriggerService] Shutting down automation trigger system...');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[TriggerService] Shutting down automation trigger system...');
+    }
     
     // Stop all active jobs
     for (const scheduleId of this.activeJobs.keys()) {
@@ -465,7 +490,9 @@ class TriggerService {
     }
     
     this.initialized = false;
-    console.log('[TriggerService] Automation trigger system shutdown complete');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[TriggerService] Automation trigger system shutdown complete');
+    }
   }
 }
 
