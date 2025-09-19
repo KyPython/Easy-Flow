@@ -154,7 +154,7 @@ class NotificationService {
   // Authenticate Firebase using Supabase session
   async _authenticateWithSupabase(session, user) {
     try {
-      if (import.meta.env.MODE !== 'production') {
+  if (isDev) {
         console.log('🔔 Requesting Firebase custom token for user:', user.id);
       }
       
