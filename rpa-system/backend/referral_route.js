@@ -2,10 +2,16 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const router = express.Router();
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Initialize Supabase client only when needed to avoid env var issues at startup
+function getSupabaseClient() {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('Supabase environment variables not configured');
+  }
+  return createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+}
 
 function generateReferralCode() {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -22,6 +28,8 @@ router.post('/generate-referral', async (req, res) => {
     if (referrerEmail === referredEmail) {
       return res.status(400).json({ error: 'Cannot refer yourself' });
     }
+
+    const supabase = getSupabaseClient();
 
     // Get referrer user ID from profiles
     const { data: referrerProfile, error: referrerError } = await supabase
@@ -126,6 +134,8 @@ router.post('/complete-referral', async (req, res) => {
       return res.status(400).json({ error: 'Referral code and user ID are required' });
     }
 
+    const supabase = getSupabaseClient();
+
     // Find the referral
     const { data: referral, error: referralError } = await supabase
       .from('referrals')
@@ -170,6 +180,8 @@ router.post('/complete-referral', async (req, res) => {
 
 async function grantReferralReward(userId) {
   try {
+    const supabase = getSupabaseClient();
+    
     // Get user's current plan
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
