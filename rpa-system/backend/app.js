@@ -1,27 +1,3 @@
-// ...existing code...
-// ...existing code...
-// ...existing code...
-// Poll automation task status/result by task_id (must be after app and middleware setup)
-app.get('/api/automation/status/:task_id', authMiddleware, async (req, res) => {
-  const { task_id } = req.params;
-  if (!task_id) {
-    return res.status(400).json({ error: 'Missing task_id parameter.' });
-  }
-  const status = taskStatusStore.get(task_id);
-  if (!status) {
-    return res.status(404).json({ error: 'Task not found or expired.' });
-  }
-  // Only allow the user who submitted the task to view status
-  if (status.user_id && status.user_id !== req.user.id) {
-    return res.status(403).json({ error: 'Forbidden: You do not have access to this task.' });
-  }
-  res.json({
-    task_id,
-    status: status.status,
-    result: status.result,
-    updated_at: status.updated_at
-  });
-});
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -37,6 +13,7 @@ const { firebaseNotificationService, NotificationTemplates } = require('./utils/
 const { getKafkaService } = require('./utils/kafkaService');
 const taskStatusStore = require('./utils/taskStatusStore');
 const { usageTracker } = require('./utils/usageTracker');
+const { auditLogger } = require('./utils/auditLogger');
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  const morgan = require('morgan');
@@ -556,6 +533,22 @@ try {
   app.use('/api/executions', authMiddleware, apiLimiter, executionRoutes);
 } catch (e) {
   console.warn('[boot] executionRoutes not mounted:', e?.message || e);
+}
+
+// Audit logs routes
+try {
+  const auditLogsRoutes = require('./routes/auditLogs');
+  app.use('/api/audit-logs', authMiddleware, apiLimiter, auditLogsRoutes);
+} catch (e) {
+  console.warn('[boot] auditLogsRoutes not mounted:', e?.message || e);
+}
+
+// ROI analytics routes
+try {
+  const roiAnalyticsRoutes = require('./routes/roiAnalytics');
+  app.use('/api/roi-analytics', authMiddleware, apiLimiter, roiAnalyticsRoutes);
+} catch (e) {
+  console.warn('[boot] roiAnalyticsRoutes not mounted:', e?.message || e);
 }
 
 // Start a workflow execution
@@ -1348,6 +1341,28 @@ app.get('/api/health/automation', async (_req, res) => {
   } catch (e) {
     return res.status(200).json({ ok: false, target: automationUrl, error: e?.message || String(e) });
   }
+});
+
+// Poll automation task status/result by task_id (must be after app and middleware setup)
+app.get('/api/automation/status/:task_id', authMiddleware, async (req, res) => {
+  const { task_id } = req.params;
+  if (!task_id) {
+    return res.status(400).json({ error: 'Missing task_id parameter.' });
+  }
+  const status = taskStatusStore.get(task_id);
+  if (!status) {
+    return res.status(404).json({ error: 'Task not found or expired.' });
+  }
+  // Only allow the user who submitted the task to view status
+  if (status.user_id && status.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden: You do not have access to this task.' });
+  }
+  res.json({
+    task_id,
+    status: status.status,
+    result: status.result,
+    updated_at: status.updated_at
+  });
 });
 
 // POST /api/notifications/create - server-side notification creation & optional push

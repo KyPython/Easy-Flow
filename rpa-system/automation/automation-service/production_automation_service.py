@@ -16,6 +16,13 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
+# Configure logging first (before using logger anywhere)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Prometheus metrics
 try:
     from prometheus_client import Counter, Histogram, Gauge, generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST
@@ -47,12 +54,7 @@ except ImportError:
     class KafkaError: Exception
     class NoBrokersAvailable(Exception): pass
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Logger was already configured above
 
 # Flask app
 app = Flask(__name__)
@@ -182,10 +184,22 @@ def process_automation_task(task_data):
     start_time = time.time() if METRICS_AVAILABLE else None
 
     try:
-        # --- Your specific automation logic goes here ---
-        # Example logic based on task_type
+        # --- Real automation logic with browser automation ---
         if task_type == 'web_automation':
-            result = {'success': True, 'message': 'Processed web_automation task.'}
+            try:
+                from . import web_automation
+            except ImportError:
+                import web_automation
+            
+            url = task_data.get('url')
+            if not url:
+                result = {'success': False, 'error': 'Missing required field: url'}
+            else:
+                automation_result = web_automation.perform_web_automation(url, task_data)
+                if automation_result.get('status') == 'success' or automation_result.get('status') == 'partial_failure':
+                    result = {'success': True, 'data': automation_result, 'message': f'Web automation completed with status: {automation_result.get("status")}'}
+                else:
+                    result = {'success': False, 'error': automation_result.get('error', 'Web automation failed'), 'details': automation_result}
         elif task_type == 'data_extraction':
             url = task_data.get('url')
             if not url:
@@ -205,8 +219,16 @@ def process_automation_task(task_data):
             if not pdf_url:
                 result = {'success': False, 'error': 'Missing required field: pdf_url'}
             else:
-                # Simulate invoice download logic
-                result = {'success': True, 'message': f'Invoice downloaded from {pdf_url}'}
+                try:
+                    from . import web_automation
+                except ImportError:
+                    import web_automation
+                
+                download_result = web_automation.download_pdf(pdf_url, task_data)
+                if download_result.get('success'):
+                    result = {'success': True, 'data': download_result, 'message': f'Invoice downloaded from {pdf_url}'}
+                else:
+                    result = {'success': False, 'error': download_result.get('error', 'Download failed'), 'details': download_result}
         else:
             result = {'success': False, 'error': f'Unknown task type: {task_type}'}
 

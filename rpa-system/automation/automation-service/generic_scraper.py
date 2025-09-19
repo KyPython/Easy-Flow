@@ -46,9 +46,43 @@ def create_webdriver():
 def scrape_web_page(url, task_data=None):
     """
     Scrape generic information from a given URL.
-    This function extracts the page title, meta description, and the body text.
-    It can also extract specific elements if a 'selector' is provided in task_data.
+    Enhanced to handle various scraping scenarios including API data extraction,
+    form interaction, and targeted element extraction.
     """
+    if task_data is None:
+        task_data = {}
+    
+    # Handle API/JSON endpoints
+    if task_data.get('extract_json') or task_data.get('method') == 'GET':
+        try:
+            import requests
+            response = requests.get(url, timeout=10)
+            if response.headers.get('content-type', '').startswith('application/json'):
+                data = response.json()
+                
+                # Apply filters if specified
+                if task_data.get('filters'):
+                    filters = task_data['filters']
+                    if isinstance(data, list) and filters.get('limit'):
+                        data = data[:filters['limit']]
+                    if filters.get('fields') and isinstance(data, (list, dict)):
+                        if isinstance(data, list) and data:
+                            data = [{k: item.get(k) for k in filters['fields']} for item in data if isinstance(item, dict)]
+                        elif isinstance(data, dict):
+                            data = {k: data.get(k) for k in filters['fields']}
+                
+                return {
+                    'status': 'success',
+                    'data': data,
+                    'url': url,
+                    'timestamp': datetime.now().isoformat(),
+                    'content_type': response.headers.get('content-type', ''),
+                    'response_code': response.status_code
+                }
+        except Exception as e:
+            logger.warning(f"JSON extraction failed, falling back to HTML scraping: {e}")
+    
+    # Continue with regular HTML scraping
     driver = create_webdriver()
     if not driver:
         return {"error": "Failed to create WebDriver"}
@@ -152,11 +186,31 @@ def scrape_web_page(url, task_data=None):
             prices.extend(found_prices[:10])  # Limit per pattern
         scraped_data["detected_prices"] = list(set(prices))  # Remove duplicates
 
-        # Check for a specific selector from task_data for more targeted scraping
+        # Handle multiple selectors for targeted scraping
+        selectors = task_data.get('selectors', {})
+        if isinstance(selectors, dict):
+            extracted_elements = {}
+            for key, selector in selectors.items():
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    if elements:
+                        if len(elements) == 1:
+                            extracted_elements[key] = elements[0].text.strip()
+                        else:
+                            extracted_elements[key] = [elem.text.strip() for elem in elements if elem.text.strip()]
+                    else:
+                        extracted_elements[key] = f"No elements found with selector '{selector}'"
+                except Exception as e:
+                    logger.warning(f"Could not extract elements for '{key}' with selector '{selector}': {e}")
+                    extracted_elements[key] = f"Error: {str(e)}"
+            
+            if extracted_elements:
+                scraped_data["targeted_elements"] = extracted_elements
+        
+        # Legacy single selector support
         selector = task_data.get('selector')
         if selector:
             try:
-                # Use Selenium to wait for and find the element
                 element = WebDriverWait(driver, 5).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, selector))
                 )
@@ -164,6 +218,22 @@ def scrape_web_page(url, task_data=None):
             except Exception as e:
                 logger.warning(f"Could not find element with selector '{selector}': {e}")
                 scraped_data["targeted_element_text"] = f"Element with selector '{selector}' not found"
+        
+        # Handle table data extraction
+        if task_data.get('extract_table_data'):
+            table_config = task_data.get('table_config', {})
+            enhanced_tables = []
+            
+            for i, table in enumerate(tables):
+                enhanced_table = table.copy()
+                
+                # Apply table configuration
+                if table_config.get('skip_empty_rows'):
+                    enhanced_table['rows'] = [row for row in table['rows'] if any(cell.strip() for cell in row)]
+                
+                enhanced_tables.append(enhanced_table)
+            
+            scraped_data["enhanced_tables"] = enhanced_tables
 
         scraped_data["status"] = "success"
         scraped_data["scraped_at"] = datetime.now().isoformat()
