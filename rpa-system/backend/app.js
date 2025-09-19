@@ -142,22 +142,21 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='"], // Empty inline hash only
-      scriptSrc: ["'self'", "https://www.uchat.com.au", "https://sdk.dfktv2.com", "https://www.googletagmanager.com"], // Allow chatbot scripts and GA
-      imgSrc: ["'self'", "https:"], // Removed data: protocol
-      connectSrc: ["'self'", "https://sdk.dfktv2.com", "https://www.uchat.com.au", "https://www.google-analytics.com", "https://analytics.google.com"], // Allow chatbot connections and GA
+      styleSrc: ["'self'", "'unsafe-inline'", "https:"], // Allow inline styles and external stylesheets
+      scriptSrc: ["'self'", "https://www.uchat.com.au", "https://sdk.dfktv2.com", "https://www.googletagmanager.com"],
+      imgSrc: ["'self'", "https:"],
+      connectSrc: ["'self'", "https://sdk.dfktv2.com", "https://www.uchat.com.au", "https://www.google-analytics.com", "https://analytics.google.com"],
       fontSrc: ["'self'", "https:"],
-      objectSrc: ["'none'"], // Block object/embed
+      objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-  // Allow uChat widget iframe while keeping others blocked
-  frameSrc: ["'self'", 'https://www.uchat.com.au'],
-      childSrc: ["'none'"], // Block child contexts
+      frameSrc: ["'self'", 'https://www.uchat.com.au'],
+      childSrc: ["'none'"],
       workerSrc: ["'self'"],
       manifestSrc: ["'self'"],
-      formAction: ["'self'"], // Only allow forms to submit to same origin
-      frameAncestors: ["'none'"], // Prevent being framed
-      baseUri: ["'self'"], // Restrict base URIs
-      upgradeInsecureRequests: [], // Force HTTPS
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      upgradeInsecureRequests: [],
     },
   },
   hsts: {
