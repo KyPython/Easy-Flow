@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { usePlan } from '../../hooks/usePlan';
 import { useTheme } from '../../utils/ThemeContext';
 import { FiZap, FiHardDrive, FiGitBranch, FiArrowUp, FiCalendar, FiActivity } from 'react-icons/fi';
@@ -255,3 +256,8 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
 };
 
 export default UsageTracker;
+
+UsageTracker.propTypes = {
+  showUpgrade: PropTypes.bool,
+  compact: PropTypes.bool,
+};
