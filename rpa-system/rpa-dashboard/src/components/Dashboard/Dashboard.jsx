@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import DocumentationGuide from '../DocumentationGuide/DocumentationGuide';
+import headerStyles from '../Header/Header.module.css';
 import { useI18n } from '../../i18n';
 import { useNavigate } from 'react-router-dom';
 import styles from './Dashboard.module.css';
@@ -12,6 +14,7 @@ import PropTypes from 'prop-types';
 const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
   const navigate = useNavigate();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showDocs, setShowDocs] = useState(false);
   const { sendTaskCompleted, sendTaskFailed } = useNotifications(user);
   const [lastTasksLength, setLastTasksLength] = useState(recentTasks.length);
   const { t } = useI18n();
@@ -153,7 +156,7 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
             </div>
           </button>
 
-          <button className={styles.actionCard}>
+          <button className={styles.actionCard} onClick={() => setShowDocs(true)}>
             <div className={styles.actionIcon}>📚</div>
             <div className={styles.actionText}>
               <div className={styles.actionTitle}>{t('dashboard.documentation','Documentation')}</div>
@@ -178,6 +181,16 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
       <div className={styles.usageSection}>
         <UsageTracker showUpgrade={true} />
       </div>
+
+      {/* Documentation Modal */}
+      {showDocs && (
+        <div className={headerStyles.modalOverlay} onClick={() => setShowDocs(false)}>
+          <div className={headerStyles.modalContent} onClick={e => e.stopPropagation()}>
+            <button className={headerStyles.closeButton} onClick={() => setShowDocs(false)}>&times;</button>
+            <DocumentationGuide />
+          </div>
+        </div>
+      )}
 
       {/* Onboarding Modal */}
       <OnboardingModal 
