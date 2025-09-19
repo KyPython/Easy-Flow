@@ -262,8 +262,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
         if (process.env.NODE_ENV !== 'production') {
           console.log(`Subscription canceled for user ${userId}:`, {
-          externalPaymentId: subscription.id
-        });
+            externalPaymentId: subscription.id
+          });
 
         return res.status(200).json({
           success: true,
