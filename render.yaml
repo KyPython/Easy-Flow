@@ -35,7 +35,8 @@ services:
       python3 -m pip install -r ../requirements.txt --no-cache-dir
     startCommand: python3 production_automation_service.py
 
-  - name: easyflow-kafka
+  - type: worker
+    name: easyflow-kafka
     region: oregon
     plan: starter
     autoDeploy: false
