@@ -1,0 +1,73 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: easyflow
+      POSTGRES_PASSWORD: easyflow
+      POSTGRES_DB: easyflow
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U easyflow -d easyflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - '6379:6379'
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    ports:
+      - '3030:3030'
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    environment:
+      DATABASE_URL: "postgres://easyflow:easyflow@postgres:5432/easyflow"
+      REDIS_URL: "redis://redis:6379"
+      KAFKA_BROKERS: "kafka:9092"
+      AUTOMATION_URL: "http://automation-worker:7001"
+      ALLOW_DRAFT_EXECUTION: 'true'
+
+  automation-worker:
+    build:
+      context: ./automation
+      dockerfile: automation-service/Dockerfile
+    ports:
+      - '7001:7001'
+    depends_on:
+      - backend
+      - kafka
+      - postgres
+    environment:
+      AUTOMATION_WORKER_MODE: local
+      BACKEND_URL: "http://backend:3030"
+      KAFKA_BROKERS: kafka:9092
