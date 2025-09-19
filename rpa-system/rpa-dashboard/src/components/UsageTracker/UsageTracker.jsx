@@ -69,11 +69,11 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
 
   const usageItems = [
     {
-      key: 'monthly_runs',
+      key: 'automations',
       icon: <FiActivity />,
       label: 'Automation Runs',
-      current: usage.monthly_runs || 0,
-      limit: limits.monthly_runs,
+      current: usage.automations || usage.monthly_runs || 0,
+      limit: limits.automations || limits.monthly_runs,
       unit: 'runs',
       description: 'This month',
       color: '#3b82f6'
@@ -88,7 +88,8 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
       description: 'Total files',
       color: '#10b981'
     },
-    {
+    // Only show workflows for plans that have them
+    ...(limits.has_workflows !== false ? [{
       key: 'workflows',
       icon: <FiGitBranch />,
       label: 'Active Workflows',
@@ -97,7 +98,7 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
       unit: 'workflows',
       description: 'Currently active',
       color: '#8b5cf6'
-    }
+    }] : [])
   ];
 
   const handleUpgrade = () => {
