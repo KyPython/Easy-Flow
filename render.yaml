@@ -39,6 +39,7 @@ services:
   - type: redis
     name: easyflow-redis
     plan: free
+    ipAllowList: []
 
 databases:
   - name: easyflow-postgres
