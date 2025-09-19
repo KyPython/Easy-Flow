@@ -84,20 +84,6 @@ Set up alerts for:
 
 Use these in New Relic's query builder:
 
-```sql
--- Automation success rate over time
-SELECT count(*) FROM Transaction WHERE appName = 'EasyFlow-Automation-Service' FACET request.uri TIMESERIES
-
--- Average task duration by type
-SELECT average(duration) FROM Transaction WHERE appName = 'EasyFlow-Automation-Service' FACET custom.task_type
-
--- Error rate trend
-SELECT percentage(count(*), WHERE error = true) FROM Transaction WHERE appName = 'EasyFlow-Automation-Service' TIMESERIES
-
--- Most common automation types
-SELECT count(*) FROM Transaction WHERE custom.task_type IS NOT NULL FACET custom.task_type
-```
-
 ## 🔍 What Data Points to Watch
 
 ### Daily Operations:
@@ -129,21 +115,8 @@ SELECT count(*) FROM Transaction WHERE custom.task_type IS NOT NULL FACET custom
 
 For production, set these environment variables:
 
-```bash
-# Required
-NEW_RELIC_LICENSE_KEY=your_license_key_here
-
-# Optional (with defaults)
-NEW_RELIC_APP_NAME=EasyFlow-Automation-Service
-NEW_RELIC_LOG_LEVEL=info
-NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
-```
-
 ## 📞 Next Steps
 
-1. **Set up your New Relic account** and configure the license key
-2. **Deploy to production** with New Relic monitoring enabled
-3. **Create custom dashboards** for your specific business metrics
 4. **Set up alerts** for critical thresholds
 5. **Monitor trends** to optimize automation performance
 
