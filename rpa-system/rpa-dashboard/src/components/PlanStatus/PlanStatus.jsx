@@ -42,17 +42,18 @@ const PlanStatus = ({ compact = false }) => {
 
   const quickStats = [
     {
+      label: 'Monthly Runs',
+      current: usage.automations || usage.monthly_runs || 0,
+      limit: limits.automations || limits.monthly_runs,
+      isUnlimited: (limits.automations || limits.monthly_runs) === -1
+    },
+    // Only show workflows for non-hobbyist plans
+    ...(limits.has_workflows !== false ? [{
       label: 'Workflows',
       current: usage.workflows || 0,
       limit: limits.workflows,
       isUnlimited: limits.workflows === -1
-    },
-    {
-      label: 'Monthly Runs',
-      current: usage.monthly_runs || 0,
-      limit: limits.monthly_runs,
-      isUnlimited: limits.monthly_runs === -1
-    }
+    }] : [])
   ];
 
   return (

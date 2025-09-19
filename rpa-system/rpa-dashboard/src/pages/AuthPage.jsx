@@ -12,6 +12,7 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
   const navigate = useNavigate();
   // removed language context
 
@@ -25,18 +26,48 @@ export default function AuthPage() {
       }
     };
     
+    // Check for referral code in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode) {
+      setReferralCode(refCode);
+      setMode('register'); // Switch to signup mode if there's a referral code
+    }
+    
     checkUser();
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
+        // Complete referral if there's a referral code
+        if (referralCode) {
+          try {
+            const response = await fetch('/api/complete-referral', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                referralCode: referralCode,
+                newUserId: session.user.id
+              })
+            });
+            
+            if (response.ok) {
+              console.log('Referral completed successfully');
+            } else {
+              console.error('Failed to complete referral');
+            }
+          } catch (error) {
+            console.error('Error completing referral:', error);
+          }
+        }
+        
         // User just signed in or was confirmed, redirect to dashboard
         navigate('/app');
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, referralCode]);
 
   const handleResetPassword = async () => {
     setError('');
