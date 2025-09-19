@@ -34,33 +34,7 @@ export const usePlan = () => {
     } catch (err) {
       console.error('Error fetching plan data:', err);
       setError(err.message);
-      
-      // Fallback to free plan
-      setPlanData({
-        plan: {
-          id: 'free',
-          name: 'Hobbyist',
-          status: 'active',
-          expires_at: null,
-          is_trial: false
-        },
-        usage: {
-          monthly_runs: 0,
-          storage_bytes: 0,
-          storage_gb: 0,
-          workflows: 0
-        },
-        limits: {
-          workflows: 3,
-          monthly_runs: 50,
-          storage_gb: 5,
-          team_members: 1,
-          advanced_features: false,
-          priority_support: false
-        },
-        can_create_workflow: true,
-        can_run_automation: true
-      });
+      setPlanData(null);
     } finally {
       setLoading(false);
     }
@@ -72,7 +46,7 @@ export const usePlan = () => {
 
   // Helper functions
   const isPro = () => {
-    return planData?.plan?.name !== 'Hobbyist' && planData?.plan?.status === 'active';
+    return planData?.plan?.name !== 'Hobbyist' && planData?.plan?.name !== 'Starter' && planData?.plan?.status === 'active';
   };
 
   const hasFeature = (feature) => {

@@ -86,7 +86,7 @@ const PaywallModal = ({
   };
 
   const getCurrentPlan = () => {
-    return planData?.plan?.name || 'Hobbyist';
+    return planData?.plan?.name || 'Unknown';
   };
 
   return (

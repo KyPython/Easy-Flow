@@ -104,7 +104,7 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
   };
 
   const daysRemaining = calculateDaysRemaining();
-  const isPro = plan.name !== 'Hobbyist';
+  const isPro = plan.name !== 'Hobbyist' && plan.name !== 'Starter';
 
   if (compact) {
     return (
@@ -162,12 +162,12 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
         <FiCalendar className={styles.calendarIcon} />
         <div className={styles.renewalText}>
           <span className={styles.renewalLabel}>
-            {plan.name === 'Hobbyist' ? 'Free Plan' : 'Renews'}
+            {(plan.name === 'Starter' || plan.name === 'Hobbyist') ? 'Free Plan' : 'Renews'}
           </span>
           <span className={styles.renewalDate}>
-            {plan.name === 'Hobbyist' ? 'No expiry' : formatRenewalDate()}
+            {(plan.name === 'Starter' || plan.name === 'Hobbyist') ? 'No expiry' : formatRenewalDate()}
           </span>
-          {daysRemaining !== null && daysRemaining <= 7 && plan.name !== 'Hobbyist' && (
+          {daysRemaining !== null && daysRemaining <= 7 && plan.name !== 'Starter' && plan.name !== 'Hobbyist' && (
             <span className={styles.renewalWarning}>
               {daysRemaining === 0 ? 'Expires today!' : `${daysRemaining} days left`}
             </span>
@@ -229,7 +229,7 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
         })}
       </div>
 
-      {showUpgrade && plan.name === 'Hobbyist' && (
+      {showUpgrade && (plan.name === 'Starter' || plan.name === 'Hobbyist') && (
         <div className={styles.upgradeSection}>
           <div className={styles.upgradeContent}>
             <div>

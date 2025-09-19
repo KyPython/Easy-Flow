@@ -176,7 +176,6 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
 
       {/* Usage Information Section - placed at bottom for mobile */}
       <div className={styles.usageSection}>
-        <h2 className={styles.usageTitle}>{t('dashboard.current_usage','Current Usage & Plan')}</h2>
         <UsageTracker showUpgrade={true} />
       </div>
 

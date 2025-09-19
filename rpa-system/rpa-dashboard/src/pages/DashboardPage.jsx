@@ -5,7 +5,6 @@ import Dashboard from '../components/Dashboard/Dashboard';
 import { supabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
 import Chatbot from '../components/Chatbot/Chatbot';
-import UsageTracker from '../components/UsageTracker/UsageTracker';
 
 const DashboardPage = () => {
   const { user, loading: authLoading } = useAuth();
@@ -124,9 +123,6 @@ const DashboardPage = () => {
       <ErrorMessage message={error} />
 
       <Dashboard metrics={metrics} recentTasks={recentTasks} user={user} />
-      <div style={{ marginTop: 24 }}>
-        <UsageTracker showUpgrade />
-      </div>
       
       <Chatbot />
     </>

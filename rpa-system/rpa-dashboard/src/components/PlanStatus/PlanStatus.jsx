@@ -15,7 +15,7 @@ const PlanStatus = ({ compact = false }) => {
   }
 
   const { plan, usage, limits } = planData;
-  const isPro = plan.name !== 'Hobbyist';
+  const isPro = plan.name !== 'Hobbyist' && plan.name !== 'Starter';
 
   const handleUpgrade = () => {
     navigate('/pricing');
