@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
 
@@ -51,7 +51,7 @@ export const useWorkflow = (workflowId) => {
   }, [workflowId]);
 
   // Update workflow
-  const updateWorkflow = async (updates) => {
+  const updateWorkflow = useCallback(async (updates) => {
     if (!workflowId) return;
 
     try {
@@ -105,7 +105,7 @@ export const useWorkflow = (workflowId) => {
     } finally {
       setSaving(false);
     }
-  };
+  }, [workflowId]);
 
   // Save workflow with steps and connections
   const saveWorkflow = async (workflowData) => {

@@ -115,7 +115,7 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
     } catch (error) {
       console.error('Failed to save canvas state:', error);
     }
-  }, [nodes, edges, getViewport, workflow?.id, isReadOnly]);
+  }, [nodes, edges, getViewport, updateWorkflow, workflow?.id, isReadOnly]);
 
   // Expose methods to parent component via ref
   useImperativeHandle(ref, () => ({
