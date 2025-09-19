@@ -68,6 +68,8 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
   try {
     // Include both the original form data and add type field based on task selection
     const payload = { ...form, type: form.task };
+    // Debug: log the payload being sent
+    console.log('[TaskForm] Submitting payload:', payload);
 
     const response = await api.post('/api/automation/execute', payload, {
       headers: {
