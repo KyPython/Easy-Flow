@@ -18,8 +18,16 @@ const { getKafkaService } = require('./utils/kafkaService');
 const { startEmailWorker } = require('./workers/email_worker');
 const { spawn } = require('child_process');
 
+
 const app = express();
 const PORT = process.env.PORT || 3030;
+
+// --- CORS configuration for development ---
+// Allow requests from frontend dev server
+app.use(cors({
+  origin: 'http://localhost:3001',
+  credentials: true
+}));
 
 // Add after imports, before route definitions (around line 100)
 
