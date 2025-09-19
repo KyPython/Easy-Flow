@@ -11,6 +11,7 @@ const bcrypt = require('bcrypt');
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { firebaseNotificationService, NotificationTemplates } = require('./utils/firebaseAdmin');
 const { getKafkaService } = require('./utils/kafkaService');
+const { usageTracker } = require('./utils/usageTracker');
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  const morgan = require('morgan');
@@ -208,6 +209,10 @@ const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || process.env.S
 const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE) : null;
 if (!supabase) {
   console.warn('⚠️ Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE environment variables.');
+} else {
+  // Initialize usage tracker with supabase client
+  usageTracker.initialize(supabase);
+  console.log('✅ Usage tracker initialized');
 }
 const ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
 const USE_SIGNED_URLS = (process.env.SUPABASE_USE_SIGNED_URLS || 'true').toLowerCase() !== 'false';
@@ -1061,6 +1066,9 @@ async function queueTaskRun(runId, taskData) {
         })
         .eq('id', runId);
 
+      // Track the completed automation run
+      await usageTracker.trackAutomationRun(userId, runId, 'completed');
+
       // Send notification for task completion
       try {
         const taskName = taskData.title || 'Automation Task';
@@ -1088,6 +1096,9 @@ async function queueTaskRun(runId, taskData) {
           })
         })
         .eq('id', runId);
+
+      // Track the failed automation run (failed runs don't count towards monthly quota)
+      await usageTracker.trackAutomationRun(userId, runId, 'failed');
 
       // Send notification for task failure
       try {
@@ -1445,6 +1456,10 @@ app.post('/api/tasks', async (req, res) => {
       .select();
 
     if (error) throw error;
+
+    // Track the new workflow creation
+    await usageTracker.trackWorkflowChange(req.user.id, data[0].id, 'created');
+
     res.status(201).json(data[0]);
   } catch (err) {
     console.error('[POST /api/tasks] Error:', err.message);
@@ -1557,6 +1572,9 @@ app.post('/api/tasks/:id/run', async (req, res) => {
       })
       .eq('id', runId);
 
+    // Track the completed automation run
+    await usageTracker.trackAutomationRun(req.user.id, runId, 'completed');
+
     if (updateError) throw updateError;
 
     // Send task completion notification
@@ -1591,6 +1609,9 @@ app.post('/api/tasks/:id/run', async (req, res) => {
             result: errorPayload,
           })
           .eq('id', runId);
+
+        // Track the failed automation run (failed runs don't count towards monthly quota)
+        await usageTracker.trackAutomationRun(req.user.id, runId, 'failed');
 
         // Send task failure notification
         try {
@@ -1690,10 +1711,78 @@ app.delete('/api/tasks/:id', async (req, res) => {
 
     if (error) throw error;
 
+    // Track the workflow deletion
+    await usageTracker.trackWorkflowChange(req.user.id, req.params.id, 'deleted');
+
     res.status(204).send(); // 204 No Content for successful deletion
   } catch (err) {
     console.error(`[DELETE /api/tasks/${req.params.id}] Error:`, err.message);
     res.status(500).json({ error: 'Failed to delete task', details: err.message });
+  }
+});
+
+// GET /api/usage/refresh - Refresh user usage metrics
+app.post('/api/usage/refresh', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Calculate real usage data from database
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [runsResult, workflowsResult] = await Promise.all([
+      // Count completed automation runs this month
+      supabase
+        .from('automation_runs')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', req.user.id)
+        .eq('status', 'completed')
+        .gte('created_at', startOfMonth.toISOString()),
+      
+      // Count active workflows
+      supabase
+        .from('automation_tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', req.user.id)
+        .or('is_active.is.null,is_active.eq.true')
+    ]);
+
+    const monthlyRuns = runsResult.count || 0;
+    const workflows = workflowsResult.count || 0;
+
+    // Update or create usage record
+    const { error: upsertError } = await supabase
+      .from('user_usage')
+      .upsert({
+        user_id: req.user.id,
+        monthly_runs: monthlyRuns,
+        workflows: workflows,
+        storage_gb: 0, // Will be calculated properly with storage tracking
+        updated_at: new Date().toISOString()
+      });
+
+    if (upsertError) {
+      console.error('[POST /api/usage/refresh] Upsert error:', upsertError);
+    }
+
+    // Also use the usage tracker for future
+    await usageTracker.refreshAllUserUsage(req.user.id);
+    
+    res.json({
+      success: true,
+      usage: {
+        monthly_runs: monthlyRuns,
+        workflows: workflows,
+        storage_gb: 0
+      },
+      refreshed_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[POST /api/usage/refresh] Error:', error);
+    res.status(500).json({ error: 'Failed to refresh usage data' });
   }
 });
 
@@ -2868,6 +2957,9 @@ app.post('/api/files/upload', authMiddleware, async (req, res) => {
       return res.status(500).json({ error: 'Failed to save file metadata' });
     }
     console.log(`[FILE UPLOAD] Database insert successful: ${fileRecord.id}`);
+
+    // Track storage usage
+    await usageTracker.trackStorageUsage(userId, filePath, 'added', file.size);
 
     console.log(`[FILE UPLOAD] Upload completed successfully for file: ${file.name}`);
     res.status(201).json({
