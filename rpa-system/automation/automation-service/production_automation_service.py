@@ -13,7 +13,6 @@ import signal
 import json
 import uuid
 from flask import Flask, request, jsonify
-from urllib.parse import urljoin, urlparse
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
@@ -26,8 +25,8 @@ except ImportError:
     KAFKA_AVAILABLE = False
     class KafkaProducer: pass
     class KafkaConsumer: pass
-    class KafkaError: pass
-    class NoBrokersAvailable: pass
+    class KafkaError: Exception
+    class NoBrokersAvailable(Exception): pass
 
 # Configure logging
 logging.basicConfig(
@@ -121,13 +120,12 @@ def send_result_to_kafka(task_id, result, status='completed'):
             'timestamp': datetime.utcnow().isoformat(),
             'worker_id': os.getenv('HOSTNAME', 'unknown')
         }
-        
+
         future = producer.send(
             KAFKA_RESULT_TOPIC,
             key=task_id.encode('utf-8'),
             value=message
         )
-        
         # Wait for acknowledgment
         record_metadata = future.get(timeout=10)
         logger.info(f"✅ Result sent to Kafka - Topic: {record_metadata.topic}, Partition: {record_metadata.partition}, Offset: {record_metadata.offset}")
@@ -140,21 +138,21 @@ def process_automation_task(task_data):
     """Placeholder for task processing logic."""
     task_id = task_data.get('task_id', 'unknown')
     task_type = task_data.get('task_type', 'unknown')
-    
+
     logger.info(f"⚙️ Processing task {task_id} of type {task_type}")
-    
+
     try:
         # --- Your specific automation logic goes here ---
         # Example logic based on task_type
         if task_type == 'web_automation':
-            result = {'success': True, 'message': f'Processed web_automation task.'}
+            result = {'success': True, 'message': 'Processed web_automation task.'}
         elif task_type == 'data_extraction':
-            result = {'success': True, 'message': f'Processed data_extraction task.'}
+            result = {'success': True, 'message': 'Processed data_extraction task.'}
         else:
             result = {'success': False, 'error': f'Unknown task type: {task_type}'}
 
         send_result_to_kafka(task_id, result)
-        
+
     except Exception as e:
         logger.error(f"❌ Task {task_id} processing failed: {e}")
         send_result_to_kafka(task_id, {'error': str(e)}, status='failed')
@@ -164,7 +162,7 @@ def kafka_consumer_loop():
     if not KAFKA_AVAILABLE:
         logger.warning("Kafka consumer loop not started - kafka-python not installed.")
         return
-        
+
     logger.info("Starting Kafka consumer loop...")
     consumer = get_kafka_consumer()
 
@@ -174,43 +172,44 @@ def kafka_consumer_loop():
                 logger.error("Cannot start consumer loop - Kafka consumer not available")
                 time.sleep(30)
                 continue
-            
+
             message_batch = consumer.poll(timeout_ms=1000)
-            
+
             for _, messages in message_batch.items():
                 for message in messages:
                     if shutdown_event.is_set():
                         break
-                    
+
                     try:
                         task_data = message.value
                         task_id = task_data.get('task_id', str(uuid.uuid4()))
                         task_data['task_id'] = task_id
-                        
+
                         logger.info(f"📨 Received Kafka task: {task_id}")
-                        
+
                         # Submit task to thread pool
                         executor.submit(process_automation_task, task_data)
-                        
+
                     except Exception as e:
                         logger.error(f"Error processing Kafka message: {e}")
-                        
+
         except Exception as e:
             logger.error(f"Error in Kafka consumer loop: {e}")
             time.sleep(10)
-    
+
     logger.info("🛑 Kafka consumer loop stopped")
 
 def signal_handler(signum, frame):
     """Handle shutdown signals"""
     logger.info(f"📡 Received signal {signum}, initiating graceful shutdown...")
     shutdown_event.set()
-    
+
     # Wait for thread pool to finish pending tasks
     executor.shutdown(wait=True)
     logger.info("Thread pool shutdown complete")
 
     # Close Kafka connections
+    global kafka_producer, kafka_consumer
     if kafka_producer:
         try:
             kafka_producer.flush(timeout=5)
@@ -218,7 +217,7 @@ def signal_handler(signum, frame):
             logger.info("✅ Kafka producer closed")
         except Exception as e:
             logger.error(f"Error closing Kafka producer: {e}")
-    
+
     if kafka_consumer:
         try:
             kafka_consumer.close(timeout=5)
@@ -257,24 +256,24 @@ def trigger_automation():
         task_data = request.get_json()
         if not task_data:
             return jsonify({'error': 'No task data provided'}), 400
-        
+
         task_id = task_data.get('task_id', str(uuid.uuid4()))
         task_data['task_id'] = task_id
-        
+
         future = get_kafka_producer().send(
             KAFKA_TASK_TOPIC,
             key=task_data.get('task_type', 'unknown').encode('utf-8'),
             value=task_data
         )
-        
+
         future.get(timeout=10)
-        
+
         return jsonify({
             'success': True,
             'message': 'Task queued via Kafka',
             'task_id': task_id
         }), 200
-    
+
     except KafkaError as e:
         logger.error(f"Failed to queue task on Kafka: {e}")
         return jsonify({'error': f'Failed to queue task on Kafka: {e}'}), 500
@@ -290,49 +289,48 @@ def direct_automation(task_type=None):
         task_data = request.get_json()
         if not task_data:
             return jsonify({'error': 'No task data provided'}), 400
-        
+
         task_id = task_data.get('task_id', str(uuid.uuid4()))
         if task_type:
             task_data['task_type'] = task_type
-            
+
         task_data['task_id'] = task_id
-        
+
         logger.info(f"🔧 Direct automation request: task_id={task_id}, task_type={task_data.get('task_type', 'unknown')}")
-        
+
         # Process the task directly (synchronously)
         process_automation_task(task_data)
-        
+
         return jsonify({
             'success': True,
             'message': 'Automation task completed',
             'task_id': task_id
         }), 200
-        
+
     except Exception as e:
         logger.error(f"Direct automation error: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.start_time = time.time()
     logger.info("🚀 Starting EasyFlow Automation Worker...")
-    
-    # Start the Kafka consumer in a separate thread
+
+    # Start the Kafka consumer in a separate thread if available and connected
     if KAFKA_AVAILABLE and get_kafka_consumer():
         consumer_thread = threading.Thread(target=kafka_consumer_loop, daemon=True)
         consumer_thread.start()
         logger.info("🎧 Kafka consumer thread started")
     else:
         logger.warning("⚠️ Kafka is not available. The service will not process Kafka messages.")
-    
+
     # Start Flask app
     port = int(os.getenv('PORT', 7001))
     host = os.getenv('HOST', '0.0.0.0')
-    
+
     logger.info(f"🌐 Starting Flask server on {host}:{port}")
     try:
         app.run(host=host, port=port, debug=False, threaded=True)
-    except KeyboardInterrupt:
-        logger.info("⌨️ Received keyboard interrupt, shutting down...")
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("⌨️ Received shutdown signal, shutting down...")
     finally:
-        # Signal handler will perform cleanup on exit
+        # Cleanup is handled by signal_handler
         pass
