@@ -207,7 +207,7 @@ def signal_handler(signum, frame):
     shutdown_event.set()
     
     # Wait for thread pool to finish pending tasks
-    executor.shutdown(wait=True, timeout=30)
+    executor.shutdown(wait=True)
     logger.info("Thread pool shutdown complete")
 
     # Close Kafka connections
