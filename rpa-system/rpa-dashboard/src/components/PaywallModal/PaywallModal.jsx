@@ -67,6 +67,7 @@ const PaywallModal = ({
         '5 Automation Workflows',
         '500 Monthly Runs',
         '10GB Storage',
+        'AI-Powered Data Extraction',
         'Advanced Logging (90 days)',
         'Email Support',
         'Basic Analytics'
@@ -75,19 +76,24 @@ const PaywallModal = ({
         '25 Automation Workflows',
         '5,000 Monthly Runs',
         '100GB Storage',
+        'AI-Powered Data Extraction',
+        'Bulk Processing (Multi-Vendor)',
+        'Business Integrations (QuickBooks, Dropbox)',
         'Priority Support (4-8h)',
         'Advanced Analytics',
         'Team Collaboration (5 users)',
-        'Custom Integrations',
         'Full Logging (1 Year)'
       ],
       'enterprise': [
         'Unlimited Workflows',
         '50,000 Monthly Runs',
         'Unlimited Storage',
+        'Advanced AI Features',
+        'Enterprise Bulk Processing',
+        'All Business Integrations',
+        'Custom Integration Development',
         'Dedicated Support (2-4h)',
-        'Advanced Security',
-        'Custom Development',
+        'Advanced Security & Compliance',
         'Enterprise Features (SSO, LDAP)',
         'SLA Guarantees'
       ]

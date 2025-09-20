@@ -15,6 +15,7 @@ import { useTheme } from '../../utils/ThemeContext';
 import { useI18n } from '../../i18n';
 import { supabase } from '../../utils/supabaseClient';
 import { useToast } from '../WorkflowBuilder/Toast';
+import PlanGate from '../PlanGate/PlanGate';
 
 const BulkInvoiceProcessor = () => {
   const { user } = useAuth();
@@ -208,7 +209,11 @@ const BulkInvoiceProcessor = () => {
   };
 
   return (
-    <div className={`${styles.bulkProcessor} ${theme === 'dark' ? styles.darkTheme : ''}`}>
+    <PlanGate 
+      requiredPlan="professional"
+      upgradeMessage="Bulk processing is available on Professional and Enterprise plans. Process hundreds of invoices simultaneously with AI-powered automation."
+    >
+      <div className={`${styles.bulkProcessor} ${theme === 'dark' ? styles.darkTheme : ''}`}>
       <div className={styles.header}>
         <h2>🧾 Bulk Invoice Processing</h2>
         <p>Automate invoice downloads from multiple vendors simultaneously</p>
@@ -536,6 +541,7 @@ const BulkInvoiceProcessor = () => {
         </div>
       )}
     </div>
+    </PlanGate>
   );
 };
 

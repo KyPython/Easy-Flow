@@ -3,6 +3,7 @@ import { api } from '../../utils/api';
 import styles from './TaskForm.module.css';
 import PropTypes from 'prop-types';
 import { useToast } from '../WorkflowBuilder/Toast';
+import PlanGate from '../PlanGate/PlanGate';
 
 const token = localStorage.getItem('sb-syxzilyuysdoirnezgii-auth-token');
 const parsedToken = (() => {
@@ -283,55 +284,73 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
           )}
 
           {/* AI Enhancement Section */}
-          <div className={styles.formGroup}>
-            <div className={styles.aiSection}>
-              <label className={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={form.enableAI}
-                  onChange={(e) => setForm({...form, enableAI: e.target.checked})}
-                  className={styles.checkbox}
-                />
-                <span className={styles.aiIcon}>🤖</span>
-                Enable AI-Powered Data Extraction
-              </label>
-              <div className={styles.helperText}>
-                <b>What is this?</b> Use AI to intelligently extract structured data from the page content (invoices, contacts, products, etc.)
+          <PlanGate 
+            requiredPlan="starter"
+            upgradeMessage="AI-powered data extraction is available on Starter and higher plans. Extract structured data from documents and web pages with 95%+ accuracy."
+            fallback={
+              <div className={styles.formGroup}>
+                <div className={styles.aiSection}>
+                  <div className={styles.upgradeBanner}>
+                    <span className={styles.aiIcon}>🤖</span>
+                    <div>
+                      <strong>AI-Powered Data Extraction (Starter+)</strong>
+                      <p>Upgrade to automatically extract structured data from invoices, forms, and documents with AI.</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-
-            {form.enableAI && (
-              <div className={styles.aiConfig}>
-                <label htmlFor="extractionTargets" className={styles.label}>
-                  What data should we extract? <span className={styles.optional}>(Optional)</span>
+            }
+          >
+            <div className={styles.formGroup}>
+              <div className={styles.aiSection}>
+                <label className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={form.enableAI}
+                    onChange={(e) => setForm({...form, enableAI: e.target.checked})}
+                    className={styles.checkbox}
+                  />
+                  <span className={styles.aiIcon}>🤖</span>
+                  Enable AI-Powered Data Extraction
                 </label>
-                <textarea
-                  id="extractionTargets"
-                  value={form.extractionTargets.map(target => `${target.name}: ${target.description}`).join('\n')}
-                  onChange={(e) => {
-                    const lines = e.target.value.split('\n').filter(line => line.trim());
-                    const targets = lines.map(line => {
-                      const [name, ...descParts] = line.split(':');
-                      return {
-                        name: name.trim(),
-                        description: descParts.join(':').trim() || name.trim()
-                      };
-                    });
-                    setForm({...form, extractionTargets: targets});
-                  }}
-                  placeholder={`vendor_name: Company or vendor name
+                <div className={styles.helperText}>
+                  <b>What is this?</b> Use AI to intelligently extract structured data from the page content (invoices, contacts, products, etc.)
+                </div>
+              </div>
+
+              {form.enableAI && (
+                <div className={styles.aiConfig}>
+                  <label htmlFor="extractionTargets" className={styles.label}>
+                    What data should we extract? <span className={styles.optional}>(Optional)</span>
+                  </label>
+                  <textarea
+                    id="extractionTargets"
+                    value={form.extractionTargets.map(target => `${target.name}: ${target.description}`).join('\n')}
+                    onChange={(e) => {
+                      const lines = e.target.value.split('\n').filter(line => line.trim());
+                      const targets = lines.map(line => {
+                        const [name, ...descParts] = line.split(':');
+                        return {
+                          name: name.trim(),
+                          description: descParts.join(':').trim() || name.trim()
+                        };
+                      });
+                      setForm({...form, extractionTargets: targets});
+                    }}
+                    placeholder={`vendor_name: Company or vendor name
 invoice_amount: Total amount due
 due_date: Payment due date
 contact_email: Email address`}
-                  className={styles.textarea}
-                  rows={4}
-                />
-                <div className={styles.helperText}>
-                  <b>Format:</b> One item per line as &quot;field_name: description&quot;. Leave blank for automatic detection.
+                    className={styles.textarea}
+                    rows={4}
+                  />
+                  <div className={styles.helperText}>
+                    <b>Format:</b> One item per line as &quot;field_name: description&quot;. Leave blank for automatic detection.
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          </PlanGate>
         </div>
 
         <div className={styles.actions}>

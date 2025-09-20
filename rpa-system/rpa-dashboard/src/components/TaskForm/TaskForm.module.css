@@ -5,6 +5,53 @@
   padding-left: 2px;
   line-height: 1.5;
 }
+
+/* Upgrade Banner */
+.upgradeBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md, 16px);
+  padding: var(--spacing-lg, 20px);
+  background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-info-50) 100%);
+  border: 1px solid var(--color-primary-200);
+  border-radius: var(--border-radius-md, 8px);
+  position: relative;
+  overflow: hidden;
+}
+
+.upgradeBanner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary-600), var(--color-info-600));
+}
+
+.upgradeBanner .aiIcon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.upgradeBanner div {
+  flex: 1;
+}
+
+.upgradeBanner strong {
+  display: block;
+  color: var(--color-primary-700);
+  font-size: var(--font-size-md, 16px);
+  font-weight: var(--font-weight-semibold, 600);
+  margin-bottom: var(--spacing-xs, 4px);
+}
+
+.upgradeBanner p {
+  color: var(--color-primary-600);
+  font-size: var(--font-size-sm, 14px);
+  margin: 0;
+  line-height: 1.4;
+}
 code {
   background: #f3f4f6;
   color: #2563eb;

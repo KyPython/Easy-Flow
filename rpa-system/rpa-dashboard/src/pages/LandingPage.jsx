@@ -26,7 +26,7 @@ export default function LandingPage() {
             </button>
           </div>
 
-          <p className={styles.lead}>{t('landing.lead','Transform your business with intelligent RPA automation. Streamline workflows, reduce manual tasks, and boost productivity with our powerful automation platform.')}</p>
+          <p className={styles.lead}>{t('landing.lead','Enterprise-grade automation platform with AI-powered data extraction, bulk processing, and seamless integrations. Automate hundreds of invoices, extract structured data from documents, and sync with your business tools - all with zero coding required.')}</p>
           <div className={styles.ctaGroup}>
             <Link to="/auth" className={styles.ctaPrimary}>{t('landing.get_started_today','Get Started Today')}</Link>
             <Link to="/pricing" className={styles.ctaSecondary}>{t('landing.view_pricing','View Pricing')}</Link>
@@ -39,18 +39,18 @@ export default function LandingPage() {
         <div className={styles.featuresGrid}>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>🤖</div>
-            <h3 className={styles.featureTitle}>{t('landing.feature_intelligent_title','Intelligent Automation')}</h3>
-            <p className={styles.featureText}>{t('landing.feature_intelligent_text','Advanced RPA technology that learns and adapts to your business processes, making automation smarter and more efficient.')}</p>
+            <h3 className={styles.featureTitle}>{t('landing.feature_intelligent_title','AI-Powered Data Extraction')}</h3>
+            <p className={styles.featureText}>{t('landing.feature_intelligent_text','Extract structured data from invoices, PDFs, and documents with 95%+ accuracy. Our AI understands context and delivers clean, organized data ready for your business systems.')}</p>
           </div>
           <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>⚡</div>
-            <h3 className={styles.featureTitle}>{t('landing.feature_fast_title','Lightning Fast')}</h3>
-            <p className={styles.featureText}>{t('landing.feature_fast_text','Execute complex tasks in seconds, not hours. Our optimized automation engine delivers results at incredible speed.')}</p>
+            <div className={styles.featureIcon}>🧾</div>
+            <h3 className={styles.featureTitle}>{t('landing.feature_bulk_title','Bulk Processing at Scale')}</h3>
+            <p className={styles.featureText}>{t('landing.feature_bulk_text','Process hundreds of invoices across multiple vendors simultaneously. Configure once, automate forever - handle entire accounting periods in minutes, not weeks.')}</p>
           </div>
           <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>🔒</div>
-            <h3 className={styles.featureTitle}>{t('landing.feature_security_title','Enterprise Security')}</h3>
-            <p className={styles.featureText}>{t('landing.feature_security_text','Bank-level security with encrypted data transmission, secure authentication, and compliance with industry standards.')}</p>
+            <div className={styles.featureIcon}>🔗</div>
+            <h3 className={styles.featureTitle}>{t('landing.feature_integrations_title','Seamless Integrations')}</h3>
+            <p className={styles.featureText}>{t('landing.feature_integrations_text','Direct integration with QuickBooks, Dropbox, Google Drive, Salesforce, and more. Sync processed data instantly to your business tools with enterprise-grade security.')}</p>
           </div>
         </div>
 
