@@ -11,10 +11,16 @@ import {
 } from 'react-icons/fa';
 import styles from './BulkProcessor.module.css';
 import { useAuth } from '../../utils/AuthContext';
+import { useTheme } from '../../utils/ThemeContext';
+import { useI18n } from '../../i18n';
 import { supabase } from '../../utils/supabaseClient';
+import { useToast } from '../WorkflowBuilder/Toast';
 
 const BulkInvoiceProcessor = () => {
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const { t } = useI18n();
+  const { error: showError, warning: showWarning, success: showSuccess } = useToast();
   const [vendors, setVendors] = useState([]);
   const [batchJobs, setBatchJobs] = useState([]);
   const [currentJob, setCurrentJob] = useState(null);
@@ -117,7 +123,7 @@ const BulkInvoiceProcessor = () => {
       await loadVendors();
     } catch (error) {
       console.error('Error saving vendor:', error);
-      alert('Failed to save vendor configuration');
+      showError('Failed to save vendor configuration');
     } finally {
       setLoading(false);
     }
@@ -125,7 +131,7 @@ const BulkInvoiceProcessor = () => {
 
   const startBulkProcessing = async () => {
     if (vendors.length === 0) {
-      alert('Please add at least one vendor configuration');
+      showWarning('Please add at least one vendor configuration');
       return;
     }
 
@@ -155,7 +161,7 @@ const BulkInvoiceProcessor = () => {
       
     } catch (error) {
       console.error('Error starting bulk processing:', error);
-      alert('Failed to start bulk processing');
+      showError('Failed to start bulk processing');
     } finally {
       setLoading(false);
     }
@@ -202,7 +208,7 @@ const BulkInvoiceProcessor = () => {
   };
 
   return (
-    <div className={styles.bulkProcessor}>
+    <div className={`${styles.bulkProcessor} ${theme === 'dark' ? styles.darkTheme : ''}`}>
       <div className={styles.header}>
         <h2>🧾 Bulk Invoice Processing</h2>
         <p>Automate invoice downloads from multiple vendors simultaneously</p>

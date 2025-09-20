@@ -327,7 +327,7 @@ contact_email: Email address`}
                   rows={4}
                 />
                 <div className={styles.helperText}>
-                  <b>Format:</b> One item per line as "field_name: description". Leave blank for automatic detection.
+                  <b>Format:</b> One item per line as &quot;field_name: description&quot;. Leave blank for automatic detection.
                 </div>
               </div>
             )}
