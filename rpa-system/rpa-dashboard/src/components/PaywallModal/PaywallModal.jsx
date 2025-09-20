@@ -61,45 +61,73 @@ const PaywallModal = ({
     return planDisplayNames[requiredPlan] || 'Premium Plan';
   };
 
+  // Dynamically generate plan features from planData
   const getPlanFeatures = () => {
-    const planFeatures = {
-      'starter': [
-        '5 Automation Workflows',
-        '500 Monthly Runs',
-        '10GB Storage',
-        'AI-Powered Data Extraction',
-        'Advanced Logging (90 days)',
-        'Email Support',
-        'Basic Analytics'
-      ],
-      'professional': [
-        '25 Automation Workflows',
-        '5,000 Monthly Runs',
-        '100GB Storage',
-        'AI-Powered Data Extraction',
-        'Bulk Processing (Multi-Vendor)',
-        'Business Integrations (QuickBooks, Dropbox)',
-        'Priority Support (4-8h)',
-        'Advanced Analytics',
-        'Team Collaboration (5 users)',
-        'Full Logging (1 Year)'
-      ],
-      'enterprise': [
-        'Unlimited Workflows',
-        '50,000 Monthly Runs',
-        'Unlimited Storage',
-        'Advanced AI Features',
-        'Enterprise Bulk Processing',
-        'All Business Integrations',
-        'Custom Integration Development',
-        'Dedicated Support (2-4h)',
-        'Advanced Security & Compliance',
-        'Enterprise Features (SSO, LDAP)',
-        'SLA Guarantees'
-      ]
+    if (!planData) return [];
+    const featureLabels = {
+      ai_extraction: 'AI-Powered Data Extraction',
+      advanced_logging: 'Advanced Logging',
+      analytics: 'Analytics',
+      email_support: 'Email Support',
+      priority_support: 'Priority Support',
+      team_collaboration: 'Team Collaboration',
+      custom_integrations: 'Custom Integrations',
+      bulk_processing: 'Bulk Processing',
+      business_integrations: 'Business Integrations',
+      advanced_ai: 'Advanced AI Features',
+      dedicated_support: 'Dedicated Support',
+      advanced_security: 'Advanced Security & Compliance',
+      enterprise_features: 'Enterprise Features',
+      sla_guarantees: 'SLA Guarantees',
+      full_logging_days: 'Full Logging',
+      basic_analytics: 'Basic Analytics',
+      advanced_analytics: 'Advanced Analytics',
+      storage_gb: 'Storage',
+      workflows: 'Automation Workflows',
+      monthly_runs: 'Monthly Runs',
+      automations: 'Monthly Runs',
+      team_members: 'Team Members',
+      unlimited_workflows: 'Unlimited Workflows',
+      // Add more as needed
     };
 
-    return planFeatures[requiredPlan] || planFeatures['professional'];
+    // Combine limits and feature_flags for display
+    const features = [];
+    // Numeric limits
+    if (planData.limits) {
+      Object.entries(planData.limits).forEach(([key, value]) => {
+        if (typeof value === 'number' && featureLabels[key]) {
+          if (key === 'storage_gb') {
+            features.push(`${featureLabels[key]}: ${value}GB`);
+          } else if (key === 'monthly_runs' || key === 'automations') {
+            features.push(`${featureLabels[key]}: ${value.toLocaleString()}`);
+          } else if (key === 'workflows') {
+            features.push(`${featureLabels[key]}: ${value}`);
+          } else if (key === 'team_members') {
+            features.push(`${featureLabels[key]}: ${value}`);
+          } else {
+            features.push(`${featureLabels[key]}: ${value}`);
+          }
+        }
+      });
+    }
+    // Boolean/feature flags
+    if (planData.feature_flags) {
+      Object.entries(planData.feature_flags).forEach(([key, value]) => {
+        if (featureLabels[key]) {
+          if (typeof value === 'boolean' && value) {
+            features.push(`${featureLabels[key]}`);
+          } else if (typeof value === 'string' && value) {
+            features.push(`${featureLabels[key]}: ${value}`);
+          }
+        }
+      });
+    }
+    // Fallback if no features
+    if (features.length === 0) {
+      features.push('Contact support for details');
+    }
+    return features;
   };
 
   const getCurrentPlan = () => {
