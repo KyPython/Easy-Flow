@@ -1,6 +1,8 @@
 import React from 'react';
 import styles from './AnalyticsPage.module.css';
 
+import PropTypes from 'prop-types';
+
 const PerformanceMetrics = ({ data }) => {
   // Example: data.metrics.duration_avg, data.metrics.retry_count, etc.
   return (
@@ -13,6 +15,15 @@ const PerformanceMetrics = ({ data }) => {
       </div>
     </section>
   );
+};
+
+PerformanceMetrics.propTypes = {
+  data: PropTypes.shape({
+    metrics: PropTypes.shape({
+      duration_avg: PropTypes.number,
+      retry_count: PropTypes.number,
+    }),
+  }),
 };
 
 export default PerformanceMetrics;

@@ -7,12 +7,36 @@ import FileManager from '../components/FileManager/FileManager';
 import ErrorMessage from '../components/ErrorMessage';
 import styles from './FilesPage.module.css';
 
+import { useEffect } from 'react';
+import { useTheme } from '../utils/ThemeContext';
+import { getFileShares } from '../utils/api';
+
 const FilesPage = () => {
   const { user } = useAuth();
   const { t } = useI18n();
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
   const [refreshFiles, setRefreshFiles] = useState(0);
+
+  const [sharedFiles, setSharedFiles] = useState([]);
+  const [loadingShares, setLoadingShares] = useState(false);
+  const { theme } = useTheme();
+
+  useEffect(() => {
+    async function fetchShares() {
+      setLoadingShares(true);
+      try {
+        // Fetch all shares for the current user
+        const result = await getFileShares();
+        setSharedFiles(result || []);
+      } catch (e) {
+        setSharedFiles([]);
+      } finally {
+        setLoadingShares(false);
+      }
+    }
+    fetchShares();
+  }, [refreshFiles]);
 
   const handleUploadComplete = (result) => {
     setUploadError('');
@@ -82,6 +106,52 @@ const FilesPage = () => {
             className={styles.fileManager}
             key={refreshFiles} // Force refresh when files are uploaded
           />
+        </div>
+
+        {/* Shared Files Section */}
+        <div className={styles.sharedSection} data-theme={theme}>
+          <h2 className={styles.sectionTitle}>{t('files.shared_title', 'Shared Files')}</h2>
+          {loadingShares ? (
+            <div className={styles.loadingShares}>{t('files.loading_shares', 'Loading shared files...')}</div>
+          ) : sharedFiles.length === 0 ? (
+            <div className={styles.noShares}>{t('files.no_shared_files', 'No files have been shared yet.')}</div>
+          ) : (
+            <table className={styles.sharedTable}>
+              <thead>
+                <tr>
+                  <th>{t('files.shared_filename', 'File')}</th>
+                  <th>{t('files.shared_link', 'Share Link')}</th>
+                  <th>{t('files.shared_permission', 'Permission')}</th>
+                  <th>{t('files.shared_actions', 'Actions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sharedFiles.map((share) => (
+                  <tr key={share.id}>
+                    <td>{share.fileName || share.original_name || share.name}</td>
+                    <td>
+                      <a href={share.shareUrl} target="_blank" rel="noopener noreferrer" className={styles.shareLink}>
+                        {share.shareUrl}
+                      </a>
+                    </td>
+                    <td>{share.permissions || share.permission || 'view'}</td>
+                    <td>
+                      <button
+                        className={styles.copyBtn}
+                        onClick={() => {
+                          navigator.clipboard.writeText(share.shareUrl);
+                        }}
+                        title={t('files.copy_link', 'Copy link')}
+                      >
+                        Copy
+                      </button>
+                      {/* Add revoke/delete action if needed */}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </PlanGate>

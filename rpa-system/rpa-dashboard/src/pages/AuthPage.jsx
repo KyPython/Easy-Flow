@@ -52,12 +52,9 @@ export default function AuthPage() {
             });
             
             if (response.ok) {
-              console.log('Referral completed successfully');
-            } else {
-              console.error('Failed to complete referral');
             }
           } catch (error) {
-            console.error('Error completing referral:', error);
+            // Error handling logic (optional: show user feedback)
           }
         }
         

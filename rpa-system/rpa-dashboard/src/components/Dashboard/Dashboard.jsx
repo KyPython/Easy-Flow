@@ -132,7 +132,7 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
             </div>
           </button>
 
-          <button className={styles.actionCard} onClick={() => navigate('/app/history')}>
+          <button className={styles.actionCard} onClick={() => navigate('/app/analytics')}>
             <div className={styles.actionIcon}>📊</div>
             <div className={styles.actionText}>
               <div className={styles.actionTitle}>{t('dashboard.view_reports','View Reports')}</div>

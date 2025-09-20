@@ -10,15 +10,11 @@ export const useWorkflowTesting = (workflowId) => {
 
   // Load test scenarios for a workflow
   const loadTestScenarios = useCallback(async () => {
-    console.log('loadTestScenarios called with workflowId:', workflowId);
     if (!workflowId) {
-      console.log('No workflowId provided, skipping load');
       return;
     }
-    
     try {
       setLoading(true);
-      console.log('Querying workflow_test_scenarios table...');
       const { data, error } = await supabase
         .from('workflow_test_scenarios')
         .select(`
@@ -35,13 +31,10 @@ export const useWorkflowTesting = (workflowId) => {
         `)
         .eq('workflow_id', workflowId)
         .order('created_at', { ascending: false });
-
-      console.log('Query result:', { data, error });
       if (error) throw error;
       setTestScenarios(data || []);
       setError(null);
     } catch (err) {
-      console.error('Error loading test scenarios:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -51,12 +44,8 @@ export const useWorkflowTesting = (workflowId) => {
   // Create a new test scenario
   const createTestScenario = async (scenarioData) => {
     try {
-      console.log('createTestScenario called with:', scenarioData);
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('Current user:', user);
       if (!user) throw new Error('User must be authenticated');
-
-      console.log('Inserting test scenario...');
       const { data, error } = await supabase
         .from('workflow_test_scenarios')
         .insert({
@@ -72,16 +61,11 @@ export const useWorkflowTesting = (workflowId) => {
         })
         .select()
         .single();
-
-      console.log('Insert result:', { data, error });
       if (error) throw error;
-      
       // Reload scenarios
-      console.log('Reloading test scenarios...');
       await loadTestScenarios();
       return data;
     } catch (err) {
-      console.error('Error creating test scenario:', err);
       throw err;
     }
   };
@@ -92,11 +76,9 @@ export const useWorkflowTesting = (workflowId) => {
       setExecuting(true);
       const scenario = testScenarios.find(s => s.id === scenarioId);
       if (!scenario) throw new Error('Test scenario not found');
-
       // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Authentication required');
-
       // Execute workflow using real automation endpoint
       const executionStart = Date.now();
       const response = await fetch('/api/automation/execute', {
@@ -113,15 +95,12 @@ export const useWorkflowTesting = (workflowId) => {
           expected_outputs: scenario.expected_outputs
         })
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
-
       const result = await response.json();
       const executionTime = Date.now() - executionStart;
-
       // Save test result to database
       const { data, error } = await supabase
         .from('workflow_test_results')
@@ -137,14 +116,11 @@ export const useWorkflowTesting = (workflowId) => {
         })
         .select()
         .single();
-
       if (error) throw error;
-
       // Reload scenarios to get updated results
       await loadTestScenarios();
       return data;
     } catch (err) {
-      console.error('Error executing test scenario:', err);
       throw err;
     } finally {
       setExecuting(false);
@@ -156,20 +132,16 @@ export const useWorkflowTesting = (workflowId) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Authentication required');
-
       const response = await fetch(`/api/executions/${executionId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
       });
-
       if (!response.ok) {
         throw new Error(`Failed to get execution results: ${response.status}`);
       }
-
       return await response.json();
     } catch (err) {
-      console.error('Error getting execution results:', err);
       throw err;
     }
   };
@@ -179,7 +151,6 @@ export const useWorkflowTesting = (workflowId) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Authentication required');
-
       const response = await fetch('/api/workflows/execute-step', {
         method: 'POST',
         headers: {
@@ -193,15 +164,12 @@ export const useWorkflowTesting = (workflowId) => {
           workflow_id: workflowId
         })
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
-
       return await response.json();
     } catch (err) {
-      console.error('Error executing workflow step:', err);
       return {
         success: false,
         error: err.message,
@@ -216,20 +184,16 @@ export const useWorkflowTesting = (workflowId) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Authentication required');
-
       const response = await fetch(`/api/executions/${executionId}/steps`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
       });
-
       if (!response.ok) {
         throw new Error(`Failed to get execution status: ${response.status}`);
       }
-
       return await response.json();
     } catch (err) {
-      console.error('Error getting workflow execution status:', err);
       throw err;
     }
   };
@@ -239,21 +203,17 @@ export const useWorkflowTesting = (workflowId) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Authentication required');
-
       const response = await fetch(`/api/executions/${executionId}/cancel`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
       });
-
       if (!response.ok) {
         throw new Error(`Failed to cancel execution: ${response.status}`);
       }
-
       return await response.json();
     } catch (err) {
-      console.error('Error canceling workflow execution:', err);
       throw err;
     }
   };
@@ -262,7 +222,6 @@ export const useWorkflowTesting = (workflowId) => {
   const runAllTests = async () => {
     const results = [];
     setExecuting(true);
-    
     try {
       for (const scenario of testScenarios) {
         try {
@@ -276,7 +235,6 @@ export const useWorkflowTesting = (workflowId) => {
           });
         }
       }
-      
       return results;
     } finally {
       setExecuting(false);
@@ -290,12 +248,9 @@ export const useWorkflowTesting = (workflowId) => {
         .from('workflow_test_scenarios')
         .delete()
         .eq('id', scenarioId);
-
       if (error) throw error;
-      
       await loadTestScenarios();
     } catch (err) {
-      console.error('Error deleting test scenario:', err);
       throw err;
     }
   };

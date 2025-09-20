@@ -24,7 +24,7 @@ const AnalyticsPage = () => {
           <h1 className={styles.title}>Analytics Dashboard</h1>
         </header>
         {loading && <div>Loading analytics...</div>}
-        {error && <div style={{color: 'red'}}>Error loading analytics: {error.message || 'Unknown error'}</div>}
+  {error && <div className={styles.error}>Error loading analytics: {error.message || 'Unknown error'}</div>}
         {!loading && !error && (
           <>
             <UsageCharts data={data} />

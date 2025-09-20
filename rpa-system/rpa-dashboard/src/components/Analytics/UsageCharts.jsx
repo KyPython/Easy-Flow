@@ -1,6 +1,8 @@
 import React from 'react';
 import styles from './AnalyticsPage.module.css';
 
+import PropTypes from 'prop-types';
+
 const UsageCharts = ({ data }) => {
   // Example: data.metrics, data.usage, etc.
   return (
@@ -25,6 +27,19 @@ const UsageCharts = ({ data }) => {
       </div>
     </section>
   );
+};
+
+UsageCharts.propTypes = {
+  data: PropTypes.shape({
+    usage_over_time: PropTypes.oneOfType([
+      PropTypes.array,
+      PropTypes.object,
+    ]),
+    metrics: PropTypes.shape({
+      success_rate_percent: PropTypes.number,
+      storage_gb: PropTypes.number,
+    }),
+  }),
 };
 
 export default UsageCharts;

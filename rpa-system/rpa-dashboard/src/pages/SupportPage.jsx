@@ -1,5 +1,4 @@
 import React from 'react';
-// TODO: Import TicketSystem components when implemented
 
 const SupportPage = () => {
   return (

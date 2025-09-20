@@ -6,6 +6,8 @@ import { supabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
 import Chatbot from '../components/Chatbot/Chatbot';
 
+import PlanGate from '../components/PlanGate/PlanGate';
+
 const DashboardPage = () => {
   const { user, loading: authLoading } = useAuth();
   const [metrics, setMetrics] = useState({
@@ -94,7 +96,6 @@ const DashboardPage = () => {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('Dashboard real-time update:', payload);
             // Refresh all data when anything changes
             fetchDashboardData();
           }
@@ -119,13 +120,11 @@ const DashboardPage = () => {
   }
 
   return (
-    <>
+    <PlanGate feature="dashboard_access">
       <ErrorMessage message={error} />
-
       <Dashboard metrics={metrics} recentTasks={recentTasks} user={user} />
-      
       <Chatbot />
-    </>
+    </PlanGate>
   );
 };
 

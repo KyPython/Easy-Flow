@@ -114,8 +114,7 @@ export default function PricingPage() {
       
       // Fallback to existing polar_url if dynamic generation fails
       if (plan.polar_url) {
-        console.log('Using fallback static Polar URL');
-        window.open(plan.polar_url, '_blank');
+  window.open(plan.polar_url, '_blank');
       } else {
         throw new Error('No checkout method available');
       }
