@@ -16,7 +16,7 @@ const { getKafkaService } = require('./utils/kafkaService');
 const taskStatusStore = require('./utils/taskStatusStore');
 const { usageTracker } = require('./utils/usageTracker');
 const { auditLogger } = require('./utils/auditLogger');
-const { requireAutomationRun, requireWorkflowCreation, checkStorageLimit } = require('./middleware/planEnforcement');
+const { requireAutomationRun, requireWorkflowCreation, checkStorageLimit, requireFeature, requirePlan } = require('./middleware/planEnforcement');
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  const morgan = require('morgan');
@@ -32,7 +32,7 @@ const PORT = process.env.PORT || 3030;
 
 // Trust proxy for Render deployment (fixes rate limiting)
 if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', true);
+  app.set('trust proxy', 1); // Trust first proxy only (more secure than true)
 }
 
 // --- Old CORS configuration removed - using comprehensive CORS config below ---
@@ -422,8 +422,8 @@ app.get('/api/plans', async (_req, res) => {
   }
 });
 
-// Fetch recent logs
-app.get('/api/logs', async (req, res) => {
+// Fetch recent logs - requires audit logs feature  
+app.get('/api/logs', authMiddleware, requireFeature('audit_logs'), async (req, res) => {
   try {
     if (!supabase) return res.json([]);
     const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
@@ -928,8 +928,8 @@ app.get('/api/plans', async (_req, res) => {
 
 // Moved to authenticated section
 
-// Fetch recent logs
-app.get('/api/logs', async (req, res) => {
+// Fetch recent logs - requires audit logs feature  
+app.get('/api/logs', authMiddleware, requireFeature('audit_logs'), async (req, res) => {
   try {
     if (!supabase) return res.json([]);
     const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
@@ -1440,7 +1440,7 @@ app.get('/api/automation/status/:task_id', authMiddleware, async (req, res) => {
 });
 
 // POST /api/notifications/create - server-side notification creation & optional push
-app.post('/api/notifications/create', authMiddleware, async (req, res) => {
+app.post('/api/notifications/create', authMiddleware, requireFeature('priority_support'), async (req, res) => {
   try {
     const { type, title, body, priority = 'normal', data = {} } = req.body || {};
     if (!type || !title || !body) {
@@ -1835,7 +1835,7 @@ app.delete('/api/tasks/:id', async (req, res) => {
 });
 
 // GET /api/usage/debug - Debug user usage data
-app.get('/api/usage/debug', authMiddleware, async (req, res) => {
+app.get('/api/usage/debug', authMiddleware, requireFeature('advanced_analytics'), async (req, res) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -1910,7 +1910,7 @@ app.get('/api/usage/debug', authMiddleware, async (req, res) => {
 });
 
 // GET /api/usage/refresh - Refresh user usage metrics
-app.post('/api/usage/refresh', authMiddleware, async (req, res) => {
+app.post('/api/usage/refresh', authMiddleware, requireFeature('advanced_analytics'), async (req, res) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -2017,7 +2017,7 @@ app.get('/api/subscription', async (req, res) => {
 });
 
 // GET /api/schedules - Fetch workflow schedules for the authenticated user
-app.get('/api/schedules', authMiddleware, async (req, res) => {
+app.get('/api/schedules', authMiddleware, requireFeature('scheduled_automations'), async (req, res) => {
   try {
     if (!supabase) {
       return res.status(500).json({ error: 'Database connection not available' });
@@ -2762,7 +2762,7 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
 });
 
 // Get user notification settings (specific endpoint for notification preferences)
-app.get('/api/user/notifications', authMiddleware, async (req, res) => {
+app.get('/api/user/notifications', authMiddleware, requireFeature('priority_support'), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('user_settings')
@@ -2821,7 +2821,7 @@ app.get('/api/user/notifications', authMiddleware, async (req, res) => {
 });
 
 // Update notification preferences
-app.put('/api/user/notifications', authMiddleware, async (req, res) => {
+app.put('/api/user/notifications', authMiddleware, requireFeature('priority_support'), async (req, res) => {
   try {
     const { preferences, phone_number, fcm_token } = req.body;
 
@@ -3843,7 +3843,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
 });
 
 // Bulk processing endpoints
-app.post('/api/bulk-process/invoices', authMiddleware, async (req, res) => {
+app.post('/api/bulk-process/invoices', authMiddleware, requirePlan('professional'), async (req, res) => {
   if (!batchProcessor) {
     return res.status(503).json({ error: 'Batch processing service not available' });
   }
@@ -3883,7 +3883,7 @@ app.post('/api/bulk-process/invoices', authMiddleware, async (req, res) => {
 });
 
 // Extract data from multiple files
-app.post('/api/extract-data-bulk', authMiddleware, async (req, res) => {
+app.post('/api/extract-data-bulk', authMiddleware, requirePlan('professional'), async (req, res) => {
   if (!aiDataExtractor) {
     return res.status(503).json({ error: 'AI extraction service not available' });
   }
@@ -3950,7 +3950,7 @@ app.post('/api/extract-data-bulk', authMiddleware, async (req, res) => {
 });
 
 // Integration endpoints
-app.get('/api/integrations', authMiddleware, async (req, res) => {
+app.get('/api/integrations', authMiddleware, requireFeature('custom_integrations'), async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -3977,7 +3977,7 @@ app.get('/api/integrations', authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/api/integrations/sync-files', authMiddleware, async (req, res) => {
+app.post('/api/integrations/sync-files', authMiddleware, requireFeature('custom_integrations'), async (req, res) => {
   if (!integrationFramework) {
     return res.status(503).json({ error: 'Integration service not available' });
   }
@@ -4031,12 +4031,30 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Plan ID is required' });
     }
 
-    // Fetch plan details
-    const { data: plan, error: planError } = await supabase
+    console.log('Looking up plan with ID:', planId);
+    
+    // Fetch plan details - try by id first, then by name
+    let { data: plan, error: planError } = await supabase
       .from('plans')
       .select('*')
       .eq('id', planId)
       .single();
+      
+    // If not found by ID, try by name (in case frontend sends name instead of UUID)
+    if (planError && planError.code === 'PGRST116') {
+      console.log('Plan not found by ID, trying by name...');
+      const { data: planByName, error: nameError } = await supabase
+        .from('plans')
+        .select('*')
+        .eq('name', planId)
+        .single();
+      
+      if (!nameError && planByName) {
+        plan = planByName;
+        planError = null;
+        console.log('Found plan by name:', plan.name);
+      }
+    }
 
     if (planError || !plan) {
       return res.status(404).json({ error: 'Plan not found' });
@@ -4065,6 +4083,9 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
       }
     };
 
+    // Log for debugging
+    console.log('Creating Polar checkout with data:', JSON.stringify(checkoutData, null, 2));
+    
     const response = await axios.post('https://api.polar.sh/v1/checkouts/', checkoutData, {
       headers: {
         'Authorization': `Bearer ${polarApiKey}`,
@@ -4072,6 +4093,7 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
       }
     });
 
+    console.log('Polar checkout response:', response.data);
     const checkoutUrl = response.data.url;
     
     res.json({ 

@@ -181,11 +181,15 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     const webhookSecret = process.env.POLAR_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      console.error('POLAR_WEBHOOK_SECRET not configured');
-      return res.status(500).json({ error: 'Webhook secret not configured' });
+      console.warn('POLAR_WEBHOOK_SECRET not configured - webhook verification disabled');
+      // In production, require webhook secret. In dev, allow without verification for testing.
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(500).json({ error: 'Webhook secret not configured' });
+      }
     }
 
-    if (!verifyPolarWebhook(req.body, signature, webhookSecret)) {
+    // Only verify signature if webhook secret is configured
+    if (webhookSecret && !verifyPolarWebhook(req.body, signature, webhookSecret)) {
       console.error('Invalid webhook signature');
       return res.status(401).json({ error: 'Invalid signature' });
     }
