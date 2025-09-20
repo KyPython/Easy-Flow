@@ -1,5 +1,5 @@
 // Initialize New Relic monitoring FIRST
-if (process.env.NEW_RELIC_LICENSE_KEY) {
+if (process.env.NEW_RELIC_LICENSE_KEY && process.env.NEW_RELIC_ENABLED !== 'false') {
   require('./newrelic');
   console.log('🚀 New Relic monitoring initialized for', process.env.NEW_RELIC_APP_NAME || 'EasyFlow-Automation-Service');
 }

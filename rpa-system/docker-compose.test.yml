@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   postgres:
     image: postgres:15
@@ -42,8 +41,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    env_file:
-      - ./backend/.env
     ports:
       - '3030:3030'
     depends_on:
@@ -51,11 +48,29 @@ services:
       - redis
       - kafka
     environment:
+      # Database & Services
       DATABASE_URL: "postgres://easyflow:easyflow@postgres:5432/easyflow"
       REDIS_URL: "redis://redis:6379"
       KAFKA_BROKERS: "kafka:9092"
       AUTOMATION_URL: "http://automation-worker:7001"
       ALLOW_DRAFT_EXECUTION: 'true'
+      
+      # Test environment configs
+      NODE_ENV: test
+      PORT: 3030
+      
+      # Required for tests (use test values)
+      SUPABASE_URL: "https://syxzilyuysdoirnezgii.supabase.co"
+      SUPABASE_SERVICE_ROLE: "test_key"
+      SUPABASE_ANON_KEY: "test_key"
+      
+      # Security (test values)
+      CREDENTIAL_ENCRYPTION_KEY: "test_encryption_key_32_characters_long"
+      SESSION_SECRET: "test_session_secret"
+      ADMIN_API_SECRET: "test_admin_secret"
+      
+      # New Relic (disabled for tests)
+      NEW_RELIC_ENABLED: 'false'
 
   automation-worker:
     build:

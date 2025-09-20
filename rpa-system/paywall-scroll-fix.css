@@ -1,0 +1,124 @@
+/* ========================================
+   PAYWALL SCROLL FIX - Mobile Website
+   ======================================== */
+
+/* Generic paywall container fixes */
+.paywall-container,
+.paywall-modal,
+.subscription-modal,
+.premium-overlay,
+[class*="paywall"],
+[class*="subscription"],
+[id*="paywall"],
+[id*="subscription"] {
+    /* Enable scrolling */
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    
+    /* Ensure proper height constraints */
+    max-height: 100vh !important;
+    max-height: 100dvh !important; /* Dynamic viewport height for mobile */
+    
+    /* Fix positioning issues */
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    
+    /* Ensure z-index doesn't block interaction */
+    z-index: 9999 !important;
+    
+    /* Enable momentum scrolling on iOS */
+    -webkit-overflow-scrolling: touch !important;
+    
+    /* Smooth scrolling */
+    scroll-behavior: smooth !important;
+}
+
+/* Fix for nested content within paywall */
+.paywall-container > *,
+.paywall-modal > *,
+.subscription-modal > * {
+    /* Prevent content from being cut off */
+    flex-shrink: 0 !important;
+    
+    /* Add padding for mobile safety areas */
+    padding-bottom: env(safe-area-inset-bottom, 20px) !important;
+}
+
+/* Specific fixes for common paywall button placement */
+.paywall-container .button,
+.paywall-container .btn,
+.paywall-container [role="button"],
+.paywall-container button,
+.paywall-modal .button,
+.paywall-modal .btn,
+.paywall-modal [role="button"],
+.paywall-modal button {
+    /* Ensure buttons are accessible */
+    margin-bottom: 20px !important;
+    min-height: 44px !important; /* iOS accessibility guidelines */
+    position: relative !important;
+    
+    /* Prevent button text from being cut off */
+    white-space: normal !important;
+    word-wrap: break-word !important;
+}
+
+/* Mobile-specific responsive fixes */
+@media screen and (max-width: 768px) {
+    .paywall-container,
+    .paywall-modal,
+    .subscription-modal {
+        /* Full viewport on mobile */
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        
+        /* Remove any margins that might cause issues */
+        margin: 0 !important;
+        
+        /* Ensure proper box sizing */
+        box-sizing: border-box !important;
+        
+        /* Add safe padding for notched devices */
+        padding-top: env(safe-area-inset-top, 0) !important;
+        padding-bottom: env(safe-area-inset-bottom, 0) !important;
+        padding-left: env(safe-area-inset-left, 0) !important;
+        padding-right: env(safe-area-inset-right, 0) !important;
+    }
+    
+    /* Content area within paywall */
+    .paywall-container .content,
+    .paywall-modal .content {
+        padding: 20px !important;
+        min-height: auto !important;
+    }
+}
+
+/* Force override for stubborn paywalls */
+body.paywall-active {
+    overflow: hidden !important;
+}
+
+/* Override body scroll lock that some paywalls apply */
+body[style*="overflow: hidden"],
+html[style*="overflow: hidden"] {
+    overflow: auto !important;
+}
+
+/* Fix for paywalls that use transform to center content */
+.paywall-container[style*="transform"],
+.paywall-modal[style*="transform"] {
+    transform: none !important;
+    top: 0 !important;
+    left: 0 !important;
+}
+
+/* Accessibility improvements */
+.paywall-container:focus-within,
+.paywall-modal:focus-within {
+    outline: 2px solid #007AFF !important;
+    outline-offset: 2px !important;
+}
