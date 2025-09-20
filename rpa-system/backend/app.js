@@ -397,8 +397,16 @@ app.use((err, req, res, next) => {
 
 // --- PUBLIC API ENDPOINTS (move above auth middleware) ---
 // CSRF token endpoint
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
+// CSRF token endpoint (development only)
+app.get('/api/csrf-token', (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.json({ csrfToken: null, message: 'CSRF disabled in production' });
+  }
+  
+  csrfProtection(req, res, (err) => {
+    if (err) return res.status(500).json({ error: 'Failed to generate CSRF token' });
+    res.json({ csrfToken: req.csrfToken() });
+  });
 });
 
 // GET /api/plans - Fetch all available subscription plans
@@ -433,10 +441,11 @@ app.get('/api/logs', async (req, res) => {
 
 // Apply CSRF protection to state-changing routes (temporarily disabled for testing)
 
-// In test mode, enforce CSRF for POST /api/tasks only
+// CSRF Protection - disabled in production for cross-domain compatibility
 if (process.env.NODE_ENV === 'test') {
   app.post('/api/tasks', csrfProtection, (req, res, next) => next());
-} else {
+} else if (process.env.NODE_ENV !== 'production') {
+  // Only enable CSRF in development
   app.use('/api', (req, res, next) => {
     // Skip CSRF for GET requests and webhooks
     if (req.method === 'GET' || req.path.startsWith('/api/polar-webhook')) {
@@ -444,6 +453,9 @@ if (process.env.NODE_ENV === 'test') {
     }
     return csrfProtection(req, res, next);
   });
+} else {
+  // Production: CSRF disabled, rely on auth middleware + CORS
+  console.log('🔓 CSRF disabled in production (cross-domain deployment)');
 }
 
 // Mount webhook routes (before other middleware to handle raw body parsing)
@@ -835,8 +847,8 @@ if ((process.env.ENABLE_EMAIL_WORKER || 'true').toLowerCase() === 'true') {
   startEmailWorker();
 }
 
-// Optional embedded Python automation supervisor
-if ((process.env.AUTOMATION_MODE || 'stub') === 'python') {
+// Optional embedded Python automation supervisor (disabled in production by default)
+if ((process.env.AUTOMATION_MODE || 'stub') === 'python' && process.env.NODE_ENV !== 'production') {
   let pyProc;
   const startPython = () => {
     if (pyProc) return;
