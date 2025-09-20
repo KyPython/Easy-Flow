@@ -20,7 +20,8 @@ const PlanGate = ({
   requiredPlan,
   fallback,
   showUpgrade = true,
-  upgradeMessage
+  upgradeMessage,
+  onPaywallClose
 }) => {
   const { planData, loading, hasFeature, isPro } = usePlan();
 
@@ -89,7 +90,7 @@ const PlanGate = ({
         feature={feature}
         requiredPlan={requiredPlan}
         message={upgradeMessage}
-        onClose={props.onPaywallClose}
+        onClose={onPaywallClose}
       />
     );
   }

@@ -17,108 +17,6 @@ export default function PricingPage() {
   const [mostPopularId, setMostPopularId] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Backup default plans (memoized)
-  const backupPlans = useMemo(() => [
-    {
-      id: 'backup-1',
-      name: 'Professional',
-      price_cents: 9900,
-      billing_interval: 'month',
-      description: 'Professional plan for teams needing advanced automation.',
-      polar_url: '#',
-      feature_flags: {
-        sso_ldap: 1,
-        audit_logs: 'Unlimited',
-        storage_gb: 50,
-        full_logging_days: 30,
-        error_handling: 'Advanced',
-        automation_runs: 1000,
-        priority_support: 'Yes',
-        advanced_analytics: 'Yes',
-        advanced_templates: 'Yes',
-        team_members: 10,
-        webhook_management: 'Yes',
-        custom_integrations: 5,
-        automation_workflows: 20,
-        integrations_builder: 'Yes',
-        enterprise_automation: 'Yes',
-        scheduled_automations: 10
-      },
-      is_most_popular: true
-    },
-    {
-      id: 'backup-2',
-      name: 'Starter',
-      price_cents: 2900,
-      billing_interval: 'month',
-      description: 'Starter plan for small teams with basic automation needs.',
-      polar_url: '#',
-      feature_flags: {
-        audit_logs: 30,
-        storage_gb: 10,
-        email_support: 'Yes',
-        automation_runs: 100,
-        basic_analytics: 'Yes',
-        team_members: 3,
-        advanced_automation: 'Yes',
-        automation_workflows: 5,
-        webhook_integrations: 3,
-        full_logging_days: 7,
-        scheduled_automations: 2,
-        unlimited_custom_templates: 'Yes'
-      },
-      is_most_popular: false
-    },
-    {
-      id: 'backup-3',
-      name: 'Enterprise',
-      price_cents: 29900,
-      billing_interval: 'month',
-      description: 'Enterprise plan for large organizations with full automation features.',
-      polar_url: '#',
-      feature_flags: {
-        sso_ldap: 'Unlimited',
-        audit_logs: 'Unlimited',
-        storage_gb: 'Unlimited',
-        full_logging_days: 'Unlimited',
-        contact_sales: 'Yes',
-        error_handling: 'Enterprise',
-        sla_guarantees: 'Yes',
-        automation_runs: 10000,
-        full_api_access: 'Yes',
-        priority_support: 'Yes',
-        advanced_security: 'Yes',
-        dedicated_support: 'Yes',
-        advanced_analytics: 'Yes',
-        advanced_templates: 'Yes',
-        custom_development: 'Yes',
-        team_members: 'Unlimited',
-        webhook_management: 'Yes',
-        custom_integrations: 'Unlimited',
-        automation_workflows: 'Unlimited',
-        integrations_builder: 'Yes',
-        enterprise_automation: 'Yes',
-        scheduled_automations: 'Unlimited',
-        white_label_options: 'Yes'
-      },
-      is_most_popular: false
-    },
-    {
-      id: 'backup-4',
-      name: 'Hobbyist',
-      price_cents: 0,
-      billing_interval: 'month',
-      description: 'Hobbyist plan for individuals starting automation.',
-      polar_url: '#',
-      feature_flags: {
-        storage_gb: 5,
-        automation_runs: 50,
-        team_members: 1,
-        automation_workflows: 1
-      },
-      is_most_popular: false
-    }
-  ], []);
 
   // Fetch plans from Supabase
   const fetchPlans = useCallback(async () => {
@@ -135,15 +33,15 @@ export default function PricingPage() {
         const popularPlan = data.find(p => p.is_most_popular) || data[0];
         if (popularPlan) setMostPopularId(popularPlan.id);
       } else {
-        setPlans(backupPlans);
-        setMostPopularId(backupPlans.find(p => p.is_most_popular).id);
+        setPlans([]);
+        setMostPopularId(null);
       }
     } catch (err) {
-      console.error('Error fetching plans, using backup:', err);
-      setPlans(backupPlans);
-      setMostPopularId(backupPlans.find(p => p.is_most_popular).id);
+      console.error('Error fetching plans:', err);
+      setPlans([]);
+      setMostPopularId(null);
     }
-  }, [backupPlans]);
+  }, []);
 
   const fetchFeatureLabels = useCallback(async () => {
     try {
@@ -233,11 +131,12 @@ export default function PricingPage() {
   const currentPlanName = planData?.plan?.name || 'Hobbyist';
   const { t } = useI18n();
 
+
   return (
     <div className={styles.pricingPage}>
       <header className={styles.header}>
-  <h1>{t('pricing.choose_plan','Choose Your Plan')}</h1>
-  <p>{t('pricing.subtitle','Start automating your workflows today with our flexible pricing options')}</p>
+        <h1>{t('pricing.choose_plan','Choose Your Plan')}</h1>
+        <p>{t('pricing.subtitle','Start automating your workflows today with our flexible pricing options')}</p>
         <div className={styles.trialInfo}>
           {planData?.plan?.is_trial && planData?.plan?.expires_at ? (
             <p>
@@ -255,9 +154,10 @@ export default function PricingPage() {
       </header>
 
       <div className={styles.plansGrid}>
-        {plans.map(plan => {
-
-            // Always show all features, with numbers or 'Unlimited' where possible
+        {plans.length === 0 ? (
+          <div className={styles.noPlans}>No plans available at this time. Please check back later.</div>
+        ) : (
+          plans.map(plan => {
             const featureOrder = [
               'automation_runs',
               'storage_gb',
@@ -294,7 +194,6 @@ export default function PricingPage() {
               .map(key => {
                 const value = plan.feature_flags[key];
                 const label = featureLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                // Show as 'Unlimited' or number, or 'Yes' for boolean
                 if (typeof value === 'number' || typeof value === 'string') {
                   return `${label}: ${value}`;
                 } else if (value === true) {
@@ -304,43 +203,44 @@ export default function PricingPage() {
                 }
               });
 
-          return (
-            <div
-              key={plan.id}
-              className={`${styles.planCard} ${plan.id === mostPopularId ? styles.popular : ''}`}
-            >
-              {plan.id === mostPopularId && <div className={styles.popularBadge}>{t('pricing.most_popular','Most Popular')}</div>}
-              <h3>{plan.name}</h3>
-              <div className={styles.price}>
-                <span className={styles.currency}>$</span>
-                <span className={styles.amount}>{(plan.price_cents / 100).toFixed(2)}</span>
-                <span className={styles.period}>/{plan.billing_interval}</span>
-              </div>
-              <p className={styles.description}>{plan.description || ''}</p>
-              <ul className={styles.features}>
-                {features.map((label, i) => (
-                  <li key={i}>
-                    <span className={styles.checkmark}>✓</span> {label}
-                  </li>
-                ))}
-              </ul>
-              <button
-                className={styles.planButton}
-                onClick={() => startPlan(plan)}
-                disabled={currentPlanName.toLowerCase() === plan.name.toLowerCase() || loading}
+            return (
+              <div
+                key={plan.id}
+                className={`${styles.planCard} ${plan.id === mostPopularId ? styles.popular : ''}`}
               >
-                {loading 
-                  ? 'Creating checkout...' 
-                  : currentPlanName.toLowerCase() === plan.name.toLowerCase() 
-                    ? t('plan.current_plan','Current Plan') 
-                    : plan.name.toLowerCase() === 'hobbyist' 
-                      ? 'Free Forever'
-                      : 'Start 14-Day Free Trial'
-                }
-              </button>
-            </div>
-          );
-        })}
+                {plan.id === mostPopularId && <div className={styles.popularBadge}>{t('pricing.most_popular','Most Popular')}</div>}
+                <h3>{plan.name}</h3>
+                <div className={styles.price}>
+                  <span className={styles.currency}>$</span>
+                  <span className={styles.amount}>{(plan.price_cents / 100).toFixed(2)}</span>
+                  <span className={styles.period}>/{plan.billing_interval}</span>
+                </div>
+                <p className={styles.description}>{plan.description || ''}</p>
+                <ul className={styles.features}>
+                  {features.map((label, i) => (
+                    <li key={i}>
+                      <span className={styles.checkmark}>✓</span> {label}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  className={styles.planButton}
+                  onClick={() => startPlan(plan)}
+                  disabled={currentPlanName.toLowerCase() === plan.name.toLowerCase() || loading}
+                >
+                  {loading 
+                    ? 'Creating checkout...' 
+                    : currentPlanName.toLowerCase() === plan.name.toLowerCase() 
+                      ? t('plan.current_plan','Current Plan') 
+                      : plan.name.toLowerCase() === 'hobbyist' 
+                        ? 'Free Forever'
+                        : 'Start 14-Day Free Trial'
+                  }
+                </button>
+              </div>
+            );
+          })
+        )}
       </div>
 
       <section className={styles.faq}>

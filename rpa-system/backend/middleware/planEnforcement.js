@@ -29,13 +29,10 @@ const getUserPlan = async (userId) => {
       throw error;
     }
 
-    return data || {
-      plan: { id: 'free', name: 'Hobbyist', status: 'active' },
-      limits: { workflows: 3, monthly_runs: 50, storage_gb: 5 },
-      usage: { monthly_runs: 0, storage_gb: 0 },
-      can_create_workflow: true,
-      can_run_automation: true
-    };
+    if (!data) {
+      throw new Error('No plan data found for user and no fallback allowed. Plan config must be dynamic.');
+    }
+    return data;
   } catch (error) {
     console.error('Failed to get user plan:', error);
     throw error;
@@ -47,13 +44,7 @@ const requireWorkflowCreation = async (req, res, next) => {
   try {
     // Allow explicit dev bypass token to short-circuit plan checks
     if (req.devBypass) {
-      req.planData = {
-        plan: { name: 'Development', id: 'dev' },
-        limits: { workflows: -1, monthly_runs: -1, storage_gb: -1 },
-        can_create_workflow: true,
-        can_run_automation: true
-      };
-      return next();
+      return next(); // Dev bypass: skip plan enforcement, but do not inject static planData
     }
 
     const userId = req.user?.id;
@@ -87,13 +78,7 @@ const requireAutomationRun = async (req, res, next) => {
   try {
     // Allow explicit dev bypass token to short-circuit plan checks
     if (req.devBypass) {
-      req.planData = {
-        plan: { name: 'Development', id: 'dev' },
-        limits: { workflows: -1, monthly_runs: -1, storage_gb: -1 },
-        can_create_workflow: true,
-        can_run_automation: true
-      };
-      return next();
+      return next(); // Dev bypass: skip plan enforcement, but do not inject static planData
     }
 
     const userId = req.user?.id;
@@ -128,13 +113,7 @@ const requireFeature = (featureKey) => {
     try {
       // allow dev bypass to skip feature checks
       if (req.devBypass) {
-        req.planData = {
-          plan: { name: 'Development', id: 'dev' },
-          limits: { workflows: -1, monthly_runs: -1, storage_gb: -1 },
-          can_create_workflow: true,
-          can_run_automation: true
-        };
-        return next();
+        return next(); // Dev bypass: skip feature enforcement, but do not inject static planData
       }
       const userId = req.user?.id;
       
@@ -178,13 +157,7 @@ const requirePlan = (minPlan) => {
     try {
       // allow dev bypass to skip plan checks
       if (req.devBypass) {
-        req.planData = {
-          plan: { name: 'Development', id: 'dev' },
-          limits: { workflows: -1, monthly_runs: -1, storage_gb: -1 },
-          can_create_workflow: true,
-          can_run_automation: true
-        };
-        return next();
+        return next(); // Dev bypass: skip plan enforcement, but do not inject static planData
       }
       const userId = req.user?.id;
       

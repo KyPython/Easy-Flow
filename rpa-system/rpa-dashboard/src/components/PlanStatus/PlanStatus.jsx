@@ -40,21 +40,23 @@ const PlanStatus = ({ compact = false }) => {
     );
   }
 
-  const quickStats = [
-    {
+  const quickStats = [];
+  if (typeof (limits?.automations ?? limits?.monthly_runs) !== 'undefined') {
+    quickStats.push({
       label: 'Monthly Runs',
-      current: usage?.automations || usage?.monthly_runs || 0,
-      limit: limits?.automations || limits?.monthly_runs || 50,
-      isUnlimited: (limits?.automations || limits?.monthly_runs) === -1
-    },
-    // Only show workflows for non-hobbyist plans
-    ...((limits?.has_workflows !== false && limits?.workflows) ? [{
+      current: usage?.automations ?? usage?.monthly_runs ?? 0,
+      limit: limits?.automations ?? limits?.monthly_runs,
+      isUnlimited: (limits?.automations ?? limits?.monthly_runs) === -1
+    });
+  }
+  if (limits?.has_workflows !== false && typeof limits?.workflows !== 'undefined') {
+    quickStats.push({
       label: 'Workflows',
-      current: usage?.workflows || 0,
-      limit: limits?.workflows || 0,
+      current: usage?.workflows ?? 0,
+      limit: limits?.workflows,
       isUnlimited: limits?.workflows === -1
-    }] : [])
-  ];
+    });
+  }
 
   return (
     <div className={styles.container}>

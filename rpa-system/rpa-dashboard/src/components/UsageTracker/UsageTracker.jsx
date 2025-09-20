@@ -67,39 +67,43 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
     });
   };
 
-  const usageItems = [
-    {
+  const usageItems = [];
+  if (typeof (limits?.automations ?? limits?.monthly_runs) !== 'undefined') {
+    usageItems.push({
       key: 'automations',
-      icon: <FiActivity />,
+      icon: <FiActivity />, 
       label: 'Automation Runs',
-      current: usage?.automations || usage?.monthly_runs || 0,
-      limit: limits?.automations || limits?.monthly_runs || 50,
+      current: usage?.automations ?? usage?.monthly_runs ?? 0,
+      limit: limits?.automations ?? limits?.monthly_runs,
       unit: 'runs',
       description: 'This month',
       color: '#3b82f6'
-    },
-    {
+    });
+  }
+  if (typeof limits?.storage_gb !== 'undefined') {
+    usageItems.push({
       key: 'storage_gb',
-      icon: <FiHardDrive />,
+      icon: <FiHardDrive />, 
       label: 'Storage Used',
-      current: usage?.storage_gb || 0,
-      limit: limits?.storage_gb || 5,
+      current: usage?.storage_gb ?? 0,
+      limit: limits?.storage_gb,
       unit: 'GB',
       description: 'Total files',
       color: '#10b981'
-    },
-    // Only show workflows for plans that have them
-    ...((limits?.has_workflows !== false && limits?.workflows) ? [{
+    });
+  }
+  if (limits?.has_workflows !== false && typeof limits?.workflows !== 'undefined') {
+    usageItems.push({
       key: 'workflows',
-      icon: <FiGitBranch />,
+      icon: <FiGitBranch />, 
       label: 'Active Workflows',
-      current: usage?.workflows || 0,
-      limit: limits?.workflows || 0,
+      current: usage?.workflows ?? 0,
+      limit: limits?.workflows,
       unit: 'workflows',
       description: 'Currently active',
       color: '#8b5cf6'
-    }] : [])
-  ];
+    });
+  }
 
   const handleUpgrade = () => {
     navigate('/pricing');

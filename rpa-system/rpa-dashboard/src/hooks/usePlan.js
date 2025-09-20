@@ -35,14 +35,7 @@ export const usePlan = () => {
 
       if (!data) {
         console.warn('No data returned from get_user_plan_details');
-        // Set fallback data
-        setPlanData({
-          plan: { name: 'Hobbyist', status: 'active', is_trial: false },
-          limits: { monthly_runs: 50, storage_gb: 5, workflows: 3 },
-          usage: { monthly_runs: 0, storage_gb: 0, workflows: 0 },
-          can_create_workflow: true,
-          can_run_automation: true
-        });
+        setPlanData(null);
         return;
       }
 
@@ -51,15 +44,7 @@ export const usePlan = () => {
     } catch (err) {
       console.error('Error fetching plan data:', err);
       setError(err.message);
-      
-      // Set fallback data on error
-      setPlanData({
-        plan: { name: 'Hobbyist', status: 'active', is_trial: false },
-        limits: { monthly_runs: 50, storage_gb: 5, workflows: 3 },
-        usage: { monthly_runs: 0, storage_gb: 0, workflows: 0 },
-        can_create_workflow: true,
-        can_run_automation: true
-      });
+      setPlanData(null);
     } finally {
       setLoading(false);
     }
