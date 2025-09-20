@@ -616,9 +616,7 @@ app.use('/api', sendEmailRoute);
 const { router: referralRouter } = require('./referral_route');
 app.use('/api', referralRouter);
 
-// Polar webhook routes
-const polarRoutes = require('./routes/polarRoutes');
-app.use('/polar-webhook', polarRoutes);
+// Polar webhook routes (already imported above and mounted at /api/polar-webhook)
 
 // Execution routes: details, steps, cancel
 try {
