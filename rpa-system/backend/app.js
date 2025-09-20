@@ -44,6 +44,16 @@ const authMiddleware = async (req, res, next) => {
   const startTime = Date.now();
   const minDelay = 100; // Minimum delay in ms to prevent timing attacks
   
+  // Test bypass for Jest tests
+  if (process.env.NODE_ENV === 'test' && process.env.ALLOW_TEST_TOKEN === 'true') {
+    req.user = { 
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      email: 'test@example.com',
+      name: 'Test User'
+    };
+    return next();
+  }
+  
   try {
     if (!supabase) {
       if (process.env.NODE_ENV !== 'production') {
