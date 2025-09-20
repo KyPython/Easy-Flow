@@ -16,6 +16,7 @@ const { getKafkaService } = require('./utils/kafkaService');
 const taskStatusStore = require('./utils/taskStatusStore');
 const { usageTracker } = require('./utils/usageTracker');
 const { auditLogger } = require('./utils/auditLogger');
+const { requireAutomationRun, requireWorkflowCreation, checkStorageLimit } = require('./middleware/planEnforcement');
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  const morgan = require('morgan');
@@ -641,7 +642,7 @@ try {
 // Start a workflow execution
 try {
   const { WorkflowExecutor } = require('./services/workflowExecutor');
-  app.post('/api/workflows/execute', authMiddleware, apiLimiter, async (req, res) => {
+  app.post('/api/workflows/execute', authMiddleware, requireAutomationRun, apiLimiter, async (req, res) => {
     try {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -1277,7 +1278,7 @@ function decryptCredentials(encryptedData, key) {
 }
 
 // POST /api/run-task - Secured automation endpoint
-app.post('/api/run-task', authMiddleware, automationLimiter, async (req, res) => {
+app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimiter, async (req, res) => {
   const { url, title, notes, type, task, username, password, pdf_url } = req.body;
   const user = req.user;
 
@@ -3087,7 +3088,7 @@ app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
 // =====================================================
 
 // POST /api/files/upload - Upload a new file
-app.post('/api/files/upload', authMiddleware, async (req, res) => {
+app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res) => {
   console.log('[FILE UPLOAD] Starting file upload process');
   try {
     if (!req.files || !req.files.file) {
@@ -3683,7 +3684,7 @@ app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req,
 });
 
 // Enhanced task form - Add AI extraction to existing tasks
-app.post('/api/run-task-with-ai', authMiddleware, automationLimiter, async (req, res) => {
+app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automationLimiter, async (req, res) => {
   const { url, title, notes, type, task, username, password, pdf_url, enableAI, extractionTargets } = req.body;
   const user = req.user;
 
