@@ -322,8 +322,7 @@ export default function SettingsPage() {
   const proPlan = plans.find(p => p.price_cents > 0 && p.name.toLowerCase().includes('pro')) || plans.find(p => p.price_cents > 0);
 
   return (
-    <PlanGate feature="account_settings" upgradeMessage="Account settings and advanced preferences are available on paid plans. Upgrade to unlock full account management.">
-      <div className={styles.page}>
+    <div className={styles.page}>
   <h2 className={styles.heading}>{t('settings.title','Settings')}</h2>
 
       {/* Show feedback message */}
@@ -673,6 +672,5 @@ export default function SettingsPage() {
         )}
       </section>
       </div>
-    </PlanGate>
   );
 }

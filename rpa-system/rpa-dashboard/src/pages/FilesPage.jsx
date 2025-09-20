@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import PlanGate from '../components/PlanGate/PlanGate';
+import { usePlan } from '../hooks/usePlan';
 import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
 import FileUpload from '../components/FileUpload/FileUpload';
@@ -14,6 +15,7 @@ import { getFileShares } from '../utils/api';
 const FilesPage = () => {
   const { user } = useAuth();
   const { t } = useI18n();
+  const { planData, isAtLimit } = usePlan();
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
   const [refreshFiles, setRefreshFiles] = useState(0);
@@ -21,6 +23,11 @@ const FilesPage = () => {
   const [sharedFiles, setSharedFiles] = useState([]);
   const [loadingShares, setLoadingShares] = useState(false);
   const { theme } = useTheme();
+  
+  // Check if user is at storage limit
+  const isStorageAtLimit = isAtLimit('storage_gb');
+  const storageUsage = planData?.usage?.storage_gb || 0;
+  const storageLimit = planData?.limits?.storage_gb || 5;
 
   useEffect(() => {
     async function fetchShares() {
@@ -59,15 +66,49 @@ const FilesPage = () => {
     setUploadError(error);
   };
 
-  return (
-    <PlanGate feature="file_management" upgradeMessage="File management is available on paid plans. Upgrade to unlock file uploads and storage.">
-      <div className={styles.filesPage}>
-        <div className={styles.header}>
-          <h1 className={styles.title}>{t('files.page_title', 'File Management')}</h1>
-          <p className={styles.subtitle}>
-            {t('files.page_subtitle', 'Upload, organize, and manage your automation files')}
-          </p>
+  // Storage limit paywall only shows when actually at limit
+  if (isStorageAtLimit) {
+    return (
+      <PlanGate 
+        requiredPlan="Starter"
+        feature="storage_upgrade"
+        upgradeMessage={`You've reached your storage limit (${storageUsage.toFixed(2)}/${storageLimit}GB). Upgrade to get more storage space and continue uploading files.`}
+        onPaywallClose={() => window.location.href = '/app'}
+      >
+        <div className={styles.filesPage}>
+          <div className={styles.storageFullMessage}>
+            <h2>Storage Limit Reached</h2>
+            <p>You've used {storageUsage.toFixed(2)}GB of your {storageLimit}GB storage limit.</p>
+          </div>
         </div>
+      </PlanGate>
+    );
+  }
+
+  return (
+    <div className={styles.filesPage}>
+      <div className={styles.header}>
+        <h1 className={styles.title}>{t('files.page_title', 'File Management')}</h1>
+        <p className={styles.subtitle}>
+          {t('files.page_subtitle', 'Upload, organize, and manage your automation files')}
+        </p>
+        
+        {/* Storage usage indicator */}
+        <div className={styles.storageIndicator}>
+          <div className={styles.storageBar}>
+            <div 
+              className={styles.storageProgress} 
+              style={{ 
+                width: `${Math.min((storageUsage / storageLimit) * 100, 100)}%`,
+                backgroundColor: storageUsage >= storageLimit * 0.9 ? '#ef4444' : storageUsage >= storageLimit * 0.7 ? '#f59e0b' : '#10b981'
+              }}
+            />
+          </div>
+          <span className={styles.storageText}>
+            {storageUsage.toFixed(2)} / {storageLimit} GB used
+          </span>
+        </div>
+      </div>
 
         {/* Upload Section */}
         <div className={styles.uploadSection}>
@@ -154,7 +195,6 @@ const FilesPage = () => {
           )}
         </div>
       </div>
-    </PlanGate>
   );
 };
 

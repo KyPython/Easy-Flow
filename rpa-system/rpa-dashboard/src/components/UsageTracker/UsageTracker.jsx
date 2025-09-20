@@ -146,23 +146,64 @@ function UsageTracker({ showUpgrade = true, compact = false }) {
 
   const { plan = {}, usage = {}, limits = {} } = planData || {};
   
-  // Debug logging
-  console.log('UsageTracker - planData:', planData);
-  console.log('UsageTracker - extracted plan:', plan);
-  console.log('UsageTracker - plan.name:', plan.name);
-  // Build usageItems in canonical order, only for features with limits
-  const usageItems = featureOrder
-    .filter(key => typeof limits?.[key] !== 'undefined' && typeof usage?.[key] !== 'undefined')
-    .map(key => ({
-      key,
-      icon: iconMap[key] || <FiActivity />,
-      label: featureLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      current: usage[key],
-      limit: limits[key],
-      unit: unitMap[key] || '',
-      description: descMap[key] || '',
-      color: '#3b82f6', // Optionally map color per feature
-    }));
+  // Debug logging (can be removed in production)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('UsageTracker - planData:', planData);
+    console.log('UsageTracker - extracted plan:', plan);
+    console.log('UsageTracker - plan.name:', plan.name);
+    console.log('UsageTracker - limits:', limits);
+    console.log('UsageTracker - usage:', usage);
+  }
+  
+  // Build usageItems dynamically from available limits and usage data
+  const getUsageItems = () => {
+    // Get all relevant keys from limits
+    const availableKeys = Object.keys(limits).filter(key => {
+      const limitValue = limits[key];
+      // Include numeric limits and show disabled features (0) as well
+      return typeof limitValue === 'number' && key !== 'has_workflows';
+    });
+    
+    // Build items for each available metric
+    return availableKeys.map(key => {
+      const current = usage[key] || 0;
+      const limit = limits[key];
+      
+      // Handle special display cases
+      let displayLimit = limit;
+      let displayDescription = descMap[key] || 'Current usage';
+      
+      if (limit === -1) {
+        displayLimit = '∞';
+        displayDescription = 'Unlimited';
+      } else if (limit === 0) {
+        displayDescription = 'Not available on current plan';
+      }
+      
+      return {
+        key,
+        icon: iconMap[key] || <FiActivity />,
+        label: featureLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        current,
+        limit: displayLimit,
+        unit: unitMap[key] || '',
+        description: displayDescription,
+        color: getProgressColor(current, limit),
+        isDisabled: limit === 0,
+      };
+    });
+  };
+  
+  // Get color based on usage percentage
+  const getProgressColor = (current, limit) => {
+    if (limit === -1 || limit === 0) return '#10b981'; // Green for unlimited/disabled
+    const percentage = (current / limit) * 100;
+    if (percentage >= 90) return '#ef4444'; // Red for high usage
+    if (percentage >= 70) return '#f59e0b'; // Yellow for medium usage
+    return '#3b82f6'; // Blue for low usage
+  };
+  
+  const usageItems = getUsageItems();
 
   const handleUpgrade = () => {
     navigate('/pricing');
@@ -292,30 +333,36 @@ function UsageTracker({ showUpgrade = true, compact = false }) {
           return (
             <div 
               key={item.key} 
-              className={`${styles.usageItem} ${atLimit ? styles.atLimit : ''}`}
+              className={`${styles.usageItem} ${atLimit ? styles.atLimit : ''} ${item.isDisabled ? styles.disabled : ''}`}
             >
               <div className={styles.usageHeader}>
-                <div className={styles.iconWrapper} style={{ color: item.color }}>
+                <div className={styles.iconWrapper} style={{ color: item.isDisabled ? '#6b7280' : item.color }}>
                   {item.icon}
                 </div>
                 <div className={styles.usageInfo}>
                   <span className={styles.usageLabel}>{item.label}</span>
                   <span className={styles.usageDescription}>{item.description}</span>
                   <span className={styles.usageValue}>
-                    {typeof item.current === 'number' ? item.current.toLocaleString() : item.current}
-                    {!isUnlimited && (
-                      <span className={styles.usageLimit}>
-                        / {item.limit.toLocaleString()} {item.unit}
-                      </span>
-                    )}
-                    {isUnlimited && (
-                      <span className={styles.unlimited}>Unlimited</span>
+                    {item.isDisabled ? (
+                      <span className={styles.disabledText}>Not available</span>
+                    ) : (
+                      <>
+                        {typeof item.current === 'number' ? item.current.toLocaleString() : item.current}
+                        {!isUnlimited && (
+                          <span className={styles.usageLimit}>
+                            / {typeof item.limit === 'number' ? item.limit.toLocaleString() : item.limit} {item.unit}
+                          </span>
+                        )}
+                        {isUnlimited && (
+                          <span className={styles.unlimited}>Unlimited</span>
+                        )}
+                      </>
                     )}
                   </span>
                 </div>
               </div>
 
-              {!isUnlimited && (
+              {!isUnlimited && !item.isDisabled && (
                 <div className={styles.progressBar}>
                   <div 
                     className={styles.progressFill}

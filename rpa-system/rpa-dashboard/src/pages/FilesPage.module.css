@@ -27,6 +27,47 @@
   line-height: 1.6;
 }
 
+/* Storage Indicator */
+.storageIndicator {
+  margin-top: var(--spacing-lg, 24px);
+  padding: var(--spacing-md, 16px);
+  background: var(--background-secondary);
+  border-radius: var(--border-radius-lg, 12px);
+  border: 1px solid var(--border-color);
+}
+
+.storageBar {
+  width: 100%;
+  height: 8px;
+  background: var(--background-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: var(--spacing-sm, 8px);
+}
+
+.storageProgress {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: 4px;
+}
+
+.storageText {
+  font-size: var(--font-size-sm, 14px);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.storageFullMessage {
+  text-align: center;
+  padding: var(--spacing-2xl, 48px);
+  color: var(--text-primary);
+}
+
+.storageFullMessage h2 {
+  color: var(--color-error);
+  margin-bottom: var(--spacing-md, 16px);
+}
+
 /* Sections */
 .uploadSection,
 .manageSection {

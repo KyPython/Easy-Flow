@@ -2885,37 +2885,103 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
   try {
     console.log(`[GET /api/user/plan] Fetching plan data for user ${req.user.id}`);
 
-    // Call the Supabase RPC function to get complete plan details
-    const { data, error } = await supabase
-      .rpc('get_user_plan_details', { user_uuid: req.user.id });
+    // Get user profile to find their plan
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('plan_id, is_trial, trial_ends_at, plan_expires_at')
+      .eq('id', req.user.id)
+      .single();
 
-    if (error) {
-      console.error('[GET /api/user/plan] RPC error:', error);
+    if (profileError) {
+      console.error('[GET /api/user/plan] Profile error:', profileError);
       return res.status(500).json({ 
-        error: 'Failed to fetch plan data',
-        details: error.message 
+        error: 'Failed to fetch user profile',
+        details: profileError.message 
       });
     }
 
-    if (!data) {
-      console.warn('[GET /api/user/plan] No plan data returned for user:', req.user.id);
-      return res.status(404).json({ 
-        error: 'No plan data found',
-        planData: null 
-      });
+    const userPlanName = profile?.plan_id || 'Hobbyist';
+    console.log(`[GET /api/user/plan] User has plan: ${userPlanName}`);
+
+    // Get plan data by name/slug
+    const { data: plan, error: planError } = await supabase
+      .from('plans')
+      .select('*')
+      .or(`name.eq.${userPlanName},slug.eq.${userPlanName}`)
+      .single();
+
+    if (planError || !plan) {
+      console.warn(`[GET /api/user/plan] Plan ${userPlanName} not found, defaulting to Hobbyist`);
+      // Default to Hobbyist
+      const { data: hobbyistPlan } = await supabase
+        .from('plans')
+        .select('*')
+        .eq('name', 'Hobbyist')
+        .single();
+      
+      if (!hobbyistPlan) {
+        return res.status(500).json({ error: 'No plans available' });
+      }
+      plan = hobbyistPlan;
     }
 
-    console.log(`[GET /api/user/plan] Successfully fetched plan data for user ${req.user.id}`);
-    console.log(`[GET /api/user/plan] Raw data structure:`, {
-      dataType: typeof data,
-      dataKeys: data ? Object.keys(data) : null,
-      planName: data?.plan?.name || data?.plan_name || 'NOT_FOUND'
-    });
-    console.log(`[GET /api/user/plan] Full data:`, JSON.stringify(data, null, 2));
+    // Get current usage
+    const [monthlyRunsResult, storageResult, workflowsResult] = await Promise.all([
+      // Monthly automation runs (completed tasks)
+      supabase
+        .from('automation_runs')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', req.user.id)
+        .eq('status', 'completed')
+        .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+      
+      // Storage usage
+      supabase
+        .from('user_files')
+        .select('file_size')
+        .eq('user_id', req.user.id),
+      
+      // Actual workflows (not automation tasks)
+      supabase
+        .from('workflows')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', req.user.id)
+    ]);
+
+    const monthlyRuns = monthlyRunsResult.count || 0;
+    const storageBytes = storageResult.data?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
+    const storageGB = storageBytes / (1024 * 1024 * 1024);
+    const workflows = workflowsResult.count || 0;
+
+    console.log(`[GET /api/user/plan] Usage: ${workflows} workflows, ${monthlyRuns} runs, ${storageGB.toFixed(3)}GB storage`);
+
+    const planData = {
+      plan: {
+        id: plan.id,
+        name: plan.name,
+        status: 'active',
+        is_trial: profile?.is_trial || false,
+        expires_at: profile?.trial_ends_at || profile?.plan_expires_at || null
+      },
+      usage: {
+        monthly_runs: monthlyRuns,
+        automation_runs: monthlyRuns,
+        automations: monthlyRuns,
+        storage_gb: Math.round(storageGB * 1000) / 1000,
+        workflows: workflows,
+        team_members: 1
+      },
+      limits: plan.limits,
+      features: plan.feature_flags,
+      can_run_automation: monthlyRuns < (plan.limits?.monthly_runs || 50),
+      can_create_workflow: (plan.limits?.workflows || 0) !== 0
+    };
+
+    console.log(`[GET /api/user/plan] Final plan data:`, JSON.stringify(planData, null, 2));
     
     res.json({
       success: true,
-      planData: data
+      planData: planData
     });
 
   } catch (error) {

@@ -26,13 +26,10 @@ export const usePlan = () => {
       // Call the backend API endpoint to get complete plan details
       const response = await api.get('/api/user/plan');
 
-      console.log('API call result:', response.data);
-      console.log('Raw response structure:', {
-        success: response.data.success,
-        hasplanData: !!response.data.planData,
-        planDataType: typeof response.data.planData,
-        planDataKeys: response.data.planData ? Object.keys(response.data.planData) : null
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log('API call result:', response.data);
+        console.log('Plan name from response:', response.data.planData?.plan?.name);
+      }
 
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to fetch plan data');
@@ -44,13 +41,6 @@ export const usePlan = () => {
         return;
       }
 
-      console.log('Plan data received:', response.data.planData);
-      console.log('Plan name from response:', response.data.planData?.plan?.name);
-      console.log('Plan structure breakdown:', {
-        plan: response.data.planData?.plan,
-        usage: response.data.planData?.usage,
-        limits: response.data.planData?.limits
-      });
       setPlanData(response.data.planData);
     } catch (err) {
       console.error('Error fetching plan data:', err);
