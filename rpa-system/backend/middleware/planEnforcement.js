@@ -224,6 +224,54 @@ const createPlanErrorResponse = (type, planData, details = {}) => {
   }
 };
 
+// Check if user can create workflows
+const requireWorkflowCreation = async (req, res, next) => {
+  try {
+    const planData = await getUserPlan(req.user.id);
+    
+    if (!planData) {
+      return res.status(403).json({ 
+        error: 'Plan data not available',
+        code: 'PLAN_DATA_UNAVAILABLE' 
+      });
+    }
+
+    // Check if workflows are enabled for this plan
+    if (!planData.limits?.has_workflows) {
+      return res.status(402).json({
+        error: 'Workflow creation requires a plan upgrade',
+        code: 'WORKFLOW_CREATION_DISABLED',
+        requiredPlan: 'Starter',
+        feature: 'workflow_creation',
+        currentPlan: planData.plan?.name || 'Unknown'
+      });
+    }
+
+    // Check workflow limit
+    const currentWorkflows = planData.usage?.workflows || 0;
+    const workflowLimit = planData.limits?.workflows || 0;
+    
+    if (workflowLimit > 0 && currentWorkflows >= workflowLimit) {
+      return res.status(402).json({
+        error: 'Workflow creation limit reached',
+        code: 'WORKFLOW_LIMIT_REACHED',
+        currentUsage: currentWorkflows,
+        limit: workflowLimit,
+        requiredPlan: 'Professional',
+        feature: 'workflow_creation'
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error in requireWorkflowCreation:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR' 
+    });
+  }
+};
+
 module.exports = {
   getUserPlan,
   requireWorkflowCreation,

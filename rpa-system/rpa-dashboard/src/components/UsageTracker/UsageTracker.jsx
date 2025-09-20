@@ -145,6 +145,11 @@ function UsageTracker({ showUpgrade = true, compact = false }) {
   };
 
   const { plan = {}, usage = {}, limits = {} } = planData || {};
+  
+  // Debug logging
+  console.log('UsageTracker - planData:', planData);
+  console.log('UsageTracker - extracted plan:', plan);
+  console.log('UsageTracker - plan.name:', plan.name);
   // Build usageItems in canonical order, only for features with limits
   const usageItems = featureOrder
     .filter(key => typeof limits?.[key] !== 'undefined' && typeof usage?.[key] !== 'undefined')

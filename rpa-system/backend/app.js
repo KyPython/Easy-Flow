@@ -2880,6 +2880,53 @@ app.put('/api/user/notifications', authMiddleware, requireFeature('priority_supp
   }
 });
 
+// Get user plan data
+app.get('/api/user/plan', authMiddleware, async (req, res) => {
+  try {
+    console.log(`[GET /api/user/plan] Fetching plan data for user ${req.user.id}`);
+
+    // Call the Supabase RPC function to get complete plan details
+    const { data, error } = await supabase
+      .rpc('get_user_plan_details', { user_uuid: req.user.id });
+
+    if (error) {
+      console.error('[GET /api/user/plan] RPC error:', error);
+      return res.status(500).json({ 
+        error: 'Failed to fetch plan data',
+        details: error.message 
+      });
+    }
+
+    if (!data) {
+      console.warn('[GET /api/user/plan] No plan data returned for user:', req.user.id);
+      return res.status(404).json({ 
+        error: 'No plan data found',
+        planData: null 
+      });
+    }
+
+    console.log(`[GET /api/user/plan] Successfully fetched plan data for user ${req.user.id}`);
+    console.log(`[GET /api/user/plan] Raw data structure:`, {
+      dataType: typeof data,
+      dataKeys: data ? Object.keys(data) : null,
+      planName: data?.plan?.name || data?.plan_name || 'NOT_FOUND'
+    });
+    console.log(`[GET /api/user/plan] Full data:`, JSON.stringify(data, null, 2));
+    
+    res.json({
+      success: true,
+      planData: data
+    });
+
+  } catch (error) {
+    console.error('[GET /api/user/plan] Unexpected error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message 
+    });
+  }
+});
+
 // Admin middleware for protected endpoints
 const adminAuthMiddleware = (req, res, next) => {
   const adminSecret = req.headers['x-admin-secret'];

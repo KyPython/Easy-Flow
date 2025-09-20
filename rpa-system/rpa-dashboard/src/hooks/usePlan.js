@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../utils/AuthContext';
 import { supabase } from '../utils/supabaseClient';
 import { useRealtimeSync } from './useRealtimeSync';
+import { api } from '../utils/api';
 
 export const usePlan = () => {
   const { user } = useAuth();
@@ -22,28 +23,38 @@ export const usePlan = () => {
 
       console.log('Fetching plan data for user:', user.id);
 
-      // Call the Supabase function to get complete plan details
-      const { data, error: rpcError } = await supabase
-        .rpc('get_user_plan_details', { user_uuid: user.id });
+      // Call the backend API endpoint to get complete plan details
+      const response = await api.get('/api/user/plan');
 
-      console.log('RPC call result:', { data, error: rpcError });
+      console.log('API call result:', response.data);
+      console.log('Raw response structure:', {
+        success: response.data.success,
+        hasplanData: !!response.data.planData,
+        planDataType: typeof response.data.planData,
+        planDataKeys: response.data.planData ? Object.keys(response.data.planData) : null
+      });
 
-      if (rpcError) {
-        console.error('RPC Error details:', rpcError);
-        throw rpcError;
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Failed to fetch plan data');
       }
 
-      if (!data) {
-        console.warn('No data returned from get_user_plan_details');
+      if (!response.data.planData) {
+        console.warn('No plan data returned from API');
         setPlanData(null);
         return;
       }
 
-      console.log('Plan data received:', data);
-      setPlanData(data);
+      console.log('Plan data received:', response.data.planData);
+      console.log('Plan name from response:', response.data.planData?.plan?.name);
+      console.log('Plan structure breakdown:', {
+        plan: response.data.planData?.plan,
+        usage: response.data.planData?.usage,
+        limits: response.data.planData?.limits
+      });
+      setPlanData(response.data.planData);
     } catch (err) {
       console.error('Error fetching plan data:', err);
-      setError(err.message);
+      setError(err.message || err.response?.data?.error || 'Failed to fetch plan data');
       setPlanData(null);
     } finally {
       setLoading(false);
