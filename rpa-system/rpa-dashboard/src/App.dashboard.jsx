@@ -16,7 +16,7 @@ import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import { LanguageProvider } from './utils/LanguageContext';
 import SettingsPage from './pages/SettingsPage';
-import TeamPage from './pages/TeamPage';
+import TeamsPage from './pages/TeamsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import WebhooksPage from './pages/WebhooksPage';
@@ -85,7 +85,7 @@ function Shell() {
           <Route path="/app/files" element={<Protected><FilesPage /></Protected>} />
           <Route path="/app/bulk-processor" element={<Protected><BulkInvoiceProcessor /></Protected>} />
           <Route path="/app/settings" element={<Protected><SettingsPage /></Protected>} />
-          <Route path="/app/team" element={<Protected><TeamPage /></Protected>} />
+          <Route path="/app/teams" element={<Protected><TeamsPage /></Protected>} />
           <Route path="/app/analytics" element={<Protected><AnalyticsPage /></Protected>} />
           <Route path="/app/integrations" element={<Protected><IntegrationsPage /></Protected>} />
           <Route path="/app/webhooks" element={<Protected><WebhooksPage /></Protected>} />

@@ -9,7 +9,7 @@ const ReportsGenerator = ({ data }) => {
   const hasData = !!data;
   return (
     <section className={styles.section}>
-      <h2 className={styles.title} style={{ fontSize: '1.5rem' }}>Reports & Exports</h2>
+      <h2 className={styles.title + ' ' + styles.reportsTitle}>Reports & Exports</h2>
       <div className={styles.buttonRow}>
         <button disabled={!hasData}>Export CSV</button>
         <button disabled={!hasData}>Export PDF</button>

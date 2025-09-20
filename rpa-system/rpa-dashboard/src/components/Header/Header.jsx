@@ -150,14 +150,14 @@ const Header = ({ user }) => {
               {(!planData?.plan || ['Hobbyist', 'Starter'].includes(planData.plan.name)) && <span className={styles.proIcon}>✨</span>}
             </Link>
 
-            {/* Team - Professional+ feature */}
+            {/* Teams - Professional+ feature */}
             <Link
-              to="/app/team"
+              to="/app/teams"
               className={`${styles.navLink} ${
-                isActive('/app/team') ? styles.activeNavLink : ''
+                isActive('/app/teams') ? styles.activeNavLink : ''
               }`}
             >
-              {t('nav.team','Team')}
+              {t('nav.teams','Teams')}
               {(!planData?.plan || ['Hobbyist', 'Starter'].includes(planData.plan.name)) && <span className={styles.proIcon}>✨</span>}
             </Link>
           </nav>

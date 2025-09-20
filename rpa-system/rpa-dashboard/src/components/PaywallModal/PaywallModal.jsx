@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { usePlan } from '../../hooks/usePlan';
 import { useTheme } from '../../utils/ThemeContext';
+import { supabase } from '../../utils/supabaseClient';
 import { FiX, FiZap, FiArrowRight, FiCheck } from 'react-icons/fi';
 import PropTypes from 'prop-types';
 import styles from './PaywallModal.module.css';
@@ -11,12 +13,51 @@ const PaywallModal = ({
   message,
   onClose 
 }) => {
+
   const { planData } = usePlan();
   const { theme } = useTheme();
   const [isClosing, setIsClosing] = useState(false);
-  
+  const [plans, setPlans] = useState([]);
+  const [featureLabels, setFeatureLabels] = useState({});
+  const [loading, setLoading] = useState(false);
+
   // Development bypass
   const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
+
+  // Fetch plans and feature labels (same as PricingPage)
+  const fetchPlans = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('plans')
+        .select('id, name, price_cents, billing_interval, description, polar_url, feature_flags, is_most_popular')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      setPlans(data || []);
+    } catch (err) {
+      setPlans([]);
+    }
+  }, []);
+
+  const fetchFeatureLabels = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('plan_feature_labels')
+        .select('feature_key, feature_label');
+      if (error) throw error;
+      const mapping = {};
+      data?.forEach(f => {
+        mapping[f.feature_key] = f.feature_label;
+      });
+      setFeatureLabels(mapping);
+    } catch (err) {
+      setFeatureLabels({});
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPlans();
+    fetchFeatureLabels();
+  }, [fetchPlans, fetchFeatureLabels]);
 
   const handleClose = () => {
     setIsClosing(true);
@@ -51,83 +92,71 @@ const PaywallModal = ({
     return featureTitles[feature] || 'Premium Feature';
   };
 
-  const getRequiredPlanDisplay = () => {
-    const planDisplayNames = {
-      'starter': 'Starter Plan',
-      'professional': 'Professional Plan', 
-      'enterprise': 'Enterprise Plan'
-    };
 
-    return planDisplayNames[requiredPlan] || 'Premium Plan';
+  // Find the required plan object from the fetched plans
+  const getRequiredPlanObj = () => {
+    if (!requiredPlan || !plans.length) return null;
+    // Match by id or name (case-insensitive)
+    return plans.find(
+      p => p.id === requiredPlan || p.name?.toLowerCase() === requiredPlan?.toLowerCase()
+    ) || null;
   };
 
-  // Dynamically generate plan features from planData
-  const getPlanFeatures = () => {
-    if (!planData) return [];
-    const featureLabels = {
-      ai_extraction: 'AI-Powered Data Extraction',
-      advanced_logging: 'Advanced Logging',
-      analytics: 'Analytics',
-      email_support: 'Email Support',
-      priority_support: 'Priority Support',
-      team_collaboration: 'Team Collaboration',
-      custom_integrations: 'Custom Integrations',
-      bulk_processing: 'Bulk Processing',
-      business_integrations: 'Business Integrations',
-      advanced_ai: 'Advanced AI Features',
-      dedicated_support: 'Dedicated Support',
-      advanced_security: 'Advanced Security & Compliance',
-      enterprise_features: 'Enterprise Features',
-      sla_guarantees: 'SLA Guarantees',
-      full_logging_days: 'Full Logging',
-      basic_analytics: 'Basic Analytics',
-      advanced_analytics: 'Advanced Analytics',
-      storage_gb: 'Storage',
-      workflows: 'Automation Workflows',
-      monthly_runs: 'Monthly Runs',
-      automations: 'Monthly Runs',
-      team_members: 'Team Members',
-      unlimited_workflows: 'Unlimited Workflows',
-      // Add more as needed
-    };
+  const getRequiredPlanDisplay = () => {
+    const planObj = getRequiredPlanObj();
+    return planObj ? planObj.name : (requiredPlan ? requiredPlan.charAt(0).toUpperCase() + requiredPlan.slice(1) + ' Plan' : 'Professional Plan');
+  };
 
-    // Combine limits and feature_flags for display
-    const features = [];
-    // Numeric limits
-    if (planData.limits) {
-      Object.entries(planData.limits).forEach(([key, value]) => {
-        if (typeof value === 'number' && featureLabels[key]) {
-          if (key === 'storage_gb') {
-            features.push(`${featureLabels[key]}: ${value}GB`);
-          } else if (key === 'monthly_runs' || key === 'automations') {
-            features.push(`${featureLabels[key]}: ${value.toLocaleString()}`);
-          } else if (key === 'workflows') {
-            features.push(`${featureLabels[key]}: ${value}`);
-          } else if (key === 'team_members') {
-            features.push(`${featureLabels[key]}: ${value}`);
-          } else {
-            features.push(`${featureLabels[key]}: ${value}`);
-          }
+
+  // Dynamically generate plan features from the required plan's feature_flags
+  const getPlanFeatures = () => {
+    const planObj = getRequiredPlanObj();
+    if (!planObj || !planObj.feature_flags) return [];
+    // Use featureOrder for consistent display (same as PricingPage)
+    const featureOrder = [
+      'automation_runs',
+      'storage_gb',
+      'full_logging_days',
+      'audit_logs',
+      'team_members',
+      'automation_workflows',
+      'scheduled_automations',
+      'webhook_management',
+      'webhook_integrations',
+      'custom_integrations',
+      'integrations_builder',
+      'advanced_analytics',
+      'basic_analytics',
+      'advanced_templates',
+      'unlimited_custom_templates',
+      'priority_support',
+      'email_support',
+      'full_api_access',
+      'dedicated_support',
+      'advanced_security',
+      'sla_guarantees',
+      'white_label_options',
+      'custom_development',
+      'enterprise_automation',
+      'enterprise_features',
+      'error_handling',
+      'sso_ldap',
+      'contact_sales',
+      'requires_sales_team'
+    ];
+    return featureOrder
+      .filter(key => planObj.feature_flags && planObj.feature_flags[key] !== undefined)
+      .map(key => {
+        const value = planObj.feature_flags[key];
+        const label = featureLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        if (typeof value === 'number' || typeof value === 'string') {
+          return `${label}: ${value}`;
+        } else if (value === true) {
+          return `${label}: Yes`;
+        } else {
+          return `${label}: ${value}`;
         }
       });
-    }
-    // Boolean/feature flags
-    if (planData.feature_flags) {
-      Object.entries(planData.feature_flags).forEach(([key, value]) => {
-        if (featureLabels[key]) {
-          if (typeof value === 'boolean' && value) {
-            features.push(`${featureLabels[key]}`);
-          } else if (typeof value === 'string' && value) {
-            features.push(`${featureLabels[key]}: ${value}`);
-          }
-        }
-      });
-    }
-    // Fallback if no features
-    if (features.length === 0) {
-      features.push('Contact support for details');
-    }
-    return features;
   };
 
   const getCurrentPlan = () => {

@@ -113,8 +113,8 @@ const HistoryPage = () => {
         <ErrorMessage message={error} />
 
         {runs.length === 0 && !error ? (
-          <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--surface)' }}>
-            <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>📊</div>
+          <div className={styles.emptyState}>
+            <div className={styles.emptyIcon}>📊</div>
             <h3>{t('history.empty_title','No Automation History')}</h3>
             <p>{t('history.empty_message','Your automation runs will appear here once you start executing tasks.')}</p>
           </div>
