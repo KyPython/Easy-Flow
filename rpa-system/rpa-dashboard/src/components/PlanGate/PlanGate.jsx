@@ -23,7 +23,7 @@ const PlanGate = ({
   upgradeMessage,
   onPaywallClose
 }) => {
-  const { planData, loading, hasFeature, isPro } = usePlan();
+  const { planData, loading } = usePlan();
 
   // Development bypass
   const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
@@ -38,23 +38,29 @@ const PlanGate = ({
     );
   }
 
-  // Check feature access
+  // Canonical feature/plan gating logic (matches Pricing Page)
   const hasAccess = (() => {
-    // Development bypass - always grant access in dev mode
     if (isDevelopment) return true;
-
     if (!planData) return false;
 
-    // Check by feature flag
+    // If a feature key is provided, check planData.limits for that feature
     if (feature) {
-      return hasFeature(feature);
+      // Boolean feature flag (e.g. audit_logs: true)
+      if (typeof planData.limits?.[feature] === 'boolean') {
+        return planData.limits[feature];
+      }
+      // Numeric feature limit (e.g. workflows: 0 or >0)
+      if (typeof planData.limits?.[feature] === 'number') {
+        return planData.limits[feature] > 0;
+      }
+      // Fallback: not present or unknown type
+      return false;
     }
 
-    // Check by required plan
+    // If a requiredPlan is provided, check planData.plan.name against plan hierarchy
     if (requiredPlan) {
       const currentPlan = planData.plan?.name?.toLowerCase();
       const required = requiredPlan.toLowerCase();
-
       const planHierarchy = {
         'hobbyist': 0,
         'free': 0,
@@ -62,15 +68,13 @@ const PlanGate = ({
         'professional': 2,
         'enterprise': 3
       };
-
       const currentLevel = planHierarchy[currentPlan] || 0;
       const requiredLevel = planHierarchy[required] || 0;
-
       return currentLevel >= requiredLevel;
     }
 
-    // Default to pro check
-    return isPro();
+    // If neither, default to allowing access (or could default to Hobbyist restrictions)
+    return false;
   })();
 
   // If user has access, render children
