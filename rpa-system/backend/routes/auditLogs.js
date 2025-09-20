@@ -3,10 +3,12 @@
  * Provides endpoints for accessing and managing audit logs
  */
 
+
 const express = require('express');
 const router = express.Router();
 const { auditLogger } = require('../utils/auditLogger');
 const { createClient } = require('@supabase/supabase-js');
+const requireFeature = require('../middleware/planEnforcement');
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -58,7 +60,7 @@ const requireAdmin = async (req, res, next) => {
  * GET /api/audit-logs/user
  * Get audit logs for the current user
  */
-router.get('/user', async (req, res) => {
+router.get('/user', requireFeature('audit_logs'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -135,7 +137,7 @@ router.get('/user', async (req, res) => {
  * GET /api/audit-logs/system
  * Get system-wide audit logs (admin only)
  */
-router.get('/system', requireAdmin, async (req, res) => {
+router.get('/system', requireAdmin, requireFeature('audit_logs_admin'), async (req, res) => {
   try {
     const {
       startDate,
@@ -202,7 +204,7 @@ router.get('/system', requireAdmin, async (req, res) => {
  * GET /api/audit-logs/system/stats
  * Get system-wide audit statistics (admin only)
  */
-router.get('/system/stats', requireAdmin, async (req, res) => {
+router.get('/system/stats', requireAdmin, requireFeature('audit_logs_admin'), async (req, res) => {
   try {
     const { timeframe = '24h' } = req.query;
     const stats = await auditLogger.getAuditStatistics(null, timeframe);
@@ -235,7 +237,7 @@ router.get('/system/stats', requireAdmin, async (req, res) => {
  * GET /api/audit-logs/export
  * Export audit logs as CSV (user's own logs)
  */
-router.get('/export', async (req, res) => {
+router.get('/export', requireFeature('audit_logs'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -300,7 +302,7 @@ router.get('/export', async (req, res) => {
  * DELETE /api/audit-logs/cleanup
  * Cleanup old audit logs (admin only)
  */
-router.delete('/cleanup', requireAdmin, async (req, res) => {
+router.delete('/cleanup', requireAdmin, requireFeature('audit_logs_admin'), async (req, res) => {
   try {
     const { retentionDays = 365 } = req.query;
     

@@ -1,10 +1,12 @@
+
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
+const requireFeature = require('../middleware/planEnforcement');
 
 const router = express.Router();
 
 // Get execution details with step_executions
-router.get('/:executionId', async (req, res) => {
+router.get('/:executionId', requireFeature('workflow_executions'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -32,7 +34,7 @@ router.get('/:executionId', async (req, res) => {
 });
 
 // Get execution step logs
-router.get('/:executionId/steps', async (req, res) => {
+router.get('/:executionId/steps', requireFeature('workflow_executions'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -67,7 +69,7 @@ router.get('/:executionId/steps', async (req, res) => {
 });
 
 // Cancel a running execution
-router.post('/:executionId/cancel', async (req, res) => {
+router.post('/:executionId/cancel', requireFeature('workflow_executions'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {

@@ -55,7 +55,9 @@ router.post('/trigger/:token', async (req, res) => {
 });
 
 // Get webhook trigger URL for a schedule (authenticated)
-router.get('/schedule/:scheduleId/webhook', async (req, res) => {
+const requireFeature = require('../middleware/planEnforcement');
+
+router.get('/schedule/:scheduleId/webhook', requireFeature('webhooks'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;
@@ -102,7 +104,7 @@ router.get('/schedule/:scheduleId/webhook', async (req, res) => {
 });
 
 // Test webhook endpoint (authenticated)
-router.post('/test/:token', async (req, res) => {
+router.post('/test/:token', requireFeature('webhooks'), async (req, res) => {
   try {
     const { token } = req.params;
     const testPayload = req.body || { test: true, timestamp: new Date().toISOString() };

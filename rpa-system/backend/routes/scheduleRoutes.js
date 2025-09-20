@@ -6,7 +6,9 @@ const router = express.Router();
 const triggerService = new TriggerService();
 
 // Get all schedules for user
-router.get('/', async (req, res) => {
+const requireFeature = require('../middleware/planEnforcement');
+
+router.get('/', requireFeature('schedules'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -47,7 +49,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get specific schedule
-router.get('/:scheduleId', async (req, res) => {
+router.get('/:scheduleId', requireFeature('schedules'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;
@@ -89,7 +91,7 @@ router.get('/:scheduleId', async (req, res) => {
 });
 
 // Create new schedule
-router.post('/', async (req, res) => {
+router.post('/', requireFeature('schedules'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -221,7 +223,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update schedule
-router.put('/:scheduleId', async (req, res) => {
+router.put('/:scheduleId', requireFeature('schedules'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;
@@ -303,7 +305,7 @@ router.put('/:scheduleId', async (req, res) => {
 });
 
 // Delete schedule
-router.delete('/:scheduleId', async (req, res) => {
+router.delete('/:scheduleId', requireFeature('schedules'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;
@@ -340,7 +342,7 @@ router.delete('/:scheduleId', async (req, res) => {
 });
 
 // Trigger schedule manually
-router.post('/:scheduleId/trigger', async (req, res) => {
+router.post('/:scheduleId/trigger', requireFeature('schedules'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;
@@ -396,7 +398,7 @@ router.post('/:scheduleId/trigger', async (req, res) => {
 });
 
 // Get schedule execution history
-router.get('/:scheduleId/executions', async (req, res) => {
+router.get('/:scheduleId/executions', requireFeature('schedules'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;

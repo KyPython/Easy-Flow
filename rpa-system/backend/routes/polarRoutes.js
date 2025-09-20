@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 const router = express.Router();
+const requireFeature = require('../middleware/planEnforcement');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -173,6 +174,7 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
   }
 }
 
+// No paywall on webhook endpoint (external system)
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const startTime = Date.now();
 

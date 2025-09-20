@@ -2,6 +2,7 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 
 const router = express.Router();
+const requireFeature = require('../middleware/planEnforcement');
 
 // Simple admin-secret middleware (separate from user auth)
 router.use((req, res, next) => {
@@ -22,7 +23,7 @@ if (!supabase) {
 }
 
 // List templates for moderation
-router.get('/', async (req, res) => {
+router.get('/', requireFeature('admin_templates'), async (req, res) => {
   try {
     const status = req.query.status || 'pending_review';
     const { data, error } = await supabase
@@ -41,7 +42,7 @@ router.get('/', async (req, res) => {
 });
 
 // Approve a template and optionally a specific version
-router.post('/:id/approve', async (req, res) => {
+router.post('/:id/approve', requireFeature('admin_templates'), async (req, res) => {
   try {
     const id = req.params.id;
     const { version_id, review_notes } = req.body || {};
@@ -71,7 +72,7 @@ router.post('/:id/approve', async (req, res) => {
 });
 
 // Reject a template with notes
-router.post('/:id/reject', async (req, res) => {
+router.post('/:id/reject', requireFeature('admin_templates'), async (req, res) => {
   try {
     const id = req.params.id;
     const { review_notes } = req.body || {};
