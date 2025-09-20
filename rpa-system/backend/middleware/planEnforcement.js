@@ -1,63 +1,36 @@
-// Load environment variables if not already loaded
-if (!process.env.SUPABASE_URL) {
-  require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-}
-
-const { createClient } = require('@supabase/supabase-js');
-
-// Initialize Supabase client (resilient to missing keys in CI)
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
-const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
-if (!supabase) {
-  console.warn('[planEnforcement] Supabase not configured; plan checks will fail gracefully.');
-}
+// Dynamic, database-driven plan enforcement middleware
+const { getUserPlanAndFeaturesFromDB } = require('../services/planService');
 
 /**
- * Middleware to enforce plan limits and feature access
+ * Usage: requireFeature('feature_key')
+ * Checks if the user has access to the given feature or limit, using live DB data.
  */
-
-// Get user's plan details
-const getUserPlan = async (userId) => {
-  try {
-  if (!supabase) throw new Error('Supabase not configured');
-    const { data, error } = await supabase
-      .rpc('get_user_plan_details', { user_uuid: userId });
-
-    if (error) {
-      console.error('Error fetching user plan:', error);
-      throw error;
+function requireFeature(featureKey) {
+  return async function (req, res, next) {
+    try {
+      if (req.devBypass) return next();
+      const userId = req.user && req.user.id;
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+      const { plan, features, limits } = await getUserPlanAndFeaturesFromDB(userId);
+      // Boolean features
+      if (Array.isArray(features) && !features.includes(featureKey)) {
+        return res.status(403).json({ error: 'Feature not available on your plan', upgrade: true });
+      }
+      // Quantitative limits (attach to req for downstream use)
+      if (limits && limits[featureKey] !== undefined) {
+        req.planLimit = limits[featureKey];
+      }
+      req.userPlan = plan;
+      req.userFeatures = features;
+      req.userLimits = limits;
+      next();
+    } catch (err) {
+      next(err);
     }
+  };
+}
 
-    if (!data) {
-      throw new Error('No plan data found for user and no fallback allowed. Plan config must be dynamic.');
-    }
-    return data;
-  } catch (error) {
-    console.error('Failed to get user plan:', error);
-    throw error;
-  }
-};
-
-// Middleware: Check if user can create workflow
-const requireWorkflowCreation = async (req, res, next) => {
-  try {
-    // Allow explicit dev bypass token to short-circuit plan checks
-    if (req.devBypass) {
-      return next(); // Dev bypass: skip plan enforcement, but do not inject static planData
-    }
-
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const planData = await getUserPlan(userId);
-    
-    if (!planData.can_create_workflow) {
-      return res.status(403).json({
-        error: 'Workflow limit reached',
-        message: `You've reached the limit for your ${planData.plan.name} plan. Upgrade to create more workflows.`,
+module.exports = requireFeature;
         current_plan: planData.plan.name,
         limit: planData.limits.workflows,
         upgrade_required: true

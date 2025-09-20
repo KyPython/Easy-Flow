@@ -116,6 +116,50 @@ const Header = ({ user }) => {
             >
               {t('nav.bulk_processing','Bulk Processing')}
             </Link>
+
+            {/* Analytics - Professional+ feature */}
+            <Link
+              to="/app/analytics"
+              className={`${styles.navLink} ${
+                isActive('/app/analytics') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.analytics','Analytics')} 
+              {(!planData?.plan || planData.plan.name === 'Hobbyist') && <span className={styles.proIcon}>✨</span>}
+            </Link>
+
+            {/* Integrations - Professional+ feature */}
+            <Link
+              to="/app/integrations"
+              className={`${styles.navLink} ${
+                isActive('/app/integrations') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.integrations','Integrations')}
+              {(!planData?.plan || ['Hobbyist', 'Starter'].includes(planData.plan.name)) && <span className={styles.proIcon}>✨</span>}
+            </Link>
+
+            {/* Webhooks - Professional+ feature */}
+            <Link
+              to="/app/webhooks"
+              className={`${styles.navLink} ${
+                isActive('/app/webhooks') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.webhooks','Webhooks')}
+              {(!planData?.plan || ['Hobbyist', 'Starter'].includes(planData.plan.name)) && <span className={styles.proIcon}>✨</span>}
+            </Link>
+
+            {/* Team - Professional+ feature */}
+            <Link
+              to="/app/team"
+              className={`${styles.navLink} ${
+                isActive('/app/team') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.team','Team')}
+              {(!planData?.plan || ['Hobbyist', 'Starter'].includes(planData.plan.name)) && <span className={styles.proIcon}>✨</span>}
+            </Link>
           </nav>
         )}
 
