@@ -1,5 +1,5 @@
 // Dynamic, database-driven plan enforcement middleware
-const { getUserPlanAndFeaturesFromDB } = require('../services/planService');
+const { getUserPlan } = require('../services/planService');
 
 /**
  * Usage: requireFeature('feature_key')

@@ -15,6 +15,7 @@ const AnalyticsPage = () => {
   
   return (
     <PlanGate 
+      requiredPlan="Professional"
       feature="advanced_analytics"
       upgradeMessage="Advanced Analytics provides detailed insights into your automation performance, usage trends, and ROI metrics. Upgrade to Professional or Enterprise plan to unlock comprehensive reporting."
       onPaywallClose={() => window.location.href = '/app'}

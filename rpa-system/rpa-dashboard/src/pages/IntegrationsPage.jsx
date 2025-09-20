@@ -8,6 +8,7 @@ const IntegrationsPage = () => {
   
   return (
     <PlanGate 
+      requiredPlan="Professional"
       feature="custom_integrations"
       upgradeMessage="Custom Integrations allow you to connect with any API or service. Build custom webhooks, API calls, and data synchronization. Available on Professional and Enterprise plans."
       onPaywallClose={() => window.location.href = '/app'}

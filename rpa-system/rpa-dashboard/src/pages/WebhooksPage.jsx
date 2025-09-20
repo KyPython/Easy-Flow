@@ -8,6 +8,7 @@ const WebhooksPage = () => {
   
   return (
     <PlanGate 
+      requiredPlan="Professional"
       feature="webhook_management"
       upgradeMessage="Webhook Management allows you to receive real-time notifications and trigger automations from external services. Set up unlimited webhooks with Professional and Enterprise plans."
       onPaywallClose={() => window.location.href = '/app'}
