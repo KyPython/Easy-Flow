@@ -2893,26 +2893,43 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
   try {
     console.log(`[GET /api/user/plan] Fetching plan data for user ${req.user.id}`);
 
-    // Get user profile to find their plan
-    const { data: profile, error: profileError } = await supabase
+    // Try to get user profile
+    let { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('plan_id, is_trial, trial_ends_at, plan_expires_at')
+      .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
       .eq('id', req.user.id)
-      .single();
+      .maybeSingle();
 
+    if (!profile) {
+      // No profile found, create one with default plan_id 'free'
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert([{
+          id: req.user.id,
+          plan_id: 'free',
+          created_at: new Date().toISOString()
+        }]);
+      if (insertError) {
+        console.error('[GET /api/user/plan] Failed to create profile:', insertError);
+        return res.status(500).json({ error: 'Failed to create user profile', details: insertError.message });
+      }
+      // Fetch the newly created profile
+      ({ data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
+        .eq('id', req.user.id)
+        .maybeSingle());
+    }
     if (profileError) {
       console.error('[GET /api/user/plan] Profile error:', profileError);
-      return res.status(500).json({ 
-        error: 'Failed to fetch user profile',
-        details: profileError.message 
-      });
+      return res.status(500).json({ error: 'Failed to fetch user profile', details: profileError.message });
     }
 
     const userPlanName = profile?.plan_id || 'Hobbyist';
     console.log(`[GET /api/user/plan] User has plan: ${userPlanName}`);
 
     // Get plan data by name/slug
-    const { data: plan, error: planError } = await supabase
+    let { data: plan, error: planError } = await supabase
       .from('plans')
       .select('*')
       .or(`name.eq.${userPlanName},slug.eq.${userPlanName}`)
@@ -2926,7 +2943,6 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
         .select('*')
         .eq('name', 'Hobbyist')
         .single();
-      
       if (!hobbyistPlan) {
         return res.status(500).json({ error: 'No plans available' });
       }
@@ -2942,13 +2958,11 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
         .eq('user_id', req.user.id)
         .eq('status', 'completed')
         .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
-      
       // Storage usage
       supabase
         .from('user_files')
         .select('file_size')
         .eq('user_id', req.user.id),
-      
       // Actual workflows (not automation tasks)
       supabase
         .from('workflows')
@@ -2986,12 +3000,10 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
     };
 
     console.log(`[GET /api/user/plan] Final plan data:`, JSON.stringify(planData, null, 2));
-    
     res.json({
       success: true,
       planData: planData
     });
-
   } catch (error) {
     console.error('[GET /api/user/plan] Unexpected error:', error);
     res.status(500).json({ 
