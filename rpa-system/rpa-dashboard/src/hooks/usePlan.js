@@ -178,12 +178,50 @@ export const usePlan = () => {
       }, 1000);
     };
 
+    // Listen for storage events (cross-tab communication)
+    const handleStorageChange = (e) => {
+      if (e.key === 'polar_checkout_complete' && e.newValue) {
+        console.log('Polar checkout completed in another tab, refreshing plan...');
+        setTimeout(() => {
+          fetchPlanData();
+          localStorage.removeItem('polar_checkout_complete'); // Clean up
+        }, 1000);
+      }
+    };
+
+    // Aggressive polling when page is visible (for checkout returns)
+    let visibilityPollInterval = null;
+    const startVisibilityPolling = () => {
+      if (document.visibilityState === 'visible' && !visibilityPollInterval) {
+        console.log('Starting aggressive plan polling for 30 seconds...');
+        visibilityPollInterval = setInterval(() => {
+          fetchPlanData();
+        }, 3000); // Poll every 3 seconds
+        
+        // Stop aggressive polling after 30 seconds
+        setTimeout(() => {
+          if (visibilityPollInterval) {
+            clearInterval(visibilityPollInterval);
+            visibilityPollInterval = null;
+            console.log('Stopped aggressive plan polling');
+          }
+        }, 30000);
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', startVisibilityPolling);
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('storage', handleStorageChange);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', startVisibilityPolling);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorageChange);
+      if (visibilityPollInterval) {
+        clearInterval(visibilityPollInterval);
+      }
     };
   }, []);
 

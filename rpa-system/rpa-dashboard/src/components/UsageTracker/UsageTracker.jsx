@@ -110,7 +110,38 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
   };
 
   const daysRemaining = calculateDaysRemaining();
-  const isPro = plan?.name !== 'Hobbyist' && plan?.name !== 'Starter';
+  
+  // Dynamic plan classification based on limits instead of hardcoded names
+  const getplanTier = () => {
+    if (!limits) return 'basic';
+    
+    // Determine tier based on limits - more dynamic approach
+    const monthlyRuns = limits.monthly_runs || 0;
+    const storageGB = limits.storage_gb || 0;
+    const workflows = limits.workflows || 0;
+    
+    // High-tier plans typically have unlimited features (-1) or very high limits
+    if (monthlyRuns >= 10000 || storageGB >= 100 || workflows >= 20 || 
+        monthlyRuns === -1 || storageGB === -1 || workflows === -1) {
+      return 'pro';
+    }
+    
+    // Mid-tier plans have substantial but limited resources
+    if (monthlyRuns >= 1000 || storageGB >= 50 || workflows >= 10) {
+      return 'professional';
+    }
+    
+    // Entry-level paid plans
+    if (monthlyRuns >= 100 || storageGB >= 5 || workflows >= 3) {
+      return 'starter';
+    }
+    
+    // Free/basic plans
+    return 'basic';
+  };
+  
+  const planTier = getplanTier();
+  const isPro = planTier === 'pro' || planTier === 'professional';
 
   if (compact) {
     return (
@@ -168,12 +199,12 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
         <FiCalendar className={styles.calendarIcon} />
         <div className={styles.renewalText}>
           <span className={styles.renewalLabel}>
-            {(plan?.name === 'Starter' || plan?.name === 'Hobbyist') ? 'Free Plan' : 'Renews'}
+            {plan?.name ? `${plan.name} Plan` : 'Current Plan'}
           </span>
           <span className={styles.renewalDate}>
-            {(plan?.name === 'Starter' || plan?.name === 'Hobbyist') ? 'No expiry' : formatRenewalDate()}
+            {plan?.expires_at ? formatRenewalDate() : 'No expiry'}
           </span>
-          {daysRemaining !== null && daysRemaining <= 7 && plan?.name !== 'Starter' && plan?.name !== 'Hobbyist' && (
+          {daysRemaining !== null && daysRemaining <= 7 && plan?.expires_at && (
             <span className={styles.renewalWarning}>
               {daysRemaining === 0 ? 'Expires today!' : `${daysRemaining} days left`}
             </span>
@@ -235,7 +266,7 @@ const UsageTracker = ({ showUpgrade = true, compact = false }) => {
         })}
       </div>
 
-      {showUpgrade && (plan?.name === 'Starter' || plan?.name === 'Hobbyist' || !plan?.name) && (
+      {showUpgrade && (planTier === 'basic' || planTier === 'starter') && (
         <div className={styles.upgradeSection}>
           <div className={styles.upgradeContent}>
             <div>

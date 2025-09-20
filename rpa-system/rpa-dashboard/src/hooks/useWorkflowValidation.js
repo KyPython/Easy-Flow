@@ -5,7 +5,7 @@ import { usePlan } from './usePlan';
 export const useWorkflowValidation = () => {
   const [validationErrors, setValidationErrors] = useState([]);
   const [isValidating, setIsValidating] = useState(false);
-  const { planData, canRunAutomation } = usePlan();
+  const { planData, canRunAutomation, canCreateWorkflow } = usePlan();
 
   const validateWorkflowExecution = useCallback(async (workflowId) => {
     setIsValidating(true);
@@ -182,6 +182,15 @@ export const useWorkflowValidation = () => {
   const validateWorkflowSave = useCallback(async (workflowData) => {
     const errors = [];
 
+    // Check workflow creation limits first
+    if (!canCreateWorkflow()) {
+      errors.push({
+        type: 'workflow_limit',
+        message: `You've reached your workflow limit (${planData?.usage?.workflows || 0}/${planData?.limits?.workflows || 0}). Please upgrade your plan to create more workflows.`,
+        action: 'upgrade'
+      });
+    }
+
     // Basic validation
     if (!workflowData.name || workflowData.name.trim().length === 0) {
       errors.push({
@@ -210,7 +219,7 @@ export const useWorkflowValidation = () => {
       isValid: errors.length === 0,
       errors
     };
-  }, []);
+  }, [canCreateWorkflow, planData]);
 
   const clearValidationErrors = useCallback(() => {
     setValidationErrors([]);

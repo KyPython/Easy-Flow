@@ -24,6 +24,8 @@ const { requireAutomationRun, requireWorkflowCreation, checkStorageLimit } = req
 const { startEmailWorker } = require('./workers/email_worker');
 const { spawn } = require('child_process');
 
+// Import route modules
+const polarRoutes = require('./routes/polarRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3030;
@@ -432,12 +434,15 @@ if (process.env.NODE_ENV === 'test') {
 } else {
   app.use('/api', (req, res, next) => {
     // Skip CSRF for GET requests and webhooks
-    if (req.method === 'GET' || req.path.startsWith('/polar-webhook')) {
+    if (req.method === 'GET' || req.path.startsWith('/api/polar-webhook')) {
       return next();
     }
     return csrfProtection(req, res, next);
   });
 }
+
+// Mount webhook routes (before other middleware to handle raw body parsing)
+app.use('/api/polar-webhook', polarRoutes);
 
 // Development convenience: return default user preferences when unauthenticated
 // This allows the dashboard to render in local dev without a full auth setup.
