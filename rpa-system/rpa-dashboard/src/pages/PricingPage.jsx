@@ -27,18 +27,22 @@ export default function PricingPage() {
       description: 'Professional plan for teams needing advanced automation.',
       polar_url: '#',
       feature_flags: {
+        sso_ldap: 1,
+        audit_logs: 'Unlimited',
         storage_gb: 50,
-        priority_support: true,
-        full_logging: true,
-        advanced_analytics: true,
-        advanced_templates: true,
-        custom_integrations: true,
-        automation_workflows: true,
-        enterprise_automation: true,
-        scheduled_automations: true,
-        error_handling: true,
-        team_collaboration: true,
-        automation_runs: 1000
+        full_logging_days: 30,
+        error_handling: 'Advanced',
+        automation_runs: 1000,
+        priority_support: 'Yes',
+        advanced_analytics: 'Yes',
+        advanced_templates: 'Yes',
+        team_members: 10,
+        webhook_management: 'Yes',
+        custom_integrations: 5,
+        automation_workflows: 20,
+        integrations_builder: 'Yes',
+        enterprise_automation: 'Yes',
+        scheduled_automations: 10
       },
       is_most_popular: true
     },
@@ -50,15 +54,18 @@ export default function PricingPage() {
       description: 'Starter plan for small teams with basic automation needs.',
       polar_url: '#',
       feature_flags: {
+        audit_logs: 30,
         storage_gb: 10,
-        email_support: true,
-        basic_analytics: true,
-        advanced_automation: true,
-        automation_workflows: true,
-        webhook_integrations: true,
-        advanced_logging_days: 7,
+        email_support: 'Yes',
         automation_runs: 100,
-        unlimited_custom_templates: true
+        basic_analytics: 'Yes',
+        team_members: 3,
+        advanced_automation: 'Yes',
+        automation_workflows: 5,
+        webhook_integrations: 3,
+        full_logging_days: 7,
+        scheduled_automations: 2,
+        unlimited_custom_templates: 'Yes'
       },
       is_most_popular: false
     },
@@ -70,29 +77,29 @@ export default function PricingPage() {
       description: 'Enterprise plan for large organizations with full automation features.',
       polar_url: '#',
       feature_flags: {
-        storage_gb: 500,
-        white_label_options: true,
-        contact_sales: true,
-        requires_sales_team: true,
-        sla_guarantees: true,
-        full_api_access: true,
-        priority_support: true,
-        advanced_security: true,
-        dedicated_support: true,
-        full_logging: true,
-        unlimited_storage: true,
-        advanced_analytics: true,
-        advanced_templates: true,
-        custom_development: true,
-        custom_integrations: true,
-        enterprise_features: true,
-        unlimited_workflows: true,
-        enterprise_automation: true,
-        scheduled_automations: true,
-        error_handling: true,
-        unlimited_team_members: true,
-        team_collaboration: true,
-        automation_runs: 10000
+        sso_ldap: 'Unlimited',
+        audit_logs: 'Unlimited',
+        storage_gb: 'Unlimited',
+        full_logging_days: 'Unlimited',
+        contact_sales: 'Yes',
+        error_handling: 'Enterprise',
+        sla_guarantees: 'Yes',
+        automation_runs: 10000,
+        full_api_access: 'Yes',
+        priority_support: 'Yes',
+        advanced_security: 'Yes',
+        dedicated_support: 'Yes',
+        advanced_analytics: 'Yes',
+        advanced_templates: 'Yes',
+        custom_development: 'Yes',
+        team_members: 'Unlimited',
+        webhook_management: 'Yes',
+        custom_integrations: 'Unlimited',
+        automation_workflows: 'Unlimited',
+        integrations_builder: 'Yes',
+        enterprise_automation: 'Yes',
+        scheduled_automations: 'Unlimited',
+        white_label_options: 'Yes'
       },
       is_most_popular: false
     },
@@ -105,7 +112,9 @@ export default function PricingPage() {
       polar_url: '#',
       feature_flags: {
         storage_gb: 5,
-        automation_runs: 50
+        automation_runs: 50,
+        team_members: 1,
+        automation_workflows: 1
       },
       is_most_popular: false
     }
@@ -247,14 +256,53 @@ export default function PricingPage() {
 
       <div className={styles.plansGrid}>
         {plans.map(plan => {
-            const features = plan.feature_flags
-            ? Object.entries(plan.feature_flags)
-                .filter(([, value]) => value)
-                .map(([key, value]) => {
-                  const label = featureLabels[key] || key;
-                  return value === true ? label : `${label}: ${value}`;
-                })
-            : [];
+
+            // Always show all features, with numbers or 'Unlimited' where possible
+            const featureOrder = [
+              'automation_runs',
+              'storage_gb',
+              'full_logging_days',
+              'audit_logs',
+              'team_members',
+              'automation_workflows',
+              'scheduled_automations',
+              'webhook_management',
+              'webhook_integrations',
+              'custom_integrations',
+              'integrations_builder',
+              'advanced_analytics',
+              'basic_analytics',
+              'advanced_templates',
+              'unlimited_custom_templates',
+              'priority_support',
+              'email_support',
+              'full_api_access',
+              'dedicated_support',
+              'advanced_security',
+              'sla_guarantees',
+              'white_label_options',
+              'custom_development',
+              'enterprise_automation',
+              'enterprise_features',
+              'error_handling',
+              'sso_ldap',
+              'contact_sales',
+              'requires_sales_team'
+            ];
+            const features = featureOrder
+              .filter(key => plan.feature_flags && plan.feature_flags[key] !== undefined)
+              .map(key => {
+                const value = plan.feature_flags[key];
+                const label = featureLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                // Show as 'Unlimited' or number, or 'Yes' for boolean
+                if (typeof value === 'number' || typeof value === 'string') {
+                  return `${label}: ${value}`;
+                } else if (value === true) {
+                  return `${label}: Yes`;
+                } else {
+                  return `${label}: ${value}`;
+                }
+              });
 
           return (
             <div

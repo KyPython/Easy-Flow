@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import { LanguageProvider } from './utils/LanguageContext';
 import SettingsPage from './pages/SettingsPage';
+import TeamPage from './pages/TeamPage';
 import AdminTemplates from './pages/AdminTemplates';
 import WorkflowPage from './components/WorkflowBuilder/WorkflowPage';
 import SharedFilePage from './pages/SharedFilePage';
@@ -81,6 +82,7 @@ function Shell() {
           <Route path="/app/files" element={<Protected><FilesPage /></Protected>} />
           <Route path="/app/bulk-processor" element={<Protected><BulkInvoiceProcessor /></Protected>} />
           <Route path="/app/settings" element={<Protected><SettingsPage /></Protected>} />
+          <Route path="/app/team" element={<Protected><TeamPage /></Protected>} />
           <Route path="/app/workflows" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/builder" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/builder/templates" element={<Protected><WorkflowPage /></Protected>} />
