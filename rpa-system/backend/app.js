@@ -30,6 +30,11 @@ const polarRoutes = require('./routes/polarRoutes');
 const app = express();
 const PORT = process.env.PORT || 3030;
 
+// Trust proxy for Render deployment (fixes rate limiting)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', true);
+}
+
 // --- Old CORS configuration removed - using comprehensive CORS config below ---
 
 // Add after imports, before route definitions (around line 100)
@@ -375,7 +380,7 @@ const csrfProtection = csrf({
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict', // Allow cross-site for production
     maxAge: 3600000,
     signed: true
   },
