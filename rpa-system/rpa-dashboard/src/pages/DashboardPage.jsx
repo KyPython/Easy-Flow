@@ -6,7 +6,6 @@ import { supabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
 import Chatbot from '../components/Chatbot/Chatbot';
 
-import PlanGate from '../components/PlanGate/PlanGate';
 
 const DashboardPage = () => {
   const { user, loading: authLoading } = useAuth();

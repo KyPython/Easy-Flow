@@ -5,32 +5,6 @@ const { getUserPlanAndFeaturesFromDB } = require('../services/planService');
  * Usage: requireFeature('feature_key')
  * Checks if the user has access to the given feature or limit, using live DB data.
  */
-function requireFeature(featureKey) {
-  return async function (req, res, next) {
-    try {
-      if (req.devBypass) return next();
-      const userId = req.user && req.user.id;
-      if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const { plan, features, limits } = await getUserPlanAndFeaturesFromDB(userId);
-      // Boolean features
-      if (Array.isArray(features) && !features.includes(featureKey)) {
-        return res.status(403).json({ error: 'Feature not available on your plan', upgrade: true });
-      }
-      // Quantitative limits (attach to req for downstream use)
-      if (limits && limits[featureKey] !== undefined) {
-        req.planLimit = limits[featureKey];
-      }
-      req.userPlan = plan;
-      req.userFeatures = features;
-      req.userLimits = limits;
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
-}
-
-module.exports = requireFeature;
 
 // Middleware: Check if user can run automation
 const requireAutomationRun = async (req, res, next) => {

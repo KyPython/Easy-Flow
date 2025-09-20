@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { useTheme } from '../utils/ThemeContext';
 import PlanGate from '../components/PlanGate/PlanGate';
-import TeamMemberList from '../components/TeamManagement/TeamMemberList';
-import InviteModal from '../components/TeamManagement/InviteModal';
-import RoleManager from '../components/TeamManagement/RoleManager';
 import styles from './TeamPage.module.css';
 
 function TeamsPage() {
@@ -178,11 +175,6 @@ function TeamManagement() {
         </div>
       )}
     </>
-  );
-}
-        </div>
-      </div>
-    </PlanGate>
   );
 }
 
