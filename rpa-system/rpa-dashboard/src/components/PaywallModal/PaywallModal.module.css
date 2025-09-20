@@ -1,3 +1,8 @@
+.scrollableContent {
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .overlay {
   position: fixed;
   top: 0;

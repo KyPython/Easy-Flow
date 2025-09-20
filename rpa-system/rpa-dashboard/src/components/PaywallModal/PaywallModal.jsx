@@ -199,7 +199,8 @@ const PaywallModal = ({
         </div>
 
         {/* Content */}
-        <div className={styles.content}>
+        <div className={styles.scrollableContent}>
+          <div className={styles.content}>
           <div className={styles.messageSection}>
             <p className={styles.message}>
               {message || `This feature requires the ${getRequiredPlanDisplay()}. Upgrade now to unlock powerful automation capabilities.`}
@@ -247,8 +248,8 @@ const PaywallModal = ({
             <FiZap className={styles.trialIcon} />
             <span>Start with a 14-day free trial • Cancel anytime</span>
           </div>
+          </div>
         </div>
-
         {/* Actions */}
         <div className={styles.actions}>
           <button onClick={handleClose} className={styles.cancelBtn}>
