@@ -120,11 +120,11 @@ const DashboardPage = () => {
   }
 
   return (
-    <PlanGate feature="dashboard_access">
+    <>
       <ErrorMessage message={error} />
       <Dashboard metrics={metrics} recentTasks={recentTasks} user={user} />
       <Chatbot />
-    </PlanGate>
+    </>
   );
 };
 
