@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PlanGate from '../components/PlanGate/PlanGate';
 import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
 import FileUpload from '../components/FileUpload/FileUpload';
@@ -35,53 +36,55 @@ const FilesPage = () => {
   };
 
   return (
-    <div className={styles.filesPage}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>{t('files.page_title', 'File Management')}</h1>
-        <p className={styles.subtitle}>
-          {t('files.page_subtitle', 'Upload, organize, and manage your automation files')}
-        </p>
-      </div>
-
-      {/* Upload Section */}
-      <div className={styles.uploadSection}>
-        <h2 className={styles.sectionTitle}>{t('files.upload_title', 'Upload Files')}</h2>
-        <FileUpload
-          onUploadComplete={handleUploadComplete}
-          onUploadError={handleUploadError}
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.zip"
-          maxSizeBytes={100 * 1024 * 1024} // 100MB
-          multiple={true}
-          folder="/"
-          className={styles.fileUpload}
-        />
-      </div>
-
-      {/* Success/Error Messages */}
-      {uploadError && (
-        <div className={styles.errorAlert}>
-          <span>❌ {uploadError}</span>
-          <button onClick={() => setUploadError('')} className={styles.dismissBtn}>×</button>
+    <PlanGate feature="file_management" upgradeMessage="File management is available on paid plans. Upgrade to unlock file uploads and storage.">
+      <div className={styles.filesPage}>
+        <div className={styles.header}>
+          <h1 className={styles.title}>{t('files.page_title', 'File Management')}</h1>
+          <p className={styles.subtitle}>
+            {t('files.page_subtitle', 'Upload, organize, and manage your automation files')}
+          </p>
         </div>
-      )}
-      
-      {uploadSuccess && (
-        <div className={styles.successAlert}>
-          <span>✅ {uploadSuccess}</span>
-          <button onClick={() => setUploadSuccess('')} className={styles.dismissBtn}>×</button>
-        </div>
-      )}
 
-      {/* File Management Section */}
-      <div className={styles.manageSection}>
-        <h2 className={styles.sectionTitle}>{t('files.manage_title', 'Your Files')}</h2>
-        <FileManager
-          folder="/"
-          className={styles.fileManager}
-          key={refreshFiles} // Force refresh when files are uploaded
-        />
+        {/* Upload Section */}
+        <div className={styles.uploadSection}>
+          <h2 className={styles.sectionTitle}>{t('files.upload_title', 'Upload Files')}</h2>
+          <FileUpload
+            onUploadComplete={handleUploadComplete}
+            onUploadError={handleUploadError}
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.zip"
+            maxSizeBytes={100 * 1024 * 1024} // 100MB
+            multiple={true}
+            folder="/"
+            className={styles.fileUpload}
+          />
+        </div>
+
+        {/* Success/Error Messages */}
+        {uploadError && (
+          <div className={styles.errorAlert}>
+            <span>❌ {uploadError}</span>
+            <button onClick={() => setUploadError('')} className={styles.dismissBtn}>×</button>
+          </div>
+        )}
+        
+        {uploadSuccess && (
+          <div className={styles.successAlert}>
+            <span>✅ {uploadSuccess}</span>
+            <button onClick={() => setUploadSuccess('')} className={styles.dismissBtn}>×</button>
+          </div>
+        )}
+
+        {/* File Management Section */}
+        <div className={styles.manageSection}>
+          <h2 className={styles.sectionTitle}>{t('files.manage_title', 'Your Files')}</h2>
+          <FileManager
+            folder="/"
+            className={styles.fileManager}
+            key={refreshFiles} // Force refresh when files are uploaded
+          />
+        </div>
       </div>
-    </div>
+    </PlanGate>
   );
 };
 

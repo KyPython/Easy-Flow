@@ -1,5 +1,7 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import styles from './AdminTemplates.module.css';
+import PlanGate from '../components/PlanGate/PlanGate';
 
 const AdminTemplates = () => {
   const [items, setItems] = useState([]);
@@ -59,7 +61,8 @@ const AdminTemplates = () => {
   }, [fetchTemplates]);
 
   return (
-    <div className={styles.wrapper}>
+    <PlanGate feature="admin_templates" upgradeMessage="Admin template moderation is restricted to authorized users.">
+      <div className={styles.wrapper}>
       <div className={styles.header}>
         <h2>Template Moderation</h2>
         <div className={styles.controls}>
@@ -104,7 +107,8 @@ const AdminTemplates = () => {
           </div>
         ))}
       </div>
-    </div>
+      </div>
+    </PlanGate>
   );
 };
 
