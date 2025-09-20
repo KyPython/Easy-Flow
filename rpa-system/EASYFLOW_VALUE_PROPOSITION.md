@@ -22,24 +22,6 @@
 - **Best case**: If you have 10+ identical tasks monthly, save 30-60 minutes
 - **Reality check**: Most users run 1-5 tasks occasionally
 
-### 🔧 What Works vs. What's Missing
-
-**✅ What Actually Works:**
-- **Workflows**: Visual workflow builder with scheduling
-- **Basic automation**: Login, click, type, extract text
-- **Scheduling**: Run workflows on time-based triggers
-- **History tracking**: See past automation runs
-- **File management**: Store downloaded files and data
-
-**❌ What's NOT Currently Available:**
-- ❌ Bulk processing (50+ invoices from different vendors)
-- ❌ Auto-rename files with intelligent naming
-- ❌ Integration with accounting software
-- ❌ AI-powered data extraction from complex documents
-- ❌ Multi-site batch processing
-- ❌ CRM/database integration
-- ❌ CAPTCHA handling
-- ❌ Complex business intelligence extraction
 
 ### 💡 Honest ROI Assessment
 
@@ -57,22 +39,6 @@
 - **Small teams** doing repetitive web tasks weekly
 - **Data entry clerks** with standardized processes
 - **Researchers** collecting data from similar sites regularly
-
-### 🎯 Honest Use Cases That Work Today
-
-**✅ Good Fits:**
-- Download weekly reports from the same portal
-- Extract product prices from competitor websites
-- Submit the same form to multiple similar sites
-- Collect contact information from directory sites
-- Monitor website changes for specific content
-
-**❌ Not Ready For:**
-- Complex financial data reconciliation
-- Enterprise-grade compliance reporting
-- Multi-system integration projects
-- Bulk vendor invoice processing
-- AI-powered document analysis
 
 ### 🚨 Truth About Workflows
 

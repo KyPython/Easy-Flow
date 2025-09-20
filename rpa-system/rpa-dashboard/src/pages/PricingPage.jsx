@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../utils/AuthContext';
 import { usePlan } from '../hooks/usePlan';
+import { api } from '../utils/api';
 import styles from './PricingPage.module.css';
 
 export default function PricingPage() {
@@ -14,6 +15,7 @@ export default function PricingPage() {
   const [featureLabels, setFeatureLabels] = useState({});
   const [userSubscription, setUserSubscription] = useState(null);
   const [mostPopularId, setMostPopularId] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   // Backup default plans (memoized)
   const backupPlans = useMemo(() => [
@@ -175,13 +177,48 @@ export default function PricingPage() {
     fetchUserSubscription();
   }, [fetchPlans, fetchFeatureLabels, fetchUserSubscription]);
 
-  const startPlan = plan => {
+  const startPlan = async (plan) => {
     if (!user) {
       navigate('/auth');
       return;
     }
-    if (!plan.polar_url) return;
-    window.open(plan.polar_url, '_blank');
+    
+    try {
+      setLoading(true);
+      
+      // Try to generate dynamic checkout URL with 14-day trial first
+      try {
+        const response = await api.post('/api/checkout/polar', {
+          planId: plan.id
+        }, {
+          headers: {
+            'Authorization': `Bearer ${user.accessToken}`
+          }
+        });
+        
+        if (response.data.checkout_url) {
+          // Redirect to Polar checkout with trial
+          window.location.href = response.data.checkout_url;
+          return;
+        }
+      } catch (apiError) {
+        console.warn('Dynamic checkout failed, falling back to static URL:', apiError);
+      }
+      
+      // Fallback to existing polar_url if dynamic generation fails
+      if (plan.polar_url) {
+        console.log('Using fallback static Polar URL');
+        window.open(plan.polar_url, '_blank');
+      } else {
+        throw new Error('No checkout method available');
+      }
+      
+    } catch (error) {
+      console.error('Error creating checkout:', error);
+      alert('Failed to create checkout session. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const currentPlanName = planData?.plan?.name || 'Hobbyist';
@@ -242,9 +279,16 @@ export default function PricingPage() {
               <button
                 className={styles.planButton}
                 onClick={() => startPlan(plan)}
-                disabled={currentPlanName.toLowerCase() === plan.name.toLowerCase()}
+                disabled={currentPlanName.toLowerCase() === plan.name.toLowerCase() || loading}
               >
-                {currentPlanName.toLowerCase() === plan.name.toLowerCase() ? t('plan.current_plan','Current Plan') : t('pricing.start_plan','Start Plan')}
+                {loading 
+                  ? 'Creating checkout...' 
+                  : currentPlanName.toLowerCase() === plan.name.toLowerCase() 
+                    ? t('plan.current_plan','Current Plan') 
+                    : plan.name.toLowerCase() === 'hobbyist' 
+                      ? 'Free Forever'
+                      : 'Start 14-Day Free Trial'
+                }
               </button>
             </div>
           );

@@ -61,7 +61,8 @@ const Header = ({ user }) => {
                 !isActive('/app/tasks') &&
                 !isActive('/app/history') &&
                 !isActive('/app/files') &&
-                !isActive('/app/workflows')
+                !isActive('/app/workflows') &&
+                !isActive('/app/bulk-processor')
                   ? styles.activeNavLink
                   : ''
               }`}
@@ -104,6 +105,16 @@ const Header = ({ user }) => {
               }`}
             >
               {t('nav.workflows','Workflows')}
+            </Link>
+
+            {/* Bulk Processing - Professional+ feature with paywall protection */}
+            <Link
+              to="/app/bulk-processor"
+              className={`${styles.navLink} ${
+                isActive('/app/bulk-processor') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.bulk_processing','Bulk Processing')}
             </Link>
           </nav>
         )}

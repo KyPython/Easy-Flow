@@ -66,7 +66,7 @@ async function findPlanByPolarProductId(polarProductId) {
   }
 }
 
-async function updateUserSubscription(userId, planId, externalPaymentId, status = 'active') {
+async function updateUserSubscription(userId, planId, externalPaymentId, status = 'active', subscription = null) {
   try {
     const { data: existingSubscription, error: fetchError } = await supabase
       .from('subscriptions')
@@ -81,15 +81,32 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
 
     let subscriptionResult;
 
+    // Calculate trial and billing dates
+    const now = new Date();
+    const trialEndsAt = subscription?.trial_end ? new Date(subscription.trial_end) : null;
+    const isInTrial = trialEndsAt && trialEndsAt > now;
+    const billingCycleAnchor = subscription?.billing_cycle_anchor ? new Date(subscription.billing_cycle_anchor) : null;
+
     if (existingSubscription) {
+      const updateData = {
+        plan_id: planId,
+        status: status,
+        external_payment_id: externalPaymentId,
+        updated_at: new Date().toISOString()
+      };
+
+      // Add trial information if available
+      if (trialEndsAt) {
+        updateData.trial_ends_at = trialEndsAt.toISOString();
+        updateData.is_trial = isInTrial;
+      }
+      if (billingCycleAnchor) {
+        updateData.next_billing_at = billingCycleAnchor.toISOString();
+      }
+
       const { error: updateError } = await supabase
         .from('subscriptions')
-        .update({
-          plan_id: planId,
-          status: status,
-          external_payment_id: externalPaymentId,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('user_id', userId);
 
       if (updateError) {

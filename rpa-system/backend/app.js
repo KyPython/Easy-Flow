@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const csrf = require('csurf');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+const multer = require('multer');
 // Load environment variables from the backend/.env file early so modules that
 // require configuration (Firebase, Supabase, etc.) see the variables on require-time.
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
@@ -216,6 +217,14 @@ if (!supabase) {
   console.log('✅ Usage tracker initialized');
 }
 const ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
 const USE_SIGNED_URLS = (process.env.SUPABASE_USE_SIGNED_URLS || 'true').toLowerCase() !== 'false';
 const SIGNED_URL_EXPIRES = Math.max(60, parseInt(process.env.SUPABASE_SIGNED_URL_EXPIRES || '86400', 10));
 const DOWNLOADS_DIR_CONTAINER = process.env.DOWNLOADS_DIR_CONTAINER || '/downloads';
@@ -3943,6 +3952,77 @@ app.post('/api/integrations/sync-files', authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+// POST /api/checkout/polar - Generate Polar checkout URL with 14-day trial
+app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
+  try {
+    const { planId } = req.body;
+    const user = req.user;
+
+    if (!planId) {
+      return res.status(400).json({ error: 'Plan ID is required' });
+    }
+
+    // Fetch plan details
+    const { data: plan, error: planError } = await supabase
+      .from('plans')
+      .select('*')
+      .eq('id', planId)
+      .single();
+
+    if (planError || !plan) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+
+    if (!plan.external_product_id) {
+      return res.status(400).json({ error: 'Plan has no Polar product ID configured' });
+    }
+
+    // Generate Polar checkout URL with trial parameters
+    const polarApiKey = process.env.POLAR_API_KEY;
+    if (!polarApiKey) {
+      return res.status(500).json({ error: 'Polar API not configured' });
+    }
+
+    const checkoutData = {
+      product_id: plan.external_product_id,
+      customer_email: user.email,
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?checkout=success`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/pricing?checkout=cancelled`,
+      trial_period_days: 14, // 14-day free trial
+      metadata: {
+        user_id: user.id,
+        plan_id: planId,
+        frontend_plan_name: plan.name
+      }
+    };
+
+    const response = await axios.post('https://api.polar.sh/v1/checkouts/', checkoutData, {
+      headers: {
+        'Authorization': `Bearer ${polarApiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const checkoutUrl = response.data.url;
+    
+    res.json({ 
+      checkout_url: checkoutUrl,
+      trial_days: 14,
+      plan_name: plan.name
+    });
+
+  } catch (error) {
+    console.error('Error creating Polar checkout:', error);
+    if (error.response) {
+      console.error('Polar API Error:', error.response.data);
+    }
+    res.status(500).json({ 
+      error: 'Failed to create checkout session',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

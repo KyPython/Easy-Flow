@@ -24,6 +24,9 @@ const PlanGate = ({
 }) => {
   const { planData, loading, hasFeature, isPro } = usePlan();
 
+  // Development bypass
+  const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
+
   // Show loading state
   if (loading) {
     return (
@@ -36,6 +39,9 @@ const PlanGate = ({
 
   // Check feature access
   const hasAccess = (() => {
+    // Development bypass - always grant access in dev mode
+    if (isDevelopment) return true;
+
     if (!planData) return false;
 
     // Check by feature flag
