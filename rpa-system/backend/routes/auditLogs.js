@@ -65,6 +65,19 @@ router.get('/user', async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
+    // --- Per-plan log retention enforcement ---
+    let retentionDays = 30; // Default fallback
+    try {
+      // Use backend supabase client
+      const { data: planData } = await supabase.rpc('get_user_plan_details', { user_uuid: userId });
+      if (planData && planData.plan_limits && planData.plan_limits.full_logging_days) {
+        retentionDays = planData.plan_limits.full_logging_days;
+      }
+    } catch (e) {
+      console.warn('Could not fetch plan retention days, using default:', e.message);
+    }
+    const retentionStart = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
     const {
       startDate,
       endDate,
@@ -75,6 +88,10 @@ router.get('/user', async (req, res) => {
       search
     } = req.query;
 
+    // Enforce retention window
+    const effectiveStart = startDate && new Date(startDate) > retentionStart ? startDate : retentionStart.toISOString();
+    const effectiveEnd = endDate;
+
     let result;
 
     if (search) {
@@ -82,8 +99,8 @@ router.get('/user', async (req, res) => {
       result = await auditLogger.searchAuditLogs(search, {
         userId,
         actionType,
-        startDate,
-        endDate,
+        startDate: effectiveStart,
+        endDate: effectiveEnd,
         limit: parseInt(limit),
         offset: parseInt(offset)
       });
@@ -96,65 +113,21 @@ router.get('/user', async (req, res) => {
     } else {
       // Regular filtered query
       result = await auditLogger.getUserAuditLogs(userId, {
-        startDate,
-        endDate,
+        startDate: effectiveStart,
+        endDate: effectiveEnd,
         actionType,
-        action,
         limit: parseInt(limit),
         offset: parseInt(offset)
       });
     }
 
-    // Log the access
-    await auditLogger.logDataAccess(userId, 'audit_logs', 'read', {
-      filters: req.query,
-      results_count: result.logs.length
-    });
-
     res.json(result);
   } catch (error) {
     console.error('Failed to fetch user audit logs:', error);
-    
-    if (req.user?.id) {
-      await auditLogger.logSystemEvent('error', 'audit_logs_fetch_failed', {
-        error: error.message,
-        endpoint: 'user_audit_logs'
-      }, req.user.id);
-    }
-    
+    await auditLogger.logSystemEvent('error', 'audit_logs_fetch_failed', {
+      error: error.message
+    }, req.user.id);
     res.status(500).json({ error: 'Failed to fetch audit logs' });
-  }
-});
-
-/**
- * GET /api/audit-logs/user/stats
- * Get audit statistics for the current user
- */
-router.get('/user/stats', async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const { timeframe = '24h' } = req.query;
-    const stats = await auditLogger.getAuditStatistics(userId, timeframe);
-
-    await auditLogger.logDataAccess(userId, 'audit_stats', 'read', {
-      timeframe
-    });
-
-    res.json(stats);
-  } catch (error) {
-    console.error('Failed to fetch user audit stats:', error);
-    
-    if (req.user?.id) {
-      await auditLogger.logSystemEvent('error', 'audit_stats_fetch_failed', {
-        error: error.message
-      }, req.user.id);
-    }
-    
-    res.status(500).json({ error: 'Failed to fetch audit statistics' });
   }
 });
 
