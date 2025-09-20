@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import React, { useState } from 'react';
 import { api } from '../../utils/api';
 import styles from './TaskForm.module.css';
 import PropTypes from 'prop-types';
