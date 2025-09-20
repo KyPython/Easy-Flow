@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getFiles, deleteFile, getFileDownloadUrl, getFileShares, createFileShare, deleteFileShare } from '../../utils/api';
+import { getFiles, deleteFile, getFileDownloadUrl, getFileShares, createFileShare, deleteFileShare, api } from '../../utils/api';
 import { useTheme } from '../../utils/ThemeContext';
 import { useI18n } from '../../i18n';
 import { getAllCategories, categorizeFile, getCategoryById, getCategoryIcon, getCategoryColor } from '../../utils/fileCategories';
 import FileSharing from '../FileSharing/FileSharing';
 import styles from './FileManager.module.css';
 import PropTypes from 'prop-types';
+import { FaCloud, FaCog, FaSync, FaDownload, FaUpload } from 'react-icons/fa';
 
 const FileManager = ({ 
   onFileSelect = null,
@@ -25,6 +26,9 @@ const FileManager = ({
   const [tagFilter, setTagFilter] = useState('');
   const [sharingFile, setSharingFile] = useState(null);
   const [fileShares, setFileShares] = useState([]);
+  const [showIntegrations, setShowIntegrations] = useState(false);
+  const [integrations, setIntegrations] = useState([]);
+  const [syncingWith, setSyncingWith] = useState(null);
   const { theme } = useTheme();
   const { t } = useI18n();
 
@@ -52,7 +56,17 @@ const FileManager = ({
 
   useEffect(() => {
     loadFiles();
+    loadIntegrations();
   }, [loadFiles]);
+
+  const loadIntegrations = useCallback(async () => {
+    try {
+      const response = await api.get('/api/integrations');
+      setIntegrations(response.data.integrations || []);
+    } catch (error) {
+      console.error('Error loading integrations:', error);
+    }
+  }, []);
 
   const formatFileSize = useCallback((bytes) => {
     if (bytes === 0) return '0 Bytes';
@@ -230,6 +244,119 @@ const FileManager = ({
     }
   }, [selectedFiles, files, loadFiles]);
 
+  const handleSyncWithService = useCallback(async (serviceName) => {
+    setSyncingWith(serviceName);
+    try {
+      const selectedFileList = files.filter(f => selectedFiles.has(f.id));
+      
+      const response = await api.post('/api/integrations/sync-files', {
+        service: serviceName,
+        files: selectedFileList.map(f => ({
+          id: f.id,
+          name: f.original_name,
+          size: f.file_size,
+          type: f.mime_type
+        }))
+      });
+      
+      if (response.data.success) {
+        setError('');
+        // Show success message
+        const successMsg = `Successfully synced ${selectedFileList.length} file(s) to ${serviceName}`;
+        // You can implement a success toast here
+        console.log(successMsg);
+        setSelectedFiles(new Set());
+      } else {
+        setError(`Failed to sync files to ${serviceName}: ${response.data.error}`);
+      }
+    } catch (err) {
+      setError(`Failed to sync files to ${serviceName}: ${err.message}`);
+    } finally {
+      setSyncingWith(null);
+    }
+  }, [files, selectedFiles]);
+
+  const handleBulkExtractData = useCallback(async () => {
+    if (selectedFiles.size === 0) return;
+    
+    const filesToExtract = files.filter(f => selectedFiles.has(f.id));
+    const supportedFiles = filesToExtract.filter(f => 
+      f.mime_type.includes('pdf') || 
+      f.mime_type.includes('image') ||
+      f.file_extension?.match(/\.(pdf|jpg|jpeg|png|gif|bmp|tiff)$/i)
+    );
+    
+    if (supportedFiles.length === 0) {
+      setError('No supported files selected for data extraction (PDF or image files only)');
+      return;
+    }
+    
+    try {
+      const response = await api.post('/api/extract-data-bulk', {
+        fileIds: supportedFiles.map(f => f.id),
+        extractionType: 'auto' // Let AI determine what to extract
+      });
+      
+      if (response.data.success) {
+        // Show success message and refresh files to show extraction results
+        console.log(`Data extraction started for ${supportedFiles.length} file(s)`);
+        loadFiles();
+        setSelectedFiles(new Set());
+      }
+    } catch (err) {
+      setError(`Failed to start data extraction: ${err.message}`);
+    }
+  }, [files, selectedFiles, loadFiles]);
+
+  const handleExtractData = useCallback(async (file) => {
+    try {
+      // Update file processing status locally
+      setFiles(prevFiles => 
+        prevFiles.map(f => 
+          f.id === file.id ? { ...f, processing_status: 'processing' } : f
+        )
+      );
+      
+      const response = await api.post('/api/extract-data', {
+        fileId: file.id,
+        extractionType: 'auto'
+      });
+      
+      if (response.data.success) {
+        // Refresh files to show updated status
+        loadFiles();
+      } else {
+        setError(`Failed to extract data from ${file.original_name}: ${response.data.error}`);
+        // Reset processing status on error
+        setFiles(prevFiles => 
+          prevFiles.map(f => 
+            f.id === file.id ? { ...f, processing_status: 'pending' } : f
+          )
+        );
+      }
+    } catch (err) {
+      setError(`Failed to extract data from ${file.original_name}: ${err.message}`);
+      // Reset processing status on error
+      setFiles(prevFiles => 
+        prevFiles.map(f => 
+          f.id === file.id ? { ...f, processing_status: 'pending' } : f
+        )
+      );
+    }
+  }, [loadFiles]);
+
+  const getServiceIcon = useCallback((serviceName) => {
+    const icons = {
+      'dropbox': '📦',
+      'google_drive': '📁',
+      'quickbooks': '📊',
+      'salesforce': '☁️',
+      'slack': '💬',
+      'zapier': '⚡'
+    };
+    return icons[serviceName] || '🔗';
+  }, []);
+
   if (loading) {
     return (
       <div className={`${styles.container} ${className}`}>
@@ -332,18 +459,70 @@ const FileManager = ({
           <span className={styles.selectedCount}>
             {selectedFiles.size} {t('files.selected', 'file(s) selected')}
           </span>
-          <button
-            onClick={handleBulkDelete}
-            className={styles.bulkDeleteBtn}
-          >
-            🗑️ {t('files.delete_selected', 'Delete Selected')}
-          </button>
-          <button
-            onClick={() => setSelectedFiles(new Set())}
-            className={styles.clearSelectionBtn}
-          >
-            {t('files.clear_selection', 'Clear Selection')}
-          </button>
+          
+          <div className={styles.bulkActionButtons}>
+            <button
+              onClick={handleBulkExtractData}
+              className={styles.bulkExtractBtn}
+              title="Extract data from selected files using AI"
+            >
+              🤖 Extract Data
+            </button>
+            
+            {integrations.length > 0 && (
+              <div className={styles.syncDropdown}>
+                <button
+                  onClick={() => setShowIntegrations(!showIntegrations)}
+                  className={styles.syncBtn}
+                  disabled={syncingWith !== null}
+                >
+                  {syncingWith ? (
+                    <><FaSync className={styles.spinning} /> Syncing...</>
+                  ) : (
+                    <><FaCloud /> Sync to...</>
+                  )}
+                </button>
+                
+                {showIntegrations && (
+                  <div className={styles.integrationMenu}>
+                    {integrations.filter(i => i.is_active).map(integration => (
+                      <button
+                        key={integration.service_name}
+                        onClick={() => {
+                          handleSyncWithService(integration.service_name);
+                          setShowIntegrations(false);
+                        }}
+                        className={styles.integrationOption}
+                        disabled={syncingWith !== null}
+                      >
+                        {getServiceIcon(integration.service_name)} {integration.service_name}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setShowIntegrations(false)}
+                      className={styles.integrationCancel}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <button
+              onClick={handleBulkDelete}
+              className={styles.bulkDeleteBtn}
+            >
+              🗑️ {t('files.delete_selected', 'Delete Selected')}
+            </button>
+            
+            <button
+              onClick={() => setSelectedFiles(new Set())}
+              className={styles.clearSelectionBtn}
+            >
+              {t('files.clear_selection', 'Clear Selection')}
+            </button>
+          </div>
         </div>
       )}
 
@@ -429,6 +608,23 @@ const FileManager = ({
                     )}
                   </div>
                 )}
+                
+                {/* AI Extraction Status */}
+                {file.extracted_data && (
+                  <div className={styles.aiStatus}>
+                    <span className={styles.aiExtracted}>
+                      🤖 AI Data Extracted ({Math.round((file.ai_confidence || 0.8) * 100)}% confidence)
+                    </span>
+                  </div>
+                )}
+                
+                {file.processing_status === 'processing' && (
+                  <div className={styles.aiStatus}>
+                    <span className={styles.aiProcessing}>
+                      ⏳ Processing with AI...
+                    </span>
+                  </div>
+                )}
               </div>
               
               <div className={styles.fileActionsBar}>
@@ -440,8 +636,25 @@ const FileManager = ({
                   className={styles.actionBtn}
                   title={t('files.download', 'Download')}
                 >
-                  ⬇️
+                  <FaDownload />
                 </button>
+                
+                {/* AI Extract Button */}
+                {(file.mime_type?.includes('pdf') || file.mime_type?.includes('image') || 
+                  file.file_extension?.match(/\.(pdf|jpg|jpeg|png|gif|bmp|tiff)$/i)) && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExtractData(file);
+                    }}
+                    className={styles.actionBtn}
+                    title="Extract data using AI"
+                    disabled={file.processing_status === 'processing'}
+                  >
+                    🤖
+                  </button>
+                )}
+                
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

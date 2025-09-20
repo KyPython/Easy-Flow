@@ -19,6 +19,7 @@ import SettingsPage from './pages/SettingsPage';
 import AdminTemplates from './pages/AdminTemplates';
 import WorkflowPage from './components/WorkflowBuilder/WorkflowPage';
 import SharedFilePage from './pages/SharedFilePage';
+import BulkInvoiceProcessor from './components/BulkProcessor/BulkInvoiceProcessor';
 import Chatbot from './components/Chatbot/Chatbot';
 import './utils/firebaseConfig';
 import './theme.css';
@@ -78,6 +79,7 @@ function Shell() {
           <Route path="/app/tasks" element={<Protected><TasksPage /></Protected>} />
           <Route path="/app/history" element={<Protected><HistoryPage /></Protected>} />
           <Route path="/app/files" element={<Protected><FilesPage /></Protected>} />
+          <Route path="/app/bulk-processor" element={<Protected><BulkInvoiceProcessor /></Protected>} />
           <Route path="/app/settings" element={<Protected><SettingsPage /></Protected>} />
           <Route path="/app/workflows" element={<Protected><WorkflowPage /></Protected>} />
           <Route path="/app/workflows/builder" element={<Protected><WorkflowPage /></Protected>} />

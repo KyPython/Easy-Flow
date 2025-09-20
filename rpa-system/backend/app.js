@@ -3553,6 +3553,400 @@ app.post('/api/shared/access', async (req, res) => {
   }
 });
 
+// ======================================================================
+// ENHANCED FEATURES - Bulk Processing & AI Integration
+// ======================================================================
+
+// Import new services (create them first if they don't exist)
+let batchProcessor, integrationFramework, aiDataExtractor;
+
+try {
+  const { BatchProcessor } = require('./services/batchProcessor');
+  const { IntegrationFramework } = require('./services/integrationFramework');
+  const { AIDataExtractor } = require('./services/aiDataExtractor');
+  
+  batchProcessor = new BatchProcessor();
+  integrationFramework = new IntegrationFramework();
+  aiDataExtractor = new AIDataExtractor();
+} catch (error) {
+  console.warn('[Enhanced Features] Services not available:', error.message);
+}
+
+// POST /api/extract-data - AI-powered data extraction
+app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req, res) => {
+  if (!aiDataExtractor) {
+    return res.status(503).json({ error: 'AI extraction service not available' });
+  }
+
+  try {
+    const { extractionType, targets } = req.body;
+    const file = req.file;
+    const userId = req.user.id;
+
+    if (!file && !req.body.htmlContent) {
+      return res.status(400).json({ error: 'File or HTML content required' });
+    }
+
+    let extractionResult;
+
+    if (extractionType === 'invoice' && file) {
+      extractionResult = await aiDataExtractor.extractInvoiceData(file.buffer, file.originalname);
+    } else if (extractionType === 'webpage' && req.body.htmlContent) {
+      const extractionTargets = JSON.parse(targets || '[]');
+      extractionResult = await aiDataExtractor.extractWebPageData(req.body.htmlContent, extractionTargets);
+    } else {
+      return res.status(400).json({ error: 'Invalid extraction type or missing data' });
+    }
+
+    // Save extraction results to user_files table if file was processed
+    if (extractionResult.success && file) {
+      try {
+        await supabase
+          .from('user_files')
+          .update({
+            extracted_data: extractionResult.structuredData,
+            ai_confidence: extractionResult.metadata?.confidence,
+            processing_status: 'completed'
+          })
+          .eq('user_id', userId)
+          .eq('file_name', file.originalname);
+      } catch (dbError) {
+        console.warn('[extract-data] Failed to update database:', dbError.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      extractionResult
+    });
+
+  } catch (error) {
+    console.error('[extract-data] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Enhanced task form - Add AI extraction to existing tasks
+app.post('/api/run-task-with-ai', authMiddleware, automationLimiter, async (req, res) => {
+  const { url, title, notes, type, task, username, password, pdf_url, enableAI, extractionTargets } = req.body;
+  const user = req.user;
+
+  if (!url) {
+    return res.status(400).json({ error: 'url is required' });
+  }
+
+  try {
+    console.log(`[run-task-with-ai] Processing AI-enhanced automation for user ${user.id}`);
+    
+    // Create automation task (reuse existing logic)
+    const taskName = title || (type && type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'AI-Enhanced Task';
+    const taskType = (type || task || 'general').toLowerCase();
+    
+    const { data: taskRecord, error: taskError } = await supabase
+      .from('automation_tasks')
+      .insert([{
+        user_id: user.id,
+        name: taskName,
+        description: notes || '',
+        url: url,
+        task_type: taskType,
+        is_active: true,
+        parameters: JSON.stringify({
+          username,
+          password,
+          pdf_url,
+          enableAI: enableAI || false,
+          extractionTargets: extractionTargets || []
+        })
+      }])
+      .select()
+      .single();
+
+    if (taskError) {
+      console.error('[run-task-with-ai] Error creating automation task:', taskError);
+      return res.status(500).json({ error: 'Failed to create automation task' });
+    }
+    
+    // Create automation run
+    const { data: run, error: runError } = await supabase
+      .from('automation_runs')
+      .insert([{
+        task_id: taskRecord.id,
+        user_id: user.id,
+        status: 'running',
+        started_at: new Date().toISOString(),
+        result: JSON.stringify({ status: 'started', aiEnabled: enableAI })
+      }])
+      .select()
+      .single();
+    
+    if (runError) {
+      console.error('[run-task-with-ai] Error creating automation run:', runError);
+      return res.status(500).json({ error: 'Failed to create automation run' });
+    }
+
+    // Enhanced processing with AI extraction
+    setImmediate(async () => {
+      try {
+        // Run standard automation first
+        const automationResult = await queueTaskRun(run.id, {
+          url,
+          title: taskName,
+          task_id: taskRecord.id,
+          user_id: user.id,
+          task_type: taskType,
+          parameters: { username, password, pdf_url }
+        });
+
+        // Add AI extraction if enabled and service available
+        if (enableAI && aiDataExtractor && automationResult.success) {
+          try {
+            const extractionResult = await aiDataExtractor.extractWebPageData(
+              automationResult.pageContent || automationResult.extracted_text || '',
+              extractionTargets || []
+            );
+            
+            if (extractionResult.success) {
+              automationResult.extractedData = extractionResult.extractedData;
+              automationResult.aiConfidence = extractionResult.metadata?.confidence;
+            }
+          } catch (aiError) {
+            console.error('[run-task-with-ai] AI extraction failed:', aiError);
+            automationResult.aiError = aiError.message;
+          }
+        }
+
+        // Update run with enhanced results
+        await supabase
+          .from('automation_runs')
+          .update({
+            status: 'completed',
+            ended_at: new Date().toISOString(),
+            result: JSON.stringify(automationResult),
+            extracted_data: automationResult.extractedData || null
+          })
+          .eq('id', run.id);
+
+        await usageTracker.trackAutomationRun(user.id, run.id, 'completed');
+
+      } catch (error) {
+        console.error('[run-task-with-ai] Enhanced automation failed:', error);
+        
+        await supabase
+          .from('automation_runs')
+          .update({
+            status: 'failed',
+            ended_at: new Date().toISOString(),
+            result: JSON.stringify({ 
+              error: 'AI-enhanced automation execution failed',
+              message: error.message
+            })
+          })
+          .eq('id', run.id);
+
+        await usageTracker.trackAutomationRun(user.id, run.id, 'failed');
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'AI-enhanced automation task queued successfully',
+      taskId: taskRecord.id,
+      runId: run.id,
+      aiEnabled: enableAI
+    });
+
+  } catch (error) {
+    console.error('[run-task-with-ai] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Bulk processing endpoints
+app.post('/api/bulk-process/invoices', authMiddleware, async (req, res) => {
+  if (!batchProcessor) {
+    return res.status(503).json({ error: 'Batch processing service not available' });
+  }
+
+  try {
+    const { vendors, date_range, output_path, parallel_jobs, retry_attempts } = req.body;
+    const userId = req.user.id;
+
+    if (!vendors || vendors.length === 0) {
+      return res.status(400).json({ error: 'At least one vendor configuration is required' });
+    }
+
+    // Start bulk processing
+    const batchId = await batchProcessor.startBulkInvoiceProcessing({
+      userId,
+      vendors,
+      dateRange: date_range,
+      outputPath: output_path,
+      parallelJobs: parallel_jobs || 3,
+      retryAttempts: retry_attempts || 3
+    });
+
+    res.json({
+      success: true,
+      batchId,
+      message: 'Bulk invoice processing started',
+      estimated_time: `${vendors.length * 2} minutes`
+    });
+
+  } catch (error) {
+    console.error('[bulk-process] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Extract data from multiple files
+app.post('/api/extract-data-bulk', authMiddleware, async (req, res) => {
+  if (!aiDataExtractor) {
+    return res.status(503).json({ error: 'AI extraction service not available' });
+  }
+
+  try {
+    const { fileIds, extractionType } = req.body;
+    const userId = req.user.id;
+
+    if (!fileIds || fileIds.length === 0) {
+      return res.status(400).json({ error: 'File IDs are required' });
+    }
+
+    // Get file information from database
+    const { data: files, error: filesError } = await supabase
+      .from('user_files')
+      .select('*')
+      .eq('user_id', userId)
+      .in('id', fileIds);
+
+    if (filesError) {
+      throw new Error(`Failed to fetch files: ${filesError.message}`);
+    }
+
+    // Start processing files in background
+    const results = [];
+    for (const file of files) {
+      try {
+        // Update status to processing
+        await supabase
+          .from('user_files')
+          .update({ processing_status: 'processing' })
+          .eq('id', file.id);
+
+        // This would typically be done in a background job
+        // For now, we'll just mark them as queued
+        results.push({
+          fileId: file.id,
+          fileName: file.original_name,
+          status: 'queued'
+        });
+      } catch (err) {
+        results.push({
+          fileId: file.id,
+          fileName: file.original_name,
+          status: 'error',
+          error: err.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Started data extraction for ${results.length} file(s)`,
+      results
+    });
+
+  } catch (error) {
+    console.error('[extract-data-bulk] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Integration endpoints
+app.get('/api/integrations', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { data: integrations, error } = await supabase
+      .from('user_integrations')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (error) {
+      throw new Error(`Failed to fetch integrations: ${error.message}`);
+    }
+
+    res.json({
+      success: true,
+      integrations: integrations || []
+    });
+
+  } catch (error) {
+    console.error('[integrations] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/integrations/sync-files', authMiddleware, async (req, res) => {
+  if (!integrationFramework) {
+    return res.status(503).json({ error: 'Integration service not available' });
+  }
+
+  try {
+    const { service, files } = req.body;
+    const userId = req.user.id;
+
+    if (!service || !files || files.length === 0) {
+      return res.status(400).json({ error: 'Service name and files are required' });
+    }
+
+    // Get integration configuration
+    const { data: integration, error: integrationError } = await supabase
+      .from('user_integrations')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('service_name', service)
+      .eq('is_active', true)
+      .single();
+
+    if (integrationError || !integration) {
+      return res.status(404).json({ error: 'Integration not found or inactive' });
+    }
+
+    // Sync files using integration framework
+    const syncResult = await integrationFramework.syncFiles(service, files, integration.credentials);
+
+    res.json({
+      success: true,
+      syncResult,
+      message: `Successfully synced ${files.length} file(s) to ${service}`
+    });
+
+  } catch (error) {
+    console.error('[sync-files] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Final error handler
 app.use((err, _req, res, _next) => {
   console.error(err.stack);

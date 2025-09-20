@@ -148,6 +148,14 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
             </div>
           </button>
 
+          <button className={styles.actionCard} onClick={() => navigate('/app/bulk-processor')}>
+            <div className={styles.actionIcon}>🧾</div>
+            <div className={styles.actionText}>
+              <div className={styles.actionTitle}>Bulk Processing</div>
+              <div className={styles.actionDesc}>Process multiple invoices & documents</div>
+            </div>
+          </button>
+
           <button className={styles.actionCard} onClick={() => navigate('/app/settings')}>
             <div className={styles.actionIcon}>⚙️</div>
             <div className={styles.actionText}>
