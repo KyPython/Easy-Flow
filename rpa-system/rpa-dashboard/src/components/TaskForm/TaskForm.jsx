@@ -296,6 +296,12 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
                       <strong>AI-Powered Data Extraction (Starter+)</strong>
                       <p>Upgrade to automatically extract structured data from invoices, forms, and documents with AI.</p>
                     </div>
+                    <button 
+                      className={styles.upgradeButton}
+                      onClick={() => window.location.href = '/pricing'}
+                    >
+                      ⚡ Upgrade Now
+                    </button>
                   </div>
                 </div>
               </div>
