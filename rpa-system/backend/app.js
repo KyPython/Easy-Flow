@@ -447,10 +447,18 @@ if (process.env.NODE_ENV === 'test') {
 } else if (process.env.NODE_ENV !== 'production') {
   // Only enable CSRF in development
   app.use('/api', (req, res, next) => {
-    // Skip CSRF for GET requests and webhooks
-    if (req.method === 'GET' || req.path.startsWith('/api/polar-webhook')) {
+    // Skip CSRF for GET requests, webhooks, and checkout endpoints
+    console.log(`CSRF Check: ${req.method} ${req.url} | path: ${req.path}`);
+    
+    if (req.method === 'GET' || 
+        req.url.includes('/polar-webhook') || 
+        req.url.includes('/checkout/') ||
+        req.path.includes('/polar-webhook') ||
+        req.path.includes('/checkout/')) {
+      console.log('CSRF: Skipping CSRF for this request');
       return next();
     }
+    console.log('CSRF: Applying CSRF protection');
     return csrfProtection(req, res, next);
   });
 } else {
