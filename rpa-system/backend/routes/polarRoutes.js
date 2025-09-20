@@ -1,3 +1,15 @@
+const express = require('express');
+const crypto = require('crypto');
+const { createClient } = require('@supabase/supabase-js');
+
+const router = express.Router();
+const requireFeature = require('../middleware/planEnforcement');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
+);
+
 // Canonical checkout endpoint: returns all plans/features/pricing for Polar checkout
 router.get('/checkout', async (req, res) => {
   try {
@@ -29,17 +41,6 @@ router.get('/checkout', async (req, res) => {
     return res.status(500).json({ error: 'Failed to fetch plans for checkout', details: err.message || String(err) });
   }
 });
-const express = require('express');
-const crypto = require('crypto');
-const { createClient } = require('@supabase/supabase-js');
-
-const router = express.Router();
-const requireFeature = require('../middleware/planEnforcement');
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
-);
 
 function verifyPolarWebhook(rawBody, signature, secret) {
   if (!secret || !signature) {

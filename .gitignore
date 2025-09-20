@@ -13,6 +13,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+
 # Environment Files (CRITICAL SECURITY) - ALL ENV FILES FORBIDDEN
 .env*
 .environment*
@@ -20,15 +21,6 @@ pnpm-debug.log*
 **/.environment*
 *.env*
 *.environment*
-
-# Specific environment patterns
-.env
-.env.local
-.env.*.local
-.env.production
-.env.development
-.env.staging
-.env.test
 # allow examples/templates to be tracked
 !.env.example
 !.env.sample
@@ -36,6 +28,15 @@ pnpm-debug.log*
 !**/.env.example
 !**/.env.sample
 !**/.env.template
+
+## Block all other env files
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.staging
+.env.test
 .env.render
 .env.vercel
 .env.heroku

@@ -10,12 +10,19 @@ migrations/*.sql
 **/migrations/*.sql
 
 # Environment files
-.env
-.env.*
-backend/.env
-backend/.env.*
-rpa-dashboard/.env
-rpa-dashboard/.env.*
+.env*
+.environment*
+**/.env*
+**/.environment*
+*.env*
+*.environment*
+# allow examples/templates to be tracked
+!.env.example
+!.env.sample
+!.env.template
+!**/.env.example
+!**/.env.sample
+!**/.env.template
 
 # New Relic monitoring files
 newrelic_agent.log

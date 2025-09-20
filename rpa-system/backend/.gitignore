@@ -1,3 +1,17 @@
+# All environment files (security)
+.env*
+.environment*
+**/.env*
+**/.environment*
+*.env*
+*.environment*
+# allow examples/templates to be tracked
+!.env.example
+!.env.sample
+!.env.template
+!**/.env.example
+!**/.env.sample
+!**/.env.template
 # Ignore all test files
 **/tests/
 **/*.test.js

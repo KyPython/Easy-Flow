@@ -19,7 +19,6 @@
 .env*
 .environment*
 **/.env*
-
 # allow examples/templates to be tracked
 !.env.example
 !.env.sample
