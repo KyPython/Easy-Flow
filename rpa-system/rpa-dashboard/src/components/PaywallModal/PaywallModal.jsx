@@ -21,7 +21,7 @@ const PaywallModal = ({
   const handleClose = () => {
     setIsClosing(true);
     setTimeout(() => {
-      onClose?.();
+      if (onClose) onClose();
     }, 200);
   };
 
@@ -34,7 +34,7 @@ const PaywallModal = ({
     // Development bypass - close modal and allow access
     setIsClosing(true);
     setTimeout(() => {
-      onClose?.();
+      if (onClose) onClose();
     }, 200);
   };
 

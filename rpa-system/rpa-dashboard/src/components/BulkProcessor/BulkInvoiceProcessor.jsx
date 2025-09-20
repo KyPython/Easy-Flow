@@ -208,10 +208,16 @@ const BulkInvoiceProcessor = () => {
     }
   };
 
+  // Handler to route to dashboard tab when paywall is closed
+  const handlePaywallClose = () => {
+    window.location.href = '/dashboard?tab=bulk';
+  };
+
   return (
     <PlanGate 
       requiredPlan="professional"
       upgradeMessage="Bulk processing is available on Professional and Enterprise plans. Process hundreds of invoices simultaneously with AI-powered automation."
+      onPaywallClose={handlePaywallClose}
     >
       <div className={`${styles.bulkProcessor} ${theme === 'dark' ? styles.darkTheme : ''}`}>
       <div className={styles.header}>

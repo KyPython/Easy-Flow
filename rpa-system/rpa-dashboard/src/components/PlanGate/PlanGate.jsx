@@ -89,6 +89,7 @@ const PlanGate = ({
         feature={feature}
         requiredPlan={requiredPlan}
         message={upgradeMessage}
+        onClose={props.onPaywallClose}
       />
     );
   }
@@ -97,13 +98,15 @@ const PlanGate = ({
   return null;
 };
 
+
 PlanGate.propTypes = {
   children: PropTypes.node.isRequired,
   feature: PropTypes.string,
   requiredPlan: PropTypes.oneOf(['starter', 'professional', 'enterprise']),
   fallback: PropTypes.node,
   showUpgrade: PropTypes.bool,
-  upgradeMessage: PropTypes.string
+  upgradeMessage: PropTypes.string,
+  onPaywallClose: PropTypes.func
 };
 
 export default PlanGate;
