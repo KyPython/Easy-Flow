@@ -1,0 +1,8 @@
+# Ignore all test files
+**/tests/
+**/*.test.js
+**/*.test.jsx
+**/*.test.ts
+**/*.test.tsx
+**/test_*.py
+**/tests_*.py
