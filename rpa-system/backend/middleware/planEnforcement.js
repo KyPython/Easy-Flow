@@ -31,20 +31,6 @@ function requireFeature(featureKey) {
 }
 
 module.exports = requireFeature;
-        current_plan: planData.plan.name,
-        limit: planData.limits.workflows,
-        upgrade_required: true
-      });
-    }
-
-    // Add plan data to request for use in route handlers
-    req.planData = planData;
-    next();
-  } catch (error) {
-    console.error('Plan enforcement error:', error);
-    res.status(500).json({ error: 'Failed to check plan limits' });
-  }
-};
 
 // Middleware: Check if user can run automation
 const requireAutomationRun = async (req, res, next) => {
