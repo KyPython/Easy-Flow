@@ -86,10 +86,9 @@ const PlanGate = ({
     return currentPlan === required;
   })();
 
-  // If user has access or is already on the required plan, render children
+  // If user has access or is already on the required plan, render children (never show a modal)
   if (hasAccess || isOnRequiredPlan) {
     if (!children) return null;
-    // If children is an array, wrap in a fragment; if single, return directly
     if (Array.isArray(children)) {
       return <React.Fragment>{children}</React.Fragment>;
     }

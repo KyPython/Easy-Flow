@@ -179,7 +179,7 @@ const PaywallModal = ({
     };
   };
 
-  // Don't show upgrade UI if user is already on the required plan
+  // Don't show any modal if user is already on the required plan
   const isOnRequiredPlan = (() => {
     if (!planData || !requiredPlan) return false;
     const currentPlan = planData.plan?.name?.toLowerCase();
@@ -188,31 +188,7 @@ const PaywallModal = ({
   })();
 
   if (isOnRequiredPlan) {
-    return (
-      <div className={`${styles.overlay} ${isClosing ? styles.closing : ''}`}>
-        <div className={`${styles.modal} ${isClosing ? styles.modalClosing : ''}`}>
-          <div className={styles.header}>
-            <div className={styles.headerContent}>
-              <div className={styles.icon}>
-                <FiZap />
-              </div>
-              <div>
-                <h2>Already on {getRequiredPlanDisplay()}</h2>
-                <p>You already have access to this feature with your current plan.</p>
-              </div>
-            </div>
-            <button onClick={handleClose} className={styles.closeBtn}>
-              <FiX />
-            </button>
-          </div>
-          <div className={styles.actions}>
-            <button onClick={handleClose} className={styles.cancelBtn}>
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
