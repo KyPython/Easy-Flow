@@ -107,26 +107,11 @@ const HistoryPage = () => {
 
   if (loading) return <div className={styles.container}><p>{t('history.loading','Loading automation history...')}</p></div>;
 
-  const { planData } = usePlan();
-  // Determine retention info from planData
-  const retentionDays = planData?.limits?.full_logging_days || planData?.limits?.basic_logging_days || 0;
-  const hasAuditLogs = planData?.limits?.audit_logs === true;
 
   return (
     <div className={styles.container}>
       <ErrorMessage message={error} />
 
-      {/* Retention notice if limited */}
-      {retentionDays > 0 && (
-        <div className={styles.infoBanner}>
-          <strong>Note:</strong> Your plan retains run history and audit logs for <b>{retentionDays} days</b>. Older logs are automatically deleted. Upgrade for longer retention.
-        </div>
-      )}
-      {retentionDays === 0 && (
-        <div className={styles.infoBanner}>
-          <strong>Note:</strong> Your plan does not include run history or audit logs. Upgrade to unlock these features.
-        </div>
-      )}
 
       {runs.length === 0 && !error ? (
         <div className={styles.emptyState}>
