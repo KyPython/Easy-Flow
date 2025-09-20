@@ -6,6 +6,21 @@
     <meta name="theme-color" content="#2563eb" />
     <!-- Permissions policy to control feature access -->
     <meta http-equiv="Permissions-Policy" content="fullscreen=(self), camera=(), microphone=(), geolocation=()" />
+      <meta
+        http-equiv="Content-Security-Policy"
+        content="
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com;
+          connect-src 'self' https://*.firebase.com https://*.firebaseio.com wss://*.firebaseio.com https://*.googleapis.com https://fcm.googleapis.com https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://stats.g.doubleclick.net;
+          frame-src 'self' https://*.firebaseio.com;
+          img-src 'self' data: https://www.google-analytics.com https://stats.g.doubleclick.net;
+          style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+          font-src 'self' https://fonts.gstatic.com;
+          object-src 'none';
+          base-uri 'self';
+          form-action 'self';
+        "
+      >
     <meta
       name="description"
       content="EasyFlow - Streamline your workflow automation"
