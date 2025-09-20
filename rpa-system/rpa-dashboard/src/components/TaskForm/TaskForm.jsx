@@ -4,31 +4,90 @@ import styles from './TaskForm.module.css';
 import PropTypes from 'prop-types';
 import { useToast } from '../WorkflowBuilder/Toast';
 import PlanGate from '../PlanGate/PlanGate';
-
-const token = localStorage.getItem('sb-syxzilyuysdoirnezgii-auth-token');
-const parsedToken = (() => {
-  try {
-    return JSON.parse(token);
-  } catch {
-    return token;
-  }
-})();
-const accessToken = parsedToken?.access_token || parsedToken;
-
-const TaskForm = ({ onTaskSubmit, loading }) => {
-  const { error: showError, warning: showWarning, success: showSuccess } = useToast();
-  const [form, setForm] = useState({
-    url: '',
-    username: '',
-    password: '',
-    task: 'invoice_download',
-    pdf_url: '',
-    selector: '', // for data_extraction
-    enableAI: false, // NEW: Enable AI-powered extraction
-    extractionTargets: [] // NEW: What data to extract
-  });
-
-  const [errors, setErrors] = useState({});
+  return (
+    <div className={styles.container}>
+      <form onSubmit={handleSubmit} className={styles.form} autoComplete="off">
+        {/* ...existing form fields... */}
+        {/* AI Enhancement Section */}
+        <PlanGate 
+          requiredPlan="starter"
+          upgradeMessage="AI-powered data extraction is available on Starter and higher plans. Extract structured data from documents and web pages with 95%+ accuracy."
+          fallback={
+            <div className={styles.formGroup}>
+              <div className={styles.aiSection}>
+                <div className={styles.upgradeBanner}>
+                  <span className={styles.aiIcon}>🤖</span>
+                  <div>
+                    <strong>AI-Powered Data Extraction (Starter+)</strong>
+                    <p>Upgrade to automatically extract structured data from invoices, forms, and documents with AI.</p>
+                  </div>
+                  <button 
+                    className={styles.upgradeButton}
+                    onClick={() => window.location.href = '/pricing'}
+                  >
+                    ⚡ Upgrade Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+        >
+          <div className={styles.formGroup}>
+            <div className={styles.aiSection}>
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={form.enableAI}
+                  onChange={(e) => setForm({...form, enableAI: e.target.checked})}
+                  className={styles.checkbox}
+                />
+                <span className={styles.aiIcon}>🤖</span>
+                Enable AI-Powered Data Extraction
+              </label>
+              <div className={styles.helperText}>
+                <b>What is this?</b> Use AI to intelligently extract structured data from the page content (invoices, contacts, products, etc.)
+              </div>
+            </div>
+            {form.enableAI && (
+              <div className={styles.aiConfig}>
+                <label htmlFor="extractionTargets" className={styles.label}>
+                  What data should we extract? <span className={styles.optional}>(Optional)</span>
+                </label>
+                <textarea
+                  id="extractionTargets"
+                  value={form.extractionTargets.map(target => `${target.name}: ${target.description}`).join('\n')}
+                  onChange={(e) => {
+                    const lines = e.target.value.split('\n').filter(line => line.trim());
+                    const targets = lines.map(line => {
+                      const [name, ...descParts] = line.split(':');
+                      return {
+                        name: name.trim(),
+                        description: descParts.join(':').trim() || name.trim()
+                      };
+                    });
+                    setForm({...form, extractionTargets: targets});
+                  }}
+                  placeholder={`vendor_name: Company or vendor name\ninvoice_amount: Total amount due\ndue_date: Payment due date\ncontact_email: Email address`}
+                  className={styles.textarea}
+                  rows={4}
+                />
+                <div className={styles.helperText}>
+                  <b>Format:</b> One item per line as &quot;field_name: description&quot;. Leave blank for automatic detection.
+                </div>
+              </div>
+            )}
+          </div>
+        </PlanGate>
+        <div className={styles.actions}>
+          <button type="submit" disabled={isSubmitting || loading} className={styles.submitButton}>
+            {isSubmitting ? <>
+              <span className={styles.spinner}></span> Executing...
+            </> : 'Run Automation'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const taskTypes = [
@@ -120,7 +179,6 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
       onTaskSubmit?.(completedTask);
 
       setForm({ url: '', username: '', password: '', task: 'invoice_download', pdf_url: '' });
-      
       // Show success feedback based on actual response data
       if (completedTask?.status === 'queued') {
         const taskId = completedTask.id ? ` (ID: ${completedTask.id.slice(0, 8)}...)` : '';
@@ -130,77 +188,6 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
       } else {
         showSuccess('Task submitted successfully!');
       }
-    } catch (error) {
-      // Only log error in non-production
-      if (process.env.NODE_ENV !== 'production') {
-        // eslint-disable-next-line no-console
-        console.error('Task submission failed:', error);
-      }
-      // Provide user-friendly error message
-      let userMessage = 'Task submission failed. Please try again.';
-      if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
-        userMessage = 'Request timed out. The task is heavy or the server is busy. Please check the Runs tab shortly.';
-      } else if (error.message?.includes('Network Error') || error.message?.includes('CORS')) {
-        userMessage = 'Unable to reach the server. Is the backend running on :3030?';
-      } else if (error.response?.status === 401) {
-        userMessage = 'Authentication error. Please sign in again.';
-      } else if (error.response?.status >= 500) {
-        userMessage = 'Server error. Please try again in a moment.';
-      }
-      showWarning(userMessage);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-
-  return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Create New Automation Task</h2>
-        <p className={styles.subtitle}>Configure and execute your business process automation</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className={styles.form}>
-        <div className={styles.formGrid}>
-          <div className={styles.formGroup}>
-            <label htmlFor="task" className={styles.label}>Task Type</label>
-            <select
-              id="task"
-              name="task"
-              value={form.task}
-              onChange={handleChange}
-              className={styles.select}
-              required
-              title="Choose what you want EasyFlow to do for you."
-            >
-              {taskTypes.map(type => (
-                <option key={type.value} value={type.value}>{type.label}</option>
-              ))}
-            </select>
-            <div className={styles.helperText}>
-              <b>What is this?</b> Select the kind of automation you want. For example, &apos;Invoice Download&apos; will fetch a PDF from a website for you.
-            </div>
-          </div>
-
-          <div className={styles.formGroup}>
-            <label htmlFor="url" className={styles.label}>Target URL <span className={styles.required}>*</span></label>
-            <input
-              type="url"
-              id="url"
-              name="url"
-              value={form.url}
-              onChange={handleChange}
-              placeholder="https://example.com"
-              className={`${styles.input} ${errors.url ? styles.error : ''}`}
-              required
-              title="Paste the website address you want to automate."
-            />
-            <div className={styles.helperText}>
-              <b>What is this?</b> The web address (URL) of the page you want EasyFlow to work with. Example: <code>https://amazon.com/invoice</code>
-            </div>
-            {errors.url && <span className={styles.errorText}>{errors.url}</span>}
-          </div>
 
           <div className={styles.formGroup}>
             <label htmlFor="username" className={styles.label}>Username/Email</label>
@@ -282,6 +269,68 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
               {errors.selector && <span className={styles.errorText}>{errors.selector}</span>}
             </div>
           )}
+
+          {/* AI Enhancement Section (no paywall, just disabled UI if not allowed) */}
+          <div className={styles.formGroup}>
+            <div className={styles.aiSection}>
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={form.enableAI}
+                  onChange={(e) => setForm({...form, enableAI: e.target.checked})}
+                  className={styles.checkbox}
+                  disabled={true} // Always disabled for Hobbyist, enable with real plan check if needed
+                />
+                <span className={styles.aiIcon}>🤖</span>
+                Enable AI-Powered Data Extraction
+              </label>
+              <div className={styles.helperText}>
+                <b>What is this?</b> Use AI to intelligently extract structured data from the page content (invoices, contacts, products, etc.)
+              </div>
+              <div className={styles.upgradeBanner}>
+                <span className={styles.aiIcon}>🤖</span>
+                <div>
+                  <strong>AI-Powered Data Extraction (Starter+)</strong>
+                  <p>Upgrade to automatically extract structured data from invoices, forms, and documents with AI.</p>
+                </div>
+                <button 
+                  className={styles.upgradeButton}
+                  onClick={() => window.location.href = '/pricing'}
+                >
+                  ⚡ Upgrade Now
+                </button>
+              </div>
+            </div>
+            {/* The textarea for extraction targets is only shown if enabled, which is never for Hobbyist */}
+            {form.enableAI && false && (
+              <div className={styles.aiConfig}>
+                <label htmlFor="extractionTargets" className={styles.label}>
+                  What data should we extract? <span className={styles.optional}>(Optional)</span>
+                </label>
+                <textarea
+                  id="extractionTargets"
+                  value={form.extractionTargets.map(target => `${target.name}: ${target.description}`).join('\n')}
+                  onChange={(e) => {
+                    const lines = e.target.value.split('\n').filter(line => line.trim());
+                    const targets = lines.map(line => {
+                      const [name, ...descParts] = line.split(':');
+                      return {
+                        name: name.trim(),
+                        description: descParts.join(':').trim() || name.trim()
+                      };
+                    });
+                    setForm({...form, extractionTargets: targets});
+                  }}
+                  placeholder={`vendor_name: Company or vendor name\ninvoice_amount: Total amount due\ndue_date: Payment due date\ncontact_email: Email address`}
+                  className={styles.textarea}
+                  rows={4}
+                />
+                <div className={styles.helperText}>
+                  <b>Format:</b> One item per line as &quot;field_name: description&quot;. Leave blank for automatic detection.
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* AI Enhancement Section */}
           <PlanGate 
