@@ -1,3 +1,34 @@
+// Canonical checkout endpoint: returns all plans/features/pricing for Polar checkout
+router.get('/checkout', async (req, res) => {
+  try {
+    // Fetch all plans with their features and external product IDs
+    const { data: plans, error } = await supabase
+      .from('plans')
+      .select('*');
+    if (error) throw error;
+
+    // Fetch all features (if you have a features table, otherwise skip)
+    let features = [];
+    if (supabase.from('features')) {
+      const { data: featuresData, error: featuresError } = await supabase
+        .from('features')
+        .select('*');
+      if (!featuresError && featuresData) features = featuresData;
+    }
+
+    // Optionally, fetch feature order/labels from a config table if you have one
+    // For now, just return plans and features
+    return res.json({
+      plans: plans || [],
+      features: features || [],
+      source: 'supabase',
+      fetched_at: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('[GET /api/checkout/polar] Error:', err.message || err);
+    return res.status(500).json({ error: 'Failed to fetch plans for checkout', details: err.message || String(err) });
+  }
+});
 const express = require('express');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
