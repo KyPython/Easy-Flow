@@ -1,5 +1,4 @@
 import React from 'react';
-
 const InviteModal = () => {
   // TODO: Implement invite modal and backend integration
   return (

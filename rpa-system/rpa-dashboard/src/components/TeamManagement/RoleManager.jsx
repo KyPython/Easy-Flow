@@ -1,5 +1,4 @@
 import React from 'react';
-
 const RoleManager = () => {
   // TODO: Implement role management UI and backend integration
   return (
