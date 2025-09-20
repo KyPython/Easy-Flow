@@ -70,6 +70,7 @@ const PlanGate = ({
       };
       const currentLevel = planHierarchy[currentPlan] || 0;
       const requiredLevel = planHierarchy[required] || 0;
+      // Only show paywall if current plan is strictly less than required
       return currentLevel >= requiredLevel;
     }
 
@@ -77,9 +78,22 @@ const PlanGate = ({
     return false;
   })();
 
-  // If user has access, render children
-  if (hasAccess) {
-    return <>{children}</>;
+  // Prevent paywall if user is already on the required plan
+  const isOnRequiredPlan = (() => {
+    if (!planData || !requiredPlan) return false;
+    const currentPlan = planData.plan?.name?.toLowerCase();
+    const required = requiredPlan.toLowerCase();
+    return currentPlan === required;
+  })();
+
+  // If user has access or is already on the required plan, render children
+  if (hasAccess || isOnRequiredPlan) {
+    if (!children) return null;
+    // If children is an array, wrap in a fragment; if single, return directly
+    if (Array.isArray(children)) {
+      return <React.Fragment>{children}</React.Fragment>;
+    }
+    return children;
   }
 
   // If custom fallback provided, use it
