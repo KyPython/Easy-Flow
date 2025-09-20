@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import PlanGate from '../components/PlanGate/PlanGate';
+import { usePlan } from '../hooks/usePlan';
 import { useI18n } from '../i18n';
 import TaskList from '../components/TaskList/TaskList';
 import { useAuth } from '../utils/AuthContext';
@@ -107,57 +107,72 @@ const HistoryPage = () => {
 
   if (loading) return <div className={styles.container}><p>{t('history.loading','Loading automation history...')}</p></div>;
 
+  const { planData } = usePlan();
+  // Determine retention info from planData
+  const retentionDays = planData?.limits?.full_logging_days || planData?.limits?.basic_logging_days || 0;
+  const hasAuditLogs = planData?.limits?.audit_logs === true;
+
   return (
-    <PlanGate feature="automation_history" upgradeMessage="Automation history is available on paid plans. Upgrade to unlock run history and audit logs.">
-      <div className={styles.container}>
-        <ErrorMessage message={error} />
+    <div className={styles.container}>
+      <ErrorMessage message={error} />
 
-        {runs.length === 0 && !error ? (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}>📊</div>
-            <h3>{t('history.empty_title','No Automation History')}</h3>
-            <p>{t('history.empty_message','Your automation runs will appear here once you start executing tasks.')}</p>
-          </div>
-        ) : (
-          <TaskList tasks={runs} onView={handleViewTask} onEdit={handleEditTask} onDelete={handleDeleteTask} />
-        )}
+      {/* Retention notice if limited */}
+      {retentionDays > 0 && (
+        <div className={styles.infoBanner}>
+          <strong>Note:</strong> Your plan retains run history and audit logs for <b>{retentionDays} days</b>. Older logs are automatically deleted. Upgrade for longer retention.
+        </div>
+      )}
+      {retentionDays === 0 && (
+        <div className={styles.infoBanner}>
+          <strong>Note:</strong> Your plan does not include run history or audit logs. Upgrade to unlock these features.
+        </div>
+      )}
 
-        {editingTask && (
-          <div className={styles.modalBackdrop}>
-            <div className={styles.modal}>
-              <h3>{t('history.edit_task','Edit Task')}</h3>
-              <form onSubmit={handleEditSubmit}>
-                {editError && <p className={styles.formError}>{editError}</p>}
-                <input
-                  id="edit-task-name"
-                  name="task_name"
-                  type="text"
-                  value={editName}
-                  onChange={e => setEditName(e.target.value)}
-                  className={styles.input}
-                  required
-                  autoComplete="off"
-                />
-                <input
-                  id="edit-task-url"
-                  name="task_url"
-                  type="url"
-                  value={editUrl}
-                  onChange={e => setEditUrl(e.target.value)}
-                  className={styles.input}
-                  required
-                  autoComplete="url"
-                />
-                <button type="submit" className={styles.submitButton}>{t('action.save','Save')}</button>
-                <button type="button" className={styles.cancelButton} onClick={() => setEditingTask(null)}>{t('action.cancel','Cancel')}</button>
-              </form>
-            </div>
+      {runs.length === 0 && !error ? (
+        <div className={styles.emptyState}>
+          <div className={styles.emptyIcon}>📊</div>
+          <h3>{t('history.empty_title','No Automation History')}</h3>
+          <p>{t('history.empty_message','Your automation runs will appear here once you start executing tasks.')}</p>
+        </div>
+      ) : (
+        <TaskList tasks={runs} onView={handleViewTask} onEdit={handleEditTask} onDelete={handleDeleteTask} />
+      )}
+
+      {editingTask && (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h3>{t('history.edit_task','Edit Task')}</h3>
+            <form onSubmit={handleEditSubmit}>
+              {editError && <p className={styles.formError}>{editError}</p>}
+              <input
+                id="edit-task-name"
+                name="task_name"
+                type="text"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                className={styles.input}
+                required
+                autoComplete="off"
+              />
+              <input
+                id="edit-task-url"
+                name="task_url"
+                type="url"
+                value={editUrl}
+                onChange={e => setEditUrl(e.target.value)}
+                className={styles.input}
+                required
+                autoComplete="url"
+              />
+              <button type="submit" className={styles.submitButton}>{t('action.save','Save')}</button>
+              <button type="button" className={styles.cancelButton} onClick={() => setEditingTask(null)}>{t('action.cancel','Cancel')}</button>
+            </form>
           </div>
-        )}
-        
-        <Chatbot />
-      </div>
-    </PlanGate>
+        </div>
+      )}
+      
+      <Chatbot />
+    </div>
   );
 };
 
