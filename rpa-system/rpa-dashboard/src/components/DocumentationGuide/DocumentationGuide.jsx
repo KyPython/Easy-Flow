@@ -5,47 +5,47 @@ import { useTheme } from '../../utils/ThemeContext';
 
 const steps = [
   {
-    title: 'Welcome to EasyFlow!',
-    description: 'This guide will help you use every feature of the EasyFlow Dashboard. Just follow the steps below!'
+    title: 'Ready to Stop Doing Boring Work?',
+    description: 'This guide shows you how to turn your most annoying daily tasks into simple button clicks. Let\'s get started!'
   },
   {
-    title: 'Dashboard Overview',
-    description: 'See your total tasks, completed tasks, time saved, and documents processed. All your business automation stats in one place.',
+    title: 'Your Time-Saving Dashboard',
+    description: 'See how many boring tasks you\'ve automated, how much time you\'ve saved, and which annoying tasks got handled for you this week.',
     button: { label: 'Go to Dashboard', action: () => window.location.pathname = '/app' }
   },
   {
-    title: 'Creating a New Task',
-    description: 'Click the 🚀 New Task button. Fill in the required fields (like URL or PDF URL), then click Run Automation. Your task will appear in Recent Activity.',
+    title: 'Automate Your First Boring Task',
+    description: 'Click "Automate Something Boring". Tell it what annoying task you want automated (like processing invoices or copying data), then watch it work.',
     button: { label: 'New Task', action: () => window.location.pathname = '/app/tasks' }
   },
   {
-    title: 'Managing Tasks',
-    description: 'Go to Task Management to view, edit, or cancel tasks. You can only cancel tasks that are in progress.',
+    title: 'See What\'s Getting Done For You',
+    description: 'Check "Task Management" to see which boring tasks are running automatically. You can pause or cancel anything that\'s currently working.',
     button: { label: 'Task Management', action: () => window.location.pathname = '/app/tasks' }
   },
   {
-    title: 'Automation History',
-    description: 'See all your past automations, their status (completed, failed), and details. Click any entry for more info.',
+    title: 'Your "I Saved Time" History',
+    description: 'See every boring task that got handled automatically - your weekly sales reports, processed invoices, sent emails. Click any item to see exactly what happened.',
     button: { label: 'View History', action: () => window.location.pathname = '/app/history' }
   },
   {
-    title: 'File Manager',
-    description: 'Upload, download, and manage files. Files used in automations will show up here.',
+    title: 'Your Processed Files',
+    description: 'See all the invoices, reports, and documents that got processed automatically. Upload new files here to batch-process dozens at once.',
     button: { label: 'Open File Manager', action: () => window.location.pathname = '/app/files' }
   },
   {
-    title: 'Workflows',
-    description: 'Create and manage multi-step automations. Drag and drop steps to build your workflow.',
+    title: 'Chain Multiple Tasks Together',
+    description: 'Want to process an invoice AND email the results AND update your spreadsheet? Create workflows to connect multiple boring tasks into one super-automation.',
     button: { label: 'Go to Workflows', action: () => window.location.pathname = '/app/workflows' }
   },
   {
-    title: 'Settings',
-    description: 'Update your profile, change your plan, and configure automation preferences.',
+    title: 'How You Want Notifications',
+    description: 'Choose how you want to know when your automations finish - email alerts, weekly summaries, or text messages when something breaks.',
     button: { label: 'Open Settings', action: () => window.location.pathname = '/app/settings' }
   },
   {
-    title: 'Support & Contact',
-    description: 'Click Contact in the top right to reach support. For help, click this Documentation button anytime!',
+    title: 'Get Help When You\'re Stuck',
+    description: 'Click Contact to ask "How do I automate [specific annoying task]?" I personally respond to help you save time on boring work.',
     button: { label: 'Contact Support', action: () => {
       const evt = new CustomEvent('openContactModal');
       window.dispatchEvent(evt);

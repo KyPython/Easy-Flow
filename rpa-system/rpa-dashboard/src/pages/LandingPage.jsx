@@ -15,7 +15,7 @@ export default function LandingPage() {
       <div className={styles.hero}>
         <div className={styles.heroContent}>
           <div className={styles.topRow}>
-            <h1 className={styles.title}>🚀 EasyFlow</h1>
+            <h1 className={styles.title}>🚀 Stop Doing Boring Work</h1>
             <button
               type="button"
               onClick={toggle}
@@ -26,42 +26,42 @@ export default function LandingPage() {
             </button>
           </div>
 
-          <p className={styles.lead}>{t('landing.lead','Enterprise-grade automation platform with AI-powered data extraction, bulk processing, and seamless integrations. Automate hundreds of invoices, extract structured data from documents, and sync with your business tools - all with zero coding required.')}</p>
+          <p className={styles.lead}>{t('landing.lead','<strong>Before:</strong> Spend 3 hours every morning copying customer info from emails, updating spreadsheets, and sending follow-up messages.<br><br><strong>After:</strong> Click one button. Get your morning work done in 30 seconds.<br><br>Turn any repetitive computer task into a simple one-click action. No coding required.')}</p>
           <div className={styles.ctaGroup}>
-            <Link to="/auth" className={styles.ctaPrimary}>{t('landing.get_started_today','Get Started Today')}</Link>
+            <Link to="/auth" className={styles.ctaPrimary}>{t('landing.get_started_today','Save 2+ Hours Every Day')}</Link>
             <Link to="/pricing" className={styles.ctaSecondary}>{t('landing.view_pricing','View Pricing')}</Link>
           </div>
         </div>
       </div>
 
       <section className={styles.featuresSection}>
-  <h2 className={styles.sectionTitle}>{t('landing.why_choose','Why Choose EasyFlow?')}</h2>
+  <h2 className={styles.sectionTitle}>{t('landing.why_choose','What Boring Tasks Can You Automate?')}</h2>
         <div className={styles.featuresGrid}>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>🤖</div>
-            <h3 className={styles.featureTitle}>{t('landing.feature_intelligent_title','AI-Powered Data Extraction')}</h3>
-            <p className={styles.featureText}>{t('landing.feature_intelligent_text','Extract structured data from invoices, PDFs, and documents with 95%+ accuracy. Our AI understands context and delivers clean, organized data ready for your business systems.')}</p>
+            <h3 className={styles.featureTitle}>{t('landing.feature_intelligent_title','Send Welcome Emails Automatically')}</h3>
+            <p className={styles.featureText}>{t('landing.feature_intelligent_text','<strong>Before:</strong> Copy each new customer\'s info, write personalized email, send manually (15 minutes per customer)<br><br><strong>After:</strong> New customer signs up → Welcome email with their name and account details sent instantly')}</p>
           </div>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>🧾</div>
-            <h3 className={styles.featureTitle}>{t('landing.feature_bulk_title','Bulk Processing at Scale')}</h3>
-            <p className={styles.featureText}>{t('landing.feature_bulk_text','Process hundreds of invoices across multiple vendors simultaneously. Configure once, automate forever - handle entire accounting periods in minutes, not weeks.')}</p>
+            <h3 className={styles.featureTitle}>{t('landing.feature_bulk_title','Create Weekly Sales Reports Without Copying Data')}</h3>
+            <p className={styles.featureText}>{t('landing.feature_bulk_text','<strong>Before:</strong> Download data from 4 different systems, copy into Excel, calculate totals, format charts (2 hours every Monday)<br><br><strong>After:</strong> Click one button → Professional report with charts emailed to you automatically')}</p>
           </div>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>🔗</div>
-            <h3 className={styles.featureTitle}>{t('landing.feature_integrations_title','Seamless Integrations')}</h3>
-            <p className={styles.featureText}>{t('landing.feature_integrations_text','Direct integration with QuickBooks, Dropbox, Google Drive, Salesforce, and more. Sync processed data instantly to your business tools with enterprise-grade security.')}</p>
+            <h3 className={styles.featureTitle}>{t('landing.feature_integrations_title','Update Your CRM When Someone Fills Out a Form')}</h3>
+            <p className={styles.featureText}>{t('landing.feature_integrations_text','<strong>Before:</strong> Check website forms hourly, copy contact info to CRM, assign to sales rep, send follow-up (45 minutes daily)<br><br><strong>After:</strong> Form submitted → Contact added to CRM → Sales rep notified → Follow-up email sent')}</p>
           </div>
         </div>
 
         <div className={styles.ctaBig}>
-          <Link to="/pricing" className={styles.ctaPrimary}>{t('landing.start_free_trial','Start Your Free Trial')}</Link>
+          <Link to="/pricing" className={styles.ctaPrimary}>{t('landing.start_free_trial','Start Saving Time Today')}</Link>
         </div>
       </section>
 
       <footer className={styles.footer}>
         <p></p>
-  <p>&copy; 2025 {t('landing.footer_tagline','EasyFlow. Intelligent RPA Automation Platform.')}</p>
+  <p>&copy; 2025 {t('landing.footer_tagline','EasyFlow. Turn boring work into one-click actions.')}</p>
         <div className={styles.footerLinks}>
           <a href="tel:+12034494970" className={styles.footerLink}>{t('landing.call_support','Call Support: +1 (203) 449-4970')}</a>
           <a href="mailto:kyjahntsmith@gmail.com" className={styles.footerLink}>{t('landing.email_support','Email: kyjahntsmith@gmail.com')}</a>

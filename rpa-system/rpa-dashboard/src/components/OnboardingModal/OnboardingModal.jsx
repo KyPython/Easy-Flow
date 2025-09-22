@@ -11,48 +11,48 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
   const { t } = useI18n();
   const steps = [
     {
-      title: t('onboarding.step1.title','Welcome to EasyFlow!'),
-      description: t('onboarding.step1.description','Let\'s get you set up with automated business processes.'),
+      title: t('onboarding.step1.title','Stop Doing Boring Work!'),
+      description: t('onboarding.step1.description','Let\'s turn your most annoying daily tasks into one-click actions.'),
       icon: '🚀',
       content: (
         <div className={styles.stepContent}>
-          <p>{t('onboarding.step1.body','EasyFlow helps you automate repetitive business tasks, saving you time and reducing errors.')}</p>
+          <p>{t('onboarding.step1.body','Stop wasting hours on boring, repetitive computer tasks. EasyFlow turns them into simple button clicks.')}</p>
           <ul className={styles.benefitsList}>
-            <li>🔄 {t('onboarding.step1.benefit1','Automate data entry and processing')}</li>
-            <li>📊 {t('onboarding.step1.benefit2','Generate reports automatically')}</li>
-            <li>⏰ {t('onboarding.step1.benefit3','Schedule tasks to run when you need them')}</li>
-            <li>📧 {t('onboarding.step1.benefit4','Get notifications when tasks complete')}</li>
+            <li>📧 {t('onboarding.step1.benefit1','Send welcome emails to new customers instantly')}</li>
+            <li>📊 {t('onboarding.step1.benefit2','Create weekly sales reports without copying data')}</li>
+            <li>🗂️ {t('onboarding.step1.benefit3','Update your CRM when forms are submitted')}</li>
+            <li>💰 {t('onboarding.step1.benefit4','Process invoices from email to accounting software')}</li>
           </ul>
         </div>
       )
     },
     {
-      title: t('onboarding.step2.title','Create Your First Task'),
-      description: t('onboarding.step2.description','Tasks are the core of EasyFlow - let\'s explore what they can do.'),
+      title: t('onboarding.step2.title','Pick Your First Boring Task to Automate'),
+      description: t('onboarding.step2.description','Which annoying task would save you the most time if it happened automatically?'),
       icon: '📋',
       content: (
         <div className={styles.stepContent}>
-          <p>{t('onboarding.step2.intro','You can create tasks for:')}</p>
+          <p>{t('onboarding.step2.intro','Here are some popular time-savers our users love:')}</p>
           <div className={styles.taskTypes}>
             <div className={styles.taskType}>
               <span className={styles.taskIcon}>🌐</span>
               <div>
-                <h4>{t('onboarding.step2.type_web_title','Web Automation')}</h4>
-                <p>{t('onboarding.step2.type_web_text','Extract data from websites, fill forms, monitor changes')}</p>
+                <h4>{t('onboarding.step2.type_web_title','Copy Customer Info From Website to Spreadsheet')}</h4>
+                <p>{t('onboarding.step2.type_web_text','Save 30 minutes daily - automatically grab customer details and add them to your tracking sheet')}</p>
               </div>
             </div>
             <div className={styles.taskType}>
               <span className={styles.taskIcon}>📄</span>
               <div>
-                <h4>{t('onboarding.step2.type_doc_title','Document Processing')}</h4>
-                <p>{t('onboarding.step2.type_doc_text','Process PDFs, extract text, generate reports')}</p>
+                <h4>{t('onboarding.step2.type_doc_title','Turn Invoice PDFs Into Spreadsheet Rows')}</h4>
+                <p>{t('onboarding.step2.type_doc_text','Save 20 minutes per invoice - extract vendor, amount, date, and add to your expense tracking')}</p>
               </div>
             </div>
             <div className={styles.taskType}>
               <span className={styles.taskIcon}>🔗</span>
               <div>
-                <h4>{t('onboarding.step2.type_api_title','API Integration')}</h4>
-                <p>{t('onboarding.step2.type_api_text','Connect different services and sync data')}</p>
+                <h4>{t('onboarding.step2.type_api_title','Send Slack Alerts When Orders Come In')}</h4>
+                <p>{t('onboarding.step2.type_api_text','Never miss a sale - get instant team notifications with order details when customers buy')}</p>
               </div>
             </div>
           </div>
@@ -60,24 +60,24 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
       )
     },
     {
-      title: t('onboarding.step3.title','Set Up Your Preferences'),
-      description: t('onboarding.step3.description','Customize EasyFlow to work best for your business.'),
+      title: t('onboarding.step3.title','How Do You Want to Know When Tasks Finish?'),
+      description: t('onboarding.step3.description','Choose how you\'d like to stay in the loop when your automations run.'),
       icon: '⚙️',
       content: (
         <div className={styles.stepContent}>
-          <p>{t('onboarding.step3.intro','We recommend setting up:')}</p>
+          <p>{t('onboarding.step3.intro','Most people like to get notified when important stuff happens:')}</p>
           <div className={styles.preferencesList}>
             <label className={styles.preference}>
               <input type="checkbox" defaultChecked />
-              <span>{t('onboarding.step3.pref_email','Email notifications for completed tasks')}</span>
+              <span>{t('onboarding.step3.pref_email','Email me when tasks finish (like "Your invoice processing is done")')}</span>
             </label>
             <label className={styles.preference}>
               <input type="checkbox" defaultChecked />
-              <span>{t('onboarding.step3.pref_weekly','Weekly summary reports')}</span>
+              <span>{t('onboarding.step3.pref_weekly','Send me a weekly "time saved" summary ("You saved 6 hours this week!")')}</span>
             </label>
             <label className={styles.preference}>
               <input type="checkbox" />
-              <span>{t('onboarding.step3.pref_sms','SMS alerts for failed tasks')}</span>
+              <span>{t('onboarding.step3.pref_sms','Text me if something breaks ("Your morning reports failed - click to fix")')}</span>
             </label>
           </div>
         </div>
@@ -89,15 +89,15 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
       icon: '🎉',
       content: (
         <div className={styles.stepContent}>
-          <p>{t('onboarding.step4.congrats','Congratulations! You\'ve completed the onboarding process.')}</p>
+          <p>{t('onboarding.step4.congrats','Perfect! You\'re ready to start turning boring work into button clicks.')}</p>
           <div className={styles.completionContent}>
             <div className={styles.nextSteps}>
               <h4>{t('onboarding.step4.whats_next','What\'s next?')}</h4>
               <ul>
                 <li>{t('onboarding.step4.next_email','Check your email ({email}) for getting started guides').replace('{email}', userEmail)}</li>
-                <li>{t('onboarding.step4.next_create','Create your first automation task')}</li>
-                <li>{t('onboarding.step4.next_explore','Explore our documentation and tutorials')}</li>
-                <li>{t('onboarding.step4.next_join','Join our community for tips and best practices')}</li>
+                <li>{t('onboarding.step4.next_create','Pick that annoying task you do every day and automate it')}</li>
+                <li>{t('onboarding.step4.next_explore','Browse our "most popular automations" for inspiration')}</li>
+                <li>{t('onboarding.step4.next_join','Join our community to see what tasks other people automate')}</li>
               </ul>
             </div>
             <div className={styles.supportInfo}>

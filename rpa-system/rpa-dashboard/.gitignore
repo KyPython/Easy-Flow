@@ -7,6 +7,10 @@
 
 # testing
 /coverage
+**/test.js
+**/*.test.js
+**/*.test.jsx
+**/tests/
 
 # misc
 .DS_Store

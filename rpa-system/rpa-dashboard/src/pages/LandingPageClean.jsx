@@ -8,12 +8,14 @@ export default function LandingPageClean() {
       <div style={{ position: 'relative' }}>
         <div className={styles.hero}>
           <div className={styles.heroContent}>
-            <h1 className={styles.title}>🚀 EasyFlow</h1>
+            <h1 className={styles.title}>🚀 Stop Doing Boring Work</h1>
             <p className={styles.lead}>
-              Transform your business with intelligent RPA automation. Streamline workflows, reduce manual tasks, and boost productivity with our powerful automation platform.
+              <strong>Before:</strong> Spend 3 hours every morning copying customer info from emails, updating spreadsheets, and sending follow-up messages.<br><br>
+              <strong>After:</strong> Click one button. Get your morning work done in 30 seconds.<br><br>
+              Turn any repetitive computer task into a simple one-click action. No coding required.
             </p>
             <div className={styles.ctaGroup}>
-              <a href="/auth" className={styles.ctaPrimary}>Get Started Today</a>
+              <a href="/auth" className={styles.ctaPrimary}>Save 2+ Hours Every Day</a>
               <a href="/auth" className={styles.ctaSecondary}>Already have an account? Login</a>
             </div>
           </div>
@@ -26,32 +28,32 @@ export default function LandingPageClean() {
       </div>
 
       <section className={styles.featuresSection}>
-        <h2 className={styles.sectionTitle}>Why Choose EasyFlow?</h2>
+        <h2 className={styles.sectionTitle}>What Boring Tasks Can You Automate?</h2>
         <div className={styles.featuresGrid}>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>🤖</div>
-            <h3 className={styles.featureTitle}>Intelligent Automation</h3>
-            <p className={styles.featureText}>Advanced RPA technology that learns and adapts to your business processes, making automation smarter and more efficient.</p>
+            <h3 className={styles.featureTitle}>Send Welcome Emails Automatically</h3>
+            <p className={styles.featureText}><strong>Before:</strong> Copy each new customer's info, write personalized email, send manually (15 minutes per customer)<br><br><strong>After:</strong> New customer signs up → Welcome email with their name and account details sent instantly</p>
           </div>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>⚡</div>
-            <h3 className={styles.featureTitle}>Lightning Fast</h3>
-            <p className={styles.featureText}>Execute complex tasks in seconds, not hours. Our optimized automation engine delivers results at incredible speed.</p>
+            <h3 className={styles.featureTitle}>Create Weekly Sales Reports Without Copying Data</h3>
+            <p className={styles.featureText}><strong>Before:</strong> Download data from 4 different systems, copy into Excel, calculate totals, format charts (2 hours every Monday)<br><br><strong>After:</strong> Click one button → Professional report with charts emailed to you automatically</p>
           </div>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>🔒</div>
-            <h3 className={styles.featureTitle}>Enterprise Security</h3>
-            <p className={styles.featureText}>Bank-level security with encrypted data transmission, secure authentication, and compliance with industry standards.</p>
+            <h3 className={styles.featureTitle}>Update Your CRM When Someone Fills Out a Form</h3>
+            <p className={styles.featureText}><strong>Before:</strong> Check website forms hourly, copy contact info to CRM, assign to sales rep, send follow-up (45 minutes daily)<br><br><strong>After:</strong> Form submitted → Contact added to CRM → Sales rep notified → Follow-up email sent</p>
           </div>
         </div>
 
         <div className={styles.ctaBig}>
-          <a href="/pricing" className={styles.ctaPrimary}>Start Your Free Trial</a>
+          <a href="/pricing" className={styles.ctaPrimary}>Start Saving Time Today</a>
         </div>
       </section>
 
       <footer className={styles.footer}>
-        <p style={{ margin: 0 }}>&copy; 2025 EasyFlow. Intelligent RPA Automation Platform.</p>
+        <p style={{ margin: 0 }}>&copy; 2025 EasyFlow. Turn boring work into one-click actions.</p>
       </footer>
     </div>
   );

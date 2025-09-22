@@ -20,18 +20,18 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
   const { t } = useI18n();
   const metricCards = [
     {
-      title: t('dashboard.total_tasks','Total Tasks'),
+      title: t('dashboard.total_tasks','Tasks You\'ve Automated'),
       value: metrics.totalTasks || 0,
       icon: '📊',
       trend: 'up',
       subtitle: t('dashboard.all_time','All time')
     },
     {
-      title: t('dashboard.completed_tasks','Completed Tasks'),
+      title: t('dashboard.completed_tasks','Boring Tasks Completed For You'),
       value: metrics.completedTasks || 0,
       icon: '✅',
       trend: 'up',
-      subtitle: `${metrics.totalTasks ? Math.round((metrics.completedTasks / metrics.totalTasks) * 100) : 0}% ${t('dashboard.success_rate','success rate')}`
+      subtitle: `${metrics.totalTasks ? Math.round((metrics.completedTasks / metrics.totalTasks) * 100) : 0}% ${t('dashboard.success_rate','worked perfectly')}`
     },
     {
       title: t('dashboard.time_saved','Time Saved'),
@@ -45,7 +45,7 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
       value: metrics.documentsProcessed || 0,
       icon: '📄',
       trend: 'up',
-      subtitle: t('dashboard.files_automated','Files automated')
+      subtitle: t('dashboard.files_automated','Reports, invoices, emails processed')
     }
   ];
 
@@ -65,9 +65,9 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
     <div className={styles.dashboard}>
       {/* Header */}
       <div className={styles.header}>
-        <h1 className={styles.title}>{t('dashboard.title','Business Automation Dashboard')}</h1>
+        <h1 className={styles.title}>{t('dashboard.title','Your Time-Saving Dashboard')}</h1>
         <p className={styles.subtitle}>
-          {t('dashboard.subtitle','Streamline your business processes with intelligent automation')}
+          {t('dashboard.subtitle','See how much boring work you\'ve turned into button clicks')}
         </p>
       </div>
 
@@ -115,7 +115,7 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
               </div>
             ))
           ) : (
-            <p className={styles.noActivityMessage}>{t('dashboard.no_recent','No recent activity. Create a new task to get started!')}</p>
+            <p className={styles.noActivityMessage}>{t('dashboard.no_recent','No boring tasks automated yet. Pick your first annoying task to automate!')}</p>
           )}
         </div>
       </div>
@@ -127,48 +127,48 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
           <button className={styles.actionCard} onClick={() => navigate('/app/tasks')}>
             <div className={styles.actionIcon}>🚀</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>{t('dashboard.new_task','New Task')}</div>
-              <div className={styles.actionDesc}>{t('dashboard.new_task_desc','Create automation task')}</div>
+              <div className={styles.actionTitle}>{t('dashboard.new_task','Automate Something Boring')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.new_task_desc','Turn a daily annoyance into a button click')}</div>
             </div>
           </button>
 
           <button className={styles.actionCard} onClick={() => navigate('/app/analytics')}>
             <div className={styles.actionIcon}>📊</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>{t('dashboard.view_reports','View Reports')}</div>
-              <div className={styles.actionDesc}>{t('dashboard.view_reports_desc','Analytics & insights')}</div>
+              <div className={styles.actionTitle}>{t('dashboard.view_reports','See Your Time Savings')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.view_reports_desc','How many hours you\'ve saved')}</div>
             </div>
           </button>
 
           <button className={styles.actionCard} onClick={() => navigate('/app/files')}>
             <div className={styles.actionIcon}>📁</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>{t('dashboard.files','File Manager')}</div>
-              <div className={styles.actionDesc}>{t('dashboard.files_desc','Upload & manage files')}</div>
+              <div className={styles.actionTitle}>{t('dashboard.files','Your Files')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.files_desc','Invoices, reports, and docs being processed')}</div>
             </div>
           </button>
 
           <button className={styles.actionCard} onClick={() => navigate('/app/bulk-processor')}>
             <div className={styles.actionIcon}>🧾</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>Bulk Processing</div>
-              <div className={styles.actionDesc}>Process multiple invoices & documents</div>
+              <div className={styles.actionTitle}>Handle Dozens of Invoices at Once</div>
+              <div className={styles.actionDesc}>Upload a folder, get organized data in minutes</div>
             </div>
           </button>
 
           <button className={styles.actionCard} onClick={() => navigate('/app/settings')}>
             <div className={styles.actionIcon}>⚙️</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>{t('dashboard.settings','Settings')}</div>
-              <div className={styles.actionDesc}>{t('dashboard.settings_desc','Configure automation')}</div>
+              <div className={styles.actionTitle}>{t('dashboard.settings','Your Automation Settings')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.settings_desc','Email alerts, time schedules, preferences')}</div>
             </div>
           </button>
 
           <button className={styles.actionCard} onClick={() => setShowDocs(true)}>
             <div className={styles.actionIcon}>📚</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>{t('dashboard.documentation','Documentation')}</div>
-              <div className={styles.actionDesc}>{t('dashboard.documentation_desc','Learn & support')}</div>
+              <div className={styles.actionTitle}>{t('dashboard.documentation','Popular Automation Ideas')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.documentation_desc','See what boring tasks others automate')}</div>
             </div>
           </button>
 
@@ -178,8 +178,8 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
           >
             <div className={styles.actionIcon}>✅</div>
             <div className={styles.actionText}>
-              <div className={styles.actionTitle}>{t('dashboard.start_onboarding','Start Onboarding')}</div>
-              <div className={styles.actionDesc}>{t('dashboard.start_onboarding_desc','Get started with guided setup')}</div>
+              <div className={styles.actionTitle}>{t('dashboard.start_onboarding','Quick Setup Guide')}</div>
+              <div className={styles.actionDesc}>{t('dashboard.start_onboarding_desc','5-minute tour of your automation superpowers')}</div>
             </div>
           </button>
         </div>

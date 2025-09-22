@@ -28,6 +28,12 @@ migrations/*.sql
 newrelic_agent.log
 newrelic.js
 
+# Test files
+**/test.js
+**/*.test.js
+**/*.test.jsx
+**/tests/
+
 # Dashboard exports and configs
 **/dashboard*.json
 **/*newrelic*.json
