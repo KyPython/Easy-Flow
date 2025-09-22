@@ -26,7 +26,11 @@ export default function LandingPage() {
             </button>
           </div>
 
-          <p className={styles.lead}>{t('landing.lead','<strong>Before:</strong> Spend 3 hours every morning copying customer info from emails, updating spreadsheets, and sending follow-up messages.<br><br><strong>After:</strong> Click one button. Get your morning work done in 30 seconds.<br><br>Turn any repetitive computer task into a simple one-click action. No coding required.')}</p>
+          <p className={styles.lead}>
+            <strong>Before:</strong> Spend 3 hours every morning copying customer info from emails, updating spreadsheets, and sending follow-up messages.<br/><br/>
+            <strong>After:</strong> Click one button. Get your morning work done in 30 seconds.<br/><br/>
+            Turn any repetitive computer task into a simple one-click action. No coding required.
+          </p>
           <div className={styles.ctaGroup}>
             <Link to="/auth" className={styles.ctaPrimary}>{t('landing.get_started_today','Save 2+ Hours Every Day')}</Link>
             <Link to="/pricing" className={styles.ctaSecondary}>{t('landing.view_pricing','View Pricing')}</Link>
@@ -40,17 +44,26 @@ export default function LandingPage() {
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>🤖</div>
             <h3 className={styles.featureTitle}>{t('landing.feature_intelligent_title','Send Welcome Emails Automatically')}</h3>
-            <p className={styles.featureText}>{t('landing.feature_intelligent_text','<strong>Before:</strong> Copy each new customer\'s info, write personalized email, send manually (15 minutes per customer)<br><br><strong>After:</strong> New customer signs up → Welcome email with their name and account details sent instantly')}</p>
+            <p className={styles.featureText}>
+              <strong>Before:</strong> Copy each new customer's info, write personalized email, send manually (15 minutes per customer)<br/><br/>
+              <strong>After:</strong> New customer signs up → Welcome email with their name and account details sent instantly
+            </p>
           </div>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>🧾</div>
             <h3 className={styles.featureTitle}>{t('landing.feature_bulk_title','Create Weekly Sales Reports Without Copying Data')}</h3>
-            <p className={styles.featureText}>{t('landing.feature_bulk_text','<strong>Before:</strong> Download data from 4 different systems, copy into Excel, calculate totals, format charts (2 hours every Monday)<br><br><strong>After:</strong> Click one button → Professional report with charts emailed to you automatically')}</p>
+            <p className={styles.featureText}>
+              <strong>Before:</strong> Download data from 4 different systems, copy into Excel, calculate totals, format charts (2 hours every Monday)<br/><br/>
+              <strong>After:</strong> Click one button → Professional report with charts emailed to you automatically
+            </p>
           </div>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>🔗</div>
             <h3 className={styles.featureTitle}>{t('landing.feature_integrations_title','Update Your CRM When Someone Fills Out a Form')}</h3>
-            <p className={styles.featureText}>{t('landing.feature_integrations_text','<strong>Before:</strong> Check website forms hourly, copy contact info to CRM, assign to sales rep, send follow-up (45 minutes daily)<br><br><strong>After:</strong> Form submitted → Contact added to CRM → Sales rep notified → Follow-up email sent')}</p>
+            <p className={styles.featureText}>
+              <strong>Before:</strong> Check website forms hourly, copy contact info to CRM, assign to sales rep, send follow-up (45 minutes daily)<br/><br/>
+              <strong>After:</strong> Form submitted → Contact added to CRM → Sales rep notified → Follow-up email sent
+            </p>
           </div>
         </div>
 
