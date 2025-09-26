@@ -84,11 +84,31 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     if (persistenceEnabled && hasStoredData) {
       const savedData = loadData();
       if (savedData && Object.keys(savedData).length > 0) {
+        // ✅ NEW: Check for schema version and clear outdated data
+        const CURRENT_SCHEMA_VERSION = '1.1.0'; // Invoice Download refactor
+        
+        if (!savedData.schemaVersion || savedData.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+          console.log('[TaskForm] Clearing outdated form data due to schema change');
+          clearData(); // Clear old incompatible data
+          return;
+        }
+        
+        // ✅ NEW: Migrate old 'pdf_processing' to new 'invoice_download'
+        const migratedData = {
+          ...savedData,
+          // Convert old task type to new structure
+          task: savedData.task === 'pdf_processing' ? 'invoice_download' : savedData.task || 'invoice_download',
+          // Add new link discovery fields with defaults if missing
+          discoveryMethod: savedData.discoveryMethod || 'auto-detect',
+          cssSelector: savedData.cssSelector || '',
+          linkText: savedData.linkText || ''
+        };
+        
         setForm(prevForm => ({
           ...prevForm,
-          ...savedData,
+          ...migratedData,
           // Preserve initialUrl if provided
-          url: initialUrl || savedData.url || prevForm.url
+          url: initialUrl || migratedData.url || prevForm.url
         }));
         setShowRecoveryNotification(true);
         
@@ -96,7 +116,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
         setTimeout(() => setShowRecoveryNotification(false), 5000);
       }
     }
-  }, [persistenceEnabled, hasStoredData, loadData, initialUrl]);
+  }, [persistenceEnabled, hasStoredData, loadData, initialUrl, clearData]);
 
   // Enable browser autofill on mount
   useEffect(() => {
@@ -196,9 +216,13 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     setForm((prev) => {
       const updated = { ...prev, [name]: value };
       
-      // Auto-save form data (debounced)
+      // Auto-save form data (debounced) with schema version
       if (persistenceEnabled) {
-        saveData(updated);
+        const dataToSave = { 
+          ...updated, 
+          schemaVersion: '1.1.0' // Add schema version for Invoice Download refactor
+        };
+        saveData(dataToSave);
       }
       
       if (errors[name]) {
@@ -288,6 +312,10 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
         selector: '',
         enableAI: false,
         extractionTargets: [],
+        // ✅ NEW: Reset Link Discovery fields
+        discoveryMethod: 'auto-detect',
+        cssSelector: '',
+        linkText: ''
       };
       
       setForm(clearedForm);
