@@ -187,24 +187,38 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
     // Reconnection/backoff state
     const backoffState = {
       attempts: {},
-      maxDelayMs: 30000
+      maxDelayMs: 30000,
+      maxAttempts: 6 // cap attempts to avoid infinite retries
     };
 
     const attemptReconnect = (channelKey) => {
-      const attempt = (backoffState.attempts[channelKey] || 0) + 1;
+      const previous = backoffState.attempts[channelKey] || 0;
+      const attempt = previous + 1;
       backoffState.attempts[channelKey] = attempt;
+
+      if (attempt > backoffState.maxAttempts) {
+        console.error(`Realtime: Connection attempt FAILED for ${channelKey} after ${attempt - 1} retries.`);
+        return;
+      }
+
       const delay = Math.min(1000 * Math.pow(2, attempt - 1), backoffState.maxDelayMs);
       console.warn(`Realtime channel ${channelKey} disconnected; attempting reconnect #${attempt} in ${delay}ms`);
       setTimeout(() => {
         try {
           // Remove any stale channel with the same key, then re-run setup
           channelsRef.current.forEach(c => {
-            if (c && c.topic && c.topic.includes(channelKey)) {
-              supabase.removeChannel(c);
+            try {
+              if (c && c.topic && c.topic.includes(channelKey)) {
+                supabase.removeChannel(c);
+              }
+            } catch (innerErr) {
+              console.warn('Error removing one stale channel:', innerErr);
             }
           });
+          // Clear the array to ensure stale refs not reused
+          channelsRef.current = [];
         } catch (e) {
-          console.warn('Error removing stale channel before reconnect:', e);
+          console.warn('Error removing stale channels before reconnect:', e);
         }
         // Re-run setup
         setupRealtimeSubscriptions();

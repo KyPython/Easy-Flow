@@ -2845,6 +2845,10 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
 // Get user notification settings (specific endpoint for notification preferences)
 app.get('/api/user/notifications', authMiddleware, requireFeature('priority_support'), async (req, res) => {
   try {
+    if (!req.user || !req.user.id) {
+      console.warn('[GET /api/user/notifications] missing authenticated user');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { data, error } = await supabase
       .from('user_settings')
       .select('*')
@@ -2896,14 +2900,21 @@ app.get('/api/user/notifications', authMiddleware, requireFeature('priority_supp
 
     res.json(notificationSettings);
   } catch (error) {
-    console.error('[GET /api/user/notifications] error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[GET /api/user/notifications] error:', error && error.stack ? error.stack : error);
+    // Provide helpful error details in non-production environments
+    const payload = { error: 'Internal server error' };
+    if (process.env.NODE_ENV !== 'production') payload.details = error?.message || String(error);
+    res.status(500).json(payload);
   }
 });
 
 // Update notification preferences
 app.put('/api/user/notifications', authMiddleware, requireFeature('priority_support'), async (req, res) => {
   try {
+    if (!req.user || !req.user.id) {
+      console.warn('[PUT /api/user/notifications] missing authenticated user');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { preferences, phone_number, fcm_token } = req.body;
 
     if (!preferences || typeof preferences !== 'object') {
