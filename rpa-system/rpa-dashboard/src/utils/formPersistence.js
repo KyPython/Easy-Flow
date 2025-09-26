@@ -46,9 +46,10 @@ class FormPersistence {
       delete sanitized[field];
     });
     
-    // Remove empty strings and null values for cleaner storage
+    // Remove null/undefined values for cleaner storage but keep empty strings so
+    // components relying on keys (e.g. calling .trim()) receive defined values.
     Object.keys(sanitized).forEach(key => {
-      if (sanitized[key] === '' || sanitized[key] === null || sanitized[key] === undefined) {
+      if (sanitized[key] === null || sanitized[key] === undefined) {
         delete sanitized[key];
       }
     });

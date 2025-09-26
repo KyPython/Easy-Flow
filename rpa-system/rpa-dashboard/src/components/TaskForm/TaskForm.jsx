@@ -210,7 +210,8 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!form.url.trim()) {
+    // Defensive: saved form data may omit empty keys, so guard before calling .trim()
+    if (!((form.url || '').trim())) {
       newErrors.url = 'Target URL is required';
     } else if (!isValidUrl(form.url)) {
       newErrors.url = 'Please enter a valid URL';
@@ -222,9 +223,9 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     
     // ✅ NEW: Link Discovery Validation (replaces manual PDF URL requirement)
     if (form.task === 'invoice_download') {
-      if (form.discoveryMethod === 'css-selector' && !form.cssSelector.trim()) {
+      if (form.discoveryMethod === 'css-selector' && !((form.cssSelector || '').trim())) {
         newErrors.cssSelector = 'CSS Selector is required for this discovery method';
-      } else if (form.discoveryMethod === 'text-match' && !form.linkText.trim()) {
+      } else if (form.discoveryMethod === 'text-match' && !((form.linkText || '').trim())) {
         newErrors.linkText = 'Link text is required for this discovery method';
       }
       // Note: auto-detect method requires no additional validation

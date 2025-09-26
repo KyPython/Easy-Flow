@@ -40,9 +40,13 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
             }
           })
           .subscribe((status) => {
-            console.log('Plan subscription status:', status);
-            setIsConnected(status === 'SUBSCRIBED');
-          });
+              console.log('Plan subscription status:', status);
+              setIsConnected(status === 'SUBSCRIBED');
+              // If the channel reports errors or closed, attempt reconnection
+              if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+                attemptReconnect(`plan-changes-${user.id}`);
+              }
+            });
 
         // Usage tracking subscription  
         const usageChannel = supabase
@@ -69,7 +73,12 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
               }
             }
           })
-          .subscribe();
+          .subscribe((status) => {
+            console.log('Usage subscription status:', status);
+            if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+              attemptReconnect(`usage-updates-${user.id}`);
+            }
+          });
 
         // Workflow executions subscription (for real-time run tracking)
         const executionsChannel = supabase
@@ -111,7 +120,12 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
               });
             }
           })
-          .subscribe();
+          .subscribe((status) => {
+            console.log('Executions subscription status:', status);
+            if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+              attemptReconnect(`executions-${user.id}`);
+            }
+          });
 
         // Workflow changes subscription
         const workflowsChannel = supabase
@@ -131,7 +145,12 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
               });
             }
           })
-          .subscribe();
+          .subscribe((status) => {
+            console.log('Workflows subscription status:', status);
+            if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+              attemptReconnect(`workflows-${user.id}`);
+            }
+          });
 
         // Plan notifications broadcast channel (for webhook-triggered updates)
         const planNotificationsChannel = supabase
@@ -147,7 +166,12 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
               });
             }
           })
-          .subscribe();
+          .subscribe((status) => {
+            console.log('Plan notifications broadcast status:', status);
+            if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+              attemptReconnect('plan-notifications');
+            }
+          });
 
         // Store channel references for cleanup
         channelsRef.current = [planChannel, usageChannel, executionsChannel, workflowsChannel, planNotificationsChannel];
@@ -158,6 +182,33 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
         console.error('Failed to setup realtime subscriptions:', error);
         setIsConnected(false);
       }
+    };
+
+    // Reconnection/backoff state
+    const backoffState = {
+      attempts: {},
+      maxDelayMs: 30000
+    };
+
+    const attemptReconnect = (channelKey) => {
+      const attempt = (backoffState.attempts[channelKey] || 0) + 1;
+      backoffState.attempts[channelKey] = attempt;
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), backoffState.maxDelayMs);
+      console.warn(`Realtime channel ${channelKey} disconnected; attempting reconnect #${attempt} in ${delay}ms`);
+      setTimeout(() => {
+        try {
+          // Remove any stale channel with the same key, then re-run setup
+          channelsRef.current.forEach(c => {
+            if (c && c.topic && c.topic.includes(channelKey)) {
+              supabase.removeChannel(c);
+            }
+          });
+        } catch (e) {
+          console.warn('Error removing stale channel before reconnect:', e);
+        }
+        // Re-run setup
+        setupRealtimeSubscriptions();
+      }, delay);
     };
 
     setupRealtimeSubscriptions();

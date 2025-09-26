@@ -641,6 +641,16 @@ class NotificationService {
       const runtimeEnv = (typeof window !== 'undefined' && window._env) ? window._env : {};
       const vapidKey = runtimeEnv.REACT_APP_FIREBASE_VAPID_KEY || process.env.REACT_APP_FIREBASE_VAPID_KEY;
 
+      if (!vapidKey || typeof vapidKey !== 'string' || vapidKey.length < 20) {
+        console.error('🔔 Invalid or missing VAPID key for FCM. Check REACT_APP_FIREBASE_VAPID_KEY.');
+        return null;
+      }
+
+      // Firebase messaging getToken accepts a base64 VAPID string; log length and a safe preview
+      if (isDev) {
+        console.log('🔔 Using VAPID key length:', vapidKey.length, 'preview:', `${vapidKey.slice(0,8)}...${vapidKey.slice(-8)}`);
+      }
+
       const token = await getToken(messaging, {
         vapidKey,
         serviceWorkerRegistration: swReg || undefined
