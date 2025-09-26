@@ -17,6 +17,7 @@ export const formatTaskType = (taskType) => {
     'invoice_download': 'Invoice Download',
     'data_extraction': 'Data Extraction',
     'form_submission': 'Form Submission',
+    'pdf_processing': 'PDF Processing',
     'web_scraping': 'Web Scraping'
   };
   return typeMap[taskType] || taskType;
