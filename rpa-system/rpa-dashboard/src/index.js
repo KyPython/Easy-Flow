@@ -5,6 +5,8 @@ import './index.css';
 import App from './App';
 import ErrorBoundary from './components/Diagnostics/ErrorBoundary';
 import reportWebVitals from './reportWebVitals';
+// Vercel Analytics
+import { Analytics } from '@vercel/analytics/react';
 import { ToastProvider } from './components/WorkflowBuilder/Toast';
 
 // Explicit imports to prevent tree-shaking from dropping global exposures
@@ -53,6 +55,7 @@ root.render(
         <App />
       </ErrorBoundary>
     </ToastProvider>
+    <Analytics />
   </React.StrictMode>
 );
 // If you want to start measuring performance in your app, pass a function

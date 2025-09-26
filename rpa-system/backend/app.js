@@ -2856,8 +2856,30 @@ app.get('/api/user/notifications', authMiddleware, requireFeature('priority_supp
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      console.error('[GET /api/user/notifications] error:', error);
-      return res.status(500).json({ error: 'Failed to fetch notification settings' });
+      console.error('[GET /api/user/notifications] error querying user_settings:', error && error.stack ? error.stack : error);
+      // Return safe defaults rather than failing entirely to avoid 500s from transient DB issues
+      const defaultSettings = {
+        preferences: {
+          email_notifications: true,
+          weekly_reports: true,
+          sms_alerts: false,
+          push_notifications: true,
+          task_completion: true,
+          task_failures: true,
+          system_alerts: true,
+          marketing_emails: true,
+          security_alerts: true,
+          deal_updates: true,
+          customer_alerts: true
+        },
+        fcm_token: null,
+        phone_number: null,
+        can_receive_sms: false,
+        can_receive_push: false
+      };
+      const payload = { ...defaultSettings };
+      if (process.env.NODE_ENV !== 'production') payload.debug = { dbError: error?.message || String(error) };
+      return res.json(payload);
     }
 
     const notificationSettings = data ? {
@@ -2956,8 +2978,10 @@ app.put('/api/user/notifications', authMiddleware, requireFeature('priority_supp
       });
 
     if (error) {
-      console.error('[PUT /api/user/notifications] error:', error);
-      return res.status(500).json({ error: 'Failed to update notification preferences' });
+      console.error('[PUT /api/user/notifications] supabase upsert error:', error && error.stack ? error.stack : error);
+      const payload = { error: 'Failed to update notification preferences' };
+      if (process.env.NODE_ENV !== 'production') payload.details = error?.message || String(error);
+      return res.status(500).json(payload);
     }
 
     console.log(`[PUT /api/user/notifications] Updated notification preferences for user ${req.user.id}`);
@@ -2967,8 +2991,10 @@ app.put('/api/user/notifications', authMiddleware, requireFeature('priority_supp
     });
 
   } catch (error) {
-    console.error('[PUT /api/user/notifications] error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[PUT /api/user/notifications] unexpected error:', error && error.stack ? error.stack : error);
+    const payload = { error: 'Internal server error' };
+    if (process.env.NODE_ENV !== 'production') payload.details = error?.message || String(error);
+    res.status(500).json(payload);
   }
 });
 

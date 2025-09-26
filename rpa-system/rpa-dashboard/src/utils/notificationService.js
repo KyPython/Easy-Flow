@@ -646,17 +646,52 @@ class NotificationService {
         return null;
       }
 
-      // Firebase messaging getToken accepts a base64 VAPID string; log length and a safe preview
+      // Firebase messaging getToken accepts a base64 VAPID string or expects to convert; ensure conversion to Uint8Array when needed
+      const urlBase64ToUint8Array = (base64String) => {
+        const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+        const base64 = (base64String + padding)
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+
+        for (let i = 0; i < rawData.length; ++i) {
+          outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+      };
+
       if (isDev) {
         console.log('🔔 Using VAPID key length:', vapidKey.length, 'preview:', `${vapidKey.slice(0,8)}...${vapidKey.slice(-8)}`);
       }
 
-      const token = await getToken(messaging, {
-        vapidKey,
-        serviceWorkerRegistration: swReg || undefined
-      });
+      let token = null;
+      try {
+        token = await getToken(messaging, {
+          vapidKey,
+          serviceWorkerRegistration: swReg || undefined
+        });
+      } catch (err) {
+        console.warn('🔔 getToken failed, will try manual PushManager.subscribe fallback if appropriate:', err?.message || err);
+        // If the error indicates InvalidAccessError for applicationServerKey, try manual subscribe with Uint8Array
+        if (err && err.name === 'InvalidAccessError' && navigator.serviceWorker && navigator.serviceWorker.ready) {
+          try {
+            const registration = await navigator.serviceWorker.ready;
+            const subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(vapidKey)
+            });
+            // If subscription exists, use endpoint or convert to a token-like string for backend
+            token = subscription.endpoint || JSON.stringify(subscription);
+            console.log('🔔 Manual PushManager.subscribe succeeded');
+          } catch (subErr) {
+            console.error('🔔 Manual PushManager.subscribe also failed:', subErr);
+          }
+        }
+      }
       
-      this.fcmToken = token;
+  this.fcmToken = token;
       if (isDev) {
         console.log('🔔 FCM Token obtained:', token ? 'Success' : 'Failed');
       }

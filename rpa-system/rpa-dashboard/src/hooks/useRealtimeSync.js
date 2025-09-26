@@ -68,6 +68,16 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
               setIsConnected(status === 'SUBSCRIBED');
               // If the channel reports errors or closed, attempt reconnection
               if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+                try {
+                  planChannel.unsubscribe?.();
+                } catch (e) {
+                  console.warn('Error unsubscribing plan channel before reconnect:', e);
+                }
+                try {
+                  supabase.removeChannel(planChannel);
+                } catch (e) {
+                  console.warn('Error removing plan channel before reconnect:', e);
+                }
                 attemptReconnect(`plan-changes-${user.id}`);
               }
             });
@@ -111,6 +121,16 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
           .subscribe((status) => {
             console.log('Usage subscription status:', status);
             if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+              try {
+                usageChannel.unsubscribe?.();
+              } catch (e) {
+                console.warn('Error unsubscribing usage channel before reconnect:', e);
+              }
+              try {
+                supabase.removeChannel(usageChannel);
+              } catch (e) {
+                console.warn('Error removing usage channel before reconnect:', e);
+              }
               attemptReconnect(`usage-updates-${user.id}`);
             }
           });
@@ -178,6 +198,16 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
           .subscribe((status) => {
             console.log('Executions subscription status:', status);
             if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+              try {
+                executionsChannel.unsubscribe?.();
+              } catch (e) {
+                console.warn('Error unsubscribing executions channel before reconnect:', e);
+              }
+              try {
+                supabase.removeChannel(executionsChannel);
+              } catch (e) {
+                console.warn('Error removing executions channel before reconnect:', e);
+              }
               attemptReconnect(`executions-${user.id}`);
             }
           });
@@ -203,6 +233,16 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
           .subscribe((status) => {
             console.log('Workflows subscription status:', status);
             if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+              try {
+                workflowsChannel.unsubscribe?.();
+              } catch (e) {
+                console.warn('Error unsubscribing workflows channel before reconnect:', e);
+              }
+              try {
+                supabase.removeChannel(workflowsChannel);
+              } catch (e) {
+                console.warn('Error removing workflows channel before reconnect:', e);
+              }
               attemptReconnect(`workflows-${user.id}`);
             }
           });
@@ -224,6 +264,16 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
           .subscribe((status) => {
             console.log('Plan notifications broadcast status:', status);
             if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+              try {
+                planNotificationsChannel.unsubscribe?.();
+              } catch (e) {
+                console.warn('Error unsubscribing plan notifications channel before reconnect:', e);
+              }
+              try {
+                supabase.removeChannel(planNotificationsChannel);
+              } catch (e) {
+                console.warn('Error removing plan notifications channel before reconnect:', e);
+              }
               attemptReconnect('plan-notifications');
             }
           });
