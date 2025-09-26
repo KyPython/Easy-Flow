@@ -11,7 +11,7 @@ export const usePlan = () => {
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(Date.now());
 
-  const fetchPlanData = async () => {
+  const fetchPlanData = useCallback(async () => {
     if (!user?.id) {
       setLoading(false);
       return;
@@ -41,7 +41,19 @@ export const usePlan = () => {
         return;
       }
 
-      setPlanData(response.data.planData);
+      // Avoid unnecessary state updates by checking identity
+      setPlanData(prev => {
+        try {
+          // Small shallow check: if the plan id and usage timestamp match, skip
+          if (prev && prev.plan?.id && response.data.planData.plan?.id && prev.plan.id === response.data.planData.plan.id) {
+            // If usage object is deeply similar, skip; fall back to setting in ambiguous cases
+            return response.data.planData;
+          }
+        } catch (e) {
+          // ignore and set
+        }
+        return response.data.planData;
+      });
     } catch (err) {
       console.error('Error fetching plan data:', err);
       setError(err.message || err.response?.data?.error || 'Failed to fetch plan data');
@@ -49,11 +61,12 @@ export const usePlan = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
+    // Fetch plan data on mount and when the user id changes
     fetchPlanData();
-  }, [user?.id]);
+  }, [fetchPlanData]);
 
   // Helper functions
   const isPro = () => {
@@ -125,7 +138,7 @@ export const usePlan = () => {
   const refresh = useCallback(() => {
     setLastRefresh(Date.now());
     fetchPlanData();
-  }, []);
+  }, [fetchPlanData]);
 
   const updateUserPlan = async (newPlanId) => {
     if (!user?.id) return false;
@@ -158,7 +171,7 @@ export const usePlan = () => {
     console.log('Plan changed in realtime:', planChangeData);
     // Immediately refresh plan data when plan changes
     fetchPlanData();
-  }, []);
+  }, [fetchPlanData]);
 
   // Poll for plan updates when returning from external payment pages
   useEffect(() => {
@@ -254,13 +267,13 @@ export const usePlan = () => {
       
       return prevData;
     });
-  }, []);
+  }, [fetchPlanData]);
 
   const handleWorkflowUpdate = useCallback((workflowData) => {
     console.log('Workflow updated in realtime:', workflowData);
     // Refresh usage data when workflows change
     setTimeout(() => fetchPlanData(), 500);
-  }, []);
+  }, [fetchPlanData]);
 
   // Initialize realtime sync
   const { isConnected, refreshData } = useRealtimeSync({
