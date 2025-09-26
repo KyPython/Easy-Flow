@@ -11,11 +11,19 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
     usage: null,
     workflows: null
   });
+  const isSettingUp = useRef(false);
+  const lastEmitRef = useRef({ plan: 0, usage: 0, workflow: 0 });
+  const emitThrottleMs = 800; // throttle emits to avoid UI thrash
 
   useEffect(() => {
     if (!user?.id) return;
 
     const setupRealtimeSubscriptions = async () => {
+      if (isSettingUp.current) {
+        console.log('Realtime setup already in progress, skipping concurrent call');
+        return;
+      }
+      isSettingUp.current = true;
       try {
         // Plan changes subscription
         const planChannel = supabase
@@ -31,12 +39,28 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
             
             if (newPlan !== oldPlan && onPlanChange) {
               console.log('Plan changed:', { oldPlan, newPlan });
-              onPlanChange({
-                oldPlan,
-                newPlan,
-                changedAt: payload.new?.plan_changed_at,
-                expiresAt: payload.new?.plan_expires_at
-              });
+              const now = Date.now();
+              const last = lastEmitRef.current.plan || 0;
+              if (now - last > emitThrottleMs) {
+                lastEmitRef.current.plan = now;
+                onPlanChange({
+                  oldPlan,
+                  newPlan,
+                  changedAt: payload.new?.plan_changed_at,
+                  expiresAt: payload.new?.plan_expires_at
+                });
+              } else {
+                // schedule a delayed emit to ensure final state is applied
+                setTimeout(() => {
+                  lastEmitRef.current.plan = Date.now();
+                  onPlanChange({
+                    oldPlan,
+                    newPlan,
+                    changedAt: payload.new?.plan_changed_at,
+                    expiresAt: payload.new?.plan_expires_at
+                  });
+                }, emitThrottleMs);
+              }
             }
           })
           .subscribe((status) => {
@@ -64,12 +88,23 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
               // Only notify for current month updates
               if (updateMonth === currentMonth) {
                 console.log('Usage updated:', payload.new);
-                onUsageUpdate({
+                const now = Date.now();
+                const last = lastEmitRef.current.usage || 0;
+                const emit = () => onUsageUpdate({
                   monthlyRuns: payload.new?.monthly_runs,
                   storageBytes: payload.new?.storage_bytes,
                   workflows: payload.new?.workflows_count,
                   lastUpdated: payload.new?.last_updated
                 });
+                if (now - last > emitThrottleMs) {
+                  lastEmitRef.current.usage = now;
+                  emit();
+                } else {
+                  setTimeout(() => {
+                    lastEmitRef.current.usage = Date.now();
+                    emit();
+                  }, emitThrottleMs);
+                }
               }
             }
           })
@@ -91,12 +126,22 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
           }, (payload) => {
             if (onUsageUpdate) {
               console.log('New workflow execution:', payload.new);
-              // Trigger usage refresh when new execution starts
-              onUsageUpdate({
+              const now = Date.now();
+              const last = lastEmitRef.current.workflow || 0;
+              const emit = () => onUsageUpdate({
                 type: 'execution_started',
                 executionId: payload.new?.id,
                 workflowId: payload.new?.workflow_id
               });
+              if (now - last > emitThrottleMs) {
+                lastEmitRef.current.workflow = now;
+                emit();
+              } else {
+                setTimeout(() => {
+                  lastEmitRef.current.workflow = Date.now();
+                  emit();
+                }, emitThrottleMs);
+              }
             }
           })
           .on('postgres_changes', {
@@ -105,19 +150,29 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
             table: 'workflow_executions',
             filter: `user_id=eq.${user.id}`
           }, (payload) => {
-            if (onUsageUpdate && payload.new?.status !== payload.old?.status) {
+              if (onUsageUpdate && payload.new?.status !== payload.old?.status) {
               console.log('Workflow execution status changed:', {
                 id: payload.new?.id,
                 oldStatus: payload.old?.status,
                 newStatus: payload.new?.status
               });
-              // Trigger usage refresh when execution completes
-              onUsageUpdate({
+              const now = Date.now();
+              const last = lastEmitRef.current.workflow || 0;
+              const emit = () => onUsageUpdate({
                 type: 'execution_updated',
                 executionId: payload.new?.id,
                 oldStatus: payload.old?.status,
                 newStatus: payload.new?.status
               });
+              if (now - last > emitThrottleMs) {
+                lastEmitRef.current.workflow = now;
+                emit();
+              } else {
+                setTimeout(() => {
+                  lastEmitRef.current.workflow = Date.now();
+                  emit();
+                }, emitThrottleMs);
+              }
             }
           })
           .subscribe((status) => {
@@ -177,10 +232,12 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
         channelsRef.current = [planChannel, usageChannel, executionsChannel, workflowsChannel, planNotificationsChannel];
 
         console.log('Realtime subscriptions established for user:', user.id);
-
       } catch (error) {
         console.error('Failed to setup realtime subscriptions:', error);
         setIsConnected(false);
+      } finally {
+        // Always reset the setup guard so subsequent attempts can run
+        isSettingUp.current = false;
       }
     };
 
@@ -225,7 +282,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
       }, delay);
     };
 
-    setupRealtimeSubscriptions();
+  setupRealtimeSubscriptions();
 
     // Cleanup function
     return () => {
