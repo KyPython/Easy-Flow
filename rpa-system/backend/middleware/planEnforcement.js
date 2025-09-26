@@ -6,7 +6,28 @@ const { getUserPlan } = require('../services/planService');
  * Checks if the user has access to the given feature or limit, using live DB data.
  */
 
-// Middleware: Check if user can run automation
+// Middleware: Check if user can run workflows (unlimited for everyone)
+const requireWorkflowRun = async (req, res, next) => {
+  try {
+    // Allow workflows to run without limits for everyone
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Get plan data but don't enforce limits for workflows
+    const planData = await getUserPlan(userId);
+    req.planData = planData;
+    next();
+  } catch (error) {
+    console.error('Plan enforcement error:', error);
+    // Don't block workflow execution even if there's an error getting plan data
+    console.warn('Continuing workflow execution despite plan check error');
+    next();
+  }
+};
+
+// Middleware: Check if user can run automation (with limits)
 const requireAutomationRun = async (req, res, next) => {
   try {
     // Allow explicit dev bypass token to short-circuit plan checks
@@ -275,6 +296,7 @@ const requireWorkflowCreation = async (req, res, next) => {
 module.exports = {
   getUserPlan,
   requireWorkflowCreation,
+  requireWorkflowRun,
   requireAutomationRun,
   requireFeature,
   requirePlan,

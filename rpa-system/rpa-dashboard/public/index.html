@@ -10,8 +10,8 @@
         http-equiv="Content-Security-Policy"
         content="
           default-src 'self';
-          script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com https://www.uchat.com.au https://*.uchat.com.au https://sdk.dfktv2.com;
-          connect-src 'self' https://syxzilyuysdoirnezgii.supabase.co wss://syxzilyuysdoirnezgii.supabase.co https://easyflow-backend-ad8e.onrender.com https://*.firebaseio.com wss://*.firebaseio.com https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://*.googleapis.com;
+          script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com https://www.uchat.com.au https://*.uchat.com.au https://sdk.dfktv2.com https://js-na2.hs-scripts.com https://*.hs-scripts.com;
+          connect-src 'self' https://syxzilyuysdoirnezgii.supabase.co wss://syxzilyuysdoirnezgii.supabase.co https://easyflow-backend-ad8e.onrender.com https://*.firebaseio.com wss://*.firebaseio.com https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://*.googleapis.com https://api.hubapi.com https://*.hubspot.com;
           frame-src 'self' https://*.firebaseio.com;
           img-src 'self' data: https://www.google-analytics.com https://stats.g.doubleclick.net;
           style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
@@ -30,6 +30,10 @@
   <script src="%PUBLIC_URL%/env.js" defer onerror="console.warn('env.js not found; falling back to defaults'); window._env = window._env || {};"></script>
   <script>window._env = window._env || {};</script>
     
+  <!-- Start of HubSpot Embed Code -->
+  <script type="text/javascript" id="hs-script-loader" async defer src="//js-na2.hs-scripts.com/243698495.js"></script>
+  <!-- End of HubSpot Embed Code -->
+
   <!-- Google tag (gtag.js) for domain-specific tracking -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-QGYCGQFC6D"></script>
     <script>

@@ -23,7 +23,7 @@ const { getKafkaService } = require('./utils/kafkaService');
 const taskStatusStore = require('./utils/taskStatusStore');
 const { usageTracker } = require('./utils/usageTracker');
 const { auditLogger } = require('./utils/auditLogger');
-const { requireAutomationRun, requireWorkflowCreation, checkStorageLimit, requireFeature, requirePlan } = require('./middleware/planEnforcement');
+const { requireAutomationRun, requireWorkflowRun, requireWorkflowCreation, checkStorageLimit, requireFeature, requirePlan } = require('./middleware/planEnforcement');
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  const morgan = require('morgan');
@@ -677,7 +677,7 @@ try {
 // Start a workflow execution
 try {
   const { WorkflowExecutor } = require('./services/workflowExecutor');
-  app.post('/api/workflows/execute', authMiddleware, requireAutomationRun, apiLimiter, async (req, res) => {
+  app.post('/api/workflows/execute', authMiddleware, requireWorkflowRun, apiLimiter, async (req, res) => {
     try {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: 'Authentication required' });

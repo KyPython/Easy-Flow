@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { api } from '../../utils/api';
 import { useToast } from '../WorkflowBuilder/Toast';
 import PlanGate from '../PlanGate/PlanGate';
+import { useFormPersistence, enableBrowserAutofill } from '../../utils/formPersistence';
 import styles from './TaskForm.module.css';
 
 const token = localStorage.getItem('sb-syxzilyuysdoirnezgii-auth-token');
@@ -15,11 +16,12 @@ const parsedToken = (() => {
 })();
 const accessToken = parsedToken?.access_token || parsedToken;
 
-const TaskForm = ({ onTaskSubmit, loading }) => {
+const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
   const { warning: showWarning, success: showSuccess } = useToast();
 
-  const [form, setForm] = useState({
-    url: '',
+  // Form persistence setup
+  const initialFormData = {
+    url: initialUrl || '',
     username: '',
     password: '',
     task: 'invoice_download',
@@ -27,10 +29,25 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     selector: '',
     enableAI: false,
     extractionTargets: [],
+  };
+
+  const {
+    saveData,
+    loadData,
+    clearData,
+    hasStoredData,
+    storageInfo,
+    isEnabled: persistenceEnabled
+  } = useFormPersistence('taskForm', initialFormData, {
+    sensitiveFields: ['password'],
+    debounceTime: 1500,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
+  const [form, setForm] = useState(initialFormData);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showRecoveryNotification, setShowRecoveryNotification] = useState(false);
 
   const taskTypes = [
     { value: 'invoice_download', label: 'Invoice Download' },
@@ -52,16 +69,49 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
   const isValidEmail = (email) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const handleChange = (e) => {
+  // Load persisted form data on mount
+  useEffect(() => {
+    if (persistenceEnabled && hasStoredData) {
+      const savedData = loadData();
+      if (savedData && Object.keys(savedData).length > 0) {
+        setForm(prevForm => ({
+          ...prevForm,
+          ...savedData,
+          // Preserve initialUrl if provided
+          url: initialUrl || savedData.url || prevForm.url
+        }));
+        setShowRecoveryNotification(true);
+        
+        // Auto-hide notification after 5 seconds
+        setTimeout(() => setShowRecoveryNotification(false), 5000);
+      }
+    }
+  }, [persistenceEnabled, hasStoredData, loadData, initialUrl]);
+
+  // Enable browser autofill on mount
+  useEffect(() => {
+    const formElement = document.querySelector('form[data-form="taskForm"]');
+    if (formElement) {
+      enableBrowserAutofill(formElement, initialUrl);
+    }
+  }, [initialUrl]);
+
+  const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     setForm((prev) => {
       const updated = { ...prev, [name]: value };
+      
+      // Auto-save form data (debounced)
+      if (persistenceEnabled) {
+        saveData(updated);
+      }
+      
       if (errors[name]) {
         setErrors((prevErrors) => ({ ...prevErrors, [name]: '' }));
       }
       return updated;
     });
-  };
+  }, [persistenceEnabled, saveData, errors]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -70,9 +120,10 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
     } else if (!isValidUrl(form.url)) {
       newErrors.url = 'Please enter a valid URL';
     }
-    if (form.username && !isValidEmail(form.username)) {
-      newErrors.username = 'Please enter a valid email address';
-    }
+    // Remove strict email validation for username to support username-only sites
+    // if (form.username && !isValidEmail(form.username)) {
+    //   newErrors.username = 'Please enter a valid email address';
+    // }
     if (form.task === 'invoice_download') {
       if (!form.pdf_url.trim()) {
         newErrors.pdf_url = 'PDF URL is required for Invoice Download';
@@ -116,8 +167,9 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
       const completedTask = await response.json();
       onTaskSubmit?.(completedTask);
 
-      setForm({
-        url: '',
+      // Clear form and persisted data after successful submission
+      const clearedForm = {
+        url: initialUrl || '',
         username: '',
         password: '',
         task: 'invoice_download',
@@ -125,7 +177,12 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
         selector: '',
         enableAI: false,
         extractionTargets: [],
-      });
+      };
+      
+      setForm(clearedForm);
+      if (persistenceEnabled) {
+        clearData();
+      }
 
       if (completedTask?.status === 'queued') {
         const taskId = completedTask.id
@@ -174,10 +231,30 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
         </p>
       </div>
 
+      {/* Recovery notification */}
+      {showRecoveryNotification && storageInfo && (
+        <div className={styles.recoveryNotification}>
+          <div className={styles.recoveryIcon}>💾</div>
+          <div className={styles.recoveryText}>
+            <strong>Form data recovered!</strong>
+            <p>Restored your previous input from {new Date(storageInfo.timestamp).toLocaleString()}</p>
+          </div>
+          <button 
+            type="button" 
+            className={styles.recoveryClose}
+            onClick={() => setShowRecoveryNotification(false)}
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <form
         onSubmit={handleSubmit}
         className={styles.form}
         autoComplete="off"
+        data-form="taskForm"
       >
         <div className={styles.formGrid}>
           {/* Task type */}
@@ -455,11 +532,13 @@ const TaskForm = ({ onTaskSubmit, loading }) => {
 TaskForm.propTypes = {
   onTaskSubmit: PropTypes.func,
   loading: PropTypes.bool,
+  initialUrl: PropTypes.string,
 };
 
 TaskForm.defaultProps = {
   onTaskSubmit: null,
   loading: false,
+  initialUrl: '',
 };
 
 export default TaskForm;
