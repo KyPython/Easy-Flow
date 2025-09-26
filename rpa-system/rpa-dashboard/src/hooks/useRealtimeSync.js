@@ -64,22 +64,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
             }
           })
           .subscribe((status) => {
-              console.log('Plan subscription status:', status);
-              setIsConnected(status === 'SUBSCRIBED');
-              // If the channel reports errors or closed, attempt reconnection
-              if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
-                try {
-                  planChannel.unsubscribe?.();
-                } catch (e) {
-                  console.warn('Error unsubscribing plan channel before reconnect:', e);
-                }
-                try {
-                  supabase.removeChannel(planChannel);
-                } catch (e) {
-                  console.warn('Error removing plan channel before reconnect:', e);
-                }
-                attemptReconnect(`plan-changes-${user.id}`);
-              }
+              handleChannelStatus(`plan-changes-${user.id}`, planChannel, status);
             });
 
         // Usage tracking subscription  
@@ -119,20 +104,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
             }
           })
           .subscribe((status) => {
-            console.log('Usage subscription status:', status);
-            if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
-              try {
-                usageChannel.unsubscribe?.();
-              } catch (e) {
-                console.warn('Error unsubscribing usage channel before reconnect:', e);
-              }
-              try {
-                supabase.removeChannel(usageChannel);
-              } catch (e) {
-                console.warn('Error removing usage channel before reconnect:', e);
-              }
-              attemptReconnect(`usage-updates-${user.id}`);
-            }
+            handleChannelStatus(`usage-updates-${user.id}`, usageChannel, status);
           });
 
         // Workflow executions subscription (for real-time run tracking)
@@ -196,20 +168,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
             }
           })
           .subscribe((status) => {
-            console.log('Executions subscription status:', status);
-            if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
-              try {
-                executionsChannel.unsubscribe?.();
-              } catch (e) {
-                console.warn('Error unsubscribing executions channel before reconnect:', e);
-              }
-              try {
-                supabase.removeChannel(executionsChannel);
-              } catch (e) {
-                console.warn('Error removing executions channel before reconnect:', e);
-              }
-              attemptReconnect(`executions-${user.id}`);
-            }
+            handleChannelStatus(`executions-${user.id}`, executionsChannel, status);
           });
 
         // Workflow changes subscription
@@ -231,20 +190,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
             }
           })
           .subscribe((status) => {
-            console.log('Workflows subscription status:', status);
-            if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
-              try {
-                workflowsChannel.unsubscribe?.();
-              } catch (e) {
-                console.warn('Error unsubscribing workflows channel before reconnect:', e);
-              }
-              try {
-                supabase.removeChannel(workflowsChannel);
-              } catch (e) {
-                console.warn('Error removing workflows channel before reconnect:', e);
-              }
-              attemptReconnect(`workflows-${user.id}`);
-            }
+            handleChannelStatus(`workflows-${user.id}`, workflowsChannel, status);
           });
 
         // Plan notifications broadcast channel (for webhook-triggered updates)
@@ -262,20 +208,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
             }
           })
           .subscribe((status) => {
-            console.log('Plan notifications broadcast status:', status);
-            if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
-              try {
-                planNotificationsChannel.unsubscribe?.();
-              } catch (e) {
-                console.warn('Error unsubscribing plan notifications channel before reconnect:', e);
-              }
-              try {
-                supabase.removeChannel(planNotificationsChannel);
-              } catch (e) {
-                console.warn('Error removing plan notifications channel before reconnect:', e);
-              }
-              attemptReconnect('plan-notifications');
-            }
+            handleChannelStatus('plan-notifications', planNotificationsChannel, status);
           });
 
         // Store channel references for cleanup
@@ -291,54 +224,133 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
       }
     };
 
-    // Reconnection/backoff state
-    const backoffState = {
+    // Reconnection/backoff state (persist across re-runs)
+    const backoffRef = {
       attempts: {},
       maxDelayMs: 30000,
       maxAttempts: 6 // cap attempts to avoid infinite retries
     };
 
-    const attemptReconnect = (channelKey) => {
-      const previous = backoffState.attempts[channelKey] || 0;
-      const attempt = previous + 1;
-      backoffState.attempts[channelKey] = attempt;
+    // Track pending reconnect timers so we can cancel them during cleanup
+    const reconnectTimers = new Map();
 
-      if (attempt > backoffState.maxAttempts) {
+    const clearReconnectTimer = (channelKey) => {
+      const t = reconnectTimers.get(channelKey);
+      if (t) {
+        clearTimeout(t);
+        reconnectTimers.delete(channelKey);
+      }
+    };
+
+    const scheduleReconnect = (channelKey) => {
+      // If there's already a pending reconnect for this key, don't double-schedule
+      if (reconnectTimers.has(channelKey)) {
+        console.debug('Reconnect already scheduled for', channelKey);
+        return;
+      }
+
+      const previous = backoffRef.attempts[channelKey] || 0;
+      const attempt = previous + 1;
+      backoffRef.attempts[channelKey] = attempt;
+
+      if (attempt > backoffRef.maxAttempts) {
         console.error(`Realtime: Connection attempt FAILED for ${channelKey} after ${attempt - 1} retries.`);
         return;
       }
 
-      const delay = Math.min(1000 * Math.pow(2, attempt - 1), backoffState.maxDelayMs);
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), backoffRef.maxDelayMs);
       console.warn(`Realtime channel ${channelKey} disconnected; attempting reconnect #${attempt} in ${delay}ms`);
-      setTimeout(() => {
+
+      const timer = setTimeout(() => {
+        // Clear this timer handle now that it's firing
+        reconnectTimers.delete(channelKey);
+
         try {
-          // Remove any stale channel with the same key, then re-run setup
+          // Make best-effort to remove any stale channels that match the key
           channelsRef.current.forEach(c => {
             try {
               if (c && c.topic && c.topic.includes(channelKey)) {
-                supabase.removeChannel(c);
+                try {
+                  c.unsubscribe?.();
+                } catch (uErr) {
+                  console.warn('Error during unsubscribe of stale channel:', uErr);
+                }
+                try {
+                  supabase.removeChannel(c);
+                } catch (rErr) {
+                  console.warn('Error removing stale channel before reconnect:', rErr);
+                }
               }
             } catch (innerErr) {
-              console.warn('Error removing one stale channel:', innerErr);
+              console.warn('Error checking/removing one stale channel:', innerErr);
             }
           });
-          // Clear the array to ensure stale refs not reused
+          // Clear stored refs so setup starts fresh
           channelsRef.current = [];
         } catch (e) {
           console.warn('Error removing stale channels before reconnect:', e);
         }
+
         // Re-run setup
         setupRealtimeSubscriptions();
       }, delay);
+
+      reconnectTimers.set(channelKey, timer);
+    };
+
+    const handleChannelStatus = (channelKey, channel, status) => {
+      if (status === 'SUBSCRIBED') {
+        // success -> reset attempts and clear any pending reconnect
+        backoffRef.attempts[channelKey] = 0;
+        clearReconnectTimer(channelKey);
+        setIsConnected(true);
+        return;
+      }
+
+      console.log(`${channelKey} subscription status:`, status);
+
+      if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
+        try {
+          channel.unsubscribe?.();
+        } catch (e) {
+          console.warn(`Error unsubscribing ${channelKey} before reconnect:`, e);
+        }
+        try {
+          supabase.removeChannel(channel);
+        } catch (e) {
+          console.warn(`Error removing ${channelKey} before reconnect:`, e);
+        }
+
+        // Schedule reconnect using exponential backoff
+        scheduleReconnect(channelKey);
+        // mark not connected if this affects global connectivity
+        setIsConnected(false);
+      }
     };
 
   setupRealtimeSubscriptions();
 
     // Cleanup function
     return () => {
+      // Cancel any pending reconnect timers
+      try {
+        reconnectTimers.forEach((t) => clearTimeout(t));
+        reconnectTimers.clear();
+      } catch (e) {
+        console.warn('Error clearing reconnect timers during cleanup:', e);
+      }
+
+      // Unsubscribe and remove all channels
       channelsRef.current.forEach(channel => {
-        if (channel) {
+        try {
+          channel?.unsubscribe?.();
+        } catch (e) {
+          console.warn('Error unsubscribing channel during cleanup:', e);
+        }
+        try {
           supabase.removeChannel(channel);
+        } catch (e) {
+          console.warn('Error removing channel during cleanup:', e);
         }
       });
       channelsRef.current = [];
@@ -406,12 +418,26 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
     refreshData,
     healthCheck,
     reconnect: () => {
-      // Force reconnection by cleaning up and re-establishing subscriptions
+      // Force reconnection by cancelling timers and removing channels
+      try {
+        reconnectTimers.forEach((t) => clearTimeout(t));
+        reconnectTimers.clear();
+      } catch (e) {
+        console.warn('Error clearing reconnect timers during manual reconnect:', e);
+      }
       channelsRef.current.forEach(channel => {
-        if (channel) {
+        try {
+          channel?.unsubscribe?.();
+        } catch (e) {
+          console.warn('Error unsubscribing channel during manual reconnect:', e);
+        }
+        try {
           supabase.removeChannel(channel);
+        } catch (e) {
+          console.warn('Error removing channel during manual reconnect:', e);
         }
       });
+      channelsRef.current = [];
       // The useEffect will re-run and establish new connections
     }
   };
