@@ -2,6 +2,7 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const requireFeature = require('../middleware/planEnforcement');
+const { LinkDiscoveryService } = require('../services/linkDiscoveryService');
 
 const router = express.Router();
 
@@ -120,6 +121,77 @@ router.post('/:executionId/cancel', requireFeature('workflow_executions'), async
   } catch (error) {
     console.error('[ExecutionRoutes] Cancel error:', error);
     return res.status(500).json({ error: 'Failed to cancel execution' });
+  }
+});
+
+// Test link discovery for Invoice Download tasks
+router.post('/test-link-discovery', requireFeature('workflow_executions'), async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { 
+      url, 
+      username, 
+      password, 
+      discoveryMethod = 'auto-detect', 
+      discoveryValue 
+    } = req.body;
+
+    // Validate required fields
+    if (!url || !username || !password) {
+      return res.status(400).json({
+        error: 'Missing required fields: url, username, password'
+      });
+    }
+
+    // Validate discovery method specific requirements
+    if (discoveryMethod === 'css-selector' && !discoveryValue) {
+      return res.status(400).json({
+        error: 'CSS Selector is required when using css-selector method'
+      });
+    }
+
+    if (discoveryMethod === 'text-match' && !discoveryValue) {
+      return res.status(400).json({
+        error: 'Link Text is required when using text-match method'
+      });
+    }
+
+    console.log(`[TestLinkDiscovery] Starting test for user ${userId}:`, {
+      url, username: username.substring(0, 3) + '***', discoveryMethod
+    });
+
+    const linkDiscovery = new LinkDiscoveryService();
+    
+    // Run discovery in test mode
+    const discoveryResult = await linkDiscovery.discoverPdfLinks({
+      url,
+      username,
+      password,
+      discoveryMethod,
+      discoveryValue,
+      testMode: true
+    });
+
+    console.log(`[TestLinkDiscovery] Discovery completed:`, {
+      success: discoveryResult.success,
+      linksFound: discoveryResult.discoveredLinks?.length || 0
+    });
+
+    return res.json({
+      success: true,
+      discoveryResult
+    });
+
+  } catch (error) {
+    console.error('[TestLinkDiscovery] Error:', error);
+    return res.status(500).json({
+      error: 'Link discovery test failed',
+      details: error.message
+    });
   }
 });
 

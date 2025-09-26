@@ -23,6 +23,7 @@ const { getKafkaService } = require('./utils/kafkaService');
 const taskStatusStore = require('./utils/taskStatusStore');
 const { usageTracker } = require('./utils/usageTracker');
 const { auditLogger } = require('./utils/auditLogger');
+const { LinkDiscoveryService } = require('./services/linkDiscoveryService');
 const { requireAutomationRun, requireWorkflowRun, requireWorkflowCreation, checkStorageLimit, requireFeature, requirePlan } = require('./middleware/planEnforcement');
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
@@ -2467,7 +2468,7 @@ app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req,
     if (!taskData || !taskData.task_type) {
       return res.status(400).json({ 
         error: 'task_type is required',
-        accepted_types: ['web_automation', 'form_submission', 'data_extraction', 'file_download']
+        accepted_types: ['web_automation', 'form_submission', 'data_extraction', 'file_download', 'invoice_download']
       });
     }
     
@@ -2533,16 +2534,81 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       }
       return res.status(400).json({
         error: 'task_type is required',
-        accepted_types: ['web_automation', 'form_submission', 'data_extraction', 'file_download']
+        accepted_types: ['web_automation', 'form_submission', 'data_extraction', 'file_download', 'invoice_download']
       });
     }
-    if (!taskData.url && ['web_automation', 'form_submission', 'data_extraction', 'file_download'].includes(taskData.task_type)) {
+    if (!taskData.url && ['web_automation', 'form_submission', 'data_extraction', 'file_download', 'invoice_download'].includes(taskData.task_type)) {
       if (process.env.NODE_ENV !== 'production') {
         console.warn('[DEV DEBUG] Missing url in request body for task_type', taskData.task_type, taskData);
       }
       return res.status(400).json({
         error: 'url is required for this task_type.'
       });
+    }
+
+    // ✅ Handle Invoice Download with Link Discovery
+    if (taskData.task_type === 'invoice_download' && taskData.discoveryMethod) {
+      console.log(`[AutomationExecute] Processing invoice download with link discovery for user ${req.user.id}`);
+      
+      try {
+        // Validate required fields for discovery
+        const { url, username, password, discoveryMethod, discoveryValue } = taskData;
+        
+        if (!username || !password) {
+          return res.status(400).json({
+            error: 'Username and password are required for invoice download with link discovery'
+          });
+        }
+
+        if (discoveryMethod === 'css-selector' && !discoveryValue) {
+          return res.status(400).json({
+            error: 'CSS Selector is required when using css-selector method'
+          });
+        }
+
+        if (discoveryMethod === 'text-match' && !discoveryValue) {
+          return res.status(400).json({
+            error: 'Link Text is required when using text-match method'
+          });
+        }
+
+        console.log(`[AutomationExecute] Starting link discovery for ${url}`);
+        
+        // Run link discovery
+        const linkDiscovery = new LinkDiscoveryService();
+        const discoveryResult = await linkDiscovery.discoverPdfLinks({
+          url,
+          username,
+          password,
+          discoveryMethod,
+          discoveryValue,
+          testMode: false
+        });
+
+        if (!discoveryResult.success || !discoveryResult.discoveredLinks?.length) {
+          return res.status(400).json({
+            error: 'No PDF download links found',
+            details: 'Link discovery failed to find any downloadable PDF links. Please verify your credentials and discovery settings.'
+          });
+        }
+
+        console.log(`[AutomationExecute] Link discovery successful, found ${discoveryResult.discoveredLinks.length} links`);
+
+        // Use the best discovered link (first one with highest score)
+        const bestLink = discoveryResult.discoveredLinks[0];
+        taskData.pdf_url = bestLink.href;
+        taskData.discovered_links = discoveryResult.discoveredLinks;
+        taskData.discovery_method_used = discoveryMethod;
+        
+        console.log(`[AutomationExecute] Using discovered PDF URL: ${bestLink.href.substring(0, 100)}...`);
+        
+      } catch (discoveryError) {
+        console.error('[AutomationExecute] Link discovery failed:', discoveryError);
+        return res.status(500).json({
+          error: 'Link discovery failed',
+          details: discoveryError.message
+        });
+      }
     }
 
     // Add user context to task

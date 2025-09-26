@@ -88,16 +88,120 @@ class WorkflowExecutor {
     throw lastErr || new Error('Unknown backoff error');
   }
 
+  // ✅ IMMEDIATE STATUS UPDATE METHODS
+  async _updateExecutionStatus(executionId, status, message) {
+    if (!this.supabase) return;
+    
+    try {
+      await this.supabase
+        .from('workflow_executions')
+        .update({
+          status,
+          status_message: message,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', executionId);
+      
+      console.log(`[WorkflowExecutor] Status updated: ${executionId} -> ${status}: ${message}`);
+    } catch (error) {
+      console.error(`[WorkflowExecutor] Failed to update status:`, error);
+    }
+  }
+
+  // ✅ IMMEDIATE ERROR LOGGING
+  async _logExecutionFailure(executionId, error, stepInfo = {}) {
+    const failureData = {
+      execution_id: executionId,
+      status: 'failed',
+      error_message: error.message,
+      error_stack: error.stack,
+      failed_at: new Date().toISOString(),
+      failure_reason: this._categorizeError(error),
+      step_info: JSON.stringify(stepInfo)
+    };
+    
+    try {
+      if (this.supabase) {
+        // Update execution status immediately
+        await this.supabase
+          .from('workflow_executions')
+          .update({
+            status: 'failed',
+            error_message: error.message,
+            completed_at: new Date().toISOString(),
+            metadata: JSON.stringify(failureData)
+          })
+          .eq('id', executionId);
+        
+        // Log to automation history
+        await this.supabase
+          .from('automation_history')
+          .insert({
+            execution_id: executionId,
+            status: 'failed',
+            error_details: JSON.stringify(failureData),
+            created_at: new Date().toISOString()
+          });
+      }
+      
+      console.error(`[WorkflowExecutor] Execution ${executionId} failed and logged:`, failureData);
+    } catch (dbError) {
+      console.error(`[WorkflowExecutor] Failed to log execution error:`, dbError);
+    }
+  }
+
+  // ✅ ERROR CATEGORIZATION FOR ACTIONABLE FEEDBACK
+  _categorizeError(error) {
+    const message = error.message.toLowerCase();
+    
+    if (message.includes('timeout')) {
+      return 'TIMEOUT_ERROR';
+    } else if (message.includes('selector') || message.includes('element')) {
+      return 'ELEMENT_NOT_FOUND';
+    } else if (message.includes('navigation') || message.includes('load')) {
+      return 'PAGE_LOAD_ERROR';
+    } else if (message.includes('login') || message.includes('credential')) {
+      return 'AUTHENTICATION_ERROR';
+    } else if (message.includes('network') || message.includes('connection')) {
+      return 'NETWORK_ERROR';
+    } else if (message.includes('cancelled')) {
+      return 'USER_CANCELLED';
+    } else {
+      return 'UNKNOWN_ERROR';
+    }
+  }
+
+  // ✅ EXECUTION CANCELLATION
+  cancelExecution(executionId) {
+    const execution = this.runningExecutions.get(executionId);
+    if (execution) {
+      execution.cancelled = true;
+      console.log(`[WorkflowExecutor] Execution ${executionId} marked for cancellation`);
+      this._updateExecutionStatus(executionId, 'cancelled', 'Execution cancelled by timeout or user request');
+    }
+  }
+
   async startExecution(config) {
     const { workflowId, userId, triggeredBy = 'manual', triggerData = {}, inputData = {} } = config;
+    const executionId = uuidv4();
+    
+    // ✅ HARD TIMEOUT CONFIGURATION
+    const EXECUTION_TIMEOUT = 300000; // 5 minutes maximum execution time
+    const executionTimer = setTimeout(() => {
+      console.error(`[WorkflowExecutor] Execution ${executionId} exceeded maximum time limit`);
+      this.cancelExecution(executionId);
+    }, EXECUTION_TIMEOUT);
     
     try {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[WorkflowExecutor] Starting execution for workflow ${workflowId}`);
+        console.log(`[WorkflowExecutor] Starting execution ${executionId} for workflow ${workflowId}`);
       }
       if (!this.supabase) {
         throw new Error('Workflow not found: Database unavailable');
       }
+      
+      // ✅ IMMEDIATE STATUS UPDATE
+      await this._updateExecutionStatus(executionId, 'running', 'Initializing workflow execution...');
       
       // Get workflow definition - first try to find the workflow
       let workflow, workflowError;

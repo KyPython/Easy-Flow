@@ -29,6 +29,11 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     selector: '',
     enableAI: false,
     extractionTargets: [],
+    // ✅ NEW: Link Discovery Fields
+    discoveryMethod: 'auto-detect',
+    cssSelector: '',
+    linkText: '',
+    testResults: [],
   };
 
   const {
@@ -48,6 +53,11 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRecoveryNotification, setShowRecoveryNotification] = useState(false);
+  
+  // ✅ NEW: Link Discovery State
+  const [isTestingDiscovery, setIsTestingDiscovery] = useState(false);
+  const [discoveryResults, setDiscoveryResults] = useState([]);
+  const [showDiscoveryResults, setShowDiscoveryResults] = useState(false);
 
   const taskTypes = [
     { value: 'invoice_download', label: 'Invoice Download' },
@@ -96,6 +106,91 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     }
   }, [initialUrl]);
 
+  // ✅ NEW: Link Discovery Testing Function
+  const handleTestLinkDiscovery = useCallback(async () => {
+    if (!form.url || !form.username || !form.password) {
+      showWarning('Please fill in URL, username, and password before testing link discovery.');
+      return;
+    }
+
+    setIsTestingDiscovery(true);
+    setDiscoveryResults([]);
+    
+    try {
+      const testPayload = {
+        url: form.url,
+        username: form.username,
+        password: form.password,
+        discoveryMethod: form.discoveryMethod,
+        discoveryValue: form.discoveryMethod === 'css-selector' ? form.cssSelector : 
+                       form.discoveryMethod === 'text-match' ? form.linkText : null,
+        testMode: true
+      };
+
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/api/executions/test-link-discovery`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(testPayload),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const error = new Error(errorData.error || `Test failed: ${response.status}`);
+        error.response = { status: response.status, data: errorData };
+        throw error;
+      }
+
+      const results = await response.json();
+      const discoveredLinks = results.discoveryResult?.discoveredLinks || [];
+      setDiscoveryResults(discoveredLinks);
+      setShowDiscoveryResults(true);
+      
+      if (discoveredLinks.length > 0) {
+        showSuccess(`🎉 Found ${discoveredLinks.length} potential PDF link(s)!`);
+      } else {
+        showWarning('🔍 No PDF links found. Try adjusting your discovery settings or verify your credentials.');
+      }
+      
+    } catch (error) {
+      console.error('Link discovery test failed:', error);
+      
+      // ✅ NEW: Enhanced error handling for discovery testing
+      const errorData = error.response?.data || {};
+      const errorMessage = error.message || '';
+      let userMessage = 'Link discovery test failed. Please try again.';
+      
+      if (error.response?.status === 400) {
+        if (errorMessage.includes('CSS Selector is required')) {
+          userMessage = '⚠️ Please provide a CSS selector for the link discovery method.';
+        } else if (errorMessage.includes('Link Text is required')) {
+          userMessage = '⚠️ Please provide link text for the text-match discovery method.';
+        } else if (errorMessage.includes('Username and password are required')) {
+          userMessage = '🔐 Username and password are required for testing link discovery.';
+        } else if (errorData.details) {
+          userMessage = `❌ Test failed: ${errorData.details}`;
+        } else {
+          userMessage = `❌ ${errorMessage}`;
+        }
+      } else if (error.response?.status === 401) {
+        userMessage = '🔐 Authentication failed. Please check your login credentials.';
+      } else if (error.response?.status >= 500) {
+        userMessage = '🔧 Link discovery service error. Please try again later.';
+      } else if (errorMessage.includes('Link discovery failed')) {
+        userMessage = '🔍 Could not discover PDF links. Please verify your credentials and try a different discovery method.';
+      }
+      
+      showWarning(userMessage);
+    } finally {
+      setIsTestingDiscovery(false);
+    }
+  }, [form, accessToken, showWarning, showSuccess]);
+
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     setForm((prev) => {
@@ -124,14 +219,15 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     // if (form.username && !isValidEmail(form.username)) {
     //   newErrors.username = 'Please enter a valid email address';
     // }
+    
+    // ✅ NEW: Link Discovery Validation (replaces manual PDF URL requirement)
     if (form.task === 'invoice_download') {
-      if (!form.pdf_url.trim()) {
-        newErrors.pdf_url = 'PDF URL is required for Invoice Download';
-      } else if (!isValidUrl(form.pdf_url)) {
-        newErrors.pdf_url = 'Please enter a valid PDF URL';
-      } else if (!/\.pdf(\?.*)?$/i.test(form.pdf_url.trim())) {
-        newErrors.pdf_url = 'PDF URL must end with .pdf';
+      if (form.discoveryMethod === 'css-selector' && !form.cssSelector.trim()) {
+        newErrors.cssSelector = 'CSS Selector is required for this discovery method';
+      } else if (form.discoveryMethod === 'text-match' && !form.linkText.trim()) {
+        newErrors.linkText = 'Link text is required for this discovery method';
       }
+      // Note: auto-detect method requires no additional validation
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -143,13 +239,24 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
 
     setIsSubmitting(true);
     try {
-      const payload = { ...form, type: form.task };
+      // ✅ NEW: Enhanced payload with link discovery parameters
+      const payload = { 
+        ...form, 
+        task_type: form.task,
+        // For invoice_download tasks, include discovery parameters
+        ...(form.task === 'invoice_download' && {
+          discoveryMethod: form.discoveryMethod,
+          discoveryValue: form.discoveryMethod === 'css-selector' ? form.cssSelector : 
+                         form.discoveryMethod === 'text-match' ? form.linkText : null
+        })
+      };
+      
       const endpoint = form.enableAI
         ? '/api/run-task-with-ai'
         : '/api/automation/execute';
 
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/tasks`,
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3030'}${endpoint}`,
         {
           method: 'POST',
           headers: {
@@ -161,7 +268,10 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
       );
 
       if (!response.ok) {
-        throw new Error(`Server responded with status ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        const error = new Error(errorData.error || `Server responded with status ${response.status}`);
+        error.response = { status: response.status, data: errorData };
+        throw error;
       }
 
       const completedTask = await response.json();
@@ -199,23 +309,48 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     } catch (error) {
       console.error('Task submission failed:', error);
       let userMessage = 'Task submission failed. Please try again.';
+      
+      // ✅ NEW: Enhanced error handling for link discovery
+      const errorData = error.response?.data || {};
+      const errorMessage = error.message || '';
+      
       if (
         error.code === 'ECONNABORTED' ||
-        /timeout/i.test(error.message || '')
+        /timeout/i.test(errorMessage)
       ) {
-        userMessage =
-          'Request timed out. Please check the Runs tab shortly.';
+        userMessage = 'Request timed out. Please check the Runs tab shortly.';
       } else if (
-        error.message?.includes('Network Error') ||
-        error.message?.includes('CORS')
+        errorMessage.includes('Network Error') ||
+        errorMessage.includes('CORS')
       ) {
-        userMessage =
-          'Unable to reach the server. Is the backend running on :3030?';
+        userMessage = 'Unable to reach the server. Is the backend running on :3030?';
       } else if (error.response?.status === 401) {
         userMessage = 'Authentication error. Please sign in again.';
+      } else if (error.response?.status === 400) {
+        // Handle specific link discovery validation errors
+        if (errorMessage.includes('No PDF download links found')) {
+          userMessage = '🔍 No PDF links found. Try adjusting your discovery method or check your login credentials.';
+        } else if (errorMessage.includes('CSS Selector is required')) {
+          userMessage = '⚠️ Please provide a CSS selector for the link discovery method.';
+        } else if (errorMessage.includes('Link Text is required')) {
+          userMessage = '⚠️ Please provide link text for the text-match discovery method.';
+        } else if (errorMessage.includes('Username and password are required')) {
+          userMessage = '🔐 Username and password are required for invoice download with link discovery.';
+        } else if (errorData.details) {
+          userMessage = `❌ ${errorMessage}: ${errorData.details}`;
+        } else {
+          userMessage = `❌ ${errorMessage}`;
+        }
       } else if (error.response?.status >= 500) {
-        userMessage = 'Server error. Please try again in a moment.';
+        if (errorMessage.includes('Link discovery failed')) {
+          userMessage = '🔧 Link discovery service error. Please try again or contact support if the issue persists.';
+        } else {
+          userMessage = 'Server error. Please try again in a moment.';
+        }
+      } else if (errorMessage.includes('Link discovery failed')) {
+        userMessage = '🔍 Unable to discover PDF links. Please verify your credentials and try a different discovery method.';
       }
+      
       showWarning(userMessage);
     } finally {
       setIsSubmitting(false);
@@ -350,41 +485,180 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
             </div>
           </div>
 
-          {/* PDF URL */}
-          <div className={styles.formGroup}>
-            <label htmlFor="pdf_url" className={styles.label}>
-              PDF URL
-              {form.task === 'invoice_download'
-                ? ' (Required)'
-                : ' (Optional)'}
-              {form.task === 'invoice_download' && (
-                <span className={styles.required}>*</span>
+          {/* ✅ NEW: Link Discovery Section - Replaces manual PDF URL */}
+          {form.task === 'invoice_download' && (
+            <div className={styles.linkDiscoverySection}>
+              <div className={styles.sectionHeader}>
+                <h3 className={styles.sectionTitle}>🔍 Automated PDF Link Discovery</h3>
+                <p className={styles.sectionSubtitle}>
+                  No more hunting for PDF URLs! Choose how the system should find download links.
+                </p>
+              </div>
+
+              {/* Discovery Method Selector */}
+              <div className={styles.formGroup}>
+                <label htmlFor="discoveryMethod" className={styles.label}>
+                  How should we find the PDF link?
+                </label>
+                <select
+                  id="discoveryMethod"
+                  name="discoveryMethod"
+                  value={form.discoveryMethod}
+                  onChange={handleChange}
+                  className={styles.select}
+                >
+                  <option value="auto-detect">🤖 Auto-detect Download Links (Recommended)</option>
+                  <option value="css-selector">🎯 CSS Selector (Advanced)</option>
+                  <option value="text-match">📝 Find by Link Text</option>
+                </select>
+                <div className={styles.helperText}>
+                  <b>Auto-detect:</b> Automatically finds PDF download links<br/>
+                  <b>CSS Selector:</b> Target specific elements (for developers)<br/>
+                  <b>Link Text:</b> Find links containing specific text
+                </div>
+              </div>
+
+              {/* Conditional Input Fields Based on Discovery Method */}
+              {form.discoveryMethod === 'css-selector' && (
+                <div className={styles.formGroup}>
+                  <label htmlFor="cssSelector" className={styles.label}>
+                    CSS Selector <span className={styles.required}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="cssSelector"
+                    name="cssSelector"
+                    value={form.cssSelector}
+                    onChange={handleChange}
+                    placeholder="e.g., .download-btn, #pdf-link, a[href*='.pdf']"
+                    className={`${styles.input} ${
+                      errors.cssSelector ? styles.error : ''
+                    }`}
+                  />
+                  <div className={styles.helperText}>
+                    <b>Examples:</b> <code>.download-btn</code>, <code>#invoice-link</code>, <code>a[href$='.pdf']</code>
+                  </div>
+                  {errors.cssSelector && (
+                    <span className={styles.errorText}>{errors.cssSelector}</span>
+                  )}
+                </div>
               )}
-            </label>
-            <input
-              type="text"
-              id="pdf_url"
-              name="pdf_url"
-              value={form.pdf_url}
-              onChange={handleChange}
-              placeholder={
-                form.task === 'invoice_download'
-                  ? 'https://example.com/invoice.pdf'
-                  : 'Optional PDF URL'
-              }
-              className={`${styles.input} ${
-                errors.pdf_url ? styles.error : ''
-              }`}
-              required={form.task === 'invoice_download'}
-            />
-            <div className={styles.helperText}>
-              <b>What is this?</b> For Invoice Download, paste the direct
-              link to the PDF file.
+
+              {form.discoveryMethod === 'text-match' && (
+                <div className={styles.formGroup}>
+                  <label htmlFor="linkText" className={styles.label}>
+                    Link Text <span className={styles.required}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="linkText"
+                    name="linkText"
+                    value={form.linkText}
+                    onChange={handleChange}
+                    placeholder="e.g., Download PDF, Invoice, Download"
+                    className={`${styles.input} ${
+                      errors.linkText ? styles.error : ''
+                    }`}
+                  />
+                  <div className={styles.helperText}>
+                    <b>Examples:</b> "Download PDF", "Invoice", "Download Invoice"
+                  </div>
+                  {errors.linkText && (
+                    <span className={styles.errorText}>{errors.linkText}</span>
+                  )}
+                </div>
+              )}
+
+              {/* Link Discovery Testing */}
+              <div className={styles.discoveryTesting}>
+                <button
+                  type="button"
+                  onClick={handleTestLinkDiscovery}
+                  disabled={isTestingDiscovery || !form.url || !form.username || !form.password}
+                  className={styles.testButton}
+                >
+                  {isTestingDiscovery ? (
+                    <>
+                      <span className={styles.spinner}></span>
+                      Testing Discovery...
+                    </>
+                  ) : (
+                    <>
+                      🔍 Test Link Discovery
+                    </>
+                  )}
+                </button>
+                <div className={styles.testHelperText}>
+                  Fill in URL and credentials above, then test to preview found links
+                </div>
+              </div>
+
+              {/* Discovery Results */}
+              {showDiscoveryResults && discoveryResults.length > 0 && (
+                <div className={styles.discoveryResults}>
+                  <h4 className={styles.resultsTitle}>✅ Found PDF Links:</h4>
+                  <div className={styles.resultsList}>
+                    {discoveryResults.map((link, index) => (
+                      <div key={index} className={styles.resultItem}>
+                        <div className={styles.resultUrl}>
+                          <span className={styles.resultIcon}>📄</span>
+                          <span className={styles.resultText}>{link.text || 'PDF Link'}</span>
+                        </div>
+                        <div className={styles.resultHref}>
+                          <code>{link.href}</code>
+                        </div>
+                        <div className={styles.resultScore}>
+                          Confidence: {Math.round((link.score || 0.8) * 100)}%
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDiscoveryResults(false)}
+                    className={styles.closeResultsButton}
+                  >
+                    ✓ Looks Good
+                  </button>
+                </div>
+              )}
+
+              {showDiscoveryResults && discoveryResults.length === 0 && (
+                <div className={styles.noResults}>
+                  <div className={styles.noResultsIcon}>😞</div>
+                  <div className={styles.noResultsText}>
+                    No PDF links found. Try:
+                    <ul>
+                      <li>Different discovery method</li>
+                      <li>More specific CSS selector</li>
+                      <li>Different link text</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
-            {errors.pdf_url && (
-              <span className={styles.errorText}>{errors.pdf_url}</span>
-            )}
-          </div>
+          )}
+
+          {/* Keep PDF URL field for non-invoice tasks */}
+          {form.task !== 'invoice_download' && (
+            <div className={styles.formGroup}>
+              <label htmlFor="pdf_url" className={styles.label}>
+                PDF URL (Optional)
+              </label>
+              <input
+                type="text"
+                id="pdf_url"
+                name="pdf_url"
+                value={form.pdf_url}
+                onChange={handleChange}
+                placeholder="Optional PDF URL"
+                className={styles.input}
+              />
+              <div className={styles.helperText}>
+                <b>What is this?</b> Optional direct link to a PDF file.
+              </div>
+            </div>
+          )}
 
           {/* Data Extraction selector */}
           {form.task === 'data_extraction' && (
