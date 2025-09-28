@@ -1439,7 +1439,7 @@ app.get('/api/automation/status/:task_id', authMiddleware, async (req, res) => {
   if (!task_id) {
     return res.status(400).json({ error: 'Missing task_id parameter.' });
   }
-  const status = taskStatusStore.get(task_id);
+  const status = await taskStatusStore.get(task_id);
   if (!status) {
     return res.status(404).json({ error: 'Task not found or expired.' });
   }
@@ -2627,8 +2627,8 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
     const result = await kafkaService.sendAutomationTask(enrichedTask);
     const task_id = result.taskId;
 
-    // Store initial status in memory (for demo/dev)
-    taskStatusStore.set(task_id, {
+    // Store initial status in Redis/memory
+    await taskStatusStore.set(task_id, {
       status: 'queued',
       result: null,
       updated_at: new Date().toISOString(),

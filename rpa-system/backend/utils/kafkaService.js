@@ -35,8 +35,9 @@ class KafkaService {
         this.isConnected = false;
         
         // Configuration for traditional Kafka
-        const defaultBroker = process.env.NODE_ENV === 'development' ? 'localhost:9092' : 'kafka:9092';
-        this.brokers = process.env.KAFKA_BOOTSTRAP_SERVERS || defaultBroker;
+        // Default to localhost for development, but require explicit configuration for production
+        const defaultBroker = process.env.NODE_ENV === 'development' ? 'localhost:9092' : null;
+        this.brokers = process.env.KAFKA_BOOTSTRAP_SERVERS || process.env.KAFKA_BROKERS || defaultBroker;
         this.taskTopic = process.env.KAFKA_TASK_TOPIC || 'automation-tasks';
         this.resultTopic = process.env.KAFKA_RESULT_TOPIC || 'automation-results';
         this.consumerGroup = process.env.KAFKA_CONSUMER_GROUP || 'backend-service';
@@ -58,9 +59,15 @@ class KafkaService {
             return;
         }
         
-        // If using traditional Kafka, check kafkajs availability
-        if (!this.useUpstash && !Kafka) {
-            console.warn('⚠️ Kafka client not present; Kafka functionality disabled');
+        // If using traditional Kafka, check kafkajs availability and broker configuration
+        if (!this.useUpstash && (!Kafka || !this.brokers)) {
+            if (!Kafka) {
+                console.warn('⚠️ Kafka client not present; Kafka functionality disabled');
+            }
+            if (!this.brokers) {
+                console.warn('⚠️ KAFKA_BOOTSTRAP_SERVERS or KAFKA_BROKERS not configured; Kafka functionality disabled');
+                console.warn('   Set KAFKA_BOOTSTRAP_SERVERS to your Kafka broker URL (e.g., my-kafka.render.com:9092)');
+            }
             this.kafkaEnabled = false;
             this.kafka = null;
             this.producer = null;
@@ -204,7 +211,7 @@ class KafkaService {
                         try {
                             const taskStatusStore = require('./taskStatusStore');
                             if (taskId) {
-                                taskStatusStore.set(taskId, {
+                                await taskStatusStore.set(taskId, {
                                     status: result.status || 'finished',
                                     result: result.result || result,
                                     updated_at: new Date().toISOString(),
