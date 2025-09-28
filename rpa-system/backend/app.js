@@ -2849,6 +2849,11 @@ app.get('/api/user/notifications', authMiddleware, async (req, res) => {
       console.warn('[GET /api/user/notifications] missing authenticated user');
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    
+    if (!supabase) {
+      console.error('[GET /api/user/notifications] Supabase client not initialized');
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
     const { data, error } = await supabase
       .from('user_settings')
       .select('*')
@@ -2936,6 +2941,11 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
     if (!req.user || !req.user.id) {
       console.warn('[PUT /api/user/notifications] missing authenticated user');
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    if (!supabase) {
+      console.error('[PUT /api/user/notifications] Supabase client not initialized');
+      return res.status(500).json({ error: 'Database connection not available' });
     }
     const { preferences, phone_number, fcm_token } = req.body;
 
