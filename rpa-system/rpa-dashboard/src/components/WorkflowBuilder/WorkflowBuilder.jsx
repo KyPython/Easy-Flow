@@ -13,7 +13,8 @@ import {
   FaStop,
   FaCog,
   FaEye,
-  FaFlask
+  FaFlask,
+  FaHistory
 } from 'react-icons/fa';
 
 import WorkflowCanvas from './WorkflowCanvas';
@@ -21,6 +22,7 @@ import TemplateGallery from './TemplateGallery';
 import ScheduleManager from './ScheduleManager';
 import ExecutionDashboard from './ExecutionDashboard';
 import WorkflowTesting from './WorkflowTesting';
+import WorkflowVersionHistory from './WorkflowVersionHistory';
 import { useWorkflow } from '../../hooks/useWorkflow';
 import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
 import { usePlan } from '../../hooks/usePlan';
@@ -44,6 +46,7 @@ const WorkflowBuilder = () => {
   const [paywallFeature, setPaywallFeature] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const { error: showError, warning: showWarning, success: showSuccess, info: showInfo } = useToast();
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   
   // Ref to access WorkflowCanvas methods
   const canvasRef = useRef(null);
@@ -375,6 +378,14 @@ const WorkflowBuilder = () => {
             >
               <FaCog /> {isActive ? 'Deactivate' : 'Activate'}
             </button>
+            <button
+              className={styles.actionButton}
+              onClick={() => setShowVersionHistory(true)}
+              title="View version history for this workflow"
+              disabled={!hasWorkflowId}
+            >
+              <FaHistory /> Version History
+            </button>
             {isExecuting ? (
               <button
                 className={`${styles.actionButton} ${styles.stopButton}`}
@@ -399,6 +410,18 @@ const WorkflowBuilder = () => {
             )}
           </div>
         )}
+      {/* Version History Modal */}
+      {showVersionHistory && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} role="dialog" aria-modal="true" aria-label="Version History">
+            <WorkflowVersionHistory
+              workflowId={workflowId || currentWorkflow?.id}
+              workflowName={currentWorkflow?.name || ''}
+              onClose={() => setShowVersionHistory(false)}
+            />
+          </div>
+        </div>
+      )}
       </div>
 
       {/* Main Content */}

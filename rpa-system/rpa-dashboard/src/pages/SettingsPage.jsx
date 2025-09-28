@@ -567,6 +567,21 @@ export default function SettingsPage() {
         </div>
       )}
 
+
+      {/* Data Retention */}
+      <section className={styles.section}>
+        <h3 className={styles.heading}>Data Retention</h3>
+        <p className={styles.muted}>
+          Control how long your data is stored. Data retention policies help you manage storage costs and comply with regulations. Contact your admin for changes to retention periods.
+        </p>
+        <div style={{ marginTop: 12 }}>
+          <strong>Current Policy:</strong> <span style={{ color: 'var(--color-primary-700)' }}>90 days</span>
+        </div>
+        <div style={{ marginTop: 8, color: 'var(--color-gray-700)' }}>
+          Workflow logs, execution results, and audit trails are retained for 90 days by default. If you need a custom retention period, please contact support.
+        </div>
+      </section>
+
       {/* Theme */}
       <section className={styles.section}>
         <h3 className={styles.heading}>{t('settings.theme','Theme')}</h3>

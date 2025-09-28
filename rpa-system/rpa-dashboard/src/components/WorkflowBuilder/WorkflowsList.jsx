@@ -14,7 +14,8 @@ import {
   FaCheckCircle,
   FaPauseCircle,
   FaArchive,
-  FaLayerGroup
+  FaLayerGroup,
+  FaHistory
 } from 'react-icons/fa';
 import PropTypes from 'prop-types';
 
@@ -202,6 +203,8 @@ const WorkflowsList = () => {
 };
 
 const WorkflowCard = ({ workflow, onEdit, onRun, onDelete }) => {
+  // Placeholder: In a real app, version info would be fetched from API or workflow object
+  const version = workflow.version || 'v1';
   const getStatusIcon = (status) => {
     switch (status) {
       case 'active': return <FaCheckCircle style={{ color: 'var(--color-success-600)' }} />;
@@ -229,6 +232,16 @@ const WorkflowCard = ({ workflow, onEdit, onRun, onDelete }) => {
             {getStatusIcon(workflow.status)}
             <span>{getStatusText(workflow.status)}</span>
           </div>
+        </div>
+        <div className={styles.versionIndicator} title="View version history">
+          <button
+            className={styles.versionButton}
+            onClick={() => onEdit && onEdit()}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--color-primary-700)', cursor: 'pointer', fontSize: 14 }}
+          >
+            <FaHistory style={{ fontSize: 16 }} />
+            <span style={{ fontWeight: 500 }}>Version</span>
+          </button>
         </div>
       </div>
 
