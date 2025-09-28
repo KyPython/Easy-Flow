@@ -120,6 +120,7 @@ class KafkaService {
     }
     
     async initializeTraditionalKafka() {
+        let admin = null;
         try {
             console.log(`[KafkaService] Initializing Kafka with brokers: ${this.brokers}`);
             
@@ -147,6 +148,82 @@ class KafkaService {
             const KafkaClient = ConfluentKafka || Kafka;
             this.kafka = new KafkaClient(kafkaConfig);
             
+            // Create admin client for topic management
+            admin = this.kafka.admin();
+            await admin.connect();
+            console.log('[KafkaService] Admin client connected');
+            
+            // Define required topics
+            const requiredTopics = [
+                {
+                    topic: this.taskTopic,
+                    numPartitions: 3,
+                    replicationFactor: 3, // Confluent Cloud default
+                    configEntries: [
+                        { name: 'cleanup.policy', value: 'delete' },
+                        { name: 'retention.ms', value: '604800000' } // 7 days
+                    ]
+                },
+                {
+                    topic: this.resultTopic,
+                    numPartitions: 3,
+                    replicationFactor: 3,
+                    configEntries: [
+                        { name: 'cleanup.policy', value: 'delete' },
+                        { name: 'retention.ms', value: '604800000' } // 7 days
+                    ]
+                },
+                {
+                    topic: 'workflow-events',
+                    numPartitions: 1,
+                    replicationFactor: 3,
+                    configEntries: [
+                        { name: 'cleanup.policy', value: 'delete' },
+                        { name: 'retention.ms', value: '604800000' } // 7 days
+                    ]
+                },
+                {
+                    topic: 'status-updates',
+                    numPartitions: 1,
+                    replicationFactor: 3,
+                    configEntries: [
+                        { name: 'cleanup.policy', value: 'delete' },
+                        { name: 'retention.ms', value: '86400000' } // 1 day
+                    ]
+                }
+            ];
+            
+            // Check existing topics
+            const existingTopics = await admin.listTopics();
+            console.log('[KafkaService] Existing topics:', existingTopics);
+            
+            // Filter topics that need to be created
+            const topicsToCreate = requiredTopics.filter(topicConfig => 
+                !existingTopics.includes(topicConfig.topic)
+            );
+            
+            if (topicsToCreate.length > 0) {
+                console.log('[KafkaService] Creating missing topics:', topicsToCreate.map(t => t.topic));
+                
+                try {
+                    await admin.createTopics({
+                        topics: topicsToCreate,
+                        waitForLeaders: true,
+                        timeout: 30000
+                    });
+                    console.log('[KafkaService] Successfully created topics:', topicsToCreate.map(t => t.topic));
+                } catch (createError) {
+                    // Handle case where topics might already exist (race condition)
+                    if (createError.message && createError.message.includes('already exists')) {
+                        console.log('[KafkaService] Topics already exist (created by another process)');
+                    } else {
+                        console.warn('[KafkaService] Failed to create some topics, continuing anyway:', createError.message);
+                    }
+                }
+            } else {
+                console.log('[KafkaService] All required topics already exist');
+            }
+            
             this.producer = this.kafka.producer({
                 maxInFlightRequests: 1,
                 idempotent: true,
@@ -170,11 +247,21 @@ class KafkaService {
             this.startConsumingResults();
             
             this.isConnected = true;
-            console.log('[KafkaService] Successfully connected to Kafka');
+            console.log('[KafkaService] Successfully connected to Kafka with auto-topic creation');
             
         } catch (error) {
             console.error('[KafkaService] Failed to initialize Kafka:', error);
             this.isConnected = false;
+        } finally {
+            // Always disconnect admin client
+            if (admin) {
+                try {
+                    await admin.disconnect();
+                    console.log('[KafkaService] Admin client disconnected');
+                } catch (disconnectError) {
+                    console.warn('[KafkaService] Error disconnecting admin client:', disconnectError);
+                }
+            }
         }
     }
     

@@ -157,6 +157,12 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
       );
 
       if (!response.ok) {
+        // Handle 404 - endpoint doesn't exist yet
+        if (response.status === 404) {
+          showWarning('🔧 Link discovery testing is not yet implemented on this server. You can still submit the task normally.');
+          return;
+        }
+        
         const errorData = await response.json().catch(() => ({}));
         const error = new Error(errorData.error || `Test failed: ${response.status}`);
         error.response = { status: response.status, data: errorData };
@@ -182,7 +188,10 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
       const errorMessage = error.message || '';
       let userMessage = 'Link discovery test failed. Please try again.';
       
-      if (error.response?.status === 400) {
+      // Handle network/connection errors gracefully
+      if (error.name === 'TypeError' && errorMessage.includes('fetch')) {
+        userMessage = '🔧 Cannot connect to server. Link discovery testing unavailable, but you can still submit the task.';
+      } else if (error.response?.status === 400) {
         if (errorMessage.includes('CSS Selector is required')) {
           userMessage = '⚠️ Please provide a CSS selector for the link discovery method.';
         } else if (errorMessage.includes('Link Text is required')) {
@@ -519,6 +528,10 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
                 <p className={styles.sectionSubtitle}>
                   No more hunting for PDF URLs! Choose how the system should find download links.
                 </p>
+                <div className={styles.betaNotice}>
+                  <span className={styles.betaBadge}>BETA</span>
+                  Testing feature may not be available on all servers
+                </div>
               </div>
 
               {/* Discovery Method Selector */}
