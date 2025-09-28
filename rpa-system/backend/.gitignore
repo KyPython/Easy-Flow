@@ -12,12 +12,12 @@
 !**/.env.example
 !**/.env.sample
 !**/.env.template
-# Ignore all test files
-**/tests/
-**/*.test.js
-**/*.test.jsx
-**/*.test.ts
-**/*.test.tsx
-**/test.js
-**/test_*.py
-**/tests_*.py
+# Ignore all test files (DISABLED to allow test tracking)
+# **/tests/
+# **/*.test.js
+# **/*.test.jsx
+# **/*.test.ts
+# **/*.test.tsx
+# **/test.js
+# **/test_*.py
+# **/tests_*.py
