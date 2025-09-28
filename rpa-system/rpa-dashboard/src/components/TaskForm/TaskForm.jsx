@@ -64,7 +64,6 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     { value: 'data_extraction', label: 'Data Extraction' },
     { value: 'form_submission', label: 'Form Submission' },
     { value: 'web_scraping', label: 'Web Scraping' },
-    { value: 'pdf_processing', label: 'PDF Processing' },
   ];
 
   const isValidUrl = (string) => {
@@ -93,12 +92,10 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
           return;
         }
         
-        // ✅ NEW: Migrate old 'pdf_processing' to new 'invoice_download'
+        // Add new link discovery fields with defaults if missing
         const migratedData = {
           ...savedData,
-          // Convert old task type to new structure
-          task: savedData.task === 'pdf_processing' ? 'invoice_download' : savedData.task || 'invoice_download',
-          // Add new link discovery fields with defaults if missing
+          task: savedData.task || 'invoice_download',
           discoveryMethod: savedData.discoveryMethod || 'auto-detect',
           cssSelector: savedData.cssSelector || '',
           linkText: savedData.linkText || ''
