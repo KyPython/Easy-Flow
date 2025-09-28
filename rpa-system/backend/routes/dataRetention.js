@@ -7,24 +7,17 @@
 const express = require('express');
 const { dataRetentionService } = require('../services/dataRetentionService');
 const { auditLogger } = require('../utils/auditLogger');
+const { requireFeature } = require('../middleware/planEnforcement');
 const router = express.Router();
 
-// Middleware to check admin privileges
-const requireAdmin = (req, res, next) => {
-  // This should be replaced with proper admin role checking
-  if (!req.user || !req.user.is_admin) {
-    return res.status(403).json({ 
-      error: 'Admin privileges required for data retention operations' 
-    });
-  }
-  next();
-};
+// All data retention endpoints require the 'data_retention' feature
+const requireDataRetention = requireFeature('data_retention');
 
 /**
  * GET /api/data-retention/status
  * Get data retention service status and configuration
  */
-router.get('/status', requireAdmin, async (req, res) => {
+router.get('/status', requireDataRetention, async (req, res) => {
   try {
     const status = dataRetentionService.getServiceStatus();
     
@@ -52,7 +45,7 @@ router.get('/status', requireAdmin, async (req, res) => {
  * GET /api/data-retention/statistics
  * Get data retention statistics showing what data is eligible for cleanup
  */
-router.get('/statistics', requireAdmin, async (req, res) => {
+router.get('/statistics', requireDataRetention, async (req, res) => {
   try {
     const stats = await dataRetentionService.getRetentionStatistics();
     
@@ -80,7 +73,7 @@ router.get('/statistics', requireAdmin, async (req, res) => {
  * POST /api/data-retention/cleanup
  * Run comprehensive data cleanup or specific cleanup type
  */
-router.post('/cleanup', requireAdmin, async (req, res) => {
+router.post('/cleanup', requireDataRetention, async (req, res) => {
   try {
     const { type } = req.body;
 
@@ -144,7 +137,7 @@ router.post('/cleanup', requireAdmin, async (req, res) => {
  * PUT /api/data-retention/policy
  * Update retention policy for a specific data type
  */
-router.put('/policy', requireAdmin, async (req, res) => {
+router.put('/policy', requireDataRetention, async (req, res) => {
   try {
     const { dataType, subType, retentionDays } = req.body;
 
@@ -198,7 +191,7 @@ router.put('/policy', requireAdmin, async (req, res) => {
  * POST /api/data-retention/start
  * Start the automatic cleanup scheduler
  */
-router.post('/start', requireAdmin, async (req, res) => {
+router.post('/start', requireDataRetention, async (req, res) => {
   try {
     dataRetentionService.startScheduledCleanup();
     
@@ -226,7 +219,7 @@ router.post('/start', requireAdmin, async (req, res) => {
  * POST /api/data-retention/stop
  * Stop the automatic cleanup scheduler
  */
-router.post('/stop', requireAdmin, async (req, res) => {
+router.post('/stop', requireDataRetention, async (req, res) => {
   try {
     dataRetentionService.stopScheduledCleanup();
     
@@ -254,7 +247,7 @@ router.post('/stop', requireAdmin, async (req, res) => {
  * GET /api/data-retention/policies
  * Get all current retention policies
  */
-router.get('/policies', requireAdmin, async (req, res) => {
+router.get('/policies', requireDataRetention, async (req, res) => {
   try {
     const policies = dataRetentionService.retentionPolicies;
     
@@ -308,7 +301,7 @@ router.get('/policies', requireAdmin, async (req, res) => {
  * POST /api/data-retention/preview
  * Preview what data would be cleaned up without actually deleting it
  */
-router.post('/preview', requireAdmin, async (req, res) => {
+router.post('/preview', requireDataRetention, async (req, res) => {
   try {
     const { type } = req.body;
     

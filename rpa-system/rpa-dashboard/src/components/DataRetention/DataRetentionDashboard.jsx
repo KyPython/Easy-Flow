@@ -16,8 +16,11 @@ import {
   FaChartBar
 } from 'react-icons/fa';
 import { supabase } from '../../utils/supabaseClient';
+import PlanGate from '../PlanGate/PlanGate';
+import { useTheme } from '../../utils/ThemeContext';
 
 const DataRetentionDashboard = ({ user }) => {
+  const { theme } = useTheme();
   const [retentionStatus, setRetentionStatus] = useState(null);
   const [statistics, setStatistics] = useState(null);
   const [policies, setPolicies] = useState(null);
@@ -27,17 +30,11 @@ const DataRetentionDashboard = ({ user }) => {
   const [cleanupResults, setCleanupResults] = useState(null);
   const [isRunningCleanup, setIsRunningCleanup] = useState(false);
 
-  // Check if user has admin privileges
-  const isAdmin = user?.user_metadata?.role === 'admin' || user?.app_metadata?.role === 'admin';
-
   useEffect(() => {
-    if (isAdmin) {
-      loadDashboardData();
-    }
-  }, [isAdmin]);
+    loadDashboardData();
+  }, []);
 
   const loadDashboardData = async () => {
-    if (!isAdmin) return;
     
     try {
       setLoading(true);
@@ -86,7 +83,6 @@ const DataRetentionDashboard = ({ user }) => {
   };
 
   const runCleanup = async (type = 'all') => {
-    if (!isAdmin) return;
 
     try {
       setIsRunningCleanup(true);
@@ -124,7 +120,6 @@ const DataRetentionDashboard = ({ user }) => {
   };
 
   const toggleScheduler = async (start) => {
-    if (!isAdmin) return;
 
     try {
       const { data: session } = await supabase.auth.getSession();
@@ -160,26 +155,17 @@ const DataRetentionDashboard = ({ user }) => {
     return new Date(date).toLocaleString();
   };
 
-  if (!isAdmin) {
-    return (
-      <div className={styles.accessDenied}>
-        <FaExclamationTriangle className={styles.warningIcon} />
-        <h3>Access Denied</h3>
-        <p>Data retention management requires administrator privileges.</p>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className={styles.loading}>
-        <div className={styles.spinner} />
-        <p>Loading data retention dashboard...</p>
-      </div>
-    );
-  }
-
   return (
+    <PlanGate 
+      feature="data_retention"
+      upgradeMessage="Data retention management requires a Professional or Enterprise plan to ensure compliance and automated data cleanup."
+    >
+      {loading ? (
+        <div className={styles.loading}>
+          <div className={styles.spinner} />
+          <p>Loading data retention dashboard...</p>
+        </div>
+      ) : (
     <div className={styles.dashboard}>
       <div className={styles.header}>
         <div className={styles.headerContent}>
@@ -414,6 +400,8 @@ const DataRetentionDashboard = ({ user }) => {
         )}
       </div>
     </div>
+      )}
+    </PlanGate>
   );
 };
 

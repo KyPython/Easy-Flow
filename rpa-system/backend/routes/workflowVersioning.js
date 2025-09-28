@@ -7,13 +7,17 @@
 const express = require('express');
 const { workflowVersioningService } = require('../services/workflowVersioningService');
 const { auditLogger } = require('../utils/auditLogger');
+const { requireFeature } = require('../middleware/planEnforcement');
 const router = express.Router();
+
+// All workflow versioning endpoints require the 'workflow_versioning' feature
+const requireVersioning = requireFeature('workflow_versioning');
 
 /**
  * POST /api/workflows/:workflowId/versions
  * Create a new version of a workflow
  */
-router.post('/:workflowId/versions', async (req, res) => {
+router.post('/:workflowId/versions', requireVersioning, async (req, res) => {
   try {
     const { workflowId } = req.params;
     const { changeComment, changeType = 'manual' } = req.body;
@@ -56,7 +60,7 @@ router.post('/:workflowId/versions', async (req, res) => {
  * GET /api/workflows/:workflowId/versions
  * Get all versions for a workflow
  */
-router.get('/:workflowId/versions', async (req, res) => {
+router.get('/:workflowId/versions', requireVersioning, async (req, res) => {
   try {
     const { workflowId } = req.params;
     const { 
@@ -98,7 +102,7 @@ router.get('/:workflowId/versions', async (req, res) => {
  * GET /api/workflows/:workflowId/versions/:versionNumber
  * Get a specific version of a workflow
  */
-router.get('/:workflowId/versions/:versionNumber', async (req, res) => {
+router.get('/:workflowId/versions/:versionNumber', requireVersioning, async (req, res) => {
   try {
     const { workflowId, versionNumber } = req.params;
 
@@ -140,7 +144,7 @@ router.get('/:workflowId/versions/:versionNumber', async (req, res) => {
  * GET /api/workflows/:workflowId/versions/:fromVersion/compare/:toVersion
  * Compare two versions of a workflow
  */
-router.get('/:workflowId/versions/:fromVersion/compare/:toVersion', async (req, res) => {
+router.get('/:workflowId/versions/:fromVersion/compare/:toVersion', requireVersioning, async (req, res) => {
   try {
     const { workflowId, fromVersion, toVersion } = req.params;
 
@@ -178,7 +182,7 @@ router.get('/:workflowId/versions/:fromVersion/compare/:toVersion', async (req, 
  * POST /api/workflows/:workflowId/versions/:versionNumber/rollback
  * Rollback workflow to a specific version
  */
-router.post('/:workflowId/versions/:versionNumber/rollback', async (req, res) => {
+router.post('/:workflowId/versions/:versionNumber/rollback', requireVersioning, async (req, res) => {
   try {
     const { workflowId, versionNumber } = req.params;
     const { rollbackComment } = req.body;
@@ -213,7 +217,7 @@ router.post('/:workflowId/versions/:versionNumber/rollback', async (req, res) =>
  * GET /api/workflows/:workflowId/versions/statistics
  * Get version history statistics
  */
-router.get('/:workflowId/versions/statistics', async (req, res) => {
+router.get('/:workflowId/versions/statistics', requireVersioning, async (req, res) => {
   try {
     const { workflowId } = req.params;
 
@@ -246,7 +250,7 @@ router.get('/:workflowId/versions/statistics', async (req, res) => {
  * POST /api/workflows/:workflowId/versions/:versionNumber/export
  * Export a workflow version
  */
-router.post('/:workflowId/versions/:versionNumber/export', async (req, res) => {
+router.post('/:workflowId/versions/:versionNumber/export', requireVersioning, async (req, res) => {
   try {
     const { workflowId, versionNumber } = req.params;
 
@@ -284,7 +288,7 @@ router.post('/:workflowId/versions/:versionNumber/export', async (req, res) => {
  * POST /api/workflows/:workflowId/versions/auto
  * Auto-create version when workflow is modified
  */
-router.post('/:workflowId/versions/auto', async (req, res) => {
+router.post('/:workflowId/versions/auto', requireVersioning, async (req, res) => {
   try {
     const { workflowId } = req.params;
     const { changeContext } = req.body;
@@ -322,7 +326,7 @@ router.post('/:workflowId/versions/auto', async (req, res) => {
  * DELETE /api/workflows/:workflowId/versions/cleanup
  * Clean up old versions based on retention policy
  */
-router.delete('/:workflowId/versions/cleanup', async (req, res) => {
+router.delete('/:workflowId/versions/cleanup', requireVersioning, async (req, res) => {
   try {
     const { workflowId } = req.params;
     const { 
@@ -364,7 +368,7 @@ router.delete('/:workflowId/versions/cleanup', async (req, res) => {
  * GET /api/workflows/:workflowId/versions/:versionNumber/preview
  * Preview what would change if rolling back to a specific version
  */
-router.get('/:workflowId/versions/:versionNumber/preview', async (req, res) => {
+router.get('/:workflowId/versions/:versionNumber/preview', requireVersioning, async (req, res) => {
   try {
     const { workflowId, versionNumber } = req.params;
 

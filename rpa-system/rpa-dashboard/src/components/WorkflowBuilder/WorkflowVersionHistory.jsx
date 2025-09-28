@@ -18,8 +18,11 @@ import {
   FaSync
 } from 'react-icons/fa';
 import { supabase } from '../../utils/supabaseClient';
+import PlanGate from '../PlanGate/PlanGate';
+import { useTheme } from '../../utils/ThemeContext';
 
 const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
+  const { theme } = useTheme();
   const [versions, setVersions] = useState([]);
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -231,21 +234,22 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className={styles.modal}>
-        <div className={styles.modalContent}>
-          <div className={styles.loading}>
-            <div className={styles.spinner} />
-            <p>Loading version history...</p>
+  return (
+    <PlanGate 
+      feature="workflow_versioning"
+      upgradeMessage="Workflow versioning and rollback requires a Professional or Enterprise plan for advanced workflow management."
+    >
+      {loading ? (
+        <div className={styles.modal}>
+          <div className={styles.modalContent}>
+            <div className={styles.loading}>
+              <div className={styles.spinner} />
+              <p>Loading version history...</p>
+            </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.modal}>
+      ) : (
+        <div className={styles.modal}>
       <div className={styles.modalContent}>
         <div className={styles.header}>
           <div className={styles.titleSection}>
@@ -605,6 +609,8 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
         )}
       </div>
     </div>
+      )}
+    </PlanGate>
   );
 };
 

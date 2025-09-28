@@ -307,7 +307,10 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate 
         return;
       }
 
-      console.log(`${channelKey} subscription status:`, status);
+      // Only log status changes for non-CLOSED states to prevent spam
+      if (status !== 'CLOSED') {
+        console.log(`${channelKey} subscription status:`, status);
+      }
 
       if (['CLOSED', 'CHANNEL_ERROR', 'TIMEOUT'].includes(status)) {
         try {
