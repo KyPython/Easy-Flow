@@ -2843,7 +2843,7 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
 });
 
 // Get user notification settings (specific endpoint for notification preferences)
-app.get('/api/user/notifications', authMiddleware, requireFeature('priority_support'), async (req, res) => {
+app.get('/api/user/notifications', authMiddleware, async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
       console.warn('[GET /api/user/notifications] missing authenticated user');
@@ -2931,7 +2931,7 @@ app.get('/api/user/notifications', authMiddleware, requireFeature('priority_supp
 });
 
 // Update notification preferences
-app.put('/api/user/notifications', authMiddleware, requireFeature('priority_support'), async (req, res) => {
+app.put('/api/user/notifications', authMiddleware, async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
       console.warn('[PUT /api/user/notifications] missing authenticated user');
