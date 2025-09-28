@@ -137,7 +137,7 @@ class KafkaClient {
         }
     }
 
-    async sendTaskMessage(taskData, topic = "automation-tasks") {
+    async sendTaskMessage(taskData, topic = "automation-tasks_") {
         const taskMessage = {
             taskId: taskData.taskId || `task-${Date.now()}`,
             type: taskData.type || "automation",
@@ -234,7 +234,7 @@ async function exampleConsumer() {
     try {
         console.log("Starting to consume messages from automation-tasks topic...");
         
-        await client.consumeMessages("automation-tasks", async (message) => {
+        await client.consumeMessages("automation-tasks_", async (message) => {
             console.log("Received task message:", {
                 key: message.key,
                 value: message.parsedValue,

@@ -107,7 +107,7 @@ class KafkaClient:
         finally:
             consumer.close()
 
-    def send_task_message(self, task_data: Dict[str, Any], topic: str = "automation-tasks"):
+    def send_task_message(self, task_data: Dict[str, Any], topic: str = "automation-tasks_"):
         """Helper method to send task messages to the automation topic"""
         return self.produce_message(topic, task_data, key=task_data.get('task_id'))
 
@@ -143,7 +143,7 @@ def example_consumer():
     client = KafkaClient()
     
     print("Starting to consume messages from automation-tasks topic...")
-    for message in client.consume_messages("automation-tasks"):
+    for message in client.consume_messages("automation-tasks_"):
         print(f"Received message: {message}")
         
         # Process the message based on its content

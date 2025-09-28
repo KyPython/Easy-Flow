@@ -48,8 +48,8 @@ class KafkaService {
         // Default to localhost for development, but require explicit configuration for production
         const defaultBroker = process.env.NODE_ENV === 'development' ? 'localhost:9092' : null;
         this.brokers = process.env.KAFKA_BOOTSTRAP_SERVERS || process.env.KAFKA_BROKERS || defaultBroker;
-        this.taskTopic = process.env.KAFKA_TASK_TOPIC || 'automation-tasks';
-        this.resultTopic = process.env.KAFKA_RESULT_TOPIC || 'automation-results';
+        this.taskTopic = process.env.KAFKA_TASK_TOPIC || 'automation-tasks_';
+        this.resultTopic = process.env.KAFKA_RESULT_TOPIC || 'automation-results_';
         this.consumerGroup = process.env.KAFKA_CONSUMER_GROUP || 'backend-service';
         
         // Configuration for Upstash
