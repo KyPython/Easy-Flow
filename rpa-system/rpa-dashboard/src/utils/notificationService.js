@@ -982,6 +982,19 @@ class NotificationService {
     }
   }
 
+  // Dispatch custom event (missing method that was causing the TypeError)
+  dispatchEvent(eventName, eventData = {}) {
+    if (this.listeners.has(eventName)) {
+      this.listeners.get(eventName).forEach(callback => {
+        try {
+          callback({ type: eventName, ...eventData });
+        } catch (error) {
+          console.error(`🔔 Error in event listener for '${eventName}':`, error);
+        }
+      });
+    }
+  }
+
   // Trigger notification event
   triggerNotificationEvent(eventData) {
     const eventName = eventData.type || 'notification';
