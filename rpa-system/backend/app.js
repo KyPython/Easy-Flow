@@ -675,6 +675,22 @@ try {
   console.warn('[boot] roiAnalyticsRoutes not mounted:', e?.message || e);
 }
 
+// Data retention routes
+try {
+  const dataRetentionRoutes = require('./routes/dataRetention');
+  app.use('/api/data-retention', authMiddleware, apiLimiter, dataRetentionRoutes);
+} catch (e) {
+  console.warn('[boot] dataRetentionRoutes not mounted:', e?.message || e);
+}
+
+// Workflow versioning routes
+try {
+  const workflowVersioningRoutes = require('./routes/workflowVersioning');
+  app.use('/api/workflows', authMiddleware, apiLimiter, workflowVersioningRoutes);
+} catch (e) {
+  console.warn('[boot] workflowVersioningRoutes not mounted:', e?.message || e);
+}
+
 // Start a workflow execution
 try {
   const { WorkflowExecutor } = require('./services/workflowExecutor');
