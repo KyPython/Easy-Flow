@@ -16,7 +16,7 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
   const { sendTaskCompleted, sendTaskFailed } = useNotifications(user);
-  const [lastTasksLength, setLastTasksLength] = useState(recentTasks.length);
+  const [lastTaskIds, setLastTaskIds] = useState(new Set());
   const { t } = useI18n();
   const metricCards = [
     {
@@ -50,16 +50,21 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
   ];
 
   useEffect(() => {
-    if (recentTasks.length > lastTasksLength) {
-      const newTask = recentTasks[0];
-      if (newTask && newTask.status === 'completed') {
-        sendTaskCompleted(newTask.type, newTask.url);
-      } else if (newTask && newTask.status === 'failed') {
-        sendTaskFailed(newTask.type, newTask.url, newTask.error || 'Task failed');
+    // Find new tasks that weren't in the previous set
+    const currentTaskIds = new Set(recentTasks.map(task => task.id));
+    const newTasks = recentTasks.filter(task => !lastTaskIds.has(task.id));
+    
+    // Send notifications for new completed/failed tasks
+    newTasks.forEach(task => {
+      if (task.status === 'completed') {
+        sendTaskCompleted(task.type, task.url);
+      } else if (task.status === 'failed') {
+        sendTaskFailed(task.type, task.url, task.error || 'Task failed');
       }
-    }
-    setLastTasksLength(recentTasks.length);
-  }, [recentTasks, lastTasksLength, sendTaskCompleted, sendTaskFailed]);
+    });
+    
+    setLastTaskIds(currentTaskIds);
+  }, [recentTasks, sendTaskCompleted, sendTaskFailed]); // Safe to include functions since they're from useCallback
 
   return (
     <div className={styles.dashboard}>

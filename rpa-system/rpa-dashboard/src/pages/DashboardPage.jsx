@@ -83,6 +83,9 @@ const DashboardPage = () => {
     if (!authLoading && user) {
       fetchDashboardData();
 
+      // Throttle realtime updates to prevent excessive API calls
+      let updateTimeout = null;
+      
       // Supabase v2 Realtime subscription
       const channel = supabase
         .channel(`realtime:automation_runs:user_id=eq.${user.id}`)
@@ -95,17 +98,21 @@ const DashboardPage = () => {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            // Refresh all data when anything changes
-            fetchDashboardData();
+            // Throttle updates to once every 2 seconds to prevent excessive re-renders
+            if (updateTimeout) clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+              fetchDashboardData();
+            }, 2000);
           }
         )
         .subscribe();
 
       return () => {
+        if (updateTimeout) clearTimeout(updateTimeout);
         supabase.removeChannel(channel);
       };
     }
-  }, [user, authLoading, fetchDashboardData]);
+  }, [user?.id, authLoading]); // ✅ FIXED: Removed fetchDashboardData from dependencies
 
   const { t } = useI18n();
 
