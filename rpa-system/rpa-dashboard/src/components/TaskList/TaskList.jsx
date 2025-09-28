@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import styles from './TaskList.module.css';
 import StatusBadge from '../StatusBadge/StatusBadge';
@@ -77,56 +77,61 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
   const getTaskUrl = (task) =>
     task.automation_tasks?.url || task.url || '';
 
-  // Filter and sort tasks safely
-  const filteredTasks = tasks
-    .filter(task => {
-      const taskName = getTaskType(task);
-      const taskUrl = getTaskUrl(task);
+  // Memoize filtered and sorted tasks to prevent recalculation on every render
+  const filteredTasks = useMemo(() => {
+    return tasks
+      .filter(task => {
+        const taskName = getTaskType(task);
+        const taskUrl = getTaskUrl(task);
 
-      const matchesSearch =
-        (taskUrl?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (task.username?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (formatTaskType(taskName)?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+        const matchesSearch =
+          (taskUrl?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+          (task.username?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+          (formatTaskType(taskName)?.toLowerCase() || '').includes(searchTerm.toLowerCase());
 
-      const matchesFilter = filterStatus === 'all' || task.status === filterStatus;
+        const matchesFilter = filterStatus === 'all' || task.status === filterStatus;
 
-      return matchesSearch && matchesFilter;
-    })
-    .sort((a, b) => {
-      let aValue, bValue;
+        return matchesSearch && matchesFilter;
+      })
+      .sort((a, b) => {
+        let aValue, bValue;
 
-      // Handle potentially nested properties for sorting
-      if (sortBy === 'type') {
-        aValue = getTaskType(a);
-        bValue = getTaskType(b);
-      } else if (sortBy === 'url') {
-        aValue = getTaskUrl(a);
-        bValue = getTaskUrl(b);
-      } else if (sortBy === 'created_at') {
-        aValue = a.started_at || a.created_at;
-        bValue = b.started_at || b.created_at;
-      } else {
-        aValue = a[sortBy];
-        bValue = b[sortBy];
-      }
+        // Handle potentially nested properties for sorting
+        if (sortBy === 'type') {
+          aValue = getTaskType(a);
+          bValue = getTaskType(b);
+        } else if (sortBy === 'url') {
+          aValue = getTaskUrl(a);
+          bValue = getTaskUrl(b);
+        } else if (sortBy === 'created_at') {
+          aValue = a.started_at || a.created_at;
+          bValue = b.started_at || b.created_at;
+        } else {
+          aValue = a[sortBy];
+          bValue = b[sortBy];
+        }
 
-      const multiplier = sortOrder === 'asc' ? 1 : -1;
+        const multiplier = sortOrder === 'asc' ? 1 : -1;
 
-      if (sortBy === 'created_at') {
-        return (new Date(aValue) - new Date(bValue)) * multiplier;
-      }
+        if (sortBy === 'created_at') {
+          return (new Date(aValue) - new Date(bValue)) * multiplier;
+        }
 
-      const aStr = aValue?.toString() || '';
-      const bStr = bValue?.toString() || '';
-      return aStr.localeCompare(bStr) * multiplier;
-    });
+        const aStr = aValue?.toString() || '';
+        const bStr = bValue?.toString() || '';
+        return aStr.localeCompare(bStr) * multiplier;
+      });
+  }, [tasks, searchTerm, filterStatus, sortBy, sortOrder]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedTasks = filteredTasks.slice(startIndex, startIndex + itemsPerPage);
+  // Memoize pagination calculations
+  const { totalPages, paginatedTasks } = useMemo(() => {
+    const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedTasks = filteredTasks.slice(startIndex, startIndex + itemsPerPage);
+    return { totalPages, paginatedTasks };
+  }, [filteredTasks, currentPage, itemsPerPage]);
 
-  const handleSelectTask = (taskId) => {
+  const handleSelectTask = useCallback((taskId) => {
     const newSelected = new Set(selectedTasks);
     if (newSelected.has(taskId)) {
       newSelected.delete(taskId);
@@ -134,24 +139,24 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
       newSelected.add(taskId);
     }
     setSelectedTasks(newSelected);
-  };
+  }, [selectedTasks]);
 
-  const handleSelectAll = () => {
+  const handleSelectAll = useCallback(() => {
     if (selectedTasks.size === paginatedTasks.length) {
       setSelectedTasks(new Set());
     } else {
       setSelectedTasks(new Set(paginatedTasks.map(task => task.id)));
     }
-  };
+  }, [selectedTasks.size, paginatedTasks]);
 
-  const handleSort = (field) => {
+  const handleSort = useCallback((field) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
       setSortBy(field);
       setSortOrder('asc');
     }
-  };
+  }, [sortBy, sortOrder]);
 
   return (
     <div className={styles.container}>
@@ -254,7 +259,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <StatusBadge status={task.status} />
-                    {(() => {
+                    {useMemo(() => {
                       try {
                         const r = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
                         if (r?.simulated || r?.mode === 'embedded') {
@@ -262,7 +267,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                         }
                       } catch (_) {}
                       return null;
-                    })()}
+                    }, [task.result])}
                   </div>
                 </td>
                 <td>
