@@ -72,7 +72,7 @@ async function consume(topic, config) {
 
 async function main() {
     const config = readConfig("client.properties");
-    const topic = "topic_0";
+    const topic = "automation_runs";
 
     await produce(topic, config);
     await consume(topic, config);

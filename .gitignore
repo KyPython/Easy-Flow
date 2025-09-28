@@ -101,6 +101,10 @@ firebase-service-account.json
 config/secrets/
 ACTUAL_ENV_VALUES.txt
 **/ACTUAL_ENV_VALUES.txt
+
+# Kafka templates with credentials
+.kafka-templates/
+**/client.properties
 **/.vercel/
 **/.expo/
 **/.pytest_cache/

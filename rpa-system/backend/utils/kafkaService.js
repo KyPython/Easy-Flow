@@ -1,6 +1,16 @@
 let Kafka;
+let ConfluentKafka;
 let uuidv4;
 let axios;
+try {
+    // Try to use the new Confluent Kafka client first
+    ConfluentKafka = require('@confluentinc/kafka-javascript').KafkaJS.Kafka;
+    console.log('✅ Using Confluent Kafka JavaScript client');
+} catch (e) {
+    console.log('⚠️ Confluent Kafka client not available, falling back to kafkajs');
+    ConfluentKafka = null;
+}
+
 try {
     Kafka = require('kafkajs').Kafka;
     uuidv4 = require('uuid').v4;
@@ -133,7 +143,9 @@ class KafkaService {
                 console.log('[KafkaService] Using SSL/SASL authentication with PLAIN mechanism');
             }
 
-            this.kafka = new Kafka(kafkaConfig);
+            // Use Confluent client if available, otherwise fall back to kafkajs
+            const KafkaClient = ConfluentKafka || Kafka;
+            this.kafka = new KafkaClient(kafkaConfig);
             
             this.producer = this.kafka.producer({
                 maxInFlightRequests: 1,
