@@ -181,9 +181,9 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
   styleSrc: ["'self'", "https:"],
-      scriptSrc: ["'self'", "https://www.uchat.com.au", "https://sdk.dfktv2.com", "https://www.googletagmanager.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://www.uchat.com.au", "https://sdk.dfktv2.com", "https://www.googletagmanager.com", "https://js.hs-scripts.com", "https://js-na1.hs-scripts.com", "https://js-na2.hs-scripts.com", "https://*.hubspot.com", "https://js.hs-analytics.net", "https://*.hs-analytics.net", "https://js-na2.hs-banner.com", "https://*.hscollectedforms.net"],
       imgSrc: ["'self'", "https:"],
-      connectSrc: ["'self'", "https://sdk.dfktv2.com", "https://www.uchat.com.au", "https://www.google-analytics.com", "https://analytics.google.com"],
+      connectSrc: ["'self'", "https://sdk.dfktv2.com", "https://www.uchat.com.au", "https://www.google-analytics.com", "https://analytics.google.com", "https://*.hubspot.com", "https://*.hs-analytics.net", "https://*.hscollectedforms.net", "https://api.hubapi.com"],
       fontSrc: ["'self'", "https:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
