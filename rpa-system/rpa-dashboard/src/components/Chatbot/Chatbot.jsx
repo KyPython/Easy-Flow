@@ -28,6 +28,18 @@ const Chatbot = () => {
         console.warn('[Chatbot] No valid widget ID configured (REACT_APP_UCHAT_WIDGET_ID). Skipping load.');
         return;
       }
+      
+      // TROUBLESHOOTING: If you see 404 errors for widget?flow_token=..., this means:
+      // 1. The widget ID (currently: ${widgetId}) may be invalid or expired
+      // 2. The domain (${window.location.hostname}) may not be configured in your uChat dashboard
+      // 3. The widget may be disabled or deleted from your uChat account
+      // 
+      // TO FIX:
+      // - Log into your uchat.com.au dashboard
+      // - Verify widget ID '${widgetId}' exists and is active
+      // - Check domain whitelist includes '${window.location.hostname}'
+      // - Regenerate widget if necessary and update REACT_APP_UCHAT_WIDGET_ID
+      console.info('[Chatbot] Loading widget', { widgetId, domain: window.location.hostname });
       // Check if the script is already loaded (by id or src)
       if (document.getElementById('uchat-script') || document.querySelector('script[src*="uchat.com.au"]')) {
         // Verify widget mount exists if script is present
