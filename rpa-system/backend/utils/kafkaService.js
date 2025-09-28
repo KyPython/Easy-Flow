@@ -113,14 +113,27 @@ class KafkaService {
         try {
             console.log(`[KafkaService] Initializing Kafka with brokers: ${this.brokers}`);
             
-            this.kafka = new Kafka({
+            const kafkaConfig = {
                 clientId: 'backend-service',
                 brokers: this.brokers.split(','),
                 retry: {
                     initialRetryTime: 100,
                     retries: 8
                 }
-            });
+            };
+
+            // Add SSL/SASL configuration for cloud Kafka providers
+            if (process.env.KAFKA_USERNAME && process.env.KAFKA_PASSWORD) {
+                kafkaConfig.ssl = true;
+                kafkaConfig.sasl = {
+                    mechanism: 'plain',
+                    username: process.env.KAFKA_USERNAME,
+                    password: process.env.KAFKA_PASSWORD
+                };
+                console.log('[KafkaService] Using SSL/SASL authentication with PLAIN mechanism');
+            }
+
+            this.kafka = new Kafka(kafkaConfig);
             
             this.producer = this.kafka.producer({
                 maxInFlightRequests: 1,
