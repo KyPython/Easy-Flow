@@ -122,9 +122,9 @@ const UrlInput = ({ onUrlSubmit, onClear }) => {
   }, []);
 
   const demoSites = [
-    { name: 'ParaBank (Demo)', url: 'https://parabank.parasoft.com' },
-    { name: 'Automation Practice', url: 'http://automationpractice.com' },
-    { name: 'The Internet (HerokuApp)', url: 'https://the-internet.herokuapp.com' },
+    { name: 'HttpBin Test API', url: 'https://httpbin.org/forms/post' },
+    { name: 'JSON Placeholder', url: 'https://jsonplaceholder.typicode.com' },
+    { name: 'ReqRes Test API', url: 'https://reqres.in' },
   ];
 
   return (
