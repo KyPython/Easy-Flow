@@ -45,7 +45,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     isEnabled: persistenceEnabled
   } = useFormPersistence('taskForm', initialFormData, {
     sensitiveFields: ['password'],
-    debounceTime: 1500,
+    debounceTime: 300, // Faster save - was 1500ms
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
@@ -53,6 +53,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRecoveryNotification, setShowRecoveryNotification] = useState(false);
+  const [isFormLoaded, setIsFormLoaded] = useState(false);
   
   // ✅ NEW: Link Discovery State
   const [isTestingDiscovery, setIsTestingDiscovery] = useState(false);
@@ -80,40 +81,59 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
 
   // Load persisted form data on mount
   useEffect(() => {
-    if (persistenceEnabled && hasStoredData) {
-      const savedData = loadData();
-      if (savedData && Object.keys(savedData).length > 0) {
-        // ✅ NEW: Check for schema version and clear outdated data
-        const CURRENT_SCHEMA_VERSION = '1.1.0'; // Invoice Download refactor
-        
-        if (!savedData.schemaVersion || savedData.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-          console.log('[TaskForm] Clearing outdated form data due to schema change');
-          clearData(); // Clear old incompatible data
-          return;
+    let timeoutId;
+    
+    const loadFormData = () => {
+      if (persistenceEnabled && hasStoredData) {
+        const savedData = loadData();
+        if (savedData && Object.keys(savedData).length > 0) {
+          // ✅ NEW: Check for schema version and clear outdated data
+          const CURRENT_SCHEMA_VERSION = '1.2.0'; // Fixed duplicate task type issue
+          
+          if (!savedData.schemaVersion || savedData.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+            console.log('[TaskForm] Clearing outdated form data due to schema change');
+            clearData(); // Clear old incompatible data
+            setIsFormLoaded(true);
+            return;
+          }
+          
+          // Additional validation to prevent corrupted data
+          if (savedData.task && !taskTypes.find(type => type.value === savedData.task)) {
+            console.log('[TaskForm] Clearing form data with invalid task type');
+            clearData();
+            setIsFormLoaded(true);
+            return;
+          }
+          
+          // Add new link discovery fields with defaults if missing
+          const migratedData = {
+            ...initialFormData, // Start with clean initial data
+            ...savedData,
+            task: savedData.task || 'invoice_download',
+            discoveryMethod: savedData.discoveryMethod || 'auto-detect',
+            cssSelector: savedData.cssSelector || '',
+            linkText: savedData.linkText || '',
+            // Preserve initialUrl if provided
+            url: initialUrl || savedData.url || initialFormData.url
+          };
+          
+          setForm(migratedData);
+          setShowRecoveryNotification(true);
+          
+          // Auto-hide notification after 5 seconds
+          timeoutId = setTimeout(() => setShowRecoveryNotification(false), 5000);
         }
-        
-        // Add new link discovery fields with defaults if missing
-        const migratedData = {
-          ...savedData,
-          task: savedData.task || 'invoice_download',
-          discoveryMethod: savedData.discoveryMethod || 'auto-detect',
-          cssSelector: savedData.cssSelector || '',
-          linkText: savedData.linkText || ''
-        };
-        
-        setForm(prevForm => ({
-          ...prevForm,
-          ...migratedData,
-          // Preserve initialUrl if provided
-          url: initialUrl || migratedData.url || prevForm.url
-        }));
-        setShowRecoveryNotification(true);
-        
-        // Auto-hide notification after 5 seconds
-        setTimeout(() => setShowRecoveryNotification(false), 5000);
       }
-    }
-  }, [persistenceEnabled, hasStoredData, loadData, initialUrl, clearData]);
+      setIsFormLoaded(true);
+    };
+
+    // Immediate load - remove delay for better performance
+    loadFormData();
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [persistenceEnabled, hasStoredData, loadData, initialUrl, clearData, initialFormData]);
 
   // Enable browser autofill on mount
   useEffect(() => {
@@ -219,24 +239,40 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
+    
+    // Clear error immediately for better UX
+    if (errors[name]) {
+      setErrors((prevErrors) => ({ ...prevErrors, [name]: '' }));
+    }
+    
     setForm((prev) => {
       const updated = { ...prev, [name]: value };
       
-      // Auto-save form data (debounced) with schema version
-      if (persistenceEnabled) {
-        const dataToSave = { 
-          ...updated, 
-          schemaVersion: '1.1.0' // Add schema version for Invoice Download refactor
-        };
-        saveData(dataToSave);
+      // If task type changed, reset form-specific fields to prevent conflicts
+      if (name === 'task') {
+        // Clear task-specific fields when switching task types
+        updated.pdf_url = '';
+        updated.selector = '';
+        updated.discoveryMethod = 'auto-detect';
+        updated.cssSelector = '';
+        updated.linkText = '';
+        updated.extractionTargets = [];
+        updated.enableAI = false;
       }
       
-      if (errors[name]) {
-        setErrors((prevErrors) => ({ ...prevErrors, [name]: '' }));
-      }
       return updated;
     });
-  }, [persistenceEnabled, saveData, errors]);
+    
+    // Separate persistence from state update for better performance
+    if (persistenceEnabled) {
+      const dataToSave = { 
+        ...form, 
+        [name]: value,
+        schemaVersion: '1.2.0'
+      };
+      saveData(dataToSave);
+    }
+  }, [persistenceEnabled, saveData, errors, form]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -392,6 +428,24 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     }
   };
 
+  // Render immediately for better performance - duplication issues are fixed
+  // if (!isFormLoaded) {
+  //   return (
+  //     <div className={styles.container}>
+  //       <div className={styles.header}>
+  //         <h2 className={styles.title}>Create New Automation Task</h2>
+  //         <p className={styles.subtitle}>
+  //           Configure and execute your business process automation
+  //         </p>
+  //       </div>
+  //       <div className={styles.loadingState}>
+  //         <div className={styles.spinner}></div>
+  //         <span>Loading form...</span>
+  //       </div>
+  //     </div>
+  //   );
+  // }
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -521,6 +575,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
           </div>
 
           {/* ✅ NEW: Link Discovery Section - Replaces manual PDF URL */}
+          {/* Current task type: {form.task} */}
           {form.task === 'invoice_download' && (
             <div className={styles.linkDiscoverySection}>
               <div className={styles.sectionHeader}>
@@ -836,6 +891,23 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
               'Run Automation'
             )}
           </button>
+          
+          {/* Debug/Development: Clear cached form data */}
+          {persistenceEnabled && hasStoredData && (
+            <button
+              type="button"
+              onClick={() => {
+                clearData();
+                setForm(initialFormData);
+                setShowRecoveryNotification(false);
+                alert('Form data cleared! Link discovery should now be visible for Invoice Download tasks.');
+              }}
+              className={styles.clearDataButton}
+              title="Clear cached form data"
+            >
+              🗑️ Clear Cached Data
+            </button>
+          )}
         </div>
       </form>
     </div>
