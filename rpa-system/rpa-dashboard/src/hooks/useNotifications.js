@@ -187,7 +187,7 @@ export const useNotifications = (user) => {
 
   // Send a test notification
   const sendTestNotification = useCallback(async () => {
-    if (!user) return false;
+    if (!user) return Promise.resolve(false);
 
     const testNotification = {
       type: 'test',
@@ -249,25 +249,25 @@ export const useNotifications = (user) => {
 
   // Send notification helpers
   const sendTaskCompleted = useCallback((taskName) => {
-    if (!user) return false;
+    if (!user) return Promise.resolve(false);
     const notification = NotificationHelpers.taskCompleted(taskName, user.id);
     return notificationService.sendNotification(user.id, notification);
   }, [user]);
 
   const sendTaskFailed = useCallback((taskName, error) => {
-    if (!user) return false;
+    if (!user) return Promise.resolve(false);
     const notification = NotificationHelpers.taskFailed(taskName, error, user.id);
     return notificationService.sendNotification(user.id, notification);
   }, [user]);
 
   const sendSystemAlert = useCallback((message) => {
-    if (!user) return false;
+    if (!user) return Promise.resolve(false);
     const notification = NotificationHelpers.systemAlert(message, user.id);
     return notificationService.sendNotification(user.id, notification);
   }, [user]);
 
   const sendWelcome = useCallback((userName) => {
-    if (!user) return false;
+    if (!user) return Promise.resolve(false);
     const notification = NotificationHelpers.welcome(userName, user.id);
     return notificationService.sendNotification(user.id, notification);
   }, [user]);
