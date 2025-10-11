@@ -1,10 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
 import Dashboard from '../components/Dashboard/Dashboard';
 import { supabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
-import Chatbot from '../components/Chatbot/Chatbot';
+
+// Lazy load Chatbot component for better performance
+const Chatbot = lazy(() => import('../components/Chatbot/Chatbot'));
 
 
 const DashboardPage = () => {
@@ -129,7 +131,9 @@ const DashboardPage = () => {
     <>
       <ErrorMessage message={error} />
       <Dashboard metrics={metrics} recentTasks={recentTasks} user={user} />
-      <Chatbot />
+      <Suspense fallback={null}>
+        <Chatbot />
+      </Suspense>
     </>
   );
 };
