@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiX, FiZap, FiTrendingUp } from 'react-icons/fi';
 import { usePlan } from '../../hooks/usePlan';
-import { useTheme } from '../../utils/ThemeContext';
 import conversionTracker from '../../utils/conversionTracking';
 import styles from './MilestonePrompt.module.css';
 
@@ -11,7 +10,6 @@ import styles from './MilestonePrompt.module.css';
  */
 const MilestonePrompt = ({ milestone, onClose }) => {
   const { planData } = usePlan();
-  const { theme } = useTheme();
   const [isVisible, setIsVisible] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
 

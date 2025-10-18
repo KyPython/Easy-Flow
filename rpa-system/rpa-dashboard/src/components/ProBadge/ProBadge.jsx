@@ -1,6 +1,5 @@
 import React from 'react';
 import { FiZap } from 'react-icons/fi';
-import { useTheme } from '../../utils/ThemeContext';
 import styles from './ProBadge.module.css';
 
 /**
@@ -14,8 +13,6 @@ const ProBadge = ({
   text = 'PRO',
   className = ''
 }) => {
-  const { theme } = useTheme();
-
   const badgeClasses = [
     styles.badge,
     styles[variant],

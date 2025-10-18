@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { FiCheck, FiX, FiZap } from 'react-icons/fi';
 import { usePlan } from '../../hooks/usePlan';
-import { useTheme } from '../../utils/ThemeContext';
 import conversionTracker from '../../utils/conversionTracking';
 import styles from './FeatureComparison.module.css';
 
@@ -11,7 +10,6 @@ import styles from './FeatureComparison.module.css';
  */
 const FeatureComparison = ({ compact = false }) => {
   const { planData } = usePlan();
-  const { theme } = useTheme();
   const userPlan = planData?.plan?.name?.toLowerCase() || 'hobbyist';
 
   // Track feature comparison view
