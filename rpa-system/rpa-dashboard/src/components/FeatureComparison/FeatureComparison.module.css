@@ -1,0 +1,260 @@
+/* FeatureComparison Styles using EasyFlow theme */
+
+.comparison {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-family-primary);
+}
+
+.compact {
+  padding: var(--spacing-lg);
+}
+
+.header {
+  margin-bottom: var(--spacing-xl);
+  text-align: center;
+}
+
+.compact .header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.3;
+}
+
+.compact .title {
+  font-size: var(--font-size-lg);
+  margin-bottom: 0;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+.table {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: var(--spacing-xl);
+}
+
+.compact .table {
+  margin-bottom: var(--spacing-lg);
+}
+
+.headerRow {
+  display: contents;
+}
+
+.featureHeader {
+  background: var(--color-gray-50);
+  padding: var(--spacing-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: var(--font-size-sm);
+}
+
+.planHeader {
+  background: var(--color-gray-50);
+  padding: var(--spacing-md);
+  text-align: center;
+  border-bottom: 1px solid var(--border-color);
+  border-left: 1px solid var(--border-color);
+  min-width: 120px;
+}
+
+.planName {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+}
+
+.currentPlanBadge {
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+  font-size: var(--font-size-2xs);
+  padding: 2px var(--spacing-xs);
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+}
+
+.featureRow {
+  display: contents;
+}
+
+.featureName {
+  padding: var(--spacing-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+}
+
+.featureValue {
+  padding: var(--spacing-md);
+  text-align: center;
+  border-bottom: 1px solid var(--border-color);
+  border-left: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkIcon {
+  color: var(--color-success-600);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.crossIcon {
+  color: var(--color-gray-400);
+  font-size: var(--font-size-lg);
+}
+
+.featureText {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.cta {
+  text-align: center;
+}
+
+.upgradeButton {
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+  border: none;
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.upgradeButton:hover {
+  background: var(--color-primary-700);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.upgradeButton:active {
+  transform: translateY(0);
+}
+
+.ctaSubtext {
+  margin-top: var(--spacing-md);
+  color: var(--color-warning-600);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .table {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-xs);
+    border: none;
+  }
+  
+  .featureHeader,
+  .planHeader {
+    display: none;
+  }
+  
+  .featureRow {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    display: block;
+    margin-bottom: var(--spacing-sm);
+  }
+  
+  .featureName {
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--spacing-sm);
+    padding: 0;
+    border: none;
+  }
+  
+  .featureValue {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-xs) 0;
+    border: none;
+    text-align: left;
+  }
+  
+  .featureValue:before {
+    content: attr(data-plan);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-muted);
+  }
+  
+  .upgradeButton {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .comparison {
+    padding: var(--spacing-lg);
+  }
+  
+  .compact {
+    padding: var(--spacing-md);
+  }
+  
+  .title {
+    font-size: var(--font-size-lg);
+  }
+  
+  .compact .title {
+    font-size: var(--font-size-base);
+  }
+  
+  .upgradeButton {
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-sm) var(--spacing-lg);
+  }
+}
+
+/* Dark theme adjustments */
+.theme-dark .featureHeader,
+.theme-dark .planHeader {
+  background: var(--color-gray-100);
+}
+
+.theme-dark .featureRow:nth-child(even) .featureName,
+.theme-dark .featureRow:nth-child(even) .featureValue {
+  background: var(--color-gray-50);
+}

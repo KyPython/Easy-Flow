@@ -1,0 +1,305 @@
+/* MilestonePrompt Styles using EasyFlow theme */
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal, 1000);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.prompt {
+  background: var(--card-bg);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-2xl);
+  box-shadow: var(--shadow-2xl);
+  border: 1px solid var(--border-color);
+  width: 90%;
+  max-width: 480px;
+  text-align: center;
+  position: relative;
+  animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+
+.prompt::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-secondary-500), var(--color-success-500));
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+.closing {
+  animation: slideOut 0.2s ease-in forwards;
+}
+
+.closeButton {
+  position: absolute;
+  top: var(--spacing-lg);
+  right: var(--spacing-lg);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.closeButton:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+  transform: scale(1.1);
+}
+
+.icon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-secondary-500));
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--spacing-xl);
+  color: var(--on-primary);
+  font-size: var(--font-size-3xl);
+  animation: bounce 0.6s ease-out;
+  box-shadow: var(--shadow-lg);
+}
+
+.content {
+  margin-bottom: var(--spacing-xl);
+}
+
+.title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-md);
+  line-height: 1.3;
+}
+
+.message {
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  margin-bottom: var(--spacing-lg);
+}
+
+.upgradeMessage {
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--spacing-lg);
+}
+
+.upgradeButton {
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+  border: none;
+  padding: var(--spacing-md) var(--spacing-2xl);
+  border-radius: var(--radius-lg);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.upgradeButton::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.upgradeButton:hover::before {
+  left: 100%;
+}
+
+.upgradeButton:hover {
+  background: var(--color-primary-700);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.upgradeButton:active {
+  transform: translateY(0);
+}
+
+.celebration {
+  padding: var(--spacing-lg);
+  background: linear-gradient(135deg, var(--color-success-50), var(--color-primary-50));
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-success-200);
+}
+
+.proMessage {
+  color: var(--color-success-700);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-base);
+  margin: 0;
+}
+
+.progress {
+  margin-top: var(--spacing-xl);
+}
+
+.progressBar {
+  background: var(--color-gray-200);
+  height: 8px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--spacing-sm);
+}
+
+.progressFill {
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-secondary-500));
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.8s ease-out;
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+.progressText {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9) translateY(-10px);
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-10px) scale(1.05);
+  }
+  60% {
+    transform: translateY(-5px) scale(1.02);
+  }
+}
+
+@keyframes shimmer {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px var(--color-primary-300);
+  }
+  to {
+    box-shadow: 0 0 15px var(--color-primary-400);
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .prompt {
+    padding: var(--spacing-xl);
+    margin: var(--spacing-lg);
+  }
+  
+  .icon {
+    width: 60px;
+    height: 60px;
+    font-size: var(--font-size-2xl);
+  }
+  
+  .title {
+    font-size: var(--font-size-xl);
+  }
+  
+  .message,
+  .upgradeMessage {
+    font-size: var(--font-size-sm);
+  }
+  
+  .upgradeButton {
+    width: 100%;
+    justify-content: center;
+    padding: var(--spacing-lg) var(--spacing-xl);
+  }
+}
+
+@media (max-width: 480px) {
+  .prompt {
+    padding: var(--spacing-lg);
+  }
+  
+  .title {
+    font-size: var(--font-size-lg);
+  }
+  
+  .upgradeButton {
+    font-size: var(--font-size-sm);
+  }
+}
+
+/* Dark theme adjustments */
+.theme-dark .celebration {
+  background: linear-gradient(135deg, var(--color-success-900), var(--color-primary-900));
+  border-color: var(--color-success-700);
+}
+
+.theme-dark .proMessage {
+  color: var(--color-success-400);
+}

@@ -1,0 +1,124 @@
+/* ProBadge Styles using EasyFlow theme */
+
+.badge {
+  background: linear-gradient(135deg, var(--color-primary-600), var(--color-secondary-600));
+  color: var(--on-primary);
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.badge:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md);
+}
+
+/* Variants */
+.default {
+  padding: 3px var(--spacing-xs);
+  font-size: var(--font-size-2xs);
+}
+
+.small {
+  padding: 2px 6px;
+  font-size: 9px;
+}
+
+.large {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+}
+
+/* Positions */
+.top_right {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 10;
+}
+
+.top_left {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  z-index: 10;
+}
+
+.inline {
+  position: relative;
+  margin-left: var(--spacing-xs);
+  transform: translateY(-1px);
+}
+
+/* Icon */
+.icon {
+  font-size: 10px;
+  stroke-width: 3;
+}
+
+.small .icon {
+  font-size: 8px;
+}
+
+.large .icon {
+  font-size: 12px;
+}
+
+.text {
+  line-height: 1;
+}
+
+/* Animations */
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+}
+
+.badge:hover .icon {
+  animation: sparkle 0.6s ease-in-out;
+}
+
+/* Dark theme adjustments */
+.theme-dark .badge {
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-secondary-500));
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .badge {
+    background: var(--color-primary-600);
+    border: 2px solid var(--on-primary);
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .badge {
+    transition: none;
+  }
+  
+  .badge:hover {
+    transform: none;
+    animation: none;
+  }
+  
+  .badge:hover .icon {
+    animation: none;
+  }
+}
