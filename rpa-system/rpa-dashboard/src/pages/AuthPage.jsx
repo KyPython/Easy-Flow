@@ -58,6 +58,12 @@ export default function AuthPage() {
           }
         }
         
+        // Check if this is a signup completion by looking for signup flag
+        if (sessionStorage.getItem('just_signed_up_pending') === 'true') {
+          sessionStorage.setItem('just_signed_up', 'true');
+          sessionStorage.removeItem('just_signed_up_pending');
+        }
+        
         // User just signed in or was confirmed, redirect to dashboard
         navigate('/app');
       }
@@ -136,6 +142,8 @@ export default function AuthPage() {
       } else {
           const { error } = await supabase.auth.signUp({ email, password });
           if (error) throw error;
+          // Set flag to indicate this was a signup (will be converted to tracking flag on successful auth)
+          sessionStorage.setItem('just_signed_up_pending', 'true');
           // If confirmations are enabled, inform the user
           setSuccess('Sign-up successful! Please check your email to confirm your account.');
           // Track signup event and trigger welcome campaign after sign-up (server-side will resolve user id when they first login)

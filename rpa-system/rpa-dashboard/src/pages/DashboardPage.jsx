@@ -21,6 +21,21 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Track trial signup conversion
+  useEffect(() => {
+    const justSignedUp = sessionStorage.getItem('just_signed_up');
+    
+    if (justSignedUp === 'true') {
+      if (window.gtag) {
+        window.gtag('event', 'trial_signup', {
+          'method': 'website'
+        });
+        console.log('✅ New signup tracked!');
+      }
+      sessionStorage.removeItem('just_signed_up');
+    }
+  }, []);
+
   // Fetch dashboard data directly from automation_runs table
   const fetchDashboardData = useCallback(async () => {
     if (!user) return;
