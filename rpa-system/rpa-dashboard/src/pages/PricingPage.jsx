@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../utils/AuthContext';
 import { usePlan } from '../hooks/usePlan';
 import { api } from '../utils/api';
+import conversionTracker from '../utils/conversionTracking';
 import styles from './PricingPage.module.css';
 
 export default function PricingPage() {
@@ -82,13 +83,25 @@ export default function PricingPage() {
     fetchPlans();
     fetchFeatureLabels();
     fetchUserSubscription();
-  }, [fetchPlans, fetchFeatureLabels, fetchUserSubscription]);
+    
+    // Track feature comparison viewed
+    conversionTracker.trackFeatureComparisonViewed(planData?.plan?.name || 'hobbyist');
+  }, [fetchPlans, fetchFeatureLabels, fetchUserSubscription, planData?.plan?.name]);
 
   const startPlan = async (plan) => {
     if (!user) {
       navigate('/auth');
       return;
     }
+    
+    // Track upgrade click from pricing page
+    conversionTracker.trackUpgradeClicked(
+      'pricing_page',
+      plan.name.toLowerCase() === 'hobbyist' ? 'Free Forever' : 'Start 14-Day Free Trial',
+      planData?.plan?.name || 'hobbyist',
+      null, // no specific feature context
+      plan.name
+    );
     
     try {
       setLoading(true);
@@ -263,7 +276,15 @@ export default function PricingPage() {
       <div className={styles.cta}>
   <h3>{t('pricing.cta_title','Ready to automate your workflow?')}</h3>
   <p>{t('pricing.cta_subtitle','Join thousands of businesses saving time and money with EasyFlow')}</p>
-        <button className={styles.ctaButton} onClick={() => navigate('/auth')}>
+        <button className={styles.ctaButton} onClick={() => {
+          // Track upgrade click from pricing CTA
+          conversionTracker.trackUpgradeClicked(
+            'pricing_cta',
+            'Get Started Today',
+            planData?.plan?.name || 'hobbyist'
+          );
+          navigate('/auth');
+        }}>
           {t('pricing.get_started','Get Started Today')}
         </button>
       </div>

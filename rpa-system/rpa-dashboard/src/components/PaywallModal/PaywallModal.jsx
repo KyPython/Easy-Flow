@@ -5,6 +5,7 @@ import { useTheme } from '../../utils/ThemeContext';
 import { supabase } from '../../utils/supabaseClient';
 import { FiX, FiZap, FiArrowRight, FiCheck } from 'react-icons/fi';
 import PropTypes from 'prop-types';
+import conversionTracker from '../../utils/conversionTracking';
 import styles from './PaywallModal.module.css';
 
 const PaywallModal = ({ 
@@ -23,6 +24,17 @@ const PaywallModal = ({
 
   // Development bypass
   const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
+
+  // Track paywall shown event
+  useEffect(() => {
+    if (feature && requiredPlan) {
+      conversionTracker.trackPaywallShown(
+        feature,
+        planData?.plan?.name || 'hobbyist',
+        window.location.pathname
+      );
+    }
+  }, [feature, requiredPlan, planData?.plan?.name]);
 
   // Fetch plans and feature labels (same as PricingPage)
   const fetchPlans = useCallback(async () => {
@@ -60,6 +72,14 @@ const PaywallModal = ({
   }, [fetchPlans, fetchFeatureLabels]);
 
   const handleClose = () => {
+    // Track paywall dismissal
+    if (feature) {
+      conversionTracker.trackPaywallDismissed(
+        feature,
+        planData?.plan?.name || 'hobbyist'
+      );
+    }
+    
     setIsClosing(true);
     setTimeout(() => {
       if (onClose) onClose();
@@ -67,6 +87,16 @@ const PaywallModal = ({
   };
 
   const handleUpgrade = () => {
+    // Track upgrade click from paywall
+    if (feature) {
+      conversionTracker.trackUpgradeClicked(
+        'paywall_modal',
+        'Upgrade Now',
+        planData?.plan?.name || 'hobbyist',
+        feature
+      );
+    }
+    
     // Redirect to pricing page
     window.location.href = '/pricing';
   };
