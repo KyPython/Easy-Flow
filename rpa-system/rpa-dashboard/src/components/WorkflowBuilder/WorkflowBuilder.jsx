@@ -26,6 +26,8 @@ import WorkflowVersionHistory from './WorkflowVersionHistory';
 import { useWorkflow } from '../../hooks/useWorkflow';
 import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
 import { usePlan } from '../../hooks/usePlan';
+import { useAuth } from '../../utils/AuthContext';
+import useUsageTracking from '../../hooks/useUsageTracking';
 import { supabase } from '../../utils/supabaseClient';
 import LoadingSpinner from './LoadingSpinner';
 import ActionButton from './ActionButton';
@@ -38,6 +40,8 @@ const WorkflowBuilder = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { workflowId } = useParams();
+  const { user } = useAuth();
+  const { incrementWorkflowCount } = useUsageTracking(user?.id);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
@@ -115,6 +119,9 @@ const WorkflowBuilder = () => {
         
         const newWorkflow = await createWorkflow(newWorkflowData);
         console.log('New workflow created successfully:', newWorkflow);
+        
+        // Track workflow creation for milestone system
+        incrementWorkflowCount();
         
         // Show success message with instructions
         alert(`Workflow "${newWorkflow.name}" created successfully!\n\nYour workflow has been saved and you can now:\n• Start building by adding steps from the Actions toolbar\n• Use the "Browse Workflows" button to see all your workflows\n• Navigate between different workflow tabs`);

@@ -4,6 +4,8 @@ import { api } from '../../utils/api';
 import { useToast } from '../WorkflowBuilder/Toast';
 import PlanGate from '../PlanGate/PlanGate';
 import { useFormPersistence, enableBrowserAutofill } from '../../utils/formPersistence';
+import { useAuth } from '../../utils/AuthContext';
+import useUsageTracking from '../../hooks/useUsageTracking';
 import styles from './TaskForm.module.css';
 
 const token = localStorage.getItem('sb-syxzilyuysdoirnezgii-auth-token');
@@ -18,6 +20,8 @@ const accessToken = parsedToken?.access_token || parsedToken;
 
 const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
   const { warning: showWarning, success: showSuccess } = useToast();
+  const { user } = useAuth();
+  const { incrementTaskCount } = useUsageTracking(user?.id);
 
   // Form persistence setup
   const initialFormData = {
@@ -343,6 +347,9 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
 
       const completedTask = await response.json();
       onTaskSubmit?.(completedTask);
+
+      // Track task completion for milestone system
+      incrementTaskCount();
 
       // Clear form and persisted data after successful submission
       const clearedForm = {

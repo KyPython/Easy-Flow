@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import ReactGA from 'react-ga4';
 import useAnalytics from './hooks/useAnalytics';
+import useUsageTracking from './hooks/useUsageTracking';
 import Header from './components/Header/Header';
 import DashboardPage from './pages/DashboardPage';
 import TasksPage from './pages/TasksPage';
@@ -25,6 +26,8 @@ import WorkflowPage from './components/WorkflowBuilder/WorkflowPage';
 import SharedFilePage from './pages/SharedFilePage';
 import BulkInvoiceProcessor from './components/BulkProcessor/BulkInvoiceProcessor';
 import Chatbot from './components/Chatbot/Chatbot';
+import MilestonePrompt from './components/MilestonePrompt/MilestonePrompt';
+import UsageDebugPage from './pages/debug/UsageDebugPage';
 import './utils/firebaseConfig';
 import './theme.css';
 import './App.css';
@@ -66,6 +69,17 @@ function WorkflowIdRedirect() {
 
 function Shell() {
   const { user } = useAuth();
+  const { 
+    showMilestonePrompt, 
+    currentMilestone, 
+    dismissMilestonePrompt 
+  } = useUsageTracking(user?.id);
+
+  const handleMilestoneUpgrade = () => {
+    // Redirect to pricing page
+    window.location.href = '/pricing';
+  };
+
   return (
     <div className="app">
       <Header user={user} />
@@ -107,11 +121,23 @@ function Shell() {
           <Route path="/app/workflows/testing" element={<Protected><WorkflowPage /></Protected>} />
           {/* Minimal Admin route (protect via env secret at backend) */}
           <Route path="/app/admin/templates" element={<Protected><AdminTemplates /></Protected>} />
+          {/* Debug route - development only */}
+          {process.env.NODE_ENV === 'development' && (
+            <Route path="/app/debug" element={<Protected><UsageDebugPage /></Protected>} />
+          )}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       {/* Global Chatbot - appears on all pages */}
       <Chatbot />
+      
+      {/* Milestone Prompt - shows when milestones are reached */}
+      {showMilestonePrompt && currentMilestone && (
+        <MilestonePrompt
+          milestone={currentMilestone}
+          onClose={dismissMilestonePrompt}
+        />
+      )}
     </div>
   );
 }

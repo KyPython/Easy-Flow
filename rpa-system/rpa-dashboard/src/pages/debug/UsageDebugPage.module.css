@@ -1,0 +1,243 @@
+/* UsageDebugPage Styles using EasyFlow theme */
+
+.page {
+  max-width: var(--container-max-width);
+  margin: 0 auto;
+  padding: var(--spacing-2xl) var(--spacing-lg);
+  font-family: var(--font-family-primary);
+  background: var(--bg);
+  min-height: 100vh;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: var(--spacing-2xl);
+}
+
+.header h1 {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.header p {
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--spacing-xl);
+  margin-bottom: var(--spacing-2xl);
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+}
+
+.card h2 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.card h3 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-md);
+}
+
+.metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.metric:last-child {
+  border-bottom: none;
+}
+
+.metric label {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-muted);
+}
+
+.metric span {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.progressSection {
+  margin-bottom: var(--spacing-lg);
+}
+
+.progressSection:last-child {
+  margin-bottom: 0;
+}
+
+.progressBar {
+  background: var(--color-gray-200);
+  height: 12px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--spacing-sm);
+}
+
+.progressFill {
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-secondary-500));
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease-out;
+}
+
+.progressSection p {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.button {
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+  border: none;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.button:hover {
+  background: var(--color-primary-700);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.dangerButton {
+  background: var(--color-error-600);
+  color: white;
+  border: none;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dangerButton:hover {
+  background: var(--color-error-700);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.milestoneActive {
+  padding: var(--spacing-lg);
+  background: var(--color-success-50);
+  border: 1px solid var(--color-success-200);
+  border-radius: var(--radius-md);
+}
+
+.milestoneActive p {
+  margin-bottom: var(--spacing-sm);
+  color: var(--color-success-700);
+}
+
+.milestoneActive strong {
+  font-weight: var(--font-weight-bold);
+}
+
+.instructions {
+  background: var(--color-gray-50);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  border: 1px solid var(--border-color);
+}
+
+.instructions h2 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.instructions ol {
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  padding-left: var(--spacing-lg);
+}
+
+.instructions li {
+  margin-bottom: var(--spacing-sm);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .page {
+    padding: var(--spacing-xl) var(--spacing-md);
+  }
+  
+  .grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-lg);
+  }
+  
+  .card {
+    padding: var(--spacing-lg);
+  }
+  
+  .actions {
+    gap: var(--spacing-sm);
+  }
+  
+  .metric {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+}
+
+/* Dark theme adjustments */
+.theme-dark .progressBar {
+  background: var(--color-gray-200);
+}
+
+.theme-dark .milestoneActive {
+  background: var(--color-success-900);
+  border-color: var(--color-success-700);
+}
+
+.theme-dark .milestoneActive p {
+  color: var(--color-success-400);
+}
+
+.theme-dark .instructions {
+  background: var(--color-gray-100);
+}
