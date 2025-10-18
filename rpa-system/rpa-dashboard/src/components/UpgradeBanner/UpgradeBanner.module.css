@@ -67,6 +67,13 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-shrink: 0;
+}
+
 .upgradeButton {
   background: rgba(255, 255, 255, 0.15);
   color: var(--on-primary);
@@ -91,6 +98,17 @@
 
 .upgradeButton:active {
   transform: translateY(0);
+}
+
+.demoButton {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: var(--on-primary) !important;
+}
+
+.demoButton:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
 }
 
 .dismissButton {
@@ -156,15 +174,16 @@
     order: -1;
   }
   
-  .title {
-    font-size: var(--font-size-base);
+  .actions {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    width: 100%;
   }
   
-  .subtitle {
-    font-size: var(--font-size-xs);
-  }
-  
-  .upgradeButton {
+  .upgradeButton,
+  .actions .demoButton {
+    width: 100% !important;
+    justify-content: center !important;
     padding: var(--spacing-md) var(--spacing-xl);
     font-size: var(--font-size-base);
   }

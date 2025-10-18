@@ -27,6 +27,7 @@ import SharedFilePage from './pages/SharedFilePage';
 import BulkInvoiceProcessor from './components/BulkProcessor/BulkInvoiceProcessor';
 import Chatbot from './components/Chatbot/Chatbot';
 import MilestonePrompt from './components/MilestonePrompt/MilestonePrompt';
+import EmailCaptureModal from './components/EmailCaptureModal/EmailCaptureModal';
 import UsageDebugPage from './pages/debug/UsageDebugPage';
 import './utils/firebaseConfig';
 import './theme.css';
@@ -72,8 +73,30 @@ function Shell() {
   const { 
     showMilestonePrompt, 
     currentMilestone, 
-    dismissMilestonePrompt 
+    dismissMilestonePrompt,
+    sessionsCount
   } = useUsageTracking(user?.id);
+
+  // Email capture modal state
+  const [showEmailCapture, setShowEmailCapture] = useState(false);
+
+  // Check if email capture should be shown
+  useEffect(() => {
+    if (user && sessionsCount >= 3) {
+      const emailCaptured = localStorage.getItem('email_captured') === 'true';
+      const dismissedUntil = localStorage.getItem('email_capture_dismissed_until');
+      const now = Date.now();
+      
+      if (!emailCaptured && (!dismissedUntil || now > parseInt(dismissedUntil))) {
+        // Show after a short delay to not conflict with other modals
+        const timer = setTimeout(() => {
+          setShowEmailCapture(true);
+        }, 2000);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [user, sessionsCount]);
 
   const handleMilestoneUpgrade = () => {
     // Redirect to pricing page
@@ -138,6 +161,13 @@ function Shell() {
           onClose={dismissMilestonePrompt}
         />
       )}
+      
+      {/* Email Capture Modal - shows after 3+ sessions */}
+      <EmailCaptureModal
+        isOpen={showEmailCapture}
+        onClose={() => setShowEmailCapture(false)}
+        sessionCount={sessionsCount}
+      />
     </div>
   );
 }

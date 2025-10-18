@@ -6,6 +6,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { FiX, FiZap, FiArrowRight, FiCheck } from 'react-icons/fi';
 import PropTypes from 'prop-types';
 import conversionTracker from '../../utils/conversionTracking';
+import DemoBookingButton from '../DemoBookingButton/DemoBookingButton';
 import styles from './PaywallModal.module.css';
 
 const PaywallModal = ({ 
@@ -21,6 +22,7 @@ const PaywallModal = ({
   const [plans, setPlans] = useState([]);
   const [featureLabels, setFeatureLabels] = useState({});
   const [loading, setLoading] = useState(false);
+  const [showDemoOffer, setShowDemoOffer] = useState(false);
 
   // Development bypass
   const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
@@ -80,10 +82,19 @@ const PaywallModal = ({
       );
     }
     
+    // Show demo offer before fully closing
     setIsClosing(true);
+    setShowDemoOffer(true);
+    
+    // If user doesn't interact with demo offer, close after 5 seconds
     setTimeout(() => {
       if (onClose) onClose();
-    }, 200);
+    }, 5000);
+  };
+
+  const handleFinalClose = () => {
+    setShowDemoOffer(false);
+    if (onClose) onClose();
   };
 
   const handleUpgrade = () => {
@@ -308,6 +319,32 @@ const PaywallModal = ({
           </button>
         </div>
       </div>
+      
+      {/* Demo offer - shows after dismissal */}
+      {showDemoOffer && (
+        <div className={styles.demoOffer}>
+          <div className={styles.demoOfferContent}>
+            <button 
+              onClick={handleFinalClose}
+              className={styles.demoOfferClose}
+            >
+              <FiX />
+            </button>
+            <h3 className={styles.demoOfferTitle}>Not ready yet?</h3>
+            <p className={styles.demoOfferText}>
+              Book a free demo instead and see EasyFlow in action
+            </p>
+            <DemoBookingButton
+              buttonText="📅 Book Free Demo"
+              subtext="15-min personalized walkthrough"
+              source="post_paywall"
+              variant="primary"
+              size="medium"
+              calendlyUrl="https://calendly.com/your-link/15min"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

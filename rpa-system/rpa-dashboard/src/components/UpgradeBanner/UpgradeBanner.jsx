@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiX, FiZap } from 'react-icons/fi';
 import { usePlan } from '../../hooks/usePlan';
 import conversionTracker from '../../utils/conversionTracking';
+import DemoBookingButton from '../DemoBookingButton/DemoBookingButton';
 import styles from './UpgradeBanner.module.css';
 
 /**
@@ -78,12 +79,25 @@ const UpgradeBanner = () => {
           </div>
         </div>
         
-        <button 
-          onClick={handleUpgradeClick}
-          className={styles.upgradeButton}
-        >
-          Upgrade to Pro →
-        </button>
+        <div className={styles.actions}>
+          <button 
+            onClick={handleUpgradeClick}
+            className={styles.upgradeButton}
+          >
+            Upgrade to Pro →
+          </button>
+          
+          <DemoBookingButton
+            buttonText="📅 Book Demo"
+            subtext=""
+            source="dashboard_banner"
+            variant="outline"
+            size="medium"
+            showSubtext={false}
+            calendlyUrl="https://calendly.com/your-link/15min"
+            className={styles.demoButton}
+          />
+        </div>
         
         <button 
           onClick={handleDismiss}
