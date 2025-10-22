@@ -34,6 +34,7 @@ const { spawn } = require('child_process');
 
 // Import route modules
 const polarRoutes = require('./routes/polarRoutes');
+const socialProofRoutes = require('./routes/socialProofRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3030;
@@ -476,6 +477,14 @@ if (process.env.NODE_ENV === 'test') {
 
 // Mount webhook routes (before other middleware to handle raw body parsing)
 app.use('/api/polar-webhook', polarRoutes);
+
+// Mount social proof routes (public endpoint, no auth required)
+app.use('/api', socialProofRoutes);
+
+// Demo page for social proof testing
+app.get('/demo/social-proof', (req, res) => {
+  res.sendFile(path.join(__dirname, 'demo', 'social-proof.html'));
+});
 
 // Development convenience: return default user preferences when unauthenticated
 // This allows the dashboard to render in local dev without a full auth setup.
