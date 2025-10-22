@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import styles from './LandingPage.module.css';
 import { useTheme } from '../utils/ThemeContext';
 import { useI18n } from '../i18n';
+import { UserCountBadge, ActivityCounter, TrustBadges } from '../components/SocialProof';
 
 export default function LandingPage() {
   const { theme, toggle } = useTheme();
@@ -35,8 +36,27 @@ export default function LandingPage() {
             <Link to="/auth" className={styles.ctaPrimary}>{t('landing.get_started_today','Save 2+ Hours Every Day')}</Link>
             <Link to="/pricing" className={styles.ctaSecondary}>{t('landing.view_pricing','View Pricing')}</Link>
           </div>
+          
+          {/* Social Proof */}
+          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <UserCountBadge variant="join" />
+          </div>
+          
+          <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
+            <TrustBadges />
+          </div>
         </div>
       </div>
+
+      {/* Activity Counter Section */}
+      <section style={{ 
+        padding: '40px 20px', 
+        backgroundColor: 'rgba(249, 250, 251, 0.5)',
+        display: 'flex',
+        justifyContent: 'center'
+      }}>
+        <ActivityCounter />
+      </section>
 
       <section className={styles.featuresSection}>
   <h2 className={styles.sectionTitle}>{t('landing.why_choose','What Boring Tasks Can You Automate?')}</h2>

@@ -7,6 +7,7 @@ import { usePlan } from '../hooks/usePlan';
 import { api } from '../utils/api';
 import conversionTracker from '../utils/conversionTracking';
 import styles from './PricingPage.module.css';
+import { UserCountBadge, TrustBadges } from '../components/SocialProof';
 
 export default function PricingPage() {
   const { user } = useAuth();
@@ -149,6 +150,12 @@ export default function PricingPage() {
       <header className={styles.header}>
         <h1>{t('pricing.choose_plan','Choose Your Plan')}</h1>
         <p>{t('pricing.subtitle','Start automating your workflows today with our flexible pricing options')}</p>
+        
+        {/* Social Proof */}
+        <div style={{ margin: '20px 0', textAlign: 'center' }}>
+          <UserCountBadge variant="trusted" />
+        </div>
+        
         <div className={styles.trialInfo}>
           {planData?.plan?.is_trial && planData?.plan?.expires_at ? (
             <p>
@@ -163,6 +170,11 @@ export default function PricingPage() {
             <span>{t('plan.current_plan_label','Current plan:')} {currentPlanName}</span>
           </div>
         )}
+        
+        {/* Trust Badges */}
+        <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center' }}>
+          <TrustBadges />
+        </div>
       </header>
 
       <div className={styles.plansGrid}>
