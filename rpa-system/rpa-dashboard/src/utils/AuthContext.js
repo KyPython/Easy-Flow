@@ -16,10 +16,34 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
-  // No extra state guards needed; we ignore 'INITIAL_SESSION' because we eagerly set state via getSession() on mount.
 
   useEffect(() => {
-    // Get initial session
+    // Check if we're in local development without Supabase
+    const isLocalDev = process.env.NODE_ENV === 'development' && 
+                       (!process.env.REACT_APP_SUPABASE_URL || 
+                        process.env.REACT_APP_SUPABASE_URL.includes('placeholder'));
+
+    if (isLocalDev) {
+      // Create a fake session for local development
+      console.log('🔓 [LOCAL DEV] Using fake authentication session');
+      const fakeUser = {
+        id: 'dev-user-123',
+        email: 'dev@localhost',
+        user_metadata: { name: 'Local Developer' }
+      };
+      const fakeSession = {
+        user: fakeUser,
+        access_token: 'dev-token',
+        expires_at: Date.now() + 3600000 // 1 hour
+      };
+      
+      setSession(fakeSession);
+      setUser(fakeUser);
+      setLoading(false);
+      return;
+    }
+
+    // Get initial session for production
     const getInitialSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();

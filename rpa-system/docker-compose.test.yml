@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 services:
   postgres:
     image: postgres:15
@@ -86,3 +87,52 @@ services:
       AUTOMATION_WORKER_MODE: local
       BACKEND_URL: "http://backend:3030"
       KAFKA_BROKERS: kafka:9092
+=======
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: easyflow_postgres
+    environment:
+      POSTGRES_DB: testdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d testdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    image: node:20-alpine
+    container_name: easyflow_backend
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: sh -c "npm ci && node backend/server.js"
+    environment:
+      NODE_ENV: test
+      PORT: "3030"
+      HOST: 0.0.0.0
+      # Database (if backend uses Postgres in tests)
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: testdb
+      # Provide pass-throughs for Supabase if defined in workflow secrets
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE: ${SUPABASE_SERVICE_ROLE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3030:3030"
+
+networks:
+  default:
+    name: easyflow_test_net
+>>>>>>> restored-37cdb23

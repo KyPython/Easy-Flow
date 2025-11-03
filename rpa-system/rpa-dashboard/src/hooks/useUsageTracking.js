@@ -23,8 +23,8 @@ export const useUsageTracking = (userId) => {
   const [showMilestonePrompt, setShowMilestonePrompt] = useState(false);
   const [currentMilestone, setCurrentMilestone] = useState(null);
 
-  // Use fallback ID if userId not available
-  const effectiveUserId = userId || 'anonymous';
+  // Use fallback ID if userId not available - safer for local dev
+  const effectiveUserId = userId || 'local-dev-user';
 
   // Milestone definitions
   const MILESTONES = {
