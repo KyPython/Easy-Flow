@@ -32,9 +32,23 @@ const { requireAutomationRun, requireWorkflowRun, requireWorkflowCreation, check
 const { startEmailWorker } = require('./workers/email_worker');
 const { spawn } = require('child_process');
 
-// Import route modules
-const polarRoutes = require('./routes/polarRoutes');
-const socialProofRoutes = require('./routes/socialProofRoutes');
+// Import route modules - make some optional for local dev
+let polarRoutes = null;
+let socialProofRoutes = null;
+
+try {
+  polarRoutes = require('./routes/polarRoutes');
+  console.log('✓ Polar routes loaded');
+} catch (e) {
+  console.warn('⚠️ Polar routes disabled:', e.message);
+}
+
+try {
+  socialProofRoutes = require('./routes/socialProofRoutes');
+  console.log('✓ Social proof routes loaded');
+} catch (e) {
+  console.warn('⚠️ Social proof routes disabled:', e.message);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3030;
@@ -476,10 +490,14 @@ if (process.env.NODE_ENV === 'test') {
 }
 
 // Mount webhook routes (before other middleware to handle raw body parsing)
-app.use('/api/polar-webhook', polarRoutes);
+if (polarRoutes) {
+  app.use('/api/polar-webhook', polarRoutes);
+}
 
 // Mount social proof routes (public endpoint, no auth required)
-app.use('/api', socialProofRoutes);
+if (socialProofRoutes) {
+  app.use('/api', socialProofRoutes);
+}
 
 // Demo page for social proof testing
 app.get('/demo/social-proof', (req, res) => {
