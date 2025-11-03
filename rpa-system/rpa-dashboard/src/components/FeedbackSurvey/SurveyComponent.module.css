@@ -1,0 +1,397 @@
+/* Survey Component Styles */
+
+.surveyOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(2px);
+}
+
+.surveyModal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.surveyHeader {
+  padding: 24px;
+  border-bottom: 1px solid #e5e7eb;
+  position: relative;
+}
+
+.surveyHeader h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.surveyHeader p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.closeButton {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.closeButton:hover {
+  color: #374151;
+  background: #f3f4f6;
+}
+
+.progressBar {
+  height: 4px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.progress {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+  transition: width 0.3s ease;
+}
+
+.surveyContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.step {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.step h4 {
+  margin: 0 0 8px 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.step p {
+  margin: 0 0 24px 0;
+  color: #6b7280;
+}
+
+.ratingsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ratingItem {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.ratingItem:hover {
+  border-color: #d1d5db;
+  background: #f9fafb;
+}
+
+.ratingLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.ratingLabel strong {
+  display: block;
+  font-weight: 500;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.ratingLabel p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.ratingScale {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ratingOption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ratingOption input[type="radio"] {
+  display: none;
+}
+
+.ratingNumber {
+  width: 32px;
+  height: 32px;
+  border: 2px solid #d1d5db;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+
+.ratingOption input[type="radio"]:checked + .ratingNumber {
+  border-color: #3b82f6;
+  background: #3b82f6;
+  color: white;
+}
+
+.ratingLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-left: 12px;
+  min-width: 160px;
+}
+
+.textInputs {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inputGroup label {
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.875rem;
+}
+
+.inputGroup input,
+.inputGroup textarea,
+.inputGroup select {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.inputGroup input:focus,
+.inputGroup textarea:focus,
+.inputGroup select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.inputGroup textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.metadataInputs {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.inputRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.submitStatus {
+  padding: 12px 16px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-top: 16px;
+}
+
+.submitStatus.success {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.submitStatus.offline {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.statusIcon {
+  font-size: 1rem;
+}
+
+.surveyFooter {
+  padding: 20px 24px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f9fafb;
+}
+
+.stepIndicator {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.navigationButtons {
+  display: flex;
+  gap: 12px;
+}
+
+.prevButton,
+.nextButton {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prevButton {
+  background: white;
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+
+.prevButton:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.nextButton {
+  background: #3b82f6;
+  border: 1px solid #3b82f6;
+  color: white;
+}
+
+.nextButton:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.prevButton:disabled,
+.nextButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Mobile Responsive */
+@media (max-width: 640px) {
+  .surveyModal {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .surveyHeader,
+  .surveyContent,
+  .surveyFooter {
+    padding: 16px;
+  }
+  
+  .ratingItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .ratingScale {
+    align-self: stretch;
+    justify-content: space-between;
+  }
+  
+  .ratingLabels {
+    margin-left: 0;
+    align-self: stretch;
+  }
+  
+  .inputRow {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .navigationButtons {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .surveyFooter {
+    flex-direction: column;
+    gap: 16px;
+  }
+}

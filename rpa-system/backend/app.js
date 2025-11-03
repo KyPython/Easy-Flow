@@ -499,6 +499,10 @@ if (socialProofRoutes) {
   app.use('/api', socialProofRoutes);
 }
 
+// Mount feedback routes (public endpoint, no auth required for submissions)
+const feedbackRoutes = require('./routes/feedbackRoutes');
+app.use('/api', feedbackRoutes);
+
 // Demo page for social proof testing
 app.get('/demo/social-proof', (req, res) => {
   res.sendFile(path.join(__dirname, 'demo', 'social-proof.html'));
