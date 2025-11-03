@@ -9,10 +9,16 @@ const { createClient } = require('@supabase/supabase-js');
 
 class AuditLogger {
   constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    // Make Supabase optional for local development
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
+      this.supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE
+      );
+    } else {
+      console.warn('⚠️ Supabase not configured - audit logging disabled for local dev');
+      this.supabase = null;
+    }
     
     // Cache settings
     this.logBuffer = [];
@@ -178,6 +184,11 @@ class AuditLogger {
    */
   async writeToDatabase(logs) {
     try {
+      if (!this.supabase) {
+        console.log(`📝 [LOCAL DEV] Would write ${logs.length} audit logs to database`);
+        return;
+      }
+
       const { error } = await this.supabase
         .from('audit_logs')
         .insert(logs);
@@ -219,6 +230,11 @@ class AuditLogger {
    */
   async getUserAuditLogs(userId, filters = {}) {
     try {
+      if (!this.supabase) {
+        console.log('📝 [LOCAL DEV] Would query audit logs for user:', userId);
+        return { data: [], count: 0 };
+      }
+
       const {
         startDate,
         endDate,

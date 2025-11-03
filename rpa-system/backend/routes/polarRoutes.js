@@ -5,14 +5,24 @@ const { createClient } = require('@supabase/supabase-js');
 const router = express.Router();
 const requireFeature = require('../middleware/planEnforcement');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
-);
+// Make Supabase optional for local development
+let supabase = null;
+if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY)) {
+  supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
+  );
+} else {
+  console.warn('⚠️ Supabase not configured - polar routes disabled for local dev');
+}
 
 // Canonical checkout endpoint: returns all plans/features/pricing for Polar checkout
 router.get('/checkout', async (req, res) => {
   try {
+    if (!supabase) {
+      return res.status(503).json({ error: 'Service unavailable - database not configured' });
+    }
+
     // Fetch all plans with their features and external product IDs
     const { data: plans, error } = await supabase
       .from('plans')

@@ -4,7 +4,14 @@
 const { createClient } = require('@supabase/supabase-js');
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY;
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
+
+// Make Supabase optional for local development
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
+} else {
+  console.warn('⚠️ Supabase not configured - plan service disabled for local dev');
+}
 
 /**
  * Fetch the user's plan, usage, and limits from the database using SQL functions.
@@ -12,6 +19,15 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
  * @returns {Promise<{plan: object, usage: object, limits: object}>}
  */
 async function getUserPlan(userId) {
+  if (!supabase) {
+    console.log('📝 [LOCAL DEV] Would get plan for user:', userId);
+    return {
+      plan: { id: 'free', name: 'Free Plan', features: {} },
+      usage: { automationsThisMonth: 0, storageUsed: 0 },
+      limits: { maxAutomations: 10, maxStorage: 100 }
+    };
+  }
+
   // 1. Get the user's plan (join user_profiles -> plans)
   const { data: userProfile, error: userError } = await supabase
     .from('profiles')
