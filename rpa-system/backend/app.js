@@ -943,6 +943,125 @@ app.get('/auth', (_req, res) => {
     return res.type('text').send('Auth page not available');
 });
 
+// Backend authentication endpoints for when Supabase isn't available
+app.get('/api/auth/session', async (req, res) => {
+  try {
+    // Check for development bypass token
+    const devToken = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (process.env.NODE_ENV === 'development' && process.env.DEV_BYPASS_TOKEN && 
+        devToken === process.env.DEV_BYPASS_TOKEN) {
+      return res.json({
+        user: {
+          id: process.env.DEV_USER_ID || 'dev-user-123',
+          email: 'developer@localhost',
+          user_metadata: { name: 'Local Developer' }
+        },
+        access_token: devToken,
+        expires_at: Date.now() + 3600000
+      });
+    }
+
+    // Try to get session from Supabase if available
+    if (supabase && req.headers.authorization) {
+      try {
+        const token = req.headers.authorization.replace('Bearer ', '');
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        
+        if (!error && user) {
+          return res.json({
+            user,
+            access_token: token,
+            expires_at: Date.now() + 3600000
+          });
+        }
+      } catch (error) {
+        console.warn('Supabase session check failed:', error.message);
+      }
+    }
+
+    // No valid session
+    res.status(401).json({ error: 'No valid session' });
+  } catch (error) {
+    console.error('Session check error:', error);
+    res.status(500).json({ error: 'Session check failed' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    // Try Supabase login if available
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        
+        if (!error && data.user) {
+          return res.json({
+            user: data.user,
+            session: data.session
+          });
+        }
+        
+        if (error) {
+          return res.status(401).json({ error: error.message });
+        }
+      } catch (error) {
+        console.warn('Supabase login failed:', error.message);
+      }
+    }
+
+    // Development fallback - accept any login in dev mode
+    if (process.env.NODE_ENV === 'development') {
+      const devUser = {
+        id: process.env.DEV_USER_ID || 'dev-user-123',
+        email: email,
+        user_metadata: { name: 'Developer User' }
+      };
+      
+      return res.json({
+        user: devUser,
+        session: {
+          user: devUser,
+          access_token: process.env.DEV_BYPASS_TOKEN || 'dev-token-123',
+          expires_at: Date.now() + 3600000
+        }
+      });
+    }
+
+    res.status(401).json({ error: 'Authentication not configured' });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+  try {
+    // Try Supabase logout if available
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (error) {
+        console.warn('Supabase logout failed:', error.message);
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Logout failed' });
+  }
+});
+
 // Pricing route - serve the React pricing page
 app.get('/pricing', (_req, res) => {
   const reactBuildPath = path.join(__dirname, '../rpa-dashboard/build');

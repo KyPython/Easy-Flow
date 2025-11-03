@@ -17,64 +17,112 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
 
-  useEffect(() => {
-    // Check if we're in local development without Supabase
-    const isLocalDev = process.env.NODE_ENV === 'development' && 
-                       (!process.env.REACT_APP_SUPABASE_URL || 
-                        process.env.REACT_APP_SUPABASE_URL.includes('placeholder'));
-
-    if (isLocalDev) {
-      // Create a fake session for local development
-      console.log('🔓 [LOCAL DEV] Using fake authentication session');
-      const fakeUser = {
-        id: 'dev-user-123',
-        email: 'dev@localhost',
-        user_metadata: { name: 'Local Developer' }
-      };
-      const fakeSession = {
-        user: fakeUser,
-        access_token: 'dev-token',
-        expires_at: Date.now() + 3600000 // 1 hour
-      };
+  // Check if backend authentication is available
+  const checkBackendAuth = async () => {
+    try {
+      const response = await fetch('/api/auth/session', {
+        credentials: 'include'
+      });
       
-      setSession(fakeSession);
-      setUser(fakeUser);
-      setLoading(false);
-      return;
+      if (response.ok) {
+        const sessionData = await response.json();
+        if (sessionData.user) {
+          setUser(sessionData.user);
+          setSession(sessionData);
+          return true;
+        }
+      }
+    } catch (error) {
+      console.log('Backend auth not available, trying Supabase...');
     }
+    return false;
+  };
 
-    // Get initial session for production
-    const getInitialSession = async () => {
+  useEffect(() => {
+    const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
+        // Try backend authentication first
+        const backendAuth = await checkBackendAuth();
         
-        setSession(session);
-        setUser(session?.user ?? null);
+        if (!backendAuth) {
+          // Fall back to Supabase if backend auth fails
+          try {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error) {
+              console.warn('Supabase auth error:', error.message);
+              // Don't throw - continue with no authentication
+            } else {
+              setSession(session);
+              setUser(session?.user ?? null);
+            }
+          } catch (supabaseError) {
+            console.warn('Supabase not available:', supabaseError.message);
+            // Continue without authentication - user can still use public features
+          }
+        }
       } catch (error) {
-        console.error('Error getting initial session:', error);
+        console.error('Authentication initialization error:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    getInitialSession();
+    initializeAuth();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
-      if (event === 'INITIAL_SESSION') return; // avoid flicker; already handled by getSession()
-      console.log('Auth state changed:', event, nextSession);
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setLoading(false);
-    });
+    // Set up Supabase auth listener (only if Supabase is available)
+    let subscription = null;
+    try {
+      const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+        if (event === 'INITIAL_SESSION') return;
+        console.log('Auth state changed:', event, nextSession?.user?.email || 'no user');
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+        setLoading(false);
+      });
+      subscription = authSubscription;
+    } catch (error) {
+      console.warn('Could not set up auth listener:', error.message);
+    }
 
-    return () => subscription.unsubscribe();
+    return () => {
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
   }, []);
 
   const signIn = async (email, password) => {
     try {
       setLoading(true);
+      
+      // Try backend authentication first
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const { user, session } = await response.json();
+          setUser(user);
+          setSession(session);
+          
+          // Store token for API requests
+          if (session.access_token) {
+            localStorage.setItem('dev_token', session.access_token);
+          }
+          
+          return { user, session };
+        }
+      } catch (backendError) {
+        console.warn('Backend login failed, trying Supabase:', backendError.message);
+      }
+      
+      // Fallback to Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -114,11 +162,34 @@ export const AuthProvider = ({ children }) => {
   const signOut = async () => {
     try {
       setLoading(true);
+      
+      // Try backend logout
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          credentials: 'include'
+        });
+      } catch (error) {
+        console.warn('Backend logout failed:', error.message);
+      }
+      
+      // Supabase logout
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      if (error) {
+        console.warn('Supabase logout failed:', error.message);
+      }
+      
+      // Clear local state regardless of backend/Supabase results
+      setUser(null);
+      setSession(null);
+      localStorage.removeItem('dev_token');
+      
     } catch (error) {
       console.error('Error signing out:', error);
-      throw error;
+      // Clear state even if logout fails
+      setUser(null);
+      setSession(null);
+      localStorage.removeItem('dev_token');
     } finally {
       setLoading(false);
     }

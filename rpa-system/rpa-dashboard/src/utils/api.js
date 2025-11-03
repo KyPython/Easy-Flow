@@ -18,19 +18,29 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Interceptor to add the Supabase auth token to every request
+// Interceptor to add auth token to every request
 api.interceptors.request.use(
   async (config) => {
-    // Asynchronously get the latest session.
-    // supabase-js handles token refreshing automatically.
     try {
+      // Try to get session from Supabase first
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (session?.access_token && !error) {
         config.headers['Authorization'] = `Bearer ${session.access_token}`;
+      } else {
+        // Fallback to development token if available
+        const devToken = process.env.REACT_APP_DEV_TOKEN || localStorage.getItem('dev_token');
+        if (devToken) {
+          config.headers['Authorization'] = `Bearer ${devToken}`;
+        }
       }
     } catch (error) {
-      console.warn('[api] Failed to get session for auth token:', error);
+      console.warn('[api] Failed to get auth token:', error.message);
+      // Try development token as fallback
+      const devToken = process.env.REACT_APP_DEV_TOKEN || localStorage.getItem('dev_token');
+      if (devToken) {
+        config.headers['Authorization'] = `Bearer ${devToken}`;
+      }
     }
     return config;
   },
