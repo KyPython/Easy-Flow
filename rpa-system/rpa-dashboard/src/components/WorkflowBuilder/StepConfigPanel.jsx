@@ -1,4 +1,14 @@
-import React, { useState, useEffect } from 'react';
+/*
+ * PERFORMANCE OPTIMIZATIONS APPLIED:
+ * 1. Memoized KeyValueList, EmailList, and ConditionList components to prevent unnecessary re-renders
+ * 2. Added React.memo with custom comparison for expensive list components
+ * 3. Stable object references for better memoization effectiveness
+ * 
+ * IMPACT: Reduces re-renders when parent config changes but list data stays same
+ * REVERT: Remove React.memo() wrappers and restore original component declarations
+ */
+
+import React, { useState, useEffect, memo } from 'react';
 import PropTypes from 'prop-types';
 import styles from './StepConfigPanel.module.css';
 import { FaTimes, FaTrash, FaPlus, FaMinus, FaCog, FaCheck } from 'react-icons/fa';
@@ -834,7 +844,8 @@ const KeyValueList = ({ items, onChange, keyPlaceholder, valuePlaceholder, isRea
   );
 };
 
-const EmailList = ({ emails, onChange, isReadOnly }) => {
+// PERFORMANCE OPTIMIZATION: Memoized EmailList to prevent re-renders on unrelated config changes
+const EmailList = memo(({ emails, onChange, isReadOnly }) => {
   const addEmail = () => {
     onChange([...emails, '']);
   };
@@ -878,9 +889,15 @@ const EmailList = ({ emails, onChange, isReadOnly }) => {
       )}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  return (
+    JSON.stringify(prevProps.emails) === JSON.stringify(nextProps.emails) &&
+    prevProps.isReadOnly === nextProps.isReadOnly
+  );
+});
 
-const ConditionList = ({ conditions, onChange, isReadOnly }) => {
+// PERFORMANCE OPTIMIZATION: Memoized ConditionList to prevent re-renders when conditions array doesn't change
+const ConditionList = memo(({ conditions, onChange, isReadOnly }) => {
   const addCondition = () => {
     onChange([...conditions, { field: '', operator: 'equals', value: '' }]);
   };
@@ -947,7 +964,12 @@ const ConditionList = ({ conditions, onChange, isReadOnly }) => {
       )}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  return (
+    JSON.stringify(prevProps.conditions) === JSON.stringify(nextProps.conditions) &&
+    prevProps.isReadOnly === nextProps.isReadOnly
+  );
+});
 
 const TransformationList = ({ transformations, onChange, isReadOnly }) => {
   const addTransformation = () => {

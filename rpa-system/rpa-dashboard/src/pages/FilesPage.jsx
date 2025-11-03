@@ -4,7 +4,9 @@ import { usePlan } from '../hooks/usePlan';
 import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
 import FileUpload from '../components/FileUpload/FileUpload';
-import FileManager from '../components/FileManager/FileManager';
+// PERFORMANCE OPTIMIZATION: Use lazy-loaded FileManager to reduce initial bundle size  
+// This reduces the main bundle by ~705 lines of code and improves page navigation speed
+import { FileManager } from '../components/LazyLoader';
 import ErrorMessage from '../components/ErrorMessage';
 import styles from './FilesPage.module.css';
 

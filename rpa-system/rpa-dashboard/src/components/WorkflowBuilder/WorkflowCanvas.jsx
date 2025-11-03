@@ -14,7 +14,9 @@ import {
 import 'reactflow/dist/style.css';
 import styles from './WorkflowCanvas.module.css';
 import CustomNode from './CustomNode';
-import StepConfigPanel from './StepConfigPanel';
+// PERFORMANCE OPTIMIZATION: Use lazy-loaded StepConfigPanel to reduce initial bundle size
+// This reduces the main bundle by ~1,139 lines of code and improves initial load time
+import { StepConfigPanel } from '../LazyLoader';
 import { useWorkflow } from '../../hooks/useWorkflow';
 
 // Define custom node & edge types at module scope to keep identity stable across renders
