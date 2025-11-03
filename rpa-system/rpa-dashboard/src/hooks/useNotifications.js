@@ -247,7 +247,7 @@ export const useNotifications = (user) => {
     return success;
   }, []);
 
-  // Send notification helpers
+  // Send notification helpers - FIXED: All now consistently async
   const sendTaskCompleted = useCallback(async (taskName) => {
     if (!user) return false;
     const notification = NotificationHelpers.taskCompleted(taskName, user.id);

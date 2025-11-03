@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { useSocialProof } from '../../hooks/useSocialProof';
 
 export default function UserCountBadge({ variant = 'join', className = '' }) {
@@ -25,7 +26,7 @@ export default function UserCountBadge({ variant = 'join', className = '' }) {
 
       return () => clearInterval(timer);
     }
-  }, [data.totalUsers, loading]);
+  }, [data.totalUsers, loading, displayCount]);
 
   const text = variant === 'join' 
     ? `Join ${displayCount.toLocaleString()}+ users automating workflows`
@@ -61,6 +62,11 @@ export default function UserCountBadge({ variant = 'join', className = '' }) {
   );
 }
 
+UserCountBadge.propTypes = {
+  variant: PropTypes.oneOf(['join', 'trusted']),
+  className: PropTypes.string
+};
+
 function PulseDot({ loading, error }) {
   const color = error ? '#ef4444' : loading ? '#94a3b8' : '#10b981';
   const animation = loading || error ? 'none' : 'pulse 2s ease-in-out infinite';
@@ -75,18 +81,25 @@ function PulseDot({ loading, error }) {
       animation,
       transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
     }}>
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% { 
-            opacity: 1; 
-            transform: scale(1); 
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes pulse {
+            0%, 100% { 
+              opacity: 1; 
+              transform: scale(1); 
+            }
+            50% { 
+              opacity: 0.6; 
+              transform: scale(1.05); 
+            }
           }
-          50% { 
-            opacity: 0.6; 
-            transform: scale(1.05); 
-          }
-        }
-      `}</style>
+        `
+      }} />
     </span>
   );
 }
+
+PulseDot.propTypes = {
+  loading: PropTypes.bool,
+  error: PropTypes.bool
+};

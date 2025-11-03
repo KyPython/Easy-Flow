@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { supabase } from './supabaseClient';
+import { apiErrorHandler } from './errorHandler';
 
 // Use absolute backend URL in production via REACT_APP_API_BASE.
 // In local dev (CRA), keep it relative to leverage the proxy.
@@ -22,10 +23,14 @@ api.interceptors.request.use(
   async (config) => {
     // Asynchronously get the latest session.
     // supabase-js handles token refreshing automatically.
-    const { data: { session }, error } = await supabase.auth.getSession();
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
 
-    if (session?.access_token && !error) {
-      config.headers['Authorization'] = `Bearer ${session.access_token}`;
+      if (session?.access_token && !error) {
+        config.headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+    } catch (error) {
+      console.warn('[api] Failed to get session for auth token:', error);
     }
     return config;
   },
@@ -34,31 +39,41 @@ api.interceptors.request.use(
   }
 );
 
-// Basic 401 retry logic: attempt a refresh once, then retry original request.
+// Enhanced response interceptor with error handling
 let isRefreshing = false;
 let queued = [];
-let lastRefreshAttempt = 0; // epoch ms timestamp to throttle refresh attempts
+let lastRefreshAttempt = 0;
 
 api.interceptors.response.use(
   (resp) => resp,
   async (error) => {
     const status = error?.response?.status;
-    // Development: log failing POSTs even when collapsed as generic errors
+    
+    // Development: log failing requests for debugging
     if (process.env.NODE_ENV === 'development') {
       const method = (error?.config?.method || 'get').toUpperCase();
-      if (method === 'POST') {
-        const url = error?.config?.url || '(unknown)';
-        const code = status ?? '(no-status)';
-        // eslint-disable-next-line no-console
-        console.warn('[api] POST failed', { url, status: code, message: error?.message });
-      }
+      const url = error?.config?.url || '(unknown)';
+      const code = status ?? '(no-status)';
+      console.warn(`[api] ${method} ${url} failed`, { status: code, message: error?.message });
     }
-    if (status !== 401) return Promise.reject(error);
+
+    // Handle different error types
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      console.warn('[api] Request timeout detected');
+    }
+    
+    if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+      console.warn('[api] Network error detected');
+    }
+
+    // Only handle 401s for auth refresh
+    if (status !== 401) {
+      return Promise.reject(error);
+    }
 
     // Surface backend diagnostic header if present
     const reason = error?.response?.headers?.['x-auth-reason'];
     if (reason) {
-      // eslint-disable-next-line no-console
       console.warn('[api] 401 x-auth-reason:', reason, 'url:', error.config?.url);
     }
 
@@ -66,7 +81,6 @@ api.interceptors.response.use(
 
     // If the request already had an auth header and the endpoint is user/preferences, don't spam refresh.
     if (original?.url?.includes('/api/user/preferences')) {
-      // eslint-disable-next-line no-console
       console.warn('[api] 401 on /api/user/preferences - skipping token refresh retry (likely auth mismatch or backend rejection)');
       return Promise.reject(error);
     }
@@ -85,7 +99,6 @@ api.interceptors.response.use(
         try {
           await supabase.auth.refreshSession();
         } catch (e) {
-          // eslint-disable-next-line no-console
           console.warn('Token refresh failed', e?.message || e);
         } finally {
           isRefreshing = false;
@@ -116,267 +129,386 @@ const getErrorMessage = (error, defaultMessage = 'An unexpected error occurred.'
   return error.message || defaultMessage;
 };
 
-// --- Task Management ---
+// --- Robust API Functions with Error Handling ---
+
 export const getTasks = async () => {
-  try {
-    const { data } = await api.get('/api/tasks');
-    return data;
-  } catch (e) {
-    console.error('getTasks failed:', e);
-    throw new Error(getErrorMessage(e, 'Unable to load tasks. Please try again later.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.get('/api/tasks');
+      return data;
+    },
+    {
+      endpoint: 'tasks',
+      fallbackData: { tasks: [], message: 'Unable to load tasks. Using offline mode.' }
+    }
+  );
 };
 
-// taskData should include { url, title, notes, type }
 export const createTask = async (taskData) => {
-  try {
-    const { data } = await api.post('/api/tasks', taskData);
-    return data;
-  } catch (e) {
-    console.error('createTask failed:', e);
-    throw new Error(getErrorMessage(e, 'Could not create task. Please check your input and try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.post('/api/tasks', taskData);
+      return data;
+    },
+    {
+      endpoint: 'tasks/create',
+      retries: 1 // Only retry once for mutations
+    }
+  );
 };
 
 export const runTask = async (taskId) => {
-  try {
-    const { data } = await api.post(`/api/tasks/${taskId}/run`);
-    return data;
-  } catch (e) {
-    console.error('runTask failed:', e);
-    throw new Error(getErrorMessage(e, 'Failed to run the task. Please try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.post(`/api/tasks/${taskId}/run`);
+      return data;
+    },
+    {
+      endpoint: 'tasks/run',
+      retries: 0 // Don't retry task runs to avoid duplicates
+    }
+  );
 };
 
 export const getRuns = async () => {
-  try {
-    const { data } = await api.get('/api/runs');
-    return data;
-  } catch (e) {
-    console.error('getRuns failed:', e);
-    throw new Error(getErrorMessage(e, 'Unable to load runs. Please try again later.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.get('/api/runs');
+      return data;
+    },
+    {
+      endpoint: 'runs',
+      fallbackData: { runs: [], message: 'Unable to load run history. Using offline mode.' }
+    }
+  );
 };
 
 export const getDashboardData = async () => {
-  try {
-    const { data } = await api.get('/api/dashboard');
-    return data;
-  } catch (e) {
-    console.error('getDashboardData failed:', e);
-    throw new Error(getErrorMessage(e, 'Unable to load dashboard data. Please refresh or try again later.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.get('/api/dashboard');
+      return data;
+    },
+    {
+      endpoint: 'dashboard',
+      fallbackData: {
+        stats: { total_tasks: 0, total_runs: 0, success_rate: 0 },
+        recent_runs: [],
+        message: 'Dashboard data unavailable. Using offline mode.'
+      }
+    }
+  );
 };
 
 export const editTask = async (taskId, taskData) => {
-  try {
-    const { data } = await api.put(`/api/tasks/${taskId}`, taskData);
-    return data;
-  } catch (e) {
-    console.error('editTask failed:', e);
-    throw new Error(getErrorMessage(e, 'Could not update the task. Please check your changes and try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.put(`/api/tasks/${taskId}`, taskData);
+      return data;
+    },
+    {
+      endpoint: 'tasks/edit',
+      retries: 1
+    }
+  );
 };
 
 export const deleteTask = async (taskId) => {
-  try {
-    await api.delete(`/api/tasks/${taskId}`);
-  } catch (e) {
-    console.error('deleteTask failed:', e);
-    throw new Error(getErrorMessage(e, 'Failed to delete the task. Please try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      await api.delete(`/api/tasks/${taskId}`);
+    },
+    {
+      endpoint: 'tasks/delete',
+      retries: 1
+    }
+  );
 };
 
 export const getPlans = async () => {
-  try {
-    const { data } = await api.get('/api/plans');
-    return data;
-  } catch (e) {
-    console.error('getPlans failed:', e);
-    throw new Error(getErrorMessage(e, 'Unable to load plans. Please try again later.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.get('/api/plans');
+      return data;
+    },
+    {
+      endpoint: 'plans',
+      fallbackData: {
+        plans: [
+          { id: 'free', name: 'Free', price: 0, features: ['Basic automation'] },
+          { id: 'pro', name: 'Pro', price: 19, features: ['Advanced automation', 'Priority support'] }
+        ]
+      }
+    }
+  );
 };
 
 export const getSubscription = async () => {
-  try {
-    const { data } = await api.get('/api/subscription');
-    return data;
-  } catch (e) {
-    console.error('getSubscription failed:', e);
-    throw new Error(getErrorMessage(e, 'Unable to load subscription details. Please try again later.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.get('/api/subscription');
+      return data;
+    },
+    {
+      endpoint: 'subscription',
+      fallbackData: { plan: 'free', status: 'active' }
+    }
+  );
 };
 
-// Convenience helpers used by the app for marketing/engagement
+// Enhanced tracking functions that never crash the app
 export async function trackEvent(payload) {
-  try {
-    await api.post('/api/track-event', payload);
-  } catch (e) {
-    // non-fatal; surface to console for debugging
-    console.warn('trackEvent failed', e?.message || e);
-    // No alert: tracking is non-critical for user
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      await api.post('/api/track-event', payload);
+    },
+    {
+      endpoint: 'track-event',
+      silentFail: true, // Never throw errors for tracking
+      retries: 1
+    }
+  );
 }
 
 export async function generateReferral(referrerEmail, referredEmail) {
-  try {
-    const resp = await api.post('/api/generate-referral', { referrerEmail, referredEmail });
-    return resp.data;
-  } catch (e) {
-    console.error('generateReferral failed:', e);
-    throw new Error(getErrorMessage(e, 'Unable to send referral. Please try again later.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const resp = await api.post('/api/generate-referral', { referrerEmail, referredEmail });
+      return resp.data;
+    },
+    {
+      endpoint: 'referral',
+      retries: 1
+    }
+  );
 }
 
 export async function triggerCampaign(payload) {
-  try {
-    const resp = await api.post('/api/trigger-campaign', payload || {});
-    return resp.data;
-  } catch (e) {
-    console.warn('triggerCampaign failed', e?.message || e);
-    // Note: Replaced alert() with a console log.
-    console.error('Unable to trigger campaign. Please try again later.');
-    return null;
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const resp = await api.post('/api/trigger-campaign', payload || {});
+      return resp.data;
+    },
+    {
+      endpoint: 'campaign',
+      silentFail: true, // Campaign triggers shouldn't crash the app
+      retries: 1,
+      fallbackData: { success: false, message: 'Campaign trigger unavailable offline' }
+    }
+  );
 }
 
 // --- File Management Functions ---
 export const uploadFile = async (file, options = {}) => {
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    if (options.folder_path) {
-      formData.append('folder_path', options.folder_path);
-    }
-    if (options.tags && Array.isArray(options.tags)) {
-      formData.append('tags', options.tags.join(','));
-    }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      if (options.folder_path) {
+        formData.append('folder_path', options.folder_path);
+      }
+      if (options.tags && Array.isArray(options.tags)) {
+        formData.append('tags', options.tags.join(','));
+      }
 
-    const { data } = await api.post('/api/files/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return data;
-  } catch (e) {
-    console.error('uploadFile failed:', e);
-    throw new Error(getErrorMessage(e, 'Failed to upload file. Please try again.'));
-  }
+      const { data } = await api.post('/api/files/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 60000, // Longer timeout for file uploads
+      });
+      return data;
+    },
+    {
+      endpoint: 'files/upload',
+      timeout: 60000,
+      retries: 1
+    }
+  );
 };
 
 export const getFiles = async (options = {}) => {
-  try {
-    const params = new URLSearchParams();
-    if (options.folder) params.append('folder', options.folder);
-    if (options.search) params.append('search', options.search);
-    if (options.tags) params.append('tags', Array.isArray(options.tags) ? options.tags.join(',') : options.tags);
-    if (options.limit) params.append('limit', options.limit);
-    if (options.offset) params.append('offset', options.offset);
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const params = new URLSearchParams();
+      if (options.folder) params.append('folder', options.folder);
+      if (options.search) params.append('search', options.search);
+      if (options.tags) params.append('tags', Array.isArray(options.tags) ? options.tags.join(',') : options.tags);
+      if (options.limit) params.append('limit', options.limit);
+      if (options.offset) params.append('offset', options.offset);
 
-    const { data } = await api.get(`/api/files?${params.toString()}`);
-    return data;
-  } catch (e) {
-    console.error('getFiles failed:', e);
-    throw new Error(getErrorMessage(e, 'Unable to load files. Please refresh or try again later.'));
-  }
+      const { data } = await api.get(`/api/files?${params.toString()}`);
+      return data;
+    },
+    {
+      endpoint: 'files',
+      fallbackData: { files: [], message: 'Files unavailable offline' }
+    }
+  );
 };
 
 export const getFileDownloadUrl = async (fileId) => {
-  try {
-    const { data } = await api.get(`/api/files/${fileId}/download`);
-    return data;
-  } catch (e) {
-    console.error('getFileDownloadUrl failed:', e);
-    throw new Error(getErrorMessage(e, 'Unable to generate download link. Please try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.get(`/api/files/${fileId}/download`);
+      return data;
+    },
+    {
+      endpoint: 'files/download',
+      retries: 2
+    }
+  );
 };
 
 export const deleteFile = async (fileId) => {
-  try {
-    const { data } = await api.delete(`/api/files/${fileId}`);
-    return data;
-  } catch (e) {
-    console.error('deleteFile failed:', e);
-    throw new Error(getErrorMessage(e, 'Failed to delete file. Please try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.delete(`/api/files/${fileId}`);
+      return data;
+    },
+    {
+      endpoint: 'files/delete',
+      retries: 1
+    }
+  );
 };
 
 export const updateFileMetadata = async (fileId, metadata) => {
-  try {
-    const { data } = await api.put(`/api/files/${fileId}`, metadata);
-    return data;
-  } catch (e) {
-    console.error('updateFileMetadata failed:', e);
-    throw new Error(getErrorMessage(e, 'Failed to update file. Please try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.put(`/api/files/${fileId}`, metadata);
+      return data;
+    },
+    {
+      endpoint: 'files/update',
+      retries: 1
+    }
+  );
 };
 
 // --- File Sharing Functions ---
 export const createFileShare = async (shareData) => {
-  try {
-    const { data } = await api.post('/api/files/shares', shareData);
-    return data;
-  } catch (e) {
-    console.error('createFileShare failed:', e);
-    throw new Error(getErrorMessage(e, 'Failed to create share link. Please try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.post('/api/files/shares', shareData);
+      return data;
+    },
+    {
+      endpoint: 'files/shares/create',
+      retries: 1
+    }
+  );
 };
 
 export const getFileShares = async (fileId) => {
-  try {
-    const { data } = await api.get(`/api/files/${fileId}/shares`);
-    return data;
-  } catch (e) {
-    console.error('getFileShares failed:', e);
-    throw new Error(getErrorMessage(e, 'Failed to load share links. Please try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.get(`/api/files/${fileId}/shares`);
+      return data;
+    },
+    {
+      endpoint: 'files/shares',
+      fallbackData: { shares: [] }
+    }
+  );
 };
 
 export const updateFileShare = async (shareId, updates) => {
-  try {
-    const { data } = await api.put(`/api/files/shares/${shareId}`, updates);
-    return data;
-  } catch (e) {
-    console.error('updateFileShare failed:', e);
-    throw new Error(getErrorMessage(e, 'Failed to update share link. Please try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.put(`/api/files/shares/${shareId}`, updates);
+      return data;
+    },
+    {
+      endpoint: 'files/shares/update',
+      retries: 1
+    }
+  );
 };
 
 export const deleteFileShare = async (shareId) => {
-  try {
-    const { data } = await api.delete(`/api/files/shares/${shareId}`);
-    return data;
-  } catch (e) {
-    console.error('deleteFileShare failed:', e);
-    throw new Error(getErrorMessage(e, 'Failed to delete share link. Please try again.'));
-  }
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.delete(`/api/files/shares/${shareId}`);
+      return data;
+    },
+    {
+      endpoint: 'files/shares/delete',
+      retries: 1
+    }
+  );
 };
 
 export const getSharedFile = async (token, password = null) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/shared/access`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ token, password }),
-    });
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const response = await fetch(`${api.defaults.baseURL || ''}/shared/access`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, password }),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to access shared file');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to access shared file');
+      }
+
+      return await response.json();
+    },
+    {
+      endpoint: 'shared/access',
+      retries: 2
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error accessing shared file:', error);
-    throw error;
-  }
+  );
 };
 
 // Helper function to get share URL
 export const getShareUrl = (token) => {
   const baseUrl = window.location.origin;
   return `${baseUrl}/shared/${token}`;
+};
+
+// Utility function to get user plan with robust error handling
+export const getUserPlan = async () => {
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.get('/api/user/plan');
+      return data;
+    },
+    {
+      endpoint: 'user/plan',
+      silentFail: true,
+      fallbackData: {
+        plan: 'free',
+        features: ['basic-automation', 'limited-workflows'],
+        limits: { workflows: 10, monthly_executions: 100 },
+        usage: { workflows: 0, monthly_executions: 0 }
+      }
+    }
+  );
+};
+
+// Utility function to get social proof metrics
+export const getSocialProofMetrics = async () => {
+  return apiErrorHandler.safeApiCall(
+    async () => {
+      const { data } = await api.get('/api/social-proof-metrics');
+      return data;
+    },
+    {
+      endpoint: 'social-proof-metrics',
+      silentFail: true,
+      fallbackData: {
+        metrics: {
+          totalUsers: 1250,
+          activeToday: 68,
+          conversions: 32,
+          conversionRate: '2.6%'
+        }
+      }
+    }
+  );
 };

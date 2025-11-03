@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import ReactGA from 'react-ga4';
@@ -29,6 +29,7 @@ import Chatbot from './components/Chatbot/Chatbot';
 import MilestonePrompt from './components/MilestonePrompt/MilestonePrompt';
 import EmailCaptureModal from './components/EmailCaptureModal/EmailCaptureModal';
 import UsageDebugPage from './pages/debug/UsageDebugPage';
+import NetworkStatus from './components/NetworkStatus/NetworkStatus';
 import './utils/firebaseConfig';
 import './theme.css';
 import './App.css';
@@ -168,6 +169,9 @@ function Shell() {
         onClose={() => setShowEmailCapture(false)}
         sessionCount={sessionsCount}
       />
+      
+      {/* Network Status Indicator */}
+      <NetworkStatus showDetails={process.env.NODE_ENV === 'development'} />
     </div>
   );
 }
