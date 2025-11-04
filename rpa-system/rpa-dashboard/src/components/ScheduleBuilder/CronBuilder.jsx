@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FiClock, FiCalendar, FiRepeat, FiInfo } from 'react-icons/fi';
+import { useTheme } from '../../utils/ThemeContext';
 import PropTypes from 'prop-types';
-import './CronBuilder.module.css';
+import styles from './CronBuilder.module.css';
 
 /**
  * CronBuilder - Visual cron expression builder with preset options
@@ -13,6 +14,7 @@ const CronBuilder = React.memo(({
   timezone = 'UTC',
   showAdvanced = false 
 }) => {
+  const { theme } = useTheme();
   const [mode, setMode] = useState('preset'); // preset, custom, advanced
   const [customCron, setCustomCron] = useState(value);
   const [selectedPreset, setSelectedPreset] = useState('');

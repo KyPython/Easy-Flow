@@ -1,0 +1,424 @@
+/* Workflow Canvas - App Theme Integration */
+.workflowCanvas {
+  height: 500px;
+  min-height: 500px;
+  position: relative;
+  background: var(--color-gray-50);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  overflow: visible;
+}
+
+.reactFlow {
+  background: transparent;
+}
+
+/* Empty State */
+.emptyState {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.emptyStateContent {
+  text-align: center;
+  padding: var(--spacing-2xl);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+}
+
+.emptyStateContent h3 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-sm) 0;
+  font-family: var(--font-family-secondary);
+}
+
+.emptyStateContent p {
+  font-size: var(--font-size-base);
+  color: var(--text-muted);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+.emptyStateIcon {
+  font-size: var(--font-size-4xl);
+  margin-bottom: var(--spacing-md);
+}
+
+/* Controls */
+.controls {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(10px);
+}
+
+.controls button {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.controls button:hover {
+  background: var(--hover-bg);
+  color: var(--color-primary-600);
+  transform: scale(1.05);
+}
+
+/* Minimap */
+.minimap {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+}
+
+/* Toolbar */
+.toolbar {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  backdrop-filter: blur(10px);
+  padding: var(--spacing-lg);
+  max-width: 280px;
+  max-height: 500px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+/* Custom scrollbar for toolbar */
+.toolbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.toolbar::-webkit-scrollbar-track {
+  background: var(--color-gray-100);
+  border-radius: var(--radius-sm);
+}
+
+.toolbar::-webkit-scrollbar-thumb {
+  background: var(--color-primary-300);
+  border-radius: var(--radius-sm);
+}
+
+.toolbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-400);
+}
+
+.toolbarHeader {
+  margin-bottom: var(--spacing-md);
+}
+
+.toolbarHeader h3 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0;
+  font-family: var(--font-family-brand);
+}
+
+.toolbarGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-sm);
+}
+
+.toolbarButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  min-height: 80px;
+}
+
+.toolbarButton:hover {
+  background: var(--hover-bg);
+  border-color: var(--color-primary-300);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.toolbarButton[data-category="control"] {
+  border-color: var(--color-success-300);
+}
+
+.toolbarButton[data-category="control"]:hover {
+  background: var(--color-success-50);
+  border-color: var(--color-success-400);
+}
+
+.toolbarButton[data-category="data"] {
+  border-color: var(--color-primary-300);
+}
+
+.toolbarButton[data-category="data"]:hover {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-400);
+}
+
+.toolbarButton[data-category="integration"] {
+  border-color: var(--color-secondary-300);
+}
+
+.toolbarButton[data-category="integration"]:hover {
+  background: var(--color-secondary-50);
+  border-color: var(--color-secondary-400);
+}
+
+.toolbarButton[data-category="communication"] {
+  border-color: var(--color-warning-300);
+}
+
+.toolbarButton[data-category="communication"]:hover {
+  background: var(--color-warning-50);
+  border-color: var(--color-warning-400);
+}
+
+.toolbarIcon {
+  font-size: var(--font-size-xl);
+}
+
+.toolbarLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.2;
+}
+
+/* Info Panel */
+.info {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(10px);
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.infoItem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.infoItem strong {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.status {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--border-color);
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statusBadge.draft {
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+}
+
+.statusBadge.active {
+  background: var(--color-success-100);
+  color: var(--color-success-700);
+}
+
+.statusBadge.running {
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  animation: pulse 2s infinite;
+}
+
+/* Loading State */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--spacing-lg);
+  color: var(--text-muted);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-primary-200);
+  border-top: 3px solid var(--color-primary-600);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading p {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  margin: 0;
+}
+
+/* Animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Custom Scrollbar for Toolbar */
+.toolbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.toolbar::-webkit-scrollbar-track {
+  background: var(--color-gray-100);
+  border-radius: var(--radius-full);
+}
+
+.toolbar::-webkit-scrollbar-thumb {
+  background: var(--color-primary-300);
+  border-radius: var(--radius-full);
+}
+
+.toolbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-400);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .workflowCanvas {
+    height: calc(100vh - 180px);
+    min-height: 450px;
+  }
+  
+  .toolbar {
+    max-width: 260px;
+    max-height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .workflowCanvas {
+    height: calc(100vh - 140px);
+    min-height: 400px;
+  }
+  
+  .toolbar {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    max-width: none;
+    max-height: 200px;
+    z-index: 50;
+    padding: var(--spacing-md);
+  }
+
+  .toolbarGrid {
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: var(--spacing-xs);
+  }
+
+  .toolbarButton {
+    min-height: 60px;
+    padding: var(--spacing-sm);
+  }
+
+  .toolbarIcon {
+    font-size: var(--font-size-lg);
+  }
+  
+  .toolbarLabel {
+    font-size: var(--font-size-2xs);
+  }
+
+  .info {
+    padding: var(--spacing-sm);
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 50;
+  }
+  
+  .controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+  }
+  
+  .minimap {
+    display: none; /* Hide minimap on mobile for space */
+  }
+}
+
+@media (max-width: 480px) {
+  .workflowCanvas {
+    height: calc(100vh - 120px);
+    min-height: 350px;
+  }
+  
+  .toolbar {
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    max-height: 150px;
+    padding: var(--spacing-sm);
+  }
+  
+  .toolbarGrid {
+    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  }
+  
+  .toolbarButton {
+    min-height: 50px;
+    padding: var(--spacing-xs);
+  }
+  
+  .toolbarIcon {
+    font-size: var(--font-size-base);
+  }
+  
+  .info {
+    top: 10px;
+    right: 10px;
+    padding: var(--spacing-xs);
+  }
+}

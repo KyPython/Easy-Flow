@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FiPlay, FiPause, FiEdit3, FiTrash2, FiClock, FiCalendar, FiMoreHorizontal } from 'react-icons/fi';
 import { formatDistance } from 'date-fns';
+import { useTheme } from '../../utils/ThemeContext';
 import PropTypes from 'prop-types';
-import './ScheduleList.module.css';
+import styles from './ScheduleList.module.css';
 
 /**
  * ScheduleList - Complete automation schedule management component
@@ -16,6 +17,7 @@ const ScheduleList = React.memo(({
   onCreateSchedule,
   isLoading = false 
 }) => {
+  const { theme } = useTheme();
   const [filterStatus, setFilterStatus] = useState('all'); // all, active, paused
   const [sortBy, setSortBy] = useState('nextRun'); // nextRun, name, created
   const [selectedSchedules, setSelectedSchedules] = useState(new Set());

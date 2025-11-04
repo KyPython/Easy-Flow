@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { FiUsers, FiEdit3, FiTrash2, FiShield, FiMoreHorizontal, FiUserCheck } from 'react-icons/fi';
+import { useTheme } from '../../utils/ThemeContext';
 import PropTypes from 'prop-types';
-import './RoleManager.module.css';
+import styles from './RoleManager.module.css';
 
 /**
  * RoleManager - Team role and permission management component
@@ -16,6 +17,7 @@ const RoleManager = React.memo(({
   onUpdatePermissions,
   isLoading = false 
 }) => {
+  const { theme } = useTheme();
   const [selectedMembers, setSelectedMembers] = useState(new Set());
   const [filterRole, setFilterRole] = useState('all');
   const [sortBy, setSortBy] = useState('name'); // name, role, joinDate, lastActive

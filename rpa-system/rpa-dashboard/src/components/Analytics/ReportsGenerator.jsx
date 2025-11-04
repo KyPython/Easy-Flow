@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FiDownload, FiFileText, FiBarChart3, FiCalendar, FiFilter, FiRefreshCw } from 'react-icons/fi';
+import { useTheme } from '../../utils/ThemeContext';
 import PropTypes from 'prop-types';
-import './ReportsGenerator.module.css';
+import styles from './ReportsGenerator.module.css';
 
 /**
  * ReportsGenerator - Analytics reports generation and export component
@@ -15,6 +16,7 @@ const ReportsGenerator = React.memo(({
   availableReports = [],
   isLoading = false 
 }) => {
+  const { theme } = useTheme();
   const [reportConfig, setReportConfig] = useState({
     type: 'workflow_performance',
     dateRange: 'last_30_days',

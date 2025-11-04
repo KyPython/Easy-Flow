@@ -1,0 +1,344 @@
+/* Modern Workflow Summary - 2025 Design */
+.workflowSummary {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.workflowSummary:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-primary-300);
+}
+
+/* Header */
+.summaryHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-xl);
+  background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--surface) 100%);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.workflowInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.workflowName {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-xs) 0;
+  font-family: var(--font-family-brand);
+}
+
+.workflowDescription {
+  font-size: var(--font-size-base);
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.workflowStatus {
+  flex-shrink: 0;
+}
+
+/* Stats Grid */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--spacing-lg);
+  padding: var(--spacing-xl);
+  background: var(--surface);
+}
+
+.statCard {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  background: linear-gradient(135deg, var(--color-gray-50) 0%, var(--surface) 100%);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  transition: all 0.2s ease;
+}
+
+.statCard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary-300);
+}
+
+.statIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-xl);
+  flex-shrink: 0;
+}
+
+.statCard:nth-child(1) .statIcon {
+  background: var(--color-primary-100);
+  color: var(--color-primary-600);
+}
+
+.statCard:nth-child(2) .statIcon {
+  background: var(--color-success-100);
+  color: var(--color-success-600);
+}
+
+.statCard:nth-child(3) .statIcon {
+  background: var(--color-error-100);
+  color: var(--color-error-600);
+}
+
+.statCard:nth-child(4) .statIcon {
+  background: var(--color-warning-100);
+  color: var(--color-warning-600);
+}
+
+.statContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.statValue {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-xs) 0;
+  font-family: var(--font-family-brand);
+}
+
+.statLabel {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+  margin: 0;
+}
+
+/* Metadata */
+.metadata {
+  padding: var(--spacing-xl);
+  background: var(--color-gray-50);
+  border-top: 1px solid var(--border-color);
+}
+
+.metadataGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.metadataItem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.metadataIcon {
+  font-size: var(--font-size-base);
+  color: var(--color-primary-500);
+  flex-shrink: 0;
+}
+
+.metadataContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.metadataLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 var(--spacing-2xs) 0;
+}
+
+.metadataValue {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+  margin: 0;
+}
+
+/* Tags Section */
+.tagsSection {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
+}
+
+.tagsHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.tagsIcon {
+  font-size: var(--font-size-base);
+  color: var(--color-primary-500);
+}
+
+.tagsLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  border: 1px solid var(--color-primary-300);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  transition: all 0.2s ease;
+}
+
+.tag:hover {
+  background: var(--color-primary-200);
+  border-color: var(--color-primary-400);
+  transform: translateY(-1px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .summaryHeader {
+    padding: var(--spacing-lg);
+    flex-direction: column;
+    gap: var(--spacing-md);
+    align-items: stretch;
+  }
+
+  .workflowName {
+    font-size: var(--font-size-lg);
+  }
+
+  .workflowDescription {
+    font-size: var(--font-size-sm);
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+  }
+
+  .statCard {
+    padding: var(--spacing-md);
+    flex-direction: column;
+    text-align: center;
+    gap: var(--spacing-sm);
+  }
+
+  .statIcon {
+    width: 40px;
+    height: 40px;
+    font-size: var(--font-size-lg);
+  }
+
+  .statValue {
+    font-size: var(--font-size-xl);
+  }
+
+  .metadata {
+    padding: var(--spacing-lg);
+  }
+
+  .metadataGrid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+
+  .metadataItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+}
+
+@media (max-width: 480px) {
+  .summaryHeader,
+  .statsGrid,
+  .metadata {
+    padding: var(--spacing-md);
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .statCard {
+    padding: var(--spacing-sm);
+  }
+
+  .statIcon {
+    width: 32px;
+    height: 32px;
+    font-size: var(--font-size-base);
+  }
+
+  .statValue {
+    font-size: var(--font-size-lg);
+  }
+
+  .tags {
+    gap: var(--spacing-2xs);
+  }
+
+  .tag {
+    padding: var(--spacing-2xs) var(--spacing-xs);
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .workflowSummary {
+    border-width: 2px;
+  }
+
+  .statCard {
+    border-width: 2px;
+  }
+
+  .tag {
+    border-width: 2px;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .workflowSummary,
+  .statCard,
+  .tag {
+    transition: none;
+  }
+
+  .workflowSummary:hover,
+  .statCard:hover,
+  .tag:hover {
+    transform: none;
+  }
+}

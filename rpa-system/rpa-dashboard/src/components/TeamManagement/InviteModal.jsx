@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { FiX, FiMail, FiUserPlus, FiCheck } from 'react-icons/fi';
+import { useTheme } from '../../utils/ThemeContext';
 import PropTypes from 'prop-types';
-import './InviteModal.module.css';
+import styles from './InviteModal.module.css';
 
 /**
  * InviteModal - Team member invitation modal with role selection
@@ -14,6 +15,7 @@ const InviteModal = React.memo(({
   availableRoles = [],
   isLoading = false 
 }) => {
+  const { theme } = useTheme();
   const [inviteData, setInviteData] = useState({
     email: '',
     role: 'member',

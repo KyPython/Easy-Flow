@@ -6,6 +6,16 @@
   background: var(--bg);
 }
 
+/* Schedules Container */
+.schedulesContainer {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  min-height: 400px;
+}
+
 /* Template Gallery Container */
 .templateGalleryContainer {
   background: var(--card-bg);

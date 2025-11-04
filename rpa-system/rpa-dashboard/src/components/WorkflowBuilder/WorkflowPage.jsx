@@ -8,6 +8,8 @@ import WorkflowsList from './WorkflowsList';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from '../ErrorMessage';
 import PaywallModal from '../PaywallModal/PaywallModal';
+import ScheduleList from '../ScheduleBuilder/ScheduleList';
+import ScheduleEditor from '../ScheduleBuilder/ScheduleEditor';
 import styles from './WorkflowPage.module.css';
 
 const WorkflowPage = () => {
@@ -17,6 +19,35 @@ const WorkflowPage = () => {
   const { user, loading: authLoading } = useAuth();
   const { planData, loading: planLoading } = usePlan();
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [showScheduleEditor, setShowScheduleEditor] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState(null);
+  
+  // Mock schedule data - replace with actual API integration
+  const [schedules, setSchedules] = useState([
+    {
+      id: '1',
+      name: 'Daily Data Sync',
+      description: 'Sync customer data every day at 9 AM',
+      workflowId: 'workflow-123',
+      workflowName: 'Customer Data Import',
+      stepCount: 5,
+      cronExpression: '0 9 * * *',
+      nextRun: '2024-11-05T09:00:00Z',
+      enabled: true,
+      createdAt: '2024-11-01T10:00:00Z'
+    }
+  ]);
+  
+  // Mock workflows data for schedule editor
+  const [workflows] = useState([
+    {
+      id: 'workflow-123',
+      name: 'Customer Data Import',
+      description: 'Import customer data from external API',
+      stepCount: 5,
+      estimatedDuration: '2-3 minutes'
+    }
+  ]);
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -42,6 +73,81 @@ const WorkflowPage = () => {
     if (path.includes('/testing')) return 'testing';
     if (workflowId) return 'builder';
     return 'list'; // Default to workflows list
+  };
+
+  // Schedule management handlers
+  const handleToggleSchedule = async (scheduleId, enabled) => {
+    try {
+      // Mock API call - replace with actual API integration
+      console.log('Toggling schedule:', scheduleId, enabled);
+      
+      setSchedules(prev => prev.map(schedule => 
+        schedule.id === scheduleId ? { ...schedule, enabled } : schedule
+      ));
+    } catch (error) {
+      console.error('Failed to toggle schedule:', error);
+    }
+  };
+
+  const handleEditSchedule = (scheduleId) => {
+    const schedule = schedules.find(s => s.id === scheduleId);
+    setEditingSchedule(schedule);
+    setShowScheduleEditor(true);
+  };
+
+  const handleDeleteSchedule = async (scheduleId) => {
+    try {
+      // Mock API call - replace with actual API integration
+      console.log('Deleting schedule:', scheduleId);
+      
+      setSchedules(prev => prev.filter(schedule => schedule.id !== scheduleId));
+    } catch (error) {
+      console.error('Failed to delete schedule:', error);
+    }
+  };
+
+  const handleCreateSchedule = () => {
+    setEditingSchedule(null);
+    setShowScheduleEditor(true);
+  };
+
+  const handleSaveSchedule = async (scheduleData) => {
+    try {
+      // Mock API call - replace with actual API integration
+      console.log('Saving schedule:', scheduleData);
+      
+      if (editingSchedule) {
+        // Update existing schedule
+        setSchedules(prev => prev.map(schedule => 
+          schedule.id === editingSchedule.id 
+            ? { ...schedule, ...scheduleData, id: editingSchedule.id }
+            : schedule
+        ));
+      } else {
+        // Create new schedule
+        const newSchedule = {
+          ...scheduleData,
+          id: Date.now().toString(),
+          createdAt: new Date().toISOString(),
+          nextRun: calculateNextRun(scheduleData.cronExpression)
+        };
+        setSchedules(prev => [...prev, newSchedule]);
+      }
+      
+      setShowScheduleEditor(false);
+      setEditingSchedule(null);
+    } catch (error) {
+      console.error('Failed to save schedule:', error);
+    }
+  };
+
+  // Helper to calculate next run time (simplified)
+  const calculateNextRun = (cronExpression) => {
+    // This is a simple mock - use a proper cron library in production
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0);
+    return tomorrow.toISOString();
   };
 
   const handleTemplateSelect = (newWorkflow) => {
@@ -98,10 +204,26 @@ const WorkflowPage = () => {
         </div>
       )}
       {currentView === 'schedules' && (
-        <div className={styles.placeholderContainer}>
-          <h2>Workflow Schedules</h2>
-          <p>Schedule your workflows to run automatically</p>
-          <p>This feature will be available when you save your workflow.</p>
+        <div className={styles.schedulesContainer}>
+          {!showScheduleEditor ? (
+            <ScheduleList
+              schedules={schedules}
+              onToggleSchedule={handleToggleSchedule}
+              onEditSchedule={handleEditSchedule}
+              onDeleteSchedule={handleDeleteSchedule}
+              onCreateSchedule={handleCreateSchedule}
+            />
+          ) : (
+            <ScheduleEditor
+              schedule={editingSchedule}
+              workflows={workflows}
+              onSave={handleSaveSchedule}
+              onCancel={() => {
+                setShowScheduleEditor(false);
+                setEditingSchedule(null);
+              }}
+            />
+          )}
         </div>
       )}
       {currentView === 'executions' && (

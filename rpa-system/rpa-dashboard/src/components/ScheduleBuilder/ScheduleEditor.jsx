@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FiSave, FiX, FiCalendar, FiPlay, FiPause, FiSettings } from 'react-icons/fi';
+import { useTheme } from '../../utils/ThemeContext';
 import CronBuilder from './CronBuilder';
 import PropTypes from 'prop-types';
-import './ScheduleEditor.module.css';
+import styles from './ScheduleEditor.module.css';
 
 /**
  * ScheduleEditor - Complete schedule creation and editing interface
@@ -15,6 +16,7 @@ const ScheduleEditor = React.memo(({
   onCancel,
   isLoading = false 
 }) => {
+  const { theme } = useTheme();
   const [formData, setFormData] = useState({
     name: '',
     description: '',

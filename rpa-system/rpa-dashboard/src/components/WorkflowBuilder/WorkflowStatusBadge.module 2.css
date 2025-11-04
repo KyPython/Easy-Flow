@@ -1,0 +1,152 @@
+/* Modern Workflow Status Badge - 2025 Design */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.statusBadge::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.statusBadge:hover::before {
+  left: 100%;
+}
+
+/* Size Variants */
+.statusBadge.small {
+  padding: var(--spacing-2xs) var(--spacing-xs);
+  font-size: var(--font-size-2xs);
+}
+
+.statusBadge.medium {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+}
+
+.statusBadge.large {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+}
+
+/* Badge Icon */
+.badgeIcon {
+  font-size: 1em;
+  flex-shrink: 0;
+}
+
+.badgeLabel {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* Status Color Variants */
+.statusBadge.gray {
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+  border: 1px solid var(--color-gray-300);
+}
+
+.statusBadge.primary {
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  border: 1px solid var(--color-primary-300);
+}
+
+.statusBadge.success {
+  background: var(--color-success-100);
+  color: var(--color-success-700);
+  border: 1px solid var(--color-success-300);
+}
+
+.statusBadge.warning {
+  background: var(--color-warning-100);
+  color: var(--color-warning-700);
+  border: 1px solid var(--color-warning-300);
+}
+
+.statusBadge.error {
+  background: var(--color-error-100);
+  color: var(--color-error-700);
+  border: 1px solid var(--color-error-300);
+}
+
+/* Animated States */
+.statusBadge.success .badgeIcon,
+.statusBadge.primary .badgeIcon {
+  animation: pulse 2s infinite;
+}
+
+.statusBadge.error .badgeIcon {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .statusBadge.large {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .statusBadge.medium {
+    padding: var(--spacing-2xs) var(--spacing-xs);
+    font-size: var(--font-size-2xs);
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .statusBadge {
+    border-width: 2px;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .statusBadge::before {
+    transition: none;
+  }
+
+  .statusBadge:hover::before {
+    left: -100%;
+  }
+
+  .statusBadge.success .badgeIcon,
+  .statusBadge.primary .badgeIcon,
+  .statusBadge.error .badgeIcon {
+    animation: none;
+  }
+}
