@@ -296,3 +296,123 @@ Before deploying changes:
 ---
 
 **Need help?** Open an issue in the repository with detailed error messages and workflow run logs.
+
+---
+
+## 🧪 Local Smoke Tests
+
+Before deploying or after making changes, run these local smoke tests to validate the system:
+
+### Prerequisites
+
+```bash
+# Set up Python virtual environment
+python3 -m venv .venv && source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up environment variables (copy from .env.example)
+cp .env.example .env
+# Edit .env with your actual credentials
+```
+
+### Core Functionality Tests
+
+```bash
+# Test 1: Reddit feedback extraction (dry-run mode)
+python3 scripts/fetch_reddit_feedback.py --keywords "automation,self-hosting" --limit 10 --dry-run
+
+# Test 2: Checklist generation 
+python3 scripts/generate_checklists.py --input data/reddit_pain_points.json --output checklists/
+
+# Test 3: Feedback analysis
+python3 scripts/analyze_feedback.py --reddit-data data/reddit_pain_points.json --output reports/
+```
+
+### Full System Test
+
+```bash
+# Run complete end-to-end test with small dataset
+mkdir -p data/{feedback,exports,cache} checklists reports logs
+
+# Generate test data
+echo '{"test_subreddit": ["Test pain point for automation workflows"]}' > data/reddit_pain_points.json
+echo '[]' > data/feedback/survey_responses.json
+
+# Test checklist generation
+python3 scripts/generate_checklists.py --input data/reddit_pain_points.json --output checklists/
+
+# Test analysis
+python3 scripts/analyze_feedback.py --reddit-data data/reddit_pain_points.json --output reports/
+
+# Verify outputs
+ls -la checklists/
+ls -la reports/
+```
+
+### Notification Tests
+
+```bash
+# Test Slack webhook (replace with your webhook URL)
+curl -X POST "YOUR_SLACK_WEBHOOK_URL" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "🧪 Test notification from EasyFlow Lead Magnet system"}'
+
+# Test Discord webhook (replace with your webhook URL)  
+curl -H "Content-Type: application/json" \
+  -d '{"embeds": [{"title": "🧪 Test Notification", "description": "Lead magnet system test", "color": 5763719}]}' \
+  "YOUR_DISCORD_WEBHOOK_URL"
+```
+
+### Validation Checklist
+
+Before enabling production automation, verify:
+
+- [ ] ✅ All Python scripts run without errors
+- [ ] ✅ PDF/text checklists are generated correctly  
+- [ ] ✅ Analysis reports contain valid JSON/CSV data
+- [ ] ✅ Reddit API credentials are working
+- [ ] ✅ Slack/Discord notifications are received
+- [ ] ✅ All required directories are created
+- [ ] ✅ Generated files are non-empty and valid
+
+### Troubleshooting Local Issues
+
+**Error: `ModuleNotFoundError`**
+```bash
+pip install --upgrade -r requirements.txt
+```
+
+**Error: `Reddit API authentication failed`**  
+```bash
+# Verify credentials in .env file
+# Check Reddit app configuration at https://www.reddit.com/prefs/apps
+```
+
+**Error: `PDF generation failed`**
+```bash
+# Install system dependencies
+sudo apt-get install fonts-liberation fonts-dejavu-core fontconfig
+```
+
+**Error: `Permission denied`**
+```bash
+# Fix directory permissions
+chmod -R 755 scripts/ data/
+```
+
+### Performance Testing
+
+```bash
+# Time the full workflow locally
+time (
+  python3 scripts/fetch_reddit_feedback.py --keywords "automation" --limit 50 --dry-run &&
+  python3 scripts/generate_checklists.py --input data/reddit_pain_points.json --output checklists/ &&
+  python3 scripts/analyze_feedback.py --reddit-data data/reddit_pain_points.json --output reports/
+)
+```
+
+Expected completion time: **2-5 minutes** for dry-run tests, **10-15 minutes** for full Reddit extraction.
+
+---

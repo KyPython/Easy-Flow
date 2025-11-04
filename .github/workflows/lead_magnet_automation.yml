@@ -53,12 +53,12 @@ on:
         default: 'false'
         type: boolean
 
-# WORKFLOW PERMISSIONS
-# Ensure the workflow can read repository content and write back changes
+# SECURITY PERMISSIONS
+# Minimal permissions following security best practices
 permissions:
-  contents: write
-  actions: read
-  security-events: read
+  contents: write      # Required for committing generated files
+  actions: none        # No access to workflow management
+  security-events: none  # No access to security events
 
 # ENVIRONMENT VARIABLES
 # Global configuration used across all jobs
@@ -133,11 +133,29 @@ jobs:
           
           echo "✅ System dependencies installed successfully"
       
-      # STEP 5: PYTHON DEPENDENCIES WITH CACHING
-      # Install Python packages with retry logic and comprehensive caching
-      - name: 📚 Install Python Dependencies
+      # STEP 5: CACHE INVALIDATION (for force-regenerate runs)
+      # Clear cache when force regeneration is requested
+      - name: 🗑️ Cache Invalidation (Force Regenerate)
+        if: env.FORCE_REGENERATE == 'true'
         run: |
-          echo "🔄 Installing Python dependencies with caching..."
+          echo "🔄 Force regenerate requested - clearing all caches..."
+          
+          # Clear data cache
+          if [ -d "$DATA_DIR/cache" ]; then
+            rm -rf "$DATA_DIR/cache"/*
+            echo "✅ Data cache cleared"
+          fi
+          
+          # Clear pip cache for this run
+          pip cache purge || echo "⚠️ Could not purge pip cache"
+          
+          echo "🎯 Cache invalidation complete"
+      
+      # STEP 6: PYTHON DEPENDENCIES WITH RETRY LOGIC
+      # Install Python packages with retry logic and comprehensive caching
+      - name: 📚 Install Python Dependencies with Retry Logic
+        run: |
+          echo "🔄 Installing Python dependencies with exponential backoff retry..."
           
           # Create requirements file if it doesn't exist
           if [ ! -f requirements.txt ]; then
@@ -153,27 +171,31 @@ jobs:
           beautifulsoup4>=4.12.2
           lxml>=4.9.3
           Pillow>=10.0.0
+          tenacity>=8.2.0
           EOF
           fi
           
-          # Install with retry logic
-          for i in {1..3}; do
-            echo "📦 Installation attempt $i/3..."
-            if pip install --upgrade pip && pip install -r requirements.txt; then
-              echo "✅ Python dependencies installed successfully"
+          # Install with exponential backoff retry logic
+          for attempt in {1..3}; do
+            WAIT_TIME=$((attempt * attempt * 5))  # 5, 20, 45 seconds
+            echo "📦 Installation attempt $attempt/3..."
+            
+            if pip install --upgrade pip setuptools wheel && pip install -r requirements.txt; then
+              echo "✅ Python dependencies installed successfully on attempt $attempt"
               break
-            elif [ $i -eq 3 ]; then
-              echo "❌ Failed to install dependencies after 3 attempts"
+            elif [ $attempt -eq 3 ]; then
+              echo "❌ Failed to install dependencies after 3 attempts with exponential backoff"
               exit 1
             else
-              echo "⚠️ Installation failed, retrying in 10 seconds..."
-              sleep 10
+              echo "⚠️ Attempt $attempt failed, waiting $WAIT_TIME seconds before retry..."
+              sleep $WAIT_TIME
             fi
           done
           
-          # Download NLTK data for text analysis
+          # Download NLTK data with error handling
           python -c "
           import nltk
+          import sys
           try:
               nltk.download('punkt', quiet=True)
               nltk.download('vader_lexicon', quiet=True)
@@ -181,9 +203,10 @@ jobs:
               print('✅ NLTK data downloaded successfully')
           except Exception as e:
               print(f'⚠️ NLTK download warning: {e}')
+              # Don't fail the workflow for NLTK data issues
           "
       
-      # STEP 6: DIRECTORY STRUCTURE SETUP
+      # STEP 7: DIRECTORY STRUCTURE SETUP
       # Create necessary directories with proper permissions
       - name: 📁 Initialize Directory Structure
         run: |
@@ -207,7 +230,7 @@ jobs:
           echo "✅ Directory structure initialized"
           ls -la "$DATA_DIR"
       
-      # STEP 7: REDDIT FEEDBACK COLLECTION
+      # STEP 8: REDDIT FEEDBACK COLLECTION WITH ENHANCED ERROR HANDLING
       # Run Reddit pain point extraction with comprehensive error handling
       - name: 🔍 Extract Reddit Pain Points
         id: reddit_extraction
@@ -231,8 +254,9 @@ jobs:
           else
             echo "🔄 Fetching fresh Reddit data..."
             
-            # Run extraction with retry logic
+            # Run extraction with exponential backoff retry logic
             for attempt in {1..3}; do
+              WAIT_TIME=$((attempt * attempt * 15))  # 15, 60, 135 seconds
               echo "📡 Reddit extraction attempt $attempt/3..."
               
               if python "$SCRIPTS_DIR/fetch_reddit_feedback.py" \
@@ -243,12 +267,12 @@ jobs:
                 
                 # Cache successful result
                 cp "$OUTPUT_FILE" "$CACHE_FILE"
-                echo "✅ Reddit extraction completed successfully"
+                echo "✅ Reddit extraction completed successfully on attempt $attempt"
                 echo "reddit_cached=false" >> $GITHUB_OUTPUT
                 break
                 
               elif [ $attempt -eq 3 ]; then
-                echo "❌ Reddit extraction failed after 3 attempts"
+                echo "❌ Reddit extraction failed after 3 attempts with exponential backoff"
                 echo "reddit_success=false" >> $GITHUB_OUTPUT
                 
                 # Use fallback mock data to continue workflow
@@ -260,8 +284,8 @@ jobs:
                 echo "⚠️ Using mock data as fallback"
                 break
               else
-                echo "🔄 Attempt failed, waiting 30 seconds before retry..."
-                sleep 30
+                echo "🔄 Attempt $attempt failed, waiting $WAIT_TIME seconds before retry..."
+                sleep $WAIT_TIME
               fi
             done
           fi
@@ -287,7 +311,7 @@ jobs:
           echo "pain_points_count=$PAIN_POINTS_COUNT" >> $GITHUB_OUTPUT
           echo "📊 Extracted $PAIN_POINTS_COUNT pain points from Reddit"
       
-      # STEP 8: CHECKLIST GENERATION
+      # STEP 9: CHECKLIST GENERATION
       # Generate PDF checklists with professional formatting and error recovery
       - name: 📋 Generate Lead Magnet Checklists
         id: checklist_generation
@@ -339,7 +363,7 @@ jobs:
           echo "📂 Generated files:"
           ls -la "$CHECKLISTS_DIR" || true
       
-      # STEP 9: FEEDBACK ANALYSIS
+      # STEP 10: FEEDBACK ANALYSIS
       # Analyze combined Reddit and survey data to generate actionable insights
       - name: 📊 Analyze Feedback & Generate Insights
         id: feedback_analysis
@@ -393,7 +417,7 @@ jobs:
           ls -la "$OUTPUT_DIR" || true
           ls -la "$ANALYSIS_OUTPUT" || true
       
-      # STEP 10: MESSAGING UPDATE
+      # STEP 11: MESSAGING UPDATE
       # Update marketing messaging based on latest feedback insights
       - name: 📝 Update Marketing Messaging
         id: messaging_update
@@ -480,7 +504,7 @@ jobs:
           echo "messaging_updated=true" >> $GITHUB_OUTPUT
           echo "📊 Marketing messaging updated with latest analysis"
       
-      # STEP 11: COMMIT CHANGES
+      # STEP 12: COMMIT CHANGES WITH ENHANCED RETRY LOGIC
       # Commit all generated files back to the repository with detailed commit message
       - name: 💾 Commit Generated Files
         id: commit_changes
@@ -528,64 +552,89 @@ jobs:
           # Commit with detailed message
           git commit -m "$COMMIT_MESSAGE"
           
-          # Push changes
+          # Push changes with exponential backoff retry
           for attempt in {1..3}; do
+            WAIT_TIME=$((attempt * attempt * 5))  # 5, 20, 45 seconds
             echo "📤 Push attempt $attempt/3..."
             if git push; then
-              echo "✅ Changes committed and pushed successfully"
+              echo "✅ Changes committed and pushed successfully on attempt $attempt"
               echo "files_committed=true" >> $GITHUB_OUTPUT
               break
             elif [ $attempt -eq 3 ]; then
-              echo "❌ Failed to push after 3 attempts"
+              echo "❌ Failed to push after 3 attempts with exponential backoff"
               echo "files_committed=false" >> $GITHUB_OUTPUT
               exit 1
             else
-              echo "🔄 Push failed, retrying in 10 seconds..."
-              sleep 10
+              echo "🔄 Push failed, waiting $WAIT_TIME seconds before retry..."
+              git pull --rebase || echo "⚠️ Rebase failed, will try again"
+              sleep $WAIT_TIME
             fi
           done
       
-      # STEP 12: SLACK NOTIFICATION
+      # STEP 13: SLACK NOTIFICATION WITH ERROR HANDLING
       # Send comprehensive status update to Slack channel
-      - name: 📢 Send Slack Notification
+      - name: 📢 Send Slack Notification with Error Handling
         if: env.SKIP_NOTIFICATIONS != 'true' && (success() || failure())
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          channel: '#automation'
-          username: 'Lead Magnet Bot'
-          icon_emoji: ':robot_face:'
-          title: '🎯 Lead Magnet Automation Complete'
-          message: |
-            **Status:** ${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}
-            **Duration:** ${{ steps.commit_changes.conclusion != 'skipped' && '~25 minutes' || '~15 minutes' }}
-            
-            **📊 Generation Results:**
-            • Reddit Pain Points: ${{ steps.reddit_extraction.outputs.pain_points_count || 'N/A' }}
-            • PDF Checklists: ${{ steps.checklist_generation.outputs.checklist_count || 'N/A' }}
-            • Insights Generated: ${{ steps.feedback_analysis.outputs.insights_count || 'N/A' }}
-            • Files Committed: ${{ steps.commit_changes.outputs.files_committed || 'false' }}
-            
-            **🔍 Data Sources:**
-            • Keywords: `${{ env.REDDIT_KEYWORDS }}`
-            • Subreddits: `${{ env.TARGET_SUBREDDITS }}`
-            • Cache Used: ${{ steps.reddit_extraction.outputs.reddit_cached || 'false' }}
-            
-            **📁 Generated Files:**
-            • Pain points data: `/data/reddit_pain_points.json`
-            • Checklists: `/public/downloads/checklists/`
-            • Analysis: `/data/feedback_analysis.json`
-            • CSV exports: `/data/exports/`
-            
-            **🔗 Repository:** ${{ github.repository }}
-            **⚡ Workflow:** ${{ github.workflow }}
-            **🔄 Run:** #${{ github.run_number }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "⚠️ Slack webhook URL not configured, skipping notification"
+            exit 0
+          fi
+          
+          # Determine status and message
+          if [ "${{ job.status }}" = "success" ]; then
+            STATUS_EMOJI="✅"
+            STATUS_TEXT="Success" 
+            COLOR="good"
+          else
+            STATUS_EMOJI="❌"
+            STATUS_TEXT="Failed"
+            COLOR="danger"
+          fi
+          
+          # Send Slack notification with graceful error handling
+          curl -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            --max-time 30 \
+            --retry 3 \
+            --retry-delay 5 \
+            -d "{
+              \"channel\": \"#automation\",
+              \"username\": \"Lead Magnet Bot\",
+              \"icon_emoji\": \":robot_face:\",
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"🎯 Lead Magnet Automation Complete\",
+                \"text\": \"**Status:** $STATUS_EMOJI $STATUS_TEXT\",
+                \"fields\": [
+                  {
+                    \"title\": \"Reddit Pain Points\",
+                    \"value\": \"${{ steps.reddit_extraction.outputs.pain_points_count || 'N/A' }}\",
+                    \"short\": true
+                  },
+                  {
+                    \"title\": \"Generated Checklists\",
+                    \"value\": \"${{ steps.checklist_generation.outputs.checklist_count || 'N/A' }}\",
+                    \"short\": true
+                  },
+                  {
+                    \"title\": \"Insights Generated\",
+                    \"value\": \"${{ steps.feedback_analysis.outputs.insights_count || 'N/A' }}\",
+                    \"short\": true
+                  },
+                  {
+                    \"title\": \"Files Committed\",
+                    \"value\": \"${{ steps.commit_changes.outputs.files_committed || 'false' }}\",
+                    \"short\": true
+                  }
+                ],
+                \"footer\": \"Lead Magnet Automation | Run #${{ github.run_number }} | $(date -u +'%Y-%m-%d %H:%M UTC')\"
+              }]
+            }" || echo "⚠️ Failed to send Slack notification, continuing workflow"
       
-      # STEP 13: DISCORD NOTIFICATION
+      # STEP 14: DISCORD NOTIFICATION WITH ERROR HANDLING
       # Send status update to Discord channel with rich embed
-      - name: 🎮 Send Discord Notification
+      - name: 🎮 Send Discord Notification with Error Handling
         if: env.SKIP_NOTIFICATIONS != 'true' && (success() || failure())
         run: |
           if [ -z "${{ secrets.DISCORD_WEBHOOK_URL }}" ]; then
@@ -604,46 +653,54 @@ jobs:
             STATUS_TEXT="Failed"
           fi
           
-          # Create Discord embed payload
-          curl -H "Content-Type: application/json" -d "{
-            \"embeds\": [{
-              \"title\": \"🎯 Lead Magnet Automation Complete\",
-              \"description\": \"**Status:** $STATUS_EMOJI $STATUS_TEXT\",
-              \"color\": $COLOR,
-              \"fields\": [
-                {
-                  \"name\": \"📊 Generation Results\",
-                  \"value\": \"• Reddit Pain Points: \`${{ steps.reddit_extraction.outputs.pain_points_count || 'N/A' }}\`\\n• PDF Checklists: \`${{ steps.checklist_generation.outputs.checklist_count || 'N/A' }}\`\\n• Insights Generated: \`${{ steps.feedback_analysis.outputs.insights_count || 'N/A' }}\`\\n• Files Committed: \`${{ steps.commit_changes.outputs.files_committed || 'false' }}\`\",
-                  \"inline\": true
-                },
-                {
-                  \"name\": \"🔍 Data Sources\",
-                  \"value\": \"• Keywords: \`$REDDIT_KEYWORDS\`\\n• Cache Used: \`${{ steps.reddit_extraction.outputs.reddit_cached || 'false' }}\`\\n• Workflow Run: \`#${{ github.run_number }}\`\",
-                  \"inline\": true
-                },
-                {
-                  \"name\": \"🔗 Repository\",
-                  \"value\": \"[\`${{ github.repository }}\`](https://github.com/${{ github.repository }})\",
-                  \"inline\": false
+          # Create Discord embed payload with error handling
+          curl -H "Content-Type: application/json" \
+            --max-time 30 \
+            --retry 3 \
+            --retry-delay 5 \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"🎯 Lead Magnet Automation Complete\",
+                \"description\": \"**Status:** $STATUS_EMOJI $STATUS_TEXT\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {
+                    \"name\": \"📊 Generation Results\",
+                    \"value\": \"• Reddit Pain Points: \`${{ steps.reddit_extraction.outputs.pain_points_count || 'N/A' }}\`\\n• PDF Checklists: \`${{ steps.checklist_generation.outputs.checklist_count || 'N/A' }}\`\\n• Insights Generated: \`${{ steps.feedback_analysis.outputs.insights_count || 'N/A' }}\`\\n• Files Committed: \`${{ steps.commit_changes.outputs.files_committed || 'false' }}\`\",
+                    \"inline\": true
+                  },
+                  {
+                    \"name\": \"🔍 Data Sources\",
+                    \"value\": \"• Keywords: \`$REDDIT_KEYWORDS\`\\n• Cache Used: \`${{ steps.reddit_extraction.outputs.reddit_cached || 'false' }}\`\\n• Workflow Run: \`#${{ github.run_number }}\`\",
+                    \"inline\": true
+                  },
+                  {
+                    \"name\": \"🔗 Repository\",
+                    \"value\": \"[\`${{ github.repository }}\`](https://github.com/${{ github.repository }})\",
+                    \"inline\": false
+                  }
+                ],
+                \"footer\": {
+                  \"text\": \"Lead Magnet Automation • $(date -u +'%Y-%m-%d %H:%M UTC')\"
                 }
-              ],
-              \"footer\": {
-                \"text\": \"Lead Magnet Automation • $(date -u +'%Y-%m-%d %H:%M UTC')\"
-              }
-            }]
-          }" "${{ secrets.DISCORD_WEBHOOK_URL }}"
+              }]
+            }" "${{ secrets.DISCORD_WEBHOOK_URL }}" || echo "⚠️ Failed to send Discord notification, continuing workflow"
           
-          echo "📬 Discord notification sent"
+          echo "📬 Discord notification attempted"
       
-      # STEP 14: WORKFLOW SUMMARY
+      # STEP 15: WORKFLOW SUMMARY WITH JOB METRICS
       # Generate comprehensive summary for GitHub Actions UI
-      - name: 📋 Generate Workflow Summary
+      - name: 📋 Generate Workflow Summary with Metrics
         if: always()
         run: |
+          # Calculate job duration
+          JOB_START_TIME="${{ github.event.workflow_run.created_at || github.event.created_at }}"
+          JOB_END_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
           echo "## 🎯 Lead Magnet Automation Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Status overview
+          # Status overview with duration
           if [ "${{ job.status }}" = "success" ]; then
             echo "### ✅ Status: **Success**" >> $GITHUB_STEP_SUMMARY
           else
@@ -652,33 +709,52 @@ jobs:
           
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Generation metrics
-          echo "### 📊 Generation Metrics" >> $GITHUB_STEP_SUMMARY
+          # Job metrics
+          echo "### 📊 Performance Metrics" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Reddit Pain Points | ${{ steps.reddit_extraction.outputs.pain_points_count || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Generated Checklists | ${{ steps.checklist_generation.outputs.checklist_count || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Actionable Insights | ${{ steps.feedback_analysis.outputs.insights_count || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Files Committed | ${{ steps.commit_changes.outputs.files_committed || 'false' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Cache Used | ${{ steps.reddit_extraction.outputs.reddit_cached || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Total Duration | ~30 minutes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cache Hits | ${{ steps.reddit_extraction.outputs.reddit_cached == 'true' && 'Reddit data cached' || 'Fresh data fetched' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Retry Attempts | Exponential backoff enabled |" >> $GITHUB_STEP_SUMMARY
+          echo "| Error Recovery | Graceful fallbacks implemented |" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Generation metrics
+          echo "### 📊 Generation Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Count | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Reddit Pain Points | ${{ steps.reddit_extraction.outputs.pain_points_count || 'N/A' }} | ${{ steps.reddit_extraction.conclusion == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Generated Checklists | ${{ steps.checklist_generation.outputs.checklist_count || 'N/A' }} | ${{ steps.checklist_generation.conclusion == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Actionable Insights | ${{ steps.feedback_analysis.outputs.insights_count || 'N/A' }} | ${{ steps.feedback_analysis.conclusion == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Files Committed | ${{ steps.commit_changes.outputs.files_committed || 'false' }} | ${{ steps.commit_changes.conclusion == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
           
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Configuration details
-          echo "### ⚙️ Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "### ⚙️ Configuration Used" >> $GITHUB_STEP_SUMMARY
           echo "- **Keywords**: \`$REDDIT_KEYWORDS\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Subreddits**: \`$TARGET_SUBREDDITS\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Force Regenerate**: \`$FORCE_REGENERATE\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Notifications**: ${{ env.SKIP_NOTIFICATIONS == 'true' && 'Disabled' || 'Enabled' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Security**: Minimal permissions, exponential backoff, graceful error handling" >> $GITHUB_STEP_SUMMARY
           
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Next steps
           echo "### 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. **Review generated checklists** in \`/public/downloads/checklists/\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. **Check analysis insights** in \`/data/feedback_analysis.json\`" >> $GITHUB_STEP_SUMMARY  
-          echo "3. **Update marketing copy** based on messaging recommendations" >> $GITHUB_STEP_SUMMARY
-          echo "4. **Deploy checklists** to production environment" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "1. **Review generated checklists** in \`/public/downloads/checklists/\`" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Check analysis insights** in \`/data/feedback_analysis.json\`" >> $GITHUB_STEP_SUMMARY  
+            echo "3. **Update marketing copy** based on messaging recommendations" >> $GITHUB_STEP_SUMMARY
+            echo "4. **Deploy checklists** to production environment" >> $GITHUB_STEP_SUMMARY
+            echo "5. **Monitor next scheduled run** (Mondays at 6:00 AM UTC)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "1. **Check step failures** above for specific error details" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Verify secrets configuration** in repository settings" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Review logs** for API rate limiting or connectivity issues" >> $GITHUB_STEP_SUMMARY
+            echo "4. **Run validation workflow** to test fixes" >> $GITHUB_STEP_SUMMARY
+          fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY

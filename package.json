@@ -1,0 +1,29 @@
+{
+  "name": "easyflow-lead-magnet",
+  "version": "1.0.0",
+  "description": "Lead magnet automation system for EasyFlow - generates PDF checklists from Reddit pain points",
+  "scripts": {
+    "test": "echo 'No Node.js tests defined - Python scripts used for main functionality'",
+    "validate": "echo 'Run npm run smoke-test to validate system'", 
+    "smoke-test": "echo 'Use GitHub Actions validation workflow for comprehensive testing'"
+  },
+  "keywords": [
+    "automation",
+    "lead-magnet", 
+    "reddit-api",
+    "pdf-generation",
+    "github-actions"
+  ],
+  "author": "EasyFlow Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EasyFlow/lead-magnet-automation"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}
