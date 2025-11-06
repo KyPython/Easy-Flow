@@ -1,0 +1,53 @@
+# Simplified Prometheus Recording Rules for EasyFlow SLO Demo
+# Basic SLO calculations without complex expressions
+
+groups:
+  - name: easyflow_slo_basic_rules
+    interval: 30s
+    rules:
+      # =============================================================================
+      # Basic SLO Metrics for Demonstration
+      # =============================================================================
+
+      # SLO 1: Process Execution Success Rate (mock data for demo)
+      - record: easyflow:slo1_success_rate_28d
+        expr: 99.95
+        labels:
+          slo: "process_execution_success_rate"
+          target: "99.9"
+
+      # SLO 2: API Latency Compliance (mock data for demo)
+      - record: easyflow:slo2_latency_success_rate_28d
+        expr: 96.5
+        labels:
+          slo: "critical_task_latency"
+          target: "95.0"
+
+      # SLO 3: User Transaction Compliance (mock data for demo)
+      - record: easyflow:slo3_transaction_success_rate_28d
+        expr: 97.8
+        labels:
+          slo: "user_transaction_time"
+          target: "95.0"
+
+      # Error Budget Calculations (simplified)
+      - record: easyflow:slo1_error_budget_remaining
+        expr: 50
+        labels:
+          slo: "process_execution_success_rate"
+
+      - record: easyflow:slo2_error_budget_remaining
+        expr: 75
+        labels:
+          slo: "critical_task_latency"
+
+      - record: easyflow:slo3_error_budget_remaining
+        expr: 85
+        labels:
+          slo: "user_transaction_time"
+
+      # Overall SLO Health Score
+      - record: easyflow:slo_health_score
+        expr: (99.95 + 96.5 + 97.8) / 3
+        labels:
+          component: "slo_summary"

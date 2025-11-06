@@ -1,0 +1,282 @@
+# Prometheus Alerting Rules for EasyFlow SLO Error Budget Management
+# Implements multi-window, multi-burn-rate alerting strategy
+
+groups:
+  - name: easyflow_slo_alerts
+    interval: 30s
+    rules:
+      # =============================================================================
+      # SLO 1: Process Execution Success Rate - Critical Business SLO
+      # Target: ≥99.9% (0.1% error budget over 28 days)
+      # =============================================================================
+
+      # Page-level alert: Fast burn (5% of budget consumed in 1 hour)
+      - alert: EasyFlow_SLO1_ProcessSuccess_FastBurn
+        expr: |
+          (
+            easyflow:slo1_error_budget_burn_rate_1h > (14.4 * 0.05)
+          ) and (
+            easyflow:slo1_error_budget_burn_rate_6h > (6 * 0.05) 
+          )
+        for: 2m
+        labels:
+          severity: page
+          team: sre
+          slo: process_execution_success_rate
+          burn_rate: fast
+          business_impact: critical
+        annotations:
+          summary: "🚨 CRITICAL: EasyFlow Process Success SLO fast burn detected"
+          description: |
+            **IMMEDIATE ACTION REQUIRED**
+
+            The Process Execution Success Rate SLO is consuming error budget rapidly:
+            - Current burn rate: {{ $value | humanize }}x normal
+            - At this rate, the entire 28-day error budget will be exhausted in {{ div 672 $value | humanize }} hours
+            - This affects core RPA system reliability
+
+            **Business Impact**: Customer workflows may start failing
+            **Escalation**: Page on-call engineer immediately
+
+            **Investigation priorities**:
+            1. Check for recent deployments or configuration changes
+            2. Review automation worker error rates by user tier
+            3. Examine external dependency failures (OpenAI, OCR services)
+            4. Validate Kafka message processing pipeline
+
+            Dashboard: http://grafana.easyflow.com/d/slo-executive
+          runbook_url: "https://wiki.easyflow.com/runbooks/slo1-process-success"
+
+      # Ticket-level alert: Slow burn (50% of budget consumed in 6 hours)
+      - alert: EasyFlow_SLO1_ProcessSuccess_SlowBurn
+        expr: |
+          (
+            easyflow:slo1_error_budget_burn_rate_1h > 3
+          ) and (
+            easyflow:slo1_error_budget_burn_rate_6h > 1
+          )
+        for: 15m
+        labels:
+          severity: warning
+          team: sre
+          slo: process_execution_success_rate
+          burn_rate: slow
+          business_impact: moderate
+        annotations:
+          summary: "⚠️ EasyFlow Process Success SLO slow burn detected"
+          description: |
+            **Action Required Within 4 Hours**
+
+            The Process Execution Success Rate SLO is consuming error budget consistently:
+            - Current 1h burn rate: {{ $value }}x normal
+            - Estimated time to budget exhaustion: {{ div 28 $value }} days
+
+            **Business Impact**: Gradual degradation of service reliability
+            **Action**: Create incident ticket and investigate root cause
+
+            **Check these areas**:
+            - Automation worker success rates by workflow type
+            - External API latency trends (OpenAI, OCR)
+            - Database connection pool exhaustion
+            - Message queue backlog accumulation
+
+            Dashboard: http://grafana.easyflow.com/d/slo-executive
+
+      # Error budget depletion warning
+      - alert: EasyFlow_SLO1_ErrorBudgetLow
+        expr: easyflow:slo1_error_budget_remaining < 10
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+          slo: process_execution_success_rate
+          business_impact: high
+        annotations:
+          summary: "💰 EasyFlow Process Success SLO error budget critically low"
+          description: |
+            **Error Budget Status: {{ $value | humanize }}% remaining**
+
+            The Process Execution Success Rate SLO error budget is nearly depleted.
+            Any significant incidents will cause SLO breach.
+
+            **Recommended Actions**:
+            - Halt non-critical deployments
+            - Review and defer risky changes
+            - Increase monitoring vigilance
+            - Prepare incident response team
+
+            Current SLO compliance: {{ query "easyflow:slo1_success_rate_28d" | first | value | humanize }}%
+
+      # =============================================================================
+      # SLO 2: Critical Task Latency (External API Performance)
+      # Target: 95th percentile ≤500ms for 95% of requests
+      # =============================================================================
+
+      - alert: EasyFlow_SLO2_APILatency_Degraded
+        expr: |
+          (
+            easyflow:slo2_latency_success_rate_28d < 95
+          ) and (
+            increase(easyflow:slo2_latency_success_rate_28d[1h]) < -2
+          )
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+          slo: critical_task_latency
+          business_impact: moderate
+        annotations:
+          summary: "⚡ EasyFlow API latency SLO degradation detected"
+          description: |
+            **API Performance Below Target**
+
+            Critical external API latency SLO compliance: {{ $value | humanize }}%
+            Target: ≥95% of requests under 500ms
+
+            **Likely causes**:
+            - OpenAI API throttling or regional issues
+            - OCR service performance degradation  
+            - Network connectivity problems
+            - Increased request volume without scaling
+
+            **Actions**:
+            1. Check external API provider status pages
+            2. Review API rate limiting and retry logic
+            3. Consider circuit breaker activation
+            4. Monitor user tier distribution of slow requests
+
+      # =============================================================================
+      # SLO 3: Core User Transaction Time
+      # Target: 95th percentile ≤3s for 95% of user workflows
+      # =============================================================================
+
+      - alert: EasyFlow_SLO3_UserTransaction_Slow
+        expr: |
+          (
+            easyflow:slo3_transaction_success_rate_28d < 95
+          ) and (
+            easyflow:slo3_user_transaction_p95_latency_5m > 3000
+          )
+        for: 5m
+        labels:
+          severity: warning
+          team: frontend
+          slo: user_transaction_time
+          business_impact: high
+        annotations:
+          summary: "👤 EasyFlow user transaction latency SLO breach"
+          description: |
+            **User Experience Degraded** 
+
+            User transaction latency SLO compliance: {{ $value | humanize }}%
+            Current P95 latency: {{ query "easyflow:slo3_user_transaction_p95_latency_5m" | first | value | humanize }}ms
+            Target: ≥95% under 3000ms
+
+            **User Impact**: Slow dashboard interactions and workflow updates
+            **Business Risk**: Customer satisfaction and retention
+
+            **Investigation areas**:
+            - Frontend bundle size and loading performance
+            - API gateway response times
+            - Database query optimization
+            - CDN and static asset delivery
+
+      # =============================================================================
+      # Business Context Alerts - High-value user impacts
+      # =============================================================================
+
+      - alert: EasyFlow_PremiumUser_ServiceDegradation
+        expr: |
+          (
+            sum by (user_tier) (
+              rate(easyflow:rpa_process_executions_total{user_tier="premium"}[5m])
+            ) - 
+            sum by (user_tier) (
+              rate(easyflow:rpa_process_executions_success_total{user_tier="premium"}[5m])
+            )
+          ) > 0.01
+        for: 2m
+        labels:
+          severity: page
+          team: customer_success
+          user_tier: premium
+          business_impact: revenue
+        annotations:
+          summary: "💎 Premium user service degradation detected"
+          description: |
+            **High-Value Customer Impact**
+
+            Premium tier users are experiencing elevated failure rates:
+            - Current failure rate: {{ $value | humanizePercentage }}
+            - This affects our highest-revenue customer segment
+
+            **Immediate Actions Required**:
+            1. Prioritize premium user queue processing  
+            2. Notify customer success team
+            3. Consider compensation/credits
+            4. Escalate to engineering leadership
+
+            **Premium User Dashboard**: http://grafana.easyflow.com/d/premium-users
+
+      # =============================================================================
+      # Cross-SLO Health and Incident Coordination
+      # =============================================================================
+
+      - alert: EasyFlow_MultipleSLO_Breach
+        expr: |
+          (
+            (easyflow:slo1_success_rate_28d < 99.9) +
+            (easyflow:slo2_latency_success_rate_28d < 95.0) + 
+            (easyflow:slo3_transaction_success_rate_28d < 95.0)
+          ) >= 2
+        for: 5m
+        labels:
+          severity: page
+          team: sre
+          incident_level: major
+          business_impact: severe
+        annotations:
+          summary: "🚨 MAJOR INCIDENT: Multiple EasyFlow SLO breaches detected"
+          description: |
+            **DECLARE MAJOR INCIDENT**
+
+            Multiple SLOs are simultaneously breaching targets:
+            - Process Success: {{ query "easyflow:slo1_success_rate_28d" | first | value | humanize }}%
+            - API Latency: {{ query "easyflow:slo2_latency_success_rate_28d" | first | value | humanize }}%  
+            - User Transaction: {{ query "easyflow:slo3_transaction_success_rate_28d" | first | value | humanize }}%
+
+            **Actions**:
+            1. Page incident commander immediately
+            2. Activate war room procedures
+            3. Notify executive team
+            4. Prepare customer communication
+            5. Engage vendor escalation if needed
+
+            **Incident Response**: https://wiki.easyflow.com/incident-response
+
+      # SLO recovery detection
+      - alert: EasyFlow_SLO_Recovery
+        expr: |
+          (
+            (easyflow:slo1_success_rate_28d >= 99.9) and
+            (easyflow:slo2_latency_success_rate_28d >= 95.0) and
+            (easyflow:slo3_transaction_success_rate_28d >= 95.0)
+          ) and (
+            ALERTS{alertname=~"EasyFlow.*SLO.*"} == 1
+          )
+        for: 10m
+        labels:
+          severity: info
+          team: sre
+          status: resolved
+        annotations:
+          summary: "✅ EasyFlow SLO compliance restored"
+          description: |
+            **All SLOs Back to Target**
+
+            All three strategic SLOs have returned to compliant status:
+            - Process Success: {{ query "easyflow:slo1_success_rate_28d" | first | value | humanize }}% (≥99.9% ✓)
+            - API Latency: {{ query "easyflow:slo2_latency_success_rate_28d" | first | value | humanize }}% (≥95% ✓)
+            - User Transaction: {{ query "easyflow:slo3_transaction_success_rate_28d" | first | value | humanize }}% (≥95% ✓)
+
+            Consider closing related incidents and reviewing lessons learned.

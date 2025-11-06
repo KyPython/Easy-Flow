@@ -1,5 +1,6 @@
-const axios = require('axios');
-const { createClient } = require('@supabase/supabase-js');
+const { createInstrumentedHttpClient } = require('../middleware/httpInstrumentation');
+const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');
+const { withPerformanceSpanSync, BulkOperationSpan } = require('../middleware/performanceInstrumentation');
 
 /**
  * Integration Framework for EasyFlow
@@ -7,18 +8,19 @@ const { createClient } = require('@supabase/supabase-js');
  */
 class IntegrationFramework {
   constructor() {
-    this.supabase = createClient(
+    this.supabase = createInstrumentedSupabaseClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE
     );
+    this.http = createInstrumentedHttpClient();
     
     this.integrations = {
-      quickbooks: new QuickBooksIntegration(),
-      dropbox: new DropboxIntegration(),
-      googleDrive: new GoogleDriveIntegration(),
-      salesforce: new SalesforceIntegration(),
-      slack: new SlackIntegration(),
-      zapier: new ZapierIntegration()
+      quickbooks: new QuickBooksIntegration(this.http),
+      dropbox: new DropboxIntegration(this.http),
+      googleDrive: new GoogleDriveIntegration(this.http),
+      salesforce: new SalesforceIntegration(this.http),
+      slack: new SlackIntegration(this.http),
+      zapier: new ZapierIntegration(this.http)
     };
   }
 
@@ -101,16 +103,39 @@ class IntegrationFramework {
    * Transform extracted data to match external system format
    */
   transformData(data, mapping) {
-    const transformed = {};
+    // Wrap transformation in performance span
+    return withPerformanceSpanSync('data_transformation', () => {
+      const transformed = {};
+      
+      for (const [sourceField, targetField] of Object.entries(mapping)) {
+        const value = this.getNestedValue(data, sourceField);
+        if (value !== undefined) {
+          this.setNestedValue(transformed, targetField, value);
+        }
+      }
+      
+      return transformed;
+    }, {
+      mappingCount: Object.keys(mapping).length,
+      sourceFieldCount: this._countFields(data),
+      transformationType: 'field_mapping'
+    }).call(this);
+  }
+
+  /**
+   * Count total fields in nested object for metrics
+   */
+  _countFields(obj, count = 0) {
+    if (typeof obj !== 'object' || obj === null) return count;
     
-    for (const [sourceField, targetField] of Object.entries(mapping)) {
-      const value = this.getNestedValue(data, sourceField);
-      if (value !== undefined) {
-        this.setNestedValue(transformed, targetField, value);
+    for (const value of Object.values(obj)) {
+      count++;
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        count += this._countFields(value, 0);
       }
     }
     
-    return transformed;
+    return count;
   }
 
   getNestedValue(obj, path) {
@@ -132,9 +157,10 @@ class IntegrationFramework {
  * QuickBooks Integration
  */
 class QuickBooksIntegration {
-  constructor() {
+  constructor(httpClient) {
     this.baseUrl = 'https://api.quickbooks.com/v3/company';
     this.accessToken = null;
+    this.http = httpClient;
   }
 
   async authenticate(credentials) {
@@ -148,7 +174,7 @@ class QuickBooksIntegration {
     const formData = new FormData();
     formData.append('file', file.buffer, file.name);
     
-    const response = await axios.post(
+    const response = await this.http.post(
       `${this.baseUrl}/${this.companyId}/upload`,
       formData,
       {
@@ -164,7 +190,7 @@ class QuickBooksIntegration {
 
   async sendData(data) {
     // Create invoice/bill in QuickBooks
-    const response = await axios.post(
+    const response = await this.http.post(
       `${this.baseUrl}/${this.companyId}/bill`,
       data,
       {

@@ -1,4 +1,6 @@
-const { createClient } = require('@supabase/supabase-js');
+const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');
+const { createInstrumentedHttpClient } = require('../middleware/httpInstrumentation');
+const { BulkOperationSpan, withPerformanceSpan } = require('../middleware/performanceInstrumentation');
 const path = require('path');
 const fs = require('fs');
 
@@ -8,10 +10,11 @@ const fs = require('fs');
  */
 class BatchProcessor {
   constructor() {
-    this.supabase = createClient(
+    this.supabase = createInstrumentedSupabaseClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
+      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY
     );
+    this.http = createInstrumentedHttpClient();
     this.maxConcurrent = 3; // Limit concurrent operations
     this.retryAttempts = 3;
   }
@@ -40,6 +43,16 @@ class BatchProcessor {
 
       const results = [];
       const chunks = this.chunkArray(vendors, this.maxConcurrent);
+      
+      // Create bulk operation span for tracking progress
+      const bulkSpan = new BulkOperationSpan('bulk_vendor_processing', vendors.length, {
+        batchId: batch.id,
+        userId,
+        vendorCount: vendors.length,
+        chunkSize: this.maxConcurrent
+      });
+
+      let processedCount = 0;
 
       for (const chunk of chunks) {
         const promises = chunk.map(vendor => 
@@ -49,9 +62,17 @@ class BatchProcessor {
         const chunkResults = await Promise.allSettled(promises);
         results.push(...chunkResults);
         
-        // Update progress
+        // Update progress tracking
+        processedCount += chunk.length;
+        const failedCount = results.filter(r => r.status === 'rejected').length;
+        bulkSpan.recordProgress(processedCount, failedCount);
+        
+        // Update database progress
         await this.updateBatchProgress(batch.id, results.length, vendors.length);
       }
+
+      // Complete bulk operation span
+      const bulkResults = bulkSpan.end();
 
       // Finalize batch
       const successCount = results.filter(r => r.status === 'fulfilled').length;
@@ -237,17 +258,15 @@ class BatchProcessor {
     // This would call the existing automation service
     // Enhanced to handle vendor-specific login flows and invoice collection
     
-    const response = await fetch(`${process.env.AUTOMATION_URL}/automate`, {
-      method: 'POST',
+    const response = await this.http.post(`${process.env.AUTOMATION_URL}/automate`, {
+      ...taskData,
+      batch_id: batchId,
+      enhanced_mode: true // Flag for bulk processing mode
+    }, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.AUTOMATION_API_KEY}`
-      },
-      body: JSON.stringify({
-        ...taskData,
-        batch_id: batchId,
-        enhanced_mode: true // Flag for bulk processing mode
-      })
+      }
     });
 
     if (!response.ok) {

@@ -263,3 +263,16 @@ tests/results/
 security-test-results/
 test-reports/
 coverage-reports/
+
+# Temporary implementation documentation
+*_COMPLETE.md
+*_FIX.md
+*_SUMMARY.md
+TAKEOVER_GUIDE.md
+Refactor_Summary.md
+DEPLOYMENT_VERIFICATION_CHECKLIST.md
+*DEPLOYMENT_GUIDE.md
+
+# Duplicate/temporary client files
+ccloud-nodejs-client*/
+*ccloud-nodejs-client*.zip

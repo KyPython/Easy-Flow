@@ -9,6 +9,7 @@ const router = express.Router();
 const { auditLogger } = require('../utils/auditLogger');
 const { createClient } = require('@supabase/supabase-js');
 const requireFeature = require('../middleware/planEnforcement');
+const { createLogger } = require('../middleware/structuredLogging');
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -61,11 +62,29 @@ const requireAdmin = async (req, res, next) => {
  * Get audit logs for the current user
  */
 router.get('/user', requireFeature('audit_logs'), async (req, res) => {
+  // Create logger with business context for this operation
+  const logger = createLogger('api.audit_logs')
+    .withUser(req.user)
+    .withOperation('get_user_audit_logs', { 
+      endpoint: '/api/audit-logs/user',
+      method: 'GET'
+    });
+
   try {
     const userId = req.user?.id;
     if (!userId) {
+      logger.warn('Unauthorized audit log access attempt', {
+        security: { event: 'unauthorized_access', outcome: 'denied' }
+      });
       return res.status(401).json({ error: 'Authentication required' });
     }
+
+    logger.info('Fetching user audit logs', {
+      business: {
+        user: { user_id: userId, user_tier: req.user?.tier },
+        operation: { operation_name: 'get_user_audit_logs' }
+      }
+    });
 
     // --- Per-plan log retention enforcement ---
     let retentionDays = 30; // Default fallback
@@ -75,8 +94,20 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
       if (planData && planData.plan_limits && planData.plan_limits.full_logging_days) {
         retentionDays = planData.plan_limits.full_logging_days;
       }
+      
+      logger.debug('Plan retention policy applied', {
+        business: {
+          user: { user_id: userId },
+          operation: { retention_days: retentionDays, plan_name: planData?.plan_name }
+        }
+      });
     } catch (e) {
-      console.warn('Could not fetch plan retention days, using default:', e.message);
+      logger.warn('Could not fetch plan retention days, using default', e, {
+        business: { 
+          user: { user_id: userId },
+          operation: { fallback_retention_days: retentionDays }
+        }
+      });
     }
     const retentionStart = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 

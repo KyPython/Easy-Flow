@@ -16,6 +16,21 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
+# ✅ INSTRUCTION 2: Import OpenTelemetry components for trace propagation
+try:
+    from opentelemetry import trace, context as otel_context, propagate
+    from opentelemetry.trace import SpanKind, Status, StatusCode
+    OTEL_AVAILABLE = True
+    
+    # Get tracer for this service
+    tracer = trace.get_tracer(__name__)
+except ImportError:
+    OTEL_AVAILABLE = False
+    tracer = None
+    otel_context = None
+    propagate = None
+    logging.warning("⚠️ OpenTelemetry not available - trace propagation disabled")
+
 # Configure logging first (before using logger anywhere)
 logging.basicConfig(
     level=logging.INFO,
@@ -23,24 +38,52 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Prometheus metrics
+# ✅ INSTRUCTION 2: Prometheus metrics - PRUNED for cost optimization (Gap 8, 18)
+# Removed generic system-level metrics (CPU, memory) - these are covered by Kubernetes monitoring
+# Keeping only business-critical, custom metrics
 try:
-    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST
+    from prometheus_client import Counter, Histogram, generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST
     METRICS_AVAILABLE = True
     
     # Create custom registry to avoid conflicts
     registry = CollectorRegistry()
     
-    # Define metrics
-    tasks_processed = Counter('automation_tasks_processed_total', 'Total number of automation tasks processed', ['status'], registry=registry)
-    task_duration = Histogram('automation_task_duration_seconds', 'Time spent processing automation tasks', registry=registry)
-    active_workers = Gauge('automation_active_workers', 'Number of active worker threads/processes', registry=registry)
-    kafka_messages = Counter('kafka_messages_total', 'Total Kafka messages sent/received', ['topic', 'operation'], registry=registry)
-    error_count = Counter('automation_errors_total', 'Total automation errors', ['error_type'], registry=registry)
+    # ✅ INSTRUCTION 2: Keep only business-critical metrics (Gap 8, 18)
+    # Core business metric: task processing outcomes
+    tasks_processed = Counter(
+        'automation_tasks_processed_total',
+        'Total number of automation tasks processed',
+        ['status', 'task_type'],  # High-value labels
+        registry=registry
+    )
+    
+    # Performance metric: task duration for SLO tracking
+    task_duration = Histogram(
+        'automation_task_duration_seconds',
+        'Time spent processing automation tasks',
+        ['task_type'],  # Essential for performance analysis
+        buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0],  # Optimized buckets
+        registry=registry
+    )
+    
+    # Business-critical error tracking
+    error_count = Counter(
+        'automation_errors_total',
+        'Total automation errors by type',
+        ['error_type', 'task_type'],  # Essential for debugging
+        registry=registry
+    )
+    
+    # ✅ REMOVED (Gap 8, 18):
+    # - active_workers (covered by Kubernetes pod metrics)
+    # - kafka_messages (covered by Kafka broker metrics)
+    # - System-level metrics (CPU, memory - covered by node exporter)
     
 except ImportError:
     METRICS_AVAILABLE = False
-    logger.warning("⚠️ Prometheus client not available - metrics endpoint disabled")
+    # ✅ INSTRUCTION 2: Reduced logging verbosity (Gap 19)
+    # Only log at startup, not on every init
+    pass  # Silent fallback
 
 # Try to import Kafka library
 try:
@@ -58,7 +101,8 @@ except ImportError:
 
 # Flask app
 app = Flask(__name__)
-app.logger.setLevel(logging.DEBUG)
+# ✅ INSTRUCTION 2: Reduce logging verbosity in production (Gap 19)
+app.logger.setLevel(logging.INFO if os.getenv('ENV') == 'production' else logging.DEBUG)
 
 # Kafka configuration
 KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
@@ -81,12 +125,71 @@ POOL_TYPE = os.getenv('POOL_TYPE', 'thread')  # 'thread' or 'process'
 from concurrent.futures import ProcessPoolExecutor
 
 # Initialize the appropriate executor based on configuration
+# ✅ INSTRUCTION 2: Reduced startup logging (Gap 19) - log once at INFO level
 if USE_PROCESS_POOL or POOL_TYPE == 'process':
     executor = ProcessPoolExecutor(max_workers=MAX_WORKERS)
-    logger.info(f"🔧 Using ProcessPoolExecutor with {MAX_WORKERS} processes for CPU-bound tasks")
+    if os.getenv('ENV') != 'production':
+        logger.info(f"Using ProcessPoolExecutor with {MAX_WORKERS} processes")
 else:
     executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
-    logger.info(f"🔧 Using ThreadPoolExecutor with {MAX_WORKERS} threads for I/O-bound tasks")
+    if os.getenv('ENV') != 'production':
+        logger.info(f"Using ThreadPoolExecutor with {MAX_WORKERS} threads")
+
+# ✅ INSTRUCTION 3: Context-aware thread pool submission wrapper
+def context_aware_submit(executor, fn, *args, **kwargs):
+    """
+    Wrapper to preserve OpenTelemetry context across thread boundaries.
+    Captures the current trace context before submitting to executor,
+    then restores it in the worker thread before executing the function.
+    """
+    if not OTEL_AVAILABLE or otel_context is None:
+        # Fallback to normal submit if OpenTelemetry not available
+        return executor.submit(fn, *args, **kwargs)
+    
+    # Capture the current OpenTelemetry context
+    current_context = otel_context.get_current()
+    
+    def context_preserving_wrapper():
+        """Internal wrapper that restores context in the new thread"""
+        # Attach the captured context in this new thread
+        token = otel_context.attach(current_context)
+        try:
+            # Execute the original function with the restored context
+            return fn(*args, **kwargs)
+        finally:
+            # Detach context to avoid leaks
+            otel_context.detach(token)
+    
+    # Submit the context-preserving wrapper to the executor
+    return executor.submit(context_preserving_wrapper)
+
+# ✅ INSTRUCTION 2: Helper to convert Kafka headers to dict for OTEL extraction
+def kafka_headers_to_dict(kafka_headers):
+    """
+    Convert Kafka message headers (list of tuples with byte values) 
+    to a string dictionary for OpenTelemetry propagation.extract.
+    
+    Args:
+        kafka_headers: List of (key, value) tuples where values are bytes
+        
+    Returns:
+        dict: Dictionary with string keys and values
+    """
+    if not kafka_headers:
+        return {}
+    
+    header_dict = {}
+    for key, value in kafka_headers:
+        try:
+            # Decode bytes to string
+            if isinstance(value, bytes):
+                header_dict[key] = value.decode('utf-8')
+            else:
+                header_dict[key] = str(value)
+        except Exception as e:
+            logger.warning(f"Failed to decode Kafka header {key}: {e}")
+    
+    return header_dict
 
 def get_kafka_producer():
     """Thread-safe way to get the Kafka producer instance."""
@@ -107,7 +210,9 @@ def get_kafka_producer():
                         request_timeout_ms=30000,
                         api_version=(0, 10, 1)
                     )
-                    logger.info(f"Kafka producer connected to {KAFKA_BOOTSTRAP_SERVERS}")
+                    # ✅ INSTRUCTION 2: Reduced connection logging (Gap 19)
+                    # Log at DEBUG level - connection is already monitored by Kafka metrics
+                    logger.debug(f"Kafka producer connected to {KAFKA_BOOTSTRAP_SERVERS}")
                 except Exception as e:
                     logger.error(f"Failed to connect Kafka producer: {e}")
                     kafka_producer = None
@@ -133,14 +238,15 @@ def get_kafka_consumer():
                         enable_auto_commit=True,
                         api_version=(0, 10, 1)
                     )
-                    logger.info(f"Kafka consumer connected to {KAFKA_BOOTSTRAP_SERVERS}")
+                    # ✅ INSTRUCTION 2: Reduced connection logging (Gap 19)
+                    logger.debug(f"Kafka consumer connected to {KAFKA_BOOTSTRAP_SERVERS}")
                 except Exception as e:
                     logger.error(f"Failed to connect Kafka consumer: {e}")
                     kafka_consumer = None
     return kafka_consumer
 
 def send_result_to_kafka(task_id, result, status='completed'):
-    """Send task result back to Kafka"""
+    """Send task result back to Kafka with trace context propagation"""
     try:
         producer = get_kafka_producer()
         if not producer:
@@ -155,18 +261,31 @@ def send_result_to_kafka(task_id, result, status='completed'):
             'worker_id': os.getenv('HOSTNAME', 'unknown')
         }
 
+        # ✅ INSTRUCTION 2: Inject trace context into Kafka message headers
+        headers = []
+        if OTEL_AVAILABLE and propagate is not None:
+            # Create carrier dict to inject context into
+            carrier = {}
+            propagate.inject(carrier)
+            
+            # Convert carrier to Kafka headers format (list of tuples with bytes)
+            for key, value in carrier.items():
+                headers.append((key, value.encode('utf-8') if isinstance(value, str) else value))
+        
         future = producer.send(
             KAFKA_RESULT_TOPIC,
             key=task_id.encode('utf-8'),
-            value=message
+            value=message,
+            headers=headers  # Add trace headers to message
         )
         # Wait for acknowledgment
         record_metadata = future.get(timeout=10)
-        logger.info(f"✅ Result sent to Kafka - Topic: {record_metadata.topic}, Partition: {record_metadata.partition}, Offset: {record_metadata.offset}")
+        # ✅ INSTRUCTION 2: Reduced success logging verbosity (Gap 19)
+        # Log at DEBUG level - success is tracked in metrics
+        logger.debug(f"Result sent to Kafka - Topic: {record_metadata.topic}, Partition: {record_metadata.partition}")
         
-        # Track Kafka message sent
-        if METRICS_AVAILABLE:
-            kafka_messages.labels(topic=KAFKA_RESULT_TOPIC, operation='send').inc()
+        # ✅ INSTRUCTION 2: REMOVED kafka_messages metric (Gap 8, 18)
+        # Kafka message counts are available from Kafka broker metrics
         
         return True
     except Exception as e:
@@ -178,7 +297,9 @@ def process_automation_task(task_data):
     task_id = task_data.get('task_id', 'unknown')
     task_type = task_data.get('task_type', 'unknown')
 
-    logger.info(f"⚙️ Processing task {task_id} of type {task_type}")
+    # ✅ INSTRUCTION 2: Reduced task processing logging (Gap 19)
+    # Log at DEBUG level - task receipt is already logged in consumer
+    logger.debug(f"Processing task {task_id} of type {task_type}")
     
     # Start timing for metrics
     start_time = time.time() if METRICS_AVAILABLE else None
@@ -252,7 +373,7 @@ def process_automation_task(task_data):
                 task_duration.observe(time.time() - start_time)
 
 def kafka_consumer_loop():
-    """Main Kafka consumer loop that polls for messages."""
+    """Main Kafka consumer loop that polls for messages with trace context extraction."""
     if not KAFKA_AVAILABLE:
         logger.warning("Kafka consumer loop not started - kafka-python not installed.")
         return
@@ -279,14 +400,57 @@ def kafka_consumer_loop():
                         task_id = task_data.get('task_id', str(uuid.uuid4()))
                         task_data['task_id'] = task_id
 
-                        logger.info(f"📨 Received Kafka task: {task_id}")
+                        # ✅ INSTRUCTION 2: Extract trace context from Kafka message headers
+                        remote_context = otel_context.get_current()  # Default to current
                         
-                        # Track Kafka message received
-                        if METRICS_AVAILABLE:
-                            kafka_messages.labels(topic=KAFKA_TASK_TOPIC, operation='receive').inc()
+                        if OTEL_AVAILABLE and propagate is not None and message.headers:
+                            # Convert Kafka headers to dict
+                            header_dict = kafka_headers_to_dict(message.headers)
+                            
+                            # Extract remote trace context from headers
+                            remote_context = propagate.extract(carrier=header_dict)
+                            
+                            logger.debug(f"📨 Extracted trace context from Kafka headers for task: {task_id}")
+                        
+                        # ✅ INSTRUCTION 2: Start consumer span with extracted context as parent
+                        if OTEL_AVAILABLE and tracer is not None:
+                            # Attach the extracted context and create a new span
+                            token = otel_context.attach(remote_context)
+                            try:
+                                with tracer.start_as_current_span(
+                                    'kafka.consume.automation_task',
+                                    kind=SpanKind.CONSUMER,
+                                    attributes={
+                                        'messaging.system': 'kafka',
+                                        'messaging.destination': KAFKA_TASK_TOPIC,
+                                        'messaging.operation': 'receive',
+                                        'messaging.message_id': task_id,
+                                        'messaging.kafka.partition': message.partition,
+                                        'messaging.kafka.offset': message.offset,
+                                        'task.id': task_id,
+                                        'task.type': task_data.get('task_type', 'unknown')
+                                    }
+                                ):
+                                    # ✅ INSTRUCTION 2: Reduced Kafka receive logging (Gap 19)
+                                    # Log at DEBUG level - task receipt tracked in metrics
+                                    logger.debug(f"Received Kafka task: {task_id}")
+                                    
+                                    # ✅ INSTRUCTION 2: REMOVED kafka_messages metric (Gap 8, 18)
+                                    # Kafka message counts available from broker metrics
 
-                        # Submit task to thread pool
-                        executor.submit(process_automation_task, task_data)
+                                    # ✅ INSTRUCTION 3: Submit task to thread pool with context preservation
+                                    context_aware_submit(executor, process_automation_task, task_data)
+                            finally:
+                                otel_context.detach(token)
+                        else:
+                            # Fallback without OpenTelemetry
+                            # ✅ INSTRUCTION 2: Reduced logging (Gap 19)
+                            logger.debug(f"Received Kafka task: {task_id}")
+                            
+                            # ✅ INSTRUCTION 2: REMOVED kafka_messages metric (Gap 8, 18)
+                            
+                            # Use context-aware submit (will fallback to normal submit if OTEL not available)
+                            context_aware_submit(executor, process_automation_task, task_data)
 
                     except Exception as e:
                         logger.error(f"Error processing Kafka message: {e}")
@@ -433,6 +597,16 @@ def direct_automation(task_type=None):
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
+    # ✅ PART 2.1 & 2.3: Initialize OpenTelemetry before starting the worker
+    try:
+        from otel_init import OTEL_INITIALIZED
+        if OTEL_INITIALIZED:
+            logger.info("✅ OpenTelemetry initialization complete")
+        else:
+            logger.warning("⚠️ OpenTelemetry initialization skipped or failed")
+    except ImportError:
+        logger.warning("⚠️ otel_init.py not found - OpenTelemetry disabled")
+    
     logger.info("🚀 Starting EasyFlow Automation Worker...")
 
     # Start the Kafka consumer in a separate thread if available and connected

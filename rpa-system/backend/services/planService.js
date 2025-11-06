@@ -1,16 +1,20 @@
 // rpa-system/backend/services/planService.js
 // Service to fetch a user's plan, features, and limits from the database (Supabase)
 
-const { createClient } = require('@supabase/supabase-js');
+const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');
+const { createLogger } = require('../middleware/structuredLogging');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY;
+const logger = createLogger('service.plan');
 
 // Make Supabase optional for local development
 let supabase = null;
 if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
-  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
+  supabase = createInstrumentedSupabaseClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
+  logger.info('Plan service initialized with instrumented database client');
 } else {
-  console.warn('⚠️ Supabase not configured - plan service disabled for local dev');
+  logger.warn('Supabase not configured - plan service disabled for local dev');
 }
 
 /**
@@ -20,7 +24,7 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
  */
 async function getUserPlan(userId) {
   if (!supabase) {
-    console.log('📝 [LOCAL DEV] Would get plan for user:', userId);
+    logger.info('Local development mode - returning mock plan data', { userId });
     return {
       plan: { id: 'free', name: 'Free Plan', features: {} },
       usage: { automationsThisMonth: 0, storageUsed: 0 },
@@ -28,25 +32,66 @@ async function getUserPlan(userId) {
     };
   }
 
+  logger.info('Fetching user plan data', { userId });
+
   // 1. Get the user's plan (join user_profiles -> plans)
   const { data: userProfile, error: userError } = await supabase
     .from('profiles')
     .select('plan_id, plan:plans(*)')
     .eq('id', userId)
-    .maybeSingle();
-  if (userError || !userProfile) throw new Error('User profile/plan not found');
+    .execute();
+  
+  if (userError || !userProfile) {
+    const error = new Error('User profile/plan not found');
+    error.code = 'USER_PROFILE_NOT_FOUND';
+    error.userId = userId;
+    logger.error('User profile/plan not found', error, { 
+      userId,
+      database_error: userError,
+      business: { 
+        operation: { operation_name: 'getUserPlan', user_id: userId }
+      }
+    });
+    throw error;
+  }
   const plan = userProfile.plan;
 
-  // 2. Get usage from SQL function
+  // 2. Get usage from SQL function  
+  logger.info('Fetching monthly usage', { userId });
   const { data: usageResult, error: usageError } = await supabase
     .rpc('get_monthly_usage', { user_uuid: userId });
-  if (usageError) throw new Error('Failed to fetch usage');
+  if (usageError) {
+    const error = new Error('Failed to fetch usage');
+    error.code = 'USAGE_FETCH_FAILED';
+    error.userId = userId;
+    logger.error('Failed to fetch usage data from database', error, {
+      userId,
+      database_error: usageError,
+      business: { 
+        operation: { operation_name: 'getUserPlan', user_id: userId, step: 'fetch_usage' }
+      }
+    });
+    throw error;
+  }
   const usage = usageResult;
 
   // 3. Get limits from SQL function
+  logger.info('Fetching plan limits', { userId });
   const { data: limitsResult, error: limitsError } = await supabase
     .rpc('get_plan_limits', { user_uuid: userId });
-  if (limitsError) throw new Error('Failed to fetch plan limits');
+  if (limitsError) {
+    const error = new Error('Failed to fetch plan limits');
+    error.code = 'LIMITS_FETCH_FAILED';
+    error.userId = userId;
+    logger.error('Failed to fetch plan limits from database', error, {
+      userId,
+      database_error: limitsError,
+      business: { 
+        operation: { operation_name: 'getUserPlan', user_id: userId, step: 'fetch_limits' }
+      }
+    });
+    throw error;
+  }
   const limits = limitsResult;
 
   return { plan, usage, limits };

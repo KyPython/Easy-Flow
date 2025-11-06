@@ -1,6 +1,9 @@
 const axios = require('axios');
 const FormData = require('form-data');
 
+// ✅ INSTRUCTION 2: Import OpenTelemetry for external API span instrumentation
+const { trace, SpanStatusCode, SpanKind, context, propagation } = require('@opentelemetry/api');
+
 /**
  * AI-Powered Data Extraction Service
  * Uses OpenAI API and OCR to extract structured data from documents and web pages
@@ -9,6 +12,45 @@ class AIDataExtractor {
   constructor() {
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.baseUrl = 'https://api.openai.com/v1';
+    
+    // ✅ INSTRUCTION 2: Get tracer for external API operations
+    this.tracer = trace.getTracer('external-api.openai');
+    
+    // ✅ INSTRUCTION 2: Create instrumented HTTP client for OpenAI
+    this.httpClient = this._createInstrumentedClient();
+  }
+  
+  /**
+   * ✅ INSTRUCTION 2: Create Axios instance with trace propagation for OpenAI calls
+   */
+  _createInstrumentedClient() {
+    const client = axios.create({
+      baseURL: this.baseUrl,
+      timeout: 60000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Add request interceptor for trace propagation
+    client.interceptors.request.use(
+      (config) => {
+        // Inject trace context into headers
+        const carrier = {};
+        propagation.inject(context.active(), carrier);
+        config.headers = { ...config.headers, ...carrier };
+        
+        // Add OpenAI-specific auth header
+        if (this.openaiApiKey) {
+          config.headers['Authorization'] = `Bearer ${this.openaiApiKey}`;
+        }
+        
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+    
+    return client;
   }
 
   /**
@@ -83,7 +125,7 @@ class AIDataExtractor {
   }
 
   /**
-   * Structure raw invoice text into standardized fields
+   * ✅ INSTRUCTION 2: Structure raw invoice text with OpenTelemetry span instrumentation
    */
   async structureInvoiceData(textContent) {
     const prompt = `
@@ -106,50 +148,87 @@ ${textContent}
 Return valid JSON only, no additional text.
 `;
 
-    try {
-      const response = await axios.post(
-        `${this.baseUrl}/chat/completions`,
-        {
-          model: 'gpt-4',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert at extracting structured data from invoices. Always return valid JSON.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.1,
-          max_tokens: 2000
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.openaiApiKey}`,
-            'Content-Type': 'application/json'
-          }
+    // ✅ INSTRUCTION 2: Create span for OpenAI API call
+    return await this.tracer.startActiveSpan(
+      'openai.chat.completion.invoice_extraction',
+      {
+        kind: SpanKind.CLIENT,
+        attributes: {
+          'http.method': 'POST',
+          'http.url': `${this.baseUrl}/chat/completions`,
+          'peer.service': 'openai',
+          'openai.model': 'gpt-4',
+          'openai.operation': 'invoice_extraction',
+          'openai.text_length': textContent.length,
+          'openai.max_tokens': 2000
         }
-      );
+      },
+      async (span) => {
+        const startTime = Date.now();
+        
+        try {
+          const response = await this.httpClient.post(
+            '/chat/completions',
+            {
+              model: 'gpt-4',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are an expert at extracting structured data from invoices. Always return valid JSON.'
+                },
+                {
+                  role: 'user',
+                  content: prompt
+                }
+              ],
+              temperature: 0.1,
+              max_tokens: 2000
+            }
+          );
 
-      const extractedText = response.data.choices[0].message.content;
-      
-      // Parse the JSON response
-      const structuredData = JSON.parse(extractedText);
-      
-      // Add confidence score based on completeness
-      structuredData.confidence = this.calculateConfidence(structuredData);
-      
-      return structuredData;
-      
-    } catch (error) {
-      console.error('[AIDataExtractor] AI structuring failed:', error);
-      throw new Error(`Failed to structure invoice data: ${error.message}`);
-    }
+          const duration = Date.now() - startTime;
+          const extractedText = response.data.choices[0].message.content;
+          
+          // Parse the JSON response
+          const structuredData = JSON.parse(extractedText);
+          
+          // Add confidence score based on completeness
+          structuredData.confidence = this.calculateConfidence(structuredData);
+          
+          // ✅ Set span success attributes
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.setAttribute('http.status_code', response.status);
+          span.setAttribute('openai.duration_ms', duration);
+          span.setAttribute('openai.tokens_used', response.data.usage?.total_tokens || 0);
+          span.setAttribute('openai.finish_reason', response.data.choices[0].finish_reason);
+          span.setAttribute('openai.confidence_score', structuredData.confidence);
+          
+          return structuredData;
+          
+        } catch (error) {
+          const duration = Date.now() - startTime;
+          
+          // ✅ Record exception and set error status
+          span.recordException(error);
+          span.setStatus({ 
+            code: SpanStatusCode.ERROR, 
+            message: error.message 
+          });
+          span.setAttribute('openai.duration_ms', duration);
+          span.setAttribute('error', true);
+          span.setAttribute('http.status_code', error.response?.status || 0);
+          
+          console.error('[AIDataExtractor] AI structuring failed:', error);
+          throw new Error(`Failed to structure invoice data: ${error.message}`);
+        } finally {
+          span.end();
+        }
+      }
+    );
   }
 
   /**
-   * Extract specific data points from web content
+   * ✅ INSTRUCTION 2: Extract specific data points with OpenTelemetry span instrumentation
    */
   async extractSpecificData(content, targets) {
     const targetDescriptions = targets.map(t => `${t.name}: ${t.description}`).join('\n');
@@ -167,39 +246,78 @@ Return the results as JSON with the target names as keys.
 If a data point cannot be found, set its value to null.
 `;
 
-    try {
-      const response = await axios.post(
-        `${this.baseUrl}/chat/completions`,
-        {
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert at extracting specific data from web content. Always return valid JSON.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.1,
-          max_tokens: 1000
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.openaiApiKey}`,
-            'Content-Type': 'application/json'
-          }
+    // ✅ INSTRUCTION 2: Create span for OpenAI API call
+    return await this.tracer.startActiveSpan(
+      'openai.chat.completion.data_extraction',
+      {
+        kind: SpanKind.CLIENT,
+        attributes: {
+          'http.method': 'POST',
+          'http.url': `${this.baseUrl}/chat/completions`,
+          'peer.service': 'openai',
+          'openai.model': 'gpt-3.5-turbo',
+          'openai.operation': 'data_extraction',
+          'openai.target_count': targets.length,
+          'openai.content_length': content.length,
+          'openai.max_tokens': 1000
         }
-      );
+      },
+      async (span) => {
+        const startTime = Date.now();
+        
+        try {
+          const response = await this.httpClient.post(
+            '/chat/completions',
+            {
+              model: 'gpt-3.5-turbo',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are an expert at extracting specific data from web content. Always return valid JSON.'
+                },
+                {
+                  role: 'user',
+                  content: prompt
+                }
+              ],
+              temperature: 0.1,
+              max_tokens: 1000
+            }
+          );
 
-      const extractedText = response.data.choices[0].message.content;
-      return JSON.parse(extractedText);
-      
-    } catch (error) {
-      console.error('[AIDataExtractor] Specific data extraction failed:', error);
-      throw new Error(`Failed to extract specific data: ${error.message}`);
-    }
+          const duration = Date.now() - startTime;
+          const extractedText = response.data.choices[0].message.content;
+          const parsedData = JSON.parse(extractedText);
+          
+          // ✅ Set span success attributes
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.setAttribute('http.status_code', response.status);
+          span.setAttribute('openai.duration_ms', duration);
+          span.setAttribute('openai.tokens_used', response.data.usage?.total_tokens || 0);
+          span.setAttribute('openai.finish_reason', response.data.choices[0].finish_reason);
+          
+          return parsedData;
+          
+        } catch (error) {
+          const duration = Date.now() - startTime;
+          
+          // ✅ Record exception and set error status
+          span.recordException(error);
+          span.setStatus({ 
+            code: SpanStatusCode.ERROR, 
+            message: error.message 
+          });
+          span.setAttribute('openai.duration_ms', duration);
+          span.setAttribute('error', true);
+          span.setAttribute('http.status_code', error.response?.status || 0);
+          
+          console.error('[AIDataExtractor] Specific data extraction failed:', error);
+          throw new Error(`Failed to extract specific data: ${error.message}`);
+        } finally {
+          span.end();
+        }
+      }
+    );
   }
 
   /**

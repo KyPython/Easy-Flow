@@ -1,0 +1,301 @@
+# Prometheus Recording Rules for EasyFlow SLOs
+# These rules continuously calculate SLI metrics for the three strategic SLOs
+
+groups:
+  - name: easyflow_slo_recording_rules
+    interval: 30s
+    rules:
+      # =============================================================================
+      # SLO 1: Process Execution Success Rate (≥99.9%)
+      # Measures core RPA system value proposition
+      # =============================================================================
+
+      # Total RPA process executions (all completed jobs)
+      - record: easyflow:rpa_process_executions_total
+        expr: |
+          increase(
+            traces_spanmetrics_latency_bucket{
+              service_name="automation-worker",
+              span_name="rpa.process.execute",
+              span_kind="internal"
+            }[5m]
+          )
+        labels:
+          slo: "process_execution_success_rate"
+
+      # Successful RPA process executions
+      - record: easyflow:rpa_process_executions_success_total
+        expr: |
+          increase(
+            traces_spanmetrics_latency_bucket{
+              service_name="automation-worker", 
+              span_name="rpa.process.execute",
+              span_kind="internal",
+              status_code="STATUS_CODE_OK"
+            }[5m]
+          )
+        labels:
+          slo: "process_execution_success_rate"
+
+      # SLO 1: Success Rate (rolling 28-day window)
+      - record: easyflow:slo1_success_rate_28d
+        expr: |
+          (
+            sum(increase(easyflow:rpa_process_executions_success_total[28d])) /
+            sum(increase(easyflow:rpa_process_executions_total[28d]))
+          ) * 100
+        labels:
+          slo: "process_execution_success_rate"
+          target: "99.9"
+          window: "28d"
+
+      # SLO 1: Error Budget Remaining (percentage)
+      - record: easyflow:slo1_error_budget_remaining
+        expr: |
+          max(
+            0, 
+            (
+              (easyflow:slo1_success_rate_28d - 99.9) / 
+              (100 - 99.9)
+            ) * 100
+          )
+        labels:
+          slo: "process_execution_success_rate"
+
+      # =============================================================================
+      # SLO 2: Critical Task Latency (95th percentile ≤500ms)
+      # Measures external API performance (OpenAI, OCR, etc.)
+      # =============================================================================
+
+      # External API call latency histogram
+      - record: easyflow:external_api_latency_histogram
+        expr: |
+          traces_spanmetrics_latency_bucket{
+            service_name="backend-services",
+            span_name=~"http.client.(openai|ocr|external).*",
+            span_kind="client"
+          }
+        labels:
+          slo: "critical_task_latency"
+
+      # SLO 2: 95th percentile latency (5-minute windows)
+      - record: easyflow:slo2_external_api_p95_latency_5m
+        expr: |
+          histogram_quantile(0.95,
+            rate(easyflow:external_api_latency_histogram[5m])
+          )
+        labels:
+          slo: "critical_task_latency"
+          quantile: "p95"
+
+      # SLO 2: Success rate (latency under 500ms)
+      - record: easyflow:slo2_latency_success_rate_28d
+        expr: |
+          (
+            sum(increase(
+              traces_spanmetrics_latency_bucket{
+                service_name="backend-services",
+                span_name=~"http.client.(openai|ocr|external).*",
+                span_kind="client",
+                le="0.5"
+              }[28d]
+            )) /
+            sum(increase(
+              traces_spanmetrics_latency_bucket{
+                service_name="backend-services", 
+                span_name=~"http.client.(openai|ocr|external).*",
+                span_kind="client",
+                le="+Inf"
+              }[28d]
+            ))
+          ) * 100
+        labels:
+          slo: "critical_task_latency"
+          target: "95.0"
+          window: "28d"
+
+      # SLO 2: Error Budget Remaining
+      - record: easyflow:slo2_error_budget_remaining
+        expr: |
+          max(
+            0,
+            (
+              (easyflow:slo2_latency_success_rate_28d - 95.0) /
+              (100 - 95.0)
+            ) * 100
+          )
+        labels:
+          slo: "critical_task_latency"
+
+      # =============================================================================
+      # SLO 3: Core User Transaction Time (95th percentile ≤3s)
+      # Measures end-to-end user experience from frontend to API response
+      # =============================================================================
+
+      # User transaction latency (root spans only)
+      - record: easyflow:user_transaction_latency_histogram
+        expr: |
+          traces_spanmetrics_latency_bucket{
+            service_name="api-gateway",
+            span_name=~"POST|PUT /api/workflows.*",
+            span_kind="server",
+            http_status_code=~"2.."
+          }
+        labels:
+          slo: "user_transaction_time"
+
+      # SLO 3: 95th percentile user transaction latency
+      - record: easyflow:slo3_user_transaction_p95_latency_5m
+        expr: |
+          histogram_quantile(0.95,
+            rate(easyflow:user_transaction_latency_histogram[5m])
+          )
+        labels:
+          slo: "user_transaction_time"
+          quantile: "p95"
+
+      # SLO 3: Success rate (transactions under 3s)
+      - record: easyflow:slo3_transaction_success_rate_28d
+        expr: |
+          (
+            sum(increase(
+              traces_spanmetrics_latency_bucket{
+                service_name="api-gateway",
+                span_name=~"POST|PUT /api/workflows.*", 
+                span_kind="server",
+                http_status_code=~"2..",
+                le="3.0"
+              }[28d]
+            )) /
+            sum(increase(
+              traces_spanmetrics_latency_bucket{
+                service_name="api-gateway",
+                span_name=~"POST|PUT /api/workflows.*",
+                span_kind="server", 
+                http_status_code=~"2..",
+                le="+Inf"
+              }[28d]
+            ))
+          ) * 100
+        labels:
+          slo: "user_transaction_time"
+          target: "95.0"
+          window: "28d"
+
+      # SLO 3: Error Budget Remaining
+      - record: easyflow:slo3_error_budget_remaining
+        expr: |
+          max(
+            0,
+            (
+              (easyflow:slo3_transaction_success_rate_28d - 95.0) /
+              (100 - 95.0) 
+            ) * 100
+          )
+        labels:
+          slo: "user_transaction_time"
+
+      # =============================================================================
+      # Business Context Enrichment Rules
+      # Adds high-cardinality business attributes for filtering
+      # =============================================================================
+
+      # Process execution by user tier (premium vs standard)
+      - record: easyflow:rpa_executions_by_tier_5m
+        expr: |
+          sum by (user_tier) (
+            increase(
+              traces_spanmetrics_latency_bucket{
+                service_name="automation-worker",
+                span_name="rpa.process.execute"
+              }[5m]
+            )
+          )
+        labels:
+          slo: "business_context"
+
+      # API latency by workflow type
+      - record: easyflow:api_latency_by_workflow_type_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (workflow_id, le) (
+              rate(
+                traces_spanmetrics_latency_bucket{
+                  service_name="backend-services",
+                  span_name=~"http.client.*"
+                }[5m]
+              )
+            )
+          )
+        labels:
+          slo: "business_context"
+
+      # User transaction performance by operation type
+      - record: easyflow:user_transactions_by_operation_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (operation, le) (
+              rate(
+                traces_spanmetrics_latency_histogram{
+                  service_name="api-gateway"
+                }[5m]
+              )
+            )
+          )
+        labels:
+          slo: "business_context"
+
+      # =============================================================================
+      # Error Budget Burn Rate Rules (for alerting)
+      # =============================================================================
+
+      # Fast burn rate (1-hour window)
+      - record: easyflow:slo1_error_budget_burn_rate_1h
+        expr: |
+          (
+            1 - (
+              sum(increase(easyflow:rpa_process_executions_success_total[1h])) /
+              sum(increase(easyflow:rpa_process_executions_total[1h]))
+            )
+          ) / (1 - 0.999)
+        labels:
+          slo: "process_execution_success_rate"
+          burn_rate: "fast"
+
+      # Slow burn rate (6-hour window)
+      - record: easyflow:slo1_error_budget_burn_rate_6h
+        expr: |
+          (
+            1 - (
+              sum(increase(easyflow:rpa_process_executions_success_total[6h])) /
+              sum(increase(easyflow:rpa_process_executions_total[6h]))
+            )
+          ) / (1 - 0.999)
+        labels:
+          slo: "process_execution_success_rate"
+          burn_rate: "slow"
+
+      # =============================================================================
+      # SLO Compliance Summary (for dashboards)
+      # =============================================================================
+
+      # Overall SLO health score (average of all three SLOs)
+      - record: easyflow:slo_health_score
+        expr: |
+          (
+            (easyflow:slo1_success_rate_28d >= 99.9) +
+            (easyflow:slo2_latency_success_rate_28d >= 95.0) +  
+            (easyflow:slo3_transaction_success_rate_28d >= 95.0)
+          ) / 3 * 100
+        labels:
+          component: "slo_summary"
+
+      # Critical SLO violations (any SLO below target)
+      - record: easyflow:slo_violations_active
+        expr: |
+          (easyflow:slo1_success_rate_28d < 99.9) or
+          (easyflow:slo2_latency_success_rate_28d < 95.0) or
+          (easyflow:slo3_transaction_success_rate_28d < 95.0)
+        labels:
+          component: "slo_summary"
+          severity: "critical"

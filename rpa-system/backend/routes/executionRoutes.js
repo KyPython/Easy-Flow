@@ -3,16 +3,29 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const requireFeature = require('../middleware/planEnforcement');
 const { LinkDiscoveryService } = require('../services/linkDiscoveryService');
+const { createContextLogger } = require('../middleware/traceContext');
 
 const router = express.Router();
 
 // Get execution details with step_executions
 router.get('/:executionId', requireFeature('workflow_executions'), async (req, res) => {
+  // ✅ Create context-aware logger with business attributes
+  const logger = createContextLogger({
+    userId: req.user?.id,
+    executionId: req.params.executionId,
+    operation: 'get_execution_details'
+  });
+  
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    if (!userId) {
+      logger.warn('Authentication required for execution details');
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
     const { executionId } = req.params;
+    logger.info('Fetching execution details', { executionId });
+
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
@@ -24,12 +37,32 @@ router.get('/:executionId', requireFeature('workflow_executions'), async (req, r
       .eq('id', executionId)
       .single();
 
-    if (error || !execution) return res.status(404).json({ error: 'Execution not found' });
-    if (execution.user_id !== userId) return res.status(403).json({ error: 'Access denied' });
+    if (error || !execution) {
+      logger.warn('Execution not found', { executionId, error: error?.message });
+      return res.status(404).json({ error: 'Execution not found' });
+    }
+    
+    if (execution.user_id !== userId) {
+      logger.warn('Access denied - execution belongs to different user', { 
+        executionId, 
+        executionUserId: execution.user_id,
+        requestUserId: userId 
+      });
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    logger.info('Execution details retrieved successfully', { 
+      executionId,
+      stepCount: execution.step_executions?.length || 0,
+      status: execution.status
+    });
 
     return res.json({ execution });
   } catch (e) {
-    console.error('[ExecutionRoutes] Get details error:', e);
+    logger.error('Failed to fetch execution details', e, {
+      executionId: req.params.executionId,
+      operation: 'get_execution_details'
+    });
     return res.status(500).json({ error: 'Failed to fetch execution' });
   }
 });

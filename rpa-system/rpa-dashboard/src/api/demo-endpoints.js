@@ -8,11 +8,78 @@
  * 4. Save to your existing database
  */
 
+// ✅ INSTRUCTION 3: Import OpenTelemetry Web SDK for trace propagation
+import { context, propagation, trace } from '@opentelemetry/api';
+
+/**
+ * ✅ INSTRUCTION 3: Helper function to inject trace context into fetch/axios headers
+ * This should be called before every API request to propagate frontend trace context
+ */
+const getTraceHeaders = () => {
+  const headers = {};
+  
+  try {
+    // Get active context (if OpenTelemetry is initialized in the frontend)
+    const activeContext = context.active();
+    const carrier = {};
+    
+    // Inject trace context into carrier
+    propagation.inject(activeContext, carrier);
+    
+    // Add trace headers if they exist
+    if (carrier.traceparent) {
+      headers['traceparent'] = carrier.traceparent;
+    }
+    if (carrier.tracestate) {
+      headers['tracestate'] = carrier.tracestate;
+    }
+    
+    // Also get current span context if available
+    const span = trace.getActiveSpan();
+    if (span) {
+      const spanContext = span.spanContext();
+      headers['x-trace-id'] = spanContext.traceId;
+      headers['x-span-id'] = spanContext.spanId;
+    }
+  } catch (err) {
+    // Silently fail if OpenTelemetry is not initialized
+    console.warn('Trace context injection failed:', err.message);
+  }
+  
+  return headers;
+};
+
+/**
+ * ✅ INSTRUCTION 3: Enhanced fetch wrapper that automatically injects trace context
+ * Use this instead of raw fetch() for all API calls
+ */
+const tracedFetch = async (url, options = {}) => {
+  // Inject trace headers into request
+  const traceHeaders = getTraceHeaders();
+  
+  const enhancedOptions = {
+    ...options,
+    headers: {
+      ...options.headers,
+      ...traceHeaders
+    }
+  };
+  
+  // Log trace injection for debugging
+  if (process.env.NODE_ENV !== 'production' && traceHeaders.traceparent) {
+    console.log(`[API] Injecting trace context: ${traceHeaders.traceparent}`);
+  }
+  
+  return fetch(url, enhancedOptions);
+};
+
 // Option 1: Supabase Integration (Recommended)
 export const saveDemoRequestToSupabase = async (demoData) => {
   const { supabase } = require('../utils/supabaseClient');
   
   try {
+    // ✅ Note: Supabase client requests should also be instrumented
+    // This may require configuring Supabase to use a custom fetch implementation
     const { data, error } = await supabase
       .from('demo_requests') // Create this table in Supabase
       .insert([{
@@ -68,7 +135,8 @@ export const sendDemoRequestToZapier = async (demoData) => {
   const ZAPIER_WEBHOOK_URL = 'https://hooks.zapier.com/hooks/catch/YOUR_HOOK_ID/';
   
   try {
-    const response = await fetch(ZAPIER_WEBHOOK_URL, {
+    // ✅ INSTRUCTION 3: Use tracedFetch for automatic trace propagation
+    const response = await tracedFetch(ZAPIER_WEBHOOK_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -93,7 +161,8 @@ export const sendEmailCaptureToZapier = async (emailData) => {
   const ZAPIER_WEBHOOK_URL = 'https://hooks.zapier.com/hooks/catch/YOUR_HOOK_ID/';
   
   try {
-    const response = await fetch(ZAPIER_WEBHOOK_URL, {
+    // ✅ INSTRUCTION 3: Use tracedFetch for automatic trace propagation
+    const response = await tracedFetch(ZAPIER_WEBHOOK_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,0 +1,124 @@
+# OpenTelemetry Collector Configuration for SLO Metrics Export
+# Simplified version without complex environment variable usage
+
+receivers:
+  # OTLP receiver for traces and metrics from services
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://localhost:3000" # React dev server
+            - "http://localhost:3030" # Backend API
+
+processors:
+  # Generate span metrics for SLO calculations
+  spanmetrics:
+    metrics_exporter: prometheus/spanmetrics
+    latency_histogram_buckets:
+      [
+        2ms,
+        4ms,
+        6ms,
+        8ms,
+        10ms,
+        50ms,
+        100ms,
+        200ms,
+        400ms,
+        800ms,
+        1s,
+        1400ms,
+        2s,
+        5s,
+        10s,
+        15s,
+      ]
+    aggregation_temporality: "AGGREGATION_TEMPORALITY_CUMULATIVE"
+
+    # Business context dimension extraction
+    dimensions:
+      - name: service_name
+        default: "unknown"
+      - name: span_name
+        default: "unknown"
+      - name: span_kind
+        default: "unknown"
+      - name: status_code
+        default: "unknown"
+      - name: http_status_code
+        default: "unknown"
+      # High-cardinality business attributes
+      - name: user_id
+        default: "anonymous"
+      - name: workflow_id
+        default: "unknown"
+      - name: user_tier
+        default: "standard"
+      - name: operation
+        default: "unknown"
+
+  # Resource detection and attribute enhancement
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 5s
+
+  # Batch processing for performance
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    limit_mib: 512
+
+exporters:
+  # Primary Prometheus exporter for SLO metrics
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "easyflow"
+    const_labels:
+      environment: "development"
+      service_version: "1.0.0"
+
+  # Separate exporter for span metrics (used by recording rules)
+  prometheus/spanmetrics:
+    endpoint: "0.0.0.0:8890"
+    namespace: "traces"
+
+  # Debug exporter for development
+  debug:
+    verbosity: basic
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    # Trace pipeline with span metrics generation
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, spanmetrics, batch]
+      exporters: [debug]
+
+    # Metrics pipeline for SLO data
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [prometheus]
+
+  # Telemetry configuration
+  telemetry:
+    logs:
+      level: info
+
+    metrics:
+      level: basic
+      address: 0.0.0.0:8888
+
+# Extensions
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133

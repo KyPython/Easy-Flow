@@ -5,18 +5,77 @@ const path = require('path');
 const crypto = require('crypto');
 const axios = require('axios');
 
+// ✅ INSTRUCTION 1: Import OpenTelemetry API for trace propagation
+const { trace, context, propagation } = require('@opentelemetry/api');
+
+// ✅ INSTRUCTION 2: Import structured logger (Gap 13, 15)
+const { createLogger } = require('../middleware/structuredLogging');
+
 class WorkflowExecutor {
-  constructor() {
+  constructor(logger) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
     this.supabase = (url && key) ? createClient(url, key) : null;
+    
+    // ✅ INSTRUCTION 2: Use injected logger or create default logger
+    this.logger = logger || createLogger('workflow.executor');
+    
     if (!this.supabase) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[WorkflowExecutor] Supabase not configured (missing SUPABASE_URL or key). Some features will be disabled.');
-      }
+      this.logger.warn('Supabase not configured - some features will be disabled', {
+        env: process.env.NODE_ENV
+      });
     }
-  // Track running executions to check for cancellation
-  this.runningExecutions = new Map(); // executionId -> { cancelled: boolean }
+    
+    // Track running executions to check for cancellation
+    this.runningExecutions = new Map(); // executionId -> { cancelled: boolean }
+    
+    // ✅ INSTRUCTION 1: Create instrumented Axios instance for trace propagation
+    this.httpClient = this._createInstrumentedHttpClient();
+  }
+  
+  /**
+   * ✅ INSTRUCTION 1: Create Axios instance with automatic trace context injection
+   * This ensures all outbound HTTP calls propagate the active span context
+   */
+  _createInstrumentedHttpClient() {
+    const client = axios.create({
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Add request interceptor to inject trace context into headers
+    client.interceptors.request.use(
+      (config) => {
+        // Get current active context and inject into headers
+        const activeContext = context.active();
+        const carrier = {};
+        
+        // Inject trace context using W3C Trace Context propagator
+        propagation.inject(activeContext, carrier);
+        
+        // Merge trace headers into request headers
+        config.headers = {
+          ...config.headers,
+          ...carrier
+        };
+        
+        // ✅ INSTRUCTION 2: Use structured logger instead of console.log
+        if (process.env.NODE_ENV !== 'production' && carrier.traceparent) {
+          this.logger.debug('Injected trace context to HTTP request', {
+            traceparent: carrier.traceparent
+          });
+        }
+        
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      }
+    );
+    
+    return client;
   }
 
   // Generic helpers
@@ -102,9 +161,19 @@ class WorkflowExecutor {
         })
         .eq('id', executionId);
       
-      console.log(`[WorkflowExecutor] Status updated: ${executionId} -> ${status}: ${message}`);
+      // ✅ INSTRUCTION 2: Use structured logger
+      this.logger.info('Execution status updated', {
+        execution_id: executionId,
+        status,
+        message
+      });
     } catch (error) {
-      console.error(`[WorkflowExecutor] Failed to update status:`, error);
+      // ✅ INSTRUCTION 2: Pass error object to logger for full stack trace (Gap 15)
+      this.logger.error(error, 'Failed to update execution status', {
+        execution_id: executionId,
+        status,
+        message
+      });
     }
   }
 
@@ -144,9 +213,16 @@ class WorkflowExecutor {
           });
       }
       
-      console.error(`[WorkflowExecutor] Execution ${executionId} failed and logged:`, failureData);
+      // ✅ INSTRUCTION 2: Use structured logger with error object
+      this.logger.error('Execution failed and logged', {
+        execution_id: executionId,
+        failure_data: failureData
+      });
     } catch (dbError) {
-      console.error(`[WorkflowExecutor] Failed to log execution error:`, dbError);
+      // ✅ INSTRUCTION 2: Pass error for full stack trace
+      this.logger.error(dbError, 'Failed to log execution error', {
+        execution_id: executionId
+      });
     }
   }
 
@@ -176,7 +252,10 @@ class WorkflowExecutor {
     const execution = this.runningExecutions.get(executionId);
     if (execution) {
       execution.cancelled = true;
-      console.log(`[WorkflowExecutor] Execution ${executionId} marked for cancellation`);
+      // ✅ INSTRUCTION 2: Structured logging
+      this.logger.info('Execution marked for cancellation', {
+        execution_id: executionId
+      });
       this._updateExecutionStatus(executionId, 'cancelled', 'Execution cancelled by timeout or user request');
     }
   }
@@ -188,13 +267,22 @@ class WorkflowExecutor {
     // ✅ HARD TIMEOUT CONFIGURATION
     const EXECUTION_TIMEOUT = 300000; // 5 minutes maximum execution time
     const executionTimer = setTimeout(() => {
-      console.error(`[WorkflowExecutor] Execution ${executionId} exceeded maximum time limit`);
+      // ✅ INSTRUCTION 2: Structured logging
+      this.logger.error('Execution exceeded maximum time limit', {
+        execution_id: executionId,
+        max_timeout_seconds: maxTimeoutSeconds
+      });
       this.cancelExecution(executionId);
     }, EXECUTION_TIMEOUT);
     
     try {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[WorkflowExecutor] Starting execution ${executionId} for workflow ${workflowId}`);
+        // ✅ INSTRUCTION 2: Structured logging
+        this.logger.info('Starting workflow execution', {
+          execution_id: executionId,
+          workflow_id: workflowId,
+          user_id: userId
+        });
       }
       if (!this.supabase) {
         throw new Error('Workflow not found: Database unavailable');
@@ -208,7 +296,10 @@ class WorkflowExecutor {
       
       try {
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[WorkflowExecutor] Querying workflow with ID: ${workflowId}`);
+          // ✅ INSTRUCTION 2: Structured logging
+          this.logger.debug('Querying workflow', {
+            workflow_id: workflowId
+          });
         }
         
         const result = await this.supabase
@@ -237,14 +328,20 @@ class WorkflowExecutor {
           workflowError = result.error;
           workflow = null;
         } else if (!result.data) {
-          console.warn(`[WorkflowExecutor] No workflow found with ID: ${workflowId}`);
+          // ✅ INSTRUCTION 2: Structured logging
+          this.logger.warn('No workflow found', {
+            workflow_id: workflowId
+          });
           workflowError = { message: 'No workflow found with this ID' };
           workflow = null;
         } else {
           workflow = result.data;
         }
       } catch (queryError) {
-        console.error(`[WorkflowExecutor] Database query error:`, queryError);
+        // ✅ INSTRUCTION 2: Pass error object for full stack trace
+        this.logger.error(queryError, 'Database query error', {
+          workflow_id: workflowId
+        });
         workflowError = { message: `Database query failed: ${queryError.message}` };
         workflow = null;
       }
@@ -258,7 +355,11 @@ class WorkflowExecutor {
         if (!allowDraft) {
           throw new Error(`Workflow is not active (status: ${workflow.status})`);
         } else {
-          console.warn(`[WorkflowExecutor] Proceeding with non-active workflow status '${workflow.status}' due to ALLOW_DRAFT_EXECUTION`);
+          // ✅ INSTRUCTION 2: Structured logging
+          this.logger.warn('Proceeding with non-active workflow due to ALLOW_DRAFT_EXECUTION', {
+            workflow_id: workflowId,
+            workflow_status: workflow.status
+          });
         }
       }
       
@@ -283,7 +384,11 @@ class WorkflowExecutor {
       }
       
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[WorkflowExecutor] Created execution ${execution.id}`);
+        // ✅ INSTRUCTION 2: Structured logging
+        this.logger.info('Created workflow execution', {
+          execution_id: execution.id,
+          workflow_id: workflowId
+        });
       }
       
       // Mark as running
@@ -533,12 +638,11 @@ class WorkflowExecutor {
       
       console.log(`[WorkflowExecutor] Web scraping: ${url}`);
       
-      const axios = require('axios');
-
+      // ✅ INSTRUCTION 1: Use instrumented HTTP client for trace propagation
       const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
       const baseMs = Number(config?.retries?.baseMs || 300);
 
-  const backoff = await this._withBackoff(async ({ controller }) => {
+      const backoff = await this._withBackoff(async ({ controller }) => {
         // Cooperative cancellation: periodic check and abort
         const cancelTimer = setInterval(async () => {
           if (execution && await this._isCancelled(execution.id)) {
@@ -546,7 +650,8 @@ class WorkflowExecutor {
           }
         }, 500);
         try {
-          return await axios.post(`${process.env.AUTOMATION_URL}/scrape`, {
+          // Use instrumented client for automatic trace propagation
+          return await this.httpClient.post(`${process.env.AUTOMATION_URL}/scrape`, {
             url,
             selectors,
             timeout
@@ -595,19 +700,19 @@ class WorkflowExecutor {
       
       console.log(`[WorkflowExecutor] API call: ${method} ${url}`);
       
-      const axios = require('axios');
-
+      // ✅ INSTRUCTION 1: Use instrumented HTTP client for trace propagation
       const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
       const baseMs = Number(config?.retries?.baseMs || 300);
 
-  const backoff = await this._withBackoff(async ({ controller }) => {
+      const backoff = await this._withBackoff(async ({ controller }) => {
         const cancelTimer = setInterval(async () => {
           if (execution && await this._isCancelled(execution.id)) {
             try { controller?.abort?.(); } catch (_) {}
           }
         }, 500);
         try {
-          return await axios({
+          // Use instrumented client for automatic trace propagation
+          return await this.httpClient({
             method,
             url,
             headers,

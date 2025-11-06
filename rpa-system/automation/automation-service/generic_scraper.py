@@ -24,10 +24,52 @@ from bs4 import BeautifulSoup
 import time
 import re
 
+# ✅ INSTRUCTION 3: Import OpenTelemetry for browser automation span instrumentation
+try:
+    from opentelemetry import trace
+    from opentelemetry.trace import Status, StatusCode, SpanKind
+    OTEL_AVAILABLE = True
+    
+    # ✅ INSTRUCTION 3: Get tracer for browser automation operations
+    tracer = trace.get_tracer('browser.automation')
+except ImportError:
+    OTEL_AVAILABLE = False
+    tracer = None
+    logging.warning("⚠️ OpenTelemetry not available - browser automation spans disabled")
+
 logger = logging.getLogger(__name__)
 
 def create_webdriver():
-    """Create a headless Chrome WebDriver instance."""
+    """✅ INSTRUCTION 3: Create a headless Chrome WebDriver instance with span instrumentation."""
+    if not OTEL_AVAILABLE or tracer is None:
+        # Fallback without instrumentation
+        return _create_webdriver_impl()
+    
+    # ✅ INSTRUCTION 3: Create span for WebDriver initialization
+    with tracer.start_as_current_span(
+        "browser.action.initialize_driver",
+        kind=SpanKind.INTERNAL,
+        attributes={
+            'browser.type': 'chrome',
+            'browser.headless': True,
+            'browser.window_size': '1920x1080'
+        }
+    ) as span:
+        try:
+            driver = _create_webdriver_impl()
+            
+            span.set_status(Status(StatusCode.OK))
+            span.set_attribute('browser.initialized', driver is not None)
+            
+            return driver
+        except Exception as e:
+            span.record_exception(e)
+            span.set_status(Status(StatusCode.ERROR, str(e)))
+            span.set_attribute('error', True)
+            raise
+
+def _create_webdriver_impl():
+    """Internal implementation of WebDriver creation."""
     options = Options()
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
@@ -87,17 +129,74 @@ def scrape_web_page(url, task_data=None):
     if not driver:
         return {"error": "Failed to create WebDriver"}
     
+    # ✅ INSTRUCTION 3: Wrap main scraping sequence with span
+    if not OTEL_AVAILABLE or tracer is None:
+        # Fallback without instrumentation
+        return _scrape_web_page_impl(driver, url, task_data)
+    
+    with tracer.start_as_current_span(
+        "browser.action.scrape_page",
+        kind=SpanKind.INTERNAL,
+        attributes={
+            'browser.url': url,
+            'browser.operation': 'page_scraping',
+            'task.extract_json': task_data.get('extract_json', False)
+        }
+    ) as span:
+        try:
+            result = _scrape_web_page_impl(driver, url, task_data)
+            
+            span.set_status(Status(StatusCode.OK))
+            span.set_attribute('scraping.status', result.get('status', 'unknown'))
+            span.set_attribute('scraping.tables_found', len(result.get('tables', [])))
+            span.set_attribute('scraping.links_found', len(result.get('links', [])))
+            
+            return result
+        except Exception as e:
+            span.record_exception(e)
+            span.set_status(Status(StatusCode.ERROR, str(e)))
+            span.set_attribute('error', True)
+            raise
+        finally:
+            driver.quit()
+
+def _scrape_web_page_impl(driver, url, task_data=None):
+    """Internal implementation of web page scraping."""
     try:
         logger.info(f"Scraping web page: {url}")
-        driver.get(url)
         
-        # Wait for the page to load
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
+        # ✅ INSTRUCTION 3: Create span for page load
+        if OTEL_AVAILABLE and tracer is not None:
+            with tracer.start_as_current_span(
+                "browser.action.page_load",
+                attributes={'browser.url': url}
+            ) as load_span:
+                driver.get(url)
+                
+                # Wait for the page to load
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
+                
+                load_span.set_status(Status(StatusCode.OK))
+                load_span.set_attribute('browser.page_loaded', True)
+        else:
+            driver.get(url)
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
         
-        # Use BeautifulSoup for more reliable parsing after Selenium loads the page
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        # ✅ INSTRUCTION 3: Create span for HTML parsing
+        if OTEL_AVAILABLE and tracer is not None:
+            with tracer.start_as_current_span(
+                "browser.action.parse_html",
+                attributes={'browser.url': url}
+            ) as parse_span:
+                soup = BeautifulSoup(driver.page_source, 'html.parser')
+                parse_span.set_status(Status(StatusCode.OK))
+                parse_span.set_attribute('html.parsed', True)
+        else:
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
 
         scraped_data = {
             "url": url,
@@ -105,61 +204,131 @@ def scrape_web_page(url, task_data=None):
             "timestamp": datetime.now().isoformat()
         }
         
-        # Extract meta description
-        meta_description_tag = soup.find("meta", attrs={"name": "description"})
-        scraped_data["description"] = meta_description_tag["content"].strip() if meta_description_tag and meta_description_tag.get("content") else "No meta description found"
-        
-        # Extract headings (h1, h2, h3)
-        headings = [h.get_text().strip() for h in soup.find_all(['h1', 'h2', 'h3']) if h.get_text().strip()]
-        scraped_data["headings"] = headings
+        # ✅ INSTRUCTION 3: Create span for basic data extraction
+        if OTEL_AVAILABLE and tracer is not None:
+            with tracer.start_as_current_span(
+                "browser.action.extract_basic_data",
+                attributes={'browser.url': url}
+            ) as extract_span:
+                # Extract meta description
+                meta_description_tag = soup.find("meta", attrs={"name": "description"})
+                scraped_data["description"] = meta_description_tag["content"].strip() if meta_description_tag and meta_description_tag.get("content") else "No meta description found"
+                
+                # Extract headings (h1, h2, h3)
+                headings = [h.get_text().strip() for h in soup.find_all(['h1', 'h2', 'h3']) if h.get_text().strip()]
+                scraped_data["headings"] = headings
 
-        # Extract all paragraph text
-        paragraphs = [p.get_text().strip() for p in soup.find_all('p') if p.get_text().strip()]
-        scraped_data["paragraphs"] = paragraphs
-        scraped_data["raw_body_text"] = driver.find_element(By.TAG_NAME, "body").text
+                # Extract all paragraph text
+                paragraphs = [p.get_text().strip() for p in soup.find_all('p') if p.get_text().strip()]
+                scraped_data["paragraphs"] = paragraphs
+                scraped_data["raw_body_text"] = driver.find_element(By.TAG_NAME, "body").text
+                
+                extract_span.set_status(Status(StatusCode.OK))
+                extract_span.set_attribute('extraction.headings_found', len(headings))
+                extract_span.set_attribute('extraction.paragraphs_found', len(paragraphs))
+        else:
+            meta_description_tag = soup.find("meta", attrs={"name": "description"})
+            scraped_data["description"] = meta_description_tag["content"].strip() if meta_description_tag and meta_description_tag.get("content") else "No meta description found"
+            headings = [h.get_text().strip() for h in soup.find_all(['h1', 'h2', 'h3']) if h.get_text().strip()]
+            scraped_data["headings"] = headings
+            paragraphs = [p.get_text().strip() for p in soup.find_all('p') if p.get_text().strip()]
+            scraped_data["paragraphs"] = paragraphs
+            scraped_data["raw_body_text"] = driver.find_element(By.TAG_NAME, "body").text
         
-        # Extract structured data - tables
-        tables = []
-        for table in soup.find_all('table'):
-            table_data = []
-            rows = table.find_all('tr')
-            for row in rows:
-                cells = row.find_all(['td', 'th'])
-                row_data = [cell.get_text().strip() for cell in cells]
-                if any(row_data):  # Only include non-empty rows
-                    table_data.append(row_data)
-            if table_data:
-                tables.append({
-                    'headers': table_data[0] if table_data else [],
-                    'rows': table_data[1:] if len(table_data) > 1 else [],
-                    'total_rows': len(table_data),
-                    'total_columns': len(table_data[0]) if table_data else 0
-                })
-        scraped_data["tables"] = tables
-        
-        # Extract lists (ul, ol)
-        lists = []
-        for list_elem in soup.find_all(['ul', 'ol']):
-            list_items = [li.get_text().strip() for li in list_elem.find_all('li')]
-            if list_items:
-                lists.append({
-                    'type': list_elem.name,
-                    'items': list_items,
-                    'item_count': len(list_items)
-                })
-        scraped_data["lists"] = lists
-        
-        # Extract links
-        links = []
-        for link in soup.find_all('a', href=True):
-            link_text = link.get_text().strip()
-            if link_text:
-                links.append({
-                    'text': link_text,
-                    'url': link['href'],
-                    'is_external': link['href'].startswith('http') and not any(domain in link['href'] for domain in [url])
-                })
-        scraped_data["links"] = links[:50]  # Limit to first 50 links
+        # ✅ INSTRUCTION 3: Create span for structured data extraction (tables, lists, links)
+        if OTEL_AVAILABLE and tracer is not None:
+            with tracer.start_as_current_span(
+                "browser.action.extract_structured_data",
+                attributes={'browser.url': url}
+            ) as struct_span:
+                # Extract structured data - tables
+                tables = []
+                for table in soup.find_all('table'):
+                    table_data = []
+                    rows = table.find_all('tr')
+                    for row in rows:
+                        cells = row.find_all(['td', 'th'])
+                        row_data = [cell.get_text().strip() for cell in cells]
+                        if any(row_data):  # Only include non-empty rows
+                            table_data.append(row_data)
+                    if table_data:
+                        tables.append({
+                            'headers': table_data[0] if table_data else [],
+                            'rows': table_data[1:] if len(table_data) > 1 else [],
+                            'total_rows': len(table_data),
+                            'total_columns': len(table_data[0]) if table_data else 0
+                        })
+                scraped_data["tables"] = tables
+                
+                # Extract lists (ul, ol)
+                lists = []
+                for list_elem in soup.find_all(['ul', 'ol']):
+                    list_items = [li.get_text().strip() for li in list_elem.find_all('li')]
+                    if list_items:
+                        lists.append({
+                            'type': list_elem.name,
+                            'items': list_items,
+                            'item_count': len(list_items)
+                        })
+                scraped_data["lists"] = lists
+                
+                # Extract links
+                links = []
+                for link in soup.find_all('a', href=True):
+                    link_text = link.get_text().strip()
+                    if link_text:
+                        links.append({
+                            'text': link_text,
+                            'url': link['href'],
+                            'is_external': link['href'].startswith('http') and not any(domain in link['href'] for domain in [url])
+                        })
+                scraped_data["links"] = links[:50]  # Limit to first 50 links
+                
+                struct_span.set_status(Status(StatusCode.OK))
+                struct_span.set_attribute('extraction.tables_found', len(tables))
+                struct_span.set_attribute('extraction.lists_found', len(lists))
+                struct_span.set_attribute('extraction.links_found', len(links))
+        else:
+            # Fallback without instrumentation
+            tables = []
+            for table in soup.find_all('table'):
+                table_data = []
+                rows = table.find_all('tr')
+                for row in rows:
+                    cells = row.find_all(['td', 'th'])
+                    row_data = [cell.get_text().strip() for cell in cells]
+                    if any(row_data):
+                        table_data.append(row_data)
+                if table_data:
+                    tables.append({
+                        'headers': table_data[0] if table_data else [],
+                        'rows': table_data[1:] if len(table_data) > 1 else [],
+                        'total_rows': len(table_data),
+                        'total_columns': len(table_data[0]) if table_data else 0
+                    })
+            scraped_data["tables"] = tables
+            
+            lists = []
+            for list_elem in soup.find_all(['ul', 'ol']):
+                list_items = [li.get_text().strip() for li in list_elem.find_all('li')]
+                if list_items:
+                    lists.append({
+                        'type': list_elem.name,
+                        'items': list_items,
+                        'item_count': len(list_items)
+                    })
+            scraped_data["lists"] = lists
+            
+            links = []
+            for link in soup.find_all('a', href=True):
+                link_text = link.get_text().strip()
+                if link_text:
+                    links.append({
+                        'text': link_text,
+                        'url': link['href'],
+                        'is_external': link['href'].startswith('http') and not any(domain in link['href'] for domain in [url])
+                    })
+            scraped_data["links"] = links[:50]
         
         # Extract images with alt text
         images = []

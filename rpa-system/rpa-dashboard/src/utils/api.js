@@ -2,6 +2,61 @@ import axios from 'axios';
 import { supabase } from './supabaseClient';
 import { apiErrorHandler } from './errorHandler';
 
+// Trace context management for frontend
+class TraceContext {
+  constructor() {
+    this.currentTraceId = null;
+    this.currentRequestId = null;
+    this.sessionTraceId = this.generateTraceId();
+  }
+
+  generateTraceId() {
+    // Generate W3C-compatible trace ID (32 hex chars)
+    return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  }
+
+  generateSpanId() {
+    // Generate W3C-compatible span ID (16 hex chars)
+    return Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  }
+
+  generateTraceparent() {
+    const version = '00';
+    const traceId = this.sessionTraceId; // Use session-level trace ID
+    const spanId = this.generateSpanId(); // New span for each request
+    const flags = '01'; // sampled
+    
+    return `${version}-${traceId}-${spanId}-${flags}`;
+  }
+
+  getTraceHeaders() {
+    const traceparent = this.generateTraceparent();
+    const requestId = `req_${this.sessionTraceId.substring(0, 12)}_${Date.now()}`;
+    
+    // Store for potential correlation logging
+    this.currentTraceId = this.sessionTraceId;
+    this.currentRequestId = requestId;
+    
+    return {
+      'traceparent': traceparent,
+      'x-trace-id': this.sessionTraceId,
+      'x-request-id': requestId
+    };
+  }
+
+  // For correlating frontend events with backend traces
+  getCurrentContext() {
+    return {
+      traceId: this.currentTraceId,
+      requestId: this.currentRequestId,
+      sessionTraceId: this.sessionTraceId
+    };
+  }
+}
+
+// Global trace context instance
+const traceContext = new TraceContext();
+
 // Use absolute backend URL in production via REACT_APP_API_BASE.
 // In local dev (CRA), keep it relative to leverage the proxy.
 export const api = axios.create({
@@ -18,15 +73,32 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Interceptor to add auth token to every request
+// Interceptor to add auth token AND trace context to every request
 api.interceptors.request.use(
   async (config) => {
+    const startTime = Date.now();
+    
     try {
+      // Add trace headers for observability (CRITICAL for correlation)
+      const traceHeaders = traceContext.getTraceHeaders();
+      config.headers = {
+        ...config.headers,
+        ...traceHeaders
+      };
+      
+      // Store timing info for UX metrics
+      config.metadata = { 
+        startTime,
+        traceContext: traceContext.getCurrentContext()
+      };
+
       // Try to get session from Supabase first
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (session?.access_token && !error) {
         config.headers['Authorization'] = `Bearer ${session.access_token}`;
+        // Add user context to trace headers
+        config.headers['x-user-id'] = session.user?.id || '';
       } else {
         // Fallback to development token if available
         const devToken = process.env.REACT_APP_DEV_TOKEN || localStorage.getItem('dev_token');
@@ -34,6 +106,20 @@ api.interceptors.request.use(
           config.headers['Authorization'] = `Bearer ${devToken}`;
         }
       }
+
+      // Log API request initiation (structured)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(JSON.stringify({
+          level: 'debug',
+          message: 'API request initiated',
+          method: config.method?.toUpperCase(),
+          url: config.url,
+          traceId: traceHeaders['x-trace-id'],
+          requestId: traceHeaders['x-request-id'],
+          timestamp: new Date().toISOString()
+        }));
+      }
+
     } catch (error) {
       console.warn('[api] Failed to get auth token:', error.message);
       // Try development token as fallback
@@ -49,15 +135,114 @@ api.interceptors.request.use(
   }
 );
 
-// Enhanced response interceptor with error handling
+// Enhanced response interceptor with UX metrics and error handling
 let isRefreshing = false;
 let queued = [];
 let lastRefreshAttempt = 0;
 
 api.interceptors.response.use(
-  (resp) => resp,
+  (response) => {
+    // Calculate and log UX metrics (Rule 2: Granularity)
+    const endTime = Date.now();
+    const { startTime, traceContext: reqTraceContext } = response.config.metadata || {};
+    
+    if (startTime) {
+      const duration = endTime - startTime;
+      const traceHeaders = {
+        backendTraceId: response.headers['x-trace-id'],
+        backendRequestId: response.headers['x-request-id'],
+        frontendTraceId: reqTraceContext?.traceId,
+        frontendRequestId: reqTraceContext?.requestId
+      };
+      
+      // Log successful API response with correlation (structured JSON)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(JSON.stringify({
+          level: 'info',
+          message: 'API response received',
+          method: response.config.method?.toUpperCase(),
+          url: response.config.url,
+          status: response.status,
+          duration_ms: duration,
+          ...traceHeaders,
+          timestamp: new Date().toISOString()
+        }));
+      }
+      
+      // Track UX metrics for monitoring (could integrate with analytics)
+      if (window.performance && window.performance.mark) {
+        window.performance.mark(`api-response-${reqTraceContext?.requestId}`);
+      }
+      
+      // Store metrics for potential dashboard display
+      if (!window._apiMetrics) window._apiMetrics = [];
+      window._apiMetrics.push({
+        method: response.config.method?.toUpperCase(),
+        url: response.config.url,
+        status: response.status,
+        duration: duration,
+        timestamp: endTime,
+        ...traceHeaders
+      });
+      
+      // Keep only last 100 entries
+      if (window._apiMetrics.length > 100) {
+        window._apiMetrics = window._apiMetrics.slice(-100);
+      }
+    }
+    
+    return response;
+  },
   async (error) => {
     const status = error?.response?.status;
+    
+    // Calculate error metrics with correlation context
+    const endTime = Date.now();
+    const { startTime, traceContext: reqTraceContext } = error.config?.metadata || {};
+    
+    if (startTime) {
+      const duration = endTime - startTime;
+      const traceHeaders = {
+        backendTraceId: error.response?.headers?.['x-trace-id'],
+        backendRequestId: error.response?.headers?.['x-request-id'], 
+        frontendTraceId: reqTraceContext?.traceId,
+        frontendRequestId: reqTraceContext?.requestId
+      };
+      
+      // Structured error logging with full correlation context
+      console.error(JSON.stringify({
+        level: 'error',
+        message: 'API request failed',
+        method: error.config?.method?.toUpperCase(),
+        url: error.config?.url,
+        status: status || 0,
+        duration_ms: duration,
+        error: {
+          message: error.message,
+          code: error.code,
+          response_data: error.response?.data
+        },
+        ...traceHeaders,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // Track error metrics
+      if (!window._apiErrors) window._apiErrors = [];
+      window._apiErrors.push({
+        method: error.config?.method?.toUpperCase(),
+        url: error.config?.url,
+        status: status || 0,
+        duration: duration,
+        error: error.message,
+        timestamp: endTime,
+        ...traceHeaders
+      });
+      
+      // Keep only last 50 error entries
+      if (window._apiErrors.length > 50) {
+        window._apiErrors = window._apiErrors.slice(-50);
+      }
+    }
     
     // Development: log failing requests for debugging
     if (process.env.NODE_ENV === 'development') {
@@ -473,6 +658,32 @@ export const getSharedFile = async (token, password = null) => {
       retries: 2
     }
   );
+};
+
+// Export trace context for use in components/hooks that need correlation
+export { traceContext };
+
+// Helper function for components to get current trace info
+export const getCurrentTraceInfo = () => traceContext.getCurrentContext();
+
+// Helper for manual correlation logging in components
+export const logWithTraceContext = (level, message, additionalData = {}) => {
+  const context = traceContext.getCurrentContext();
+  const logEntry = {
+    level,
+    message,
+    ...context,
+    ...additionalData,
+    timestamp: new Date().toISOString()
+  };
+  
+  if (level === 'error') {
+    console.error(JSON.stringify(logEntry));
+  } else if (level === 'warn') {
+    console.warn(JSON.stringify(logEntry));
+  } else {
+    console.log(JSON.stringify(logEntry));
+  }
 };
 
 // Helper function to get share URL

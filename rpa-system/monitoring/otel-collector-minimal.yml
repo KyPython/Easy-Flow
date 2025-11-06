@@ -1,0 +1,57 @@
+# OpenTelemetry Collector Configuration - Minimal SLO Setup
+# Simplified version to get basic span metrics working
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Generate basic span metrics
+  spanmetrics:
+    metrics_exporter: prometheus/spanmetrics
+    latency_histogram_buckets: [100ms, 500ms, 1s, 3s, 10s]
+
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+  memory_limiter:
+    limit_mib: 256
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "easyflow"
+
+  prometheus/spanmetrics:
+    endpoint: "0.0.0.0:8890"
+    namespace: "traces"
+
+  debug:
+    verbosity: basic
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, spanmetrics, batch]
+      exporters: [debug]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+
+  telemetry:
+    logs:
+      level: info

@@ -2,12 +2,18 @@ const fs = require("fs");
 const path = require("path");
 const { Kafka } = require("@confluentinc/kafka-javascript").KafkaJS;
 
+// ✅ INSTRUCTION 1: Import OpenTelemetry components for trace propagation
+const { context, propagation, trace } = require('@opentelemetry/api');
+
 class KafkaClient {
     constructor(configPath = "kafka-clients/nodejs/client.properties") {
         this.config = this.readConfig(configPath);
         this.producer = null;
         this.consumer = null;
         this.kafka = new Kafka();
+        
+        // Initialize W3C Trace Context Propagator
+        this.propagator = propagation;
     }
 
     readConfig(fileName) {
@@ -53,6 +59,44 @@ class KafkaClient {
         return this.consumer;
     }
 
+    /**
+     * ✅ INSTRUCTION 1: Helper function to inject trace context into Kafka headers
+     * Converts OpenTelemetry context to W3C traceparent/tracestate headers as Buffers
+     */
+    injectContextToKafkaHeaders(headers = {}) {
+        const carrier = {};
+        
+        // Extract current active context and inject into carrier
+        this.propagator.inject(context.active(), carrier);
+        
+        // Convert carrier to Kafka-compatible Buffer headers
+        for (const [key, value] of Object.entries(carrier)) {
+            if (value) {
+                headers[key] = Buffer.from(String(value), 'utf-8');
+            }
+        }
+        
+        return headers;
+    }
+
+    /**
+     * ✅ INSTRUCTION 2: Helper function to extract trace context from Kafka headers
+     * Converts Kafka Buffer headers to OpenTelemetry context
+     */
+    extractContextFromKafkaHeaders(kafkaHeaders = {}) {
+        const carrier = {};
+        
+        // Convert Kafka Buffer headers to string carrier
+        for (const [key, value] of Object.entries(kafkaHeaders)) {
+            if (value) {
+                carrier[key] = Buffer.isBuffer(value) ? value.toString('utf-8') : String(value);
+            }
+        }
+        
+        // Extract context from carrier
+        return this.propagator.extract(context.active(), carrier);
+    }
+
     async produceMessage(topic, message, key = null) {
         try {
             const producer = await this.initProducer();
@@ -61,11 +105,15 @@ class KafkaClient {
                 JSON.stringify(message) : 
                 String(message);
 
+            // ✅ INSTRUCTION 1: Inject trace context into message headers
+            const headers = this.injectContextToKafkaHeaders();
+
             const produceRecord = await producer.send({
                 topic,
                 messages: [{ 
                     key: key || `msg-${Date.now()}`, 
-                    value: messageValue 
+                    value: messageValue,
+                    headers: headers  // Add trace headers to message
                 }],
             });
 
@@ -73,7 +121,8 @@ class KafkaClient {
                 key: key || `msg-${Date.now()}`,
                 value: messageValue,
                 partition: produceRecord[0].partition,
-                offset: produceRecord[0].baseOffset
+                offset: produceRecord[0].baseOffset,
+                traceHeaders: Object.keys(headers).length > 0 ? 'injected' : 'none'
             });
 
             return produceRecord;
@@ -107,28 +156,53 @@ class KafkaClient {
 
             await consumer.run({
                 eachMessage: async ({ topic, partition, message }) => {
-                    try {
-                        const messageData = {
-                            topic,
-                            partition,
-                            offset: message.offset,
-                            key: message.key ? message.key.toString() : null,
-                            value: message.value.toString(),
-                            timestamp: message.timestamp,
-                            headers: message.headers
-                        };
+                    // ✅ INSTRUCTION 2: Extract trace context from incoming message
+                    const extractedContext = this.extractContextFromKafkaHeaders(message.headers || {});
+                    
+                    // Create a new span with the extracted context as parent
+                    const tracer = trace.getTracer('kafka-consumer');
+                    
+                    // Run message handler within the extracted trace context
+                    await context.with(extractedContext, async () => {
+                        const span = tracer.startSpan('kafka.consume', {
+                            attributes: {
+                                'messaging.system': 'kafka',
+                                'messaging.destination': topic,
+                                'messaging.operation': 'receive',
+                                'messaging.kafka.partition': partition,
+                                'messaging.kafka.offset': message.offset.toString(),
+                                'messaging.message_id': message.key ? message.key.toString() : undefined
+                            }
+                        });
 
-                        // Try to parse JSON
                         try {
-                            messageData.parsedValue = JSON.parse(messageData.value);
-                        } catch {
-                            messageData.parsedValue = messageData.value;
-                        }
+                            const messageData = {
+                                topic,
+                                partition,
+                                offset: message.offset,
+                                key: message.key ? message.key.toString() : null,
+                                value: message.value.toString(),
+                                timestamp: message.timestamp,
+                                headers: message.headers
+                            };
 
-                        await messageHandler(messageData);
-                    } catch (error) {
-                        console.error("Error processing message:", error);
-                    }
+                            // Try to parse JSON
+                            try {
+                                messageData.parsedValue = JSON.parse(messageData.value);
+                            } catch {
+                                messageData.parsedValue = messageData.value;
+                            }
+
+                            await messageHandler(messageData);
+                            span.setStatus({ code: 1 }); // OK
+                        } catch (error) {
+                            span.recordException(error);
+                            span.setStatus({ code: 2, message: error.message }); // ERROR
+                            console.error("Error processing message:", error);
+                        } finally {
+                            span.end();
+                        }
+                    });
                 },
             });
         } catch (error) {

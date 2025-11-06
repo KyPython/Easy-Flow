@@ -1,0 +1,115 @@
+# EasyFlow SLO Monitoring Stack - Observability Infrastructure Only
+# Focuses on the core monitoring components: OpenTelemetry, Prometheus, Grafana
+
+version: '3.8'
+
+services:
+  # OpenTelemetry Collector - Central telemetry processing
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.89.0
+    container_name: easyflow-otel-collector
+    command: ["--config=/etc/otelcol-contrib/otel-config.yml"]
+    volumes:
+      - ./monitoring/otel-collector-minimal.yml:/etc/otelcol-contrib/otel-config.yml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8889:8889"   # Prometheus metrics endpoint
+      - "8890:8890"   # Span metrics endpoint
+      - "13133:13133" # Health check
+    environment:
+      - ENVIRONMENT=development
+      - SERVICE_VERSION=1.0.0
+    networks:
+      - easyflow-monitoring
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:13133/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+  # Prometheus - Metrics storage and SLO calculation engine
+  prometheus:
+    image: prom/prometheus:v2.47.2
+    container_name: easyflow-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=90d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--enable-feature=remote-write-receiver'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/slo-recording-rules-simple.yml:/etc/prometheus/slo-recording-rules-simple.yml:ro
+      - prometheus-data:/prometheus
+    environment:
+      - TZ=UTC
+    networks:
+      - easyflow-monitoring
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana - SLO visualization and executive dashboards
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: easyflow-grafana
+    ports:
+      - "3003:3000"
+    volumes:
+      - ./monitoring/grafana-slo-dashboard.json:/var/lib/grafana/dashboards/slo-dashboard.json:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_ADMIN_USER=admin
+    networks:
+      - easyflow-monitoring
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - prometheus
+
+  # Alertmanager - SLO alert routing and notification
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: easyflow-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - alertmanager-data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093/'
+      - '--cluster.listen-address=0.0.0.0:9094'
+    environment:
+      - TZ=UTC
+    networks:
+      - easyflow-monitoring
+    restart: unless-stopped
+
+networks:
+  easyflow-monitoring:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data: 
+    driver: local
+  alertmanager-data:
+    driver: local

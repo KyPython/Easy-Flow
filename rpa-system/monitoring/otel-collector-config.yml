@@ -1,0 +1,195 @@
+# OpenTelemetry Collector Configuration for SLO Metrics Export
+# Processes traces/metrics from EasyFlow services and exports to Prometheus/Mimir
+
+receivers:
+  # OTLP receiver for traces and metrics from services
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://localhost:3000" # React dev server
+            - "http://localhost:3030" # Backend API
+            - "https://easyflow.com" # Production frontend
+
+  # Prometheus receiver for scraping existing metrics
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: "easyflow-backend"
+          static_configs:
+            - targets: ["localhost:3030"]
+          scrape_interval: 30s
+          metrics_path: "/metrics"
+
+        - job_name: "easyflow-automation-worker"
+          static_configs:
+            - targets: ["localhost:8080"]
+          scrape_interval: 30s
+
+processors:
+  # Generate span metrics for SLO calculations
+  spanmetrics:
+    metrics_exporter: prometheus/spanmetrics
+    latency_histogram_buckets:
+      [
+        2ms,
+        4ms,
+        6ms,
+        8ms,
+        10ms,
+        50ms,
+        100ms,
+        200ms,
+        400ms,
+        800ms,
+        1s,
+        1400ms,
+        2s,
+        5s,
+        10s,
+        15s,
+      ]
+    dimensions_cache_size: 10000
+    aggregation_temporality: "AGGREGATION_TEMPORALITY_CUMULATIVE"
+
+    # Business context dimension extraction
+    dimensions:
+      - name: service_name
+        default: "unknown"
+      - name: span_name
+        default: "unknown"
+      - name: span_kind
+        default: "unknown"
+      - name: status_code
+        default: "unknown"
+      - name: http_status_code
+        default: "unknown"
+      # High-cardinality business attributes
+      - name: user_id
+        default: "anonymous"
+      - name: workflow_id
+        default: "unknown"
+      - name: user_tier
+        default: "standard"
+      - name: operation
+        default: "unknown"
+      - name: process_name
+        default: "generic"
+
+  # Resource detection and attribute enhancement
+  resourcedetection:
+    detectors: [env, system, host]
+    timeout: 5s
+
+  # Batch processing for performance
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Transform spans to add SLO-relevant attributes
+  transform:
+    trace_statements:
+      - context: span
+        statements:
+          # Tag RPA process execution spans
+          - set(attributes["slo.process_execution"], true) where name == "rpa.process.execute"
+
+          # Tag external API calls for latency SLO
+          - set(attributes["slo.external_api"], true) where kind == SPAN_KIND_CLIENT and name matches "http.client.*"
+
+          # Tag user transaction root spans
+          - set(attributes["slo.user_transaction"], true) where kind == SPAN_KIND_SERVER and name matches "(POST|PUT) /api/workflows.*"
+
+          # Extract business context from span attributes
+          - set(attributes["business.context"], "extracted") where attributes["user_id"] != nil
+
+          # Add SLO compliance tags based on duration and status
+          - set(attributes["slo.compliant"], true) where duration < 500000000 and attributes["slo.external_api"] == true
+          - set(attributes["slo.compliant"], true) where duration < 3000000000 and attributes["slo.user_transaction"] == true
+          - set(attributes["slo.compliant"], true) where status.code == STATUS_CODE_OK and attributes["slo.process_execution"] == true
+
+exporters:
+  # Primary Prometheus exporter for SLO metrics
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "easyflow"
+    const_labels:
+      environment: "${ENVIRONMENT:-development}"
+      service_version: "${SERVICE_VERSION:-1.0.0}"
+
+    # Metric relabeling for SLO compatibility
+    metric_relabeling:
+      - source_labels: [__name__]
+        regex: "traces_spanmetrics_latency_bucket"
+        target_label: "__name__"
+        replacement: "easyflow_span_duration_bucket"
+
+      - source_labels: [__name__]
+        regex: "traces_spanmetrics_calls_total"
+        target_label: "__name__"
+        replacement: "easyflow_span_calls_total"
+
+  # Separate exporter for span metrics (used by recording rules)
+  prometheus/spanmetrics:
+    endpoint: "0.0.0.0:8890"
+    namespace: "traces"
+
+  # Debug exporter for development
+  debug:
+    verbosity: basic
+
+  # Optional: Export to remote Prometheus/Mimir
+  prometheusremotewrite:
+    endpoint: "${PROMETHEUS_REMOTE_WRITE_URL}"
+    headers:
+      Authorization: "Bearer ${PROMETHEUS_API_KEY}"
+    resource_to_telemetry_conversion:
+      enabled: true
+
+service:
+  extensions: []
+
+  pipelines:
+    # Trace pipeline with span metrics generation
+    traces:
+      receivers: [otlp]
+      processors:
+        [memory_limiter, resourcedetection, transform, spanmetrics, batch]
+      exporters: [debug]
+
+    # Metrics pipeline for SLO data
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [prometheus, prometheusremotewrite]
+
+  # Telemetry configuration
+  telemetry:
+    logs:
+      level: info
+      encoding: json
+
+    metrics:
+      level: basic
+      address: 0.0.0.0:8888
+
+# Environment-specific overrides
+# These can be set via environment variables or config maps
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  zpages:
+    endpoint: 0.0.0.0:55679

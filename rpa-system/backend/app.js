@@ -1,9 +1,23 @@
-// --- Global error handlers for fatal errors ---
+// --- Initialize OpenTelemetry first for comprehensive instrumentation ---
+require('./middleware/telemetryInit');
+
+// --- Initialize structured logging after telemetry ---
+const { createLogger } = require('./middleware/structuredLogging');
+const rootLogger = createLogger('app.startup');
+
+// --- Enhanced global error handlers with structured logging ---
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
+  rootLogger.fatal('Uncaught Exception - Application will exit', err, {
+    process: { pid: process.pid, uptime: process.uptime() }
+  });
+  process.exit(1);
 });
+
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection:', reason);
+  rootLogger.error('Unhandled Promise Rejection', reason instanceof Error ? reason : new Error(String(reason)), {
+    promise_details: promise.toString(),
+    process: { pid: process.pid, uptime: process.uptime() }
+  });
 });
 const express = require('express');
 const cors = require('cors');
@@ -15,6 +29,7 @@ const csrf = require('csurf');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
 // Load environment variables from the backend/.env file early so modules that
 // require configuration (Firebase, Supabase, etc.) see the variables on require-time.
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
@@ -25,6 +40,8 @@ const { usageTracker } = require('./utils/usageTracker');
 const { auditLogger } = require('./utils/auditLogger');
 const { LinkDiscoveryService } = require('./services/linkDiscoveryService');
 const { requireAutomationRun, requireWorkflowRun, requireWorkflowCreation, checkStorageLimit, requireFeature, requirePlan } = require('./middleware/planEnforcement');
+const { traceContextMiddleware, createContextLogger } = require('./middleware/traceContext');
+const { requestLoggingMiddleware } = require('./middleware/structuredLogging');
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  const morgan = require('morgan');
@@ -70,6 +87,61 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), service: 'backend', build: process.env.BUILD_ID || 'dev' });
 });
 
+// ✅ INSTRUCTION 1: Import OpenTelemetry for trace context extraction
+const { trace } = require('@opentelemetry/api');
+
+// ✅ INSTRUCTION 1: Context-Binding Logger Middleware
+// This middleware runs AFTER authentication and binds user context to logger
+const contextLoggerMiddleware = async (req, res, next) => {
+  // Get trace context from active span
+  const span = trace.getActiveSpan();
+  const traceId = span ? span.spanContext().traceId : null;
+  const spanId = span ? span.spanContext().spanId : null;
+  
+  // Get user_tier from plan data (if available) or fetch it
+  let userTier = 'unknown';
+  if (req.user && req.user.id) {
+    try {
+      // Try to get user tier from planData if already fetched
+      if (req.planData && req.planData.plan) {
+        userTier = req.planData.plan.name || 'free';
+      } else {
+        // Fetch user tier from database
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_tier')
+          .eq('id', req.user.id)
+          .single();
+        
+        userTier = profile?.subscription_tier || 'free';
+      }
+    } catch (err) {
+      // Silently fail, use default
+      userTier = 'free';
+    }
+  }
+  
+  // ✅ INSTRUCTION 1: Create context-bound logger with high-cardinality attributes
+  req.log = rootLogger.child({
+    // Trace context (Gap 9)
+    trace_id: traceId,
+    span_id: spanId,
+    
+    // User context (Gap 9, 12)
+    user_id: req.user?.id || null,
+    user_email: req.user?.email || null,
+    user_tier: userTier,  // Gap 12: User tier attribute
+    
+    // Request context
+    request_id: req.id || uuidv4(),
+    method: req.method,
+    path: req.path,
+    ip: req.ip
+  });
+  
+  next();
+};
+
 // Authentication middleware for individual routes
 const authMiddleware = async (req, res, next) => {
   const startTime = Date.now();
@@ -87,9 +159,6 @@ const authMiddleware = async (req, res, next) => {
   
   try {
     if (!supabase) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[auth] supabase client missing (check SUPABASE_URL / SUPABASE_SERVICE_ROLE)');
-      }
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
       res.set('x-auth-reason', 'no-supabase');
       return res.status(401).json({ error: 'Authentication failed' });
@@ -100,9 +169,6 @@ const authMiddleware = async (req, res, next) => {
     const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
     
     if (!token) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[auth] missing bearer token header for path', req.path);
-      }
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
       res.set('x-auth-reason', 'no-token');
       return res.status(401).json({ error: 'Authentication failed' });
@@ -111,9 +177,6 @@ const authMiddleware = async (req, res, next) => {
     // validate token via Supabase server client
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data || !data.user) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[auth] token validation failed', { path: req.path, error: error?.message });
-      }
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
       res.set('x-auth-reason', 'invalid-token');
       return res.status(401).json({ error: 'Authentication failed' });
@@ -127,10 +190,14 @@ const authMiddleware = async (req, res, next) => {
     return next();
 
   } catch (err) {
-    console.error('[auth middleware] error', err?.message || err);
+    // ✅ INSTRUCTION 2: Replace console.error with structured logger
+    rootLogger.error(err, 'Authentication middleware error', {
+      path: req.path,
+      method: req.method
+    });
     await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
-  res.set('x-auth-reason', 'exception');
-  return res.status(401).json({ error: 'Authentication failed' });
+    res.set('x-auth-reason', 'exception');
+    return res.status(401).json({ error: 'Authentication failed' });
   }
 };
 
@@ -358,6 +425,14 @@ const corsOptions = {
 app.use(cors(corsOptions));
 // Ensure preflight requests are handled consistently
 app.options('*', cors(corsOptions));
+
+// ✅ CRITICAL: Add trace context middleware EARLY in chain
+// This must come after CORS but before auth/business logic
+app.use(traceContextMiddleware);
+
+// ✅ Add structured request logging middleware
+// This should come immediately after trace context to capture all requests
+app.use(requestLoggingMiddleware());
 
 // The Polar webhook needs a raw body, so we conditionally skip the JSON parser for it.
 // For all other routes, this middleware will parse the JSON body.
@@ -685,41 +760,42 @@ app.use('/api', referralRouter);
 // Execution routes: details, steps, cancel
 try {
   const executionRoutes = require('./routes/executionRoutes');
-  app.use('/api/executions', authMiddleware, apiLimiter, executionRoutes);
+  // ✅ INSTRUCTION 1: Apply context logger middleware after auth
+  app.use('/api/executions', authMiddleware, contextLoggerMiddleware, apiLimiter, executionRoutes);
 } catch (e) {
-  console.warn('[boot] executionRoutes not mounted:', e?.message || e);
+  rootLogger.warn('executionRoutes not mounted', { error: e?.message || e });
 }
 
 // Audit logs routes
 try {
   const auditLogsRoutes = require('./routes/auditLogs');
-  app.use('/api/audit-logs', authMiddleware, apiLimiter, auditLogsRoutes);
+  app.use('/api/audit-logs', authMiddleware, contextLoggerMiddleware, apiLimiter, auditLogsRoutes);
 } catch (e) {
-  console.warn('[boot] auditLogsRoutes not mounted:', e?.message || e);
+  rootLogger.warn('auditLogsRoutes not mounted', { error: e?.message || e });
 }
 
 // ROI analytics routes
 try {
   const roiAnalyticsRoutes = require('./routes/roiAnalytics');
-  app.use('/api/roi-analytics', authMiddleware, apiLimiter, roiAnalyticsRoutes);
+  app.use('/api/roi-analytics', authMiddleware, contextLoggerMiddleware, apiLimiter, roiAnalyticsRoutes);
 } catch (e) {
-  console.warn('[boot] roiAnalyticsRoutes not mounted:', e?.message || e);
+  rootLogger.warn('roiAnalyticsRoutes not mounted', { error: e?.message || e });
 }
 
 // Data retention routes
 try {
   const dataRetentionRoutes = require('./routes/dataRetention');
-  app.use('/api/data-retention', authMiddleware, apiLimiter, dataRetentionRoutes);
+  app.use('/api/data-retention', authMiddleware, contextLoggerMiddleware, apiLimiter, dataRetentionRoutes);
 } catch (e) {
-  console.warn('[boot] dataRetentionRoutes not mounted:', e?.message || e);
+  rootLogger.warn('dataRetentionRoutes not mounted', { error: e?.message || e });
 }
 
 // Workflow versioning routes
 try {
   const workflowVersioningRoutes = require('./routes/workflowVersioning');
-  app.use('/api/workflows', authMiddleware, apiLimiter, workflowVersioningRoutes);
+  app.use('/api/workflows', authMiddleware, contextLoggerMiddleware, apiLimiter, workflowVersioningRoutes);
 } catch (e) {
-  console.warn('[boot] workflowVersioningRoutes not mounted:', e?.message || e);
+  rootLogger.warn('workflowVersioningRoutes not mounted', { error: e?.message || e });
 }
 
 // Start a workflow execution

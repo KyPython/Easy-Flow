@@ -22,6 +22,14 @@ try {
     axios = null;
 }
 
+// Import trace context utilities
+let traceContext = null;
+try {
+    traceContext = require('../middleware/traceContext');
+} catch (e) {
+    console.warn('⚠️ Trace context not available, Kafka messages will not include correlation headers');
+}
+
 class KafkaService {
     constructor() {
         // Check if Kafka should be enabled (disabled by default on Render)
@@ -283,14 +291,16 @@ class KafkaService {
         return response.data;
     }
     
-    async sendToUpstash(topic, message) {
+    async sendToUpstash(topic, message, traceHeaders = {}) {
+        // ✅ Include trace headers for correlation propagation
         const payload = {
             topic,
             value: Buffer.from(JSON.stringify(message)).toString('base64'),
             headers: {
                 'content-type': 'application/json',
                 'timestamp': Date.now().toString(),
-                'source': 'backend-service'
+                'source': 'backend-service',
+                ...traceHeaders // CRITICAL: Propagate trace context through Upstash
             }
         };
         
@@ -353,8 +363,20 @@ class KafkaService {
     }
     
     async sendAutomationTask(taskData) {
+        // ✅ Create context-aware logger with business attributes
+        const logger = traceContext ? traceContext.createContextLogger({
+            operation: 'kafka_send_task',
+            taskId: taskData.task_id,
+            taskType: taskData.task_type,
+            userId: taskData.user_id
+        }) : null;
+        
         if (!this.kafkaEnabled) {
-            console.log('🔇 Kafka automation task skipped - service disabled');
+            if (logger) {
+                logger.info('Kafka automation task skipped - service disabled');
+            } else {
+                console.log('🔇 Kafka automation task skipped - service disabled');
+            }
             return { 
                 success: true, 
                 task_id: taskData.task_id || 'disabled-' + Date.now(),
@@ -363,32 +385,53 @@ class KafkaService {
         }
         
         if (!this.isConnected) {
-            throw new Error('Kafka service is not connected');
+            const error = new Error('Kafka service is not connected');
+            if (logger) {
+                logger.error('Kafka service not connected', error);
+            }
+            throw error;
         }
         
         const taskId = taskData.task_id || uuidv4();
         const taskWithId = { ...taskData, task_id: taskId };
         
         try {
-            console.log(`[KafkaService] Sending automation task ${taskId}:`, taskWithId);
+            // ✅ Get trace headers for correlation propagation
+            const kafkaTraceHeaders = traceContext ? traceContext.getKafkaTraceHeaders() : {};
+            
+            if (logger) {
+                logger.info('Sending automation task to Kafka', {
+                    taskId,
+                    taskType: taskData.task_type,
+                    topic: this.taskTopic,
+                    useUpstash: this.useUpstash
+                });
+            } else {
+                console.log(`[KafkaService] Sending automation task ${taskId}:`, taskWithId);
+            }
             
             let result;
             if (this.useUpstash) {
-                result = await this.sendToUpstash(this.taskTopic, taskWithId);
+                result = await this.sendToUpstash(this.taskTopic, taskWithId, kafkaTraceHeaders);
             } else {
                 if (!this.producer) {
                     throw new Error('Kafka producer is not available');
                 }
+                
+                // ✅ Include trace headers in Kafka message headers
+                const messageHeaders = {
+                    'content-type': 'application/json',
+                    'timestamp': Date.now().toString(),
+                    'source': 'backend-service',
+                    ...kafkaTraceHeaders // CRITICAL: Propagate trace context
+                };
+                
                 result = await this.producer.send({
                     topic: this.taskTopic,
                     messages: [{
                         key: taskId,
                         value: JSON.stringify(taskWithId),
-                        headers: {
-                            'content-type': 'application/json',
-                            'timestamp': Date.now().toString(),
-                            'source': 'backend-service'
-                        }
+                        headers: messageHeaders
                     }]
                 });
             }
