@@ -17,13 +17,23 @@ OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://l
 OTEL_EXPORTER_OTLP_HEADERS = os.getenv('OTEL_EXPORTER_OTLP_HEADERS', '')
 
 def parse_headers(header_string):
-    """Parse headers from environment variable format."""
+    """
+    Parse headers from environment variable format.
+    Handles single Authorization header (most common) and comma-separated headers.
+    Format: "Authorization=Basic <token>" OR "key1=value1,key2=value2"
+    """
     headers = {}
     if header_string:
-        for pair in header_string.split(','):
-            if '=' in pair:
-                key, value = pair.split('=', 1)
-                headers[key.strip()] = value.strip()
+        # Handle single Authorization header (most common case for OTLP)
+        if header_string.startswith('Authorization='):
+            value = header_string[len('Authorization='):]
+            headers['Authorization'] = value
+        else:
+            # Handle comma-separated headers
+            for pair in header_string.split(','):
+                if '=' in pair:
+                    key, value = pair.split('=', 1)
+                    headers[key.strip()] = value.strip()
     return headers
 
 def initialize_telemetry():

@@ -4,6 +4,15 @@ Production-Ready Automation Service with Enhanced Kafka Support
 This version uses a thread-safe approach for a robust worker.
 """
 
+# ✅ CRITICAL: Initialize OpenTelemetry FIRST (before any other imports)
+try:
+    from otel_init import OTEL_INITIALIZED
+    if OTEL_INITIALIZED:
+        print("✅ OpenTelemetry initialized for Python worker")
+except ImportError as e:
+    print(f"⚠️ Could not import otel_init: {e}")
+    OTEL_INITIALIZED = False
+
 import os
 import sys
 import time
