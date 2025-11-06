@@ -84,13 +84,15 @@ const prometheusExporter = new PrometheusExporter({
 
 // ✅ INSTRUCTION 1: Configure trace sampler (Gap 10)
 // Uses ParentBasedSampler: preserves all traces initiated by sampled requests
-// Fallback to 10% sampling for root spans (reduces high-volume noise)
+// TEMPORARY: Using 100% sampling for initial Grafana Cloud verification
+// TODO: Reduce to 0.1 (10%) after traces are confirmed in Grafana Cloud
+const samplingRatio = process.env.OTEL_TRACE_SAMPLING_RATIO ? parseFloat(process.env.OTEL_TRACE_SAMPLING_RATIO) : 1.0;
 const sampler = new ParentBasedSampler({
-  root: new TraceIdRatioBasedSampler(0.1), // 10% sampling for root spans
+  root: new TraceIdRatioBasedSampler(samplingRatio), // Configurable sampling for root spans
   remoteParentSampled: new AlwaysOnSampler(), // Always sample if parent was sampled
   remoteParentNotSampled: new AlwaysOnSampler(), // Sample even if parent wasn't (for flexibility)
   localParentSampled: new AlwaysOnSampler(), // Always sample if local parent was sampled
-  localParentNotSampled: new TraceIdRatioBasedSampler(0.1) // 10% sampling for local unsampled parents
+  localParentNotSampled: new TraceIdRatioBasedSampler(samplingRatio) // Configurable sampling for local unsampled parents
 });
 
 // ✅ INSTRUCTION 1: Create custom span processor for sensitive data redaction (Gap 14)
@@ -326,7 +328,7 @@ try {
   console.log(`✅ [Telemetry] Service Name: ${process.env.OTEL_SERVICE_NAME || 'rpa-system-backend'}`);
   console.log(`✅ [Telemetry] OTLP Endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4318'}`);
   console.log(`✅ [Telemetry] OTLP Headers: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? 'CONFIGURED ✓' : '❌ MISSING - Traces will NOT reach Grafana!'}`);
-  console.log(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with 10% ratio (Gap 10 optimized)`);
+  console.log(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with ${(samplingRatio * 100).toFixed(0)}% sampling ratio`);
   console.log(`✅ [Telemetry] Data Redaction: Active (Gap 14 - sensitive data removed)`);
   console.log('✅ [Telemetry] OTEL Exporters: ACTIVE - Ready to stream to Grafana Cloud');
   

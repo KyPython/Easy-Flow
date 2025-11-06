@@ -29,10 +29,6 @@ In your GitHub repository, go to **Settings > Secrets and Variables > Actions** 
 REDDIT_CLIENT_ID=your_reddit_client_id
 REDDIT_CLIENT_SECRET=your_reddit_client_secret
 
-# Optional for notifications  
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR/DISCORD/WEBHOOK
-
 # Optional for admin access
 ADMIN_API_KEY=your_secure_admin_key
 ```

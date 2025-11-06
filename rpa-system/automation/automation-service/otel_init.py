@@ -63,8 +63,11 @@ def initialize_telemetry():
             'business.component': 'automation-worker'
         })
         
-        # ✅ PART 2.2: Configure sampler - 10% sampling with parent-based propagation
-        sampler = ParentBasedTraceIdRatio(0.1)  # 10% sampling
+        # ✅ PART 2.2: Configure sampler - parent-based sampling
+        # TEMPORARY: Using 100% sampling for initial Grafana Cloud verification
+        # TODO: Set OTEL_TRACE_SAMPLING_RATIO=0.1 after traces confirmed
+        sampling_ratio = float(os.getenv('OTEL_TRACE_SAMPLING_RATIO', '1.0'))
+        sampler = ParentBasedTraceIdRatio(sampling_ratio)
         
         # Configure tracer provider
         tracer_provider = TracerProvider(
@@ -97,7 +100,7 @@ def initialize_telemetry():
         logger.info("✅ [Telemetry] OpenTelemetry Python worker instrumentation initialized")
         logger.info(f"✅ [Telemetry] Service Name: {SERVICE_NAME}")
         logger.info(f"✅ [Telemetry] OTLP Endpoint: {OTEL_EXPORTER_OTLP_ENDPOINT}")
-        logger.info(f"✅ [Telemetry] Trace Sampler: ParentBasedTraceIdRatio with 10% ratio")
+        logger.info(f"✅ [Telemetry] Trace Sampler: ParentBasedTraceIdRatio with {int(sampling_ratio * 100)}% sampling ratio")
         logger.info("✅ [Telemetry] OTEL Exporters: ACTIVE - Ready to stream to Grafana Cloud")
         
         return True
