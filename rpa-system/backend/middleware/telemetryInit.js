@@ -315,6 +315,7 @@ try {
   console.log('✅ [Telemetry] OpenTelemetry backend instrumentation initialized successfully');
   console.log(`✅ [Telemetry] Service Name: ${process.env.OTEL_SERVICE_NAME || 'rpa-system-backend'}`);
   console.log(`✅ [Telemetry] OTLP Endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4318'}`);
+  console.log(`✅ [Telemetry] OTLP Headers: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? 'CONFIGURED ✓' : '❌ MISSING - Traces will NOT reach Grafana!'}`);
   console.log(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with 10% ratio (Gap 10 optimized)`);
   console.log(`✅ [Telemetry] Data Redaction: Active (Gap 14 - sensitive data removed)`);
   console.log('✅ [Telemetry] OTEL Exporters: ACTIVE - Ready to stream to Grafana Cloud');
