@@ -25,7 +25,7 @@ const { BatchSpanProcessor, SimpleSpanProcessor } = require('@opentelemetry/sdk-
 
 // ✅ PART 2.1: Use OTEL_SERVICE_NAME environment variable for service identification
 const resource = new Resource({
-  [SemanticResourceAttributes.SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'easyflow-backend',
+  [SemanticResourceAttributes.SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'rpa-system-backend',
   [SemanticResourceAttributes.SERVICE_VERSION]: process.env.SERVICE_VERSION || '1.0.0',
   [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
   [SemanticResourceAttributes.SERVICE_NAMESPACE]: 'easyflow',
@@ -313,7 +313,7 @@ try {
   
   // ✅ PART 2.3: Verification - Print success message indicating OTEL Exporters are active
   console.log('✅ [Telemetry] OpenTelemetry backend instrumentation initialized successfully');
-  console.log(`✅ [Telemetry] Service Name: ${process.env.OTEL_SERVICE_NAME || 'easyflow-backend'}`);
+  console.log(`✅ [Telemetry] Service Name: ${process.env.OTEL_SERVICE_NAME || 'rpa-system-backend'}`);
   console.log(`✅ [Telemetry] OTLP Endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4318'}`);
   console.log(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with 10% ratio (Gap 10 optimized)`);
   console.log(`✅ [Telemetry] Data Redaction: Active (Gap 14 - sensitive data removed)`);

@@ -43,7 +43,7 @@ const loggerConfig = {
 
   // Base fields for all log entries
   base: {
-    service: 'easyflow-backend',
+    service: 'rpa-system-backend',
     version: process.env.npm_package_version || '0.0.0',
     environment: process.env.NODE_ENV || 'development'
   },
