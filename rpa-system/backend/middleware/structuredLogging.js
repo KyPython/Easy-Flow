@@ -5,7 +5,7 @@
  */
 
 const pino = require('pino');
-const { getTraceContext } = require('./traceContext');
+const { getCurrentTraceContext } = require('./traceContext');
 
 // Create base logger configuration
 const loggerConfig = {
@@ -20,7 +20,7 @@ const loggerConfig = {
           },
           log(object) {
             // Automatically inject trace context into every log entry
-            const traceContext = getTraceContext();
+            const traceContext = getCurrentTraceContext();
             return {
               ...object,
               trace: traceContext || {},
@@ -239,7 +239,7 @@ class StructuredLogger {
    * Enrich log entry with trace context and business data
    */
   _enrichLog(extra = {}) {
-    const traceContext = getTraceContext();
+    const traceContext = getCurrentTraceContext();
     
     return {
       ...extra,
