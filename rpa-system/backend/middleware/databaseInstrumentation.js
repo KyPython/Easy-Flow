@@ -4,7 +4,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const { getTraceContext, createContextLogger } = require('../middleware/traceContext');
+const { getCurrentTraceContext, createContextLogger } = require('../middleware/traceContext');
 
 // ✅ INSTRUCTION 1: Import OpenTelemetry for database span instrumentation
 const { trace, SpanStatusCode, SpanKind } = require('@opentelemetry/api');
@@ -204,7 +204,7 @@ class InstrumentedTable {
    */
   async _executeOperation(operation, queryFn, attributes = {}) {
     const startTime = Date.now();
-    const traceContext = getTraceContext();
+    const traceContext = getCurrentTraceContext();
     
     // ✅ INSTRUCTION 1: Create OpenTelemetry span with standard db.* attributes
     const tracer = trace.getTracer('database.supabase');
@@ -381,7 +381,7 @@ class InstrumentedQuery {
    */
   async execute() {
     const startTime = Date.now();
-    const traceContext = getTraceContext();
+    const traceContext = getCurrentTraceContext();
     
     // ✅ INSTRUCTION 1: Create OpenTelemetry span for query execution
     const tracer = trace.getTracer('database.supabase');

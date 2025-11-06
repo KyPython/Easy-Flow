@@ -4,7 +4,7 @@
  */
 
 const axios = require('axios');
-const { getTraceContext, createContextLogger } = require('../middleware/traceContext');
+const { getCurrentTraceContext, createContextLogger } = require('../middleware/traceContext');
 
 class InstrumentedAxiosClient {
   constructor(baseConfig = {}) {
@@ -34,7 +34,7 @@ class InstrumentedAxiosClient {
    */
   _instrumentRequest(config) {
     const startTime = Date.now();
-    const traceContext = getTraceContext();
+    const traceContext = getCurrentTraceContext();
     
     // Add trace headers for external service correlation
     if (!config.headers) config.headers = {};

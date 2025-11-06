@@ -3,14 +3,14 @@
  * Provides span creation for CPU-intensive operations
  */
 
-const { getTraceContext, createContextLogger } = require('./traceContext');
+const { getCurrentTraceContext, createContextLogger } = require('./traceContext');
 
 class PerformanceSpan {
   constructor(operation, attributes = {}) {
     this.operation = operation;
     this.attributes = attributes;
     this.startTime = Date.now();
-    this.traceContext = getTraceContext();
+    this.traceContext = getCurrentTraceContext();
     this.logger = createContextLogger('performance');
     
     // Log span start
