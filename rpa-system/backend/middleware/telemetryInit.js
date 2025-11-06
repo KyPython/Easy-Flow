@@ -53,15 +53,25 @@ const metricExporter = new OTLPMetricExporter({
 });
 
 // Helper function to parse headers from environment variable
+// Format: "key1=value1,key2=value2" OR single header "Authorization=Basic <token>"
 function parseHeaders(headerString) {
   const headers = {};
   if (headerString) {
-    headerString.split(',').forEach(pair => {
-      const [key, value] = pair.split('=');
-      if (key && value) {
-        headers[key.trim()] = value.trim();
-      }
-    });
+    // Handle single Authorization header (most common case for OTLP)
+    if (headerString.startsWith('Authorization=')) {
+      const value = headerString.substring('Authorization='.length);
+      headers['Authorization'] = value;
+    } else {
+      // Handle comma-separated headers
+      headerString.split(',').forEach(pair => {
+        const idx = pair.indexOf('=');
+        if (idx > 0) {
+          const key = pair.substring(0, idx).trim();
+          const value = pair.substring(idx + 1).trim();
+          headers[key] = value;
+        }
+      });
+    }
   }
   return headers;
 }
