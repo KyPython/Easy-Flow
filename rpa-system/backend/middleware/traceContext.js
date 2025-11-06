@@ -11,6 +11,17 @@
 const { AsyncLocalStorage } = require('async_hooks');
 const { v4: uuidv4 } = require('uuid');
 
+// Import OpenTelemetry API safely
+let otelTrace, otelContext;
+try {
+  otelTrace = require('@opentelemetry/api').trace;
+  otelContext = require('@opentelemetry/api').context;
+} catch (err) {
+  // OpenTelemetry not available, will use manual trace IDs only
+  otelTrace = null;
+  otelContext = null;
+}
+
 // Global context storage for the current request
 const traceContextStorage = new AsyncLocalStorage();
 
@@ -60,7 +71,25 @@ function generateChildSpanId() {
 function createTraceContext(req, existingTraceParent = null) {
   let traceId, spanId, parentSpanId = null;
   
-  if (existingTraceParent) {
+  // Try to get OpenTelemetry active span context first (if OTel is initialized)
+  if (otelTrace && otelContext) {
+    try {
+      const activeSpan = otelTrace.getActiveSpan();
+      if (activeSpan) {
+        const spanContext = activeSpan.spanContext();
+        if (spanContext && spanContext.traceId && spanContext.spanId) {
+          traceId = spanContext.traceId;
+          spanId = spanContext.spanId;
+          // Already have valid OTel context, no need to parse headers
+        }
+      }
+    } catch (err) {
+      // OTel span not available, continue with manual generation
+    }
+  }
+  
+  // If no OTel context, try to extract from headers
+  if (!traceId && existingTraceParent) {
     const parsed = parseTraceParent(existingTraceParent);
     if (parsed) {
       traceId = parsed.traceId;
@@ -81,6 +110,14 @@ function createTraceContext(req, existingTraceParent = null) {
       traceId = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '').substring(0, 16);
       spanId = generateChildSpanId();
     }
+  }
+  
+  // Ensure traceId exists before creating requestId
+  if (!traceId || traceId.length < 12) {
+    traceId = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '').substring(0, 16);
+  }
+  if (!spanId) {
+    spanId = generateChildSpanId();
   }
   
   // Create simplified request_id for logging
