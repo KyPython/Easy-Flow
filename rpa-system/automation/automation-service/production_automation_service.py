@@ -59,18 +59,20 @@ try:
     
     # ✅ INSTRUCTION 2: Keep only business-critical metrics (Gap 8, 18)
     # Core business metric: task processing outcomes
+    # ✅ INSTRUCTION 3: Added user_id and workflow_id labels for high-cardinality (Gap 17)
     tasks_processed = Counter(
         'automation_tasks_processed_total',
         'Total number of automation tasks processed',
-        ['status', 'task_type'],  # High-value labels
+        ['status', 'task_type', 'user_id', 'workflow_id'],  # High-cardinality labels for filtering
         registry=registry
     )
     
     # Performance metric: task duration for SLO tracking
+    # ✅ INSTRUCTION 3: Added workflow_id for performance analysis by workflow (Gap 17)
     task_duration = Histogram(
         'automation_task_duration_seconds',
         'Time spent processing automation tasks',
-        ['task_type'],  # Essential for performance analysis
+        ['task_type', 'workflow_id'],  # Essential for performance analysis
         buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0],  # Optimized buckets
         registry=registry
     )
@@ -79,7 +81,7 @@ try:
     error_count = Counter(
         'automation_errors_total',
         'Total automation errors by type',
-        ['error_type', 'task_type'],  # Essential for debugging
+        ['error_type', 'task_type', 'user_id'],  # Essential for debugging by user
         registry=registry
     )
     
@@ -305,10 +307,23 @@ def process_automation_task(task_data):
     """Placeholder for task processing logic."""
     task_id = task_data.get('task_id', 'unknown')
     task_type = task_data.get('task_type', 'unknown')
+    
+    # ✅ INSTRUCTION 3: Extract user_id and workflow_id from task payload (Gap 9, 17)
+    user_id = task_data.get('user_id', 'unknown')
+    workflow_id = task_data.get('workflow_id', 'unknown')
 
+    # ✅ INSTRUCTION 3: Create context-aware logger with user_id and workflow_id bound (Gap 9)
+    # This allows filtering logs by user or workflow in Grafana
+    task_logger = logging.LoggerAdapter(logger, {
+        'user_id': user_id,
+        'workflow_id': workflow_id,
+        'task_id': task_id,
+        'task_type': task_type
+    })
+    
     # ✅ INSTRUCTION 2: Reduced task processing logging (Gap 19)
     # Log at DEBUG level - task receipt is already logged in consumer
-    logger.debug(f"Processing task {task_id} of type {task_type}")
+    task_logger.debug(f"Processing task {task_id} of type {task_type}")
     
     # Start timing for metrics
     start_time = time.time() if METRICS_AVAILABLE else None
@@ -364,22 +379,42 @@ def process_automation_task(task_data):
 
         send_result_to_kafka(task_id, result)
         
-        # Record successful task completion
+        # ✅ INSTRUCTION 3: Record successful task completion with high-cardinality labels (Gap 17)
         if METRICS_AVAILABLE:
-            tasks_processed.labels(status='success').inc()
+            tasks_processed.labels(
+                status='success', 
+                task_type=task_type,
+                user_id=user_id,
+                workflow_id=workflow_id
+            ).inc()
             if start_time:
-                task_duration.observe(time.time() - start_time)
+                task_duration.labels(
+                    task_type=task_type,
+                    workflow_id=workflow_id
+                ).observe(time.time() - start_time)
 
     except Exception as e:
-        logger.error(f"❌ Task {task_id} processing failed: {e}")
+        task_logger.error(f"❌ Task {task_id} processing failed: {e}")
         send_result_to_kafka(task_id, {'error': str(e)}, status='failed')
         
-        # Record failed task
+        # ✅ INSTRUCTION 3: Record failed task with high-cardinality labels (Gap 17)
         if METRICS_AVAILABLE:
-            tasks_processed.labels(status='failed').inc()
-            error_count.labels(error_type=type(e).__name__).inc()
+            tasks_processed.labels(
+                status='failed',
+                task_type=task_type,
+                user_id=user_id,
+                workflow_id=workflow_id
+            ).inc()
+            error_count.labels(
+                error_type=type(e).__name__,
+                task_type=task_type,
+                user_id=user_id
+            ).inc()
             if start_time:
-                task_duration.observe(time.time() - start_time)
+                task_duration.labels(
+                    task_type=task_type,
+                    workflow_id=workflow_id
+                ).observe(time.time() - start_time)
 
 def kafka_consumer_loop():
     """Main Kafka consumer loop that polls for messages with trace context extraction."""
