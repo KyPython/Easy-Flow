@@ -1,4 +1,7 @@
-// Initialize New Relic monitoring FIRST
+// ✅ Initialize OpenTelemetry FIRST (before anything else, including New Relic)
+require('./middleware/telemetryInit');
+
+// Initialize New Relic monitoring SECOND (if needed)
 if (process.env.NEW_RELIC_LICENSE_KEY && process.env.NEW_RELIC_ENABLED !== 'false') {
   require('./newrelic');
   console.log('🚀 New Relic monitoring initialized for', process.env.NEW_RELIC_APP_NAME || 'EasyFlow-Automation-Service');
