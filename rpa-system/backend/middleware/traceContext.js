@@ -73,8 +73,14 @@ function createTraceContext(req, existingTraceParent = null) {
   if (!traceId) {
     const newTraceParent = generateTraceParent();
     const parsed = parseTraceParent(newTraceParent);
-    traceId = parsed.traceId;
-    spanId = parsed.spanId;
+    if (parsed) {
+      traceId = parsed.traceId;
+      spanId = parsed.spanId;
+    } else {
+      // Fallback: generate directly if parsing fails
+      traceId = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '').substring(0, 16);
+      spanId = generateChildSpanId();
+    }
   }
   
   // Create simplified request_id for logging
