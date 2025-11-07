@@ -90,11 +90,23 @@ if (!hasValidCredentials()) {
   console.warn('⚠️  [Telemetry] Application will continue without observability export');
 }
 
+// Parse headers with validation
+const parsedHeaders = process.env.OTEL_EXPORTER_OTLP_HEADERS ?
+  parseHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {};
+
+// Validate Authorization header doesn't contain quotes
+if (parsedHeaders.Authorization) {
+  const authValue = parsedHeaders.Authorization;
+  if (authValue.includes('"') || authValue.includes("'")) {
+    console.warn('⚠️ [Telemetry] WARNING: Authorization header contains quotes, attempting to clean...');
+    parsedHeaders.Authorization = authValue.replace(/['"]/g, '');
+  }
+}
+
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` : 'http://localhost:4318/v1/traces'),
-  headers: process.env.OTEL_EXPORTER_OTLP_HEADERS ?
-    parseHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {},
+  headers: parsedHeaders,
   // Add timeout to prevent hanging on auth failures
   timeoutMillis: 10000,
   // Prevent connection errors from crashing the app
@@ -104,8 +116,7 @@ const traceExporter = new OTLPTraceExporter({
 const metricExporter = new OTLPMetricExporter({
   url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics` : 'http://localhost:4318/v1/metrics'),
-  headers: process.env.OTEL_EXPORTER_OTLP_HEADERS ?
-    parseHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {},
+  headers: parsedHeaders,
   // Add timeout to prevent hanging on auth failures
   timeoutMillis: 10000,
   // Prevent connection errors from crashing the app
@@ -120,8 +131,17 @@ function parseHeaders(headerString) {
     // Handle single Authorization header (most common case for OTLP)
     if (headerString.startsWith('Authorization=')) {
       let value = headerString.substring('Authorization='.length);
-      // Strip surrounding quotes if present
-      value = value.replace(/^["']|["']$/g, '');
+      // Strip surrounding quotes if present (both single and double)
+      value = value.replace(/^["']|["']$/g, '').trim();
+      
+      // Additional safety: remove quotes that might be embedded in the value
+      if (value.startsWith('"') && value.endsWith('"')) {
+        value = value.slice(1, -1);
+      }
+      if (value.startsWith("'") && value.endsWith("'")) {
+        value = value.slice(1, -1);
+      }
+      
       headers['Authorization'] = value;
     } else {
       // Handle comma-separated headers
@@ -131,7 +151,16 @@ function parseHeaders(headerString) {
           const key = pair.substring(0, idx).trim();
           let value = pair.substring(idx + 1).trim();
           // Strip surrounding quotes if present
-          value = value.replace(/^["']|["']$/g, '');
+          value = value.replace(/^["']|["']$/g, '').trim();
+          
+          // Additional safety: remove quotes that might be embedded
+          if (value.startsWith('"') && value.endsWith('"')) {
+            value = value.slice(1, -1);
+          }
+          if (value.startsWith("'") && value.endsWith("'")) {
+            value = value.slice(1, -1);
+          }
+          
           headers[key] = value;
         }
       });
