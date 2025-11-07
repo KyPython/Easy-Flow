@@ -113,6 +113,10 @@ if (parsedHeaders.Authorization) {
   console.warn('⚠️ [Telemetry] WARNING: No Authorization header found in parsed headers!');
 }
 
+// Log the headers object we're passing
+console.log('[Telemetry] Headers object being passed to traceExporter:', JSON.stringify(parsedHeaders));
+console.log('[Telemetry] Type of Authorization value:', typeof parsedHeaders.Authorization);
+
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` : 'http://localhost:4318/v1/traces'),
