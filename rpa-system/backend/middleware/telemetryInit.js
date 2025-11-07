@@ -140,10 +140,18 @@ delete process.env.OTEL_EXPORTER_OTLP_HEADERS;
 
 console.error('[TELEMETRY DEBUG] Creating exporters with explicit headers (env var temporarily unset)');
 
+// Create a plain object for headers - avoid any prototype chain issues
+const cleanHeaders = Object.create(null);
+Object.keys(parsedHeaders).forEach(key => {
+  cleanHeaders[key] = String(parsedHeaders[key]);
+});
+
+console.error('[TELEMETRY DEBUG] Clean headers created:', JSON.stringify(cleanHeaders));
+
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` : 'http://localhost:4318/v1/traces'),
-  headers: parsedHeaders,
+  headers: cleanHeaders,
   // Add timeout to prevent hanging on auth failures
   timeoutMillis: 10000,
   // Prevent connection errors from crashing the app
@@ -153,7 +161,7 @@ const traceExporter = new OTLPTraceExporter({
 const metricExporter = new OTLPMetricExporter({
   url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics` : 'http://localhost:4318/v1/metrics'),
-  headers: parsedHeaders,
+  headers: cleanHeaders,
   // Add timeout to prevent hanging on auth failures
   timeoutMillis: 10000,
   // Prevent connection errors from crashing the app
