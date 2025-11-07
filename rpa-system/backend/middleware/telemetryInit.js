@@ -341,6 +341,9 @@ if (traceExporter && typeof traceExporter.export === 'function') {
           console.error('❌ [Telemetry] 401 Unauthorized - Invalid Grafana Cloud credentials');
           console.error('   Please verify your OTEL_EXPORTER_OTLP_HEADERS token is correct');
         }
+      } else {
+        // ✅ Log successful exports so we can confirm traces are being sent to Grafana
+        console.error(`✅ [Telemetry] Export success: sent ${spans.length} span(s) to Grafana at ${new Date().toISOString()}`);
       }
       resultCallback(result);
     });
