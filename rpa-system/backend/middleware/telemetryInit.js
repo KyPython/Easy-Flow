@@ -32,7 +32,6 @@ const { OTLPMetricExporter } = require('@opentelemetry/exporter-metrics-otlp-htt
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 const { PeriodicExportingMetricReader, MeterProvider } = require('@opentelemetry/sdk-metrics');
 const { trace, metrics, context, SpanStatusCode } = require('@opentelemetry/api');
-const { suppressTracing } = require('@opentelemetry/core');
 const { PrometheusExporter } = require('@opentelemetry/exporter-prometheus');
 
 // ✅ INSTRUCTION 1: Import sampling components for trace optimization (Gap 10)
@@ -155,52 +154,9 @@ Object.keys(parsedHeaders).forEach(key => {
 
 console.error('[TELEMETRY DEBUG] Clean headers created:', JSON.stringify(cleanHeaders));
 
-// CRITICAL FIX: Wrap exporter HTTP requests to suppress instrumentation
-// This prevents the HTTP instrumentation from interfering with OTLP requests
-const http = require('http');
-const https = require('https');
-
-// Store original request methods
-const originalHttpRequest = http.request;
-const originalHttpsRequest = https.request;
-
-// Wrap http.request to detect and protect OTLP requests
-http.request = function(...args) {
-  const options = typeof args[0] === 'string' ? args[1] : args[0];
-  const isOtlpRequest = options && (
-    (options.path && (options.path.includes('/v1/traces') || options.path.includes('/v1/metrics'))) ||
-    (options.hostname && options.hostname.includes('grafana'))
-  );
-
-  if (isOtlpRequest) {
-    console.error('[TELEMETRY DEBUG] Protecting OTLP HTTP request from instrumentation');
-    // Suppress tracing for this request to prevent header interference
-    return context.with(suppressTracing(context.active()), () => {
-      return originalHttpRequest.apply(this, args);
-    });
-  }
-
-  return originalHttpRequest.apply(this, args);
-};
-
-// Wrap https.request to detect and protect OTLP requests
-https.request = function(...args) {
-  const options = typeof args[0] === 'string' ? args[1] : args[0];
-  const isOtlpRequest = options && (
-    (options.path && (options.path.includes('/v1/traces') || options.path.includes('/v1/metrics'))) ||
-    (options.hostname && options.hostname.includes('grafana'))
-  );
-
-  if (isOtlpRequest) {
-    console.error('[TELEMETRY DEBUG] Protecting OTLP HTTPS request from instrumentation');
-    // Suppress tracing for this request to prevent header interference
-    return context.with(suppressTracing(context.active()), () => {
-      return originalHttpsRequest.apply(this, args);
-    });
-  }
-
-  return originalHttpsRequest.apply(this, args);
-};
+// CRITICAL: DON'T set the env var - keep it UNSET so HTTP instrumentation doesn't interfere
+// We'll pass headers explicitly to exporters only
+console.error('[TELEMETRY DEBUG] Keeping OTEL_EXPORTER_OTLP_HEADERS unset to prevent HTTP instrumentation interference');
 
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
@@ -222,20 +178,7 @@ const metricExporter = new OTLPMetricExporter({
   keepAlive: false
 });
 
-// DON'T restore the original env var - it has problematic formatting
-// Instead, set it to the cleaned comma-separated format that the OTLP library expects
-if (Object.keys(cleanHeaders).length > 0) {
-  const cleanEnvFormat = Object.entries(cleanHeaders)
-    .map(([key, value]) => `${key}=${value}`)
-    .join(',');
-  process.env.OTEL_EXPORTER_OTLP_HEADERS = cleanEnvFormat;
-  console.error('[TELEMETRY DEBUG] Set clean env format:', cleanEnvFormat.substring(0, 60) + '...');
-} else {
-  // If no headers, leave it unset
-  console.error('[TELEMETRY DEBUG] No headers to set in env var');
-}
-
-console.error('[TELEMETRY DEBUG] Exporters created successfully');
+console.error('[TELEMETRY DEBUG] Exporters created with explicit headers (no env var conflict)');
 
 // Helper function to parse headers from environment variable
 // Format: "key1=value1,key2=value2" OR single header "Authorization=Basic <token>"
