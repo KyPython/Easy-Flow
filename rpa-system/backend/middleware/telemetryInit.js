@@ -139,27 +139,28 @@ if (parsedHeaders.Authorization) {
 console.error('[TELEMETRY DEBUG] Final headers object:', JSON.stringify(parsedHeaders, null, 2));
 console.error('='.repeat(80));
 
-// ✅ SIMPLE FIX: Let the OTLP exporters read headers from env var directly
-// The OpenTelemetry SDK REQUIRES the OTEL_EXPORTER_OTLP_HEADERS env var to be set
-// The exporters will NOT use the headers parameter - it's ignored!
-console.error('[TELEMETRY DEBUG] Creating exporters - they will read from OTEL_EXPORTER_OTLP_HEADERS env var');
-console.error('[TELEMETRY DEBUG] Env var value:', rawHeaderString ? (rawHeaderString.substring(0, 50) + '...') : 'NOT SET');
+// ✅ CRITICAL FIX: OpenTelemetry HTTP exporters REQUIRE explicit headers parameter
+// The exporters do NOT automatically read from OTEL_EXPORTER_OTLP_HEADERS env var!
+console.error('[TELEMETRY DEBUG] Creating exporters with explicit headers parameter');
+console.error('[TELEMETRY DEBUG] Headers to send:', Object.keys(parsedHeaders).join(', '));
 
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` : 'http://localhost:4318/v1/traces'),
+  headers: parsedHeaders, // ✅ CRITICAL: Explicitly pass headers
   timeoutMillis: 10000,
 });
-console.error('[TELEMETRY DEBUG] Trace exporter created');
+console.error('[TELEMETRY DEBUG] Trace exporter created with headers');
 
 const metricExporter = new OTLPMetricExporter({
   url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics` : 'http://localhost:4318/v1/metrics'),
+  headers: parsedHeaders, // ✅ CRITICAL: Explicitly pass headers
   timeoutMillis: 10000,
 });
-console.error('[TELEMETRY DEBUG] Metric exporter created');
+console.error('[TELEMETRY DEBUG] Metric exporter created with headers');
 
-console.error('[TELEMETRY DEBUG] Exporters created successfully - they will use OTEL_EXPORTER_OTLP_HEADERS from environment');
+console.error('[TELEMETRY DEBUG] Exporters created successfully with Authorization header');
 
 // Helper function to parse headers from environment variable
 // Format: "key1=value1,key2=value2" OR single header "Authorization=Basic <token>"
