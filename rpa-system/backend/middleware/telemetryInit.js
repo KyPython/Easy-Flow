@@ -101,6 +101,8 @@ console.error('[TELEMETRY DEBUG] Raw env var length:', rawHeaderString.length);
 const parsedHeaders = rawHeaderString ? parseHeaders(rawHeaderString) : {};
 
 console.error('[TELEMETRY DEBUG] Parsed headers:', JSON.stringify(parsedHeaders, null, 2));
+console.error('[TELEMETRY DEBUG] Parsed headers has Authorization?', !!parsedHeaders.Authorization);
+console.error('[TELEMETRY DEBUG] Authorization value:', parsedHeaders.Authorization || 'MISSING');
 
 // Validate and log parsed headers
 if (parsedHeaders.Authorization) {
@@ -196,6 +198,11 @@ function parseHeaders(headerString) {
     if (headerString.startsWith('Authorization=')) {
       let value = headerString.substring('Authorization='.length);
       
+      // DEBUG: Show raw value before any processing
+      console.log('[Telemetry] RAW Authorization value length:', value.length);
+      console.log('[Telemetry] RAW Authorization value (first 50 chars):', value.substring(0, 50));
+      console.log('[Telemetry] RAW has quotes:', value.includes('"') || value.includes("'"));
+      
       // CRITICAL: Sanitize ALL invalid HTTP header characters
       // HTTP headers cannot contain: quotes, newlines, carriage returns, control characters
       value = value.trim();
@@ -208,13 +215,18 @@ function parseHeaders(headerString) {
       // These are invisible but cause ERR_INVALID_CHAR
       value = value.replace(/[\x00-\x1F\x7F]/g, '');
       
-      // Step 3: Remove any remaining whitespace (newlines, tabs, etc.)
-      value = value.replace(/\s+/g, ' ').trim();
+      // Step 3: Trim leading/trailing whitespace but DON'T collapse internal spaces
+      // (The token might be "Basic <token>" and we need the space between)
+      value = value.trim();
       
       headers['Authorization'] = value;
       
-      console.log('[Telemetry] Sanitized Authorization header length:', value.length);
-      console.log('[Telemetry] Authorization header preview:', value.substring(0, 20) + '...');
+      console.log('[Telemetry] FINAL Authorization header length:', value.length);
+      console.log('[Telemetry] FINAL Authorization header preview:', value.substring(0, 30) + '...');
+      
+      if (value.length === 0) {
+        console.error('❌ [Telemetry] ERROR: Authorization header is EMPTY after sanitization!');
+      }
     } else {
       // Handle comma-separated headers
       headerString.split(',').forEach(pair => {
