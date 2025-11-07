@@ -154,9 +154,8 @@ Object.keys(parsedHeaders).forEach(key => {
 
 console.error('[TELEMETRY DEBUG] Clean headers created:', JSON.stringify(cleanHeaders));
 
-// CRITICAL: DON'T set the env var - keep it UNSET so HTTP instrumentation doesn't interfere
-// We'll pass headers explicitly to exporters only
-console.error('[TELEMETRY DEBUG] Keeping OTEL_EXPORTER_OTLP_HEADERS unset to prevent HTTP instrumentation interference');
+// CRITICAL: Keep env var UNSET during exporter creation to prevent interference
+console.error('[TELEMETRY DEBUG] Creating exporters with env var unset');
 
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
@@ -178,7 +177,15 @@ const metricExporter = new OTLPMetricExporter({
   keepAlive: false
 });
 
-console.error('[TELEMETRY DEBUG] Exporters created with explicit headers (no env var conflict)');
+// CRITICAL: Do NOT set the env var back! Leave it unset.
+// The exporters already have headers via the explicit headers parameter.
+// If we set the env var back, the OpenTelemetry HTTP instrumentation
+// will intercept OTLP requests and re-parse this value, potentially 
+// adding quotes back and causing ERR_INVALID_CHAR errors.
+console.error('[TELEMETRY DEBUG] Leaving OTEL_EXPORTER_OTLP_HEADERS unset to prevent interference');
+console.error('[TELEMETRY DEBUG] Exporters will use explicitly passed headers only');
+
+console.error('[TELEMETRY DEBUG] Exporters created successfully');
 
 // Helper function to parse headers from environment variable
 // Format: "key1=value1,key2=value2" OR single header "Authorization=Basic <token>"
