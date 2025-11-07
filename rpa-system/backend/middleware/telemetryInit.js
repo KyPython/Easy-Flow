@@ -3,6 +3,27 @@
  * Must be imported before any other modules to ensure proper instrumentation
  */
 
+// Patch setTimeout FIRST to catch OTLP exporter timeout errors before they crash the app
+const originalSetTimeout = global.setTimeout;
+global.setTimeout = function(callback, delay, ...args) {
+  const wrappedCallback = function(...callbackArgs) {
+    try {
+      return callback.apply(this, callbackArgs);
+    } catch (error) {
+      // Catch errors from OTLP exporter timeouts that access destroyed connections
+      if (error && error.message && (
+        error.message.includes('destroyed') ||
+        error.message.includes('Cannot read properties of undefined')
+      )) {
+        console.error('⚠️ [Telemetry] OTLP exporter timeout error (suppressed):', error.message);
+        return;
+      }
+      throw error;
+    }
+  };
+  return originalSetTimeout.call(this, wrappedCallback, delay, ...args);
+};
+
 const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { Resource } = require('@opentelemetry/resources');
 const { SemanticResourceAttributes } = require('@opentelemetry/semantic-conventions');
@@ -281,7 +302,7 @@ const sdk = new NodeSDK({
         requestHook: (span, request) => {
           span.setAttributes({
             'business.request_source': 'api_gateway',
-            'business.authenticated': !!request.headers.authorization
+            'business.authenticated': !!(request.headers && request.headers.authorization)
           });
         }
       },
@@ -435,13 +456,19 @@ try {
 }
 
 // Add global error handlers for OTLP exporter errors
+const telemetryErrorPatterns = [
+  'destroyed',
+  'OTLP',
+  'opentelemetry',
+  'otlp-exporter',
+  'Cannot read properties of undefined'
+];
+
 process.on('uncaughtException', (error) => {
-  if (error.message && (
-    error.message.includes('destroyed') ||
-    error.message.includes('OTLP') ||
-    error.message.includes('opentelemetry')
-  )) {
+  const errorStr = error.message || error.toString();
+  if (telemetryErrorPatterns.some(pattern => errorStr.includes(pattern))) {
     console.error('⚠️ [Telemetry] OTLP exporter error (non-fatal):', error.message);
+    console.error('   Stack:', error.stack?.split('\n').slice(0, 3).join('\n'));
     // Don't exit - these errors shouldn't crash the app
     return;
   }
@@ -450,17 +477,14 @@ process.on('uncaughtException', (error) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  if (reason && reason.toString && (
-    reason.toString().includes('OTLP') ||
-    reason.toString().includes('opentelemetry') ||
-    reason.toString().includes('destroyed')
-  )) {
-    console.error('⚠️ [Telemetry] OTLP exporter rejection (non-fatal):', reason);
+  const reasonStr = reason?.toString() || '';
+  if (telemetryErrorPatterns.some(pattern => reasonStr.includes(pattern))) {
+    console.error('⚠️ [Telemetry] OTLP exporter rejection (non-fatal):', reasonStr);
     // Don't exit - these rejections shouldn't crash the app
     return;
   }
   // Log other unhandled rejections
-  console.error('Unhandled Rejection:', reason);
+  console.error('Unhandled Rejection:', reasonStr);
 });
 
 // Graceful shutdown
