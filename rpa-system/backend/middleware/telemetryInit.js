@@ -293,6 +293,20 @@ const sdk = new NodeSDK({
       // Enhanced HTTP instrumentation for SLO tracking
       '@opentelemetry/instrumentation-http': {
         enabled: true,
+        // Ignore OTLP exporter requests to prevent instrumentation loops and header issues
+        ignoreOutgoingRequestHook: (request) => {
+          const url = request.path || '';
+          // Don't instrument OTLP exporter requests
+          if (url.includes('/v1/traces') || url.includes('/v1/metrics')) {
+            return true;
+          }
+          // Don't instrument requests to Grafana Cloud OTLP endpoints
+          const hostname = request.hostname || request.host || '';
+          if (hostname.includes('grafana') && hostname.includes('otlp')) {
+            return true;
+          }
+          return false;
+        },
         requestHook: (span, request) => {
           // Add business context to HTTP spans
           const userAgent = request.headers['user-agent'] || 'unknown';
@@ -350,6 +364,23 @@ const sdk = new NodeSDK({
       // DNS instrumentation for external API tracking
       '@opentelemetry/instrumentation-dns': {
         enabled: true
+      },
+      
+      // Undici instrumentation - disable for OTLP endpoints to prevent header issues
+      '@opentelemetry/instrumentation-undici': {
+        enabled: true,
+        ignoreRequestHook: (request) => {
+          const url = request.origin + request.path;
+          // Don't instrument OTLP exporter requests
+          if (url.includes('/v1/traces') || url.includes('/v1/metrics')) {
+            return true;
+          }
+          // Don't instrument requests to Grafana Cloud OTLP endpoints
+          if (url.includes('grafana') && url.includes('otlp')) {
+            return true;
+          }
+          return false;
+        }
       }
     })
   ]
