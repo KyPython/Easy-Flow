@@ -31,7 +31,8 @@ const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http')
 const { OTLPMetricExporter } = require('@opentelemetry/exporter-metrics-otlp-http');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 const { PeriodicExportingMetricReader, MeterProvider } = require('@opentelemetry/sdk-metrics');
-const { trace, metrics, context, SpanStatusCode, suppressInstrumentation } = require('@opentelemetry/api');
+const { trace, metrics, context, SpanStatusCode } = require('@opentelemetry/api');
+const { suppressTracing } = require('@opentelemetry/core');
 const { PrometheusExporter } = require('@opentelemetry/exporter-prometheus');
 
 // ✅ INSTRUCTION 1: Import sampling components for trace optimization (Gap 10)
@@ -173,8 +174,8 @@ http.request = function(...args) {
 
   if (isOtlpRequest) {
     console.error('[TELEMETRY DEBUG] Protecting OTLP HTTP request from instrumentation');
-    // Suppress instrumentation for this request
-    return context.with(suppressInstrumentation(context.active()), () => {
+    // Suppress tracing for this request to prevent header interference
+    return context.with(suppressTracing(context.active()), () => {
       return originalHttpRequest.apply(this, args);
     });
   }
@@ -192,8 +193,8 @@ https.request = function(...args) {
 
   if (isOtlpRequest) {
     console.error('[TELEMETRY DEBUG] Protecting OTLP HTTPS request from instrumentation');
-    // Suppress instrumentation for this request
-    return context.with(suppressInstrumentation(context.active()), () => {
+    // Suppress tracing for this request to prevent header interference
+    return context.with(suppressTracing(context.active()), () => {
       return originalHttpsRequest.apply(this, args);
     });
   }
