@@ -139,56 +139,27 @@ if (parsedHeaders.Authorization) {
 console.error('[TELEMETRY DEBUG] Final headers object:', JSON.stringify(parsedHeaders, null, 2));
 console.error('='.repeat(80));
 
-// CRITICAL: Temporarily unset the env var so the OTLP library doesn't read it directly
-// and mess up the headers. We'll pass them explicitly instead.
-const savedHeadersEnv = process.env.OTEL_EXPORTER_OTLP_HEADERS;
-delete process.env.OTEL_EXPORTER_OTLP_HEADERS;
+// ✅ SIMPLE FIX: Let the OTLP exporters read headers from env var directly
+// The OpenTelemetry SDK REQUIRES the OTEL_EXPORTER_OTLP_HEADERS env var to be set
+// The exporters will NOT use the headers parameter - it's ignored!
+console.error('[TELEMETRY DEBUG] Creating exporters - they will read from OTEL_EXPORTER_OTLP_HEADERS env var');
+console.error('[TELEMETRY DEBUG] Env var value:', rawHeaderString ? (rawHeaderString.substring(0, 50) + '...') : 'NOT SET');
 
-console.error('[TELEMETRY DEBUG] Creating exporters with explicit headers (env var temporarily unset)');
-
-// Create a plain object for headers - avoid any prototype chain issues
-const cleanHeaders = Object.create(null);
-Object.keys(parsedHeaders).forEach(key => {
-  cleanHeaders[key] = String(parsedHeaders[key]);
-});
-
-console.error('[TELEMETRY DEBUG] Clean headers created:', JSON.stringify(cleanHeaders));
-console.error('[TELEMETRY DEBUG] Clean headers Authorization present?', 'Authorization' in cleanHeaders);
-console.error('[TELEMETRY DEBUG] Clean headers Authorization length:', cleanHeaders.Authorization ? cleanHeaders.Authorization.length : 0);
-
-// CRITICAL: Keep env var UNSET during exporter creation to prevent interference
-console.error('[TELEMETRY DEBUG] Creating exporters with env var unset');
-
-// CRITICAL FIX: Use httpAgentOptions to pass headers correctly
-// The OTLP HTTP exporters require headers via httpAgentOptions.headers, not directly
-console.error('[TELEMETRY DEBUG] Creating trace exporter with headers:', Object.keys(cleanHeaders));
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` : 'http://localhost:4318/v1/traces'),
-  headers: cleanHeaders, // ✅ CORRECT: Headers passed directly (supported since 0.52.0)
   timeoutMillis: 10000,
 });
-console.error('[TELEMETRY DEBUG] Trace exporter created, checking headers...');
-console.error('[TELEMETRY DEBUG] Trace exporter _otlpExporterConfig:', traceExporter._otlpExporterConfig ? 'exists' : 'missing');
+console.error('[TELEMETRY DEBUG] Trace exporter created');
 
-console.error('[TELEMETRY DEBUG] Creating metric exporter with headers:', Object.keys(cleanHeaders));
 const metricExporter = new OTLPMetricExporter({
   url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics` : 'http://localhost:4318/v1/metrics'),
-  headers: cleanHeaders, // ✅ CORRECT: Headers passed directly (supported since 0.52.0)
   timeoutMillis: 10000,
 });
 console.error('[TELEMETRY DEBUG] Metric exporter created');
 
-// CRITICAL: Do NOT set the env var back! Leave it unset.
-// The exporters already have headers via the explicit headers parameter.
-// If we set the env var back, the OpenTelemetry HTTP instrumentation
-// will intercept OTLP requests and re-parse this value, potentially 
-// adding quotes back and causing ERR_INVALID_CHAR errors.
-console.error('[TELEMETRY DEBUG] Leaving OTEL_EXPORTER_OTLP_HEADERS unset to prevent interference');
-console.error('[TELEMETRY DEBUG] Exporters will use explicitly passed headers only');
-
-console.error('[TELEMETRY DEBUG] Exporters created successfully');
+console.error('[TELEMETRY DEBUG] Exporters created successfully - they will use OTEL_EXPORTER_OTLP_HEADERS from environment');
 
 // Helper function to parse headers from environment variable
 // Format: "key1=value1,key2=value2" OR single header "Authorization=Basic <token>"
@@ -204,20 +175,17 @@ function parseHeaders(headerString) {
       console.log('[Telemetry] RAW Authorization value (first 50 chars):', value.substring(0, 50));
       console.log('[Telemetry] RAW has quotes:', value.includes('"') || value.includes("'"));
       
-      // CRITICAL: Sanitize ALL invalid HTTP header characters
-      // HTTP headers cannot contain: quotes, newlines, carriage returns, control characters
+      // CRITICAL: ONLY remove quotes and control characters - preserve ALL valid characters including spaces
+      // HTTP headers CAN contain spaces (e.g., "Basic <token>")
       value = value.trim();
       
-      // Step 1: Remove ALL quotes (single, double, nested)
-      value = value.replace(/^["']+|["']+$/g, ''); // Remove leading/trailing quotes
-      value = value.replace(/["']/g, ''); // Remove ANY remaining quotes
+      // Step 1: Remove surrounding quotes ONLY (don't touch internal content)
+      value = value.replace(/^["']+/, '').replace(/["']+$/, '');
       
-      // Step 2: Remove ALL control characters (ASCII 0-31) including \n, \r, \t
-      // These are invisible but cause ERR_INVALID_CHAR
+      // Step 2: Remove control characters (newlines, tabs, etc.) but PRESERVE normal spaces
       value = value.replace(/[\x00-\x1F\x7F]/g, '');
       
-      // Step 3: Trim leading/trailing whitespace but DON'T collapse internal spaces
-      // (The token might be "Basic <token>" and we need the space between)
+      // Step 3: Final trim
       value = value.trim();
       
       headers['Authorization'] = value;
@@ -236,11 +204,10 @@ function parseHeaders(headerString) {
           const key = pair.substring(0, idx).trim();
           let value = pair.substring(idx + 1).trim();
           
-          // CRITICAL: Sanitize ALL invalid HTTP header characters
-          value = value.replace(/^["']+|["']+$/g, ''); // Remove leading/trailing quotes
-          value = value.replace(/["']/g, ''); // Remove ANY remaining quotes
-          value = value.replace(/[\x00-\x1F\x7F]/g, ''); // Remove control characters
-          value = value.replace(/\s+/g, ' ').trim(); // Normalize whitespace
+          // CRITICAL: Only remove quotes and control characters
+          value = value.replace(/^["']+/, '').replace(/["']+$/, '');
+          value = value.replace(/[\x00-\x1F\x7F]/g, '');
+          value = value.trim();
           
           headers[key] = value;
         }
