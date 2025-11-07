@@ -196,17 +196,25 @@ function parseHeaders(headerString) {
     if (headerString.startsWith('Authorization=')) {
       let value = headerString.substring('Authorization='.length);
       
-      // CRITICAL: Aggressively remove ALL quotes from the value
-      // The env var might be stored as Authorization="Basic xxx" or Authorization='Basic xxx'
-      // Or even worse: Authorization='"Basic xxx"' (nested quotes from shell escaping)
+      // CRITICAL: Sanitize ALL invalid HTTP header characters
+      // HTTP headers cannot contain: quotes, newlines, carriage returns, control characters
       value = value.trim();
       
-      // Remove ALL quotes - single, double, and any nested combinations
+      // Step 1: Remove ALL quotes (single, double, nested)
       value = value.replace(/^["']+|["']+$/g, ''); // Remove leading/trailing quotes
-      value = value.replace(/["']/g, ''); // Remove ANY remaining quotes in the middle
-      value = value.trim(); // Final trim after quote removal
+      value = value.replace(/["']/g, ''); // Remove ANY remaining quotes
+      
+      // Step 2: Remove ALL control characters (ASCII 0-31) including \n, \r, \t
+      // These are invisible but cause ERR_INVALID_CHAR
+      value = value.replace(/[\x00-\x1F\x7F]/g, '');
+      
+      // Step 3: Remove any remaining whitespace (newlines, tabs, etc.)
+      value = value.replace(/\s+/g, ' ').trim();
       
       headers['Authorization'] = value;
+      
+      console.log('[Telemetry] Sanitized Authorization header length:', value.length);
+      console.log('[Telemetry] Authorization header preview:', value.substring(0, 20) + '...');
     } else {
       // Handle comma-separated headers
       headerString.split(',').forEach(pair => {
@@ -215,10 +223,11 @@ function parseHeaders(headerString) {
           const key = pair.substring(0, idx).trim();
           let value = pair.substring(idx + 1).trim();
           
-          // CRITICAL: Aggressively remove ALL quotes from values
+          // CRITICAL: Sanitize ALL invalid HTTP header characters
           value = value.replace(/^["']+|["']+$/g, ''); // Remove leading/trailing quotes
           value = value.replace(/["']/g, ''); // Remove ANY remaining quotes
-          value = value.trim(); // Final trim
+          value = value.replace(/[\x00-\x1F\x7F]/g, ''); // Remove control characters
+          value = value.replace(/\s+/g, ' ').trim(); // Normalize whitespace
           
           headers[key] = value;
         }
