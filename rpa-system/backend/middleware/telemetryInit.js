@@ -139,15 +139,35 @@ if (parsedHeaders.Authorization) {
 console.error('[TELEMETRY DEBUG] Final headers object:', JSON.stringify(parsedHeaders, null, 2));
 console.error('='.repeat(80));
 
-// ✅ CRITICAL FIX: OpenTelemetry HTTP exporters REQUIRE explicit headers parameter
-// The exporters do NOT automatically read from OTEL_EXPORTER_OTLP_HEADERS env var!
+// ✅ CRITICAL FIX: OpenTelemetry HTTP exporters REQUIRE headers as Record<string, string>
+// NOT as a Record with potential undefined values
 console.error('[TELEMETRY DEBUG] Creating exporters with explicit headers parameter');
 console.error('[TELEMETRY DEBUG] Headers to send:', Object.keys(parsedHeaders).join(', '));
+
+// ✅ CRITICAL: Verify headers before creating exporters
+if (!parsedHeaders.Authorization) {
+  console.error('❌ [Telemetry] CRITICAL ERROR: Authorization header is MISSING in parsedHeaders!');
+  console.error('[Telemetry] parsedHeaders:', JSON.stringify(parsedHeaders));
+} else {
+  console.error('✅ [Telemetry] Authorization header present:', parsedHeaders.Authorization.substring(0, 30) + '...');
+  console.error('✅ [Telemetry] Authorization header length:', parsedHeaders.Authorization.length);
+}
+
+// ✅ CRITICAL FIX: The OTLP HTTP exporter expects headers as a plain object with string values
+// Create a clean headers object to avoid any prototype issues
+const exporterHeaders = Object.create(null);
+Object.keys(parsedHeaders).forEach(key => {
+  exporterHeaders[key] = parsedHeaders[key];
+});
+
+console.error('[TELEMETRY DEBUG] Final headers for exporters:', JSON.stringify({
+  Authorization: exporterHeaders.Authorization ? exporterHeaders.Authorization.substring(0, 30) + '...(truncated)' : 'MISSING'
+}));
 
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` : 'http://localhost:4318/v1/traces'),
-  headers: parsedHeaders, // ✅ CRITICAL: Explicitly pass headers
+  headers: exporterHeaders, // ✅ CRITICAL: Explicitly pass clean headers object
   timeoutMillis: 10000,
 });
 console.error('[TELEMETRY DEBUG] Trace exporter created with headers');
@@ -155,7 +175,7 @@ console.error('[TELEMETRY DEBUG] Trace exporter created with headers');
 const metricExporter = new OTLPMetricExporter({
   url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics` : 'http://localhost:4318/v1/metrics'),
-  headers: parsedHeaders, // ✅ CRITICAL: Explicitly pass headers
+  headers: exporterHeaders, // ✅ CRITICAL: Explicitly pass clean headers object
   timeoutMillis: 10000,
 });
 console.error('[TELEMETRY DEBUG] Metric exporter created with headers');
