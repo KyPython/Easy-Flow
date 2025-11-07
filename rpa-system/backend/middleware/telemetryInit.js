@@ -120,10 +120,14 @@ if (parsedHeaders.Authorization) {
     }
   }
   
-  if (authValue.includes('"') || authValue.includes("'")) {
-    console.error('⚠️ [TELEMETRY] WARNING: Authorization header contains quotes!');
-    const cleaned = authValue.replace(/['"]/g, '');
-    console.error('[TELEMETRY DEBUG] Cleaned value first 30 chars:', cleaned.substring(0, 30));
+  // ALWAYS clean quotes, even if the initial parse tried to remove them
+  // The value might have nested or escaped quotes that survived parsing
+  const cleaned = authValue.replace(/['"]/g, '').trim();
+  
+  if (authValue !== cleaned) {
+    console.error('⚠️ [TELEMETRY] WARNING: Authorization header had quotes - cleaned them');
+    console.error('[TELEMETRY DEBUG] Original first 30 chars:', authValue.substring(0, 30));
+    console.error('[TELEMETRY DEBUG] Cleaned first 30 chars:', cleaned.substring(0, 30));
     parsedHeaders.Authorization = cleaned;
   }
 } else {
@@ -181,16 +185,16 @@ function parseHeaders(headerString) {
     // Handle single Authorization header (most common case for OTLP)
     if (headerString.startsWith('Authorization=')) {
       let value = headerString.substring('Authorization='.length);
-      // Strip surrounding quotes if present (both single and double)
-      value = value.replace(/^["']|["']$/g, '').trim();
       
-      // Additional safety: remove quotes that might be embedded in the value
-      if (value.startsWith('"') && value.endsWith('"')) {
-        value = value.slice(1, -1);
-      }
-      if (value.startsWith("'") && value.endsWith("'")) {
-        value = value.slice(1, -1);
-      }
+      // CRITICAL: Aggressively remove ALL quotes from the value
+      // The env var might be stored as Authorization="Basic xxx" or Authorization='Basic xxx'
+      // Or even worse: Authorization='"Basic xxx"' (nested quotes from shell escaping)
+      value = value.trim();
+      
+      // Remove ALL quotes - single, double, and any nested combinations
+      value = value.replace(/^["']+|["']+$/g, ''); // Remove leading/trailing quotes
+      value = value.replace(/["']/g, ''); // Remove ANY remaining quotes in the middle
+      value = value.trim(); // Final trim after quote removal
       
       headers['Authorization'] = value;
     } else {
@@ -200,16 +204,11 @@ function parseHeaders(headerString) {
         if (idx > 0) {
           const key = pair.substring(0, idx).trim();
           let value = pair.substring(idx + 1).trim();
-          // Strip surrounding quotes if present
-          value = value.replace(/^["']|["']$/g, '').trim();
           
-          // Additional safety: remove quotes that might be embedded
-          if (value.startsWith('"') && value.endsWith('"')) {
-            value = value.slice(1, -1);
-          }
-          if (value.startsWith("'") && value.endsWith("'")) {
-            value = value.slice(1, -1);
-          }
+          // CRITICAL: Aggressively remove ALL quotes from values
+          value = value.replace(/^["']+|["']+$/g, ''); // Remove leading/trailing quotes
+          value = value.replace(/["']/g, ''); // Remove ANY remaining quotes
+          value = value.trim(); // Final trim
           
           headers[key] = value;
         }
