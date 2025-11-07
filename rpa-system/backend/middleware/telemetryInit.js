@@ -172,8 +172,18 @@ const metricExporter = new OTLPMetricExporter({
   keepAlive: false
 });
 
-// Restore the env var in case anything else needs it
-process.env.OTEL_EXPORTER_OTLP_HEADERS = savedHeadersEnv;
+// DON'T restore the original env var - it has problematic formatting
+// Instead, set it to the cleaned comma-separated format that the OTLP library expects
+if (Object.keys(cleanHeaders).length > 0) {
+  const cleanEnvFormat = Object.entries(cleanHeaders)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(',');
+  process.env.OTEL_EXPORTER_OTLP_HEADERS = cleanEnvFormat;
+  console.error('[TELEMETRY DEBUG] Set clean env format:', cleanEnvFormat.substring(0, 60) + '...');
+} else {
+  // If no headers, leave it unset
+  console.error('[TELEMETRY DEBUG] No headers to set in env var');
+}
 
 console.error('[TELEMETRY DEBUG] Exporters created successfully');
 
