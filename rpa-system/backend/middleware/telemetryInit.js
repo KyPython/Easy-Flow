@@ -31,7 +31,7 @@ const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http')
 const { OTLPMetricExporter } = require('@opentelemetry/exporter-metrics-otlp-http');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 const { PeriodicExportingMetricReader, MeterProvider } = require('@opentelemetry/sdk-metrics');
-const { trace, metrics, context, SpanStatusCode } = require('@opentelemetry/api');
+const { trace, metrics, context, SpanStatusCode, suppressInstrumentation } = require('@opentelemetry/api');
 const { PrometheusExporter } = require('@opentelemetry/exporter-prometheus');
 
 // ✅ INSTRUCTION 1: Import sampling components for trace optimization (Gap 10)
@@ -153,6 +153,53 @@ Object.keys(parsedHeaders).forEach(key => {
 });
 
 console.error('[TELEMETRY DEBUG] Clean headers created:', JSON.stringify(cleanHeaders));
+
+// CRITICAL FIX: Wrap exporter HTTP requests to suppress instrumentation
+// This prevents the HTTP instrumentation from interfering with OTLP requests
+const http = require('http');
+const https = require('https');
+
+// Store original request methods
+const originalHttpRequest = http.request;
+const originalHttpsRequest = https.request;
+
+// Wrap http.request to detect and protect OTLP requests
+http.request = function(...args) {
+  const options = typeof args[0] === 'string' ? args[1] : args[0];
+  const isOtlpRequest = options && (
+    (options.path && (options.path.includes('/v1/traces') || options.path.includes('/v1/metrics'))) ||
+    (options.hostname && options.hostname.includes('grafana'))
+  );
+
+  if (isOtlpRequest) {
+    console.error('[TELEMETRY DEBUG] Protecting OTLP HTTP request from instrumentation');
+    // Suppress instrumentation for this request
+    return context.with(suppressInstrumentation(context.active()), () => {
+      return originalHttpRequest.apply(this, args);
+    });
+  }
+
+  return originalHttpRequest.apply(this, args);
+};
+
+// Wrap https.request to detect and protect OTLP requests
+https.request = function(...args) {
+  const options = typeof args[0] === 'string' ? args[1] : args[0];
+  const isOtlpRequest = options && (
+    (options.path && (options.path.includes('/v1/traces') || options.path.includes('/v1/metrics'))) ||
+    (options.hostname && options.hostname.includes('grafana'))
+  );
+
+  if (isOtlpRequest) {
+    console.error('[TELEMETRY DEBUG] Protecting OTLP HTTPS request from instrumentation');
+    // Suppress instrumentation for this request
+    return context.with(suppressInstrumentation(context.active()), () => {
+      return originalHttpsRequest.apply(this, args);
+    });
+  }
+
+  return originalHttpsRequest.apply(this, args);
+};
 
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
@@ -386,6 +433,17 @@ const sdk = new NodeSDK({
             return true;
           }
           return false;
+        },
+        // CRITICAL: Preserve Authorization header for OTLP requests
+        // The HTTP instrumentation can strip headers even when ignoreOutgoingRequestHook returns true
+        requireParentforOutgoingSpans: false,
+        requireParentforIncomingSpans: false,
+        headersToSpanAttributes: {
+          client: {
+            // Don't capture Authorization header in spans (security)
+            requestHeaders: [],
+            responseHeaders: []
+          }
         },
         requestHook: (span, request) => {
           // Add business context to HTTP spans
