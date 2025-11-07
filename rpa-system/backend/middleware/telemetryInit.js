@@ -91,16 +91,26 @@ if (!hasValidCredentials()) {
 }
 
 // Parse headers with validation
-const parsedHeaders = process.env.OTEL_EXPORTER_OTLP_HEADERS ?
-  parseHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {};
+const rawHeaderString = process.env.OTEL_EXPORTER_OTLP_HEADERS || '';
+console.log('[Telemetry] Raw OTEL_EXPORTER_OTLP_HEADERS:', rawHeaderString ? `${rawHeaderString.substring(0, 30)}...` : 'NOT SET');
 
-// Validate Authorization header doesn't contain quotes
+const parsedHeaders = rawHeaderString ? parseHeaders(rawHeaderString) : {};
+
+// Validate and log parsed headers
 if (parsedHeaders.Authorization) {
   const authValue = parsedHeaders.Authorization;
+  console.log('[Telemetry] Parsed Authorization header length:', authValue.length);
+  console.log('[Telemetry] Authorization header first 20 chars:', authValue.substring(0, 20));
+  console.log('[Telemetry] Contains quotes?', authValue.includes('"') || authValue.includes("'"));
+  
   if (authValue.includes('"') || authValue.includes("'")) {
     console.warn('⚠️ [Telemetry] WARNING: Authorization header contains quotes, attempting to clean...');
-    parsedHeaders.Authorization = authValue.replace(/['"]/g, '');
+    const cleaned = authValue.replace(/['"]/g, '');
+    console.log('[Telemetry] Cleaned header first 20 chars:', cleaned.substring(0, 20));
+    parsedHeaders.Authorization = cleaned;
   }
+} else {
+  console.warn('⚠️ [Telemetry] WARNING: No Authorization header found in parsed headers!');
 }
 
 const traceExporter = new OTLPTraceExporter({
