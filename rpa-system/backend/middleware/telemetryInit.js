@@ -75,7 +75,9 @@ const traceExporter = new OTLPTraceExporter({
   headers: process.env.OTEL_EXPORTER_OTLP_HEADERS ?
     parseHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {},
   // Add timeout to prevent hanging on auth failures
-  timeoutMillis: 10000
+  timeoutMillis: 10000,
+  // Prevent connection errors from crashing the app
+  keepAlive: false
 });
 
 const metricExporter = new OTLPMetricExporter({
@@ -84,7 +86,9 @@ const metricExporter = new OTLPMetricExporter({
   headers: process.env.OTEL_EXPORTER_OTLP_HEADERS ?
     parseHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {},
   // Add timeout to prevent hanging on auth failures
-  timeoutMillis: 10000
+  timeoutMillis: 10000,
+  // Prevent connection errors from crashing the app
+  keepAlive: false
 });
 
 // Helper function to parse headers from environment variable
@@ -94,7 +98,9 @@ function parseHeaders(headerString) {
   if (headerString) {
     // Handle single Authorization header (most common case for OTLP)
     if (headerString.startsWith('Authorization=')) {
-      const value = headerString.substring('Authorization='.length);
+      let value = headerString.substring('Authorization='.length);
+      // Strip surrounding quotes if present
+      value = value.replace(/^["']|["']$/g, '');
       headers['Authorization'] = value;
     } else {
       // Handle comma-separated headers
@@ -102,7 +108,9 @@ function parseHeaders(headerString) {
         const idx = pair.indexOf('=');
         if (idx > 0) {
           const key = pair.substring(0, idx).trim();
-          const value = pair.substring(idx + 1).trim();
+          let value = pair.substring(idx + 1).trim();
+          // Strip surrounding quotes if present
+          value = value.replace(/^["']|["']$/g, '');
           headers[key] = value;
         }
       });
@@ -375,8 +383,39 @@ class SLOMetricsProvider {
   }
 }
 
+// Wrap exporter methods to catch connection errors
+function wrapExporterWithErrorHandler(exporter, exporterName) {
+  if (!exporter) return exporter;
+  
+  // Catch errors in the internal HTTP client
+  if (exporter._otlpExporter && exporter._otlpExporter._transport) {
+    const transport = exporter._otlpExporter._transport;
+    if (transport.send) {
+      const originalSend = transport.send.bind(transport);
+      transport.send = function(...args) {
+        try {
+          return originalSend(...args).catch(err => {
+            console.error(`⚠️ [Telemetry] ${exporterName} export error:`, err.message);
+            // Return success to prevent crash
+            return { code: 0 };
+          });
+        } catch (err) {
+          console.error(`⚠️ [Telemetry] ${exporterName} send error:`, err.message);
+          return Promise.resolve({ code: 0 });
+        }
+      };
+    }
+  }
+  
+  return exporter;
+}
+
 // Initialize telemetry
 try {
+  // Wrap exporters with error handlers
+  wrapExporterWithErrorHandler(traceExporter, 'TraceExporter');
+  wrapExporterWithErrorHandler(metricExporter, 'MetricExporter');
+  
   sdk.start();
   
   // ✅ PART 2.3: Verification - Print success message indicating OTEL Exporters are active
@@ -394,6 +433,35 @@ try {
 } catch (error) {
   console.error('❌ [Telemetry] Failed to initialize OpenTelemetry:', error);
 }
+
+// Add global error handlers for OTLP exporter errors
+process.on('uncaughtException', (error) => {
+  if (error.message && (
+    error.message.includes('destroyed') ||
+    error.message.includes('OTLP') ||
+    error.message.includes('opentelemetry')
+  )) {
+    console.error('⚠️ [Telemetry] OTLP exporter error (non-fatal):', error.message);
+    // Don't exit - these errors shouldn't crash the app
+    return;
+  }
+  // Re-throw other uncaught exceptions
+  throw error;
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  if (reason && reason.toString && (
+    reason.toString().includes('OTLP') ||
+    reason.toString().includes('opentelemetry') ||
+    reason.toString().includes('destroyed')
+  )) {
+    console.error('⚠️ [Telemetry] OTLP exporter rejection (non-fatal):', reason);
+    // Don't exit - these rejections shouldn't crash the app
+    return;
+  }
+  // Log other unhandled rejections
+  console.error('Unhandled Rejection:', reason);
+});
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
