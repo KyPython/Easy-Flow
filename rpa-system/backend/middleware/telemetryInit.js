@@ -38,18 +38,53 @@ const resource = new Resource({
 
 // ✅ PART 2: Configure exporters for Grafana Cloud
 // Uses OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_HEADERS from environment
+
+// Helper to check if we have valid credentials
+const hasValidCredentials = () => {
+  const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  const headers = process.env.OTEL_EXPORTER_OTLP_HEADERS;
+
+  if (!endpoint || !headers) {
+    return false;
+  }
+
+  // Check for placeholder values
+  if (endpoint.includes('your-grafana') || endpoint.includes('your-actual')) {
+    return false;
+  }
+
+  if (headers.includes('your-base64') || headers.includes('your-actual')) {
+    return false;
+  }
+
+  return true;
+};
+
+// Check credentials before creating exporters
+if (!hasValidCredentials()) {
+  console.warn('⚠️  [Telemetry] OpenTelemetry exporters disabled - credentials not configured');
+  console.warn('⚠️  [Telemetry] To enable Grafana Cloud integration, set these environment variables:');
+  console.warn('    - OTEL_EXPORTER_OTLP_ENDPOINT');
+  console.warn('    - OTEL_EXPORTER_OTLP_HEADERS');
+  console.warn('⚠️  [Telemetry] Application will continue without observability export');
+}
+
 const traceExporter = new OTLPTraceExporter({
-  url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || 
+  url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` : 'http://localhost:4318/v1/traces'),
-  headers: process.env.OTEL_EXPORTER_OTLP_HEADERS ? 
-    parseHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {}
+  headers: process.env.OTEL_EXPORTER_OTLP_HEADERS ?
+    parseHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {},
+  // Add timeout to prevent hanging on auth failures
+  timeoutMillis: 10000
 });
 
 const metricExporter = new OTLPMetricExporter({
-  url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || 
+  url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics` : 'http://localhost:4318/v1/metrics'),
-  headers: process.env.OTEL_EXPORTER_OTLP_HEADERS ? 
-    parseHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {}
+  headers: process.env.OTEL_EXPORTER_OTLP_HEADERS ?
+    parseHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {},
+  // Add timeout to prevent hanging on auth failures
+  timeoutMillis: 10000
 });
 
 // Helper function to parse headers from environment variable
@@ -163,6 +198,27 @@ class SensitiveDataRedactingSpanProcessor {
 
 // Create redacting span processor
 const spanProcessor = new SensitiveDataRedactingSpanProcessor(traceExporter);
+
+// Add error handler for trace exporter to catch authentication failures
+if (traceExporter && typeof traceExporter.export === 'function') {
+  const originalExport = traceExporter.export.bind(traceExporter);
+  traceExporter.export = function(spans, resultCallback) {
+    originalExport(spans, (result) => {
+      if (result.error) {
+        // Log authentication errors specifically
+        if (result.error.message && result.error.message.includes('Unauthorized')) {
+          console.error('❌ [Telemetry] Authentication failed - check OTEL_EXPORTER_OTLP_HEADERS');
+          console.error('   Endpoint:', process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+          console.error('   Error:', result.error.message);
+        } else if (result.error.code === 401) {
+          console.error('❌ [Telemetry] 401 Unauthorized - Invalid Grafana Cloud credentials');
+          console.error('   Please verify your OTEL_EXPORTER_OTLP_HEADERS token is correct');
+        }
+      }
+      resultCallback(result);
+    });
+  };
+}
 
 // Initialize NodeSDK with optimized configuration
 const sdk = new NodeSDK({

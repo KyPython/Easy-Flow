@@ -51,52 +51,6 @@ After the redeploy completes:
 
 ---
 
-## 🐛 STEP 3: Troubleshooting (If Traces Don't Appear)
-
-### Check 1: Verify Environment Variables
-```bash
-# SSH into Render or check environment tab
-echo $OTEL_SERVICE_NAME  # Should print "easyflow-backend"
-echo $OTEL_EXPORTER_OTLP_ENDPOINT  # Should print Grafana OTLP URL
-echo $OTEL_EXPORTER_OTLP_HEADERS  # Should start with "Authorization=Basic"
-```
-
-### Check 2: Verify Logs Show OTEL Active
-Look for these lines in Render logs:
-```
-✅ [Telemetry] OpenTelemetry backend instrumentation initialized successfully
-✅ [Telemetry] Service Name: easyflow-backend
-✅ [Telemetry] OTLP Endpoint: https://otlp-gateway-prod-us-east-2.grafana.net/otlp
-✅ [Telemetry] OTEL Exporters: ACTIVE
-```
-
-If you see these, telemetry is working. The issue is with Grafana Cloud receiving data.
-
-### Check 3: Test with Manual Request
-Trigger a workflow or API call to generate traces:
-```bash
-# From your local machine or Postman
-curl -X GET https://easyflow-backend-ad8e.onrender.com/health
-```
-
-Check Render logs for the request, then check Grafana again after 2 minutes.
-
-### Check 4: Verify Grafana Cloud API Key
-- Go to **Grafana Cloud** → **Configuration** → **API Keys**
-- Verify the key you're using has **Traces Publisher** role
-- Regenerate the key if unsure
-- Update `OTEL_EXPORTER_OTLP_HEADERS` in Render with new key
-
-### Check 5: Network/Firewall Issues
-Render should have no issues reaching Grafana Cloud, but verify:
-```bash
-# SSH into Render instance (if possible) or check logs
-curl -v https://otlp-gateway-prod-us-east-2.grafana.net/otlp
-# Should get a response (even if 404/405), proving connectivity
-```
-
----
-
 ## 🎯 STEP 4: Once Traces Appear - Define SLOs
 
 After confirming traces are flowing:
