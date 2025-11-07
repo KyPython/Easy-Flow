@@ -133,6 +133,13 @@ if (parsedHeaders.Authorization) {
 console.error('[TELEMETRY DEBUG] Final headers object:', JSON.stringify(parsedHeaders, null, 2));
 console.error('='.repeat(80));
 
+// CRITICAL: Temporarily unset the env var so the OTLP library doesn't read it directly
+// and mess up the headers. We'll pass them explicitly instead.
+const savedHeadersEnv = process.env.OTEL_EXPORTER_OTLP_HEADERS;
+delete process.env.OTEL_EXPORTER_OTLP_HEADERS;
+
+console.error('[TELEMETRY DEBUG] Creating exporters with explicit headers (env var temporarily unset)');
+
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` : 'http://localhost:4318/v1/traces'),
@@ -152,6 +159,11 @@ const metricExporter = new OTLPMetricExporter({
   // Prevent connection errors from crashing the app
   keepAlive: false
 });
+
+// Restore the env var in case anything else needs it
+process.env.OTEL_EXPORTER_OTLP_HEADERS = savedHeadersEnv;
+
+console.error('[TELEMETRY DEBUG] Exporters created successfully');
 
 // Helper function to parse headers from environment variable
 // Format: "key1=value1,key2=value2" OR single header "Authorization=Basic <token>"
