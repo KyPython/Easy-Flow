@@ -92,30 +92,46 @@ if (!hasValidCredentials()) {
 
 // Parse headers with validation
 const rawHeaderString = process.env.OTEL_EXPORTER_OTLP_HEADERS || '';
-console.log('[Telemetry] Raw OTEL_EXPORTER_OTLP_HEADERS:', rawHeaderString ? `${rawHeaderString.substring(0, 30)}...` : 'NOT SET');
+
+// Use console.error to ensure it appears in logs
+console.error('='.repeat(80));
+console.error('[TELEMETRY DEBUG] Raw env var:', rawHeaderString ? rawHeaderString.substring(0, 50) + '...' : 'NOT SET');
+console.error('[TELEMETRY DEBUG] Raw env var length:', rawHeaderString.length);
 
 const parsedHeaders = rawHeaderString ? parseHeaders(rawHeaderString) : {};
+
+console.error('[TELEMETRY DEBUG] Parsed headers:', JSON.stringify(parsedHeaders, null, 2));
 
 // Validate and log parsed headers
 if (parsedHeaders.Authorization) {
   const authValue = parsedHeaders.Authorization;
-  console.log('[Telemetry] Parsed Authorization header length:', authValue.length);
-  console.log('[Telemetry] Authorization header first 20 chars:', authValue.substring(0, 20));
-  console.log('[Telemetry] Contains quotes?', authValue.includes('"') || authValue.includes("'"));
+  console.error('[TELEMETRY DEBUG] Auth value type:', typeof authValue);
+  console.error('[TELEMETRY DEBUG] Auth value length:', authValue.length);
+  console.error('[TELEMETRY DEBUG] Auth value first 30 chars:', authValue.substring(0, 30));
+  console.error('[TELEMETRY DEBUG] Has double quotes?', authValue.includes('"'));
+  console.error('[TELEMETRY DEBUG] Has single quotes?', authValue.includes("'"));
+  
+  // Check each character in first 50 chars
+  for (let i = 0; i < Math.min(50, authValue.length); i++) {
+    const char = authValue[i];
+    const code = authValue.charCodeAt(i);
+    if (char === '"' || char === "'" || code < 32 || code > 126) {
+      console.error(`[TELEMETRY DEBUG] Char at pos ${i}: '${char}' (code: ${code})`);
+    }
+  }
   
   if (authValue.includes('"') || authValue.includes("'")) {
-    console.warn('⚠️ [Telemetry] WARNING: Authorization header contains quotes, attempting to clean...');
+    console.error('⚠️ [TELEMETRY] WARNING: Authorization header contains quotes!');
     const cleaned = authValue.replace(/['"]/g, '');
-    console.log('[Telemetry] Cleaned header first 20 chars:', cleaned.substring(0, 20));
+    console.error('[TELEMETRY DEBUG] Cleaned value first 30 chars:', cleaned.substring(0, 30));
     parsedHeaders.Authorization = cleaned;
   }
 } else {
-  console.warn('⚠️ [Telemetry] WARNING: No Authorization header found in parsed headers!');
+  console.error('⚠️ [TELEMETRY] WARNING: No Authorization header found!');
 }
 
-// Log the headers object we're passing
-console.log('[Telemetry] Headers object being passed to traceExporter:', JSON.stringify(parsedHeaders));
-console.log('[Telemetry] Type of Authorization value:', typeof parsedHeaders.Authorization);
+console.error('[TELEMETRY DEBUG] Final headers object:', JSON.stringify(parsedHeaders, null, 2));
+console.error('='.repeat(80));
 
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
