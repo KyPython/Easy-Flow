@@ -153,29 +153,32 @@ Object.keys(parsedHeaders).forEach(key => {
 });
 
 console.error('[TELEMETRY DEBUG] Clean headers created:', JSON.stringify(cleanHeaders));
+console.error('[TELEMETRY DEBUG] Clean headers Authorization present?', 'Authorization' in cleanHeaders);
+console.error('[TELEMETRY DEBUG] Clean headers Authorization length:', cleanHeaders.Authorization ? cleanHeaders.Authorization.length : 0);
 
 // CRITICAL: Keep env var UNSET during exporter creation to prevent interference
 console.error('[TELEMETRY DEBUG] Creating exporters with env var unset');
 
+// CRITICAL FIX: Use httpAgentOptions to pass headers correctly
+// The OTLP HTTP exporters require headers via httpAgentOptions.headers, not directly
+console.error('[TELEMETRY DEBUG] Creating trace exporter with headers:', Object.keys(cleanHeaders));
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` : 'http://localhost:4318/v1/traces'),
-  headers: cleanHeaders,
-  // Add timeout to prevent hanging on auth failures
+  headers: cleanHeaders, // ✅ CORRECT: Headers passed directly (supported since 0.52.0)
   timeoutMillis: 10000,
-  // Prevent connection errors from crashing the app
-  keepAlive: false
 });
+console.error('[TELEMETRY DEBUG] Trace exporter created, checking headers...');
+console.error('[TELEMETRY DEBUG] Trace exporter _otlpExporterConfig:', traceExporter._otlpExporterConfig ? 'exists' : 'missing');
 
+console.error('[TELEMETRY DEBUG] Creating metric exporter with headers:', Object.keys(cleanHeaders));
 const metricExporter = new OTLPMetricExporter({
   url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
        (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics` : 'http://localhost:4318/v1/metrics'),
-  headers: cleanHeaders,
-  // Add timeout to prevent hanging on auth failures
+  headers: cleanHeaders, // ✅ CORRECT: Headers passed directly (supported since 0.52.0)
   timeoutMillis: 10000,
-  // Prevent connection errors from crashing the app
-  keepAlive: false
 });
+console.error('[TELEMETRY DEBUG] Metric exporter created');
 
 // CRITICAL: Do NOT set the env var back! Leave it unset.
 // The exporters already have headers via the explicit headers parameter.
