@@ -19,7 +19,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy automation-service directory contents into the image
-COPY . ./
+COPY automation-service/ ./
 
 # Create downloads directory
 RUN mkdir -p /tmp/downloads && chmod 777 /tmp/downloads

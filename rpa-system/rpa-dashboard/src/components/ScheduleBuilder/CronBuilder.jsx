@@ -337,7 +337,7 @@ const CronBuilder = React.memo(({
       </div>
     </div>
   );
-};
+});
 
 // Helper function to generate human-readable cron description
 function getCronDescription(cronExpression) {
@@ -418,6 +418,6 @@ CronBuilder.propTypes = {
   onChange: PropTypes.func.isRequired,
   timezone: PropTypes.string,
   showAdvanced: PropTypes.bool,
-});
+};
 
 export default CronBuilder;

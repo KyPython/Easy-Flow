@@ -446,7 +446,7 @@ const ScheduleEditor = React.memo(({
       </div>
     </div>
   );
-};
+});
 
 ScheduleEditor.propTypes = {
   schedule: PropTypes.object,
@@ -460,6 +460,6 @@ ScheduleEditor.propTypes = {
   onSave: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
   isLoading: PropTypes.bool,
-});
+};
 
 export default ScheduleEditor;

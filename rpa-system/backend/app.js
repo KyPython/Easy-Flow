@@ -149,39 +149,78 @@ const authMiddleware = async (req, res, next) => {
   
   // Test bypass for Jest tests
   if (process.env.NODE_ENV === 'test' && process.env.ALLOW_TEST_TOKEN === 'true') {
-    req.user = { 
-      id: '550e8400-e29b-41d4-a716-446655440000',
-      email: 'test@example.com',
-      name: 'Test User'
+    // Build a content security policy that is environment-aware.
+    // Keep it restrictive in production but allow commonly used third-party
+    // vendors used by the frontend (HubSpot, uChat, ipapi) and allow localhost
+    // OTLP in development for local collectors.
+    const cspDirectives = {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", 'https:'],
+      // known script providers used by the dashboard
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        'https://www.uchat.com.au',
+        'https://sdk.dfktv2.com',
+        'https://www.googletagmanager.com',
+        'https://js.hs-scripts.com',
+        'https://js-na1.hs-scripts.com',
+        'https://js-na2.hs-scripts.com',
+        'https://js.hsforms.net',
+        'https://*.hubspot.com',
+        'https://js.hs-analytics.net',
+        'https://*.hs-analytics.net',
+        'https://js-na2.hs-banner.com',
+        'https://*.hscollectedforms.net',
+        'https://js.hscollectedforms.net',
+        'https://ipapi.co'
+      ],
+      imgSrc: ["'self'", 'https:'],
+      connectSrc: ["'self'", 'https://sdk.dfktv2.com', 'https://www.uchat.com.au', 'https://www.google-analytics.com', 'https://analytics.google.com', 'https://*.hubspot.com', 'https://*.hs-analytics.net', 'https://*.hscollectedforms.net', 'https://api.hubapi.com', process.env.SUPABASE_URL || 'https://syxzilyuysdoirnezgii.supabase.co', process.env.APP_URL || 'https://easyflow-backend-ad8e.onrender.com'],
+      fontSrc: ["'self'", 'https:'],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      childSrc: ["'none'"],
+      workerSrc: ["'self'"],
+      manifestSrc: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      upgradeInsecureRequests: []
     };
-    return next();
-  }
-  
-  try {
-    if (!supabase) {
-      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
-      res.set('x-auth-reason', 'no-supabase');
-      return res.status(401).json({ error: 'Authentication failed' });
+
+    // Allow local OTLP collector in development for browser exports (useful for local testing)
+    if (process.env.NODE_ENV !== 'production') {
+      cspDirectives.connectSrc.push('http://localhost:4318');
     }
 
-    const authHeader = (req.get('authorization') || '').trim();
-    const parts = authHeader.split(' ');
-    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
-    
-    if (!token) {
-      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
-      res.set('x-auth-reason', 'no-token');
-      return res.status(401).json({ error: 'Authentication failed' });
+    // If a production OTLP gateway is used (e.g. Grafana Cloud), add it to connect-src
+    if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+      // ensure full URL without trailing path is added
+      try {
+        const url = new URL(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+        cspDirectives.connectSrc.push(url.origin);
+      } catch (e) {
+        // ignore bad URL
+      }
     }
 
-    // validate token via Supabase server client
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data || !data.user) {
-      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
-      res.set('x-auth-reason', 'invalid-token');
-      return res.status(401).json({ error: 'Authentication failed' });
-    }
-
+    app.use(helmet({
+      contentSecurityPolicy: { directives: cspDirectives },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      },
+      permissionsPolicy: {
+        fullscreen: [],
+        camera: [],
+        microphone: [],
+        geolocation: []
+      }
+    }));
     // attach user to request for downstream handlers
     req.user = data.user;
 

@@ -209,7 +209,7 @@ const ScheduleList = React.memo(({
       )}
     </div>
   );
-};
+});
 
 /**
  * Individual Schedule Item Component
@@ -359,6 +359,6 @@ ScheduleItem.propTypes = {
   onToggle: PropTypes.func.isRequired,
   onEdit: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
-});
+};
 
 export default ScheduleList;

@@ -5,13 +5,13 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { WebSDK } from '@opentelemetry/sdk-trace-web';
+import { WebTracerProvider, BatchSpanProcessor } from '@opentelemetry/sdk-trace-web';
 import { Resource } from '@opentelemetry/resources';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-web';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { getWebAutoInstrumentations } from '@opentelemetry/auto-instrumentations-web';
 import { trace, context, SpanStatusCode } from '@opentelemetry/api';
+import { registerInstrumentations } from '@opentelemetry/instrumentation';
 
 // Custom performance instrumentation
 class FrontendPerformanceInstrumentation {
@@ -172,9 +172,16 @@ class FrontendPerformanceInstrumentation {
 
 // Initialize OpenTelemetry
 function initializeFrontendTelemetry() {
-  // Only initialize in production or when explicitly enabled
-  if (process.env.NODE_ENV !== 'production' && !process.env.REACT_APP_ENABLE_TELEMETRY) {
-    console.info('[Telemetry] Skipping initialization in development mode');
+  // By default do NOT initialize browser OTLP exporters in production.
+  // Enable in development, or explicitly opt-in in production via
+  // REACT_APP_ENABLE_BROWSER_OTLP=true (build-time env) for advanced cases.
+  const enableBrowserOtlp = (process.env.NODE_ENV !== 'production') || (String(process.env.REACT_APP_ENABLE_BROWSER_OTLP).toLowerCase() === 'true') || (String(process.env.REACT_APP_ENABLE_TELEMETRY).toLowerCase() === 'true');
+
+  if (!enableBrowserOtlp) {
+    console.info('[Telemetry] Browser telemetry disabled in production (REACT_APP_ENABLE_BROWSER_OTLP not set)');
+    // Return a plain instrumentation object that will create spans locally but
+    // won't attempt to export them from the browser. Server-side or collector
+    // exports should be used in production instead.
     return new FrontendPerformanceInstrumentation();
   }
 
@@ -184,18 +191,28 @@ function initializeFrontendTelemetry() {
     [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development'
   });
 
-  // Configure exporter (would need backend endpoint in production)
-  const exporter = new OTLPTraceExporter({
-    url: process.env.REACT_APP_OTEL_EXPORTER_URL || 'http://localhost:4318/v1/traces'
+  // Configure exporter. This should point to a CORS-enabled OTLP endpoint
+  // or be used only in development (default localhost collector).
+  const exporterUrl = process.env.REACT_APP_OTEL_EXPORTER_URL || (process.env.NODE_ENV !== 'production' ? 'http://localhost:4318/v1/traces' : '');
+  const exporter = exporterUrl ? new OTLPTraceExporter({ url: exporterUrl }) : null;
+
+  const provider = new WebTracerProvider({
+    resource
   });
 
-  const sdk = new WebSDK({
-    resource,
-    spanProcessor: new BatchSpanProcessor(exporter, {
-      maxExportBatchSize: 100,
-      scheduledDelayMillis: 5000,
-      maxQueueSize: 1000
-    }),
+  if (exporter) {
+    provider.addSpanProcessor(new BatchSpanProcessor(exporter, {
+    maxExportBatchSize: 100,
+    scheduledDelayMillis: 5000,
+    maxQueueSize: 1000
+    }));
+  } else {
+    console.info('[Telemetry] No browser exporter configured (exporter URL empty). Spans will not be sent from the browser.');
+  }
+
+  provider.register();
+
+  registerInstrumentations({
     instrumentations: [
       getWebAutoInstrumentations({
         '@opentelemetry/instrumentation-document-load': {
@@ -222,7 +239,6 @@ function initializeFrontendTelemetry() {
   });
 
   try {
-    sdk.start();
     console.info('[Telemetry] Frontend telemetry initialized successfully');
   } catch (error) {
     console.error('[Telemetry] Failed to initialize frontend telemetry:', error);
