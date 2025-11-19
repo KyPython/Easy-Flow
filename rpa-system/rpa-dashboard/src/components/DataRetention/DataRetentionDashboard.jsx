@@ -47,32 +47,16 @@ const DataRetentionDashboard = ({ user }) => {
         throw new Error('Authentication required');
       }
 
-      // Load all data in parallel
-      const [statusResponse, statsResponse, policiesResponse] = await Promise.all([
-        fetch('/api/data-retention/status', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        fetch('/api/data-retention/statistics', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        fetch('/api/data-retention/policies', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+      const { api } = require('../../utils/api');
+      const [statusRes, statsRes, policiesRes] = await Promise.all([
+        api.get('/api/data-retention/status'),
+        api.get('/api/data-retention/statistics'),
+        api.get('/api/data-retention/policies')
       ]);
 
-      if (!statusResponse.ok) throw new Error('Failed to load retention status');
-      if (!statsResponse.ok) throw new Error('Failed to load statistics');
-      if (!policiesResponse.ok) throw new Error('Failed to load policies');
-
-      const [statusData, statsData, policiesData] = await Promise.all([
-        statusResponse.json(),
-        statsResponse.json(),
-        policiesResponse.json()
-      ]);
-
-      setRetentionStatus(statusData.data);
-      setStatistics(statsData.data);
-      setPolicies(policiesData.data);
+      setRetentionStatus(statusRes.data?.data || statusRes.data || null);
+      setStatistics(statsRes.data?.data || statsRes.data || null);
+      setPolicies(policiesRes.data?.data || policiesRes.data || null);
 
     } catch (err) {
       console.error('Failed to load data retention dashboard:', err);
@@ -91,22 +75,9 @@ const DataRetentionDashboard = ({ user }) => {
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
 
-      const response = await fetch('/api/data-retention/cleanup', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ type })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Cleanup failed');
-      }
-
-      const result = await response.json();
-      setCleanupResults(result.data);
+      const { api } = require('../../utils/api');
+      const { data: result } = await api.post('/api/data-retention/cleanup', { type });
+      setCleanupResults(result?.data || result || null);
       
       // Reload statistics to reflect changes
       setTimeout(loadDashboardData, 1000);
@@ -125,15 +96,8 @@ const DataRetentionDashboard = ({ user }) => {
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
 
-      const response = await fetch(`/api/data-retention/${start ? 'start' : 'stop'}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to toggle scheduler');
-      }
+      const { api } = require('../../utils/api');
+      await api.post(`/api/data-retention/${start ? 'start' : 'stop'}`);
 
       // Reload status
       loadDashboardData();

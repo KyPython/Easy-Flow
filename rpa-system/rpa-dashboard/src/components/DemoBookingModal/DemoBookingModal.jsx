@@ -74,23 +74,14 @@ const DemoBookingModal = ({
         has_company: Boolean(formData.company.trim())
       });
 
-      // Submit to backend (replace with your endpoint)
-      const response = await fetch('/api/book-demo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          source,
-          userPlan: planData?.plan?.name || 'hobbyist',
-          timestamp: new Date().toISOString()
-        }),
+      // Submit to backend via centralized api client
+      const { api } = require('../../utils/api');
+      await api.post('/api/book-demo', {
+        ...formData,
+        source,
+        userPlan: planData?.plan?.name || 'hobbyist',
+        timestamp: new Date().toISOString()
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to submit demo request');
-      }
 
       // Show success message
       setShowSuccess(true);

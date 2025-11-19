@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { api } from '../utils/api';
 
 export const useWorkflowTesting = (workflowId) => {
   const [testScenarios, setTestScenarios] = useState([]);
@@ -81,29 +82,13 @@ export const useWorkflowTesting = (workflowId) => {
       if (!session) throw new Error('Authentication required');
       // Execute workflow using real automation endpoint
       const executionStart = Date.now();
-      const response = await fetch('/api/automation/execute', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          workflow_id: workflowId,
-          test_scenario_id: scenarioId,
-          input_data: scenario.input_data,
-          test_mode: true,
-          expected_outputs: scenario.expected_outputs
-        })
-      ,
-        credentials: 'include'
+      const { data: result } = await api.post('/api/automation/execute', {
+        workflow_id: workflowId,
+        test_scenario_id: scenarioId,
+        input_data: scenario.input_data,
+        test_mode: true,
+        expected_outputs: scenario.expected_outputs
       });
-      // Ensure cookies are sent (for cookie-based sessions)
-      // (Note: Authorization header already present from Supabase session)
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-      const result = await response.json();
       const executionTime = Date.now() - executionStart;
       // Save test result to database
       const { data, error } = await supabase
@@ -136,17 +121,8 @@ export const useWorkflowTesting = (workflowId) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Authentication required');
-      const response = await fetch(`/api/executions/${executionId}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      ,
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to get execution results: ${response.status}`);
-      }
-      return await response.json();
+      const { data } = await api.get(`/api/executions/${executionId}`);
+      return data;
     } catch (err) {
       throw err;
     }
@@ -157,26 +133,13 @@ export const useWorkflowTesting = (workflowId) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Authentication required');
-      const response = await fetch('/api/workflows/execute-step', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          step_id: stepId,
-          step_config: stepConfig,
-          input_data: inputData,
-          workflow_id: workflowId
-        })
-      ,
-        credentials: 'include'
+      const { data } = await api.post('/api/workflows/execute-step', {
+        step_id: stepId,
+        step_config: stepConfig,
+        input_data: inputData,
+        workflow_id: workflowId
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-      return await response.json();
+      return data;
     } catch (err) {
       return {
         success: false,
@@ -192,17 +155,8 @@ export const useWorkflowTesting = (workflowId) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Authentication required');
-      const response = await fetch(`/api/executions/${executionId}/steps`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      ,
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to get execution status: ${response.status}`);
-      }
-      return await response.json();
+      const { data } = await api.get(`/api/executions/${executionId}/steps`);
+      return data;
     } catch (err) {
       throw err;
     }
@@ -213,18 +167,8 @@ export const useWorkflowTesting = (workflowId) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Authentication required');
-      const response = await fetch(`/api/executions/${executionId}/cancel`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      ,
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to cancel execution: ${response.status}`);
-      }
-      return await response.json();
+      const { data } = await api.post(`/api/executions/${executionId}/cancel`);
+      return data;
     } catch (err) {
       throw err;
     }

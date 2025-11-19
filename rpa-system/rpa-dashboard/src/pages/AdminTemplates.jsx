@@ -16,11 +16,9 @@ const AdminTemplates = () => {
     try {
       setLoading(true);
       setError(null);
-      const url = `${ADMIN_BASE}/admin/templates?status=${encodeURIComponent(status)}`;
-      const resp = await fetch(url, { headers: { 'x-admin-secret': ADMIN_SECRET }, credentials: 'include' });
-      if (!resp.ok) throw new Error(`Failed to load: ${resp.status}`);
-      const json = await resp.json();
-      setItems(json.templates || []);
+      const { api } = require('../utils/api');
+      const { data } = await api.get(`${ADMIN_BASE}/admin/templates?status=${encodeURIComponent(status)}`, { headers: { 'x-admin-secret': ADMIN_SECRET } });
+      setItems((data && data.templates) || []);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -30,13 +28,8 @@ const AdminTemplates = () => {
 
   const act = async (id, action) => {
     const url = `${ADMIN_BASE}/admin/templates/${id}/${action}`;
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
-      body: JSON.stringify({}),
-      credentials: 'include'
-    });
-    if (!resp.ok) throw new Error(`Action failed: ${resp.status}`);
+    const { api } = require('../utils/api');
+    await api.post(url, {}, { headers: { 'x-admin-secret': ADMIN_SECRET } });
   };
 
   const approve = async (id) => {

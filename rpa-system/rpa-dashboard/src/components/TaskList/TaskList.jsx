@@ -21,8 +21,12 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
     setDownloadingFiles(prev => new Set(prev).add(task.id));
     
     try {
+      // Use a safe fetch reference (globalThis) to support polyfilled/mocked environments
+      const fnFetch = (typeof globalThis !== 'undefined' && globalThis.fetch) || (typeof window !== 'undefined' && window.fetch);
+      if (!fnFetch) throw new Error('Fetch API not available');
+
       // Create a safe download method that doesn't cause black screen
-      const response = await fetch(task.artifact_url, {
+      const response = await fnFetch(task.artifact_url, {
         method: 'GET',
         headers: {
           'Accept': 'application/pdf,application/octet-stream,*/*'

@@ -10,7 +10,7 @@ Required (build/runtime)
 
 Supabase (recommended)
 
-- REACT_APP_SUPABASE_URL - e.g. https://your-project.supabase.co
+- REACT_APP_SUPABASE_URL - e.g. https://syxzilyuysdoirnezgii.supabase.co
 - REACT_APP_SUPABASE_ANON_KEY - public anon key used by the client
 
 Optional / Widgets

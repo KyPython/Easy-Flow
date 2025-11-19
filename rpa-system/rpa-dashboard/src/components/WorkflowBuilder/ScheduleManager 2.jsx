@@ -8,6 +8,7 @@ import ErrorMessage from '../ErrorMessage';
 import LoadingSpinner from './LoadingSpinner';
 // Remove unused/duplicate imports: ScheduleCard (we define local), Modal, FormField, ConfirmDialog, ActionButton
 import { supabase } from '../../utils/supabaseClient';
+import { api } from '../../utils/api';
 
 const ScheduleManager = ({ workflowId, workflowName }) => {
   const { schedules, loading, error, createSchedule, updateSchedule, deleteSchedule, triggerSchedule, refreshSchedules } = useSchedules(workflowId);
@@ -580,16 +581,9 @@ const ExecutionHistoryModal = ({ schedule, onClose }) => {
   useEffect(() => {
     const loadExecutions = async () => {
       try {
-        const response = await fetch(`/api/schedules/${schedule.id}/executions`, {
-          headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-          }
-        });
-
-        if (!response.ok) throw new Error('Failed to load executions');
-
-        const data = await response.json();
-        setExecutions(data.executions || []);
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const resp = await api.get(`/api/schedules/${schedule.id}/executions`, { headers: { Authorization: `Bearer ${token}` } });
+        setExecutions(resp?.data?.executions || []);
       } catch (error) {
         console.error('Error loading execution history:', error);
       } finally {

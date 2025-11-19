@@ -164,26 +164,16 @@ class NotificationService {
       if (isDev) {
         console.log('🔔 Making request to:', tokenUrl);
       }
-      const response = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          additionalClaims: {
-            email: user.email,
-            role: user.role || 'user'
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Failed to get Firebase token: ${response.status} - ${errorData.details || errorData.error || 'Unknown error'}`);
+      const { api } = require('./api');
+      const { data: tokenData } = await api.post(tokenUrl, {
+        additionalClaims: {
+          email: user.email,
+          role: user.role || 'user'
+        }
+      }, { headers: { 'Authorization': `Bearer ${session.access_token}` } });
+      if (!tokenData || !tokenData.success || !tokenData.token) {
+        throw new Error('Invalid token response from server');
       }
-
-      const tokenData = await response.json();
       
       if (!tokenData.success || !tokenData.token) {
         throw new Error('Invalid token response from server');
@@ -422,14 +412,10 @@ class NotificationService {
     }
 
     try {
-  const response = await fetch(buildApiUrl('/api/user/notifications'), {
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        }
-      });
-
-      if (response.ok) {
-        this.userPreferences = await response.json();
+      const { api } = require('./api');
+      const { data: prefs } = await api.get(buildApiUrl('/api/user/notifications'));
+      if (prefs) {
+        this.userPreferences = prefs;
         this.pushEnabled = !!this.userPreferences?.preferences?.push_notifications;
         if (isDev) {
           console.log('🔔 User preferences loaded:', this.userPreferences);
@@ -489,19 +475,12 @@ class NotificationService {
     try {
       const merged = this._mergePreferences({ push_notifications: true });
       const { data: { session } } = await supabase.auth.getSession();
-      const resp = await fetch(buildApiUrl('/api/user/notifications'), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({
-          preferences: merged,
-          fcm_token: token,
-          phone_number: this.userPreferences?.phone_number || null
-        })
-      });
-      if (!resp.ok) throw new Error(`Failed to save push preference (${resp.status})`);
+      const { api } = require('./api');
+      await api.put(buildApiUrl('/api/user/notifications'), {
+        preferences: merged,
+        fcm_token: token,
+        phone_number: this.userPreferences?.phone_number || null
+      }, { headers: { 'Authorization': `Bearer ${session?.access_token}` } });
       // Update local state
       if (!this.userPreferences) this.userPreferences = this.getDefaultPreferences();
       this.userPreferences.preferences = merged;
@@ -529,22 +508,14 @@ class NotificationService {
       } catch (revokeErr) {
         console.warn('🔔 Failed to delete FCM token (continuing):', revokeErr?.message || revokeErr);
       }
-
-      const merged = this._mergePreferences({ push_notifications: false });
+      const { api } = require('./api');
       const { data: { session } } = await supabase.auth.getSession();
-      const resp = await fetch(buildApiUrl('/api/user/notifications'), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({
-          preferences: merged,
-          fcm_token: null,
-          phone_number: this.userPreferences?.phone_number || null
-        })
-      });
-      if (!resp.ok) throw new Error(`Failed to save push disable (${resp.status})`);
+      const merged = this._mergePreferences({ push_notifications: false });
+      await api.put(buildApiUrl('/api/user/notifications'), {
+        preferences: merged,
+        fcm_token: null,
+        phone_number: this.userPreferences?.phone_number || null
+      }, { headers: { 'Authorization': `Bearer ${session?.access_token}` } });
 
       // Update local state
       if (!this.userPreferences) this.userPreferences = this.getDefaultPreferences();
@@ -714,21 +685,13 @@ class NotificationService {
       // Persist via backend preferences endpoint so server sees fcm_token
       const merged = this._mergePreferences({ push_notifications: true });
       const { data: { session } } = await supabase.auth.getSession();
-      const resp = await fetch(buildApiUrl('/api/user/notifications'), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({
+      const { api } = require('./api');
+      try {
+        await api.put(buildApiUrl('/api/user/notifications'), {
           preferences: merged,
           fcm_token: token,
           phone_number: this.userPreferences?.phone_number || null
-        })
-      });
-      if (!resp.ok) {
-        console.error('🔔 Error saving FCM token via API:', resp.status);
-      } else {
+        }, { headers: { 'Authorization': `Bearer ${session?.access_token}` } });
         if (isDev) {
           console.log('🔔 FCM token saved via API');
         }
@@ -738,6 +701,8 @@ class NotificationService {
         this.userPreferences.can_receive_push = true;
         this.pushEnabled = true;
         this.dispatchEvent('preferences_updated', { preferences: this.userPreferences });
+      } catch (err) {
+        console.error('🔔 Error saving FCM token via API:', err);
       }
     } catch (error) {
       console.error('🔔 Error saving FCM token to backend:', error);
@@ -878,25 +843,14 @@ class NotificationService {
         console.warn('🔔 Cannot use backend fallback: no Supabase session');
         return false;
       }
-      const response = await fetch(buildApiUrl('/api/notifications/create'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          type: notification.type || 'system_alert',
-            title: notification.title || 'Notification',
-            body: notification.body || 'You have a new notification',
-            priority: notification.priority || 'normal',
-            data: notification.data || {}
-        })
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(()=>({}));
-        console.error('🔔 Backend fallback failed:', err);
-        return false;
-      }
+      const { api } = require('./api');
+      await api.post(buildApiUrl('/api/notifications/create'), {
+        type: notification.type || 'system_alert',
+        title: notification.title || 'Notification',
+        body: notification.body || 'You have a new notification',
+        priority: notification.priority || 'normal',
+        data: notification.data || {}
+      }, { headers: { 'Authorization': `Bearer ${session.access_token}` } });
       if (isDev) {
         console.log('🔔 Notification stored via backend fallback');
       }

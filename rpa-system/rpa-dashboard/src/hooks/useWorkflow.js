@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
+import { api } from '../utils/api';
 
 export const useWorkflow = (workflowId) => {
   const [workflow, setWorkflow] = useState(null);
@@ -278,23 +279,10 @@ export const useWorkflow = (workflowId) => {
     if (!workflowId) return;
 
     try {
-  const response = await fetch(buildApiUrl('/api/workflows/execute'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        },
-        body: JSON.stringify({
-          workflowId,
-          inputData
-        })
+      const { data: result } = await api.post(buildApiUrl('/api/workflows/execute'), {
+        workflowId,
+        inputData
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to execute workflow');
-      }
-
-      const result = await response.json();
       return result;
     } catch (err) {
       console.error('Error executing workflow:', err);

@@ -52,29 +52,15 @@ const EmailCaptureModal = ({
         user_plan: planData?.plan?.name || 'hobbyist'
       });
 
-      // Submit to backend (replace with your endpoint)
-      const response = await fetch('/api/capture-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          source: 'session_modal',
-          sessionCount,
-          userPlan: planData?.plan?.name || 'hobbyist',
-          timestamp: new Date().toISOString()
-        }),
+      // Submit to backend via centralized api client
+      const { api } = require('../../utils/api');
+      await api.post('/api/capture-email', {
+        email,
+        source: 'session_modal',
+        sessionCount,
+        userPlan: planData?.plan?.name || 'hobbyist',
+        timestamp: new Date().toISOString()
       });
-
-      if (!response.ok) {
-        // Check if email already exists
-        const errorData = await response.json().catch(() => ({}));
-        if (response.status === 409 || errorData.message?.includes('already')) {
-          throw new Error('You\'re already on our list! 📧');
-        }
-        throw new Error('Failed to save email');
-      }
 
       // Show success
       setShowSuccess(true);

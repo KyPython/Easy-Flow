@@ -145,11 +145,16 @@ export default function AuthPage() {
       }
     } catch (err) {
       console.error('Authentication error:', err);
-      const msg = typeof err?.message === 'string' ? err.message : 'Authentication failed';
+      const msg = typeof err?.message === 'string' ? err.message : String(err || 'Authentication failed');
       const status = err?.status;
       const lower = msg.toLowerCase();
-      
-      if (status === 429) {
+
+      // Network-level or DNS failures often surface as TypeError: Failed to fetch
+      if (err instanceof TypeError || lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('network error')) {
+        setError('Network error: cannot reach the authentication server. Verify your SUPABASE_URL and network connectivity.');
+      } else if (msg.includes('ENOTFOUND') || msg.includes('ERR_NAME_NOT_RESOLVED') || msg.includes('getaddrinfo')) {
+        setError('DNS error: Supabase host could not be resolved. Check your SUPABASE_URL and DNS settings.');
+      } else if (status === 429) {
         setError('Too many attempts. Please wait a minute and try again.');
       } else if (lower.includes('email not confirmed')) {
         setError('Email not confirmed. Please check your inbox for the confirmation link.');

@@ -104,7 +104,7 @@ cp backend/.env.example backend/.env
 cp rpa-dashboard/.env.example rpa-dashboard/.env
 
 # Configure your Supabase credentials
-# SUPABASE_URL=your-project-url
+# SUPABASE_URL=https://syxzilyuysdoirnezgii.supabase.co
 # SUPABASE_SERVICE_ROLE_KEY=your-service-key
 ```
 

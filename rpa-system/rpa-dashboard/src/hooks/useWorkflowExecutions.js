@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
+import { api } from '../utils/api';
 
 export const useWorkflowExecutions = (workflowId) => {
   const [executions, setExecutions] = useState([]);
@@ -78,13 +79,8 @@ export const useWorkflowExecutions = (workflowId) => {
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
       if (token) {
-  const resp = await fetch(buildApiUrl(`/api/executions/${executionId}`), {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (resp.ok) {
-          const json = await resp.json();
-          return json.execution;
-        }
+  const { data: executionData } = await api.get(buildApiUrl(`/api/executions/${executionId}`));
+        if (executionData) return executionData.execution || executionData;
       }
       // Fallback to direct Supabase if REST fails
       const { data: execution, error: execError } = await supabase
@@ -130,32 +126,11 @@ export const useWorkflowExecutions = (workflowId) => {
         throw new Error('Not authenticated');
       }
 
-  const response = await fetch(buildApiUrl('/api/workflows/execute'), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          workflowId,
-          inputData,
-          triggeredBy: 'manual'
-        })
+  const { data: result } = await api.post(buildApiUrl('/api/workflows/execute'), {
+        workflowId,
+        inputData,
+        triggeredBy: 'manual'
       });
-
-      if (!response.ok) {
-        let errorData = null;
-        try {
-          errorData = await response.json();
-        } catch (_) {
-          // ignore parse failure
-        }
-        const err = new Error(errorData?.error || 'Failed to start execution');
-        err.status = response.status;
-        throw err;
-      }
-
-      const result = await response.json();
       
       // Refresh executions to include the new one
       await loadExecutions();
@@ -175,18 +150,7 @@ export const useWorkflowExecutions = (workflowId) => {
         throw new Error('Not authenticated');
       }
 
-  const response = await fetch(buildApiUrl(`/api/executions/${executionId}/cancel`), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to cancel execution');
-      }
+  await api.post(buildApiUrl(`/api/executions/${executionId}/cancel`));
 
       // Update the execution status locally
       setExecutions(prev => 
@@ -234,13 +198,8 @@ export const useWorkflowExecutions = (workflowId) => {
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
       if (token) {
-  const resp = await fetch(buildApiUrl(`/api/executions/${executionId}/steps`), {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (resp.ok) {
-          const json = await resp.json();
-          return json.steps || [];
-        }
+  const { data: stepsData } = await api.get(buildApiUrl(`/api/executions/${executionId}/steps`));
+        if (stepsData) return stepsData.steps || stepsData || [];
       }
       // Fallback to direct Supabase if REST fails
       const { data, error } = await supabase

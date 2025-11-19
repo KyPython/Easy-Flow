@@ -18,6 +18,7 @@ import {
   FaSync
 } from 'react-icons/fa';
 import { supabase } from '../../utils/supabaseClient';
+import { api } from '../../utils/api';
 import PlanGate from '../PlanGate/PlanGate';
 import { useTheme } from '../../utils/ThemeContext';
 
@@ -51,26 +52,14 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
         throw new Error('Authentication required');
       }
 
-      // Load versions and statistics in parallel
-      const [versionsResponse, statsResponse] = await Promise.all([
-        fetch(`/api/workflows/${workflowId}/versions?limit=50`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        fetch(`/api/workflows/${workflowId}/versions/statistics`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+      // Load versions and statistics in parallel using centralized api
+      const [versionsResp, statsResp] = await Promise.all([
+        api.get(`/api/workflows/${workflowId}/versions?limit=50`, { headers: { Authorization: `Bearer ${token}` } }),
+        api.get(`/api/workflows/${workflowId}/versions/statistics`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
-      if (!versionsResponse.ok) throw new Error('Failed to load versions');
-      if (!statsResponse.ok) throw new Error('Failed to load statistics');
-
-      const [versionsData, statsData] = await Promise.all([
-        versionsResponse.json(),
-        statsResponse.json()
-      ]);
-
-      setVersions(versionsData.data.versions);
-      setStatistics(statsData.data);
+      setVersions(versionsResp?.data?.data?.versions || []);
+      setStatistics(statsResp?.data?.data || null);
 
     } catch (err) {
       console.error('Failed to load version data:', err);
@@ -104,15 +93,8 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
 
       const [v1, v2] = selectedVersions.sort((a, b) => a.version_number - b.version_number);
 
-      const response = await fetch(
-        `/api/workflows/${workflowId}/versions/${v1.version_number}/compare/${v2.version_number}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (!response.ok) throw new Error('Failed to compare versions');
-
-      const result = await response.json();
-      setComparisonData(result.data);
+      const resp = await api.get(`/api/workflows/${workflowId}/versions/${v1.version_number}/compare/${v2.version_number}`, { headers: { Authorization: `Bearer ${token}` } });
+      setComparisonData(resp?.data?.data || null);
 
     } catch (err) {
       console.error('Failed to compare versions:', err);
@@ -125,15 +107,8 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
 
-      const response = await fetch(
-        `/api/workflows/${workflowId}/versions/${version.version_number}/preview`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (!response.ok) throw new Error('Failed to preview rollback');
-
-      const result = await response.json();
-      setRollbackPreview(result.data);
+      const resp = await api.get(`/api/workflows/${workflowId}/versions/${version.version_number}/preview`, { headers: { Authorization: `Bearer ${token}` } });
+      setRollbackPreview(resp?.data?.data || null);
 
     } catch (err) {
       console.error('Failed to preview rollback:', err);
@@ -150,26 +125,10 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
 
-      const response = await fetch(
-        `/api/workflows/${workflowId}/versions/${version.version_number}/rollback`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ rollbackComment: comment })
-        }
-      );
-
-      if (!response.ok) throw new Error('Failed to rollback version');
-
-      const result = await response.json();
-      
+      await api.post(`/api/workflows/${workflowId}/versions/${version.version_number}/rollback`, { rollbackComment: comment }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
       // Reload data and show success
-      loadVersionData();
+      await loadVersionData();
       setRollbackPreview(null);
-      
       alert(`Successfully rolled back to version ${version.version_number}`);
 
     } catch (err) {
@@ -183,18 +142,8 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
 
-      const response = await fetch(
-        `/api/workflows/${workflowId}/versions/${version.version_number}/export`,
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      if (!response.ok) throw new Error('Failed to export version');
-
-      const exportData = await response.json();
-      
+      const resp = await api.post(`/api/workflows/${workflowId}/versions/${version.version_number}/export`, null, { headers: { Authorization: `Bearer ${token}` } });
+      const exportData = resp?.data;
       // Trigger download
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);

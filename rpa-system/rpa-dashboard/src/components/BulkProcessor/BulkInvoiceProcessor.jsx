@@ -138,28 +138,18 @@ const BulkInvoiceProcessor = () => {
 
     try {
       setLoading(true);
-
-      const response = await fetch('/api/bulk-process/invoices', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.accessToken}`
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          vendors: vendors,
-          ...batchConfig
-        })
+      const resp = await api.post('/api/bulk-process/invoices', {
+        userId: user.id,
+        vendors: vendors,
+        ...batchConfig
+      }, {
+        headers: { Authorization: `Bearer ${user.accessToken}`, 'Content-Type': 'application/json' }
       });
 
-      if (!response.ok) throw new Error('Failed to start bulk processing');
-
-      const result = await response.json();
+      const result = resp?.data;
       setCurrentJob(result);
-      
       // Start polling for progress
       pollJobProgress(result.batchId);
-      
     } catch (error) {
       console.error('Error starting bulk processing:', error);
       showError('Failed to start bulk processing');

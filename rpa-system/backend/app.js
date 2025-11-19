@@ -269,39 +269,99 @@ const automationLimiter = rateLimit({
 });
 
 // Security headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-  styleSrc: ["'self'", "https:"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://www.uchat.com.au", "https://sdk.dfktv2.com", "https://www.googletagmanager.com", "https://js.hs-scripts.com", "https://js-na1.hs-scripts.com", "https://js-na2.hs-scripts.com", "https://*.hubspot.com", "https://js.hs-analytics.net", "https://*.hs-analytics.net", "https://js-na2.hs-banner.com", "https://*.hscollectedforms.net"],
-      imgSrc: ["'self'", "https:", "https://*.supabase.co", "https://*.supabase.in"],
-      connectSrc: ["'self'", "https://sdk.dfktv2.com", "https://www.uchat.com.au", "https://www.google-analytics.com", "https://analytics.google.com", "https://*.googleapis.com", "https://ipapi.co", "https://*.hubspot.com", "https://*.hs-analytics.net", "https://*.hscollectedforms.net", "https://api.hubapi.com", "https://*.supabase.co", "https://*.supabase.in", "wss://*.supabase.co", "wss://*.supabase.in"],
-      fontSrc: ["'self'", "https:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-      childSrc: ["'none'"],
-      workerSrc: ["'self'"],
-      manifestSrc: ["'self'"],
-      formAction: ["'self'"],
-      frameAncestors: ["'none'"],
-      baseUri: ["'self'"],
-      upgradeInsecureRequests: [],
-    },
-  },
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
-  },
-  permissionsPolicy: {
-    fullscreen: [],
-    camera: [],
-    microphone: [],
-    geolocation: []
+// Build CSP directives dynamically to include configured Supabase and OTLP origins.
+(() => {
+  const directives = {
+    defaultSrc: ["'self'"],
+    styleSrc: ["'self'", 'https:'],
+    scriptSrc: [
+      "'self'",
+      "'unsafe-inline'",
+      "'unsafe-eval'",
+      'https://www.uchat.com.au',
+      'https://sdk.dfktv2.com',
+      'https://www.googletagmanager.com',
+      'https://js.hs-scripts.com',
+      'https://js-na1.hs-scripts.com',
+      'https://js-na2.hs-scripts.com',
+      'https://*.hubspot.com',
+      'https://js.hs-analytics.net',
+      'https://*.hs-analytics.net',
+      'https://js-na2.hs-banner.com',
+      'https://*.hscollectedforms.net'
+    ],
+    imgSrc: ["'self'", 'https:'],
+    connectSrc: ["'self'", 'https://sdk.dfktv2.com', 'https://www.uchat.com.au', 'https://www.google-analytics.com', 'https://analytics.google.com', 'https://*.googleapis.com', 'https://ipapi.co', 'https://*.hubspot.com', 'https://*.hs-analytics.net', 'https://*.hscollectedforms.net', 'https://api.hubapi.com'],
+    fontSrc: ["'self'", 'https:'],
+    objectSrc: ["'none'"],
+    mediaSrc: ["'self'"],
+    frameSrc: ["'none'"],
+    childSrc: ["'none'"],
+    workerSrc: ["'self'"],
+    manifestSrc: ["'self'"],
+    formAction: ["'self'"],
+    frameAncestors: ["'none'"],
+    baseUri: ["'self'"],
+    upgradeInsecureRequests: []
+  };
+
+  // Allow Supabase origins if configured (handles exact origin from SUPABASE_URL)
+  try {
+    if (process.env.SUPABASE_URL) {
+      const supUrl = new URL(process.env.SUPABASE_URL);
+      const origin = supUrl.origin;
+      if (!directives.connectSrc.includes(origin)) directives.connectSrc.push(origin);
+      // allow image and websocket forms commonly used by Supabase
+      if (!directives.imgSrc.includes(origin)) directives.imgSrc.push(origin);
+      const wsProto = origin.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
+      if (!directives.connectSrc.includes(wsProto)) directives.connectSrc.push(wsProto);
+    }
+  } catch (e) {
+    // ignore bad SUPABASE_URL
   }
-}));
+
+  // Allow generic supabase wildcard hosts as well
+  ['https://*.supabase.co', 'https://*.supabase.in', 'wss://*.supabase.co', 'wss://*.supabase.in'].forEach(u => {
+    if (!directives.connectSrc.includes(u)) directives.connectSrc.push(u);
+    if (u.startsWith('https://') && !directives.imgSrc.includes(u.replace(/\*\./, ''))) {
+      // leave imgSrc alone for wildcard handling
+    }
+  });
+
+  // Allow local OTLP collector in development
+  if (process.env.NODE_ENV !== 'production') {
+    if (!directives.connectSrc.includes('http://localhost:4318')) directives.connectSrc.push('http://localhost:4318');
+  }
+
+  // Add OTLP exporter origin if provided
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    try {
+      const otlp = new URL(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+      if (!directives.connectSrc.includes(otlp.origin)) directives.connectSrc.push(otlp.origin);
+    } catch (e) {
+      // ignore invalid OTLP endpoint
+    }
+  }
+
+  // Ensure Supabase image origins are allowed
+  if (!directives.imgSrc.includes('https://*.supabase.co')) directives.imgSrc.push('https://*.supabase.co');
+  if (!directives.imgSrc.includes('https://*.supabase.in')) directives.imgSrc.push('https://*.supabase.in');
+
+  app.use(helmet({
+    contentSecurityPolicy: { directives },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true
+    },
+    permissionsPolicy: {
+      fullscreen: [],
+      camera: [],
+      microphone: [],
+      geolocation: []
+    }
+  }));
+})();
 
 // Add cookie-parser with secret for signed cookies (required for CSRF)
 app.use(cookieParser(process.env.SESSION_SECRET || 'test-session-secret-32-characters-long'));

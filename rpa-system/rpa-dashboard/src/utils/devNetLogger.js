@@ -37,7 +37,17 @@ export async function fetchWithAuth(url, options = {}) {
     headers
   };
 
-  return window.fetch(url, mergedOptions);
+  // Use safe fetch reference (support SSR/tests)
+  const _fn = (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function')
+    ? globalThis.fetch.bind(globalThis)
+    : (typeof window !== 'undefined' && typeof window.fetch === 'function' ? window.fetch.bind(window) : null);
+
+  if (!_fn) {
+    console.warn('[devNetLogger] fetch() not available in this environment; aborting request');
+    return Promise.reject(new Error('fetch not available'));
+  }
+
+  return _fn(url, mergedOptions);
 }
 if (typeof window !== 'undefined') {
   try {

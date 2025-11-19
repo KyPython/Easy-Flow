@@ -141,13 +141,19 @@ export const AuthProvider = ({ children }) => {
       }
       
       // Fallback to Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-      
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        return data;
+      } catch (err) {
+        // Enhance network-related errors with clearer message so callers can surface helpful UI
+        if (err instanceof TypeError || (err && typeof err.message === 'string' && err.message.toLowerCase().includes('failed to fetch'))) {
+          const enriched = new Error('Network error: cannot reach Supabase auth endpoint. Check SUPABASE_URL and your network.');
+          enriched.original = err;
+          throw enriched;
+        }
+        throw err;
+      }
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;

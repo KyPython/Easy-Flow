@@ -178,33 +178,22 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
         testMode: true
       };
 
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/api/executions/test-link-discovery`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(testPayload),
-        }
-      );
-
-      if (!response.ok) {
-        // Handle 404 - endpoint doesn't exist yet
-        if (response.status === 404) {
+      let discoveredLinks = [];
+      try {
+        const resp = await api.post('/api/executions/test-link-discovery', testPayload, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const results = resp?.data || {};
+        discoveredLinks = results.discoveryResult?.discoveredLinks || [];
+      } catch (err) {
+        const status = err?.response?.status;
+        if (status === 404) {
           showWarning('🔧 Link discovery testing is not yet implemented on this server. You can still submit the task normally.');
+          setIsTestingDiscovery(false);
           return;
         }
-        
-        const errorData = await response.json().catch(() => ({}));
-        const error = new Error(errorData.error || `Test failed: ${response.status}`);
-        error.response = { status: response.status, data: errorData };
-        throw error;
+        throw err;
       }
-
-      const results = await response.json();
-      const discoveredLinks = results.discoveryResult?.discoveredLinks || [];
       setDiscoveryResults(discoveredLinks);
       setShowDiscoveryResults(true);
       
@@ -336,26 +325,18 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
         ? '/api/run-task-with-ai'
         : '/api/automation/execute';
 
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:3030'}${endpoint}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const error = new Error(errorData.error || `Server responded with status ${response.status}`);
-        error.response = { status: response.status, data: errorData };
-        throw error;
+      let completedTask = null;
+      try {
+        const resp = await api.post(endpoint, payload, {
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        });
+        completedTask = resp?.data;
+      } catch (err) {
+        // Normalize to mimic previous error shape for downstream handling
+        const normalized = new Error(err.message || 'Request failed');
+        normalized.response = err.response;
+        throw normalized;
       }
-
-      const completedTask = await response.json();
       onTaskSubmit?.(completedTask);
 
       // Track task completion for milestone system
