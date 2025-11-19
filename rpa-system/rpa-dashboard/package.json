@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "homepage": "https://easy-flow-lac.vercel.app",
-  "proxy": "http://localhost:3030",
+  "proxy": "http://localhost:3032",
   "dependencies": {
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/auto-instrumentations-web": "^0.35.0",

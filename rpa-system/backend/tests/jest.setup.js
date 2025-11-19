@@ -76,8 +76,39 @@ jest.doMock('@supabase/supabase-js', () => ({
 // Mock axios to avoid network calls in unit tests
 const axios = require('axios');
 jest.mock('axios');
-axios.post.mockImplementation(async (url, payload) => ({ status: 200, data: { ok: true, received: payload } }));
-axios.get.mockImplementation(async (url) => ({ status: 200, data: { ok: true } }));
+axios.post.mockImplementation(async (url, payload, config) => ({ status: 200, data: { ok: true, received: payload } }));
+axios.get.mockImplementation(async (url, config) => ({ status: 200, data: { ok: true } }));
+axios.put = jest.fn(async () => ({ status: 200, data: { ok: true } }));
+axios.patch = jest.fn(async () => ({ status: 200, data: { ok: true } }));
+axios.delete = jest.fn(async () => ({ status: 200, data: { ok: true } }));
+axios.head = jest.fn(async () => ({ status: 200, headers: {} }));
+axios.options = jest.fn(async () => ({ status: 200, headers: {} }));
+axios.request = jest.fn(async () => ({ status: 200, data: { ok: true } }));
+axios.create = jest.fn((baseConfig = {}) => {
+  const instance = {
+    interceptors: {
+      request: { use: jest.fn() },
+      response: { use: jest.fn() }
+    },
+    get: axios.get,
+    post: axios.post,
+    put: axios.put,
+    patch: axios.patch,
+    delete: axios.delete,
+    head: axios.head,
+    options: axios.options,
+    request: axios.request
+  };
+  return instance;
+});
+
+// Polyfills for Node environment used by some integrations
+try {
+  global.FormData = global.FormData || require('form-data');
+} catch {}
+global.Blob = global.Blob || class Blob {
+  constructor(parts = [], opts = {}) { this._parts = parts; this.type = opts.type; }
+};
 
 // Mock firebaseNotificationService used by app - provide no-op implementations
 const firebaseMock = {

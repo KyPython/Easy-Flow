@@ -1,5 +1,14 @@
 // --- Initialize OpenTelemetry first for comprehensive instrumentation ---
-require('./middleware/telemetryInit');
+// Allow disabling telemetry in local dev to avoid requiring OpenTelemetry packages
+if (process.env.DISABLE_TELEMETRY !== 'true') {
+  try {
+    require('./middleware/telemetryInit');
+  } catch (e) {
+    console.warn('[app] telemetryInit failed to load - continuing without telemetry:', e?.message || e);
+  }
+} else {
+  console.warn('[app] Telemetry disabled via DISABLE_TELEMETRY=true');
+}
 
 // --- Initialize structured logging after telemetry ---
 const { createLogger } = require('./middleware/structuredLogging');
@@ -266,8 +275,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
   styleSrc: ["'self'", "https:"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://www.uchat.com.au", "https://sdk.dfktv2.com", "https://www.googletagmanager.com", "https://js.hs-scripts.com", "https://js-na1.hs-scripts.com", "https://js-na2.hs-scripts.com", "https://*.hubspot.com", "https://js.hs-analytics.net", "https://*.hs-analytics.net", "https://js-na2.hs-banner.com", "https://*.hscollectedforms.net"],
-      imgSrc: ["'self'", "https:"],
-      connectSrc: ["'self'", "https://sdk.dfktv2.com", "https://www.uchat.com.au", "https://www.google-analytics.com", "https://analytics.google.com", "https://*.hubspot.com", "https://*.hs-analytics.net", "https://*.hscollectedforms.net", "https://api.hubapi.com"],
+      imgSrc: ["'self'", "https:", "https://*.supabase.co", "https://*.supabase.in"],
+      connectSrc: ["'self'", "https://sdk.dfktv2.com", "https://www.uchat.com.au", "https://www.google-analytics.com", "https://analytics.google.com", "https://*.googleapis.com", "https://ipapi.co", "https://*.hubspot.com", "https://*.hs-analytics.net", "https://*.hscollectedforms.net", "https://api.hubapi.com", "https://*.supabase.co", "https://*.supabase.in", "wss://*.supabase.co", "wss://*.supabase.in"],
       fontSrc: ["'self'", "https:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -332,7 +341,9 @@ app.use((req, res, next) => {
     const secureOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      // In production when frontend and backend are cross-site we need SameSite=None
+      // In development keep SameSite lax so cookies work on localhost without HTTPS
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: options.maxAge || 3600000, // 1 hour default
       ...options
     };
@@ -1028,11 +1039,95 @@ app.get('/auth', (_req, res) => {
 // Backend authentication endpoints for when Supabase isn't available
 app.get('/api/auth/session', async (req, res) => {
   try {
-    // Check for development bypass token
-    const devToken = req.headers.authorization?.replace('Bearer ', '');
-    
-    if (process.env.NODE_ENV === 'development' && process.env.DEV_BYPASS_TOKEN && 
-        devToken === process.env.DEV_BYPASS_TOKEN) {
+    // Diagnostic: prefer Authorization header but also accept cookies (signed or unsigned)
+    const headerToken = req.headers.authorization?.replace('Bearer ', '') || null;
+
+    // Look for common cookie names that might contain an access token
+    // - signed cookies are available on req.signedCookies when cookieParser(secret) is used
+    // - unsigned cookies are on req.cookies
+    const cookieCandidates = [];
+    try {
+      // Signed cookies (if any)
+      if (req.signedCookies) {
+        Object.keys(req.signedCookies).forEach(k => cookieCandidates.push({ name: k, value: req.signedCookies[k], signed: true }));
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      if (req.cookies) {
+        Object.keys(req.cookies).forEach(k => cookieCandidates.push({ name: k, value: req.cookies[k], signed: false }));
+      }
+    } catch (e) { /* ignore */ }
+
+    // Common keys used by apps/clients — check these first for convenience
+    const preferKeys = ['dev_token', 'authToken', 'token', 'access_token', 'sb_access_token', 'supabase-auth-token', 'supabase-token', 'sb:token'];
+
+    // Helper: return first candidate that looks like a JWT (has two dots), matches preferred names,
+    // or contains a JSON/session payload that can be parsed to extract an access_token.
+    const selectTokenFromCookies = () => {
+      // prefer by exact key
+      for (const k of preferKeys) {
+        const found = cookieCandidates.find(c => c.name === k && c.value);
+        if (found && typeof found.value === 'string' && found.value.length > 0) return found.value;
+      }
+
+      const tryExtract = (val) => {
+        if (!val || typeof val !== 'string') return null;
+        // If it's a JWT-looking string, return it
+        if (val.split('.').length === 3) return val;
+        // If it looks like URL-encoded JSON, try decode
+        try {
+          const decoded = decodeURIComponent(val);
+          if (decoded && decoded.trim().startsWith('{')) {
+            const parsed = JSON.parse(decoded);
+            if (parsed && parsed.access_token) return parsed.access_token;
+            // some Supabase clients store session under 'currentSession'
+            if (parsed.currentSession && parsed.currentSession.access_token) return parsed.currentSession.access_token;
+            if (parsed.session && parsed.session.access_token) return parsed.session.access_token;
+          }
+        } catch (e) { /* ignore */ }
+
+        // If it's raw JSON
+        try {
+          if (val.trim().startsWith('{')) {
+            const parsed = JSON.parse(val);
+            if (parsed && parsed.access_token) return parsed.access_token;
+            if (parsed.currentSession && parsed.currentSession.access_token) return parsed.currentSession.access_token;
+            if (parsed.session && parsed.session.access_token) return parsed.session.access_token;
+          }
+        } catch (e) { /* ignore */ }
+
+        // If the cookie contains a substring like access_token=..., extract it
+        const m = String(val).match(/access_token=([^;,&]+)/);
+        if (m && m[1]) return m[1];
+
+        return null;
+      };
+
+      // First, prefer any cookie that looks like a JWT
+      for (const c of cookieCandidates) {
+        const extracted = tryExtract(c.value);
+        if (extracted) return extracted;
+      }
+
+      // Otherwise pick first non-empty string value as a last resort
+      for (const c of cookieCandidates) {
+        if (typeof c.value === 'string' && c.value.length > 0) return c.value;
+      }
+      return null;
+    };
+
+    const cookieToken = selectTokenFromCookies();
+
+    // Diagnostic logging to assist local debugging (quiet in production)
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        console.log('[auth/session] headerToken:', !!headerToken, 'cookieToken:', !!cookieToken, 'cookieKeys:', Object.keys(req.cookies || {}).join(','));
+      } catch (e) {}
+    }
+
+    // Development bypass via header or environment DEV_BYPASS_TOKEN
+    const devToken = headerToken || cookieToken;
+    if (process.env.NODE_ENV === 'development' && process.env.DEV_BYPASS_TOKEN && devToken === process.env.DEV_BYPASS_TOKEN) {
       return res.json({
         user: {
           id: process.env.DEV_USER_ID || 'dev-user-123',
@@ -1044,21 +1139,19 @@ app.get('/api/auth/session', async (req, res) => {
       });
     }
 
-    // Try to get session from Supabase if available
-    if (supabase && req.headers.authorization) {
+    // Try to get session from Supabase if available using token from header or cookie
+    const tokenToVerify = headerToken || cookieToken;
+    if (supabase && tokenToVerify) {
       try {
-        const token = req.headers.authorization.replace('Bearer ', '');
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        
+        const { data: { user }, error } = await supabase.auth.getUser(tokenToVerify);
         if (!error && user) {
-          return res.json({
-            user,
-            access_token: token,
-            expires_at: Date.now() + 3600000
-          });
+          return res.json({ user, access_token: tokenToVerify, expires_at: Date.now() + 3600000 });
+        }
+        if (error) {
+          if (process.env.NODE_ENV !== 'production') console.warn('[auth/session] supabase.getUser returned error:', error.message || error);
         }
       } catch (error) {
-        console.warn('Supabase session check failed:', error.message);
+        console.warn('Supabase session check failed:', error?.message || error);
       }
     }
 

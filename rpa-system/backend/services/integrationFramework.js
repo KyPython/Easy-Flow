@@ -1,3 +1,4 @@
+// axios is required dynamically inside integrations that need it
 const { createInstrumentedHttpClient } = require('../middleware/httpInstrumentation');
 const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');
 const { withPerformanceSpanSync, BulkOperationSpan } = require('../middleware/performanceInstrumentation');
@@ -8,10 +9,10 @@ const { withPerformanceSpanSync, BulkOperationSpan } = require('../middleware/pe
  */
 class IntegrationFramework {
   constructor() {
-    this.supabase = createInstrumentedSupabaseClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    // Supabase is optional for tests/local runs — only initialize when configured
+    this.supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE)
+      ? createInstrumentedSupabaseClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE)
+      : null;
     this.http = createInstrumentedHttpClient();
     
     this.integrations = {
@@ -413,6 +414,7 @@ class ZapierIntegration {
   }
 
   async sendData(data) {
+    const axios = require('axios');
     const response = await axios.post(this.webhookUrl, data, {
       headers: {
         'Content-Type': 'application/json'

@@ -28,6 +28,11 @@ function TeamsPage() {
 // ...existing code...
 // --- TeamManagement component ---
 import { useEffect } from 'react';
+
+// Helper to get auth token from env or localStorage
+function getAuthToken() {
+  return process.env.REACT_APP_API_KEY || localStorage.getItem('token');
+}
 const roleOptions = ['Owner', 'Admin', 'Member'];
 
 function TeamManagement() {
@@ -41,7 +46,13 @@ function TeamManagement() {
   // Fetch team members from backend
   useEffect(() => {
     setLoading(true);
-    fetch('/api/team')
+    fetch('/api/team', {
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    })
       .then(res => res.json())
       .then(data => {
         setMembers(data.members || []);
@@ -57,7 +68,14 @@ function TeamManagement() {
   const handleRemove = async (id) => {
     setLoading(true);
     try {
-      await fetch(`/api/team/${id}`, { method: 'DELETE' });
+      await fetch(`/api/team/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
       setMembers((prev) => prev.filter((m) => m.id !== id));
     } catch {
       setError('Failed to remove member.');
@@ -71,8 +89,12 @@ function TeamManagement() {
     try {
       await fetch(`/api/team/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: newRole })
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ role: newRole }),
+        credentials: 'include'
       });
       setMembers((prev) => prev.map((m) => m.id === id ? { ...m, role: newRole } : m));
     } catch {
@@ -88,8 +110,12 @@ function TeamManagement() {
     try {
       const res = await fetch('/api/team/invite', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole })
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.member) {

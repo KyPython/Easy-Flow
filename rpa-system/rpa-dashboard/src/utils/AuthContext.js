@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { supabase } from './supabaseClient';
+import { fetchWithAuth } from './devNetLogger';
 
 const AuthContext = createContext();
 
@@ -18,12 +19,31 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
 
   // Check if backend authentication is available
-  const checkBackendAuth = async () => {
+  // Always use fetchWithAuth and handle 401 gracefully
+  // Accept an explicit token to avoid races with localStorage writes
+  const checkBackendAuth = async (explicitToken = null) => {
     try {
-      const response = await fetch('/api/auth/session', {
-        credentials: 'include'
-      });
-      
+      // Only call backend session endpoint if we have a token or cookies to send
+      let token = explicitToken;
+      if (!token) {
+        try { token = localStorage.getItem('dev_token') || localStorage.getItem('authToken') || localStorage.getItem('token'); } catch (e) { token = null; }
+        if (token === 'undefined' || token === 'null') token = null;
+      }
+      const hasCookie = (typeof document !== 'undefined' && document.cookie && document.cookie.length > 0);
+      if (!token && !hasCookie) {
+        // No credentials available to send; skip backend call to avoid 401
+        console.debug('[Auth] No token or cookies found; skipping backend /api/auth/session call.');
+        return false;
+      }
+
+      // Provide Authorization header if token present; fetchWithAuth also sends cookies via credentials: 'include'
+      const response = await fetchWithAuth('/api/auth/session');
+      if (response.status === 401) {
+        setUser(null);
+        setSession(null);
+        localStorage.removeItem('dev_token');
+        return false;
+      }
       if (response.ok) {
         const sessionData = await response.json();
         if (sessionData.user) {
@@ -33,7 +53,10 @@ export const AuthProvider = ({ children }) => {
         }
       }
     } catch (error) {
-      console.log('Backend auth not available, trying Supabase...');
+      // Gracefully handle network/backend errors
+      setUser(null);
+      setSession(null);
+      localStorage.removeItem('dev_token');
     }
     return false;
   };
@@ -41,25 +64,28 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // Try backend authentication first
-        const backendAuth = await checkBackendAuth();
-        
-        if (!backendAuth) {
-          // Fall back to Supabase if backend auth fails
-          try {
-            const { data: { session }, error } = await supabase.auth.getSession();
-            if (error) {
-              console.warn('Supabase auth error:', error.message);
-              // Don't throw - continue with no authentication
-            } else {
-              setSession(session);
-              setUser(session?.user ?? null);
+        // Prefer Supabase client-side session if available so we can forward its token to backend
+        try {
+          const { data: { session: sbSession }, error } = await supabase.auth.getSession();
+          if (!error && sbSession) {
+            // Store token so fetchWithAuth will include Authorization header
+            if (sbSession.access_token) {
+              try { localStorage.setItem('dev_token', sbSession.access_token); } catch (e) {}
             }
-          } catch (supabaseError) {
-            console.warn('Supabase not available:', supabaseError.message);
-            // Continue without authentication - user can still use public features
+            setSession(sbSession);
+            setUser(sbSession?.user ?? null);
           }
+        } catch (supabaseError) {
+          console.warn('Supabase not available:', supabaseError.message);
         }
+
+        // Ensure token is read from storage (or session) and passed explicitly to avoid races
+        let startupToken = null;
+        try { startupToken = localStorage.getItem('dev_token') || localStorage.getItem('authToken') || localStorage.getItem('token'); } catch (e) { startupToken = null; }
+        if (startupToken === 'undefined' || startupToken === 'null') startupToken = null;
+
+        // Then try backend auth (will accept Authorization header or cookie if present)
+        await checkBackendAuth(startupToken);
       } catch (error) {
         console.error('Authentication initialization error:', error);
       } finally {
@@ -97,25 +123,17 @@ export const AuthProvider = ({ children }) => {
       
       // Try backend authentication first
       try {
-        const response = await fetch('/api/auth/login', {
+        const response = await fetchWithAuth('/api/auth/login', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include'
+          body: JSON.stringify({ email, password })
         });
-        
         if (response.ok) {
           const { user, session } = await response.json();
           setUser(user);
           setSession(session);
-          
-          // Store token for API requests
           if (session.access_token) {
             localStorage.setItem('dev_token', session.access_token);
           }
-          
           return { user, session };
         }
       } catch (backendError) {
@@ -165,9 +183,8 @@ export const AuthProvider = ({ children }) => {
       
       // Try backend logout
       try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          credentials: 'include'
+        await fetchWithAuth('/api/auth/logout', {
+          method: 'POST'
         });
       } catch (error) {
         console.warn('Backend logout failed:', error.message);

@@ -172,6 +172,64 @@ class FrontendPerformanceInstrumentation {
 
 // Initialize OpenTelemetry
 function initializeFrontendTelemetry() {
+  // Safe helpers to avoid errors when XHR is missing/polyfilled/mocked
+  const WRAPPED_FLAG = Symbol.for('easyflow.telemetry.wrapped');
+  const isFunction = (fn) => typeof fn === 'function';
+
+  function ensureXhrSafety() {
+    try {
+      if (typeof XMLHttpRequest === 'undefined') {
+        console.warn('[Telemetry] XMLHttpRequest is not available in this environment — skipping XHR safety patch.');
+        return false;
+      }
+
+      const proto = XMLHttpRequest.prototype || {};
+
+      ['open', 'send'].forEach((name) => {
+        try {
+          const orig = proto[name];
+
+          // If it's already marked wrapped by us, skip
+          if (orig && orig[WRAPPED_FLAG]) return;
+
+          if (!isFunction(orig)) {
+            // Install a safe no-op shim that preserves minimal metadata used by instrumentation
+            proto[name] = function(...args) {
+              try {
+                if (name === 'open') {
+                  // store last method/url for any later instrumentation that expects them
+                  try { this.__easyflow_lastMethod = String(args[0] || 'GET'); this.__easyflow_lastUrl = String(args[1] || '(unknown)'); } catch (e) {}
+                }
+                if (name === 'send') {
+                  // no-op send shim; do nothing if original missing
+                }
+              } catch (e) {
+                // swallow any errors — we must not break app
+              }
+            };
+            try { proto[name][WRAPPED_FLAG] = true; } catch (e) {}
+            console.warn(`[Telemetry] Installed safe shim for XMLHttpRequest.prototype.${name} to avoid instrumentation errors.`);
+          } else {
+            // Wrap original idempotently to mark it wrapped (avoid double wraps)
+            if (!orig[WRAPPED_FLAG]) {
+              const wrapped = function(...args) { return orig.apply(this, args); };
+              try { wrapped[WRAPPED_FLAG] = true; } catch (e) {}
+              try { proto[name] = wrapped; } catch (e) { /* ignore assignment failures */ }
+            }
+          }
+        } catch (e) {
+          // per-method failure should not stop overall initialization
+          console.debug('[Telemetry] ensureXhrSafety per-method error for', name, e && e.message ? e.message : e);
+        }
+      });
+
+      return true;
+    } catch (e) {
+      console.debug('[Telemetry] ensureXhrSafety failed', e && e.message ? e.message : e);
+      return false;
+    }
+  }
+
   // By default do NOT initialize browser OTLP exporters in production.
   // Enable in development, or explicitly opt-in in production via
   // REACT_APP_ENABLE_BROWSER_OTLP=true (build-time env) for advanced cases.
@@ -212,31 +270,38 @@ function initializeFrontendTelemetry() {
 
   provider.register();
 
-  registerInstrumentations({
-    instrumentations: [
-      getWebAutoInstrumentations({
-        '@opentelemetry/instrumentation-document-load': {
-          enabled: true
-        },
-        '@opentelemetry/instrumentation-fetch': {
-          enabled: true,
-          clearTimingResources: true,
-          propagateTraceHeaderCorsUrls: [
-            /^http:\/\/localhost:3030\/.*/, // Backend API
-            new RegExp(process.env.REACT_APP_API_URL || 'http://localhost:3030')
-          ]
-        },
-        '@opentelemetry/instrumentation-xml-http-request': {
-          enabled: true,
-          clearTimingResources: true
-        },
-        '@opentelemetry/instrumentation-user-interaction': {
-          enabled: true,
-          eventNames: ['click', 'dblclick', 'mousedown', 'mouseup', 'submit']
-        }
-      })
-    ]
-  });
+  // Ensure XHR safety before registering instrumentations to avoid runtime wrap errors
+  const xhrSafe = ensureXhrSafety();
+
+  try {
+    const autoInstrOptions = {
+      '@opentelemetry/instrumentation-document-load': { enabled: true },
+      '@opentelemetry/instrumentation-fetch': {
+        enabled: true,
+        clearTimingResources: true,
+        propagateTraceHeaderCorsUrls: [
+          /^http:\/\/localhost:3030\/.*/, // Backend API
+          new RegExp(process.env.REACT_APP_API_URL || 'http://localhost:3030')
+        ]
+      },
+      // Only enable XHR instrumentation when environment supports it safely
+      '@opentelemetry/instrumentation-xml-http-request': {
+        enabled: xhrSafe && typeof XMLHttpRequest !== 'undefined' && typeof XMLHttpRequest.prototype?.open === 'function',
+        clearTimingResources: true
+      },
+      '@opentelemetry/instrumentation-user-interaction': {
+        enabled: true,
+        eventNames: ['click', 'dblclick', 'mousedown', 'mouseup', 'submit']
+      }
+    };
+
+    registerInstrumentations({
+      instrumentations: [ getWebAutoInstrumentations(autoInstrOptions) ]
+    });
+  } catch (e) {
+    // Fail-safe: instrumentation registration can fail if environment is exotic — log and continue
+    console.warn('[Telemetry] registerInstrumentations failed, continuing without auto-instrumentations:', e && e.message ? e.message : e);
+  }
 
   try {
     console.info('[Telemetry] Frontend telemetry initialized successfully');

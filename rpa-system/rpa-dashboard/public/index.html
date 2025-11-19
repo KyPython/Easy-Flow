@@ -8,8 +8,15 @@
     <meta http-equiv="Permissions-Policy" content="fullscreen=(self), camera=(), microphone=(), geolocation=()" />
       <meta
         http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* https://www.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com; connect-src 'self' http://localhost:* ws://localhost:* https://www.google-analytics.com https://analytics.google.com https://*.googleapis.com https://ipapi.co; frame-src 'self'; img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com https://stats.g.doubleclick.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; object-src 'none'; base-uri 'self'; form-action 'self';"
-      >
+        content="default-src 'self';
+                 script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* https://www.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com;
+                 connect-src 'self' http://localhost:* ws://localhost:* https://www.google-analytics.com https://analytics.google.com https://*.googleapis.com https://ipapi.co https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in;
+                 frame-src 'self';
+                 img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com https://stats.g.doubleclick.net https://*.supabase.co https://*.supabase.in;
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+                 font-src 'self' https://fonts.gstatic.com data:;
+                 object-src 'none'; base-uri 'self'; form-action 'self';"
+      />
     <meta
       name="description"
       content="EasyFlow - Streamline your workflow automation"

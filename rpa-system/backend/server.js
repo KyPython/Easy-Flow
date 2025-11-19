@@ -1,5 +1,14 @@
 // ✅ Initialize OpenTelemetry FIRST (before anything else, including New Relic)
-require('./middleware/telemetryInit');
+// Allow disabling telemetry during local dev (avoids requiring heavy OTEL deps)
+if (process.env.DISABLE_TELEMETRY !== 'true') {
+  try {
+    require('./middleware/telemetryInit');
+  } catch (e) {
+    console.warn('[server] telemetryInit failed to load - continuing without telemetry:', e?.message || e);
+  }
+} else {
+  console.warn('[server] Telemetry disabled via DISABLE_TELEMETRY=true');
+}
 
 // Initialize New Relic monitoring SECOND (if needed)
 if (process.env.NEW_RELIC_LICENSE_KEY && process.env.NEW_RELIC_ENABLED !== 'false') {
