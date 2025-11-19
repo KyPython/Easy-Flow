@@ -64,6 +64,8 @@ export const api = axios.create({
   timeout: 15000,
 });
 
+// Ensure cookies are sent for same-site auth flows (Supabase uses cookies in some setups)
+api.defaults.withCredentials = true;
 // Expose api globally for debugging in all environments (harmless; same-origin only)
 if (typeof window !== 'undefined') {
   if (!window._api) {
@@ -100,8 +102,20 @@ api.interceptors.request.use(
         // Add user context to trace headers
         config.headers['x-user-id'] = session.user?.id || '';
       } else {
-        // Fallback to development token if available
-        const devToken = process.env.REACT_APP_DEV_TOKEN || localStorage.getItem('dev_token');
+        // Fallback to development token or any known local token if available
+        const candidateTokens = [
+          process.env.REACT_APP_DEV_TOKEN,
+          localStorage.getItem('dev_token'),
+          localStorage.getItem('authToken'),
+          localStorage.getItem('token'),
+          localStorage.getItem('supabase-auth-token'),
+          localStorage.getItem('sb_access_token')
+        ];
+
+        const normalize = (t) => (typeof t === 'string' ? t.trim() : t);
+        const isValid = (t) => t && t !== 'null' && t !== 'undefined';
+
+        const devToken = candidateTokens.map(normalize).find(isValid);
         if (devToken) {
           config.headers['Authorization'] = `Bearer ${devToken}`;
         }
@@ -122,10 +136,14 @@ api.interceptors.request.use(
 
     } catch (error) {
       console.warn('[api] Failed to get auth token:', error.message);
-      // Try development token as fallback
-      const devToken = process.env.REACT_APP_DEV_TOKEN || localStorage.getItem('dev_token');
-      if (devToken) {
-        config.headers['Authorization'] = `Bearer ${devToken}`;
+      // Try development/local tokens as fallback (defensive)
+      try {
+        const fallback = [process.env.REACT_APP_DEV_TOKEN, localStorage.getItem('dev_token'), localStorage.getItem('authToken'), localStorage.getItem('token')]
+          .map((t) => (typeof t === 'string' ? t.trim() : t))
+          .find((t) => t && t !== 'null' && t !== 'undefined');
+        if (fallback) config.headers['Authorization'] = `Bearer ${fallback}`;
+      } catch (e) {
+        // localStorage may be unavailable in some environments (SSR/tests)
       }
     }
     return config;
@@ -313,6 +331,32 @@ api.interceptors.response.use(
     } catch (e) {
       // fall through
     }
+    // Unrecoverable 401: clear local tokens and redirect to login (browser only, skip during tests)
+    try {
+      if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
+        try {
+          localStorage.removeItem('dev_token');
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('token');
+        } catch (e) {
+          // ignore localStorage failures (SSR/tests or restricted envs)
+        }
+
+        try {
+          if (supabase?.auth?.signOut) await supabase.auth.signOut();
+        } catch (e) {
+          // ignore signOut failures
+        }
+
+        if (!(original?.url || '').includes('/api/auth/session')) {
+          // Use replace to avoid adding to history
+          window.location.replace('/login');
+        }
+      }
+    } catch (e) {
+      // defensive: swallow any redirect/clear errors
+    }
+
     return Promise.reject(error);
   }
 );

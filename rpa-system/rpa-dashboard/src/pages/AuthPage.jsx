@@ -48,7 +48,8 @@ export default function AuthPage() {
               body: JSON.stringify({
                 referralCode: referralCode,
                 newUserId: session.user.id
-              })
+              }),
+              credentials: 'include'
             });
             
             if (response.ok) {

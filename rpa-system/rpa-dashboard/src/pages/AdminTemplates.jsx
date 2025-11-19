@@ -17,7 +17,7 @@ const AdminTemplates = () => {
       setLoading(true);
       setError(null);
       const url = `${ADMIN_BASE}/admin/templates?status=${encodeURIComponent(status)}`;
-      const resp = await fetch(url, { headers: { 'x-admin-secret': ADMIN_SECRET } });
+      const resp = await fetch(url, { headers: { 'x-admin-secret': ADMIN_SECRET }, credentials: 'include' });
       if (!resp.ok) throw new Error(`Failed to load: ${resp.status}`);
       const json = await resp.json();
       setItems(json.templates || []);
@@ -34,6 +34,7 @@ const AdminTemplates = () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
       body: JSON.stringify({}),
+      credentials: 'include'
     });
     if (!resp.ok) throw new Error(`Action failed: ${resp.status}`);
   };

@@ -30,6 +30,8 @@ export const useSchedules = (workflowId) => {
           'Authorization': `Bearer ${session.session.access_token}`,
           'Content-Type': 'application/json'
         }
+      ,
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -81,6 +83,8 @@ export const useSchedules = (workflowId) => {
           maxExecutions: scheduleData.maxExecutions,
           webhookSecret: scheduleData.webhookSecret
         })
+      ,
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -115,6 +119,8 @@ export const useSchedules = (workflowId) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(updates)
+      ,
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -151,6 +157,8 @@ export const useSchedules = (workflowId) => {
         headers: {
           'Authorization': `Bearer ${session.session.access_token}`
         }
+      ,
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -182,6 +190,8 @@ export const useSchedules = (workflowId) => {
           'Authorization': `Bearer ${session.session.access_token}`,
           'Content-Type': 'application/json'
         }
+      ,
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -211,6 +221,8 @@ export const useSchedules = (workflowId) => {
           headers: {
             'Authorization': `Bearer ${session.session.access_token}`
           }
+        ,
+          credentials: 'include'
         }
       );
 

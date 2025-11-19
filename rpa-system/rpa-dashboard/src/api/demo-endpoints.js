@@ -64,6 +64,11 @@ const tracedFetch = async (url, options = {}) => {
       ...traceHeaders
     }
   };
+
+  // Ensure cookies are included for same-site auth flows by default
+  if (!('credentials' in enhancedOptions)) {
+    enhancedOptions.credentials = 'include';
+  }
   
   // Log trace injection for debugging
   if (process.env.NODE_ENV !== 'production' && traceHeaders.traceparent) {

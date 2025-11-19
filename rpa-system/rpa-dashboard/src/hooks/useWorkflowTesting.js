@@ -94,7 +94,11 @@ export const useWorkflowTesting = (workflowId) => {
           test_mode: true,
           expected_outputs: scenario.expected_outputs
         })
+      ,
+        credentials: 'include'
       });
+      // Ensure cookies are sent (for cookie-based sessions)
+      // (Note: Authorization header already present from Supabase session)
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP ${response.status}`);
@@ -136,6 +140,8 @@ export const useWorkflowTesting = (workflowId) => {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
+      ,
+        credentials: 'include'
       });
       if (!response.ok) {
         throw new Error(`Failed to get execution results: ${response.status}`);
@@ -163,6 +169,8 @@ export const useWorkflowTesting = (workflowId) => {
           input_data: inputData,
           workflow_id: workflowId
         })
+      ,
+        credentials: 'include'
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -188,6 +196,8 @@ export const useWorkflowTesting = (workflowId) => {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
+      ,
+        credentials: 'include'
       });
       if (!response.ok) {
         throw new Error(`Failed to get execution status: ${response.status}`);
@@ -208,6 +218,8 @@ export const useWorkflowTesting = (workflowId) => {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
+      ,
+        credentials: 'include'
       });
       if (!response.ok) {
         throw new Error(`Failed to cancel execution: ${response.status}`);
