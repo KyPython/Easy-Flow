@@ -28,6 +28,7 @@ function TeamsPage() {
 // ...existing code...
 // --- TeamManagement component ---
 import { useEffect } from 'react';
+import { api } from '../utils/api';
 
 // Helper to get auth token from env or localStorage
 function getAuthToken() {
@@ -45,39 +46,30 @@ function TeamManagement() {
 
   // Fetch team members from backend
   useEffect(() => {
-    setLoading(true);
-    fetch('/api/team', {
-      headers: {
-        'Authorization': `Bearer ${getAuthToken()}`,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    })
-      .then(res => res.json())
-      .then(data => {
-        setMembers(data.members || []);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError('Failed to load team members.');
-        setLoading(false);
-      });
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get('/api/team');
+        if (!cancelled) setMembers(data.members || []);
+      } catch (err) {
+        if (!cancelled) setError('Failed to load team members.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   // Remove member
   const handleRemove = async (id) => {
     setLoading(true);
     try {
-      await fetch(`/api/team/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${getAuthToken()}`,
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'
-      });
+      await api.delete(`/api/team/${id}`);
       setMembers((prev) => prev.filter((m) => m.id !== id));
-    } catch {
+    } catch (e) {
       setError('Failed to remove member.');
     }
     setLoading(false);
@@ -87,17 +79,9 @@ function TeamManagement() {
   const handleRoleChange = async (id, newRole) => {
     setLoading(true);
     try {
-      await fetch(`/api/team/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${getAuthToken()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ role: newRole }),
-        credentials: 'include'
-      });
+      await api.patch(`/api/team/${id}`, { role: newRole });
       setMembers((prev) => prev.map((m) => m.id === id ? { ...m, role: newRole } : m));
-    } catch {
+    } catch (e) {
       setError('Failed to update role.');
     }
     setLoading(false);
@@ -108,23 +92,12 @@ function TeamManagement() {
     if (!inviteEmail) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/team/invite', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${getAuthToken()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
-        credentials: 'include'
-      });
-      const data = await res.json();
-      if (data.member) {
-        setMembers((prev) => [...prev, data.member]);
-      }
+      const { data } = await api.post('/api/team/invite', { email: inviteEmail, role: inviteRole });
+      if (data.member) setMembers((prev) => [...prev, data.member]);
       setInviteEmail('');
       setInviteRole('Member');
       setShowInvite(false);
-    } catch {
+    } catch (e) {
       setError('Failed to invite member.');
     }
     setLoading(false);

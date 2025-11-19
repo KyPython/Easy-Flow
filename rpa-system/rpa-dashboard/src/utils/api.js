@@ -698,20 +698,8 @@ export const deleteFileShare = async (shareId) => {
 export const getSharedFile = async (token, password = null) => {
   return apiErrorHandler.safeApiCall(
     async () => {
-      const response = await fetch(`${api.defaults.baseURL || ''}/shared/access`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token, password }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to access shared file');
-      }
-
-      return await response.json();
+      const { data } = await api.post('/shared/access', { token, password });
+      return data;
     },
     {
       endpoint: 'shared/access',

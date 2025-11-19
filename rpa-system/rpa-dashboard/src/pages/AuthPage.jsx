@@ -42,20 +42,12 @@ export default function AuthPage() {
         // Complete referral if there's a referral code
         if (referralCode) {
           try {
-            const response = await fetch('/api/complete-referral', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                referralCode: referralCode,
-                newUserId: session.user.id
-              }),
-              credentials: 'include'
-            });
-            
-            if (response.ok) {
-            }
+            // Use central axios `api` so trace headers and credentials are applied
+            const { api } = await import('../utils/api');
+            await api.post('/api/complete-referral', { referralCode, newUserId: session.user.id });
           } catch (error) {
             // Error handling logic (optional: show user feedback)
+            console.debug('complete-referral failed', error);
           }
         }
         
