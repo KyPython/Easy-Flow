@@ -221,7 +221,8 @@ class DropboxIntegration {
 
   async uploadFile(file, settings) {
     const uploadPath = settings.folder ? `/${settings.folder}/${file.name}` : `/${file.name}`;
-    
+    const axios = require('axios');
+
     const response = await axios.post(
       `${this.baseUrl}/files/upload`,
       file.buffer,
@@ -237,7 +238,7 @@ class DropboxIntegration {
         }
       }
     );
-    
+
     return response.data;
   }
 
@@ -277,6 +278,8 @@ class GoogleDriveIntegration {
     form.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'}));
     form.append('file', file.buffer);
 
+    const axios = require('axios');
+
     const response = await axios.post(
       `${this.uploadUrl}?uploadType=multipart`,
       form,
@@ -287,7 +290,7 @@ class GoogleDriveIntegration {
         }
       }
     );
-    
+
     return response.data;
   }
 
@@ -318,6 +321,8 @@ class SalesforceIntegration {
 
   async sendData(data) {
     // Create records in Salesforce
+    const axios = require('axios');
+
     const response = await axios.post(
       `${this.baseUrl}/services/data/v54.0/sobjects/${data.objectType}`,
       data.fields,
@@ -328,7 +333,7 @@ class SalesforceIntegration {
         }
       }
     );
-    
+
     return response.data;
   }
 
@@ -386,6 +391,8 @@ class SlackIntegration {
     formData.append('channels', settings.channel);
     formData.append('title', settings.title || file.name);
 
+    const axios = require('axios');
+
     const response = await axios.post(
       `${this.baseUrl}/files.upload`,
       formData,
@@ -396,7 +403,7 @@ class SlackIntegration {
         }
       }
     );
-    
+
     return response.data;
   }
 }

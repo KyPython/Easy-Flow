@@ -74,33 +74,47 @@ jest.doMock('@supabase/supabase-js', () => ({
 }));
 
 // Mock axios to avoid network calls in unit tests
-const axios = require('axios');
-jest.mock('axios');
-axios.post.mockImplementation(async (url, payload, config) => ({ status: 200, data: { ok: true, received: payload } }));
-axios.get.mockImplementation(async (url, config) => ({ status: 200, data: { ok: true } }));
-axios.put = jest.fn(async () => ({ status: 200, data: { ok: true } }));
-axios.patch = jest.fn(async () => ({ status: 200, data: { ok: true } }));
-axios.delete = jest.fn(async () => ({ status: 200, data: { ok: true } }));
-axios.head = jest.fn(async () => ({ status: 200, headers: {} }));
-axios.options = jest.fn(async () => ({ status: 200, headers: {} }));
-axios.request = jest.fn(async () => ({ status: 200, data: { ok: true } }));
-axios.create = jest.fn((baseConfig = {}) => {
-  const instance = {
-    interceptors: {
-      request: { use: jest.fn() },
-      response: { use: jest.fn() }
-    },
-    get: axios.get,
-    post: axios.post,
-    put: axios.put,
-    patch: axios.patch,
-    delete: axios.delete,
-    head: axios.head,
-    options: axios.options,
-    request: axios.request
+jest.mock('axios', () => {
+  const post = jest.fn(async (url, payload, config) => ({ status: 200, data: { ok: true, received: payload } }));
+  const get = jest.fn(async (url, config) => ({ status: 200, data: { ok: true } }));
+  const put = jest.fn(async () => ({ status: 200, data: { ok: true } }));
+  const patch = jest.fn(async () => ({ status: 200, data: { ok: true } }));
+  const del = jest.fn(async () => ({ status: 200, data: { ok: true } }));
+  const head = jest.fn(async () => ({ status: 200, headers: {} }));
+  const options = jest.fn(async () => ({ status: 200, headers: {} }));
+  const request = jest.fn(async () => ({ status: 200, data: { ok: true } }));
+
+  const create = jest.fn((baseConfig = {}) => {
+    const instance = {
+      interceptors: {
+        request: { use: jest.fn() },
+        response: { use: jest.fn() }
+      },
+      get,
+      post,
+      put,
+      patch,
+      delete: del,
+      head,
+      options,
+      request
+    };
+    return instance;
+  });
+
+  return {
+    post,
+    get,
+    put,
+    patch,
+    delete: del,
+    head,
+    options,
+    request,
+    create
   };
-  return instance;
 });
+const axios = require('axios');
 
 // Polyfills for Node environment used by some integrations
 try {
