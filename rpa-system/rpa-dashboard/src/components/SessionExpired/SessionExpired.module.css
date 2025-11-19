@@ -1,0 +1,58 @@
+.
+.overlay {
+  position: fixed;
+  inset: 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.container {
+  pointer-events: auto;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 320px;
+  max-width: 520px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.message {
+  flex: 1 1 auto;
+  font-size: var(--font-size-sm);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+  border: 1px solid var(--color-primary-600);
+}
+
+.secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.countdown {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}

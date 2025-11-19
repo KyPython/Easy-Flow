@@ -349,8 +349,24 @@ api.interceptors.response.use(
         }
 
         if (!(original?.url || '').includes('/api/auth/session')) {
-          // Use replace to avoid adding to history
-          window.location.replace('/login');
+          // Dispatch a global event so the app can show a UX before redirecting.
+          try {
+            const ev = new CustomEvent('easyflow:session-expired', {
+              detail: { redirect: '/login', message: 'Your session expired. Please sign in again.', countdown: 8 }
+            });
+            // Clear tokens first
+            window.dispatchEvent(ev);
+            // Fallback: if no handler marks the session handled, redirect after 8s
+            setTimeout(() => {
+              if (!window.__easyflowSessionHandled) {
+                window.__easyflowSessionHandled = true;
+                window.location.replace('/login');
+              }
+            }, 8000);
+          } catch (e) {
+            // If events aren't supported, do best-effort redirect
+            try { window.location.replace('/login'); } catch{ /* ignore */ }
+          }
         }
       }
     } catch (e) {

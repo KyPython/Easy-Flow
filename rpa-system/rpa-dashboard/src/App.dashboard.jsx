@@ -56,6 +56,7 @@ const BulkInvoiceProcessor = lazy(() => import('./components/BulkProcessor/BulkI
 const Chatbot = lazy(() => import('./components/Chatbot/Chatbot'));
 const MilestonePrompt = lazy(() => import('./components/MilestonePrompt/MilestonePrompt'));
 const EmailCaptureModal = lazy(() => import('./components/EmailCaptureModal/EmailCaptureModal'));
+const SessionExpired = lazy(() => import('./components/SessionExpired/SessionExpired'));
 
 // ============================================================================
 // LOADING SKELETON - Shown while lazy-loaded components are loading
@@ -236,6 +237,11 @@ function Shell() {
        */}
       <Suspense fallback={null}>
         <Chatbot />
+      </Suspense>
+
+      {/* Global session-expired UI */}
+      <Suspense fallback={null}>
+        <SessionExpired />
       </Suspense>
 
       {/* Milestone Prompt - shows when milestones are reached */}
