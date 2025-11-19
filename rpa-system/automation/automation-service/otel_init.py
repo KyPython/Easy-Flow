@@ -48,8 +48,8 @@ def initialize_telemetry():
         
         # ✅ PART 2.2: Configure 10% sampling for cost optimization
         from opentelemetry.sdk.trace.sampling import (
-            ParentBasedTraceIdRatio,
-            TraceIdRatioBasedSampler
+            ParentBased,
+            TraceIdRatioBased
         )
         
         # Configure resource with service name
@@ -67,7 +67,7 @@ def initialize_telemetry():
         # TEMPORARY: Using 100% sampling for initial Grafana Cloud verification
         # TODO: Set OTEL_TRACE_SAMPLING_RATIO=0.1 after traces confirmed
         sampling_ratio = float(os.getenv('OTEL_TRACE_SAMPLING_RATIO', '1.0'))
-        sampler = ParentBasedTraceIdRatio(sampling_ratio)
+        sampler = ParentBased(TraceIdRatioBased(sampling_ratio))
         
         # Configure tracer provider
         tracer_provider = TracerProvider(

@@ -14,9 +14,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 # Switch to parent context copying so Dockerfile can access requirements.txt and service code
 WORKDIR /app
 
+
 # Copy requirements and install Python dependencies
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
 # Copy automation-service directory contents into the image
 COPY automation-service/ ./

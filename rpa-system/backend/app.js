@@ -80,164 +80,127 @@ if (process.env.NODE_ENV === 'production') {
 // Add after imports, before route definitions (around line 100)
 
 // --- PUBLIC HEALTH ENDPOINTS (must be above auth middleware) ---
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), service: 'backend', build: process.env.BUILD_ID || 'dev' });
-});
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), service: 'backend', build: process.env.BUILD_ID || 'dev' });
-});
-
-// ✅ INSTRUCTION 1: Import OpenTelemetry for trace context extraction
-const { trace } = require('@opentelemetry/api');
-
-// ✅ INSTRUCTION 1: Context-Binding Logger Middleware
-// This middleware runs AFTER authentication and binds user context to logger
-const contextLoggerMiddleware = async (req, res, next) => {
-  // Get trace context from active span
-  const span = trace.getActiveSpan();
-  const traceId = span ? span.spanContext().traceId : null;
-  const spanId = span ? span.spanContext().spanId : null;
-  
-  // Get user_tier from plan data (if available) or fetch it
-  let userTier = 'unknown';
-  if (req.user && req.user.id) {
-    try {
-      // Try to get user tier from planData if already fetched
-      if (req.planData && req.planData.plan) {
-        userTier = req.planData.plan.name || 'free';
-      } else {
-        // Fetch user tier from database
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('subscription_tier')
-          .eq('id', req.user.id)
-          .single();
-        
-        userTier = profile?.subscription_tier || 'free';
-      }
-    } catch (err) {
-      // Silently fail, use default
-      userTier = 'free';
-    }
-  }
-  
-  // ✅ INSTRUCTION 1: Create context-bound logger with high-cardinality attributes
-  req.log = rootLogger.child({
-    // Trace context (Gap 9)
-    trace_id: traceId,
-    span_id: spanId,
-    
-    // User context (Gap 9, 12)
-    user_id: req.user?.id || null,
-    user_email: req.user?.email || null,
-    user_tier: userTier,  // Gap 12: User tier attribute
-    
-    // Request context
-    request_id: req.id || uuidv4(),
-    method: req.method,
-    path: req.path,
-    ip: req.ip
-  });
-  
-  next();
-};
-
-// Authentication middleware for individual routes
 const authMiddleware = async (req, res, next) => {
   const startTime = Date.now();
   const minDelay = 100; // Minimum delay in ms to prevent timing attacks
-  
+
   // Test bypass for Jest tests
   if (process.env.NODE_ENV === 'test' && process.env.ALLOW_TEST_TOKEN === 'true') {
-    // Build a content security policy that is environment-aware.
-    // Keep it restrictive in production but allow commonly used third-party
-    // vendors used by the frontend (HubSpot, uChat, ipapi) and allow localhost
-    // OTLP in development for local collectors.
-    const cspDirectives = {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", 'https:'],
-      // known script providers used by the dashboard
-      scriptSrc: [
+    try {
+      // Build a content security policy that is environment-aware.
+      // Keep it restrictive in production but allow commonly used third-party
+      // vendors used by the frontend (HubSpot, uChat, ipapi) and allow localhost
+      // OTLP in development for local collectors.
+      const connectSrc = [
         "'self'",
-        "'unsafe-inline'",
-        "'unsafe-eval'",
-        'https://www.uchat.com.au',
         'https://sdk.dfktv2.com',
-        'https://www.googletagmanager.com',
-        'https://js.hs-scripts.com',
-        'https://js-na1.hs-scripts.com',
-        'https://js-na2.hs-scripts.com',
-        'https://js.hsforms.net',
+        'https://www.uchat.com.au',
+        'https://www.google-analytics.com',
+        'https://analytics.google.com',
         'https://*.hubspot.com',
-        'https://js.hs-analytics.net',
         'https://*.hs-analytics.net',
-        'https://js-na2.hs-banner.com',
-        'https://*.hscollectedforms.net',
-        'https://js.hscollectedforms.net',
-        'https://ipapi.co'
-      ],
-      imgSrc: ["'self'", 'https:'],
-      connectSrc: ["'self'", 'https://sdk.dfktv2.com', 'https://www.uchat.com.au', 'https://www.google-analytics.com', 'https://analytics.google.com', 'https://*.hubspot.com', 'https://*.hs-analytics.net', 'https://*.hscollectedforms.net', 'https://api.hubapi.com', process.env.SUPABASE_URL || 'https://syxzilyuysdoirnezgii.supabase.co', process.env.APP_URL || 'https://easyflow-backend-ad8e.onrender.com'],
-      fontSrc: ["'self'", 'https:'],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-      childSrc: ["'none'"],
-      workerSrc: ["'self'"],
-      manifestSrc: ["'self'"],
-      formAction: ["'self'"],
-      frameAncestors: ["'none'"],
-      baseUri: ["'self'"],
-      upgradeInsecureRequests: []
-    };
-
-    // Allow local OTLP collector in development for browser exports (useful for local testing)
-    if (process.env.NODE_ENV !== 'production') {
-      cspDirectives.connectSrc.push('http://localhost:4318');
-    }
-
-    // If a production OTLP gateway is used (e.g. Grafana Cloud), add it to connect-src
-    if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-      // ensure full URL without trailing path is added
-      try {
-        const url = new URL(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
-        cspDirectives.connectSrc.push(url.origin);
-      } catch (e) {
-        // ignore bad URL
+        'https://*.hs-collectedforms.net',
+        'https://api.hubapi.com'
+      ];
+      if (process.env.SUPABASE_URL) {
+        connectSrc.push(process.env.SUPABASE_URL);
+      } else {
+        connectSrc.push('https://syxzilyuysdoirnezgii.supabase.co');
       }
-    }
-
-    app.use(helmet({
-      contentSecurityPolicy: { directives: cspDirectives },
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true
-      },
-      permissionsPolicy: {
-        fullscreen: [],
-        camera: [],
-        microphone: [],
-        geolocation: []
+      if (process.env.APP_URL) {
+        connectSrc.push(process.env.APP_URL);
+      } else {
+        connectSrc.push('https://easyflow-backend-ad8e.onrender.com');
       }
-    }));
-    // attach user to request for downstream handlers
-    req.user = data.user;
 
-    // Ensure minimum delay even for successful auth
-    await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
-    return next();
+      const cspDirectives = {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", 'https:'],
+        // known script providers used by the dashboard
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          'https://www.uchat.com.au',
+          'https://sdk.dfktv2.com',
+          'https://www.googletagmanager.com',
+          'https://js.hs-scripts.com',
+          'https://js-na1.hs-scripts.com',
+          'https://js-na2.hs-scripts.com',
+          'https://js.hsforms.net',
+          'https://*.hubspot.com',
+          'https://js.hs-analytics.net',
+          'https://*.hs-analytics.net',
+          'https://js-na2.hs-banner.com',
+          'https://*.hscollectedforms.net',
+          'https://js.hscollectedforms.net',
+          'https://ipapi.co'
+        ],
+        imgSrc: ["'self'", 'https:'],
+        connectSrc: connectSrc,
+        fontSrc: ["'self'", 'https:'],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"],
+        childSrc: ["'none'"],
+        workerSrc: ["'self'"],
+        manifestSrc: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        upgradeInsecureRequests: []
+      };
 
-  } catch (err) {
-    // ✅ INSTRUCTION 2: Replace console.error with structured logger
-    rootLogger.error(err, 'Authentication middleware error', {
-      path: req.path,
-      method: req.method
-    });
-    await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
-    res.set('x-auth-reason', 'exception');
-    return res.status(401).json({ error: 'Authentication failed' });
+      // Allow local OTLP collector in development for browser exports (useful for local testing)
+      if (process.env.NODE_ENV !== 'production') {
+        cspDirectives.connectSrc.push('http://localhost:4318');
+      }
+
+      // If a production OTLP gateway is used (e.g. Grafana Cloud), add it to connect-src
+      if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+        // ensure full URL without trailing path is added
+        try {
+          const url = new URL(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+          cspDirectives.connectSrc.push(url.origin);
+        } catch (e) {
+          // ignore bad URL
+        }
+      }
+
+      app.use(helmet({
+        contentSecurityPolicy: { directives: cspDirectives },
+        hsts: {
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true
+        },
+        permissionsPolicy: {
+          fullscreen: [],
+          camera: [],
+          microphone: [],
+          geolocation: []
+        }
+      }));
+      // attach user to request for downstream handlers
+      req.user = data.user;
+
+      // Ensure minimum delay even for successful auth
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      return next();
+
+    } catch (err) {
+      // ✅ INSTRUCTION 2: Replace console.error with structured logger
+      rootLogger.error(err, 'Authentication middleware error', {
+        path: req.path,
+        method: req.method
+      });
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      res.set('x-auth-reason', 'exception');
+      return res.status(401).json({ error: 'Authentication failed' });
+    }
+    // End Jest bypass block
   }
+  // ...rest of auth logic here...
 };
 
 // Rate limiting - More restrictive limits

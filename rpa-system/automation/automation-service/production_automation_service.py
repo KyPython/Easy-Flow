@@ -550,9 +550,7 @@ def health_check():
     except:
         pass
     
-    # Update active workers gauge
-    if METRICS_AVAILABLE:
-        active_workers.set(active_thread_count)
+    # (active_workers metric removed)
     
     status = {
         'status': 'healthy',
