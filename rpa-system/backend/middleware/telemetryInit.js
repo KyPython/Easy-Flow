@@ -472,16 +472,11 @@ const sdk = new NodeSDK({
 // Custom SLO Metrics Provider
 class SLOMetricsProvider {
   constructor() {
-    this.meter = metrics.getMeter('easyflow-slo-metrics', '1.0.0');
-    this.initializeMetrics();
-  }
+    // Use the global MeterProvider from OpenTelemetry API
+    const meterProvider = metrics.getMeterProvider();
+    this.meter = meterProvider.getMeter('easyflow-slo-metrics', '1.0.0');
 
-  initializeMetrics() {
-    // SLO 1: Process Execution Success Rate
-    this.processExecutionCounter = this.meter.createCounter('rpa_process_executions_total', {
-      description: 'Total RPA process executions for SLO calculation'
-    });
-
+    // SLO 1: Process Execution Success Rate (successes only, for now)
     this.processSuccessCounter = this.meter.createCounter('rpa_process_executions_success_total', {
       description: 'Successful RPA process executions for SLO calculation'
     });
@@ -494,28 +489,28 @@ class SLOMetricsProvider {
 
     // SLO 3: User Transaction Time
     this.userTransactionHistogram = this.meter.createHistogram('user_transaction_duration_ms', {
-      description: 'User transaction duration in milliseconds', 
+      description: 'User transaction duration in milliseconds',
       unit: 'ms'
     });
 
-    // Business context metrics
-    this.businessContextGauge = this.meter.createGauge('business_context_active_users', {
+    // Business context metrics (active users by tier)
+    this.activeUsersByTier = {};
+    this.businessContextGauge = this.meter.createObservableGauge('business_context_active_users', {
       description: 'Current active users by tier'
+    }, (observableResult) => {
+      // Report the latest value for each tier
+      for (const [tier, value] of Object.entries(this.activeUsersByTier)) {
+        observableResult.observe(value, { user_tier: tier });
+      }
     });
   }
 
-  // Record process execution
+  // Record process execution (successes only for now)
   recordProcessExecution(success, attributes = {}) {
-    this.processExecutionCounter.add(1, {
-      user_tier: attributes.userTier || 'standard',
-      workflow_id: attributes.workflowId || 'unknown',
-      process_name: attributes.processName || 'generic'
-    });
-
     if (success) {
       this.processSuccessCounter.add(1, {
         user_tier: attributes.userTier || 'standard',
-        workflow_id: attributes.workflowId || 'unknown', 
+        workflow_id: attributes.workflowId || 'unknown',
         process_name: attributes.processName || 'generic'
       });
     }
@@ -539,11 +534,10 @@ class SLOMetricsProvider {
     });
   }
 
-  // Update business context
+  // Update business context (active users by tier)
   updateBusinessContext(activeUsers, userTier) {
-    this.businessContextGauge.record(activeUsers, {
-      user_tier: userTier
-    });
+    this.activeUsersByTier[userTier || 'standard'] = activeUsers;
+    // The gauge will be observed on the next collection interval
   }
 }
 
