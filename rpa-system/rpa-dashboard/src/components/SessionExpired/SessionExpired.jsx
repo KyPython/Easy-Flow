@@ -58,7 +58,7 @@ export default function SessionExpired() {
           </button>
           <button
             className={`${styles.btn} ${styles.secondary}`}
-            onClick={() => { setOpen(false); }}
+            onClick={() => { window.__easyflowSessionHandled = true; setOpen(false); }}
           >
             Dismiss
           </button>
