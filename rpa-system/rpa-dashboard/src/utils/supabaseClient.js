@@ -3,42 +3,20 @@ import { createClient } from '@supabase/supabase-js';
 // Prefer runtime-provided values (window._env) when available.
 const runtimeEnv = (typeof window !== 'undefined' && window._env) ? window._env : {};
 
-// Support multiple env var naming conventions (Vite uses VITE_, CRA uses REACT_APP_)
-const supabaseUrl = runtimeEnv.VITE_SUPABASE_URL || runtimeEnv.REACT_APP_SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseAnonKey = runtimeEnv.VITE_SUPABASE_ANON_KEY || runtimeEnv.REACT_APP_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+// Gather env values with fallbacks for various bundlers
+const rawUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL)
+  || runtimeEnv.VITE_SUPABASE_URL
+  || runtimeEnv.REACT_APP_SUPABASE_URL
+  || process.env.VITE_SUPABASE_URL
+  || process.env.REACT_APP_SUPABASE_URL
+  || process.env.SUPABASE_URL;
 
-function createStubSupabase() {
-  const noop = async () => ({ data: null, error: new Error('Supabase not configured') });
-  const from = () => ({
-    select: noop,
-    insert: noop,
-    update: noop,
-    upsert: noop,
-    delete: noop,
-    eq: () => ({ select: noop, update: noop, delete: noop })
-  });
-  return {
-    from,
-    auth: {
-      getUser: async () => ({ data: { user: null }, error: new Error('Supabase not configured') }),
-  getSession: async () => ({ data: { session: null }, error: new Error('Supabase not configured') }),
-  signInWithPassword: async () => ({ data: { user: null, session: null }, error: new Error('Supabase not configured') }),
-  signUp: async () => ({ data: { user: null, session: null }, error: new Error('Supabase not configured') }),
-  resetPasswordForEmail: async () => ({ data: null, error: new Error('Supabase not configured') }),
-  updateUser: async () => ({ data: null, error: new Error('Supabase not configured') }),
-  resend: async () => ({ data: null, error: new Error('Supabase not configured') }),
-      signInWithOtp: noop,
-      signOut: noop,
-      onAuthStateChange: (cb) => {
-        // Immediately invoke with a null session to keep app flows happy
-        try { cb && cb('SIGNED_OUT', null); } catch (_) {}
-        return { data: { subscription: { unsubscribe() {} } } };
-      }
-    }
-  };
-}
-
-let supabase;
+const rawAnon = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY)
+  || runtimeEnv.VITE_SUPABASE_ANON_KEY
+  || runtimeEnv.REACT_APP_SUPABASE_ANON_KEY
+  || process.env.VITE_SUPABASE_ANON_KEY
+  || process.env.REACT_APP_SUPABASE_ANON_KEY
+  || process.env.SUPABASE_ANON_KEY;
 
 function looksLikePlaceholder(url) {
   if (!url || typeof url !== 'string') return true;
@@ -46,66 +24,42 @@ function looksLikePlaceholder(url) {
   return lower.includes('your-project') || lower.includes('example') || !lower.includes('.supabase.co');
 }
 
-function tryCreateClient() {
-  try {
-    const fetchImpl = (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function') ? globalThis.fetch.bind(globalThis) : undefined;
-    return createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true
-      },
-      // Provide platform fetch if available so client-side DNS/network errors are consistent
-      fetch: fetchImpl
-    });
-  } catch (err) {
-    console.warn('[Supabase] createClient failed:', err?.message || err);
-    return null;
-  }
+// Fail fast with a clear error in dev when configuration is missing or clearly incorrect
+if (typeof window !== 'undefined' && looksLikePlaceholder(rawUrl)) {
+  // eslint-disable-next-line no-console
+  console.error('[Supabase] VITE_SUPABASE_URL looks invalid or is a placeholder:', rawUrl);
+  throw new Error(`Supabase not configured: VITE_SUPABASE_URL looks invalid ("${rawUrl}"). Set VITE_SUPABASE_URL to your project URL (https://<project-ref>.supabase.co) and VITE_SUPABASE_ANON_KEY to the anon key in .env.local and restart the dev server.`);
 }
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('[Supabase] Missing SUPABASE URL or ANON KEY. Using stub until runtime env is provided.');
-  supabase = createStubSupabase();
-} else if (looksLikePlaceholder(supabaseUrl)) {
-  console.warn(`[Supabase] SUPABASE_URL looks like a placeholder: ${supabaseUrl}. Replace with your project ref (https://<project-ref>.supabase.co). Using stub.`);
-  supabase = createStubSupabase();
-} else {
-  const client = tryCreateClient();
-  if (client) {
-    supabase = client;
-  } else {
-    supabase = createStubSupabase();
-  }
+if (!rawUrl || !rawAnon) {
+  // eslint-disable-next-line no-console
+  console.error('[Supabase] Missing SUPABASE URL or ANON KEY. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.');
+  throw new Error('Supabase not configured: missing URL or anon key.');
 }
 
-// Allow runtime re-init if `window._env` is set after page load (e.g., server-side injection)
-if (typeof window !== 'undefined') {
-  window.__supabase_try_init = () => {
-    try {
-      const runtimeUrl = (window._env && (window._env.VITE_SUPABASE_URL || window._env.REACT_APP_SUPABASE_URL)) || window._env?.SUPABASE_URL;
-      const runtimeKey = (window._env && (window._env.VITE_SUPABASE_ANON_KEY || window._env.REACT_APP_SUPABASE_ANON_KEY)) || window._env?.SUPABASE_ANON_KEY;
-      if (runtimeUrl && runtimeKey && !looksLikePlaceholder(runtimeUrl)) {
-        const client = createClient(runtimeUrl, runtimeKey, { fetch: (globalThis.fetch || undefined) });
-        if (client) {
-          // Replace exported supabase reference by mutating the object (not ideal, but simple)
-          supabase = client;
-          // Also expose to window for diagnostics
-          try { Object.defineProperty(window, '_supabase', { value: supabase, writable: false, configurable: false }); } catch (_) {}
-          console.info('[Supabase] Runtime client initialized from window._env');
-          return true;
-        }
-      }
-    } catch (e) { console.debug('Runtime supabase init failed', e); }
-    return false;
-  };
+const supabase = createClient(rawUrl, rawAnon, {
+  auth: { persistSession: true },
+  fetch: (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function') ? globalThis.fetch.bind(globalThis) : undefined
+});
+
+// Named helper wrappers with clearer errors for call sites
+export async function signInWithPassword({ email, password }) {
+  if (!supabase) throw new Error('Supabase not configured');
+  return supabase.auth.signInWithPassword({ email, password });
 }
 
+export async function signUp({ email, password }) {
+  if (!supabase) throw new Error('Supabase not configured');
+  return supabase.auth.signUp({ email, password });
+}
+
+export default supabase;
+// Also provide a named export `supabase` for compatibility with many files
 export { supabase };
 
-// Expose globally for diagnostics (read-only)
+// Expose globally for diagnostics (read-only) in dev
 if (typeof window !== 'undefined' && !window._supabase) {
-  Object.defineProperty(window, '_supabase', { value: supabase, writable: false, configurable: false });
+  try { Object.defineProperty(window, '_supabase', { value: supabase, writable: false, configurable: false }); } catch (_) {}
   // eslint-disable-next-line no-console
   console.info('[supabase] client exposed globally as window._supabase');
 }
