@@ -4,26 +4,26 @@ This file documents the required build/runtime environment variables for the das
 
 Required (build/runtime)
 
-- REACT_APP_API_BASE
-- REACT_APP_API_URL
-- REACT_APP_PUBLIC_URL
+- VITE_API_BASE
+- VITE_API_URL
+- VITE_PUBLIC_URL
 
 Supabase (recommended)
 
-- REACT_APP_SUPABASE_URL - e.g. https://syxzilyuysdoirnezgii.supabase.co
-- REACT_APP_SUPABASE_ANON_KEY - public anon key used by the client
+- VITE_SUPABASE_URL - e.g. https://syxzilyuysdoirnezgii.supabase.co
+- VITE_SUPABASE_ANON_KEY - public anon key used by the client
 
 Optional / Widgets
 
-- REACT_APP_GA_MEASUREMENT_ID - Google Analytics
-- REACT_APP_UCHAT_WIDGET_ID - uChat widget id
+- VITE_GA_MEASUREMENT_ID - Google Analytics
+- VITE_UCHAT_WIDGET_ID - uChat widget id
 
 Browser telemetry (important)
 
 - By default, browser OTLP export is disabled in production.
 - To enable browser telemetry at build-time (only if you have a CORS-enabled OTLP endpoint):
-  - Set REACT_APP_ENABLE_BROWSER_OTLP=true
-  - Set REACT_APP_OTEL_EXPORTER_URL to the OTLP HTTP trace endpoint (must support CORS)
+  - Set VITE_ENABLE_BROWSER_OTLP=true
+  - Set VITE_OTEL_EXPORTER_URL to the OTLP HTTP trace endpoint (must support CORS)
 
 Notes & recommendations
 
@@ -34,5 +34,5 @@ Notes & recommendations
 Verification checklist after deploy
 
 - Dashboard loads without CSP console errors for HubSpot / ipapi / uchat.
-- `supabaseClient.js` no longer logs missing REACT_APP_SUPABASE_URL/ANON_KEY.
+ - `supabaseClient.js` no longer logs missing VITE_SUPABASE_URL/ANON_KEY.
 - If browser telemetry is enabled, the OTLP exporter URL is present and allowed in CSP `connect-src`.

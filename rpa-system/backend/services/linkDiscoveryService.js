@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 const puppeteer = require('puppeteer');
 
 /**
@@ -23,7 +25,7 @@ class LinkDiscoveryService {
     const page = await browser.newPage();
     
     try {
-      console.log(`[LinkDiscovery] Starting discovery for ${url} using method: ${discoveryMethod}`);
+      logger.info(`[LinkDiscovery] Starting discovery for ${url} using method: ${discoveryMethod}`);
       
       // Step 1: Navigate and login
       await this._performLogin(page, { url, username, password });
@@ -44,7 +46,7 @@ class LinkDiscoveryService {
           break;
       }
       
-      console.log(`[LinkDiscovery] Found ${discoveredLinks.length} potential PDF links`);
+      logger.info(`[LinkDiscovery] Found ${discoveredLinks.length} potential PDF links`);
       
       return {
         success: true,
@@ -54,7 +56,7 @@ class LinkDiscoveryService {
       };
       
     } catch (error) {
-      console.error('[LinkDiscovery] Discovery failed:', error);
+      logger.error('[LinkDiscovery] Discovery failed:', error);
       throw new Error(`Link discovery failed: ${error.message}`);
     } finally {
       await browser.close();
@@ -67,7 +69,7 @@ class LinkDiscoveryService {
   async _performLogin(page, { url, username, password }) {
     try {
       // Navigate to target URL
-      console.log(`[LinkDiscovery] Navigating to: ${url}`);
+      logger.info(`[LinkDiscovery] Navigating to: ${url}`);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: this.config.TIMEOUT });
       
       // Wait for page to be ready
@@ -82,7 +84,7 @@ class LinkDiscoveryService {
         throw new Error('Could not detect login form. Page may not require login or form structure is unusual.');
       }
       
-      console.log(`[LinkDiscovery] Detected login form:`, loginSelectors);
+      logger.info(`[LinkDiscovery] Detected login form:`, loginSelectors);
       
       // Fill credentials
       await page.waitForSelector(loginSelectors.username, { timeout: this.config.SELECTOR_TIMEOUT });
@@ -111,7 +113,7 @@ class LinkDiscoveryService {
         }, { timeout: this.config.LOGIN_TIMEOUT })
       ]);
       
-      console.log('[LinkDiscovery] Login completed successfully');
+      logger.info('[LinkDiscovery] Login completed successfully');
       
     } catch (error) {
       throw new Error(`Login failed: ${error.message}`);
@@ -206,7 +208,7 @@ class LinkDiscoveryService {
    */
   async _discoverByCssSelector(page, cssSelector) {
     try {
-      console.log(`[LinkDiscovery] Using CSS selector: ${cssSelector}`);
+      logger.info(`[LinkDiscovery] Using CSS selector: ${cssSelector}`);
       
       // Wait for elements to be available
       await page.waitForTimeout(2000);
@@ -250,7 +252,7 @@ class LinkDiscoveryService {
       return this._validatePdfLinks(links);
       
     } catch (error) {
-      console.error(`[LinkDiscovery] CSS selector discovery failed:`, error);
+      logger.error(`[LinkDiscovery] CSS selector discovery failed:`, error);
       return [];
     }
   }
@@ -260,7 +262,7 @@ class LinkDiscoveryService {
    */
   async _discoverByTextMatch(page, linkText) {
     try {
-      console.log(`[LinkDiscovery] Searching for links containing: "${linkText}"`);
+      logger.info(`[LinkDiscovery] Searching for links containing: "${linkText}"`);
       
       await page.waitForTimeout(2000);
       
@@ -309,7 +311,7 @@ class LinkDiscoveryService {
       return this._validatePdfLinks(links);
       
     } catch (error) {
-      console.error(`[LinkDiscovery] Text match discovery failed:`, error);
+      logger.error(`[LinkDiscovery] Text match discovery failed:`, error);
       return [];
     }
   }
@@ -319,7 +321,7 @@ class LinkDiscoveryService {
    */
   async _autoDetectPdfLinks(page) {
     try {
-      console.log('[LinkDiscovery] Auto-detecting PDF links...');
+      logger.info('[LinkDiscovery] Auto-detecting PDF links...');
       
       await page.waitForTimeout(2000);
       
@@ -405,11 +407,11 @@ class LinkDiscoveryService {
         return results.sort((a, b) => b.score - a.score);
       });
       
-      console.log(`[LinkDiscovery] Auto-detected ${links.length} potential PDF links`);
+      logger.info(`[LinkDiscovery] Auto-detected ${links.length} potential PDF links`);
       return this._validatePdfLinks(links);
       
     } catch (error) {
-      console.error(`[LinkDiscovery] Auto-detection failed:`, error);
+      logger.error(`[LinkDiscovery] Auto-detection failed:`, error);
       return [];
     }
   }

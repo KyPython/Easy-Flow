@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('./logger');
 // Task status store with Redis support and in-memory fallback
 // Supports both Upstash REST API and traditional Redis connections
 
@@ -15,9 +17,9 @@ try {
         axios = require('axios');
         useRestAPI = true;
         redisEnabled = true;
-        console.log('[TaskStatusStore] Using Upstash Redis REST API');
+        logger.info('[TaskStatusStore] Using Upstash Redis REST API');
       } catch (error) {
-        console.warn('[TaskStatusStore] axios not available for REST API, trying TCP connection');
+        logger.warn('[TaskStatusStore] axios not available for REST API, trying TCP connection');
         useRestAPI = false;
       }
     }
@@ -45,24 +47,24 @@ try {
       redis = Redis.createClient(redisOptions);
       
       redis.on('error', (err) => {
-        console.error('[TaskStatusStore] Redis TCP connection error:', err);
+        logger.error('[TaskStatusStore] Redis TCP connection error:', err);
         redisEnabled = false;
       });
       
       redis.on('connect', () => {
-        console.log('[TaskStatusStore] Connected to Redis via TCP');
+        logger.info('[TaskStatusStore] Connected to Redis via TCP');
         redisEnabled = true;
       });
       
       // Connect to Redis
       redis.connect().catch(err => {
-        console.warn('[TaskStatusStore] Failed to connect to Redis TCP, falling back to in-memory:', err.message);
+        logger.warn('[TaskStatusStore] Failed to connect to Redis TCP, falling back to in-memory:', err.message);
         redisEnabled = false;
       });
     }
   }
 } catch (error) {
-  console.warn('[TaskStatusStore] Redis not available, using in-memory store:', error.message);
+  logger.warn('[TaskStatusStore] Redis not available, using in-memory store:', error.message);
   redis = null;
   redisEnabled = false;
   useRestAPI = false;
@@ -136,7 +138,7 @@ async function makeRestRequest(method, key, value = null, ttl = null) {
     const response = await axios(config);
     return response.data;
   } catch (error) {
-    console.error(`[TaskStatusStore] REST API ${method} error:`, error.message);
+    logger.error(`[TaskStatusStore] REST API ${method} error:`, error.message);
     throw error;
   }
 }
@@ -156,7 +158,7 @@ const taskStatusStore = {
           return;
         }
       } catch (error) {
-        console.error('[TaskStatusStore] Redis set error:', error);
+        logger.error('[TaskStatusStore] Redis set error:', error);
         // Fall through to memory store
       }
     }
@@ -178,7 +180,7 @@ const taskStatusStore = {
           return value ? JSON.parse(value) : undefined;
         }
       } catch (error) {
-        console.error('[TaskStatusStore] Redis get error:', error);
+        logger.error('[TaskStatusStore] Redis get error:', error);
         // Fall through to memory store
       }
     }
@@ -200,7 +202,7 @@ const taskStatusStore = {
           return exists === 1;
         }
       } catch (error) {
-        console.error('[TaskStatusStore] Redis has error:', error);
+        logger.error('[TaskStatusStore] Redis has error:', error);
         // Fall through to memory store
       }
     }
@@ -222,7 +224,7 @@ const taskStatusStore = {
           return;
         }
       } catch (error) {
-        console.error('[TaskStatusStore] Redis delete error:', error);
+        logger.error('[TaskStatusStore] Redis delete error:', error);
         // Fall through to memory store
       }
     }
@@ -236,7 +238,7 @@ const taskStatusStore = {
       try {
         if (useRestAPI) {
           // REST API doesn't support pattern matching, so we'll skip clear for REST API
-          console.warn('[TaskStatusStore] Clear operation not supported via REST API');
+          logger.warn('[TaskStatusStore] Clear operation not supported via REST API');
           return;
         } else if (redis) {
           const pattern = keyPrefix + '*';
@@ -247,7 +249,7 @@ const taskStatusStore = {
           return;
         }
       } catch (error) {
-        console.error('[TaskStatusStore] Redis clear error:', error);
+        logger.error('[TaskStatusStore] Redis clear error:', error);
         // Fall through to memory store
       }
     }

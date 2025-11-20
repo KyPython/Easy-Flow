@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 const dotenv = require('dotenv');
 dotenv.config({ path: 'backend/.env' });
 
@@ -8,7 +10,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const EMAIL = 'test-api@local.dev';
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !SUPABASE_ANON_KEY) {
-  console.error('SUPABASE_URL, SUPABASE_SERVICE_ROLE or SUPABASE_ANON_KEY missing in backend/.env');
+  logger.error('SUPABASE_URL, SUPABASE_SERVICE_ROLE or SUPABASE_ANON_KEY missing in backend/.env');
   process.exit(1);
 }
 
@@ -23,6 +25,6 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !SUPABASE_ANON_KEY) {
     },
   });
   const text = await resp.text();
-  console.log('status', resp.status);
-  try { console.log(JSON.parse(text)); } catch (e) { console.log(text); }
+  logger.info('status', resp.status);
+  try { logger.info(JSON.parse(text)); } catch (e) { logger.info(text); }
 })();

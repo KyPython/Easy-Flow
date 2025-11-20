@@ -458,10 +458,12 @@
                 document.getElementById('trustBadgesPreview').innerHTML = renderTrustBadges();
                 document.getElementById('activityCounterPreview').innerHTML = renderActivityCounter(data);
 
-                console.log('📊 Metrics loaded successfully:', data);
+                window.__efClientLogger = window.__efClientLogger || { info: (m, meta) => {}, error: (m, meta) => {} };
+                window.__efClientLogger.info('📊 Metrics loaded successfully', { data });
 
             } catch (error) {
-                console.error('❌ Failed to load metrics:', error);
+                window.__efClientLogger = window.__efClientLogger || { info: (m, meta) => {}, error: (m, meta) => {} };
+                window.__efClientLogger.error('❌ Failed to load metrics', { error: String(error) });
                 
                 // Update status to error
                 apiStatus.className = 'api-status error';

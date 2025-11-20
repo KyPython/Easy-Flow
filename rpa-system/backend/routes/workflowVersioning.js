@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 /**
  * Workflow Versioning API Routes
  * 
@@ -48,7 +50,7 @@ router.post('/:workflowId/versions', requireVersioning, async (req, res) => {
       data: newVersion
     });
   } catch (error) {
-    console.error('Failed to create workflow version:', error);
+    logger.error('Failed to create workflow version:', error);
     res.status(500).json({
       error: 'Failed to create workflow version',
       details: error.message
@@ -90,7 +92,7 @@ router.get('/:workflowId/versions', requireVersioning, async (req, res) => {
       data: result
     });
   } catch (error) {
-    console.error('Failed to get workflow versions:', error);
+    logger.error('Failed to get workflow versions:', error);
     res.status(500).json({
       error: 'Failed to get workflow versions',
       details: error.message
@@ -132,7 +134,7 @@ router.get('/:workflowId/versions/:versionNumber', requireVersioning, async (req
       data: version
     });
   } catch (error) {
-    console.error('Failed to get workflow version:', error);
+    logger.error('Failed to get workflow version:', error);
     res.status(500).json({
       error: 'Failed to get workflow version',
       details: error.message
@@ -170,7 +172,7 @@ router.get('/:workflowId/versions/:fromVersion/compare/:toVersion', requireVersi
       data: comparison
     });
   } catch (error) {
-    console.error('Failed to compare workflow versions:', error);
+    logger.error('Failed to compare workflow versions:', error);
     res.status(500).json({
       error: 'Failed to compare workflow versions',
       details: error.message
@@ -205,7 +207,7 @@ router.post('/:workflowId/versions/:versionNumber/rollback', requireVersioning, 
       data: result
     });
   } catch (error) {
-    console.error('Failed to rollback workflow version:', error);
+    logger.error('Failed to rollback workflow version:', error);
     res.status(500).json({
       error: 'Failed to rollback workflow version',
       details: error.message
@@ -238,7 +240,7 @@ router.get('/:workflowId/versions/statistics', requireVersioning, async (req, re
       data: stats
     });
   } catch (error) {
-    console.error('Failed to get version statistics:', error);
+    logger.error('Failed to get version statistics:', error);
     res.status(500).json({
       error: 'Failed to get version statistics',
       details: error.message
@@ -276,7 +278,7 @@ router.post('/:workflowId/versions/:versionNumber/export', requireVersioning, as
 
     res.json(exportData);
   } catch (error) {
-    console.error('Failed to export workflow version:', error);
+    logger.error('Failed to export workflow version:', error);
     res.status(500).json({
       error: 'Failed to export workflow version',
       details: error.message
@@ -312,7 +314,7 @@ router.post('/:workflowId/versions/auto', requireVersioning, async (req, res) =>
       data: newVersion
     });
   } catch (error) {
-    console.error('Failed to create auto-version:', error);
+    logger.error('Failed to create auto-version:', error);
     // Don't return error for auto-versioning failures
     res.json({
       success: false,
@@ -356,7 +358,7 @@ router.delete('/:workflowId/versions/cleanup', requireVersioning, async (req, re
       data: result
     });
   } catch (error) {
-    console.error('Failed to cleanup workflow versions:', error);
+    logger.error('Failed to cleanup workflow versions:', error);
     res.status(500).json({
       error: 'Failed to cleanup workflow versions',
       details: error.message
@@ -412,7 +414,7 @@ router.get('/:workflowId/versions/:versionNumber/preview', requireVersioning, as
       }
     });
   } catch (error) {
-    console.error('Failed to preview rollback:', error);
+    logger.error('Failed to preview rollback:', error);
     res.status(500).json({
       error: 'Failed to preview rollback',
       details: error.message

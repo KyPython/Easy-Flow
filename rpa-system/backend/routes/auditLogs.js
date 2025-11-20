@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 /**
  * Audit Logs API Routes
  * Provides endpoints for accessing and managing audit logs
@@ -8,14 +10,13 @@ const express = require('express');
 const router = express.Router();
 const { auditLogger } = require('../utils/auditLogger');
 const { createClient } = require('@supabase/supabase-js');
-const requireFeature = require('../middleware/planEnforcement');
+const { requireFeature } = require('../middleware/planEnforcement');
 const { createLogger } = require('../middleware/structuredLogging');
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Initialize Supabase client (safe: may be null in local/dev when keys are not set)
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 /**
  * Middleware to check if user is admin (for system-wide logs)
@@ -35,7 +36,7 @@ const requireAdmin = async (req, res, next) => {
       .single();
 
     if (error) {
-      console.error('Admin check failed:', error);
+      logger.error('Admin check failed:', error);
       return res.status(500).json({ error: 'Failed to verify admin status' });
     }
 
@@ -52,7 +53,7 @@ const requireAdmin = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Admin middleware error:', error);
+    logger.error('Admin middleware error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -156,7 +157,7 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Failed to fetch user audit logs:', error);
+    logger.error('Failed to fetch user audit logs:', error);
     await auditLogger.logSystemEvent('error', 'audit_logs_fetch_failed', {
       error: error.message
     }, req.user.id);
@@ -220,7 +221,7 @@ router.get('/system', requireAdmin, requireFeature('audit_logs_admin'), async (r
 
     res.json(result);
   } catch (error) {
-    console.error('Failed to fetch system audit logs:', error);
+    logger.error('Failed to fetch system audit logs:', error);
     
     await auditLogger.logSystemEvent('error', 'system_audit_logs_fetch_failed', {
       error: error.message,
@@ -253,7 +254,7 @@ router.get('/system/stats', requireAdmin, requireFeature('audit_logs_admin'), as
 
     res.json(combinedStats);
   } catch (error) {
-    console.error('Failed to fetch system audit stats:', error);
+    logger.error('Failed to fetch system audit stats:', error);
     
     await auditLogger.logSystemEvent('error', 'system_audit_stats_fetch_failed', {
       error: error.message,
@@ -316,7 +317,7 @@ router.get('/export', requireFeature('audit_logs'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Failed to export audit logs:', error);
+    logger.error('Failed to export audit logs:', error);
     
     if (req.user?.id) {
       await auditLogger.logSystemEvent('error', 'audit_logs_export_failed', {
@@ -350,7 +351,7 @@ router.delete('/cleanup', requireAdmin, requireFeature('audit_logs_admin'), asyn
       ...result
     });
   } catch (error) {
-    console.error('Failed to cleanup audit logs:', error);
+    logger.error('Failed to cleanup audit logs:', error);
     
     await auditLogger.logSystemEvent('error', 'audit_logs_cleanup_failed', {
       error: error.message,
@@ -407,7 +408,7 @@ async function getSystemStatistics(timeframe) {
       timeframe: timeframe
     };
   } catch (error) {
-    console.error('Failed to get system statistics:', error);
+    logger.error('Failed to get system statistics:', error);
     return {
       active_users: 0,
       security_events: { total: 0, by_severity: {} },

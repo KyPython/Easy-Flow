@@ -1,4 +1,6 @@
-const { createClient } = require('@supabase/supabase-js');
+
+const { logger, getLogger } = require('../utils/logger');
+const { getSupabase } = require('../utils/supabaseClient');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
@@ -13,9 +15,7 @@ const { createLogger } = require('../middleware/structuredLogging');
 
 class WorkflowExecutor {
   constructor(logger) {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
-    this.supabase = (url && key) ? createClient(url, key) : null;
+    this.supabase = getSupabase();
     
     // ✅ INSTRUCTION 2: Use injected logger or create default logger
     this.logger = logger || createLogger('workflow.executor');
@@ -315,7 +315,7 @@ class WorkflowExecutor {
           .maybeSingle();
 
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[WorkflowExecutor] Query result:`, {
+          logger.info(`[WorkflowExecutor] Query result:`, {
             error: result.error,
             dataExists: !!result.data,
             dataId: result.data?.id,
@@ -324,7 +324,7 @@ class WorkflowExecutor {
         }
 
         if (result.error) {
-          console.error(`[WorkflowExecutor] Database error:`, result.error);
+          logger.error(`[WorkflowExecutor] Database error:`, result.error);
           workflowError = result.error;
           workflow = null;
         } else if (!result.data) {
@@ -396,7 +396,7 @@ class WorkflowExecutor {
 
       // Start execution asynchronously
       this.executeWorkflow(execution, workflow).catch(error => {
-        console.error(`[WorkflowExecutor] Execution ${execution.id} failed:`, error);
+        logger.error(`[WorkflowExecutor] Execution ${execution.id} failed:`, error);
         // If cancelled, don't overwrite cancelled status with failed
         const run = this.runningExecutions.get(execution.id);
         if (!run || !run.cancelled) {
@@ -407,7 +407,7 @@ class WorkflowExecutor {
       return execution;
       
     } catch (error) {
-      console.error('[WorkflowExecutor] Failed to start execution:', error);
+      logger.error('[WorkflowExecutor] Failed to start execution:', error);
       throw error;
     }
   }
@@ -419,7 +419,7 @@ class WorkflowExecutor {
     
     try {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[WorkflowExecutor] Executing workflow ${workflow.name} (${execution.id})`);
+        logger.info(`[WorkflowExecutor] Executing workflow ${workflow.name} (${execution.id})`);
       }
       
       // Find the start step
@@ -445,7 +445,7 @@ class WorkflowExecutor {
       }
       
     } catch (error) {
-      console.error(`[WorkflowExecutor] Workflow execution failed:`, error);
+      logger.error(`[WorkflowExecutor] Workflow execution failed:`, error);
       const run = this.runningExecutions.get(execution.id);
       if (!run || !run.cancelled) {
         await this.failExecution(execution.id, error.message);
@@ -467,7 +467,7 @@ class WorkflowExecutor {
       }
       visitedSteps.add(step.id);
       
-      console.log(`[WorkflowExecutor] Executing step: ${step.name} (${step.step_type})`);
+      logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.step_type})`);
       
       // Create step execution record
       const stepExecution = await this.createStepExecution(execution.id, step.id, inputData);
@@ -518,7 +518,7 @@ class WorkflowExecutor {
       return await this.executeStep(execution, nextStep, result.data, workflow, visitedSteps);
       
     } catch (error) {
-      console.error(`[WorkflowExecutor] Step execution failed: ${step.name}`, error);
+      logger.error(`[WorkflowExecutor] Step execution failed: ${step.name}`, error);
       return { success: false, error: error.message, errorStepId: step.id };
     }
   }
@@ -636,7 +636,7 @@ class WorkflowExecutor {
       // This is a placeholder - integrate with your existing scraping service
       const { url, selectors, timeout = 30 } = config;
       
-      console.log(`[WorkflowExecutor] Web scraping: ${url}`);
+      logger.info(`[WorkflowExecutor] Web scraping: ${url}`);
       
       // ✅ INSTRUCTION 1: Use instrumented HTTP client for trace propagation
       const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
@@ -698,7 +698,7 @@ class WorkflowExecutor {
     try {
       const { method, url, headers = {}, body, timeout = 30 } = config;
       
-      console.log(`[WorkflowExecutor] API call: ${method} ${url}`);
+      logger.info(`[WorkflowExecutor] API call: ${method} ${url}`);
       
       // ✅ INSTRUCTION 1: Use instrumented HTTP client for trace propagation
       const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
@@ -1031,7 +1031,7 @@ class WorkflowExecutor {
       if (!to || !template) {
         throw new Error('Email step requires `to` and `template`');
       }
-      console.log(`[WorkflowExecutor] Enqueue email to: ${to}`);
+      logger.info(`[WorkflowExecutor] Enqueue email to: ${to}`);
 
       // Insert into email_queue (processed by email_worker)
       const insert = {
@@ -1070,7 +1070,7 @@ class WorkflowExecutor {
         waitTime = Math.floor(Math.random() * duration_seconds) + 1;
       }
       
-      console.log(`[WorkflowExecutor] Waiting for ${waitTime} seconds`);
+      logger.info(`[WorkflowExecutor] Waiting for ${waitTime} seconds`);
       
       // Cooperative wait that checks for cancellation every 500ms
       const start = Date.now();
@@ -1106,7 +1106,7 @@ class WorkflowExecutor {
         throw new Error('URL is required for form submission');
       }
       
-      console.log(`[WorkflowExecutor] Submitting form: ${url}`);
+      logger.info(`[WorkflowExecutor] Submitting form: ${url}`);
       
       const axios = require('axios');
       const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
@@ -1175,7 +1175,7 @@ class WorkflowExecutor {
         validation = {}    // Validation rules
       } = config;
       
-      console.log(`[WorkflowExecutor] Processing invoice OCR`);
+      logger.info(`[WorkflowExecutor] Processing invoice OCR`);
       
       // Resolve file source
       let fileToProcess = null;
@@ -1321,7 +1321,7 @@ class WorkflowExecutor {
       return nextSteps;
       
     } catch (error) {
-      console.error('[WorkflowExecutor] Error finding next steps:', error);
+      logger.error('[WorkflowExecutor] Error finding next steps:', error);
       return [];
     }
   }
@@ -1376,7 +1376,7 @@ class WorkflowExecutor {
       .eq('id', stepExecution.id);
       
     if (error) {
-      console.error('Failed to update step execution:', error);
+      logger.error('Failed to update step execution:', error);
     }
   }
 
@@ -1395,10 +1395,10 @@ class WorkflowExecutor {
       .eq('id', executionId);
       
     if (error) {
-      console.error('Failed to complete execution:', error);
+      logger.error('Failed to complete execution:', error);
     }
     
-    console.log(`[WorkflowExecutor] Execution ${executionId} completed in ${duration}s`);
+    logger.info(`[WorkflowExecutor] Execution ${executionId} completed in ${duration}s`);
   }
 
   async failExecution(executionId, errorMessage, errorStepId = null) {
@@ -1413,10 +1413,10 @@ class WorkflowExecutor {
       .eq('id', executionId);
       
     if (error) {
-      console.error('Failed to update execution status:', error);
+      logger.error('Failed to update execution status:', error);
     }
     
-    console.error(`[WorkflowExecutor] Execution ${executionId} failed: ${errorMessage}`);
+    logger.error(`[WorkflowExecutor] Execution ${executionId} failed: ${errorMessage}`);
   }
 
   getNestedValue(obj, path) {

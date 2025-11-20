@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 /**
  * Workflow Versioning Service for EasyFlow
  * 
@@ -5,16 +7,13 @@
  * version comparison, and rollback capabilities.
  */
 
-const { createClient } = require('@supabase/supabase-js');
+const { getSupabase } = require('../utils/supabaseClient');
 const { auditLogger } = require('../utils/auditLogger');
 const crypto = require('crypto');
 
 class WorkflowVersioningService {
   constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    this.supabase = getSupabase();
   }
 
   /**
@@ -69,7 +68,7 @@ class WorkflowVersioningService {
         .single();
 
       if (lastVersionData?.content_hash === contentHash && changeType === 'auto') {
-        console.log(`No changes detected for workflow ${workflowId}, skipping version creation`);
+        logger.info(`No changes detected for workflow ${workflowId}, skipping version creation`);
         return null; // No changes to version
       }
 
@@ -121,11 +120,11 @@ class WorkflowVersioningService {
         }
       );
 
-      console.log(`✅ Created workflow version ${newVersionNumber} for workflow ${workflowId}`);
+      logger.info(`✅ Created workflow version ${newVersionNumber} for workflow ${workflowId}`);
       return newVersion;
 
     } catch (error) {
-      console.error('Failed to create workflow version:', error);
+      logger.error('Failed to create workflow version:', error);
       throw error;
     }
   }
@@ -171,7 +170,7 @@ class WorkflowVersioningService {
       };
 
     } catch (error) {
-      console.error('Failed to get workflow versions:', error);
+      logger.error('Failed to get workflow versions:', error);
       throw error;
     }
   }
@@ -192,7 +191,7 @@ class WorkflowVersioningService {
       return data;
 
     } catch (error) {
-      console.error('Failed to get workflow version:', error);
+      logger.error('Failed to get workflow version:', error);
       throw error;
     }
   }
@@ -222,7 +221,7 @@ class WorkflowVersioningService {
       return comparison;
 
     } catch (error) {
-      console.error('Failed to compare workflow versions:', error);
+      logger.error('Failed to compare workflow versions:', error);
       throw error;
     }
   }
@@ -326,7 +325,7 @@ class WorkflowVersioningService {
         }
       );
 
-      console.log(`✅ Rolled back workflow ${workflowId} to version ${targetVersion}`);
+      logger.info(`✅ Rolled back workflow ${workflowId} to version ${targetVersion}`);
       
       return {
         success: true,
@@ -336,7 +335,7 @@ class WorkflowVersioningService {
       };
 
     } catch (error) {
-      console.error('Failed to rollback workflow version:', error);
+      logger.error('Failed to rollback workflow version:', error);
       
       await auditLogger.logUserAction(
         userId,
@@ -401,7 +400,7 @@ class WorkflowVersioningService {
       return stats;
 
     } catch (error) {
-      console.error('Failed to get version statistics:', error);
+      logger.error('Failed to get version statistics:', error);
       throw error;
     }
   }
@@ -414,7 +413,7 @@ class WorkflowVersioningService {
       const changeComment = this.generateAutoChangeComment(changeContext);
       return await this.createVersion(workflowId, userId, changeComment, 'auto');
     } catch (error) {
-      console.error('Auto-versioning failed:', error);
+      logger.error('Auto-versioning failed:', error);
       // Don't throw error for auto-versioning failures to avoid breaking main operations
       return null;
     }
@@ -447,7 +446,7 @@ class WorkflowVersioningService {
       return exportData;
 
     } catch (error) {
-      console.error('Failed to export workflow version:', error);
+      logger.error('Failed to export workflow version:', error);
       throw error;
     }
   }
@@ -631,7 +630,7 @@ class WorkflowVersioningService {
 
       if (error) throw error;
 
-      console.log(`🧹 Cleaned up ${versionsToDelete.length} old workflow versions for workflow ${workflowId}`);
+      logger.info(`🧹 Cleaned up ${versionsToDelete.length} old workflow versions for workflow ${workflowId}`);
       
       return {
         cleaned: versionsToDelete.length,
@@ -639,7 +638,7 @@ class WorkflowVersioningService {
       };
 
     } catch (error) {
-      console.error('Failed to cleanup old workflow versions:', error);
+      logger.error('Failed to cleanup old workflow versions:', error);
       throw error;
     }
   }

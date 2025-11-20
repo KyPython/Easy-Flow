@@ -1,19 +1,15 @@
-const { createClient } = require('@supabase/supabase-js');
+
+const { logger, getLogger } = require('../utils/logger');
+const { getSupabase } = require('../utils/supabaseClient');
 const cron = require('node-cron');
 const crypto = require('crypto');
 const { WorkflowExecutor } = require('./workflowExecutor');
 
 class TriggerService {
   constructor() {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
-    if (url && key) {
-      this.supabase = createClient(url, key);
-    } else {
-      this.supabase = null;
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[TriggerService] Supabase not configured (missing SUPABASE_URL or key). Scheduler disabled.');
-      }
+    this.supabase = getSupabase();
+    if (!this.supabase && process.env.NODE_ENV !== 'production') {
+      logger.warn('[TriggerService] Supabase not configured (missing SUPABASE_URL or key). Scheduler disabled.');
     }
     this.workflowExecutor = new WorkflowExecutor();
     this.activeJobs = new Map(); // Track active cron jobs
@@ -24,13 +20,13 @@ class TriggerService {
     if (this.initialized) return;
     if (!this.supabase) {
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('[TriggerService] Skipping initialization: Supabase client unavailable.');
+        logger.warn('[TriggerService] Skipping initialization: Supabase client unavailable.');
       }
       this.initialized = true;
       return;
     }
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[TriggerService] Initializing automation trigger system...');
+      logger.info('[TriggerService] Initializing automation trigger system...');
     }
     
     // Load and schedule all active workflows
@@ -43,7 +39,7 @@ class TriggerService {
     
     this.initialized = true;
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[TriggerService] Automation trigger system initialized');
+      logger.info('[TriggerService] Automation trigger system initialized');
     }
   }
 
@@ -59,19 +55,19 @@ class TriggerService {
         .eq('is_active', true);
 
       if (error) {
-        console.error('[TriggerService] Error loading schedules:', error);
+        logger.error('[TriggerService] Error loading schedules:', error);
         return;
       }
 
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[TriggerService] Loading ${schedules.length} active schedules`);
+        logger.info(`[TriggerService] Loading ${schedules.length} active schedules`);
       }
       
       for (const schedule of schedules) {
         await this.scheduleWorkflow(schedule);
       }
     } catch (error) {
-      console.error('[TriggerService] Failed to load active schedules:', error);
+      logger.error('[TriggerService] Failed to load active schedules:', error);
     }
   }
 
@@ -96,14 +92,14 @@ class TriggerService {
           this.activeJobs.set(id, task);
           
           if (process.env.NODE_ENV !== 'production') {
-            console.log(`[TriggerService] Scheduled cron workflow: ${workflow.name} (${cron_expression})`);
+            logger.info(`[TriggerService] Scheduled cron workflow: ${workflow.name} (${cron_expression})`);
           }
           
           // Update next trigger time
           await this.updateNextTriggerTime(id, this.getNextCronTime(cron_expression, schedule.timezone));
           
         } else {
-          console.error(`[TriggerService] Invalid cron expression for schedule ${id}: ${cron_expression}`);
+          logger.error(`[TriggerService] Invalid cron expression for schedule ${id}: ${cron_expression}`);
         }
         
       } else if (schedule_type === 'interval' && interval_seconds) {
@@ -116,7 +112,7 @@ class TriggerService {
         this.activeJobs.set(id, { type: 'interval', intervalId });
         
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[TriggerService] Scheduled interval workflow: ${workflow.name} (every ${interval_seconds}s)`);
+          logger.info(`[TriggerService] Scheduled interval workflow: ${workflow.name} (every ${interval_seconds}s)`);
         }
         
         // Update next trigger time
@@ -125,7 +121,7 @@ class TriggerService {
       }
       
     } catch (error) {
-      console.error(`[TriggerService] Failed to schedule workflow ${schedule.id}:`, error);
+      logger.error(`[TriggerService] Failed to schedule workflow ${schedule.id}:`, error);
     }
   }
 
@@ -134,13 +130,13 @@ class TriggerService {
       const { workflow_id, user_id, id: schedule_id } = schedule;
       
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[TriggerService] Executing scheduled workflow: ${workflow_id}`);
+        logger.info(`[TriggerService] Executing scheduled workflow: ${workflow_id}`);
       }
       
       // Check execution limits
       if (schedule.max_executions && schedule.execution_count >= schedule.max_executions) {
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[TriggerService] Schedule ${schedule_id} reached max executions, deactivating`);
+          logger.info(`[TriggerService] Schedule ${schedule_id} reached max executions, deactivating`);
         }
         await this.deactivateSchedule(schedule_id);
         return;
@@ -158,18 +154,18 @@ class TriggerService {
       await this.updateScheduleStats(schedule_id);
       
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[TriggerService] Started execution ${execution.id} for schedule ${schedule_id}`);
+        logger.info(`[TriggerService] Started execution ${execution.id} for schedule ${schedule_id}`);
       }
       
     } catch (error) {
-      console.error(`[TriggerService] Failed to execute scheduled workflow:`, error);
+      logger.error(`[TriggerService] Failed to execute scheduled workflow:`, error);
     }
   }
 
   async refreshSchedules() {
     try {
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[TriggerService] Refreshing schedules...');
+        logger.info('[TriggerService] Refreshing schedules...');
       }
       
       // Get current active schedules from database
@@ -182,7 +178,7 @@ class TriggerService {
         .eq('is_active', true);
 
       if (error) {
-        console.error('[TriggerService] Error refreshing schedules:', error);
+        logger.error('[TriggerService] Error refreshing schedules:', error);
         return;
       }
 
@@ -204,7 +200,7 @@ class TriggerService {
       }
       
     } catch (error) {
-      console.error('[TriggerService] Failed to refresh schedules:', error);
+      logger.error('[TriggerService] Failed to refresh schedules:', error);
     }
   }
 
@@ -220,7 +216,7 @@ class TriggerService {
       }
       this.activeJobs.delete(scheduleId);
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[TriggerService] Stopped schedule: ${scheduleId}`);
+        logger.info(`[TriggerService] Stopped schedule: ${scheduleId}`);
       }
     }
   }
@@ -233,10 +229,10 @@ class TriggerService {
         .eq('id', scheduleId);
         
       if (error) {
-        console.error(`[TriggerService] Failed to update next trigger time for ${scheduleId}:`, error);
+        logger.error(`[TriggerService] Failed to update next trigger time for ${scheduleId}:`, error);
       }
     } catch (error) {
-      console.error(`[TriggerService] Error updating next trigger time:`, error);
+      logger.error(`[TriggerService] Error updating next trigger time:`, error);
     }
   }
 
@@ -251,10 +247,10 @@ class TriggerService {
         .eq('id', scheduleId);
         
       if (error) {
-        console.error(`[TriggerService] Failed to update schedule stats for ${scheduleId}:`, error);
+        logger.error(`[TriggerService] Failed to update schedule stats for ${scheduleId}:`, error);
       }
     } catch (error) {
-      console.error(`[TriggerService] Error updating schedule stats:`, error);
+      logger.error(`[TriggerService] Error updating schedule stats:`, error);
     }
   }
 
@@ -270,10 +266,10 @@ class TriggerService {
         .eq('id', scheduleId);
         
       if (error) {
-        console.error(`[TriggerService] Failed to deactivate schedule ${scheduleId}:`, error);
+        logger.error(`[TriggerService] Failed to deactivate schedule ${scheduleId}:`, error);
       }
     } catch (error) {
-      console.error(`[TriggerService] Error deactivating schedule:`, error);
+      logger.error(`[TriggerService] Error deactivating schedule:`, error);
     }
   }
 
@@ -286,7 +282,7 @@ class TriggerService {
       // TODO: Implement proper cron parsing
       return new Date(now.getTime() + 60 * 60 * 1000).toISOString();
     } catch (error) {
-      console.error('[TriggerService] Error calculating next cron time:', error);
+      logger.error('[TriggerService] Error calculating next cron time:', error);
       return null;
     }
   }
@@ -324,7 +320,7 @@ class TriggerService {
         webhookToken
       };
     } catch (error) {
-      console.error('[TriggerService] Error creating webhook schedule:', error);
+      logger.error('[TriggerService] Error creating webhook schedule:', error);
       throw error;
     }
   }
@@ -377,7 +373,7 @@ class TriggerService {
       };
       
     } catch (error) {
-      console.error('[TriggerService] Webhook execution failed:', error);
+      logger.error('[TriggerService] Webhook execution failed:', error);
       throw error;
     }
   }
@@ -394,7 +390,7 @@ class TriggerService {
         Buffer.from(signature)
       );
     } catch (error) {
-      console.error('[TriggerService] Error validating webhook signature:', error);
+      logger.error('[TriggerService] Error validating webhook signature:', error);
       return false;
     }
   }
@@ -444,7 +440,7 @@ class TriggerService {
 
       return data;
     } catch (error) {
-      console.error('[TriggerService] Error creating schedule:', error);
+      logger.error('[TriggerService] Error creating schedule:', error);
       throw error;
     }
   }
@@ -466,7 +462,7 @@ class TriggerService {
       
       return { success: true };
     } catch (error) {
-      console.error('[TriggerService] Error deleting schedule:', error);
+      logger.error('[TriggerService] Error deleting schedule:', error);
       throw error;
     }
   }
@@ -481,7 +477,7 @@ class TriggerService {
 
   async shutdown() {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[TriggerService] Shutting down automation trigger system...');
+      logger.info('[TriggerService] Shutting down automation trigger system...');
     }
     
     // Stop all active jobs
@@ -491,7 +487,7 @@ class TriggerService {
     
     this.initialized = false;
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[TriggerService] Automation trigger system shutdown complete');
+      logger.info('[TriggerService] Automation trigger system shutdown complete');
     }
   }
 }

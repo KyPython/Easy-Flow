@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 /**
  * OpenTelemetry Backend Initialization for SLO Metrics Export
  * Must be imported before any other modules to ensure proper instrumentation
@@ -15,7 +17,7 @@ global.setTimeout = function(callback, delay, ...args) {
         error.message.includes('destroyed') ||
         error.message.includes('Cannot read properties of undefined')
       )) {
-        console.error('⚠️ [Telemetry] OTLP exporter timeout error (suppressed):', error.message);
+        logger.error('⚠️ [Telemetry] OTLP exporter timeout error (suppressed):', error.message);
         return;
       }
       throw error;
@@ -83,42 +85,42 @@ const hasValidCredentials = () => {
 
 // Check credentials before creating exporters
 if (!hasValidCredentials()) {
-  console.warn('⚠️  [Telemetry] OpenTelemetry exporters disabled - credentials not configured');
-  console.warn('⚠️  [Telemetry] To enable Grafana Cloud integration, set these environment variables:');
-  console.warn('    - OTEL_EXPORTER_OTLP_ENDPOINT');
-  console.warn('    - OTEL_EXPORTER_OTLP_HEADERS');
-  console.warn('⚠️  [Telemetry] Application will continue without observability export');
+  logger.warn('⚠️  [Telemetry] OpenTelemetry exporters disabled - credentials not configured');
+  logger.warn('⚠️  [Telemetry] To enable Grafana Cloud integration, set these environment variables:');
+  logger.warn('    - OTEL_EXPORTER_OTLP_ENDPOINT');
+  logger.warn('    - OTEL_EXPORTER_OTLP_HEADERS');
+  logger.warn('⚠️  [Telemetry] Application will continue without observability export');
 }
 
 // Parse headers with validation
 const rawHeaderString = process.env.OTEL_EXPORTER_OTLP_HEADERS || '';
 
 // Use console.error to ensure it appears in logs
-console.error('='.repeat(80));
-console.error('[TELEMETRY DEBUG] Raw env var:', rawHeaderString ? rawHeaderString.substring(0, 50) + '...' : 'NOT SET');
-console.error('[TELEMETRY DEBUG] Raw env var length:', rawHeaderString.length);
+logger.error('='.repeat(80));
+logger.error('[TELEMETRY DEBUG] Raw env var:', rawHeaderString ? rawHeaderString.substring(0, 50) + '...' : 'NOT SET');
+logger.error('[TELEMETRY DEBUG] Raw env var length:', rawHeaderString.length);
 
 const parsedHeaders = rawHeaderString ? parseHeaders(rawHeaderString) : {};
 
-console.error('[TELEMETRY DEBUG] Parsed headers:', JSON.stringify(parsedHeaders, null, 2));
-console.error('[TELEMETRY DEBUG] Parsed headers has Authorization?', !!parsedHeaders.Authorization);
-console.error('[TELEMETRY DEBUG] Authorization value:', parsedHeaders.Authorization || 'MISSING');
+logger.error('[TELEMETRY DEBUG] Parsed headers:', JSON.stringify(parsedHeaders, null, 2));
+logger.error('[TELEMETRY DEBUG] Parsed headers has Authorization?', !!parsedHeaders.Authorization);
+logger.error('[TELEMETRY DEBUG] Authorization value:', parsedHeaders.Authorization || 'MISSING');
 
 // Validate and log parsed headers
 if (parsedHeaders.Authorization) {
   const authValue = parsedHeaders.Authorization;
-  console.error('[TELEMETRY DEBUG] Auth value type:', typeof authValue);
-  console.error('[TELEMETRY DEBUG] Auth value length:', authValue.length);
-  console.error('[TELEMETRY DEBUG] Auth value first 30 chars:', authValue.substring(0, 30));
-  console.error('[TELEMETRY DEBUG] Has double quotes?', authValue.includes('"'));
-  console.error('[TELEMETRY DEBUG] Has single quotes?', authValue.includes("'"));
+  logger.error('[TELEMETRY DEBUG] Auth value type:', typeof authValue);
+  logger.error('[TELEMETRY DEBUG] Auth value length:', authValue.length);
+  logger.error('[TELEMETRY DEBUG] Auth value first 30 chars:', authValue.substring(0, 30));
+  logger.error('[TELEMETRY DEBUG] Has double quotes?', authValue.includes('"'));
+  logger.error('[TELEMETRY DEBUG] Has single quotes?', authValue.includes("'"));
   
   // Check each character in first 50 chars
   for (let i = 0; i < Math.min(50, authValue.length); i++) {
     const char = authValue[i];
     const code = authValue.charCodeAt(i);
     if (char === '"' || char === "'" || code < 32 || code > 126) {
-      console.error(`[TELEMETRY DEBUG] Char at pos ${i}: '${char}' (code: ${code})`);
+      logger.error(`[TELEMETRY DEBUG] Char at pos ${i}: '${char}' (code: ${code})`);
     }
   }
   
@@ -127,30 +129,30 @@ if (parsedHeaders.Authorization) {
   const cleaned = authValue.replace(/['"]/g, '').trim();
   
   if (authValue !== cleaned) {
-    console.error('⚠️ [TELEMETRY] WARNING: Authorization header had quotes - cleaned them');
-    console.error('[TELEMETRY DEBUG] Original first 30 chars:', authValue.substring(0, 30));
-    console.error('[TELEMETRY DEBUG] Cleaned first 30 chars:', cleaned.substring(0, 30));
+    logger.error('⚠️ [TELEMETRY] WARNING: Authorization header had quotes - cleaned them');
+    logger.error('[TELEMETRY DEBUG] Original first 30 chars:', authValue.substring(0, 30));
+    logger.error('[TELEMETRY DEBUG] Cleaned first 30 chars:', cleaned.substring(0, 30));
     parsedHeaders.Authorization = cleaned;
   }
 } else {
-  console.error('⚠️ [TELEMETRY] WARNING: No Authorization header found!');
+  logger.error('⚠️ [TELEMETRY] WARNING: No Authorization header found!');
 }
 
-console.error('[TELEMETRY DEBUG] Final headers object:', JSON.stringify(parsedHeaders, null, 2));
-console.error('='.repeat(80));
+logger.error('[TELEMETRY DEBUG] Final headers object:', JSON.stringify(parsedHeaders, null, 2));
+logger.error('='.repeat(80));
 
 // ✅ CRITICAL FIX: OpenTelemetry HTTP exporters REQUIRE headers as Record<string, string>
 // NOT as a Record with potential undefined values
-console.error('[TELEMETRY DEBUG] Creating exporters with explicit headers parameter');
-console.error('[TELEMETRY DEBUG] Headers to send:', Object.keys(parsedHeaders).join(', '));
+logger.error('[TELEMETRY DEBUG] Creating exporters with explicit headers parameter');
+logger.error('[TELEMETRY DEBUG] Headers to send:', Object.keys(parsedHeaders).join(', '));
 
 // ✅ CRITICAL: Verify headers before creating exporters
 if (!parsedHeaders.Authorization) {
-  console.error('❌ [Telemetry] CRITICAL ERROR: Authorization header is MISSING in parsedHeaders!');
-  console.error('[Telemetry] parsedHeaders:', JSON.stringify(parsedHeaders));
+  logger.error('❌ [Telemetry] CRITICAL ERROR: Authorization header is MISSING in parsedHeaders!');
+  logger.error('[Telemetry] parsedHeaders:', JSON.stringify(parsedHeaders));
 } else {
-  console.error('✅ [Telemetry] Authorization header present:', parsedHeaders.Authorization.substring(0, 30) + '...');
-  console.error('✅ [Telemetry] Authorization header length:', parsedHeaders.Authorization.length);
+  logger.error('✅ [Telemetry] Authorization header present:', parsedHeaders.Authorization.substring(0, 30) + '...');
+  logger.error('✅ [Telemetry] Authorization header length:', parsedHeaders.Authorization.length);
 }
 
 // ✅ CRITICAL FIX: The OTLP HTTP exporter expects headers as a plain object with string values
@@ -160,7 +162,7 @@ Object.keys(parsedHeaders).forEach(key => {
   exporterHeaders[key] = parsedHeaders[key];
 });
 
-console.error('[TELEMETRY DEBUG] Final headers for exporters:', JSON.stringify({
+logger.error('[TELEMETRY DEBUG] Final headers for exporters:', JSON.stringify({
   Authorization: exporterHeaders.Authorization ? exporterHeaders.Authorization.substring(0, 30) + '...(truncated)' : 'MISSING'
 }));
 
@@ -170,7 +172,7 @@ const traceExporter = new OTLPTraceExporter({
   headers: exporterHeaders, // ✅ CRITICAL: Explicitly pass clean headers object
   timeoutMillis: 10000,
 });
-console.error('[TELEMETRY DEBUG] Trace exporter created with headers');
+logger.error('[TELEMETRY DEBUG] Trace exporter created with headers');
 
 const metricExporter = new OTLPMetricExporter({
   url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
@@ -178,9 +180,9 @@ const metricExporter = new OTLPMetricExporter({
   headers: exporterHeaders, // ✅ CRITICAL: Explicitly pass clean headers object
   timeoutMillis: 10000,
 });
-console.error('[TELEMETRY DEBUG] Metric exporter created with headers');
+logger.error('[TELEMETRY DEBUG] Metric exporter created with headers');
 
-console.error('[TELEMETRY DEBUG] Exporters created successfully with Authorization header');
+logger.error('[TELEMETRY DEBUG] Exporters created successfully with Authorization header');
 
 // Helper function to parse headers from environment variable
 // Format: "key1=value1,key2=value2" OR single header "Authorization=Basic <token>"
@@ -192,9 +194,9 @@ function parseHeaders(headerString) {
       let value = headerString.substring('Authorization='.length);
       
       // DEBUG: Show raw value before any processing
-      console.log('[Telemetry] RAW Authorization value length:', value.length);
-      console.log('[Telemetry] RAW Authorization value (first 50 chars):', value.substring(0, 50));
-      console.log('[Telemetry] RAW has quotes:', value.includes('"') || value.includes("'"));
+      logger.info('[Telemetry] RAW Authorization value length:', value.length);
+      logger.info('[Telemetry] RAW Authorization value (first 50 chars):', value.substring(0, 50));
+      logger.info('[Telemetry] RAW has quotes:', value.includes('"') || value.includes("'"));
       
       // CRITICAL: ONLY remove quotes and control characters - preserve ALL valid characters including spaces
       // HTTP headers CAN contain spaces (e.g., "Basic <token>")
@@ -211,11 +213,11 @@ function parseHeaders(headerString) {
       
       headers['Authorization'] = value;
       
-      console.log('[Telemetry] FINAL Authorization header length:', value.length);
-      console.log('[Telemetry] FINAL Authorization header preview:', value.substring(0, 30) + '...');
+      logger.info('[Telemetry] FINAL Authorization header length:', value.length);
+      logger.info('[Telemetry] FINAL Authorization header preview:', value.substring(0, 30) + '...');
       
       if (value.length === 0) {
-        console.error('❌ [Telemetry] ERROR: Authorization header is EMPTY after sanitization!');
+        logger.error('❌ [Telemetry] ERROR: Authorization header is EMPTY after sanitization!');
       }
     } else {
       // Handle comma-separated headers
@@ -334,16 +336,16 @@ if (traceExporter && typeof traceExporter.export === 'function') {
       if (result.error) {
         // Log authentication errors specifically
         if (result.error.message && result.error.message.includes('Unauthorized')) {
-          console.error('❌ [Telemetry] Authentication failed - check OTEL_EXPORTER_OTLP_HEADERS');
-          console.error('   Endpoint:', process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
-          console.error('   Error:', result.error.message);
+          logger.error('❌ [Telemetry] Authentication failed - check OTEL_EXPORTER_OTLP_HEADERS');
+          logger.error('   Endpoint:', process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+          logger.error('   Error:', result.error.message);
         } else if (result.error.code === 401) {
-          console.error('❌ [Telemetry] 401 Unauthorized - Invalid Grafana Cloud credentials');
-          console.error('   Please verify your OTEL_EXPORTER_OTLP_HEADERS token is correct');
+          logger.error('❌ [Telemetry] 401 Unauthorized - Invalid Grafana Cloud credentials');
+          logger.error('   Please verify your OTEL_EXPORTER_OTLP_HEADERS token is correct');
         }
       } else {
         // ✅ Log successful exports so we can confirm traces are being sent to Grafana
-        console.error(`✅ [Telemetry] Export success: sent ${spans.length} span(s) to Grafana at ${new Date().toISOString()}`);
+        logger.error(`✅ [Telemetry] Export success: sent ${spans.length} span(s) to Grafana at ${new Date().toISOString()}`);
       }
       resultCallback(result);
     });
@@ -553,12 +555,12 @@ function wrapExporterWithErrorHandler(exporter, exporterName) {
       transport.send = function(...args) {
         try {
           return originalSend(...args).catch(err => {
-            console.error(`⚠️ [Telemetry] ${exporterName} export error:`, err.message);
+            logger.error(`⚠️ [Telemetry] ${exporterName} export error:`, err.message);
             // Return success to prevent crash
             return { code: 0 };
           });
         } catch (err) {
-          console.error(`⚠️ [Telemetry] ${exporterName} send error:`, err.message);
+          logger.error(`⚠️ [Telemetry] ${exporterName} send error:`, err.message);
           return Promise.resolve({ code: 0 });
         }
       };
@@ -577,19 +579,19 @@ try {
   sdk.start();
   
   // ✅ PART 2.3: Verification - Print success message indicating OTEL Exporters are active
-  console.log('✅ [Telemetry] OpenTelemetry backend instrumentation initialized successfully');
-  console.log(`✅ [Telemetry] Service Name: ${process.env.OTEL_SERVICE_NAME || 'rpa-system-backend'}`);
-  console.log(`✅ [Telemetry] OTLP Endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4318'}`);
-  console.log(`✅ [Telemetry] OTLP Headers: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? 'CONFIGURED ✓' : '❌ MISSING - Traces will NOT reach Grafana!'}`);
-  console.log(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with ${(samplingRatio * 100).toFixed(0)}% sampling ratio`);
-  console.log(`✅ [Telemetry] Data Redaction: Active (Gap 14 - sensitive data removed)`);
-  console.log('✅ [Telemetry] OTEL Exporters: ACTIVE - Ready to stream to Grafana Cloud');
+  logger.info('✅ [Telemetry] OpenTelemetry backend instrumentation initialized successfully');
+  logger.info(`✅ [Telemetry] Service Name: ${process.env.OTEL_SERVICE_NAME || 'rpa-system-backend'}`);
+  logger.info(`✅ [Telemetry] OTLP Endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4318'}`);
+  logger.info(`✅ [Telemetry] OTLP Headers: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? 'CONFIGURED ✓' : '❌ MISSING - Traces will NOT reach Grafana!'}`);
+  logger.info(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with ${(samplingRatio * 100).toFixed(0)}% sampling ratio`);
+  logger.info(`✅ [Telemetry] Data Redaction: Active (Gap 14 - sensitive data removed)`);
+  logger.info('✅ [Telemetry] OTEL Exporters: ACTIVE - Ready to stream to Grafana Cloud');
   
   // Create global SLO metrics provider
   global.sloMetrics = new SLOMetricsProvider();
   
 } catch (error) {
-  console.error('❌ [Telemetry] Failed to initialize OpenTelemetry:', error);
+  logger.error('❌ [Telemetry] Failed to initialize OpenTelemetry:', error);
 }
 
 // Add global error handlers for OTLP exporter errors
@@ -604,8 +606,8 @@ const telemetryErrorPatterns = [
 process.on('uncaughtException', (error) => {
   const errorStr = error.message || error.toString();
   if (telemetryErrorPatterns.some(pattern => errorStr.includes(pattern))) {
-    console.error('⚠️ [Telemetry] OTLP exporter error (non-fatal):', error.message);
-    console.error('   Stack:', error.stack?.split('\n').slice(0, 3).join('\n'));
+    logger.error('⚠️ [Telemetry] OTLP exporter error (non-fatal):', error.message);
+    logger.error('   Stack:', error.stack?.split('\n').slice(0, 3).join('\n'));
     // Don't exit - these errors shouldn't crash the app
     return;
   }
@@ -616,19 +618,19 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
   const reasonStr = reason?.toString() || '';
   if (telemetryErrorPatterns.some(pattern => reasonStr.includes(pattern))) {
-    console.error('⚠️ [Telemetry] OTLP exporter rejection (non-fatal):', reasonStr);
+    logger.error('⚠️ [Telemetry] OTLP exporter rejection (non-fatal):', reasonStr);
     // Don't exit - these rejections shouldn't crash the app
     return;
   }
   // Log other unhandled rejections
-  console.error('Unhandled Rejection:', reasonStr);
+  logger.error('Unhandled Rejection:', reasonStr);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   sdk.shutdown()
-    .then(() => console.log('[Telemetry] OpenTelemetry shutdown completed'))
-    .catch((error) => console.error('[Telemetry] Error during shutdown:', error))
+    .then(() => logger.info('[Telemetry] OpenTelemetry shutdown completed'))
+    .catch((error) => logger.error('[Telemetry] Error during shutdown:', error))
     .finally(() => process.exit(0));
 });
 

@@ -1,13 +1,15 @@
+
+const { logger, getLogger } = require('./utils/logger');
 // --- Initialize OpenTelemetry first for comprehensive instrumentation ---
 // Allow disabling telemetry in local dev to avoid requiring OpenTelemetry packages
 if (process.env.DISABLE_TELEMETRY !== 'true') {
   try {
     require('./middleware/telemetryInit');
   } catch (e) {
-    console.warn('[app] telemetryInit failed to load - continuing without telemetry:', e?.message || e);
+    logger.warn('[app] telemetryInit failed to load - continuing without telemetry:', e?.message || e);
   }
 } else {
-  console.warn('[app] Telemetry disabled via DISABLE_TELEMETRY=true');
+  logger.warn('[app] Telemetry disabled via DISABLE_TELEMETRY=true');
 }
 
 // --- Initialize structured logging after telemetry ---
@@ -50,6 +52,8 @@ const { auditLogger } = require('./utils/auditLogger');
 const { LinkDiscoveryService } = require('./services/linkDiscoveryService');
 const { requireAutomationRun, requireWorkflowRun, requireWorkflowCreation, checkStorageLimit, requireFeature, requirePlan } = require('./middleware/planEnforcement');
 const { traceContextMiddleware, createContextLogger } = require('./middleware/traceContext');
+// Backwards-compatible alias: some modules use `contextLoggerMiddleware` name
+const contextLoggerMiddleware = traceContextMiddleware;
 const { requestLoggingMiddleware } = require('./middleware/structuredLogging');
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
@@ -64,16 +68,16 @@ let socialProofRoutes = null;
 
 try {
   polarRoutes = require('./routes/polarRoutes');
-  console.log('✓ Polar routes loaded');
+  rootLogger.info('✓ Polar routes loaded');
 } catch (e) {
-  console.warn('⚠️ Polar routes disabled:', e.message);
+  logger.warn('⚠️ Polar routes disabled:', e.message);
 }
 
 try {
   socialProofRoutes = require('./routes/socialProofRoutes');
-  console.log('✓ Social proof routes loaded');
+  rootLogger.info('✓ Social proof routes loaded');
 } catch (e) {
-  console.warn('⚠️ Social proof routes disabled:', e.message);
+  logger.warn('⚠️ Social proof routes disabled:', e.message);
 }
 
 const app = express();
@@ -221,6 +225,16 @@ const globalLimiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  keyGenerator: (req /*, res */) => {
+    try {
+      if (req.ip) return req.ip;
+      const xff = req.headers['x-forwarded-for'];
+      if (xff && typeof xff === 'string') return xff.split(',')[0].trim();
+      return req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'unknown';
+    } catch (e) {
+      return 'unknown';
+    }
+  }
 });
 
 const authLimiter = rateLimit({
@@ -228,6 +242,9 @@ const authLimiter = rateLimit({
   max: 100, // Increased for development
   message: {
     error: 'Too many authentication attempts, please try again later.'
+  }
+  , keyGenerator: (req) => {
+    try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
   }
 });
 
@@ -257,6 +274,9 @@ const apiLimiter = rateLimit({
   message: {
     error: 'API rate limit exceeded, please try again later.'
   }
+  , keyGenerator: (req) => {
+    try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
+  }
 });
 
 // Strict limiter for automation endpoints
@@ -265,6 +285,9 @@ const automationLimiter = rateLimit({
   max: 100, // Increased for development
   message: {
     error: 'Automation rate limit exceeded, please try again later.'
+  }
+  , keyGenerator: (req) => {
+    try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
   }
 });
 
@@ -390,7 +413,7 @@ try {
   const devBypass = require('./middleware/devBypass');
   app.use(devBypass);
 } catch (err) {
-  console.warn('[boot] devBypass middleware not mounted:', err?.message || err);
+  logger.warn('[boot] devBypass middleware not mounted:', err?.message || err);
 }
 
 // Set secure session cookie defaults
@@ -413,15 +436,14 @@ app.use((req, res, next) => {
 });
 
 // --- Supabase & App Config ---
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE) : null;
+const { getSupabase } = require('./utils/supabaseClient');
+const supabase = getSupabase();
 if (!supabase) {
-  console.warn('⚠️ Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE environment variables.');
+  logger.warn('⚠️ Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE environment variables.');
 } else {
   // Initialize usage tracker with supabase client
   usageTracker.initialize(supabase);
-  console.log('✅ Usage tracker initialized');
+  logger.info('✅ Usage tracker initialized');
 }
 const ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
 
@@ -446,6 +468,8 @@ const DEFAULT_DEV_ORIGINS = [
   'http://127.0.0.1:3000',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'http://localhost:3030',
+  'http://127.0.0.1:3030',
 ];
 const DEFAULT_PROD_ORIGINS = [
   'https://easy-flow-lac.vercel.app',
@@ -462,14 +486,13 @@ const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
   .filter(Boolean);
 
 // Debug logging for CORS configuration (quiet in production)
-if (process.env.NODE_ENV !== 'production') {
   if (process.env.NODE_ENV !== 'production') {
-    console.log('🔧 CORS Debug Info (app.js):');
-    console.log('   ALLOWED_ORIGINS env var:', process.env.ALLOWED_ORIGINS);
-    console.log('   Parsed ALLOWED_ORIGINS:', ALLOWED_ORIGINS);
-    console.log('   NODE_ENV:', process.env.NODE_ENV);
+    rootLogger.info('🔧 CORS Debug Info (app.js):', {
+      ALLOWED_ORIGINS_env: process.env.ALLOWED_ORIGINS,
+      parsed_allowed_origins: ALLOWED_ORIGINS,
+      NODE_ENV: process.env.NODE_ENV,
+    });
   }
-}
 
 const corsOptions = {
   origin: (origin, cb) => {
@@ -485,7 +508,7 @@ const corsOptions = {
     // As a last resort in dev, be permissive when not explicitly configured
     if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== 'production') return cb(null, true);
 
-    console.warn('🚫 CORS blocked origin (app.js):', origin);
+    logger.warn('🚫 CORS blocked origin (app.js):', origin);
     return cb(new Error('CORS: origin not allowed'));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -525,7 +548,7 @@ let fileUpload;
 try {
   fileUpload = require('express-fileupload');
 } catch (e) {
-  console.warn('⚠️ express-fileupload not installed; file upload endpoints will respond with 501 in dev');
+  logger.warn('⚠️ express-fileupload not installed; file upload endpoints will respond with 501 in dev');
   fileUpload = null;
 }
 
@@ -588,7 +611,7 @@ app.get('/api/plans', async (_req, res) => {
     if (error) throw error;
     res.json(data || []);
   } catch (err) {
-    console.error('[GET /api/plans] Error:', err.message);
+    logger.error('[GET /api/plans] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch plans', details: err.message });
   }
 });
@@ -619,22 +642,22 @@ if (process.env.NODE_ENV === 'test') {
   // Only enable CSRF in development
   app.use('/api', (req, res, next) => {
     // Skip CSRF for GET requests, webhooks, and checkout endpoints
-    console.log(`CSRF Check: ${req.method} ${req.url} | path: ${req.path}`);
+    logger.info(`CSRF Check: ${req.method} ${req.url} | path: ${req.path}`);
     
     if (req.method === 'GET' || 
         req.url.includes('/polar-webhook') || 
         req.url.includes('/checkout/') ||
         req.path.includes('/polar-webhook') ||
         req.path.includes('/checkout/')) {
-      console.log('CSRF: Skipping CSRF for this request');
+      logger.info('CSRF: Skipping CSRF for this request');
       return next();
     }
-    console.log('CSRF: Applying CSRF protection');
+    logger.info('CSRF: Applying CSRF protection');
     return csrfProtection(req, res, next);
   });
 } else {
   // Production: CSRF disabled, rely on auth middleware + CORS
-  console.log('🔓 CSRF disabled in production (cross-domain deployment)');
+  logger.info('🔓 CSRF disabled in production (cross-domain deployment)');
 }
 
 // Mount webhook routes (before other middleware to handle raw body parsing)
@@ -732,10 +755,10 @@ app.post('/api/dev/seed-sample-workflow', async (req, res) => {
           const password = process.env.DEV_USER_PASSWORD || crypto.randomBytes(8).toString('hex');
           // Preferred: use the JS client admin API when available
           if (supabase && supabase.auth && supabase.auth.admin && typeof supabase.auth.admin.createUser === 'function') {
-            console.log('[dev seeder] creating dev user via supabase.admin.createUser', { email });
+            logger.info('[dev seeder] creating dev user via supabase.admin.createUser', { email });
             const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
             if (createErr || !newUser) {
-              console.error('[dev seeder] failed to create dev user via admin API:', createErr);
+              logger.error('[dev seeder] failed to create dev user via admin API:', createErr);
             } else {
               userIdToUse = newUser.id || (newUser.user && newUser.user.id) || null;
             }
@@ -745,7 +768,7 @@ app.post('/api/dev/seed-sample-workflow', async (req, res) => {
           if (!userIdToUse) {
             try {
               const adminUrl = `${(process.env.SUPABASE_URL || '').replace(/\/$/, '')}/auth/v1/admin/users`;
-              console.log('[dev seeder] attempting Supabase Admin REST API createUser', { adminUrl, email });
+              logger.info('[dev seeder] attempting Supabase Admin REST API createUser', { adminUrl, email });
               const resp = await axios.post(adminUrl, { email, password, email_confirm: true }, {
                 headers: {
                   Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY}`,
@@ -756,9 +779,9 @@ app.post('/api/dev/seed-sample-workflow', async (req, res) => {
               });
               const data = resp.data || {};
               userIdToUse = data?.id || data?.user?.id || data?.user?.uid || null;
-              console.log('[dev seeder] admin REST create user resp:', { status: resp.status, id: userIdToUse });
+              logger.info('[dev seeder] admin REST create user resp:', { status: resp.status, id: userIdToUse });
             } catch (e) {
-              console.error('[dev seeder] admin REST createUser failed:', e?.message || e);
+              logger.error('[dev seeder] admin REST createUser failed:', e?.message || e);
             }
           }
 
@@ -769,7 +792,7 @@ app.post('/api/dev/seed-sample-workflow', async (req, res) => {
             });
           }
         } catch (e) {
-          console.error('[dev seeder] admin createUser failed:', e?.message || e);
+          logger.error('[dev seeder] admin createUser failed:', e?.message || e);
           return res.status(500).json({ error: 'create-user-failed', detail: e?.message || String(e) });
         }
     }
@@ -781,7 +804,7 @@ app.post('/api/dev/seed-sample-workflow', async (req, res) => {
       .maybeSingle();
 
     if (wfError || !wf) {
-      console.error('[dev seeder] failed to create workflow:', wfError);
+      logger.error('[dev seeder] failed to create workflow:', wfError);
       return res.status(500).json({ error: 'create-workflow-failed', detail: wfError?.message || String(wfError) });
     }
 
@@ -809,13 +832,13 @@ app.post('/api/dev/seed-sample-workflow', async (req, res) => {
 
     const { data: stepData, error: stepError } = await supabase.from('workflow_steps').insert(steps).select();
     if (stepError) {
-      console.error('[dev seeder] failed to insert steps:', stepError);
+      logger.error('[dev seeder] failed to insert steps:', stepError);
       return res.status(500).json({ error: 'create-steps-failed', detail: stepError?.message || String(stepError) });
     }
 
     return res.json({ ok: true, workflow: wf, steps: stepData });
   } catch (e) {
-    console.error('[dev seeder] unexpected error:', e?.message || e);
+    logger.error('[dev seeder] unexpected error:', e?.message || e);
     return res.status(500).json({ error: 'unexpected', detail: e?.message || String(e) });
   }
 });
@@ -882,7 +905,7 @@ try {
       if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
 
       const executor = new WorkflowExecutor();
-      console.log('[API] execute request', { userId, workflowId, triggeredBy });
+      logger.info('[API] execute request', { userId, workflowId, triggeredBy });
       let execution;
       try {
         execution = await executor.startExecution({
@@ -896,11 +919,11 @@ try {
         const msg = e?.message || '';
         // Map domain errors to explicit HTTP statuses for clearer client handling
         if (msg.includes('Workflow not found')) {
-          console.warn('[API] workflow not found:', { workflowId, userId, message: msg });
+          logger.warn('[API] workflow not found:', { workflowId, userId, message: msg });
           return res.status(404).json({ error: msg });
         }
         if (msg.includes('Workflow is not active')) {
-          console.warn('[API] workflow not active:', { workflowId, userId, message: msg });
+          logger.warn('[API] workflow not active:', { workflowId, userId, message: msg });
           return res.status(409).json({ error: msg });
         }
         // For other well-known executor errors that might indicate bad input, map to 400
@@ -912,12 +935,12 @@ try {
 
       return res.json({ execution });
     } catch (err) {
-      console.error('[API] /api/workflows/execute error:', err);
+      logger.error('[API] /api/workflows/execute error:', err);
       return res.status(500).json({ error: err?.message || 'Failed to start execution' });
     }
   });
 } catch (e) {
-  console.warn('[boot] workflows execute route not mounted:', e?.message || e);
+  logger.warn('[boot] workflows execute route not mounted:', e?.message || e);
 }
 
 // Dev convenience: allow executing workflows without a bearer token in local dev
@@ -939,13 +962,13 @@ if (process.env.NODE_ENV !== 'production' && (process.env.DEV_ALLOW_EXECUTE || '
         if (msg.includes('Workflow not found')) return res.status(404).json({ error: msg });
         if (msg.includes('Workflow is not active')) return res.status(409).json({ error: msg });
         if (msg.includes('Invalid') || msg.includes('missing')) return res.status(400).json({ error: msg });
-        console.error('[dev execute] unexpected error', err);
+        logger.error('[dev execute] unexpected error', err);
         return res.status(500).json({ error: 'failed', detail: msg });
       }
     });
-    console.log('[dev execute] /api/dev/workflows/execute available in dev');
+    logger.info('[dev execute] /api/dev/workflows/execute available in dev');
   } catch (e) {
-    console.warn('[dev execute] could not mount dev execute route:', e?.message || e);
+    logger.warn('[dev execute] could not mount dev execute route:', e?.message || e);
   }
 }
 
@@ -1064,7 +1087,7 @@ if ((process.env.AUTOMATION_MODE || 'stub') === 'python' && process.env.NODE_ENV
   let pyProc;
   const startPython = () => {
     if (pyProc) return;
-    console.log('[automation-supervisor] launching python automation-service/production_automation_service.py');
+    logger.info('[automation-supervisor] launching python automation-service/production_automation_service.py');
     pyProc = spawn('python', ['automation/automation-service/production_automation_service.py'], {
       cwd: path.join(__dirname, '..'),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -1073,7 +1096,7 @@ if ((process.env.AUTOMATION_MODE || 'stub') === 'python' && process.env.NODE_ENV
     pyProc.stdout.on('data', d => process.stdout.write('[automation] ' + d));
     pyProc.stderr.on('data', d => process.stderr.write('[automation:err] ' + d));
     pyProc.on('exit', code => {
-      console.warn('[automation-supervisor] python exited code', code);
+      logger.warn('[automation-supervisor] python exited code', code);
       pyProc = null;
       setTimeout(startPython, 5000); // restart after delay
     });
@@ -1181,7 +1204,7 @@ app.get('/api/auth/session', async (req, res) => {
     // Diagnostic logging to assist local debugging (quiet in production)
     if (process.env.NODE_ENV !== 'production') {
       try {
-        console.log('[auth/session] headerToken:', !!headerToken, 'cookieToken:', !!cookieToken, 'cookieKeys:', Object.keys(req.cookies || {}).join(','));
+        logger.info('[auth/session] headerToken:', !!headerToken, 'cookieToken:', !!cookieToken, 'cookieKeys:', Object.keys(req.cookies || {}).join(','));
       } catch (e) {}
     }
 
@@ -1208,17 +1231,17 @@ app.get('/api/auth/session', async (req, res) => {
           return res.json({ user, access_token: tokenToVerify, expires_at: Date.now() + 3600000 });
         }
         if (error) {
-          if (process.env.NODE_ENV !== 'production') console.warn('[auth/session] supabase.getUser returned error:', error.message || error);
+          if (process.env.NODE_ENV !== 'production') logger.warn('[auth/session] supabase.getUser returned error:', error.message || error);
         }
       } catch (error) {
-        console.warn('Supabase session check failed:', error?.message || error);
+        logger.warn('Supabase session check failed:', error?.message || error);
       }
     }
 
     // No valid session
     res.status(401).json({ error: 'No valid session' });
   } catch (error) {
-    console.error('Session check error:', error);
+    logger.error('Session check error:', error);
     res.status(500).json({ error: 'Session check failed' });
   }
 });
@@ -1250,7 +1273,7 @@ app.post('/api/auth/login', async (req, res) => {
           return res.status(401).json({ error: error.message });
         }
       } catch (error) {
-        console.warn('Supabase login failed:', error.message);
+        logger.warn('Supabase login failed:', error.message);
       }
     }
 
@@ -1274,7 +1297,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     res.status(401).json({ error: 'Authentication not configured' });
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -1286,13 +1309,13 @@ app.post('/api/auth/logout', async (req, res) => {
       try {
         await supabase.auth.signOut();
       } catch (error) {
-        console.warn('Supabase logout failed:', error.message);
+        logger.warn('Supabase logout failed:', error.message);
       }
     }
     
     res.json({ success: true });
   } catch (error) {
-    console.error('Logout error:', error);
+    logger.error('Logout error:', error);
     res.status(500).json({ error: 'Logout failed' });
   }
 });
@@ -1334,7 +1357,7 @@ app.get('/api/plans', async (_req, res) => {
     if (error) throw error;
     res.json(data || []);
   } catch (err) {
-    console.error('[GET /api/plans] Error:', err.message);
+    logger.error('[GET /api/plans] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch plans', details: err.message });
   }
 });
@@ -1398,7 +1421,7 @@ app.use('/api', authLimiter, async (req, res, next) => {
     return next();
 
   } catch (err) {
-    console.error('[auth middleware] error', err?.message || err);
+    logger.error('[auth middleware] error', err?.message || err);
     // Add artificial delay for consistent timing
     await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
     return res.status(500).json({ error: 'Authentication failed' });
@@ -1490,7 +1513,7 @@ function sanitizeError(error, isDevelopment = false) {
 // Implementation of task run queueing and processing
 async function queueTaskRun(runId, taskData) {
   try {
-    console.log(`[queueTaskRun] Queueing automation run ${runId}`);
+    logger.info(`[queueTaskRun] Queueing automation run ${runId}`);
     
     // Get the automation worker URL from environment
     const automationUrl = process.env.AUTOMATION_URL;
@@ -1509,7 +1532,7 @@ async function queueTaskRun(runId, taskData) {
       parameters: taskData.parameters || {}
     };
     
-    console.log(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
+    logger.info(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
     
     // Call the real automation service
     try {
@@ -1536,7 +1559,7 @@ async function queueTaskRun(runId, taskData) {
         for (const pathSuffix of candidates) {
           const base = normalizedUrl.replace(/\/$/, '');
           const fullAutomationUrl = `${base}${pathSuffix}`;
-          console.log(`[queueTaskRun] Trying automation endpoint: ${fullAutomationUrl}`);
+          logger.info(`[queueTaskRun] Trying automation endpoint: ${fullAutomationUrl}`);
           try {
             const headers = { 'Content-Type': 'application/json' };
             if (process.env.AUTOMATION_API_KEY) {
@@ -1547,12 +1570,12 @@ async function queueTaskRun(runId, taskData) {
               headers
             });
             automationResult = response.data || { message: 'Execution completed with no data returned' };
-            console.log(`[queueTaskRun] Automation service response (${pathSuffix}):`,
+            logger.info(`[queueTaskRun] Automation service response (${pathSuffix}):`,
               response.status, response.data ? 'data received' : 'no data');
             break;
           } catch (err) {
             lastError = err;
-            console.warn(`[queueTaskRun] Endpoint ${pathSuffix} failed:`, err?.response?.status || err?.message || err);
+            logger.warn(`[queueTaskRun] Endpoint ${pathSuffix} failed:`, err?.response?.status || err?.message || err);
           }
         }
         if (!automationResult && lastError) throw lastError;
@@ -1577,14 +1600,14 @@ async function queueTaskRun(runId, taskData) {
         const taskName = taskData.title || 'Automation Task';
         const notification = NotificationTemplates.taskCompleted(taskName);
         await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
-        console.log(`🔔 Task completion notification sent to user ${taskData.user_id}`);
+        logger.info(`🔔 Task completion notification sent to user ${taskData.user_id}`);
       } catch (notificationError) {
-        console.error('🔔 Failed to send task completion notification:', notificationError.message);
+        logger.error('🔔 Failed to send task completion notification:', notificationError.message);
       }
         
   return response?.data ?? automationResult;
     } catch (error) {
-      console.error(`[queueTaskRun] Automation service error:`, error.message);
+      logger.error(`[queueTaskRun] Automation service error:`, error.message);
       
       // Update the run with the error
   const sb2 = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
@@ -1608,15 +1631,15 @@ async function queueTaskRun(runId, taskData) {
         const taskName = taskData.title || 'Automation Task';
         const notification = NotificationTemplates.taskFailed(taskName, error.message || 'Unknown error');
         await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
-        console.log(`🔔 Task failure notification sent to user ${taskData.user_id}`);
+        logger.info(`🔔 Task failure notification sent to user ${taskData.user_id}`);
       } catch (notificationError) {
-        console.error('🔔 Failed to send task failure notification:', notificationError.message);
+        logger.error('🔔 Failed to send task failure notification:', notificationError.message);
       }
         
       throw error;
     }
   } catch (error) {
-    console.error(`[queueTaskRun] Error: ${error.message || error}`);
+    logger.error(`[queueTaskRun] Error: ${error.message || error}`);
     
     // Make sure the run is marked as failed if we get an unexpected error
     try {
@@ -1629,7 +1652,7 @@ async function queueTaskRun(runId, taskData) {
         })
         .eq('id', runId);
     } catch (updateError) {
-      console.error(`[queueTaskRun] Failed to update run status: ${updateError.message}`);
+      logger.error(`[queueTaskRun] Failed to update run status: ${updateError.message}`);
     }
     
     throw error;
@@ -1720,7 +1743,7 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
   }
 
   try {
-    console.log(`[run-task] Processing automation for user ${user.id}`);
+    logger.info(`[run-task] Processing automation for user ${user.id}`);
     
     // First, create or find a task in automation_tasks
   const taskName = title || (type && type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || (task && task.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'Automation Task';
@@ -1745,7 +1768,7 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
       .single();
     
     if (taskError) {
-      console.error('[run-task] Error creating automation task:', taskError);
+      logger.error('[run-task] Error creating automation task:', taskError);
       return res.status(500).json({ error: 'Failed to create automation task' });
     }
     
@@ -1763,7 +1786,7 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
       .single();
     
     if (runError) {
-      console.error('[run-task] Error creating automation run:', runError);
+      logger.error('[run-task] Error creating automation run:', runError);
       return res.status(500).json({ error: 'Failed to create automation run' });
     }
     
@@ -1785,7 +1808,7 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
           parameters: paramsObj
         });
       } catch (error) {
-        console.error('[run-task background] Error processing run', run.id, error?.message || error);
+        logger.error('[run-task background] Error processing run', run.id, error?.message || error);
         try {
           await supabase
             .from('automation_runs')
@@ -1796,7 +1819,7 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
             })
             .eq('id', run.id);
         } catch (updateErr) {
-          console.error('[run-task background] Failed to mark run failed:', updateErr?.message || updateErr);
+          logger.error('[run-task background] Failed to mark run failed:', updateErr?.message || updateErr);
         }
       }
     });
@@ -1808,7 +1831,7 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
     });
     
   } catch (error) {
-    console.error('[run-task] Unhandled error:', error.message || error);
+    logger.error('[run-task] Unhandled error:', error.message || error);
     return res.status(500).json({ error: 'Failed to process request' });
   }
 });
@@ -1863,7 +1886,7 @@ app.post('/api/notifications/create', authMiddleware, requireFeature('priority_s
     const notification = { type, title, body, priority, data };
 
     if (!firebaseNotificationService || !firebaseNotificationService.isConfigured) {
-      console.warn('[POST /api/notifications/create] Firebase not fully configured; attempting store only');
+      logger.warn('[POST /api/notifications/create] Firebase not fully configured; attempting store only');
     }
 
     const result = await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
@@ -1883,7 +1906,7 @@ app.post('/api/notifications/create', authMiddleware, requireFeature('priority_s
       stored: result.store
     });
   } catch (error) {
-    console.error('[POST /api/notifications/create] error:', error);
+    logger.error('[POST /api/notifications/create] error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
@@ -1895,9 +1918,9 @@ app.get('/api/tasks', async (req, res) => {
   try {
     // Defensive check to ensure auth middleware has attached the user.
     if (!req.user || !req.user.id) {
-      console.error('[GET /api/tasks] Error: req.user is not defined. This indicates the Authorization header is missing or was stripped by a proxy.');
+      logger.error('[GET /api/tasks] Error: req.user is not defined. This indicates the Authorization header is missing or was stripped by a proxy.');
       // Log headers for debugging, but be careful with sensitive data in production logs.
-      console.error('[GET /api/tasks] Request Headers:', JSON.stringify(req.headers));
+      logger.error('[GET /api/tasks] Request Headers:', JSON.stringify(req.headers));
       return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
     }
 
@@ -1912,7 +1935,7 @@ app.get('/api/tasks', async (req, res) => {
     if (error) throw error;
     res.json(data || []);
   } catch (err) {
-    console.error('[GET /api/tasks] Error:', err.message);
+    logger.error('[GET /api/tasks] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch tasks', details: err.message });
   }
 });
@@ -1988,7 +2011,7 @@ app.post('/api/tasks', async (req, res) => {
 
     res.status(201).json(data[0]);
   } catch (err) {
-    console.error('[POST /api/tasks] Error:', err.message);
+    logger.error('[POST /api/tasks] Error:', err.message);
     res.status(500).json({ error: 'Failed to create task', details: err.message });
   }
 });
@@ -2086,7 +2109,7 @@ app.post('/api/tasks/:id/run', async (req, res) => {
     const result = response.data?.result ?? null;
 
     // Add detailed logging for the result from the automation service
-    console.log(`[POST /api/tasks/${taskId}/run] Received result from automation service:`, JSON.stringify(result, null, 2));
+    logger.info(`[POST /api/tasks/${taskId}/run] Received result from automation service:`, JSON.stringify(result, null, 2));
 
     // 4. Update the run record with the result
     const { error: updateError } = await supabase
@@ -2107,16 +2130,16 @@ app.post('/api/tasks/:id/run', async (req, res) => {
     try {
       const notification = NotificationTemplates.taskCompleted(taskData.name);
       await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
-      console.log(`🔔 Task completion notification sent for task ${taskData.name} to user ${req.user.id}`);
+      logger.info(`🔔 Task completion notification sent for task ${taskData.name} to user ${req.user.id}`);
     } catch (notificationError) {
-      console.error('🔔 Failed to send task completion notification:', notificationError.message);
+      logger.error('🔔 Failed to send task completion notification:', notificationError.message);
     }
 
     res.json({ message: 'Task executed successfully', runId, result });
 
   } catch (err) {
     // Log the full error object for more detailed debugging information.
-    console.error(`[POST /api/tasks/${taskId}/run] Error:`, err);
+    logger.error(`[POST /api/tasks/${taskId}/run] Error:`, err);
 
     // 5. If an error occurred, update the run record to 'failed'
     if (runId) {
@@ -2143,13 +2166,13 @@ app.post('/api/tasks/:id/run', async (req, res) => {
         try {
           const notification = NotificationTemplates.taskFailed(taskData.name, err.message);
           await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
-          console.log(`🔔 Task failure notification sent for task ${taskData.name} to user ${req.user.id}`);
+          logger.info(`🔔 Task failure notification sent for task ${taskData.name} to user ${req.user.id}`);
         } catch (notificationError) {
-          console.error('🔔 Failed to send task failure notification:', notificationError.message);
+          logger.error('🔔 Failed to send task failure notification:', notificationError.message);
         }
       } catch (dbErr) {
         // Log the full database error for better diagnostics if the failure update itself fails.
-        console.error(`[POST /api/tasks/${taskId}/run] DB error update failed:`, dbErr);
+        logger.error(`[POST /api/tasks/${taskId}/run] DB error update failed:`, dbErr);
       }
     }
     
@@ -2183,7 +2206,7 @@ app.get('/api/runs', async (req, res) => {
     if (error) throw error;
     res.json(data || []);
   } catch (err) {
-    console.error('[GET /api/runs] Error:', err.message);
+    logger.error('[GET /api/runs] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch runs', details: err.message });
   }
 });
@@ -2216,7 +2239,7 @@ app.get('/api/dashboard', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[GET /api/dashboard] Error:', err.message);
+    logger.error('[GET /api/dashboard] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch dashboard data', details: err.message });
   }
 });
@@ -2242,7 +2265,7 @@ app.delete('/api/tasks/:id', async (req, res) => {
 
     res.status(204).send(); // 204 No Content for successful deletion
   } catch (err) {
-    console.error(`[DELETE /api/tasks/${req.params.id}] Error:`, err.message);
+    logger.error(`[DELETE /api/tasks/${req.params.id}] Error:`, err.message);
     res.status(500).json({ error: 'Failed to delete task', details: err.message });
   }
 });
@@ -2254,7 +2277,7 @@ app.get('/api/usage/debug', authMiddleware, requireFeature('advanced_analytics')
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    console.log(`[DEBUG] Checking usage for user: ${req.user.id}`);
+    logger.info(`[DEBUG] Checking usage for user: ${req.user.id}`);
 
     // Check if user_usage table exists
     let tableExists = false;
@@ -2266,10 +2289,10 @@ app.get('/api/usage/debug', authMiddleware, requireFeature('advanced_analytics')
         .single();
       
       tableExists = !usageError || usageError.code !== '42P01';
-      console.log(`[DEBUG] user_usage table exists: ${tableExists}`);
-      console.log(`[DEBUG] Current usage record:`, usageData);
+      logger.info(`[DEBUG] user_usage table exists: ${tableExists}`);
+      logger.info(`[DEBUG] Current usage record:`, usageData);
     } catch (e) {
-      console.log(`[DEBUG] user_usage table check error:`, e.message);
+      logger.info(`[DEBUG] user_usage table check error:`, e.message);
     }
 
     // Check automation runs
@@ -2317,7 +2340,7 @@ app.get('/api/usage/debug', authMiddleware, requireFeature('advanced_analytics')
     });
 
   } catch (error) {
-    console.error('[GET /api/usage/debug] Error:', error);
+    logger.error('[GET /api/usage/debug] Error:', error);
     res.status(500).json({ error: 'Debug failed', details: error.message });
   }
 });
@@ -2366,7 +2389,7 @@ app.post('/api/usage/refresh', authMiddleware, requireFeature('advanced_analytic
       });
 
     if (upsertError) {
-      console.error('[POST /api/usage/refresh] Upsert error:', upsertError);
+      logger.error('[POST /api/usage/refresh] Upsert error:', upsertError);
     }
 
     // Also use the usage tracker for future
@@ -2382,7 +2405,7 @@ app.post('/api/usage/refresh', authMiddleware, requireFeature('advanced_analytic
       refreshed_at: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[POST /api/usage/refresh] Error:', error);
+    logger.error('[POST /api/usage/refresh] Error:', error);
     res.status(500).json({ error: 'Failed to refresh usage data' });
   }
 });
@@ -2424,7 +2447,7 @@ app.get('/api/subscription', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[GET /api/subscription] Error:', err.message);
+    logger.error('[GET /api/subscription] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch subscription data', details: err.message });
   }
 });
@@ -2461,7 +2484,7 @@ app.get('/api/schedules', authMiddleware, requireFeature('scheduled_automations'
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[GET /api/schedules] Database error:', error);
+      logger.error('[GET /api/schedules] Database error:', error);
       return res.status(500).json({ 
         error: 'Failed to fetch schedules',
         details: error.message 
@@ -2470,7 +2493,7 @@ app.get('/api/schedules', authMiddleware, requireFeature('scheduled_automations'
 
     res.json(schedules || []);
   } catch (err) {
-    console.error('[GET /api/schedules] Error:', err.message);
+    logger.error('[GET /api/schedules] Error:', err.message);
     res.status(500).json({ 
       error: 'Failed to fetch schedules', 
       details: err.message 
@@ -2501,13 +2524,13 @@ app.post('/api/track-event', async (req, res) => {
           await axios.post('https://api.mixpanel.com/track', { data: Buffer.from(JSON.stringify([mp])).toString('base64') }, { timeout: 3000 });
         }
       } catch (e) {
-        console.warn('[track-event] forward failed', e?.message || e);
+        logger.warn('[track-event] forward failed', e?.message || e);
       }
     })();
 
     return res.json({ ok: true });
   } catch (e) {
-    console.error('[POST /api/track-event] error', e?.message || e);
+    logger.error('[POST /api/track-event] error', e?.message || e);
     return res.status(500).json({ error: 'internal' });
   }
 });
@@ -2534,7 +2557,7 @@ app.post('/api/enqueue-email', async (req, res) => {
     const { error } = await supabase.from('email_queue').insert([emailData]);
     if (error) {
       // Log full error object for debugging
-      console.error('[enqueue-email] db error', JSON.stringify(error, null, 2));
+      logger.error('[enqueue-email] db error', JSON.stringify(error, null, 2));
       // In non-production show details to help diagnose; DO NOT enable this in production
       if (process.env.NODE_ENV !== 'production') {
         return res.status(500).json({ error: 'db error', details: error });
@@ -2543,7 +2566,7 @@ app.post('/api/enqueue-email', async (req, res) => {
     }
     return res.json({ ok: true });
   } catch (e) {
-    console.error('[POST /api/enqueue-email] error', e?.message || e);
+    logger.error('[POST /api/enqueue-email] error', e?.message || e);
     return res.status(500).json({ error: 'internal' });
   }
 });
@@ -2558,7 +2581,7 @@ async function ensureUserProfile(userId, email) {
       .maybeSingle();
     
     if (!existingProfile) {
-      console.log(`[ensureUserProfile] Creating missing profile for user ${userId}, email: ${email}`);
+      logger.info(`[ensureUserProfile] Creating missing profile for user ${userId}, email: ${email}`);
       const { error: insertError } = await supabase
         .from('profiles')
         .insert([{
@@ -2568,14 +2591,14 @@ async function ensureUserProfile(userId, email) {
         }]);
       
       if (insertError) {
-        console.error('[ensureUserProfile] Failed to create profile:', insertError);
+        logger.error('[ensureUserProfile] Failed to create profile:', insertError);
         throw insertError;
       }
-      console.log(`[ensureUserProfile] Successfully created profile for user ${userId}`);
+      logger.info(`[ensureUserProfile] Successfully created profile for user ${userId}`);
     }
     return true;
   } catch (error) {
-    console.error('[ensureUserProfile] Error:', error);
+    logger.error('[ensureUserProfile] Error:', error);
     throw error;
   }
 }
@@ -2585,20 +2608,20 @@ app.post('/api/trigger-campaign', async (req, res) => {
   try {
     // Defensive check
     if (!req.user || !req.user.id) {
-      console.log('[trigger-campaign] No user found on request');
+      logger.info('[trigger-campaign] No user found on request');
       return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
     }
     const { campaign, to_email } = req.body || {};
-    console.log(`[trigger-campaign] Received request: campaign=${campaign}, to_email=${to_email}, user_id=${req.user.id}`);
+    logger.info(`[trigger-campaign] Received request: campaign=${campaign}, to_email=${to_email}, user_id=${req.user.id}`);
     if (!campaign) {
-      console.log('[trigger-campaign] No campaign specified');
+      logger.info('[trigger-campaign] No campaign specified');
       return res.status(400).json({ error: 'campaign is required' });
     }
 
     // Enhanced email lookup with multiple strategies
     let targetEmail = to_email || null;
     if (!targetEmail) {
-      console.log('[trigger-campaign] Looking up user email - trying multiple sources...');
+      logger.info('[trigger-campaign] Looking up user email - trying multiple sources...');
       
       // Strategy 1: Try profiles table (existing logic)
       try {
@@ -2608,52 +2631,52 @@ app.post('/api/trigger-campaign', async (req, res) => {
             .select('email')
             .eq('id', req.user.id)
             .maybeSingle();
-          console.log('[trigger-campaign] Profile lookup result:', { profile, pErr });
-          if (pErr) console.warn('[trigger-campaign] profile lookup error', pErr.message || pErr);
+          logger.info('[trigger-campaign] Profile lookup result:', { profile, pErr });
+          if (pErr) logger.warn('[trigger-campaign] profile lookup error', pErr.message || pErr);
           if (profile && profile.email) {
             targetEmail = profile.email;
-            console.log(`[trigger-campaign] Found target email from profile: ${targetEmail}`);
+            logger.info(`[trigger-campaign] Found target email from profile: ${targetEmail}`);
           } else {
-            console.log('[trigger-campaign] No email found in profiles table');
+            logger.info('[trigger-campaign] No email found in profiles table');
           }
         }
       } catch (e) {
-        console.warn('[trigger-campaign] profile lookup failed', e?.message || e);
+        logger.warn('[trigger-campaign] profile lookup failed', e?.message || e);
       }
     }
     
     // Strategy 2: Try auth.users table if still no email
     if (!targetEmail && supabase) {
       try {
-        console.log('[trigger-campaign] Trying auth.users table...');
+        logger.info('[trigger-campaign] Trying auth.users table...');
         const { data: authUser, error: authErr } = await supabase.auth.admin.getUserById(req.user.id);
         
         if (authUser && authUser.user && authUser.user.email) {
           targetEmail = authUser.user.email;
-          console.log('[trigger-campaign] Found email in auth.users:', targetEmail);
+          logger.info('[trigger-campaign] Found email in auth.users:', targetEmail);
         } else {
-          console.log('[trigger-campaign] No email in auth.users');
+          logger.info('[trigger-campaign] No email in auth.users');
         }
       } catch (e) {
-        console.log('[trigger-campaign] Auth.users lookup failed:', e.message);
+        logger.info('[trigger-campaign] Auth.users lookup failed:', e.message);
       }
     }
     
     // Strategy 3: Try req.user.email directly
     if (!targetEmail && req.user.email) {
       targetEmail = req.user.email;
-      console.log('[trigger-campaign] Using email from req.user:', targetEmail);
+      logger.info('[trigger-campaign] Using email from req.user:', targetEmail);
     }
     
     // Strategy 4: Try user_metadata
     if (!targetEmail && req.user.user_metadata && req.user.user_metadata.email) {
       targetEmail = req.user.user_metadata.email;
-      console.log('[trigger-campaign] Using email from user_metadata:', targetEmail);
+      logger.info('[trigger-campaign] Using email from user_metadata:', targetEmail);
     }
 
     // Strategy 5: Debug user object to see available data
     if (!targetEmail) {
-      console.log('[trigger-campaign] Available user data:', JSON.stringify({
+      logger.info('[trigger-campaign] Available user data:', JSON.stringify({
         id: req.user.id,
         email: req.user.email,
         user_metadata: req.user.user_metadata,
@@ -2664,7 +2687,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
     }
 
     if (!targetEmail) {
-      console.log('[trigger-campaign] Target email not found after all strategies');
+      logger.info('[trigger-campaign] Target email not found after all strategies');
       return res.status(400).json({ 
         error: 'target email not found',
         debug: 'User authenticated but no email address found in profiles, auth.users, or user object'
@@ -2674,14 +2697,14 @@ app.post('/api/trigger-campaign', async (req, res) => {
     try {
   await ensureUserProfile(req.user.id, targetEmail);
 } catch (profileError) {
-  console.error('[trigger-campaign] Failed to ensure user profile:', profileError);
+  logger.error('[trigger-campaign] Failed to ensure user profile:', profileError);
   return res.status(500).json({ 
     error: 'Failed to prepare user profile for email campaign',
     note: 'User profile creation failed'
   });
 }
 
-    console.log(`[trigger-campaign] Final target email: ${targetEmail}`);
+    logger.info(`[trigger-campaign] Final target email: ${targetEmail}`);
 
     // Add contact to HubSpot in the background (fire-and-forget), but not during tests.
     if (process.env.HUBSPOT_API_KEY && process.env.NODE_ENV !== 'test') {
@@ -2694,7 +2717,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
               record_source: 'EasyFlow SaaS',
             },
           };
-          console.log(`[trigger-campaign] Creating contact in HubSpot: ${targetEmail}`, hubspotPayload);
+          logger.info(`[trigger-campaign] Creating contact in HubSpot: ${targetEmail}`, hubspotPayload);
           const hubspotRes = await axios.post(
             'https://api.hubapi.com/crm/v3/objects/contacts',
             hubspotPayload,
@@ -2705,12 +2728,12 @@ app.post('/api/trigger-campaign', async (req, res) => {
               },
             }
           );
-          console.log(`[trigger-campaign] Successfully created contact ${targetEmail} in HubSpot. Response:`, hubspotRes.status, hubspotRes.data);
+          logger.info(`[trigger-campaign] Successfully created contact ${targetEmail} in HubSpot. Response:`, hubspotRes.status, hubspotRes.data);
         } catch (hubspotError) {
-          console.error('[trigger-campaign] HubSpot error:', hubspotError?.response?.status, hubspotError?.response?.data, hubspotError.message);
+          logger.error('[trigger-campaign] HubSpot error:', hubspotError?.response?.status, hubspotError?.response?.data, hubspotError.message);
           // If contact already exists (409), update them instead.
           if (hubspotError.response?.status === 409 && hubspotError.response?.data?.message) {
-            console.log(`[trigger-campaign] Contact ${targetEmail} already exists. Attempting update.`);
+            logger.info(`[trigger-campaign] Contact ${targetEmail} already exists. Attempting update.`);
             try {
               // Extract contact ID from the error message
               const message = hubspotError.response.data.message;
@@ -2725,7 +2748,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
                     record_source: 'EasyFlow SaaS',
                   },
                 };
-                console.log(`[trigger-campaign] Updating contact in HubSpot: ${contactId}`, updatePayload);
+                logger.info(`[trigger-campaign] Updating contact in HubSpot: ${contactId}`, updatePayload);
                 const updateRes = await axios.patch(
                   `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
                   updatePayload,
@@ -2736,15 +2759,15 @@ app.post('/api/trigger-campaign', async (req, res) => {
                     },
                   }
                 );
-                console.log(`[trigger-campaign] Successfully updated contact ${targetEmail} in HubSpot. Response:`, updateRes.status, updateRes.data);
+                logger.info(`[trigger-campaign] Successfully updated contact ${targetEmail} in HubSpot. Response:`, updateRes.status, updateRes.data);
               } else {
-                console.warn(`[trigger-campaign] Failed to parse contact ID from HubSpot error: ${message}`);
+                logger.warn(`[trigger-campaign] Failed to parse contact ID from HubSpot error: ${message}`);
               }
             } catch (updateError) {
-              console.error(`[trigger-campaign] Failed to update contact ${targetEmail} in HubSpot:`, updateError.message, updateError?.response?.data);
+              logger.error(`[trigger-campaign] Failed to update contact ${targetEmail} in HubSpot:`, updateError.message, updateError?.response?.data);
             }
           } else {
-            console.error(`[trigger-campaign] Failed to create contact ${targetEmail} in HubSpot:`, hubspotError.message, hubspotError?.response?.data);
+            logger.error(`[trigger-campaign] Failed to create contact ${targetEmail} in HubSpot:`, hubspotError.message, hubspotError?.response?.data);
           }
         }
       })();
@@ -2777,11 +2800,11 @@ app.post('/api/trigger-campaign', async (req, res) => {
           status: 'pending',
           created_at: now.toISOString(),
         });
-        console.log(`[trigger-campaign] Enqueuing welcome and followup emails for ${targetEmail}`, inserts);
+        logger.info(`[trigger-campaign] Enqueuing welcome and followup emails for ${targetEmail}`, inserts);
         break;
       default:
         // Handle other campaigns if you add them
-        console.log(`[trigger-campaign] Unknown campaign: ${campaign}`);
+        logger.info(`[trigger-campaign] Unknown campaign: ${campaign}`);
         break;
     }
 
@@ -2791,10 +2814,10 @@ app.post('/api/trigger-campaign', async (req, res) => {
         .insert(inserts);
 
       if (error) {
-        console.error('[trigger-campaign] DB insert failed:', error.message, error);
+        logger.error('[trigger-campaign] DB insert failed:', error.message, error);
         return res.status(500).json({ error: 'Failed to enqueue emails.', note: 'Failed to enqueue emails.' });
       }
-      console.log(`[trigger-campaign] Successfully enqueued ${inserts.length} emails for campaign ${campaign}`);
+      logger.info(`[trigger-campaign] Successfully enqueued ${inserts.length} emails for campaign ${campaign}`);
       
       // Send welcome notification
       if (campaign === 'welcome') {
@@ -2809,20 +2832,20 @@ app.post('/api/trigger-campaign', async (req, res) => {
           const userName = profile?.email?.split('@')[0] || 'there';
           const notification = NotificationTemplates.welcome(userName);
           await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
-          console.log(`🔔 Welcome notification sent to user ${req.user.id}`);
+          logger.info(`🔔 Welcome notification sent to user ${req.user.id}`);
         } catch (notificationError) {
-          console.error('🔔 Failed to send welcome notification:', notificationError.message);
+          logger.error('🔔 Failed to send welcome notification:', notificationError.message);
         }
       }
     } else if (!supabase) {
-      console.warn('[trigger-campaign] No Supabase client available - emails not enqueued');
+      logger.warn('[trigger-campaign] No Supabase client available - emails not enqueued');
     } else {
-      console.log(`[trigger-campaign] No emails enqueued for campaign ${campaign}`);
+      logger.info(`[trigger-campaign] No emails enqueued for campaign ${campaign}`);
     }
 
     return res.json({ ok: true, enqueued: inserts.length });
   } catch (e) {
-    console.error('[POST /api/trigger-campaign] error', e?.message || e, e);
+    logger.error('[POST /api/trigger-campaign] error', e?.message || e, e);
     return res.status(500).json({ error: 'internal', enqueued: 0, note: e.message || 'No additional error note provided.' });
   }
 });
@@ -2887,7 +2910,7 @@ app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req,
     });
     
   } catch (error) {
-    console.error('[POST /api/automation/queue] error:', error);
+    logger.error('[POST /api/automation/queue] error:', error);
     res.status(500).json({
       error: 'Failed to queue automation task',
       details: error.message
@@ -2913,13 +2936,13 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
 
     // DEV: Log incoming payload for debugging
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[DEV DEBUG] Incoming /api/automation/execute payload:', JSON.stringify(taskData, null, 2));
+      logger.info('[DEV DEBUG] Incoming /api/automation/execute payload:', JSON.stringify(taskData, null, 2));
     }
 
     // Validate payload
     if (!taskData || typeof taskData !== 'object') {
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('[DEV DEBUG] Missing or invalid request body:', taskData);
+        logger.warn('[DEV DEBUG] Missing or invalid request body:', taskData);
       }
       return res.status(400).json({
         error: 'Request body must be a JSON object with required fields.'
@@ -2927,7 +2950,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
     }
     if (!taskData.task_type) {
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('[DEV DEBUG] Missing task_type in request body:', taskData);
+        logger.warn('[DEV DEBUG] Missing task_type in request body:', taskData);
       }
       return res.status(400).json({
         error: 'task_type is required',
@@ -2936,7 +2959,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
     }
     if (!taskData.url && ['web_automation', 'form_submission', 'data_extraction', 'file_download', 'invoice_download'].includes(taskData.task_type)) {
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('[DEV DEBUG] Missing url in request body for task_type', taskData.task_type, taskData);
+        logger.warn('[DEV DEBUG] Missing url in request body for task_type', taskData.task_type, taskData);
       }
       return res.status(400).json({
         error: 'url is required for this task_type.'
@@ -2945,7 +2968,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
 
     // ✅ Handle Invoice Download with Link Discovery
     if (taskData.task_type === 'invoice_download' && taskData.discoveryMethod) {
-      console.log(`[AutomationExecute] Processing invoice download with link discovery for user ${req.user.id}`);
+      logger.info(`[AutomationExecute] Processing invoice download with link discovery for user ${req.user.id}`);
       
       try {
         // Validate required fields for discovery
@@ -2969,7 +2992,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
           });
         }
 
-        console.log(`[AutomationExecute] Starting link discovery for ${url}`);
+        logger.info(`[AutomationExecute] Starting link discovery for ${url}`);
         
         // Run link discovery
         const linkDiscovery = new LinkDiscoveryService();
@@ -2989,7 +3012,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
           });
         }
 
-        console.log(`[AutomationExecute] Link discovery successful, found ${discoveryResult.discoveredLinks.length} links`);
+        logger.info(`[AutomationExecute] Link discovery successful, found ${discoveryResult.discoveredLinks.length} links`);
 
         // Use the best discovered link (first one with highest score)
         const bestLink = discoveryResult.discoveredLinks[0];
@@ -2997,10 +3020,10 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
         taskData.discovered_links = discoveryResult.discoveredLinks;
         taskData.discovery_method_used = discoveryMethod;
         
-        console.log(`[AutomationExecute] Using discovered PDF URL: ${bestLink.href.substring(0, 100)}...`);
+        logger.info(`[AutomationExecute] Using discovered PDF URL: ${bestLink.href.substring(0, 100)}...`);
         
       } catch (discoveryError) {
-        console.error('[AutomationExecute] Link discovery failed:', discoveryError);
+        logger.error('[AutomationExecute] Link discovery failed:', discoveryError);
         return res.status(500).json({
           error: 'Link discovery failed',
           details: discoveryError.message
@@ -3017,7 +3040,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
     };
 
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[DEV DEBUG] /api/automation/execute enriched payload:', JSON.stringify(enrichedTask, null, 2));
+      logger.info('[DEV DEBUG] /api/automation/execute enriched payload:', JSON.stringify(enrichedTask, null, 2));
     }
 
     // Send task asynchronously (fire-and-forget)
@@ -3042,9 +3065,9 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
 
   } catch (error) {
     if (process.env.NODE_ENV !== 'production') {
-      console.error('[DEV DEBUG] /api/automation/execute error:', error);
+      logger.error('[DEV DEBUG] /api/automation/execute error:', error);
     } else {
-      console.error('[POST /api/automation/execute] error:', error.message);
+      logger.error('[POST /api/automation/execute] error:', error.message);
     }
     res.status(500).json({
       error: 'Failed to queue automation task',
@@ -3080,7 +3103,7 @@ app.post('/api/trigger-automation', authMiddleware, automationLimiter, async (re
     });
     
   } catch (error) {
-    console.error('[POST /api/trigger-automation] error:', error);
+    logger.error('[POST /api/trigger-automation] error:', error);
     res.status(500).json({
       error: 'Failed to trigger automation',
       details: error.message
@@ -3099,7 +3122,7 @@ app.get('/api/user/preferences', authMiddleware, async (req, res) => {
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      console.error('[GET /api/user/preferences] error:', error);
+      logger.error('[GET /api/user/preferences] error:', error);
       return res.status(500).json({ error: 'Failed to fetch preferences' });
     }
 
@@ -3154,7 +3177,7 @@ app.get('/api/user/preferences', authMiddleware, async (req, res) => {
 
     res.json(preferences);
   } catch (error) {
-    console.error('[GET /api/user/preferences] error:', error);
+    logger.error('[GET /api/user/preferences] error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -3213,7 +3236,7 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
       });
 
     if (error) {
-      console.error('[PUT /api/user/preferences] update error details:', {
+      logger.error('[PUT /api/user/preferences] update error details:', {
         code: error.code,
         message: error.message,
         details: error.details,
@@ -3226,7 +3249,7 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
       });
     }
 
-    console.log(`[PUT /api/user/preferences] Updated preferences for user ${req.user.id}`);
+    logger.info(`[PUT /api/user/preferences] Updated preferences for user ${req.user.id}`);
     res.json({ 
       success: true, 
       message: 'Preferences updated successfully',
@@ -3234,7 +3257,7 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[PUT /api/user/preferences] unexpected error:', error);
+    logger.error('[PUT /api/user/preferences] unexpected error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
@@ -3243,12 +3266,12 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
 app.get('/api/user/notifications', authMiddleware, async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
-      console.warn('[GET /api/user/notifications] missing authenticated user');
+      logger.warn('[GET /api/user/notifications] missing authenticated user');
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
     if (!supabase) {
-      console.error('[GET /api/user/notifications] Supabase client not initialized');
+      logger.error('[GET /api/user/notifications] Supabase client not initialized');
       return res.status(500).json({ error: 'Database connection not available' });
     }
     const { data, error } = await supabase
@@ -3258,7 +3281,7 @@ app.get('/api/user/notifications', authMiddleware, async (req, res) => {
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      console.error('[GET /api/user/notifications] error querying user_settings:', error && error.stack ? error.stack : error);
+      logger.error('[GET /api/user/notifications] error querying user_settings:', error && error.stack ? error.stack : error);
       // Return safe defaults rather than failing entirely to avoid 500s from transient DB issues
       const defaultSettings = {
         preferences: {
@@ -3324,7 +3347,7 @@ app.get('/api/user/notifications', authMiddleware, async (req, res) => {
 
     res.json(notificationSettings);
   } catch (error) {
-    console.error('[GET /api/user/notifications] error:', error && error.stack ? error.stack : error);
+    logger.error('[GET /api/user/notifications] error:', error && error.stack ? error.stack : error);
     // Provide helpful error details in non-production environments
     const payload = { error: 'Internal server error' };
     if (process.env.NODE_ENV !== 'production') payload.details = error?.message || String(error);
@@ -3336,12 +3359,12 @@ app.get('/api/user/notifications', authMiddleware, async (req, res) => {
 app.put('/api/user/notifications', authMiddleware, async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
-      console.warn('[PUT /api/user/notifications] missing authenticated user');
+      logger.warn('[PUT /api/user/notifications] missing authenticated user');
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
     if (!supabase) {
-      console.error('[PUT /api/user/notifications] Supabase client not initialized');
+      logger.error('[PUT /api/user/notifications] Supabase client not initialized');
       return res.status(500).json({ error: 'Database connection not available' });
     }
     const { preferences, phone_number, fcm_token } = req.body;
@@ -3385,20 +3408,20 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
       });
 
     if (error) {
-      console.error('[PUT /api/user/notifications] supabase upsert error:', error && error.stack ? error.stack : error);
+      logger.error('[PUT /api/user/notifications] supabase upsert error:', error && error.stack ? error.stack : error);
       const payload = { error: 'Failed to update notification preferences' };
       if (process.env.NODE_ENV !== 'production') payload.details = error?.message || String(error);
       return res.status(500).json(payload);
     }
 
-    console.log(`[PUT /api/user/notifications] Updated notification preferences for user ${req.user.id}`);
+    logger.info(`[PUT /api/user/notifications] Updated notification preferences for user ${req.user.id}`);
     res.json({ 
       success: true, 
       message: 'Notification preferences updated successfully' 
     });
 
   } catch (error) {
-    console.error('[PUT /api/user/notifications] unexpected error:', error && error.stack ? error.stack : error);
+    logger.error('[PUT /api/user/notifications] unexpected error:', error && error.stack ? error.stack : error);
     const payload = { error: 'Internal server error' };
     if (process.env.NODE_ENV !== 'production') payload.details = error?.message || String(error);
     res.status(500).json(payload);
@@ -3408,7 +3431,7 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
 // Get user plan data
 app.get('/api/user/plan', authMiddleware, async (req, res) => {
   try {
-    console.log(`[GET /api/user/plan] Fetching plan data for user ${req.user.id}`);
+    logger.info(`[GET /api/user/plan] Fetching plan data for user ${req.user.id}`);
 
     // Try to get user profile
     let { data: profile, error: profileError } = await supabase
@@ -3427,7 +3450,7 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
           created_at: new Date().toISOString()
         }]);
       if (insertError) {
-        console.error('[GET /api/user/plan] Failed to create profile:', insertError);
+        logger.error('[GET /api/user/plan] Failed to create profile:', insertError);
         return res.status(500).json({ error: 'Failed to create user profile', details: insertError.message });
       }
       // Fetch the newly created profile
@@ -3438,12 +3461,12 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
         .maybeSingle());
     }
     if (profileError) {
-      console.error('[GET /api/user/plan] Profile error:', profileError);
+      logger.error('[GET /api/user/plan] Profile error:', profileError);
       return res.status(500).json({ error: 'Failed to fetch user profile', details: profileError.message });
     }
 
     const userPlanName = profile?.plan_id || 'Hobbyist';
-    console.log(`[GET /api/user/plan] User has plan: ${userPlanName}`);
+    logger.info(`[GET /api/user/plan] User has plan: ${userPlanName}`);
 
     // Get plan data by name/slug
     let { data: plan, error: planError } = await supabase
@@ -3453,7 +3476,7 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
       .single();
 
     if (planError || !plan) {
-      console.warn(`[GET /api/user/plan] Plan ${userPlanName} not found, defaulting to Hobbyist`);
+      logger.warn(`[GET /api/user/plan] Plan ${userPlanName} not found, defaulting to Hobbyist`);
       // Default to Hobbyist
       const { data: hobbyistPlan } = await supabase
         .from('plans')
@@ -3492,7 +3515,7 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
     const storageGB = storageBytes / (1024 * 1024 * 1024);
     const workflows = workflowsResult.count || 0;
 
-    console.log(`[GET /api/user/plan] Usage: ${workflows} workflows, ${monthlyRuns} runs, ${storageGB.toFixed(3)}GB storage`);
+    logger.info(`[GET /api/user/plan] Usage: ${workflows} workflows, ${monthlyRuns} runs, ${storageGB.toFixed(3)}GB storage`);
 
     const planData = {
       plan: {
@@ -3516,13 +3539,13 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
       can_create_workflow: (plan.limits?.workflows || 0) !== 0
     };
 
-    console.log(`[GET /api/user/plan] Final plan data:`, JSON.stringify(planData, null, 2));
+    logger.info(`[GET /api/user/plan] Final plan data:`, JSON.stringify(planData, null, 2));
     res.json({
       success: true,
       planData: planData
     });
   } catch (error) {
-    console.error('[GET /api/user/plan] Unexpected error:', error);
+    logger.error('[GET /api/user/plan] Unexpected error:', error);
     res.status(500).json({ 
       error: 'Internal server error',
       details: error.message 
@@ -3552,13 +3575,13 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const { additionalClaims } = req.body || {};
 
-    console.log(`🔥 Generating Firebase custom token for user: ${userId}`);
+    logger.info(`🔥 Generating Firebase custom token for user: ${userId}`);
 
     // Generate custom token using the Firebase Admin service
     const result = await firebaseNotificationService.generateCustomToken(userId, additionalClaims);
 
     if (!result.success) {
-      console.error(`🔥 Failed to generate token for user ${userId}:`, result.error);
+      logger.error(`🔥 Failed to generate token for user ${userId}:`, result.error);
       return res.status(500).json({
         error: 'Failed to generate Firebase token',
         details: result.error,
@@ -3581,12 +3604,12 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
       });
 
       if (!userResult.success) {
-        console.warn(`🔥 Failed to create Firebase user record for ${userId}:`, userResult.error);
+        logger.warn(`🔥 Failed to create Firebase user record for ${userId}:`, userResult.error);
         // Don't fail the request, token generation succeeded
       }
     }
 
-    console.log(`🔥 Successfully generated Firebase token for user: ${userId}`);
+    logger.info(`🔥 Successfully generated Firebase token for user: ${userId}`);
 
     res.json({
       success: true,
@@ -3600,7 +3623,7 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[POST /api/firebase/token] error:', error);
+    logger.error('[POST /api/firebase/token] error:', error);
     res.status(500).json({
       error: 'Internal server error',
       details: error.message
@@ -3619,12 +3642,12 @@ app.post('/api/firebase/verify-token', authMiddleware, async (req, res) => {
       });
     }
 
-    console.log(`🔥 Verifying Firebase ID token for user: ${req.user.id}`);
+    logger.info(`🔥 Verifying Firebase ID token for user: ${req.user.id}`);
 
     const result = await firebaseNotificationService.verifyCustomToken(idToken);
 
     if (!result.success) {
-      console.error(`🔥 Token verification failed:`, result.error);
+      logger.error(`🔥 Token verification failed:`, result.error);
       return res.status(401).json({
         error: 'Invalid Firebase token',
         details: result.error,
@@ -3643,7 +3666,7 @@ app.post('/api/firebase/verify-token', authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[POST /api/firebase/verify-token] error:', error);
+    logger.error('[POST /api/firebase/verify-token] error:', error);
     res.status(500).json({
       error: 'Internal server error',
       details: error.message
@@ -3672,12 +3695,12 @@ app.put('/api/firebase/claims', authMiddleware, async (req, res) => {
         return obj;
       }, {});
 
-    console.log(`🔥 Updating Firebase claims for user ${userId}:`, userClaims);
+    logger.info(`🔥 Updating Firebase claims for user ${userId}:`, userClaims);
 
     const result = await firebaseNotificationService.setUserClaims(userId, userClaims);
 
     if (!result.success) {
-      console.error(`🔥 Failed to set claims for user ${userId}:`, result.error);
+      logger.error(`🔥 Failed to set claims for user ${userId}:`, result.error);
       return res.status(500).json({
         error: 'Failed to update Firebase claims',
         details: result.error,
@@ -3692,7 +3715,7 @@ app.put('/api/firebase/claims', authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[PUT /api/firebase/claims] error:', error);
+    logger.error('[PUT /api/firebase/claims] error:', error);
     res.status(500).json({
       error: 'Internal server error',
       details: error.message
@@ -3721,7 +3744,7 @@ app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
       });
 
     if (error) {
-      console.error('[admin/email-queue-stats] Database error:', error.message);
+      logger.error('[admin/email-queue-stats] Database error:', error.message);
       return res.status(500).json({ 
         error: 'Database error', 
         message: error.message 
@@ -3745,7 +3768,7 @@ app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
     });
 
   } catch (e) {
-    console.error('[admin/email-queue-stats] Unexpected error:', e?.message || e);
+    logger.error('[admin/email-queue-stats] Unexpected error:', e?.message || e);
     res.status(500).json({ 
       error: 'Internal server error', 
       message: e?.message || 'Unknown error' 
@@ -3759,16 +3782,16 @@ app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
 
 // POST /api/files/upload - Upload a new file
 app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res) => {
-  console.log('[FILE UPLOAD] Starting file upload process');
+  logger.info('[FILE UPLOAD] Starting file upload process');
   try {
     if (!req.files || !req.files.file) {
-      console.log('[FILE UPLOAD] Error: No file provided');
+      logger.info('[FILE UPLOAD] Error: No file provided');
       return res.status(400).json({ error: 'No file provided' });
     }
 
     const file = req.files.file;
     const userId = req.user.id;
-    console.log(`[FILE UPLOAD] File: ${file.name}, Size: ${file.size}, User: ${userId}`);
+    logger.info(`[FILE UPLOAD] File: ${file.name}, Size: ${file.size}, User: ${userId}`);
     
     // Generate unique file path
     const timestamp = Date.now();
@@ -3778,7 +3801,7 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
     const filePath = `${userId}/${timestamp}_${safeName}${fileExt}`;
     
     // Upload to Supabase storage
-    console.log(`[FILE UPLOAD] Uploading to Supabase storage: ${filePath}`);
+    logger.info(`[FILE UPLOAD] Uploading to Supabase storage: ${filePath}`);
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('user-files')
       .upload(filePath, file.data, {
@@ -3787,16 +3810,16 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
       });
       
     if (uploadError) {
-      console.error('[FILE UPLOAD] Storage upload error:', uploadError);
+      logger.error('[FILE UPLOAD] Storage upload error:', uploadError);
       return res.status(500).json({ error: 'Failed to upload file to storage' });
     }
-    console.log(`[FILE UPLOAD] Storage upload successful: ${uploadData?.path}`);
+    logger.info(`[FILE UPLOAD] Storage upload successful: ${uploadData?.path}`);
     
     // Calculate MD5 checksum
     const checksum = crypto.createHash('md5').update(file.data).digest('hex');
     
     // Save metadata to files table
-    console.log(`[FILE UPLOAD] Saving metadata to database for file: ${file.name}`);
+    logger.info(`[FILE UPLOAD] Saving metadata to database for file: ${file.name}`);
     const fileMetadata = {
       user_id: userId,
       original_name: file.name,
@@ -3811,7 +3834,7 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
       tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : req.body.tags.split(',')) : [],
       metadata: req.body.category ? { category: req.body.category } : {}
     };
-    console.log(`[FILE UPLOAD] Metadata object:`, JSON.stringify(fileMetadata, null, 2));
+    logger.info(`[FILE UPLOAD] Metadata object:`, JSON.stringify(fileMetadata, null, 2));
     
     const { data: fileRecord, error: dbError } = await supabase
       .from('files')
@@ -3820,32 +3843,32 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
       .single();
       
     if (dbError) {
-      console.error('[FILE UPLOAD] Database insert error:', dbError);
-      console.error('[FILE UPLOAD] Database error details:', {
+      logger.error('[FILE UPLOAD] Database insert error:', dbError);
+      logger.error('[FILE UPLOAD] Database error details:', {
         code: dbError.code,
         message: dbError.message,
         details: dbError.details,
         hint: dbError.hint
       });
       // Clean up uploaded file if database insert fails
-      console.log(`[FILE UPLOAD] Cleaning up uploaded file: ${filePath}`);
+      logger.info(`[FILE UPLOAD] Cleaning up uploaded file: ${filePath}`);
       await supabase.storage.from('user-files').remove([filePath]);
       return res.status(500).json({ error: 'Failed to save file metadata' });
     }
-    console.log(`[FILE UPLOAD] Database insert successful: ${fileRecord.id}`);
+    logger.info(`[FILE UPLOAD] Database insert successful: ${fileRecord.id}`);
 
     // Track storage usage
     await usageTracker.trackStorageUsage(userId, filePath, 'added', file.size);
 
-    console.log(`[FILE UPLOAD] Upload completed successfully for file: ${file.name}`);
+    logger.info(`[FILE UPLOAD] Upload completed successfully for file: ${file.name}`);
     res.status(201).json({
       ...fileRecord,
       message: 'File uploaded successfully'
     });
     
   } catch (err) {
-    console.error('[FILE UPLOAD] Unexpected error:', err);
-    console.error('[FILE UPLOAD] Stack trace:', err.stack);
+    logger.error('[FILE UPLOAD] Unexpected error:', err);
+    logger.error('[FILE UPLOAD] Stack trace:', err.stack);
     res.status(500).json({ error: 'Upload failed', details: err.message });
   }
 });
@@ -3887,14 +3910,14 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
       
     if (error) {
-      console.error('Files query error:', error);
+      logger.error('Files query error:', error);
       return res.status(500).json({ error: 'Failed to fetch files' });
     }
 
     res.json({ files: data || [] });
     
   } catch (err) {
-    console.error('[GET /api/files] Error:', err.message);
+    logger.error('[GET /api/files] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch files' });
   }
 });
@@ -3918,7 +3941,7 @@ app.get('/api/files/:id/download', authMiddleware, async (req, res) => {
       .createSignedUrl(file.storage_path, 3600);
 
     if (urlError) {
-      console.error('Signed URL error:', urlError);
+      logger.error('Signed URL error:', urlError);
       return res.status(500).json({ error: 'Failed to generate download URL' });
     }
 
@@ -3938,7 +3961,7 @@ app.get('/api/files/:id/download', authMiddleware, async (req, res) => {
     });
     
   } catch (err) {
-    console.error('[GET /api/files/:id/download] Error:', err.message);
+    logger.error('[GET /api/files/:id/download] Error:', err.message);
     res.status(500).json({ error: 'Failed to generate download URL' });
   }
 });
@@ -3968,14 +3991,14 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
       .eq('user_id', req.user.id);
       
     if (deleteError) {
-      console.error('Database deletion error:', deleteError);
+      logger.error('Database deletion error:', deleteError);
       return res.status(500).json({ error: 'Failed to delete file record' });
     }
 
     res.json({ message: 'File deleted successfully' });
     
   } catch (err) {
-    console.error('[DELETE /api/files/:id] Error:', err.message);
+    logger.error('[DELETE /api/files/:id] Error:', err.message);
     res.status(500).json({ error: 'Failed to delete file' });
   }
 });
@@ -4041,7 +4064,7 @@ app.post('/api/files/shares', authMiddleware, async (req, res) => {
       .single();
 
     if (shareError) {
-      console.error('Share creation error:', shareError);
+      logger.error('Share creation error:', shareError);
       return res.status(500).json({ error: 'Failed to create share link' });
     }
 
@@ -4055,7 +4078,7 @@ app.post('/api/files/shares', authMiddleware, async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[POST /api/files/shares] Error:', err.message);
+    logger.error('[POST /api/files/shares] Error:', err.message);
     res.status(500).json({ error: 'Failed to create share link' });
   }
 });
@@ -4087,7 +4110,7 @@ app.get('/api/files/:id/shares', authMiddleware, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (sharesError) {
-      console.error('Shares query error:', sharesError);
+      logger.error('Shares query error:', sharesError);
       return res.status(500).json({ error: 'Failed to fetch shares' });
     }
 
@@ -4101,7 +4124,7 @@ app.get('/api/files/:id/shares', authMiddleware, async (req, res) => {
     res.json({ shares: sharesWithUrls });
 
   } catch (err) {
-    console.error('[GET /api/files/:id/shares] Error:', err.message);
+    logger.error('[GET /api/files/:id/shares] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch shares' });
   }
 });
@@ -4147,7 +4170,7 @@ app.put('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[PUT /api/files/shares/:shareId] Error:', err.message);
+    logger.error('[PUT /api/files/shares/:shareId] Error:', err.message);
     res.status(500).json({ error: 'Failed to update share' });
   }
 });
@@ -4165,14 +4188,14 @@ app.delete('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
       .eq('shared_by', userId); // Use existing column name
 
     if (deleteError) {
-      console.error('Share deletion error:', deleteError);
+      logger.error('Share deletion error:', deleteError);
       return res.status(500).json({ error: 'Failed to delete share' });
     }
 
     res.json({ message: 'Share deleted successfully' });
 
   } catch (err) {
-    console.error('[DELETE /api/files/shares/:shareId] Error:', err.message);
+    logger.error('[DELETE /api/files/shares/:shareId] Error:', err.message);
     res.status(500).json({ error: 'Failed to delete share' });
   }
 });
@@ -4237,7 +4260,7 @@ app.post('/api/shared/access', async (req, res) => {
         .createSignedUrl(share.files.storage_path, 3600);
 
       if (urlError) {
-        console.error('Signed URL error:', urlError);
+        logger.error('Signed URL error:', urlError);
         return res.status(500).json({ error: 'Failed to generate download URL' });
       }
 
@@ -4256,7 +4279,7 @@ app.post('/api/shared/access', async (req, res) => {
     // Send notification if enabled
     if (share.notify_on_access) {
       // TODO: Send email notification to file owner
-      console.log(`File shared access: ${share.files.original_name} accessed via share link`);
+      logger.info(`File shared access: ${share.files.original_name} accessed via share link`);
     }
 
     res.json({
@@ -4272,7 +4295,7 @@ app.post('/api/shared/access', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[POST /api/shared/access] Error:', err.message);
+    logger.error('[POST /api/shared/access] Error:', err.message);
     res.status(500).json({ error: 'Failed to access shared file' });
   }
 });
@@ -4293,7 +4316,7 @@ try {
   integrationFramework = new IntegrationFramework();
   aiDataExtractor = new AIDataExtractor();
 } catch (error) {
-  console.warn('[Enhanced Features] Services not available:', error.message);
+  logger.warn('[Enhanced Features] Services not available:', error.message);
 }
 
 // POST /api/extract-data - AI-powered data extraction
@@ -4335,7 +4358,7 @@ app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req,
           .eq('user_id', userId)
           .eq('file_name', file.originalname);
       } catch (dbError) {
-        console.warn('[extract-data] Failed to update database:', dbError.message);
+        logger.warn('[extract-data] Failed to update database:', dbError.message);
       }
     }
 
@@ -4345,7 +4368,7 @@ app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req,
     });
 
   } catch (error) {
-    console.error('[extract-data] Error:', error);
+    logger.error('[extract-data] Error:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -4363,7 +4386,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
   }
 
   try {
-    console.log(`[run-task-with-ai] Processing AI-enhanced automation for user ${user.id}`);
+    logger.info(`[run-task-with-ai] Processing AI-enhanced automation for user ${user.id}`);
     
     // Create automation task (reuse existing logic)
     const taskName = title || (type && type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'AI-Enhanced Task';
@@ -4390,7 +4413,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
       .single();
 
     if (taskError) {
-      console.error('[run-task-with-ai] Error creating automation task:', taskError);
+      logger.error('[run-task-with-ai] Error creating automation task:', taskError);
       return res.status(500).json({ error: 'Failed to create automation task' });
     }
     
@@ -4408,7 +4431,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
       .single();
     
     if (runError) {
-      console.error('[run-task-with-ai] Error creating automation run:', runError);
+      logger.error('[run-task-with-ai] Error creating automation run:', runError);
       return res.status(500).json({ error: 'Failed to create automation run' });
     }
 
@@ -4438,7 +4461,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
               automationResult.aiConfidence = extractionResult.metadata?.confidence;
             }
           } catch (aiError) {
-            console.error('[run-task-with-ai] AI extraction failed:', aiError);
+            logger.error('[run-task-with-ai] AI extraction failed:', aiError);
             automationResult.aiError = aiError.message;
           }
         }
@@ -4457,7 +4480,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
         await usageTracker.trackAutomationRun(user.id, run.id, 'completed');
 
       } catch (error) {
-        console.error('[run-task-with-ai] Enhanced automation failed:', error);
+        logger.error('[run-task-with-ai] Enhanced automation failed:', error);
         
         await supabase
           .from('automation_runs')
@@ -4484,7 +4507,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
     });
 
   } catch (error) {
-    console.error('[run-task-with-ai] Error:', error);
+    logger.error('[run-task-with-ai] Error:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -4524,7 +4547,7 @@ app.post('/api/bulk-process/invoices', authMiddleware, requirePlan('professional
     });
 
   } catch (error) {
-    console.error('[bulk-process] Error:', error);
+    logger.error('[bulk-process] Error:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -4591,7 +4614,7 @@ app.post('/api/extract-data-bulk', authMiddleware, requirePlan('professional'), 
     });
 
   } catch (error) {
-    console.error('[extract-data-bulk] Error:', error);
+    logger.error('[extract-data-bulk] Error:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -4619,7 +4642,7 @@ app.get('/api/integrations', authMiddleware, requireFeature('custom_integrations
     });
 
   } catch (error) {
-    console.error('[integrations] Error:', error);
+    logger.error('[integrations] Error:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -4663,7 +4686,7 @@ app.post('/api/integrations/sync-files', authMiddleware, requireFeature('custom_
     });
 
   } catch (error) {
-    console.error('[sync-files] Error:', error);
+    logger.error('[sync-files] Error:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -4681,7 +4704,7 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Plan ID is required' });
     }
 
-    console.log('Looking up plan with ID:', planId);
+    logger.info('Looking up plan with ID:', planId);
     
     // Fetch plan details - try by id first, then by name
     let { data: plan, error: planError } = await supabase
@@ -4692,7 +4715,7 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
       
     // If not found by ID, try by name (in case frontend sends name instead of UUID)
     if (planError && planError.code === 'PGRST116') {
-      console.log('Plan not found by ID, trying by name...');
+      logger.info('Plan not found by ID, trying by name...');
       const { data: planByName, error: nameError } = await supabase
         .from('plans')
         .select('*')
@@ -4702,7 +4725,7 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
       if (!nameError && planByName) {
         plan = planByName;
         planError = null;
-        console.log('Found plan by name:', plan.name);
+        logger.info('Found plan by name:', plan.name);
       }
     }
 
@@ -4734,7 +4757,7 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
     };
 
     // Log for debugging
-    console.log('Creating Polar checkout with data:', JSON.stringify(checkoutData, null, 2));
+    logger.info('Creating Polar checkout with data:', JSON.stringify(checkoutData, null, 2));
     
     const response = await axios.post('https://api.polar.sh/v1/checkouts/', checkoutData, {
       headers: {
@@ -4743,7 +4766,7 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
       }
     });
 
-    console.log('Polar checkout response:', response.data);
+    logger.info('Polar checkout response:', response.data);
     const checkoutUrl = response.data.url;
     
     res.json({ 
@@ -4753,9 +4776,9 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error creating Polar checkout:', error);
+    logger.error('Error creating Polar checkout:', error);
     if (error.response) {
-      console.error('Polar API Error:', error.response.data);
+      logger.error('Polar API Error:', error.response.data);
     }
     res.status(500).json({ 
       error: 'Failed to create checkout session',
@@ -4778,7 +4801,7 @@ app.use((err, _req, res, _next) => {
   if (err && err.code === 'LIMIT_FILE_SIZE') {
     return res.status(413).json({ error: 'File too large' });
   }
-  console.error(err.stack);
+  logger.error(err.stack);
   res.status(500).json({ error: 'Internal Server Error', details: err.message });
 });
 

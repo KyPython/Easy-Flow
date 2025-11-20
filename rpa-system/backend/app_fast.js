@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('./utils/logger');
 // Fast loading version of app.js - skip problematic modules
 const express = require('express');
 const cors = require('cors');
@@ -41,9 +43,9 @@ app.get('/api/health', (req, res) => {
 try {
   const socialProofRoutes = require('./routes/socialProofRoutes');
   app.use('/api', socialProofRoutes);
-  console.log('✓ Social proof routes loaded');
+  logger.info('✓ Social proof routes loaded');
 } catch (e) {
-  console.log('⚠️ Social proof routes failed:', e.message);
+  logger.info('⚠️ Social proof routes failed:', e.message);
 }
 
 // Basic API endpoints
@@ -57,7 +59,7 @@ app.get('/api/tasks', (req, res) => {
 
 // Error handling
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
+  logger.error('Server error:', err);
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 

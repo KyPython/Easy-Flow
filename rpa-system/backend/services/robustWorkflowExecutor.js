@@ -1,4 +1,6 @@
-const { createClient } = require('@supabase/supabase-js');
+
+const { logger, getLogger } = require('../utils/logger');
+const { getSupabase } = require('../utils/supabaseClient');
 const { v4: uuidv4 } = require('uuid');
 
 /**
@@ -12,9 +14,7 @@ const { v4: uuidv4 } = require('uuid');
  */
 class RobustWorkflowExecutor {
   constructor() {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
-    this.supabase = (url && key) ? createClient(url, key) : null;
+    this.supabase = getSupabase();
     
     // Execution configuration
     this.config = {
@@ -45,7 +45,7 @@ class RobustWorkflowExecutor {
         currentStep: 0 
       });
 
-      console.log(`[RobustExecutor] Starting workflow ${workflowId} with execution ${executionId}`);
+      logger.info(`[RobustExecutor] Starting workflow ${workflowId} with execution ${executionId}`);
       
       // Launch browser with timeout protection
       const browser = await this._launchBrowserWithTimeout();
@@ -76,7 +76,7 @@ class RobustWorkflowExecutor {
       
     } catch (error) {
       // Immediate error handling and status update
-      console.error(`[RobustExecutor] Execution ${executionId} failed:`, error);
+      logger.error(`[RobustExecutor] Execution ${executionId} failed:`, error);
       await this._failExecution(executionId, error);
       throw error;
     } finally {
@@ -122,7 +122,7 @@ class RobustWorkflowExecutor {
    */
   async _performNavigation(page, step, executionId) {
     try {
-      console.log(`[RobustExecutor] Navigating to: ${step.url}`);
+      logger.info(`[RobustExecutor] Navigating to: ${step.url}`);
       
       // Navigate with explicit timeout
       await Promise.race([
@@ -141,7 +141,7 @@ class RobustWorkflowExecutor {
         timeout: this.config.SELECTOR_TIMEOUT
       });
       
-      console.log(`[RobustExecutor] Successfully navigated to: ${step.url}`);
+      logger.info(`[RobustExecutor] Successfully navigated to: ${step.url}`);
       
     } catch (error) {
       const failureReason = `Navigation failed to ${step.url}: ${error.message}`;
@@ -157,7 +157,7 @@ class RobustWorkflowExecutor {
     const { usernameSelector, passwordSelector, submitSelector, username, password } = step;
     
     try {
-      console.log(`[RobustExecutor] Performing login with selectors: username(${usernameSelector}), password(${passwordSelector}), submit(${submitSelector})`);
+      logger.info(`[RobustExecutor] Performing login with selectors: username(${usernameSelector}), password(${passwordSelector}), submit(${submitSelector})`);
       
       // Wait for username field with explicit timeout
       try {
@@ -215,7 +215,7 @@ class RobustWorkflowExecutor {
         )
       ]);
       
-      console.log(`[RobustExecutor] Login completed successfully`);
+      logger.info(`[RobustExecutor] Login completed successfully`);
       
     } catch (error) {
       const failureReason = `Login failed: ${error.message}`;
@@ -253,7 +253,7 @@ class RobustWorkflowExecutor {
     const { selector, waitForSelector: waitSelector } = step;
     
     try {
-      console.log(`[RobustExecutor] Clicking element: ${selector}`);
+      logger.info(`[RobustExecutor] Clicking element: ${selector}`);
       
       // Wait for element to be available and clickable
       await page.waitForSelector(selector, {
@@ -286,7 +286,7 @@ class RobustWorkflowExecutor {
         });
       }
       
-      console.log(`[RobustExecutor] Successfully clicked: ${selector}`);
+      logger.info(`[RobustExecutor] Successfully clicked: ${selector}`);
       
     } catch (error) {
       const failureReason = `Click failed on "${selector}": ${error.message}`;
@@ -302,7 +302,7 @@ class RobustWorkflowExecutor {
     const { selector, value } = step;
     
     try {
-      console.log(`[RobustExecutor] Filling field: ${selector}`);
+      logger.info(`[RobustExecutor] Filling field: ${selector}`);
       
       // Wait for field to be available
       await page.waitForSelector(selector, {
@@ -325,7 +325,7 @@ class RobustWorkflowExecutor {
         throw new Error(`Field validation failed: Expected "${value}", got "${filledValue}"`);
       }
       
-      console.log(`[RobustExecutor] Successfully filled: ${selector}`);
+      logger.info(`[RobustExecutor] Successfully filled: ${selector}`);
       
     } catch (error) {
       const failureReason = `Fill operation failed on "${selector}": ${error.message}`;
@@ -343,10 +343,10 @@ class RobustWorkflowExecutor {
     try {
       if (selector) {
         await page.waitForSelector(selector, { timeout });
-        console.log(`[RobustExecutor] Successfully waited for: ${selector}`);
+        logger.info(`[RobustExecutor] Successfully waited for: ${selector}`);
       } else {
         await page.waitForTimeout(timeout);
-        console.log(`[RobustExecutor] Waited for: ${timeout}ms`);
+        logger.info(`[RobustExecutor] Waited for: ${timeout}ms`);
       }
     } catch (error) {
       const failureReason = `Wait operation failed: ${error.message}`;
@@ -415,9 +415,9 @@ class RobustWorkflowExecutor {
           });
       }
       
-      console.error(`[RobustExecutor] Execution ${executionId} failed and logged:`, failureData);
+      logger.error(`[RobustExecutor] Execution ${executionId} failed and logged:`, failureData);
     } catch (dbError) {
-      console.error(`[RobustExecutor] Failed to log execution error:`, dbError);
+      logger.error(`[RobustExecutor] Failed to log execution error:`, dbError);
     }
   }
 
@@ -440,9 +440,9 @@ class RobustWorkflowExecutor {
           .insert(stepFailure);
       }
       
-      console.error(`[RobustExecutor] Step failure logged:`, stepFailure);
+      logger.error(`[RobustExecutor] Step failure logged:`, stepFailure);
     } catch (error) {
-      console.error(`[RobustExecutor] Failed to log step failure:`, error);
+      logger.error(`[RobustExecutor] Failed to log step failure:`, error);
     }
   }
 
@@ -499,7 +499,7 @@ class RobustWorkflowExecutor {
         .eq('id', executionId);
     }
     
-    console.log(`[RobustExecutor] Progress ${executionId}: ${currentStep}/${totalSteps} - ${message}`);
+    logger.info(`[RobustExecutor] Progress ${executionId}: ${currentStep}/${totalSteps} - ${message}`);
   }
 
   async _completeExecution(executionId, status, message) {
@@ -523,7 +523,7 @@ class RobustWorkflowExecutor {
     const execution = this.runningExecutions.get(executionId);
     if (execution) {
       execution.cancelled = true;
-      console.log(`[RobustExecutor] Execution ${executionId} marked for cancellation`);
+      logger.info(`[RobustExecutor] Execution ${executionId} marked for cancellation`);
     }
   }
 }

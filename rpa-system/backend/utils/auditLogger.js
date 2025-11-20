@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('./logger');
 /**
  * Audit Logger for EasyFlow
  * 
@@ -16,7 +18,7 @@ class AuditLogger {
         process.env.SUPABASE_SERVICE_ROLE
       );
     } else {
-      console.warn('⚠️ Supabase not configured - audit logging disabled for local dev');
+      logger.warn('⚠️ Supabase not configured - audit logging disabled for local dev');
       this.supabase = null;
     }
     
@@ -185,7 +187,7 @@ class AuditLogger {
   async writeToDatabase(logs) {
     try {
       if (!this.supabase) {
-        console.log(`📝 [LOCAL DEV] Would write ${logs.length} audit logs to database`);
+        logger.info(`📝 [LOCAL DEV] Would write ${logs.length} audit logs to database`);
         return;
       }
 
@@ -194,15 +196,15 @@ class AuditLogger {
         .insert(logs);
 
       if (error) {
-        console.error('Failed to write audit logs:', error);
+        logger.error('Failed to write audit logs:', error);
         // Re-add failed logs to buffer for retry
         this.logBuffer = [...logs, ...this.logBuffer];
         throw error;
       }
 
-      console.log(`✅ Wrote ${logs.length} audit logs to database`);
+      logger.info(`✅ Wrote ${logs.length} audit logs to database`);
     } catch (error) {
-      console.error('Audit logging error:', error);
+      logger.error('Audit logging error:', error);
       throw error;
     }
   }
@@ -213,7 +215,7 @@ class AuditLogger {
   startPeriodicFlush() {
     setInterval(() => {
       this.flushBuffer().catch(error => {
-        console.error('Periodic audit log flush failed:', error);
+        logger.error('Periodic audit log flush failed:', error);
       });
     }, this.flushInterval);
   }
@@ -231,7 +233,7 @@ class AuditLogger {
   async getUserAuditLogs(userId, filters = {}) {
     try {
       if (!this.supabase) {
-        console.log('📝 [LOCAL DEV] Would query audit logs for user:', userId);
+        logger.info('📝 [LOCAL DEV] Would query audit logs for user:', userId);
         return { data: [], count: 0 };
       }
 
@@ -278,7 +280,7 @@ class AuditLogger {
         offset: offset
       };
     } catch (error) {
-      console.error('Failed to fetch user audit logs:', error);
+      logger.error('Failed to fetch user audit logs:', error);
       throw error;
     }
   }
@@ -335,7 +337,7 @@ class AuditLogger {
         offset: offset
       };
     } catch (error) {
-      console.error('Failed to fetch system audit logs:', error);
+      logger.error('Failed to fetch system audit logs:', error);
       throw error;
     }
   }
@@ -411,7 +413,7 @@ class AuditLogger {
 
       return stats;
     } catch (error) {
-      console.error('Failed to generate audit statistics:', error);
+      logger.error('Failed to generate audit statistics:', error);
       throw error;
     }
   }
@@ -464,7 +466,7 @@ class AuditLogger {
         filters: filters
       };
     } catch (error) {
-      console.error('Audit log search failed:', error);
+      logger.error('Audit log search failed:', error);
       throw error;
     }
   }
@@ -483,11 +485,11 @@ class AuditLogger {
 
       if (error) throw error;
 
-      console.log(`🧹 Cleaned up ${count} old audit logs (older than ${retentionDays} days)`);
+      logger.info(`🧹 Cleaned up ${count} old audit logs (older than ${retentionDays} days)`);
       
       return { cleaned_count: count, cutoff_date: cutoffDate.toISOString() };
     } catch (error) {
-      console.error('Audit log cleanup failed:', error);
+      logger.error('Audit log cleanup failed:', error);
       throw error;
     }
   }

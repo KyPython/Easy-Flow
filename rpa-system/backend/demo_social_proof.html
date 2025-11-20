@@ -280,6 +280,12 @@
     </div>
 
     <script>
+        // Lightweight client-side logger used in demo pages to avoid calling console.log
+        window.__efClientLogger = window.__efClientLogger || {
+            info: (msg, meta) => { /* no-op for demo pages */ },
+            warn: (msg, meta) => { /* no-op for demo pages */ },
+            error: (msg, meta) => { /* no-op for demo pages */ }
+        };
         // Animate counter from 0 to target value
         function animateCounter(elementId, targetValue, duration = 1000) {
             const element = document.getElementById(elementId);
@@ -303,11 +309,11 @@
         // Fetch metrics from API and update display
         async function loadMetrics() {
             try {
-                console.log('Fetching metrics from /api/social-proof-metrics...');
+                window.__efClientLogger.info('Fetching metrics from /api/social-proof-metrics...');
                 const response = await fetch('/api/social-proof-metrics');
                 const data = await response.json();
                 
-                console.log('Received metrics:', data);
+                window.__efClientLogger.info('Received metrics', { data });
                 
                 // Update API status
                 document.getElementById('apiStatusText').textContent = 
@@ -329,10 +335,10 @@
                 
                 // Update last updated info
                 const lastUpdated = new Date(data.lastUpdated).toLocaleTimeString();
-                console.log(`Metrics last updated: ${lastUpdated}`);
+                window.__efClientLogger.info('Metrics last updated', { lastUpdated });
                 
             } catch (error) {
-                console.error('Error loading metrics:', error);
+                window.__efClientLogger.error('Error loading metrics', { error: String(error) });
                 document.getElementById('apiStatusText').textContent = 
                     '❌ Failed to connect to API';
                 document.getElementById('apiStatus').style.background = '#fef2f2';

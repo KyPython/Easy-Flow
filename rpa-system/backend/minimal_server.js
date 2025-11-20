@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('./utils/logger');
 // Minimal server for social proof development
 const express = require('express');
 const cors = require('cors');
@@ -43,12 +45,12 @@ app.use('/api/*', (req, res) => {
 
 // Error handling
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
+  logger.error('Server error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Minimal server running on port ${PORT}`);
-  console.log(`📊 Social proof API: http://localhost:${PORT}/api/social-proof-metrics`);
-  console.log(`🎨 Demo page: http://localhost:${PORT}/demo/social-proof`);
+  logger.info(`🚀 Minimal server running on port ${PORT}`);
+  logger.info(`📊 Social proof API: http://localhost:${PORT}/api/social-proof-metrics`);
+  logger.info(`🎨 Demo page: http://localhost:${PORT}/demo/social-proof`);
 });

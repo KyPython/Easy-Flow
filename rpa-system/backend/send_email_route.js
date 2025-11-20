@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('./utils/logger');
 const express = require('express');
 const router = express.Router();
 let sgMail;
@@ -66,7 +68,7 @@ router.post('/send', async (req, res) => {
 		return res.json({ ok: true, id: result?.headers?.['x-message-id'] || null });
 	} catch (e) {
 		const message = e?.response?.body?.errors?.map(err => err.message).join('; ') || e?.message || 'Failed to send email';
-		console.warn('[send_email_route] send error', message);
+		logger.warn('[send_email_route] send error', message);
 		return res.status(500).json({ error: message });
 	}
 });

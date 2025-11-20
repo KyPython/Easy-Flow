@@ -329,17 +329,19 @@ const deprecatedConsole = {
   }
 };
 
-// Override console methods in development to catch usage
-if (process.env.NODE_ENV !== 'production') {
-  // Store original methods
-  const originalConsole = { ...console };
-  
-  // Override with deprecation warnings
-  Object.assign(console, deprecatedConsole);
-  
-  // Provide access to original console for emergency debugging
-  global._originalConsole = originalConsole;
-}
+// NOTE: previously this module monkey-patched `console` to emit deprecation
+// warnings when code called `console.log`/`console.warn`/etc. That caused
+// excessive noisy warnings. We no longer automatically replace `console`.
+//
+// Migration strategy:
+// - `deprecatedConsole` is exported as a helper for a coordinated codemod
+//   or temporary usage by maintainers.
+// - Applications should import `../utils/logger.js` and call the
+//   structured logger directly (see `utils/logger.js`).
+//
+// If you need to temporarily enable the old behavior for testing, set
+// `ENABLE_CONSOLE_DEPRECATION_WARNINGS=true` in your environment and the
+// deprecation helper may be assigned at runtime by an opt-in script.
 
 /**
  * Express middleware for request logging
@@ -384,9 +386,12 @@ function requestLoggingMiddleware() {
   };
 }
 
-module.exports = {
-  createLogger,
-  StructuredLogger,
-  requestLoggingMiddleware,
-  rootLogger
-};
+// Provide a default logger instance when the module is required directly
+const defaultLogger = createLogger('app');
+
+// Export the default logger as the module export, but keep named exports
+module.exports = defaultLogger;
+module.exports.createLogger = createLogger;
+module.exports.StructuredLogger = StructuredLogger;
+module.exports.requestLoggingMiddleware = requestLoggingMiddleware;
+module.exports.rootLogger = rootLogger;

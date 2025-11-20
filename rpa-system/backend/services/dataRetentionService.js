@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 /**
  * Data Retention Service for EasyFlow
  * 
@@ -6,15 +8,12 @@
  * Ensures compliance with GDPR, CCPA, and enterprise data governance.
  */
 
-const { createClient } = require('@supabase/supabase-js');
+const { getSupabase } = require('../utils/supabaseClient');
 const { auditLogger } = require('../utils/auditLogger');
 
 class DataRetentionService {
   constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    this.supabase = getSupabase();
     
     // Default retention periods (can be overridden by environment variables)
     this.retentionPolicies = {
@@ -63,12 +62,12 @@ class DataRetentionService {
     if (this.isRunning) return;
     
     this.isRunning = true;
-    console.log('🚀 Starting Data Retention Service with automated cleanup...');
+    logger.info('🚀 Starting Data Retention Service with automated cleanup...');
 
     // Schedule audit log cleanup
     const auditJob = setInterval(() => {
       this.cleanupAuditLogs().catch(error => {
-        console.error('Scheduled audit log cleanup failed:', error);
+        logger.error('Scheduled audit log cleanup failed:', error);
       });
     }, this.scheduleIntervals.audit_logs * 60 * 60 * 1000);
     this.scheduledJobs.set('audit_logs', auditJob);
@@ -76,7 +75,7 @@ class DataRetentionService {
     // Schedule execution data cleanup
     const executionJob = setInterval(() => {
       this.cleanupExecutionData().catch(error => {
-        console.error('Scheduled execution cleanup failed:', error);
+        logger.error('Scheduled execution cleanup failed:', error);
       });
     }, this.scheduleIntervals.executions * 60 * 60 * 1000);
     this.scheduledJobs.set('executions', executionJob);
@@ -84,7 +83,7 @@ class DataRetentionService {
     // Schedule temporary files cleanup
     const tempJob = setInterval(() => {
       this.cleanupTemporaryFiles().catch(error => {
-        console.error('Scheduled temp files cleanup failed:', error);
+        logger.error('Scheduled temp files cleanup failed:', error);
       });
     }, this.scheduleIntervals.temp_files * 60 * 60 * 1000);
     this.scheduledJobs.set('temp_files', tempJob);
@@ -92,7 +91,7 @@ class DataRetentionService {
     // Run initial cleanup
     setTimeout(() => {
       this.runFullCleanup().catch(error => {
-        console.error('Initial cleanup failed:', error);
+        logger.error('Initial cleanup failed:', error);
       });
     }, 5000); // Wait 5 seconds after startup
   }
@@ -104,7 +103,7 @@ class DataRetentionService {
     this.isRunning = false;
     this.scheduledJobs.forEach((job, name) => {
       clearInterval(job);
-      console.log(`✅ Stopped ${name} cleanup job`);
+      logger.info(`✅ Stopped ${name} cleanup job`);
     });
     this.scheduledJobs.clear();
   }
@@ -113,7 +112,7 @@ class DataRetentionService {
    * Run comprehensive cleanup of all data types
    */
   async runFullCleanup() {
-    console.log('🧹 Starting comprehensive data retention cleanup...');
+    logger.info('🧹 Starting comprehensive data retention cleanup...');
     const startTime = Date.now();
     const results = {};
 
@@ -136,8 +135,8 @@ class DataRetentionService {
       const duration = Date.now() - startTime;
       const totalCleaned = Object.values(results).reduce((sum, result) => sum + (result.cleaned_count || 0), 0);
 
-      console.log(`✅ Data retention cleanup completed in ${duration}ms`);
-      console.log(`📊 Total records cleaned: ${totalCleaned}`);
+      logger.info(`✅ Data retention cleanup completed in ${duration}ms`);
+      logger.info(`📊 Total records cleaned: ${totalCleaned}`);
 
       // Log the cleanup operation
       await auditLogger.logSystemEvent('info', 'data_retention_cleanup', {
@@ -154,7 +153,7 @@ class DataRetentionService {
       };
 
     } catch (error) {
-      console.error('❌ Data retention cleanup failed:', error);
+      logger.error('❌ Data retention cleanup failed:', error);
       
       await auditLogger.logSystemEvent('error', 'data_retention_cleanup_failed', {
         error: error.message,
@@ -169,7 +168,7 @@ class DataRetentionService {
    * Cleanup audit logs based on retention policies
    */
   async cleanupAuditLogs() {
-    console.log('🧹 Cleaning up audit logs...');
+    logger.info('🧹 Cleaning up audit logs...');
     
     try {
       const results = {
@@ -219,10 +218,10 @@ class DataRetentionService {
 
       const totalCleaned = results.security_events + results.authentication + results.general;
       
-      console.log(`✅ Cleaned ${totalCleaned} audit log entries`);
-      console.log(`   Security events: ${results.security_events}`);
-      console.log(`   Authentication: ${results.authentication}`);
-      console.log(`   General logs: ${results.general}`);
+      logger.info(`✅ Cleaned ${totalCleaned} audit log entries`);
+      logger.info(`   Security events: ${results.security_events}`);
+      logger.info(`   Authentication: ${results.authentication}`);
+      logger.info(`   General logs: ${results.general}`);
 
       return {
         cleaned_count: totalCleaned,
@@ -235,7 +234,7 @@ class DataRetentionService {
       };
 
     } catch (error) {
-      console.error('❌ Audit logs cleanup failed:', error);
+      logger.error('❌ Audit logs cleanup failed:', error);
       throw error;
     }
   }
@@ -244,7 +243,7 @@ class DataRetentionService {
    * Cleanup workflow execution data and sensitive payloads
    */
   async cleanupExecutionData() {
-    console.log('🧹 Cleaning up workflow execution data...');
+    logger.info('🧹 Cleaning up workflow execution data...');
     
     try {
       const results = {
@@ -299,10 +298,10 @@ class DataRetentionService {
 
       const totalCleaned = results.completed_executions + results.failed_executions;
       
-      console.log(`✅ Cleaned ${totalCleaned} workflow executions`);
-      console.log(`   Completed executions: ${results.completed_executions}`);
-      console.log(`   Failed executions: ${results.failed_executions}`);
-      console.log(`   Sensitive payloads cleared: ${results.sensitive_payloads}`);
+      logger.info(`✅ Cleaned ${totalCleaned} workflow executions`);
+      logger.info(`   Completed executions: ${results.completed_executions}`);
+      logger.info(`   Failed executions: ${results.failed_executions}`);
+      logger.info(`   Sensitive payloads cleared: ${results.sensitive_payloads}`);
 
       return {
         cleaned_count: totalCleaned,
@@ -316,7 +315,7 @@ class DataRetentionService {
       };
 
     } catch (error) {
-      console.error('❌ Execution data cleanup failed:', error);
+      logger.error('❌ Execution data cleanup failed:', error);
       throw error;
     }
   }
@@ -325,7 +324,7 @@ class DataRetentionService {
    * Cleanup step execution data
    */
   async cleanupStepExecutions() {
-    console.log('🧹 Cleaning up step execution data...');
+    logger.info('🧹 Cleaning up step execution data...');
     
     try {
       const results = {
@@ -361,9 +360,9 @@ class DataRetentionService {
 
       const totalCleaned = results.normal_steps + results.error_steps;
       
-      console.log(`✅ Cleaned ${totalCleaned} step executions`);
-      console.log(`   Normal steps: ${results.normal_steps}`);
-      console.log(`   Error steps: ${results.error_steps}`);
+      logger.info(`✅ Cleaned ${totalCleaned} step executions`);
+      logger.info(`   Normal steps: ${results.normal_steps}`);
+      logger.info(`   Error steps: ${results.error_steps}`);
 
       return {
         cleaned_count: totalCleaned,
@@ -375,7 +374,7 @@ class DataRetentionService {
       };
 
     } catch (error) {
-      console.error('❌ Step executions cleanup failed:', error);
+      logger.error('❌ Step executions cleanup failed:', error);
       throw error;
     }
   }
@@ -384,7 +383,7 @@ class DataRetentionService {
    * Cleanup inactive and deleted user data
    */
   async cleanupUserData() {
-    console.log('🧹 Cleaning up user data...');
+    logger.info('🧹 Cleaning up user data...');
     
     try {
       const results = {
@@ -394,8 +393,8 @@ class DataRetentionService {
 
       // This would need to be implemented based on your user management system
       // For now, just log that this feature is planned
-      console.log('📝 User data cleanup planned for future implementation');
-      console.log('   Will handle: inactive accounts, deleted user grace periods');
+      logger.info('📝 User data cleanup planned for future implementation');
+      logger.info('   Will handle: inactive accounts, deleted user grace periods');
 
       return {
         cleaned_count: 0,
@@ -404,7 +403,7 @@ class DataRetentionService {
       };
 
     } catch (error) {
-      console.error('❌ User data cleanup failed:', error);
+      logger.error('❌ User data cleanup failed:', error);
       throw error;
     }
   }
@@ -413,7 +412,7 @@ class DataRetentionService {
    * Cleanup temporary files and exports
    */
   async cleanupTemporaryFiles() {
-    console.log('🧹 Cleaning up temporary files...');
+    logger.info('🧹 Cleaning up temporary files...');
     
     try {
       const results = {
@@ -423,8 +422,8 @@ class DataRetentionService {
 
       // This would clean up files from storage buckets
       // For now, log planned implementation
-      console.log('📝 Temporary files cleanup planned for future implementation');
-      console.log('   Will handle: upload temp files, export files, cached data');
+      logger.info('📝 Temporary files cleanup planned for future implementation');
+      logger.info('   Will handle: upload temp files, export files, cached data');
 
       return {
         cleaned_count: 0,
@@ -433,7 +432,7 @@ class DataRetentionService {
       };
 
     } catch (error) {
-      console.error('❌ Temporary files cleanup failed:', error);
+      logger.error('❌ Temporary files cleanup failed:', error);
       throw error;
     }
   }
@@ -499,7 +498,7 @@ class DataRetentionService {
       return stats;
 
     } catch (error) {
-      console.error('❌ Failed to get retention statistics:', error);
+      logger.error('❌ Failed to get retention statistics:', error);
       throw error;
     }
   }
@@ -518,7 +517,7 @@ class DataRetentionService {
       this.retentionPolicies[dataType].default = days;
     }
 
-    console.log(`✅ Updated retention policy: ${dataType}${subType ? `.${subType}` : ''} = ${days} days`);
+    logger.info(`✅ Updated retention policy: ${dataType}${subType ? `.${subType}` : ''} = ${days} days`);
   }
 
   /**

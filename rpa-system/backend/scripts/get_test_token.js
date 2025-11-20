@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 const dotenv = require('dotenv');
 dotenv.config({ path: 'backend/.env' });
 
@@ -6,7 +8,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
 
 if (!SUPABASE_URL) {
-  console.error('SUPABASE_URL is empty. Check backend/.env');
+  logger.error('SUPABASE_URL is empty. Check backend/.env');
   process.exit(1);
 }
 
@@ -31,17 +33,17 @@ async function run() {
 
   const body = await resp.text();
   let json;
-  try { json = JSON.parse(body); } catch (e) { console.error('Non-JSON response:', body); process.exit(1); }
+  try { json = JSON.parse(body); } catch (e) { logger.error('Non-JSON response:', body); process.exit(1); }
 
-  console.log('status', resp.status);
-  console.log(json);
+  logger.info('status', resp.status);
+  logger.info(json);
   if (json.access_token) {
-    console.log('\nRun this to set TOKEN in your shell:');
-    console.log('export TOKEN="' + json.access_token + '"');
+    logger.info('\nRun this to set TOKEN in your shell:');
+    logger.info('export TOKEN="' + json.access_token + '"');
   } else {
-    console.error('No access_token returned; inspect the status/body above.');
+    logger.error('No access_token returned; inspect the status/body above.');
     process.exit(1);
   }
 }
 
-run().catch(e => { console.error(e); process.exit(1); });
+run().catch(e => { logger.error(e); process.exit(1); });

@@ -1,12 +1,12 @@
 /*
- Dev Network Logger
- - Logs failing POST requests with their URL and status, even when the browser collapses errors to "Fetch failed".
- - Wraps window.fetch and XMLHttpRequest; complements axios interceptors.
- - Loaded only in development from src/index.js.
- */
+Dev Network Logger
+- Logs failing POST requests with their URL and status, even when the browser collapses errors to "Fetch failed".
+- Wraps window.fetch and XMLHttpRequest; complements axios interceptors.
+- Loaded only in development from src/index.js.
+*/
 
 /* eslint-disable no-console */
- 
+
 // Export a fetch wrapper for consistent use in app (top-level)
 export async function fetchWithAuth(url, options = {}) {
   // Normalize token retrieval: support several storage keys and guard against string 'null'/'undefined'

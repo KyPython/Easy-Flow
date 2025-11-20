@@ -1,32 +1,17 @@
+
+const { logger, getLogger } = require('../utils/logger');
 // Simple email worker: polls email_queue and sends emails via configured webhook or logs (for dev)
 // Can run standalone (node workers/email_worker.js) or be embedded inside the main backend
 // when required via startEmailWorker().
 
-// Handle ESM/CJS interop that can occur in test runners
-const supabaseLib = require('@supabase/supabase-js');
-const createClient = supabaseLib.createClient || supabaseLib.default?.createClient;
+const { getSupabase } = require('../utils/supabaseClient');
 const axios = require('axios');
 const dotenv = require('dotenv');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 dotenv.config({ path: process.env.DOTENV_PATH || undefined });
 
-let supa; // lazy client
-function getSupabase() {
-  if (supa) return supa;
-  const { SUPABASE_URL } = process.env;
-  const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
-  if (!SUPABASE_URL || !key) {
-    console.warn('[email_worker] Supabase not configured; worker will be idle.');
-    return null;
-  }
-  supa = createClient(SUPABASE_URL, key, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-  // quick presence log (don't print the full service role)
-  console.log('[email_worker] SUPABASE configured:', true, 'SERVICE_KEY present:', true);
-  return supa;
-}
+// use centralized getSupabase (may return null when not configured)
 
 // RPC helper: use supabase.rpc when present; fall back to REST call (useful in tests/mocks)
 async function callRpc(fnName, args) {
@@ -64,7 +49,7 @@ async function processOne() {
 
     if (fetchErr) {
       // Fallback: select then update (less safe)
-      console.warn('[email_worker] rpc claim failed, falling back to simple select', fetchErr && (fetchErr.message || JSON.stringify(fetchErr)));
+      logger.warn('[email_worker] rpc claim failed, falling back to simple select', fetchErr && (fetchErr.message || JSON.stringify(fetchErr)));
       const client = getSupabase();
       if (!client) return false;
       const { data: selectData, error: selectError } = await client
@@ -75,7 +60,7 @@ async function processOne() {
         .order('created_at', { ascending: true })
         .limit(1);
       if (selectError) {
-        console.error('[email_worker] fallback select error', selectError.message);
+        logger.error('[email_worker] fallback select error', selectError.message);
         return false;
       }
       if (!selectData || selectData.length === 0) return false;
@@ -90,12 +75,12 @@ async function processOne() {
         .select('*')
         .single();
       if (updateError) {
-        console.warn('[email_worker] fallback update error', updateError.message || updateError);
+        logger.warn('[email_worker] fallback update error', updateError.message || updateError);
         return false;
       }
       if (!updatedData) {
         // somebody else claimed it or the update didn't apply
-        console.warn('[email_worker] fallback update affected no rows (claimed by another worker?) for item:', itemToClaim.id);
+        logger.warn('[email_worker] fallback update affected no rows (claimed by another worker?) for item:', itemToClaim.id);
         return false;
       }
       return await handleItem(updatedData);
@@ -106,14 +91,14 @@ async function processOne() {
     const item = items[0];
     return await handleItem(item);
   } catch (e) {
-    console.error('[email_worker] processOne error', e?.message || e);
+    logger.error('[email_worker] processOne error', e?.message || e);
     return false;
   }
 }
 
 async function handleItem(item) {
   try {
-    console.log('[email_worker] processing', item.id, item.to_email, item.template);
+    logger.info('[email_worker] processing', item.id, item.to_email, item.template);
     let sent = false;
     if (SEND_EMAIL_WEBHOOK) {
       try {
@@ -130,12 +115,12 @@ async function handleItem(item) {
         );
         sent = true;
       } catch (e) {
-        console.warn('[email_worker] webhook send failed', e?.message || e);
+        logger.warn('[email_worker] webhook send failed', e?.message || e);
         sent = false;
       }
     } else {
       // Development fallback: write to logs (or integrate with nodemailer)
-      console.log('[email_worker] simulate send to', item.to_email, 'template', item.template, 'data', JSON.stringify(item.data || {}));
+      logger.info('[email_worker] simulate send to', item.to_email, 'template', item.template, 'data', JSON.stringify(item.data || {}));
       sent = true;
     }
 
@@ -148,11 +133,11 @@ async function handleItem(item) {
         .eq('id', item.id)
         .select('*');
       if (sentErr) {
-        console.error('[email_worker] failed to mark sent', sentErr.message || sentErr);
+        logger.error('[email_worker] failed to mark sent', sentErr.message || sentErr);
         return false;
       }
       if (!sentData || sentData.length === 0) {
-        console.error('[email_worker] mark-sent affected no rows for', item.id);
+        logger.error('[email_worker] mark-sent affected no rows for', item.id);
         return false;
       }
       return true;
@@ -167,11 +152,11 @@ async function handleItem(item) {
         .update({ attempts, last_error, status })
         .eq('id', item.id)
         .select('*');
-      if (failErr) console.warn('[email_worker] failed to persist failure state', failErr.message || failErr);
+      if (failErr) logger.warn('[email_worker] failed to persist failure state', failErr.message || failErr);
       return false;
     }
   } catch (e) {
-    console.error('[email_worker] handleItem error', e?.message || e);
+    logger.error('[email_worker] handleItem error', e?.message || e);
     return false;
   }
 }
@@ -181,24 +166,24 @@ async function startEmailWorker() {
   try {
     getSupabase();
   } catch (e) {
-    console.error('[email_worker] startup error:', e.message || e);
+    logger.error('[email_worker] startup error:', e.message || e);
     if (require.main === module) {
       process.exit(1);
     }
     throw e;
   }
-  console.log('[email_worker] starting (embedded=', !(require.main === module), ') poll interval', POLL_INTERVAL_MS, 'ms');
+  logger.info('[email_worker] starting (embedded=', !(require.main === module), ') poll interval', POLL_INTERVAL_MS, 'ms');
   let lastHeartbeat = Date.now();
   while (true) {
     try {
       const ok = await processOne();
       if (!ok) await sleep(POLL_INTERVAL_MS);
       if (Date.now() - lastHeartbeat > 60000) { // Log a heartbeat every 60 seconds
-        console.log(`[email_worker] heartbeat: still running at ${new Date().toISOString()}`);
+        logger.info(`[email_worker] heartbeat: still running at ${new Date().toISOString()}`);
         lastHeartbeat = Date.now();
       }
     } catch (e) {
-      console.error('[email_worker] main loop error', e?.message || e);
+      logger.error('[email_worker] main loop error', e?.message || e);
       await sleep(POLL_INTERVAL_MS);
     }
   }

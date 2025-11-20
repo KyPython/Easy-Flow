@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
-import { supabase } from '../utils/supabaseClient';
+import supabase, { signInWithPassword, signUp } from '../utils/supabaseClient';
 import { trackEvent, triggerCampaign } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import styles from './AuthPage.module.css';
@@ -121,8 +121,8 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      if (mode === 'login') {
-          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (mode === 'login') {
+          const { data, error } = await signInWithPassword({ email, password });
           if (error) throw error;
           // Successful login - redirect to dashboard
           setSuccess('Login successful! Redirecting to dashboard...');
@@ -132,8 +132,8 @@ export default function AuthPage() {
           setTimeout(() => {
             navigate('/app');
           }, 1500);
-      } else {
-          const { error } = await supabase.auth.signUp({ email, password });
+        } else {
+          const { error } = await signUp({ email, password });
           if (error) throw error;
           // Set flag to indicate this was a signup (will be converted to tracking flag on successful auth)
           sessionStorage.setItem('just_signed_up_pending', 'true');

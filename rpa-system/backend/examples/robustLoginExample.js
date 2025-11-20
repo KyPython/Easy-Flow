@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 /**
  * EXAMPLE: Robust Login Function with Hard Timeouts and Immediate Error Feedback
  * 
@@ -30,7 +32,7 @@ async function performLogin(page, credentials, executionId) {
   const startTime = Date.now();
   
   try {
-    console.log(`[RobustLogin] Starting login process for execution ${executionId}`);
+    logger.info(`[RobustLogin] Starting login process for execution ${executionId}`);
     
     // ✅ IMMEDIATE STATUS UPDATE - User sees progress
     await updateExecutionStatus(supabase, executionId, 'running', 'Looking for username field...');
@@ -49,7 +51,7 @@ async function performLogin(page, credentials, executionId) {
         )
       ]);
       
-      console.log(`[RobustLogin] Username field found: ${usernameSelector}`);
+      logger.info(`[RobustLogin] Username field found: ${usernameSelector}`);
     } catch (timeoutError) {
       // ✅ IMMEDIATE ERROR LOGGING - No silent failures
       const errorMessage = `Username field not found: Selector "${usernameSelector}" did not appear within ${TIMEOUTS.SELECTOR_WAIT}ms`;
@@ -80,7 +82,7 @@ async function performLogin(page, credentials, executionId) {
         )
       ]);
       
-      console.log(`[RobustLogin] Password field found: ${passwordSelector}`);
+      logger.info(`[RobustLogin] Password field found: ${passwordSelector}`);
     } catch (timeoutError) {
       // ✅ IMMEDIATE ERROR LOGGING
       const errorMessage = `Password field not found: Selector "${passwordSelector}" did not appear within ${TIMEOUTS.SELECTOR_WAIT}ms`;
@@ -107,7 +109,7 @@ async function performLogin(page, credentials, executionId) {
         )
       ]);
       
-      console.log(`[RobustLogin] Credentials filled successfully`);
+      logger.info(`[RobustLogin] Credentials filled successfully`);
     } catch (fillError) {
       // ✅ IMMEDIATE ERROR LOGGING
       const errorMessage = `Failed to fill credentials: ${fillError.message}`;
@@ -137,7 +139,7 @@ async function performLogin(page, credentials, executionId) {
         )
       ]);
       
-      console.log(`[RobustLogin] Submit button found: ${submitSelector}`);
+      logger.info(`[RobustLogin] Submit button found: ${submitSelector}`);
     } catch (timeoutError) {
       // ✅ IMMEDIATE ERROR LOGGING
       const errorMessage = `Submit button not found: Selector "${submitSelector}" did not appear within ${TIMEOUTS.SELECTOR_WAIT}ms`;
@@ -164,7 +166,7 @@ async function performLogin(page, credentials, executionId) {
         )
       ]);
       
-      console.log(`[RobustLogin] Submit button clicked successfully`);
+      logger.info(`[RobustLogin] Submit button clicked successfully`);
     } catch (clickError) {
       // ✅ IMMEDIATE ERROR LOGGING
       const errorMessage = `Failed to click submit button "${submitSelector}": ${clickError.message}`;
@@ -207,7 +209,7 @@ async function performLogin(page, credentials, executionId) {
         )
       ]);
       
-      console.log(`[RobustLogin] Login completed successfully`);
+      logger.info(`[RobustLogin] Login completed successfully`);
       
       // ✅ SUCCESS STATUS UPDATE
       await updateExecutionStatus(supabase, executionId, 'running', 'Login completed successfully');
@@ -242,7 +244,7 @@ async function performLogin(page, credentials, executionId) {
     
   } catch (error) {
     // ✅ CATCH-ALL ERROR HANDLER - Ensures no silent failures
-    console.error(`[RobustLogin] Login process failed for execution ${executionId}:`, error);
+    logger.error(`[RobustLogin] Login process failed for execution ${executionId}:`, error);
     
     // ✅ FINAL ERROR LOGGING
     await logLoginFailure(supabase, executionId, 'UNEXPECTED_ERROR', error.message, {
@@ -295,7 +297,7 @@ async function fillCredentialsSecurely(page, usernameSelector, passwordSelector,
       throw new Error(`Password field validation failed: Expected length ${password.length}, got ${passwordLength}`);
     }
     
-    console.log(`[RobustLogin] Credentials filled and validated successfully`);
+    logger.info(`[RobustLogin] Credentials filled and validated successfully`);
     
   } catch (error) {
     throw new Error(`Credential filling failed: ${error.message}`);
@@ -316,9 +318,9 @@ async function updateExecutionStatus(supabase, executionId, status, message) {
       })
       .eq('id', executionId);
     
-    console.log(`[RobustLogin] Status updated: ${executionId} -> ${status}: ${message}`);
+    logger.info(`[RobustLogin] Status updated: ${executionId} -> ${status}: ${message}`);
   } catch (error) {
-    console.error(`[RobustLogin] Failed to update status:`, error);
+    logger.error(`[RobustLogin] Failed to update status:`, error);
   }
 }
 
@@ -340,9 +342,9 @@ async function logLoginFailure(supabase, executionId, errorType, errorMessage, e
       .from('automation_history')
       .insert(failureLog);
     
-    console.error(`[RobustLogin] Login failure logged:`, failureLog);
+    logger.error(`[RobustLogin] Login failure logged:`, failureLog);
   } catch (dbError) {
-    console.error(`[RobustLogin] Failed to log error to database:`, dbError);
+    logger.error(`[RobustLogin] Failed to log error to database:`, dbError);
   }
 }
 
@@ -363,9 +365,9 @@ async function logLoginSuccess(supabase, executionId, duration) {
       .from('automation_history')
       .insert(successLog);
     
-    console.log(`[RobustLogin] Login success logged:`, successLog);
+    logger.info(`[RobustLogin] Login success logged:`, successLog);
   } catch (error) {
-    console.error(`[RobustLogin] Failed to log success:`, error);
+    logger.error(`[RobustLogin] Failed to log success:`, error);
   }
 }
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+const { logger, getLogger } = require('../utils/logger');
+
 /**
  * OpenTelemetry Credentials Verification Script
  *
@@ -45,7 +47,7 @@ const colors = {
 };
 
 function log(color, symbol, message) {
-  console.log(`${color}${symbol}${colors.reset} ${message}`);
+  logger.info(`${color}${symbol}${colors.reset} ${message}`);
 }
 
 function parseHeaders(headerString) {
@@ -69,9 +71,9 @@ function parseHeaders(headerString) {
 }
 
 async function verifyCredentials() {
-  console.log('\n' + '='.repeat(60));
+  logger.info('\n' + '='.repeat(60));
   log(colors.cyan, '🔍', 'OpenTelemetry Credentials Verification');
-  console.log('='.repeat(60) + '\n');
+  logger.info('='.repeat(60) + '\n');
 
   // Step 1: Check environment variables
   log(colors.blue, '📋', 'Step 1: Checking environment variables...');
@@ -104,9 +106,9 @@ async function verifyCredentials() {
   }
 
   log(colors.green, '✅', 'Environment variables are set');
-  console.log(`   Service Name: ${serviceName}`);
-  console.log(`   Endpoint: ${endpoint}`);
-  console.log(`   Headers: ${headers.substring(0, 30)}...`);
+  logger.info(`   Service Name: ${serviceName}`);
+  logger.info(`   Endpoint: ${endpoint}`);
+  logger.info(`   Headers: ${headers.substring(0, 30)}...`);
 
   // Step 2: Parse and validate headers
   log(colors.blue, '\n📋', 'Step 2: Parsing headers...');
@@ -120,7 +122,7 @@ async function verifyCredentials() {
   }
 
   log(colors.green, '✅', 'Headers parsed successfully');
-  console.log(`   Authorization: ${parsedHeaders.Authorization.substring(0, 30)}...`);
+  logger.info(`   Authorization: ${parsedHeaders.Authorization.substring(0, 30)}...`);
 
   // Step 3: Construct trace endpoint URL
   log(colors.blue, '\n📋', 'Step 3: Constructing endpoint URL...');
@@ -130,7 +132,7 @@ async function verifyCredentials() {
   try {
     const url = new URL(traceUrl);
     log(colors.green, '✅', 'URL is valid');
-    console.log(`   Trace URL: ${traceUrl}`);
+    logger.info(`   Trace URL: ${traceUrl}`);
   } catch (err) {
     log(colors.red, '❌', `Invalid URL: ${err.message}`);
     process.exit(1);
@@ -196,36 +198,36 @@ async function verifyCredentials() {
       });
 
       res.on('end', () => {
-        console.log(`   HTTP Status: ${res.statusCode}`);
+        logger.info(`   HTTP Status: ${res.statusCode}`);
 
         if (res.statusCode === 200 || res.statusCode === 202) {
           log(colors.green, '\n✅', 'SUCCESS! Credentials are valid and working');
           log(colors.green, '🎉', 'Your OpenTelemetry configuration is correct');
           log(colors.cyan, '📊', 'Traces will be sent to Grafana Cloud');
-          console.log('\n' + '='.repeat(60));
+          logger.info('\n' + '='.repeat(60));
           resolve();
         } else if (res.statusCode === 401) {
           log(colors.red, '\n❌', 'AUTHENTICATION FAILED (401 Unauthorized)');
           log(colors.yellow, '⚠️ ', 'Your credentials are incorrect or expired');
-          console.log('\nResponse:', data);
-          console.log('\nPlease verify:');
-          console.log('  1. Your Grafana Cloud instance ID is correct');
-          console.log('  2. Your API token has not expired');
-          console.log('  3. The token has proper permissions');
-          console.log('\nGet new credentials from:');
-          console.log('  https://grafana.com/docs/grafana-cloud/send-data/otlp/');
-          console.log('\n' + '='.repeat(60));
+          logger.info('\nResponse:', data);
+          logger.info('\nPlease verify:');
+          logger.info('  1. Your Grafana Cloud instance ID is correct');
+          logger.info('  2. Your API token has not expired');
+          logger.info('  3. The token has proper permissions');
+          logger.info('\nGet new credentials from:');
+          logger.info('  https://grafana.com/docs/grafana-cloud/send-data/otlp/');
+          logger.info('\n' + '='.repeat(60));
           reject(new Error('Authentication failed'));
         } else if (res.statusCode === 403) {
           log(colors.red, '\n❌', 'FORBIDDEN (403)');
           log(colors.yellow, '⚠️ ', 'Your credentials lack required permissions');
-          console.log('\nResponse:', data);
-          console.log('\n' + '='.repeat(60));
+          logger.info('\nResponse:', data);
+          logger.info('\n' + '='.repeat(60));
           reject(new Error('Permission denied'));
         } else {
           log(colors.yellow, '\n⚠️ ', `Unexpected response: ${res.statusCode}`);
-          console.log('Response:', data);
-          console.log('\n' + '='.repeat(60));
+          logger.info('Response:', data);
+          logger.info('\n' + '='.repeat(60));
           reject(new Error(`Unexpected status: ${res.statusCode}`));
         }
       });
@@ -233,11 +235,11 @@ async function verifyCredentials() {
 
     req.on('error', (err) => {
       log(colors.red, '\n❌', `Connection failed: ${err.message}`);
-      console.log('\nPlease verify:');
-      console.log('  1. Your internet connection is working');
-      console.log('  2. The endpoint URL is correct');
-      console.log('  3. There are no firewall issues');
-      console.log('\n' + '='.repeat(60));
+      logger.info('\nPlease verify:');
+      logger.info('  1. Your internet connection is working');
+      logger.info('  2. The endpoint URL is correct');
+      logger.info('  3. There are no firewall issues');
+      logger.info('\n' + '='.repeat(60));
       reject(err);
     });
 

@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 // axios is required dynamically inside integrations that need it
 const { createInstrumentedHttpClient } = require('../middleware/httpInstrumentation');
 const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');
@@ -61,7 +63,7 @@ class IntegrationFramework {
       return results;
       
     } catch (error) {
-      console.error('[IntegrationFramework] Upload failed:', error);
+      logger.error('[IntegrationFramework] Upload failed:', error);
       throw error;
     }
   }
@@ -92,7 +94,7 @@ class IntegrationFramework {
       };
       
     } catch (error) {
-      console.error('[IntegrationFramework] Data send failed:', error);
+      logger.error('[IntegrationFramework] Data send failed:', error);
       return {
         success: false,
         error: error.message

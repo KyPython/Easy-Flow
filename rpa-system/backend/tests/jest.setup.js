@@ -153,10 +153,16 @@ jest.doMock('../utils/kafkaService', () => ({
 }));
 
 // Silence console logs in tests except warnings/errors
-const originalLog = console.log;
+// Route selected test logs to the structured logger instead of calling console.log
+const logger = require('../middleware/structuredLogging');
 console.log = (...args) => {
-  if (String(args[0] || '').includes('CORS Debug Info') || process.env.VERBOSE_TEST_LOGS === 'true') {
-    originalLog.apply(console, args);
+  try {
+    const first = String(args[0] || '');
+    if (first.includes('CORS Debug Info') || process.env.VERBOSE_TEST_LOGS === 'true') {
+      logger.info(first, { args: args.slice(1) });
+    }
+  } catch (e) {
+    // swallow errors during test bootstrap
   }
 };
 

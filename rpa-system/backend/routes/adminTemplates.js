@@ -1,8 +1,10 @@
+
+const { logger, getLogger } = require('../utils/logger');
 const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
+const { getSupabase } = require('../utils/supabaseClient');
 
 const router = express.Router();
-const requireFeature = require('../middleware/planEnforcement');
+const { requireFeature } = require('../middleware/planEnforcement');
 
 // Simple admin-secret middleware (separate from user auth)
 router.use((req, res, next) => {
@@ -13,13 +15,9 @@ router.use((req, res, next) => {
   next();
 });
 
-const supabase = process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY)
-  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY)
-  : null;
-
+const supabase = getSupabase();
 if (!supabase) {
-  // eslint-disable-next-line no-console
-  console.warn('[adminTemplates] Supabase not initialized. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE');
+  logger.warn('[adminTemplates] Supabase not initialized. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE');
 }
 
 // List templates for moderation
@@ -36,7 +34,7 @@ router.get('/', requireFeature('admin_templates'), async (req, res) => {
     res.json({ templates: data || [] });
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.error('[adminTemplates] list error', e?.message || e);
+    logger.error('[adminTemplates] list error', e?.message || e);
     res.status(500).json({ error: 'Failed to load templates' });
   }
 });
@@ -66,7 +64,7 @@ router.post('/:id/approve', requireFeature('admin_templates'), async (req, res) 
     res.json({ success: true });
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.error('[adminTemplates] approve error', e?.message || e);
+    logger.error('[adminTemplates] approve error', e?.message || e);
     res.status(500).json({ error: 'Failed to approve template' });
   }
 });
@@ -94,7 +92,7 @@ router.post('/:id/reject', requireFeature('admin_templates'), async (req, res) =
     res.json({ success: true });
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.error('[adminTemplates] reject error', e?.message || e);
+    logger.error('[adminTemplates] reject error', e?.message || e);
     res.status(500).json({ error: 'Failed to reject template' });
   }
 });

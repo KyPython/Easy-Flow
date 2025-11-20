@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 // Dev bypass middleware
 // Enables a safe, auditable dev-only bypass when NODE_ENV !== 'production'
 // Use header `x-dev-bypass: <DEV_BYPASS_TOKEN>` and set DEV_USER_ID in your local .env
@@ -21,10 +23,10 @@ module.exports = function devBypassMiddleware(req, res, next) {
       // Attach a short descriptor
       req.devUser = { id: req.user.id, isDevBypass: true };
       // Log with minimal information for audit (do not log the token)
-      console.warn('[dev-bypass] granted', { ip: req.ip, userId: req.user.id, path: req.path, ts: new Date().toISOString() });
+      logger.warn('[dev-bypass] granted', { ip: req.ip, userId: req.user.id, path: req.path, ts: new Date().toISOString() });
     }
   } catch (err) {
-    console.warn('[dev-bypass] middleware error', err?.message || err);
+    logger.warn('[dev-bypass] middleware error', err?.message || err);
   }
   return next();
 };

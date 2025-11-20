@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 // Dynamic, database-driven plan enforcement middleware
 const { getUserPlan } = require('../services/planService');
 
@@ -20,9 +22,9 @@ const requireWorkflowRun = async (req, res, next) => {
     req.planData = planData;
     next();
   } catch (error) {
-    console.error('Plan enforcement error:', error);
+    logger.error('Plan enforcement error:', error);
     // Don't block workflow execution even if there's an error getting plan data
-    console.warn('Continuing workflow execution despite plan check error');
+    logger.warn('Continuing workflow execution despite plan check error');
     next();
   }
 };
@@ -56,7 +58,7 @@ const requireAutomationRun = async (req, res, next) => {
     req.planData = planData;
     next();
   } catch (error) {
-    console.error('Plan enforcement error:', error);
+    logger.error('Plan enforcement error:', error);
     res.status(500).json({ error: 'Failed to check automation limits' });
   }
 };
@@ -91,7 +93,7 @@ const requireFeature = (featureKey) => {
       req.planData = planData;
       next();
     } catch (error) {
-      console.error('Feature access error:', error);
+      logger.error('Feature access error:', error);
       res.status(500).json({ error: 'Failed to check feature access' });
     }
   };
@@ -136,7 +138,7 @@ const requirePlan = (minPlan) => {
       req.planData = planData;
       next();
     } catch (error) {
-      console.error('Plan level check error:', error);
+      logger.error('Plan level check error:', error);
       res.status(500).json({ error: 'Failed to check plan level' });
     }
   };
@@ -178,7 +180,7 @@ const checkStorageLimit = async (req, res, next) => {
     req.planData = planData;
     next();
   } catch (error) {
-    console.error('Storage limit check error:', error);
+    logger.error('Storage limit check error:', error);
     res.status(500).json({ error: 'Failed to check storage limits' });
   }
 };
@@ -285,7 +287,7 @@ const requireWorkflowCreation = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Error in requireWorkflowCreation:', error);
+    logger.error('Error in requireWorkflowCreation:', error);
     res.status(500).json({ 
       error: 'Internal server error',
       code: 'INTERNAL_ERROR' 

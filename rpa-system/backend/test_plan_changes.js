@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+const { logger, getLogger } = require('./utils/logger');
+
 /**
  * Test script for Plan Change Functionality
  * 
@@ -40,14 +42,14 @@ class PlanChangeTest {
       this.currentPlan = profile?.plan_id || 'hobbyist';
       return this.currentPlan;
     } catch (error) {
-      console.error('❌ Failed to get current plan:', error.message);
+      logger.error('❌ Failed to get current plan:', error.message);
       return null;
     }
   }
 
   async updateUserPlan(newPlanId) {
     try {
-      console.log(`🔄 Updating plan from "${this.currentPlan}" to "${newPlanId}"`);
+      logger.info(`🔄 Updating plan from "${this.currentPlan}" to "${newPlanId}"`);
       
       const { data, error } = await supabase
         .from('profiles')
@@ -61,21 +63,21 @@ class PlanChangeTest {
       if (error) throw error;
       
       this.currentPlan = newPlanId;
-      console.log(`✅ Plan updated successfully to: ${newPlanId}`);
+      logger.info(`✅ Plan updated successfully to: ${newPlanId}`);
       return true;
     } catch (error) {
-      console.error(`❌ Failed to update plan to ${newPlanId}:`, error.message);
+      logger.error(`❌ Failed to update plan to ${newPlanId}:`, error.message);
       return false;
     }
   }
 
   async testPlanAPI(planId) {
     try {
-      console.log(`🧪 Testing plan API for plan: ${planId}`);
+      logger.info(`🧪 Testing plan API for plan: ${planId}`);
       
       // We'll use curl to test the API since we need auth
       const testCommand = `curl -s "http://localhost:3030/health"`;
-      console.log(`📡 API Health Check: ${testCommand}`);
+      logger.info(`📡 API Health Check: ${testCommand}`);
       
       // For now, just validate the plan was stored correctly
       const { data: profile, error } = await supabase
@@ -87,44 +89,44 @@ class PlanChangeTest {
       if (error) throw error;
       
       const isCorrect = profile.plan_id === planId;
-      console.log(`${isCorrect ? '✅' : '❌'} Database verification: Plan stored as "${profile.plan_id}"`);
+      logger.info(`${isCorrect ? '✅' : '❌'} Database verification: Plan stored as "${profile.plan_id}"`);
       
       return isCorrect;
     } catch (error) {
-      console.error(`❌ Plan API test failed:`, error.message);
+      logger.error(`❌ Plan API test failed:`, error.message);
       return false;
     }
   }
 
   async waitForPropagation(seconds = 2) {
-    console.log(`⏳ Waiting ${seconds}s for real-time propagation...`);
+    logger.info(`⏳ Waiting ${seconds}s for real-time propagation...`);
     await new Promise(resolve => setTimeout(resolve, seconds * 1000));
   }
 
   async runPlanChangeTest() {
-    console.log('\n🚀 Starting Plan Change Functionality Test\n');
-    console.log('=' .repeat(50));
+    logger.info('\n🚀 Starting Plan Change Functionality Test\n');
+    logger.info('=' .repeat(50));
 
     // Get initial plan
     const initialPlan = await this.getCurrentPlan();
     if (!initialPlan) {
-      console.log('❌ Could not determine initial plan. Aborting test.');
+      logger.info('❌ Could not determine initial plan. Aborting test.');
       return;
     }
 
-    console.log(`📊 Initial Plan: "${initialPlan}"`);
+    logger.info(`📊 Initial Plan: "${initialPlan}"`);
 
     // Test plan progression
     for (let i = 0; i < PLAN_PROGRESSION.length; i++) {
       const targetPlan = PLAN_PROGRESSION[i];
       
       if (targetPlan === this.currentPlan) {
-        console.log(`⏭️  Skipping "${targetPlan}" (already current plan)`);
+        logger.info(`⏭️  Skipping "${targetPlan}" (already current plan)`);
         continue;
       }
 
-      console.log(`\n🎯 Testing plan change to: "${targetPlan}"`);
-      console.log('-'.repeat(30));
+      logger.info(`\n🎯 Testing plan change to: "${targetPlan}"`);
+      logger.info('-'.repeat(30));
 
       // 1. Update the plan
       const updateSuccess = await this.updateUserPlan(targetPlan);
@@ -147,49 +149,49 @@ class PlanChangeTest {
         apiSuccess 
       });
 
-      console.log(`${updateSuccess && apiSuccess ? '✅' : '❌'} Plan change test for "${targetPlan}" completed\n`);
+      logger.info(`${updateSuccess && apiSuccess ? '✅' : '❌'} Plan change test for "${targetPlan}" completed\n`);
     }
 
     // Restore original plan
-    console.log(`🔄 Restoring original plan: "${initialPlan}"`);
+    logger.info(`🔄 Restoring original plan: "${initialPlan}"`);
     await this.updateUserPlan(initialPlan);
 
     this.printResults();
   }
 
   printResults() {
-    console.log('\n📋 TEST RESULTS SUMMARY');
-    console.log('=' .repeat(50));
+    logger.info('\n📋 TEST RESULTS SUMMARY');
+    logger.info('=' .repeat(50));
     
     let passedTests = 0;
     let totalTests = this.testResults.length;
 
     this.testResults.forEach(result => {
       const status = result.success ? '✅ PASS' : '❌ FAIL';
-      console.log(`${status} Plan: ${result.plan.padEnd(12)} | Update: ${result.updateSuccess ? '✅' : '❌'} | API: ${result.apiSuccess ? '✅' : '❌'}`);
+      logger.info(`${status} Plan: ${result.plan.padEnd(12)} | Update: ${result.updateSuccess ? '✅' : '❌'} | API: ${result.apiSuccess ? '✅' : '❌'}`);
       if (result.success) passedTests++;
     });
 
-    console.log('\n' + '='.repeat(50));
-    console.log(`📊 Overall Results: ${passedTests}/${totalTests} tests passed`);
+    logger.info('\n' + '='.repeat(50));
+    logger.info(`📊 Overall Results: ${passedTests}/${totalTests} tests passed`);
     
     if (passedTests === totalTests && totalTests > 0) {
-      console.log('🎉 ALL PLAN CHANGE TESTS PASSED!');
-      console.log('\n✅ Plan change functionality is working correctly:');
-      console.log('   • Direct database updates work');
-      console.log('   • Plan changes are persisted correctly');
-      console.log('   • Real-time propagation is functional');
+      logger.info('🎉 ALL PLAN CHANGE TESTS PASSED!');
+      logger.info('\n✅ Plan change functionality is working correctly:');
+      logger.info('   • Direct database updates work');
+      logger.info('   • Plan changes are persisted correctly');
+      logger.info('   • Real-time propagation is functional');
     } else if (passedTests > 0) {
-      console.log('⚠️  SOME TESTS FAILED - Check individual results above');
+      logger.info('⚠️  SOME TESTS FAILED - Check individual results above');
     } else {
-      console.log('❌ ALL TESTS FAILED - Plan change functionality needs attention');
+      logger.info('❌ ALL TESTS FAILED - Plan change functionality needs attention');
     }
 
-    console.log('\n🔗 Frontend Testing:');
-    console.log('   • Open http://localhost:3000 in your browser');
-    console.log('   • Navigate to Settings or Usage/Plan pages');
-    console.log('   • Verify plan changes are reflected in real-time');
-    console.log('   • Test paywall triggers at usage limits');
+    logger.info('\n🔗 Frontend Testing:');
+    logger.info('   • Open http://localhost:3000 in your browser');
+    logger.info('   • Navigate to Settings or Usage/Plan pages');
+    logger.info('   • Verify plan changes are reflected in real-time');
+    logger.info('   • Test paywall triggers at usage limits');
   }
 }
 
@@ -197,7 +199,7 @@ class PlanChangeTest {
 if (require.main === module) {
   const test = new PlanChangeTest();
   test.runPlanChangeTest().catch(error => {
-    console.error('\n💥 Test suite failed:', error);
+    logger.error('\n💥 Test suite failed:', error);
     process.exit(1);
   });
 }

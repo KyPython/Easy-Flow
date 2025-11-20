@@ -1,4 +1,6 @@
-console.log('dotenv path →', require('path').resolve(__dirname, '..', '.env'));
+
+const { logger, getLogger } = require('../utils/logger');
+logger.info('dotenv path →', require('path').resolve(__dirname, '..', '.env'));
 
 const fs = require('fs');
 const path = require('path');
@@ -24,11 +26,11 @@ function mask(k){ if(!k) return '<missing>'; if(k.length<=12) return k; return `
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
 
-console.log('Using .env path →', chosen);
-console.log('Loaded SUPABASE_SERVICE_ROLE (masked):', mask(SUPABASE_SERVICE_ROLE));
+logger.info('Using .env path →', chosen);
+logger.info('Loaded SUPABASE_SERVICE_ROLE (masked):', mask(SUPABASE_SERVICE_ROLE));
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
-  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE in the chosen .env');
+  logger.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE in the chosen .env');
   process.exit(1);
 }
 
@@ -42,17 +44,17 @@ try {
       const m = SUPABASE_URL.match(/https?:\/\/([^./]+)\.supabase\.co/);
       const projectRef = m ? m[1] : null;
       if (projectRef && payload.ref !== projectRef) {
-        console.warn(`Supabase key project mismatch: token.ref=${payload.ref} vs SUPABASE_URL project=${projectRef}`);
+        logger.warn(`Supabase key project mismatch: token.ref=${payload.ref} vs SUPABASE_URL project=${projectRef}`);
       }
     }
     // check role claim
     if (!payload.role) {
-      console.warn('Supabase key does NOT contain a `role` claim. Server operations require a Service Role key (role: "service_role").');
-      console.warn('This often means you pasted an anon key, a different project key, or a malformed token into backend/.env.');
+      logger.warn('Supabase key does NOT contain a `role` claim. Server operations require a Service Role key (role: "service_role").');
+      logger.warn('This often means you pasted an anon key, a different project key, or a malformed token into backend/.env.');
     } else if (payload.role !== 'service_role') {
-      console.warn(`Supabase key role is '${payload.role}' but should be 'service_role' for server-side privileged operations.`);
+      logger.warn(`Supabase key role is '${payload.role}' but should be 'service_role' for server-side privileged operations.`);
     } else {
-      console.log('Supabase token has correct role: service_role');
+      logger.info('Supabase token has correct role: service_role');
     }
   }
 } catch (e) {
@@ -65,13 +67,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
   try {
     const { data, error } = await supabase.from('profiles').select('id').limit(1);
     if (error) {
-      console.error('Supabase error:', error);
+      logger.error('Supabase error:', error);
       process.exit(2);
     }
-    console.log('Supabase query OK, sample data:', data);
+    logger.info('Supabase query OK, sample data:', data);
     process.exit(0);
   } catch (err) {
-    console.error('Unexpected error:', err?.message || err);
+    logger.error('Unexpected error:', err?.message || err);
     process.exit(3);
   }
 })();

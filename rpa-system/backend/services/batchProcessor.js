@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');
 const { createInstrumentedHttpClient } = require('../middleware/httpInstrumentation');
 const { BulkOperationSpan, withPerformanceSpan } = require('../middleware/performanceInstrumentation');
@@ -98,7 +100,7 @@ class BatchProcessor {
       };
 
     } catch (error) {
-      console.error('[BatchProcessor] Bulk invoice processing failed:', error);
+      logger.error('[BatchProcessor] Bulk invoice processing failed:', error);
       throw error;
     }
   }
@@ -154,7 +156,7 @@ class BatchProcessor {
       throw lastError;
       
     } catch (error) {
-      console.error(`[BatchProcessor] Vendor ${name} processing failed:`, error);
+      logger.error(`[BatchProcessor] Vendor ${name} processing failed:`, error);
       return {
         vendor: name,
         success: false,
@@ -196,7 +198,7 @@ class BatchProcessor {
         }
         
       } catch (error) {
-        console.error('[BatchProcessor] File processing error:', error);
+        logger.error('[BatchProcessor] File processing error:', error);
       }
     }
   }
@@ -224,7 +226,7 @@ class BatchProcessor {
       };
       
     } catch (error) {
-      console.error('[BatchProcessor] Metadata extraction failed:', error);
+      logger.error('[BatchProcessor] Metadata extraction failed:', error);
       return {};
     }
   }

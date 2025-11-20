@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('./utils/logger');
 // Minimal test server to check if basic Express setup works
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
@@ -28,12 +30,12 @@ app.get('/api/social-proof-metrics', (req, res) => {
 });
 
 app.post('/api/track-event', (req, res) => {
-  console.log('Track event:', req.body);
+  logger.info('Track event:', req.body);
   res.json({ success: true });
 });
 
 app.post('/api/trigger-campaign', (req, res) => {
-  console.log('Trigger campaign:', req.body);
+  logger.info('Trigger campaign:', req.body);
   res.json({ success: true, campaignId: 'test-123' });
 });
 
@@ -46,6 +48,6 @@ app.get('/api/user/plan', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Minimal backend server running on http://localhost:${PORT}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
+  logger.info(`✅ Minimal backend server running on http://localhost:${PORT}`);
+  logger.info(`🔗 Health check: http://localhost:${PORT}/api/health`);
 });

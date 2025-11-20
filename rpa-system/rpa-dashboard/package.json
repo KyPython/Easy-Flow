@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "homepage": "https://easy-flow-lac.vercel.app",
-  "proxy": "http://localhost:3032",
+  "proxy": "http://localhost:3030",
   "dependencies": {
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/auto-instrumentations-web": "^0.35.0",
@@ -37,6 +37,7 @@
   },
   "scripts": {
     "start": "react-app-rewired start",
+    "dev": "react-app-rewired start",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject"

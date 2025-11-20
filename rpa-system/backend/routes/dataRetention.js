@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 /**
  * Data Retention API Routes
  * 
@@ -33,7 +35,7 @@ router.get('/status', requireDataRetention, async (req, res) => {
       data: status
     });
   } catch (error) {
-    console.error('Failed to get retention status:', error);
+    logger.error('Failed to get retention status:', error);
     res.status(500).json({
       error: 'Failed to get retention service status',
       details: error.message
@@ -61,7 +63,7 @@ router.get('/statistics', requireDataRetention, async (req, res) => {
       data: stats
     });
   } catch (error) {
-    console.error('Failed to get retention statistics:', error);
+    logger.error('Failed to get retention statistics:', error);
     res.status(500).json({
       error: 'Failed to get retention statistics',
       details: error.message
@@ -114,7 +116,7 @@ router.post('/cleanup', requireDataRetention, async (req, res) => {
       data: result
     });
   } catch (error) {
-    console.error('Data cleanup failed:', error);
+    logger.error('Data cleanup failed:', error);
     
     await auditLogger.logUserAction(
       req.user.id, 
@@ -179,7 +181,7 @@ router.put('/policy', requireDataRetention, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Failed to update retention policy:', error);
+    logger.error('Failed to update retention policy:', error);
     res.status(500).json({
       error: 'Failed to update retention policy',
       details: error.message
@@ -207,7 +209,7 @@ router.post('/start', requireDataRetention, async (req, res) => {
       message: 'Data retention scheduler started successfully'
     });
   } catch (error) {
-    console.error('Failed to start retention scheduler:', error);
+    logger.error('Failed to start retention scheduler:', error);
     res.status(500).json({
       error: 'Failed to start retention scheduler',
       details: error.message
@@ -235,7 +237,7 @@ router.post('/stop', requireDataRetention, async (req, res) => {
       message: 'Data retention scheduler stopped successfully'
     });
   } catch (error) {
-    console.error('Failed to stop retention scheduler:', error);
+    logger.error('Failed to stop retention scheduler:', error);
     res.status(500).json({
       error: 'Failed to stop retention scheduler',
       details: error.message
@@ -289,7 +291,7 @@ router.get('/policies', requireDataRetention, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Failed to get retention policies:', error);
+    logger.error('Failed to get retention policies:', error);
     res.status(500).json({
       error: 'Failed to get retention policies',
       details: error.message
@@ -329,7 +331,7 @@ router.post('/preview', requireDataRetention, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Failed to preview cleanup:', error);
+    logger.error('Failed to preview cleanup:', error);
     res.status(500).json({
       error: 'Failed to preview cleanup',
       details: error.message

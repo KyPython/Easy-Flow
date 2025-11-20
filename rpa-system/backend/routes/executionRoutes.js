@@ -1,11 +1,15 @@
 
+const { logger, getLogger } = require('../utils/logger');
+
 const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
-const requireFeature = require('../middleware/planEnforcement');
+const { getSupabase } = require('../utils/supabaseClient');
+const { requireFeature } = require('../middleware/planEnforcement');
 const { LinkDiscoveryService } = require('../services/linkDiscoveryService');
 const { createContextLogger } = require('../middleware/traceContext');
 
 const router = express.Router();
+
+// Using centralized Supabase client (getSupabase)
 
 // Get execution details with step_executions
 router.get('/:executionId', requireFeature('workflow_executions'), async (req, res) => {
@@ -26,10 +30,8 @@ router.get('/:executionId', requireFeature('workflow_executions'), async (req, r
     const { executionId } = req.params;
     logger.info('Fetching execution details', { executionId });
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     const { data: execution, error } = await supabase
       .from('workflow_executions')
@@ -74,10 +76,8 @@ router.get('/:executionId/steps', requireFeature('workflow_executions'), async (
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const { executionId } = req.params;
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     // Verify ownership via execution
     const { data: execution, error: execError } = await supabase
@@ -97,7 +97,7 @@ router.get('/:executionId/steps', requireFeature('workflow_executions'), async (
 
     return res.json({ steps: steps || [] });
   } catch (e) {
-    console.error('[ExecutionRoutes] Get steps error:', e);
+    logger.error('[ExecutionRoutes] Get steps error:', e);
     return res.status(500).json({ error: 'Failed to fetch steps' });
   }
 });
@@ -112,10 +112,8 @@ router.post('/:executionId/cancel', requireFeature('workflow_executions'), async
 
     const { executionId } = req.params;
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     // Verify execution exists and belongs to user
     const { data: execution, error: execError } = await supabase
@@ -152,7 +150,7 @@ router.post('/:executionId/cancel', requireFeature('workflow_executions'), async
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('[ExecutionRoutes] Cancel error:', error);
+    logger.error('[ExecutionRoutes] Cancel error:', error);
     return res.status(500).json({ error: 'Failed to cancel execution' });
   }
 });
@@ -193,7 +191,7 @@ router.post('/test-link-discovery', requireFeature('workflow_executions'), async
       });
     }
 
-    console.log(`[TestLinkDiscovery] Starting test for user ${userId}:`, {
+    logger.info(`[TestLinkDiscovery] Starting test for user ${userId}:`, {
       url, username: username.substring(0, 3) + '***', discoveryMethod
     });
 
@@ -209,7 +207,7 @@ router.post('/test-link-discovery', requireFeature('workflow_executions'), async
       testMode: true
     });
 
-    console.log(`[TestLinkDiscovery] Discovery completed:`, {
+    logger.info(`[TestLinkDiscovery] Discovery completed:`, {
       success: discoveryResult.success,
       linksFound: discoveryResult.discoveredLinks?.length || 0
     });
@@ -220,7 +218,7 @@ router.post('/test-link-discovery', requireFeature('workflow_executions'), async
     });
 
   } catch (error) {
-    console.error('[TestLinkDiscovery] Error:', error);
+    logger.error('[TestLinkDiscovery] Error:', error);
     return res.status(500).json({
       error: 'Link discovery test failed',
       details: error.message

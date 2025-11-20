@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('./logger');
 let Kafka;
 let ConfluentKafka;
 let uuidv4;
@@ -5,9 +7,9 @@ let axios;
 try {
     // Try to use the new Confluent Kafka client first
     ConfluentKafka = require('@confluentinc/kafka-javascript').KafkaJS.Kafka;
-    console.log('✅ Using Confluent Kafka JavaScript client');
+    logger.info('✅ Using Confluent Kafka JavaScript client');
 } catch (e) {
-    console.log('⚠️ Confluent Kafka client not available, falling back to kafkajs');
+    logger.info('⚠️ Confluent Kafka client not available, falling back to kafkajs');
     ConfluentKafka = null;
 }
 
@@ -16,7 +18,7 @@ try {
     uuidv4 = require('uuid').v4;
     axios = require('axios');
 } catch (e) {
-    console.warn('⚠️ kafkajs, uuid, or axios not available; Kafka will be disabled in this environment');
+    logger.warn('⚠️ kafkajs, uuid, or axios not available; Kafka will be disabled in this environment');
     Kafka = null;
     uuidv4 = () => 'uuid-missing-' + Date.now();
     axios = null;
@@ -27,7 +29,7 @@ let traceContext = null;
 try {
     traceContext = require('../middleware/traceContext');
 } catch (e) {
-    console.warn('⚠️ Trace context not available, Kafka messages will not include correlation headers');
+    logger.warn('⚠️ Trace context not available, Kafka messages will not include correlation headers');
 }
 
 class KafkaService {
@@ -39,7 +41,7 @@ class KafkaService {
         this.useUpstash = process.env.UPSTASH_KAFKA_REST_URL && process.env.UPSTASH_KAFKA_REST_USERNAME && process.env.UPSTASH_KAFKA_REST_PASSWORD;
         
         if (!this.kafkaEnabled) {
-            console.log('🔇 Kafka disabled via KAFKA_ENABLED environment variable');
+            logger.info('🔇 Kafka disabled via KAFKA_ENABLED environment variable');
             this.kafka = null;
             this.producer = null;
             this.consumer = null;
@@ -71,7 +73,7 @@ class KafkaService {
         
         // If using Upstash, check axios availability
         if (this.useUpstash && !axios) {
-            console.error('⚠️ axios not available; Upstash REST API requires axios');
+            logger.error('⚠️ axios not available; Upstash REST API requires axios');
             this.kafkaEnabled = false;
             this.isConnected = false;
             return;
@@ -80,11 +82,11 @@ class KafkaService {
         // If using traditional Kafka, check kafkajs availability and broker configuration
         if (!this.useUpstash && (!Kafka || !this.brokers)) {
             if (!Kafka) {
-                console.warn('⚠️ Kafka client not present; Kafka functionality disabled');
+                logger.warn('⚠️ Kafka client not present; Kafka functionality disabled');
             }
             if (!this.brokers) {
-                console.warn('⚠️ KAFKA_BOOTSTRAP_SERVERS or KAFKA_BROKERS not configured; Kafka functionality disabled');
-                console.warn('   Set KAFKA_BOOTSTRAP_SERVERS to your Kafka broker URL (e.g., my-kafka.render.com:9092)');
+                logger.warn('⚠️ KAFKA_BOOTSTRAP_SERVERS or KAFKA_BROKERS not configured; Kafka functionality disabled');
+                logger.warn('   Set KAFKA_BOOTSTRAP_SERVERS to your Kafka broker URL (e.g., my-kafka.render.com:9092)');
             }
             this.kafkaEnabled = false;
             this.kafka = null;
@@ -99,7 +101,7 @@ class KafkaService {
     
     async initialize() {
         if (!this.kafkaEnabled) {
-            console.log('🔇 Kafka initialization skipped - service disabled');
+            logger.info('🔇 Kafka initialization skipped - service disabled');
             return;
         }
         
@@ -112,17 +114,17 @@ class KafkaService {
     
     async initializeUpstash() {
         try {
-            console.log('[KafkaService] Initializing Upstash Kafka REST API');
+            logger.info('[KafkaService] Initializing Upstash Kafka REST API');
             
             // Test connection to Upstash
             const response = await this.makeUpstashRequest('GET', '/');
-            console.log('[KafkaService] Upstash connection test successful');
+            logger.info('[KafkaService] Upstash connection test successful');
             
             this.isConnected = true;
-            console.log('[KafkaService] Successfully connected to Upstash Kafka');
+            logger.info('[KafkaService] Successfully connected to Upstash Kafka');
             
         } catch (error) {
-            console.error('[KafkaService] Failed to initialize Upstash Kafka:', error);
+            logger.error('[KafkaService] Failed to initialize Upstash Kafka:', error);
             this.isConnected = false;
         }
     }
@@ -130,7 +132,7 @@ class KafkaService {
     async initializeTraditionalKafka() {
         let admin = null;
         try {
-            console.log(`[KafkaService] Initializing Kafka with brokers: ${this.brokers}`);
+            logger.info(`[KafkaService] Initializing Kafka with brokers: ${this.brokers}`);
             
             const kafkaConfig = {
                 clientId: 'backend-service',
@@ -149,7 +151,7 @@ class KafkaService {
                     username: process.env.KAFKA_USERNAME,
                     password: process.env.KAFKA_PASSWORD
                 };
-                console.log('[KafkaService] Using SSL/SASL authentication with PLAIN mechanism');
+                logger.info('[KafkaService] Using SSL/SASL authentication with PLAIN mechanism');
             }
 
             // Use Confluent client if available, otherwise fall back to kafkajs
@@ -159,7 +161,7 @@ class KafkaService {
             // Create admin client for topic management
             admin = this.kafka.admin();
             await admin.connect();
-            console.log('[KafkaService] Admin client connected');
+            logger.info('[KafkaService] Admin client connected');
             
             // Define required topics
             const requiredTopics = [
@@ -203,7 +205,7 @@ class KafkaService {
             
             // Check existing topics
             const existingTopics = await admin.listTopics();
-            console.log('[KafkaService] Existing topics:', existingTopics);
+            logger.info('[KafkaService] Existing topics:', existingTopics);
             
             // Filter topics that need to be created
             const topicsToCreate = requiredTopics.filter(topicConfig => 
@@ -211,7 +213,7 @@ class KafkaService {
             );
             
             if (topicsToCreate.length > 0) {
-                console.log('[KafkaService] Creating missing topics:', topicsToCreate.map(t => t.topic));
+                logger.info('[KafkaService] Creating missing topics:', topicsToCreate.map(t => t.topic));
                 
                 try {
                     await admin.createTopics({
@@ -219,17 +221,17 @@ class KafkaService {
                         waitForLeaders: true,
                         timeout: 30000
                     });
-                    console.log('[KafkaService] Successfully created topics:', topicsToCreate.map(t => t.topic));
+                    logger.info('[KafkaService] Successfully created topics:', topicsToCreate.map(t => t.topic));
                 } catch (createError) {
                     // Handle case where topics might already exist (race condition)
                     if (createError.message && createError.message.includes('already exists')) {
-                        console.log('[KafkaService] Topics already exist (created by another process)');
+                        logger.info('[KafkaService] Topics already exist (created by another process)');
                     } else {
-                        console.warn('[KafkaService] Failed to create some topics, continuing anyway:', createError.message);
+                        logger.warn('[KafkaService] Failed to create some topics, continuing anyway:', createError.message);
                     }
                 }
             } else {
-                console.log('[KafkaService] All required topics already exist');
+                logger.info('[KafkaService] All required topics already exist');
             }
             
             this.producer = this.kafka.producer({
@@ -255,19 +257,19 @@ class KafkaService {
             this.startConsumingResults();
             
             this.isConnected = true;
-            console.log('[KafkaService] Successfully connected to Kafka with auto-topic creation');
+            logger.info('[KafkaService] Successfully connected to Kafka with auto-topic creation');
             
         } catch (error) {
-            console.error('[KafkaService] Failed to initialize Kafka:', error);
+            logger.error('[KafkaService] Failed to initialize Kafka:', error);
             this.isConnected = false;
         } finally {
             // Always disconnect admin client
             if (admin) {
                 try {
                     await admin.disconnect();
-                    console.log('[KafkaService] Admin client disconnected');
+                    logger.info('[KafkaService] Admin client disconnected');
                 } catch (disconnectError) {
-                    console.warn('[KafkaService] Error disconnecting admin client:', disconnectError);
+                    logger.warn('[KafkaService] Error disconnecting admin client:', disconnectError);
                 }
             }
         }
@@ -326,7 +328,7 @@ class KafkaService {
                         const result = JSON.parse(message.value.toString());
                         const taskId = result.task_id;
                         
-                        console.log(`[KafkaService] Received result for task ${taskId}:`, result);
+                        logger.info(`[KafkaService] Received result for task ${taskId}:`, result);
                         
 
                         // Update taskStatusStore for status polling endpoint
@@ -342,7 +344,7 @@ class KafkaService {
                                 });
                             }
                         } catch (e) {
-                            console.error('[KafkaService] Could not update taskStatusStore:', e);
+                            logger.error('[KafkaService] Could not update taskStatusStore:', e);
                         }
 
                         // Check if we have a callback for this task
@@ -353,12 +355,12 @@ class KafkaService {
                         }
                         
                     } catch (error) {
-                        console.error('[KafkaService] Error processing result message:', error);
+                        logger.error('[KafkaService] Error processing result message:', error);
                     }
                 }
             });
         } catch (error) {
-            console.error('[KafkaService] Error starting result consumer:', error);
+            logger.error('[KafkaService] Error starting result consumer:', error);
         }
     }
     
@@ -375,7 +377,7 @@ class KafkaService {
             if (logger) {
                 logger.info('Kafka automation task skipped - service disabled');
             } else {
-                console.log('🔇 Kafka automation task skipped - service disabled');
+                logger.info('🔇 Kafka automation task skipped - service disabled');
             }
             return { 
                 success: true, 
@@ -407,7 +409,7 @@ class KafkaService {
                     useUpstash: this.useUpstash
                 });
             } else {
-                console.log(`[KafkaService] Sending automation task ${taskId}:`, taskWithId);
+                logger.info(`[KafkaService] Sending automation task ${taskId}:`, taskWithId);
             }
             
             let result;
@@ -436,11 +438,11 @@ class KafkaService {
                 });
             }
             
-            console.log(`[KafkaService] Task ${taskId} sent successfully:`, result);
+            logger.info(`[KafkaService] Task ${taskId} sent successfully:`, result);
             return { taskId, success: true, result };
             
         } catch (error) {
-            console.error(`[KafkaService] Failed to send task ${taskId}:`, error);
+            logger.error(`[KafkaService] Failed to send task ${taskId}:`, error);
             throw error;
         }
     }
@@ -491,7 +493,7 @@ class KafkaService {
             if (this.useUpstash) {
                 // No explicit disconnect needed for REST API
                 this.isConnected = false;
-                console.log('[KafkaService] Disconnected from Upstash Kafka');
+                logger.info('[KafkaService] Disconnected from Upstash Kafka');
             } else {
                 if (this.producer) {
                     await this.producer.disconnect();
@@ -500,10 +502,10 @@ class KafkaService {
                     await this.consumer.disconnect();
                 }
                 this.isConnected = false;
-                console.log('[KafkaService] Disconnected from Kafka');
+                logger.info('[KafkaService] Disconnected from Kafka');
             }
         } catch (error) {
-            console.error('[KafkaService] Error disconnecting from Kafka:', error);
+            logger.error('[KafkaService] Error disconnecting from Kafka:', error);
         }
     }
 }

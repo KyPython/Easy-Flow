@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 const express = require('express');
 const { TriggerService } = require('../services/triggerService');
 
@@ -32,10 +34,10 @@ router.post('/trigger/:token', async (req, res) => {
       extractedContext = propagation.extract(context.active(), carrier);
       isExternalTrace = true;
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[WebhookRoutes] Extracted trace context from webhook: ${carrier.traceparent || carrier.traceid}`);
+        logger.info(`[WebhookRoutes] Extracted trace context from webhook: ${carrier.traceparent || carrier.traceid}`);
       }
     } catch (err) {
-      console.warn(`[WebhookRoutes] Failed to extract trace context:`, err.message);
+      logger.warn(`[WebhookRoutes] Failed to extract trace context:`, err.message);
     }
   }
 
@@ -57,7 +59,7 @@ router.post('/trigger/:token', async (req, res) => {
       async (span) => {
         try {
           if (process.env.NODE_ENV !== 'production') {
-            console.log(`[WebhookRoutes] Webhook trigger received: ${token} (trace_id: ${span.spanContext().traceId})`);
+            logger.info(`[WebhookRoutes] Webhook trigger received: ${token} (trace_id: ${span.spanContext().traceId})`);
           }
 
           // Validate token format
@@ -108,7 +110,7 @@ router.post('/trigger/:token', async (req, res) => {
           span.setAttribute('error.type', error.constructor.name);
           span.setAttribute('webhook.duration_ms', duration);
           
-          console.error(`[WebhookRoutes] Webhook execution failed:`, error);
+          logger.error(`[WebhookRoutes] Webhook execution failed:`, error);
           
           // Don't expose internal errors to external callers
           const isInternalError = error.message.includes('Database') || error.message.includes('Internal');
@@ -134,7 +136,16 @@ router.post('/trigger/:token', async (req, res) => {
 });
 
 // Get webhook trigger URL for a schedule (authenticated)
-const requireFeature = require('../middleware/planEnforcement');
+const { requireFeature } = require('../middleware/planEnforcement');
+
+// Safe supabase helper
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
+function getSupabase() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  const { createClient } = require('@supabase/supabase-js');
+  return createClient(SUPABASE_URL, SUPABASE_KEY);
+}
 
 router.get('/schedule/:scheduleId/webhook', requireFeature('webhooks'), async (req, res) => {
   try {
@@ -146,11 +157,8 @@ router.get('/schedule/:scheduleId/webhook', requireFeature('webhooks'), async (r
     }
 
     // Get schedule details
-    const { createClient } = require('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     const { data: schedule, error } = await supabase
       .from('workflow_schedules')
@@ -177,7 +185,7 @@ router.get('/schedule/:scheduleId/webhook', requireFeature('webhooks'), async (r
     });
 
   } catch (error) {
-    console.error('[WebhookRoutes] Error getting webhook URL:', error);
+    logger.error('[WebhookRoutes] Error getting webhook URL:', error);
     res.status(500).json({ error: 'Failed to get webhook URL' });
   }
 });
@@ -194,11 +202,8 @@ router.post('/test/:token', requireFeature('webhooks'), async (req, res) => {
     }
 
     // Verify user owns this webhook token
-    const { createClient } = require('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     const { data: schedule, error } = await supabase
       .from('workflow_schedules')
@@ -225,7 +230,7 @@ router.post('/test/:token', requireFeature('webhooks'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[WebhookRoutes] Test webhook failed:', error);
+    logger.error('[WebhookRoutes] Test webhook failed:', error);
     res.status(400).json({
       success: false,
       error: error.message

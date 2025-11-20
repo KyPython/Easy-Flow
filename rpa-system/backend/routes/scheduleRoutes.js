@@ -1,12 +1,16 @@
+
+const { logger, getLogger } = require('../utils/logger');
 const express = require('express');
 const { TriggerService } = require('../services/triggerService');
-const { createClient } = require('@supabase/supabase-js');
+const { getSupabase } = require('../utils/supabaseClient');
 
 const router = express.Router();
 const triggerService = new TriggerService();
 
 // Get all schedules for user
-const requireFeature = require('../middleware/planEnforcement');
+const { requireFeature } = require('../middleware/planEnforcement');
+
+// Use centralized supabase client
 
 router.get('/', requireFeature('schedules'), async (req, res) => {
   try {
@@ -15,10 +19,8 @@ router.get('/', requireFeature('schedules'), async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     const { data: schedules, error } = await supabase
       .from('workflow_schedules')
@@ -43,7 +45,7 @@ router.get('/', requireFeature('schedules'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[ScheduleRoutes] Error fetching schedules:', error);
+    logger.error('[ScheduleRoutes] Error fetching schedules:', error);
     res.status(500).json({ error: 'Failed to fetch schedules' });
   }
 });
@@ -58,10 +60,8 @@ router.get('/:scheduleId', requireFeature('schedules'), async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     const { data: schedule, error } = await supabase
       .from('workflow_schedules')
@@ -85,7 +85,7 @@ router.get('/:scheduleId', requireFeature('schedules'), async (req, res) => {
     res.json(schedule);
 
   } catch (error) {
-    console.error('[ScheduleRoutes] Error fetching schedule:', error);
+    logger.error('[ScheduleRoutes] Error fetching schedule:', error);
     res.status(500).json({ error: 'Failed to fetch schedule' });
   }
 });
@@ -130,10 +130,8 @@ router.post('/', requireFeature('schedules'), async (req, res) => {
     }
 
     // Verify workflow ownership
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     const { data: workflow, error: workflowError } = await supabase
       .from('workflows')
@@ -217,7 +215,7 @@ router.post('/', requireFeature('schedules'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[ScheduleRoutes] Error creating schedule:', error);
+    logger.error('[ScheduleRoutes] Error creating schedule:', error);
     res.status(500).json({ error: error.message || 'Failed to create schedule' });
   }
 });
@@ -241,10 +239,8 @@ router.put('/:scheduleId', requireFeature('schedules'), async (req, res) => {
       isActive
     } = req.body;
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     // Verify ownership
     const { data: existingSchedule, error: fetchError } = await supabase
@@ -299,7 +295,7 @@ router.put('/:scheduleId', requireFeature('schedules'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[ScheduleRoutes] Error updating schedule:', error);
+    logger.error('[ScheduleRoutes] Error updating schedule:', error);
     res.status(500).json({ error: error.message || 'Failed to update schedule' });
   }
 });
@@ -314,10 +310,8 @@ router.delete('/:scheduleId', requireFeature('schedules'), async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     // Verify ownership
     const { data: schedule, error: fetchError } = await supabase
@@ -336,7 +330,7 @@ router.delete('/:scheduleId', requireFeature('schedules'), async (req, res) => {
     res.json({ message: 'Schedule deleted successfully' });
 
   } catch (error) {
-    console.error('[ScheduleRoutes] Error deleting schedule:', error);
+    logger.error('[ScheduleRoutes] Error deleting schedule:', error);
     res.status(500).json({ error: error.message || 'Failed to delete schedule' });
   }
 });
@@ -351,10 +345,8 @@ router.post('/:scheduleId/trigger', requireFeature('schedules'), async (req, res
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     // Get schedule
     const { data: schedule, error } = await supabase
@@ -392,7 +384,7 @@ router.post('/:scheduleId/trigger', requireFeature('schedules'), async (req, res
     });
 
   } catch (error) {
-    console.error('[ScheduleRoutes] Error triggering schedule:', error);
+    logger.error('[ScheduleRoutes] Error triggering schedule:', error);
     res.status(500).json({ error: error.message || 'Failed to trigger workflow' });
   }
 });
@@ -459,7 +451,7 @@ router.get('/:scheduleId/executions', requireFeature('schedules'), async (req, r
     });
 
   } catch (error) {
-    console.error('[ScheduleRoutes] Error fetching executions:', error);
+    logger.error('[ScheduleRoutes] Error fetching executions:', error);
     res.status(500).json({ error: 'Failed to fetch execution history' });
   }
 });

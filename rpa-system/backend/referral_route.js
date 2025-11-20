@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('./utils/logger');
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const router = express.Router();
@@ -107,12 +109,12 @@ router.post('/generate-referral', async (req, res) => {
       .single();
 
     if (referralInsertError) {
-      console.error('Error creating referral:', referralInsertError);
+      logger.error('Error creating referral:', referralInsertError);
       return res.status(500).json({ error: 'Failed to create referral' });
     }
 
     // TODO: Send email to referred user with signup link containing referral code
-    console.log(`Referral created: ${referralCode} for ${referredEmail} by ${referrerEmail}`);
+    logger.info(`Referral created: ${referralCode} for ${referredEmail} by ${referrerEmail}`);
 
     res.json({
       success: true,
@@ -121,7 +123,7 @@ router.post('/generate-referral', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error in generate-referral:', error);
+    logger.error('Error in generate-referral:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -160,7 +162,7 @@ router.post('/complete-referral', async (req, res) => {
       .eq('id', referral.id);
 
     if (updateError) {
-      console.error('Error updating referral:', updateError);
+      logger.error('Error updating referral:', updateError);
       return res.status(500).json({ error: 'Failed to complete referral' });
     }
 
@@ -173,7 +175,7 @@ router.post('/complete-referral', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error in complete-referral:', error);
+    logger.error('Error in complete-referral:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -190,7 +192,7 @@ async function grantReferralReward(userId) {
       .single();
 
     if (profileError) {
-      console.error('Error fetching user profile for reward:', profileError);
+      logger.error('Error fetching user profile for reward:', profileError);
       return;
     }
 
@@ -217,9 +219,9 @@ async function grantReferralReward(userId) {
       .eq('id', userId);
 
     if (updateError) {
-      console.error('Error granting referral reward:', updateError);
+      logger.error('Error granting referral reward:', updateError);
     } else {
-      console.log(`Granted 1 month free to user ${userId}, plan expires: ${newExpirationDate}`);
+      logger.info(`Granted 1 month free to user ${userId}, plan expires: ${newExpirationDate}`);
     }
 
     // Mark reward as granted
@@ -231,7 +233,7 @@ async function grantReferralReward(userId) {
       .eq('reward_granted', false);
 
   } catch (error) {
-    console.error('Error in grantReferralReward:', error);
+    logger.error('Error in grantReferralReward:', error);
   }
 }
 

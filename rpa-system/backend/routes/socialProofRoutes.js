@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 // Social Proof Metrics API Route
 const express = require('express');
 const router = express.Router();
@@ -8,7 +10,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn('⚠️ Missing Supabase configuration for social proof metrics. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE in .env');
+  logger.warn('⚠️ Missing Supabase configuration for social proof metrics. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE in .env');
 }
 
 const supabase = supabaseUrl && supabaseServiceKey ? 
@@ -35,7 +37,7 @@ router.get('/social-proof-metrics', async (req, res) => {
 
     // If Supabase not configured, return fallback values
     if (!supabase) {
-      console.warn('⚠️ Supabase not configured - returning fallback metrics');
+      logger.warn('⚠️ Supabase not configured - returning fallback metrics');
       const fallbackMetrics = {
         totalUsers: 127,
         activeWorkflows: 89,
@@ -107,11 +109,11 @@ router.get('/social-proof-metrics', async (req, res) => {
     metricsCache = metrics;
     cacheTimestamp = now;
 
-    console.log('📊 Social proof metrics updated:', metrics);
+    logger.info('📊 Social proof metrics updated:', metrics);
     res.json(metrics);
 
   } catch (error) {
-    console.error('❌ Error fetching social proof metrics:', error);
+    logger.error('❌ Error fetching social proof metrics:', error);
     
     // Return graceful fallback instead of error
     const fallbackMetrics = {

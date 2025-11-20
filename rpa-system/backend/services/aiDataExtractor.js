@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 const axios = require('axios');
 const FormData = require('form-data');
 
@@ -84,7 +86,7 @@ class AIDataExtractor {
       };
       
     } catch (error) {
-      console.error('[AIDataExtractor] Invoice extraction failed:', error);
+      logger.error('[AIDataExtractor] Invoice extraction failed:', error);
       return {
         success: false,
         error: error.message,
@@ -115,7 +117,7 @@ class AIDataExtractor {
       };
       
     } catch (error) {
-      console.error('[AIDataExtractor] Web page extraction failed:', error);
+      logger.error('[AIDataExtractor] Web page extraction failed:', error);
       return {
         success: false,
         error: error.message,
@@ -218,7 +220,7 @@ Return valid JSON only, no additional text.
           span.setAttribute('error', true);
           span.setAttribute('http.status_code', error.response?.status || 0);
           
-          console.error('[AIDataExtractor] AI structuring failed:', error);
+          logger.error('[AIDataExtractor] AI structuring failed:', error);
           throw new Error(`Failed to structure invoice data: ${error.message}`);
         } finally {
           span.end();
@@ -311,7 +313,7 @@ If a data point cannot be found, set its value to null.
           span.setAttribute('error', true);
           span.setAttribute('http.status_code', error.response?.status || 0);
           
-          console.error('[AIDataExtractor] Specific data extraction failed:', error);
+          logger.error('[AIDataExtractor] Specific data extraction failed:', error);
           throw new Error(`Failed to extract specific data: ${error.message}`);
         } finally {
           span.end();
@@ -362,7 +364,7 @@ If a data point cannot be found, set its value to null.
       return response.data.choices[0].message.content;
       
     } catch (error) {
-      console.error('[AIDataExtractor] OCR failed:', error);
+      logger.error('[AIDataExtractor] OCR failed:', error);
       throw new Error(`OCR processing failed: ${error.message}`);
     }
   }
@@ -378,7 +380,7 @@ If a data point cannot be found, set its value to null.
       const data = await pdfParse(pdfBuffer);
       return data.text;
     } catch (error) {
-      console.error('[AIDataExtractor] PDF text extraction failed:', error);
+      logger.error('[AIDataExtractor] PDF text extraction failed:', error);
       
       // Fallback: Convert PDF to image and use OCR
       return await this.convertPDFToImageAndOCR(pdfBuffer);
@@ -394,7 +396,7 @@ If a data point cannot be found, set its value to null.
       // For now, return placeholder
       throw new Error('PDF to image conversion not implemented');
     } catch (error) {
-      console.error('[AIDataExtractor] PDF to image conversion failed:', error);
+      logger.error('[AIDataExtractor] PDF to image conversion failed:', error);
       return 'Could not extract text from PDF';
     }
   }
@@ -486,7 +488,7 @@ Return valid JSON only.
       return JSON.parse(extractedText);
       
     } catch (error) {
-      console.error('[AIDataExtractor] Table extraction failed:', error);
+      logger.error('[AIDataExtractor] Table extraction failed:', error);
       throw new Error(`Failed to extract table data: ${error.message}`);
     }
   }

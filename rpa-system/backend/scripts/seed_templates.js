@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+
+const { logger, getLogger } = require('../utils/logger');
 /*
   Seeds initial workflow templates and versions into Supabase.
   Usage:
@@ -11,7 +13,7 @@ async function main() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY;
   if (!url || !key) {
-    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE/SUPABASE_KEY');
+    logger.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE/SUPABASE_KEY');
     process.exit(1);
   }
   const supabase = createClient(url, key);
@@ -22,7 +24,7 @@ async function main() {
   if (!owner) {
     const { data: users, error: uerr } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1 });
     if (uerr) {
-      console.error('Admin listUsers failed:', uerr.message || uerr);
+      logger.error('Admin listUsers failed:', uerr.message || uerr);
       process.exit(1);
     }
     if (users?.users?.[0]) {
@@ -37,11 +39,11 @@ async function main() {
         email_confirm: true
       });
       if (cerr || !created?.user?.id) {
-        console.error('Failed to create owner user. Set TEMPLATE_OWNER_ID to proceed.');
+        logger.error('Failed to create owner user. Set TEMPLATE_OWNER_ID to proceed.');
         process.exit(1);
       }
       owner = created.user.id;
-      console.log('Created template owner user:', email);
+      logger.info('Created template owner user:', email);
     }
   }
 
@@ -77,7 +79,7 @@ async function main() {
   ];
 
   for (const t of templates) {
-    console.log('Seeding template:', t.name);
+    logger.info('Seeding template:', t.name);
     // Upsert by unique key on (owner_id, name) if such constraint exists, else emulate
     let { data: existing, error: exErr } = await supabase
       .from('workflow_templates')
@@ -86,7 +88,7 @@ async function main() {
       .eq('name', t.name)
       .maybeSingle();
     if (exErr) {
-      console.warn('Lookup existing template failed (continuing):', exErr.message || exErr);
+      logger.warn('Lookup existing template failed (continuing):', exErr.message || exErr);
     }
     let inserted = existing;
     if (!existing) {
@@ -106,13 +108,13 @@ async function main() {
         .select()
         .single();
       if (terr) {
-        console.error('Insert template error:', terr.message || terr);
+        logger.error('Insert template error:', terr.message || terr);
         continue;
       }
       inserted = ins;
     }
     if (terr) {
-      console.error('Insert template error:', terr.message || terr);
+      logger.error('Insert template error:', terr.message || terr);
       continue;
     }
 
@@ -137,13 +139,13 @@ async function main() {
         .select()
         .single();
       if (verr) {
-        console.error('Insert version error:', verr.message || verr);
+        logger.error('Insert version error:', verr.message || verr);
         continue;
       }
       ver = v;
     }
     if (verr) {
-      console.error('Insert version error:', verr.message || verr);
+      logger.error('Insert version error:', verr.message || verr);
       continue;
     }
 
@@ -153,10 +155,10 @@ async function main() {
       .eq('id', inserted.id);
   }
 
-  console.log('Template seed complete.');
+  logger.info('Template seed complete.');
 }
 
 main().catch((e) => {
-  console.error(e);
+  logger.error(e);
   process.exit(1);
 });

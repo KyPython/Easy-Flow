@@ -1,19 +1,16 @@
+
+const { logger, getLogger } = require('../utils/logger');
 const express = require('express');
 const crypto = require('crypto');
-const { createClient } = require('@supabase/supabase-js');
+const { getSupabase } = require('../utils/supabaseClient');
 
 const router = express.Router();
-const requireFeature = require('../middleware/planEnforcement');
+const { requireFeature } = require('../middleware/planEnforcement');
 
 // Make Supabase optional for local development
-let supabase = null;
-if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY)) {
-  supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
-  );
-} else {
-  console.warn('⚠️ Supabase not configured - polar routes disabled for local dev');
+const supabase = getSupabase();
+if (!supabase) {
+  logger.warn('⚠️ Supabase not configured - polar routes disabled for local dev');
 }
 
 // Canonical checkout endpoint: returns all plans/features/pricing for Polar checkout
@@ -47,14 +44,14 @@ router.get('/checkout', async (req, res) => {
       fetched_at: new Date().toISOString()
     });
   } catch (err) {
-    console.error('[GET /api/checkout/polar] Error:', err.message || err);
+    logger.error('[GET /api/checkout/polar] Error:', err.message || err);
     return res.status(500).json({ error: 'Failed to fetch plans for checkout', details: err.message || String(err) });
   }
 });
 
 function verifyPolarWebhook(rawBody, signature, secret) {
   if (!secret || !signature) {
-    console.warn('Missing webhook secret or signature');
+    logger.warn('Missing webhook secret or signature');
     return false;
   }
 
@@ -78,13 +75,13 @@ async function findUserByEmail(email) {
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      console.error('Error finding user by email:', error);
+      logger.error('Error finding user by email:', error);
       return null;
     }
 
     return data?.id || null;
   } catch (err) {
-    console.error('Error in findUserByEmail:', err);
+    logger.error('Error in findUserByEmail:', err);
     return null;
   }
 }
@@ -98,13 +95,13 @@ async function findPlanByPolarProductId(polarProductId) {
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      console.error('Error finding plan by polar product ID:', error);
+      logger.error('Error finding plan by polar product ID:', error);
       return null;
     }
 
     return data?.id || null;
   } catch (err) {
-    console.error('Error in findPlanByPolarProductId:', err);
+    logger.error('Error in findPlanByPolarProductId:', err);
     return null;
   }
 }
@@ -118,7 +115,7 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('Error fetching existing subscription:', fetchError);
+      logger.error('Error fetching existing subscription:', fetchError);
       return false;
     }
 
@@ -153,7 +150,7 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
         .eq('user_id', userId);
 
       if (updateError) {
-        console.error('Error updating subscription:', updateError);
+        logger.error('Error updating subscription:', updateError);
         return false;
       }
       subscriptionResult = { action: 'updated' };
@@ -169,7 +166,7 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
         });
 
       if (insertError) {
-        console.error('Error creating subscription:', insertError);
+        logger.error('Error creating subscription:', insertError);
         return false;
       }
       subscriptionResult = { action: 'created' };
@@ -184,10 +181,10 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
       .eq('id', userId);
 
     if (profileError) {
-      console.error('Error updating profile plan:', profileError);
+      logger.error('Error updating profile plan:', profileError);
     } else {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`Profile plan updated for user ${userId} to plan ${planId}`);
+        logger.info(`Profile plan updated for user ${userId} to plan ${planId}`);
       }
       
       // Send a realtime notification to ensure frontend updates
@@ -205,13 +202,13 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
             }
           });
       } catch (broadcastError) {
-        console.warn('Failed to send realtime notification:', broadcastError);
+        logger.warn('Failed to send realtime notification:', broadcastError);
       }
     }
 
     return subscriptionResult;
   } catch (err) {
-    console.error('Error in updateUserSubscription:', err);
+    logger.error('Error in updateUserSubscription:', err);
     return false;
   }
 }
@@ -225,7 +222,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     const webhookSecret = process.env.POLAR_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      console.warn('POLAR_WEBHOOK_SECRET not configured - webhook verification disabled');
+      logger.warn('POLAR_WEBHOOK_SECRET not configured - webhook verification disabled');
       // In production, require webhook secret. In dev, allow without verification for testing.
       if (process.env.NODE_ENV === 'production') {
         return res.status(500).json({ error: 'Webhook secret not configured' });
@@ -234,13 +231,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
     // Only verify signature if webhook secret is configured
     if (webhookSecret && !verifyPolarWebhook(req.body, signature, webhookSecret)) {
-      console.error('Invalid webhook signature');
+      logger.error('Invalid webhook signature');
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
     const payload = JSON.parse(req.body.toString());
     if (process.env.NODE_ENV !== 'production') {
-      console.log('Received Polar webhook:', {
+      logger.info('Received Polar webhook:', {
       type: payload.type,
       id: payload.data?.id,
       timestamp: new Date().toISOString()
@@ -254,19 +251,19 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         const userEmail = subscription.customer?.email || subscription.user?.email;
 
         if (!userEmail) {
-          console.error('No customer email in subscription payload');
+          logger.error('No customer email in subscription payload');
           return res.status(400).json({ error: 'Missing customer email' });
         }
 
         const userId = await findUserByEmail(userEmail);
         if (!userId) {
-          console.error(`User not found for email: ${userEmail}`);
+          logger.error(`User not found for email: ${userEmail}`);
           return res.status(404).json({ error: 'User not found' });
         }
 
         const planId = await findPlanByPolarProductId(subscription.product_id);
         if (!planId) {
-          console.error(`Plan not found for Polar product ID: ${subscription.product_id}`);
+          logger.error(`Plan not found for Polar product ID: ${subscription.product_id}`);
           return res.status(404).json({ error: 'Plan not found' });
         }
 
@@ -282,7 +279,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         }
 
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`Subscription ${result.action} for user ${userId}:`, {
+          logger.info(`Subscription ${result.action} for user ${userId}:`, {
           planId,
           externalPaymentId: subscription.id,
           status: subscription.status
@@ -303,13 +300,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         const userEmail = subscription.customer?.email || subscription.user?.email;
 
         if (!userEmail) {
-          console.error('No customer email in subscription payload');
+          logger.error('No customer email in subscription payload');
           return res.status(400).json({ error: 'Missing customer email' });
         }
 
         const userId = await findUserByEmail(userEmail);
         if (!userId) {
-          console.error(`User not found for email: ${userEmail}`);
+          logger.error(`User not found for email: ${userEmail}`);
           return res.status(404).json({ error: 'User not found' });
         }
 
@@ -322,12 +319,12 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           .eq('external_payment_id', subscription.id);
 
         if (error) {
-          console.error('Error canceling subscription:', error);
+          logger.error('Error canceling subscription:', error);
           return res.status(500).json({ error: 'Failed to cancel subscription' });
         }
 
         if (process.env.NODE_ENV !== 'production') {
-	  console.log(`Subscription canceled for user ${userId}:`, {
+	  logger.info(`Subscription canceled for user ${userId}:`, {
             externalPaymentId: subscription.id
           });
         }
@@ -342,7 +339,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
       default:
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`Unhandled webhook type: ${payload.type}`);
+          logger.info(`Unhandled webhook type: ${payload.type}`);
         }
         return res.status(200).json({
           success: true,
@@ -353,7 +350,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   }
 
   } catch (error) {
-    console.error('Error processing Polar webhook:', error);
+    logger.error('Error processing Polar webhook:', error);
     return res.status(500).json({
       error: 'Internal server error',
       duration_ms: Date.now() - startTime

@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 /**
  * ROI Analytics API Routes
  * Tracks automation performance, time savings, and business value metrics
@@ -8,12 +10,12 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { auditLogger } = require('../utils/auditLogger');
-const requireFeature = require('../middleware/planEnforcement');
+const { requireFeature } = require('../middleware/planEnforcement');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Safe supabase client (may be null when env vars aren't set)
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 /**
  * GET /api/roi-analytics/dashboard
@@ -81,7 +83,7 @@ router.get('/dashboard', requireFeature('analytics'), async (req, res) => {
 
     res.json(dashboardData);
   } catch (error) {
-    console.error('ROI dashboard error:', error);
+    logger.error('ROI dashboard error:', error);
     
     if (req.user?.id) {
       await auditLogger.logSystemEvent('error', 'roi_dashboard_failed', {
@@ -190,7 +192,7 @@ router.get('/time-savings', requireFeature('analytics'), async (req, res) => {
 
     res.json(timeSavingsAnalysis);
   } catch (error) {
-    console.error('Time savings analysis error:', error);
+    logger.error('Time savings analysis error:', error);
     res.status(500).json({ error: 'Failed to generate time savings analysis' });
   }
 });
@@ -255,7 +257,7 @@ router.get('/cost-benefit', requireFeature('analytics'), async (req, res) => {
 
     res.json(costBenefitAnalysis);
   } catch (error) {
-    console.error('Cost-benefit analysis error:', error);
+    logger.error('Cost-benefit analysis error:', error);
     res.status(500).json({ error: 'Failed to generate cost-benefit analysis' });
   }
 });
@@ -300,7 +302,7 @@ router.post('/custom-hourly-rate', requireFeature('analytics'), async (req, res)
       hourly_rate: hourly_rate 
     });
   } catch (error) {
-    console.error('Failed to update hourly rate:', error);
+    logger.error('Failed to update hourly rate:', error);
     res.status(500).json({ error: 'Failed to update hourly rate' });
   }
 });
@@ -352,7 +354,7 @@ router.get('/export', requireFeature('analytics'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('ROI export error:', error);
+    logger.error('ROI export error:', error);
     res.status(500).json({ error: 'Failed to export ROI data' });
   }
 });

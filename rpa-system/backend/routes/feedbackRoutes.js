@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('../utils/logger');
 /*
 Backend API Routes for Feedback Collection & Checklist Downloads
 ==============================================================
@@ -36,7 +38,7 @@ const ensureDirectories = async () => {
     await fs.mkdir(FEEDBACK_DIR, { recursive: true });
     await fs.mkdir(CHECKLISTS_DIR, { recursive: true });
   } catch (error) {
-    console.warn('Directory creation failed:', error.message);
+    logger.warn('Directory creation failed:', error.message);
   }
 };
 
@@ -72,7 +74,7 @@ router.post('/feedback', async (req, res) => {
       existingFeedback = JSON.parse(data);
     } catch (error) {
       // File doesn't exist yet, start with empty array
-      console.log('Creating new feedback file');
+      logger.info('Creating new feedback file');
     }
 
     // Add new feedback
@@ -82,7 +84,7 @@ router.post('/feedback', async (req, res) => {
     await fs.writeFile(FEEDBACK_FILE, JSON.stringify(existingFeedback, null, 2));
 
     // Log successful submission
-    console.log(`✅ Feedback submitted: ${feedback.id} from ${feedback.user_id || 'anonymous'}`);
+    logger.info(`✅ Feedback submitted: ${feedback.id} from ${feedback.user_id || 'anonymous'}`);
 
     res.json({
       success: true,
@@ -91,7 +93,7 @@ router.post('/feedback', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Failed to save feedback:', error);
+    logger.error('Failed to save feedback:', error);
     res.status(500).json({
       error: 'Failed to save feedback',
       code: 'STORAGE_ERROR'
@@ -120,7 +122,7 @@ router.post('/feedback/offline-sync', async (req, res) => {
       const data = await fs.readFile(FEEDBACK_FILE, 'utf-8');
       existingFeedback = JSON.parse(data);
     } catch (error) {
-      console.log('Creating new feedback file for sync');
+      logger.info('Creating new feedback file for sync');
     }
 
     // Process each offline response
@@ -141,7 +143,7 @@ router.post('/feedback/offline-sync', async (req, res) => {
     // Save updated feedback
     await fs.writeFile(FEEDBACK_FILE, JSON.stringify(existingFeedback, null, 2));
 
-    console.log(`✅ Synced ${syncedCount} offline feedback responses`);
+    logger.info(`✅ Synced ${syncedCount} offline feedback responses`);
 
     res.json({
       success: true,
@@ -150,7 +152,7 @@ router.post('/feedback/offline-sync', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Failed to sync offline feedback:', error);
+    logger.error('Failed to sync offline feedback:', error);
     res.status(500).json({
       error: 'Failed to sync offline feedback',
       code: 'SYNC_ERROR'
@@ -179,7 +181,7 @@ router.get('/checklists', async (req, res) => {
 
       return res.json(summary);
     } catch (summaryError) {
-      console.log('No summary file found, scanning directory...');
+      logger.info('No summary file found, scanning directory...');
     }
 
     // Fallback: scan directory for PDF files
@@ -203,7 +205,7 @@ router.get('/checklists', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Failed to list checklists:', error);
+    logger.error('Failed to list checklists:', error);
     res.status(500).json({
       error: 'Failed to load checklists',
       code: 'CHECKLIST_ERROR'
@@ -249,10 +251,10 @@ router.get('/checklists/download/:filename', async (req, res) => {
     res.send(fileBuffer);
 
     // Log download
-    console.log(`📥 Checklist downloaded: ${filename} by ${req.ip}`);
+    logger.info(`📥 Checklist downloaded: ${filename} by ${req.ip}`);
 
   } catch (error) {
-    console.error('Failed to serve checklist:', error);
+    logger.error('Failed to serve checklist:', error);
     res.status(500).json({
       error: 'Failed to download checklist',
       code: 'DOWNLOAD_ERROR'
@@ -343,7 +345,7 @@ router.get('/feedback/analytics', async (req, res) => {
     res.json(analytics);
 
   } catch (error) {
-    console.error('Failed to generate analytics:', error);
+    logger.error('Failed to generate analytics:', error);
     res.status(500).json({
       error: 'Failed to generate analytics',
       code: 'ANALYTICS_ERROR'

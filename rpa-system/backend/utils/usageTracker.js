@@ -1,3 +1,5 @@
+
+const { logger, getLogger } = require('./logger');
 const { createClient } = require('@supabase/supabase-js');
 
 class UsageTracker {
@@ -13,7 +15,7 @@ class UsageTracker {
 
   async trackAutomationRun(userId, runId, status = 'started') {
     if (!this.initialized || !this.supabase) {
-      console.warn('[UsageTracker] Not initialized, skipping automation run tracking');
+      logger.warn('[UsageTracker] Not initialized, skipping automation run tracking');
       return;
     }
 
@@ -26,7 +28,7 @@ class UsageTracker {
           .single();
 
         if (billingError) {
-          console.error('[UsageTracker] Error getting billing period:', billingError);
+          logger.error('[UsageTracker] Error getting billing period:', billingError);
           return;
         }
 
@@ -40,11 +42,11 @@ class UsageTracker {
           .lte('created_at', billingPeriod.period_end);
 
         if (countError) {
-          console.error('[UsageTracker] Error counting automation runs:', countError);
+          logger.error('[UsageTracker] Error counting automation runs:', countError);
           return;
         }
 
-        console.log(`[UsageTracker] User ${userId} has ${count} completed runs this billing period`);
+        logger.info(`[UsageTracker] User ${userId} has ${count} completed runs this billing period`);
 
         // Update or insert usage record
         await this.updateUserUsage(userId, {
@@ -53,15 +55,15 @@ class UsageTracker {
         });
       }
 
-      console.log(`[UsageTracker] Tracked automation run ${runId} for user ${userId} (${status})`);
+      logger.info(`[UsageTracker] Tracked automation run ${runId} for user ${userId} (${status})`);
     } catch (error) {
-      console.error('[UsageTracker] Error tracking automation run:', error);
+      logger.error('[UsageTracker] Error tracking automation run:', error);
     }
   }
 
   async trackWorkflowChange(userId, workflowId, action = 'created') {
     if (!this.initialized || !this.supabase) {
-      console.warn('[UsageTracker] Not initialized, skipping workflow tracking');
+      logger.warn('[UsageTracker] Not initialized, skipping workflow tracking');
       return;
     }
 
@@ -74,11 +76,11 @@ class UsageTracker {
         .eq('is_active', true); // Only count explicitly active ones
 
       if (countError) {
-        console.error('[UsageTracker] Error counting workflows:', countError);
+        logger.error('[UsageTracker] Error counting workflows:', countError);
         return;
       }
 
-      console.log(`[UsageTracker] User ${userId} has ${count} active workflows`);
+      logger.info(`[UsageTracker] User ${userId} has ${count} active workflows`);
 
       // Update usage record
       await this.updateUserUsage(userId, {
@@ -86,15 +88,15 @@ class UsageTracker {
         last_workflow_change_at: new Date().toISOString()
       });
 
-      console.log(`[UsageTracker] Tracked workflow ${action} for user ${userId} (${count} total active)`);
+      logger.info(`[UsageTracker] Tracked workflow ${action} for user ${userId} (${count} total active)`);
     } catch (error) {
-      console.error('[UsageTracker] Error tracking workflow change:', error);
+      logger.error('[UsageTracker] Error tracking workflow change:', error);
     }
   }
 
   async trackStorageUsage(userId, filePath, action = 'added', fileSize = 0) {
     if (!this.initialized || !this.supabase) {
-      console.warn('[UsageTracker] Not initialized, skipping storage tracking');
+      logger.warn('[UsageTracker] Not initialized, skipping storage tracking');
       return;
     }
 
@@ -106,7 +108,7 @@ class UsageTracker {
         .eq('user_id', userId);
 
       if (filesError) {
-        console.error('[UsageTracker] Error calculating storage from user_files:', filesError);
+        logger.error('[UsageTracker] Error calculating storage from user_files:', filesError);
         return;
       }
 
@@ -117,7 +119,7 @@ class UsageTracker {
 
       const storageGB = totalBytes / (1024 * 1024 * 1024);
 
-      console.log(`[UsageTracker] User ${userId} using ${storageGB.toFixed(3)} GB storage (${filesData?.length || 0} files)`);
+      logger.info(`[UsageTracker] User ${userId} using ${storageGB.toFixed(3)} GB storage (${filesData?.length || 0} files)`);
 
       // Update usage record
       await this.updateUserUsage(userId, {
@@ -126,15 +128,15 @@ class UsageTracker {
         last_storage_update_at: new Date().toISOString()
       });
 
-      console.log(`[UsageTracker] Tracked storage ${action} for user ${userId}`);
+      logger.info(`[UsageTracker] Tracked storage ${action} for user ${userId}`);
     } catch (error) {
-      console.error('[UsageTracker] Error tracking storage usage:', error);
+      logger.error('[UsageTracker] Error tracking storage usage:', error);
     }
   }
 
   async updateUserUsage(userId, usageData) {
     if (!this.initialized || !this.supabase) {
-      console.warn('[UsageTracker] Not initialized, skipping usage update');
+      logger.warn('[UsageTracker] Not initialized, skipping usage update');
       return;
     }
 
@@ -159,7 +161,7 @@ class UsageTracker {
           .eq('user_id', userId);
 
         if (updateError) {
-          console.error('[UsageTracker] Error updating usage:', updateError);
+          logger.error('[UsageTracker] Error updating usage:', updateError);
           return;
         }
       } else {
@@ -173,20 +175,20 @@ class UsageTracker {
           });
 
         if (insertError) {
-          console.error('[UsageTracker] Error inserting usage:', insertError);
+          logger.error('[UsageTracker] Error inserting usage:', insertError);
           return;
         }
       }
 
-      console.log(`[UsageTracker] Updated usage for user ${userId}:`, usageData);
+      logger.info(`[UsageTracker] Updated usage for user ${userId}:`, usageData);
     } catch (error) {
-      console.error('[UsageTracker] Error updating user usage:', error);
+      logger.error('[UsageTracker] Error updating user usage:', error);
     }
   }
 
   async getUserUsage(userId) {
     if (!this.initialized || !this.supabase) {
-      console.warn('[UsageTracker] Not initialized, returning default usage');
+      logger.warn('[UsageTracker] Not initialized, returning default usage');
       return { monthly_runs: 0, storage_gb: 0, workflows: 0 };
     }
 
@@ -198,19 +200,19 @@ class UsageTracker {
         .single();
 
       if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('[UsageTracker] Error fetching usage:', error);
+        logger.error('[UsageTracker] Error fetching usage:', error);
         return { monthly_runs: 0, storage_gb: 0, workflows: 0 };
       }
 
       return usage || { monthly_runs: 0, storage_gb: 0, workflows: 0 };
     } catch (error) {
-      console.error('[UsageTracker] Error getting user usage:', error);
+      logger.error('[UsageTracker] Error getting user usage:', error);
       return { monthly_runs: 0, storage_gb: 0, workflows: 0 };
     }
   }
 
   async refreshAllUserUsage(userId) {
-    console.log(`[UsageTracker] Refreshing all usage data for user ${userId}`);
+    logger.info(`[UsageTracker] Refreshing all usage data for user ${userId}`);
     
     try {
       // Get user's billing period
@@ -219,7 +221,7 @@ class UsageTracker {
         .single();
 
       if (billingError) {
-        console.error('[UsageTracker] Error getting billing period for refresh:', billingError);
+        logger.error('[UsageTracker] Error getting billing period for refresh:', billingError);
         return;
       }
 
@@ -248,9 +250,9 @@ class UsageTracker {
       // Refresh storage (more expensive operation)
       await this.trackStorageUsage(userId, null, 'refresh');
 
-      console.log(`[UsageTracker] Refreshed usage: ${runsCount} runs, ${workflowsCount} workflows`);
+      logger.info(`[UsageTracker] Refreshed usage: ${runsCount} runs, ${workflowsCount} workflows`);
     } catch (error) {
-      console.error('[UsageTracker] Error refreshing usage:', error);
+      logger.error('[UsageTracker] Error refreshing usage:', error);
     }
   }
 }
