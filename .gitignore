@@ -51,6 +51,10 @@ logs
 *.out
 *.err
 
+# Local diagnostics and profiling artifacts (HARs, perf traces, logs)
+diagnostics/
+diagnostics/**
+
 # OS generated files
 .DS_Store
 Thumbs.db
