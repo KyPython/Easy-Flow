@@ -9,14 +9,12 @@ const { logger, getLogger } = require('../utils/logger');
 const express = require('express');
 const router = express.Router();
 const { auditLogger } = require('../utils/auditLogger');
-const { createClient } = require('@supabase/supabase-js');
+const { getSupabase } = require('../utils/supabaseClient');
 const { requireFeature } = require('../middleware/planEnforcement');
 const { createLogger } = require('../middleware/structuredLogging');
 
-// Initialize Supabase client (safe: may be null in local/dev when keys are not set)
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
-const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+// Use centralized Supabase helper (returns null when not configured)
+// const supabase = getSupabase(); // resolved per-request inside handlers
 
 /**
  * Middleware to check if user is admin (for system-wide logs)
@@ -29,6 +27,9 @@ const requireAdmin = async (req, res, next) => {
     }
 
     // Check if user has admin role
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
+
     const { data: user, error } = await supabase
       .from('profiles')
       .select('role')

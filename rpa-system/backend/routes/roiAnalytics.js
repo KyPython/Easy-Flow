@@ -8,14 +8,11 @@ const { logger, getLogger } = require('../utils/logger');
 
 const express = require('express');
 const router = express.Router();
-const { createClient } = require('@supabase/supabase-js');
+const { getSupabase } = require('../utils/supabaseClient');
 const { auditLogger } = require('../utils/auditLogger');
 const { requireFeature } = require('../middleware/planEnforcement');
 
-// Safe supabase client (may be null when env vars aren't set)
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
-const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+// Use centralized Supabase helper (resolved per-request inside handlers)
 
 /**
  * GET /api/roi-analytics/dashboard
@@ -27,6 +24,9 @@ router.get('/dashboard', requireFeature('analytics'), async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
+
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     const { timeframe = '30d' } = req.query;
     const timeframes = {
@@ -109,6 +109,9 @@ router.get('/time-savings', requireFeature('analytics'), async (req, res) => {
     const { timeframe = '30d', task_type } = req.query;
     const days = parseInt(timeframe.replace('d', '')) || 30;
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     let query = supabase
       .from('automation_executions')

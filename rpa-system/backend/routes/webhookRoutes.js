@@ -2,6 +2,7 @@
 const { logger, getLogger } = require('../utils/logger');
 const express = require('express');
 const { TriggerService } = require('../services/triggerService');
+const { getSupabase } = require('../utils/supabaseClient');
 
 // ✅ INSTRUCTION 2: Import OpenTelemetry for root span generation
 const { trace, context, propagation, SpanStatusCode } = require('@opentelemetry/api');
@@ -137,15 +138,6 @@ router.post('/trigger/:token', async (req, res) => {
 
 // Get webhook trigger URL for a schedule (authenticated)
 const { requireFeature } = require('../middleware/planEnforcement');
-
-// Safe supabase helper
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
-function getSupabase() {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
-  const { createClient } = require('@supabase/supabase-js');
-  return createClient(SUPABASE_URL, SUPABASE_KEY);
-}
 
 router.get('/schedule/:scheduleId/webhook', requireFeature('webhooks'), async (req, res) => {
   try {
