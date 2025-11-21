@@ -213,7 +213,10 @@ router.get('/cost-benefit', requireFeature('analytics'), async (req, res) => {
 
     const { timeframe = '30d' } = req.query;
     const days = parseInt(timeframe.replace('d', '')) || 30;
-    
+
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
+
     // Get user's plan for cost calculation
     const { data: planData } = await supabase.rpc('get_user_plan_details', {
       user_uuid: userId
@@ -282,6 +285,9 @@ router.post('/custom-hourly-rate', requireFeature('analytics'), async (req, res)
       return res.status(400).json({ error: 'Invalid hourly rate (must be between 0-1000)' });
     }
 
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
+
     // Store in user preferences
     const { error } = await supabase
       .from('user_preferences')
@@ -324,6 +330,9 @@ router.get('/export', requireFeature('analytics'), async (req, res) => {
     const { format = 'csv', timeframe = '30d' } = req.query;
     const days = parseInt(timeframe.replace('d', '')) || 30;
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     const { data: executions } = await supabase
       .from('automation_executions')

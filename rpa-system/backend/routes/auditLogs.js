@@ -92,6 +92,8 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
     let retentionDays = 30; // Default fallback
     try {
       // Use backend supabase client
+      const supabase = getSupabase();
+      if (!supabase) throw new Error('Supabase not configured');
       const { data: planData } = await supabase.rpc('get_user_plan_details', { user_uuid: userId });
       if (planData && planData.plan_limits && planData.plan_limits.full_logging_days) {
         retentionDays = planData.plan_limits.full_logging_days;
@@ -377,6 +379,9 @@ async function getSystemStatistics(timeframe) {
   const since = timeframes[timeframe] || timeframes['24h'];
 
   try {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not configured');
+
     // Get active users
     const { data: activeUsers } = await supabase
       .from('audit_logs')

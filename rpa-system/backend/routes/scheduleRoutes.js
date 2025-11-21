@@ -400,10 +400,8 @@ router.get('/:scheduleId/executions', requireFeature('schedules'), async (req, r
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
-    );
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
     // Verify schedule ownership
     const { data: schedule, error: scheduleError } = await supabase

@@ -23,6 +23,8 @@ if (!supabase) {
 // List templates for moderation
 router.get('/', requireFeature('admin_templates'), async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
+
     const status = req.query.status || 'pending_review';
     const { data, error } = await supabase
       .from('workflow_templates')
@@ -42,6 +44,8 @@ router.get('/', requireFeature('admin_templates'), async (req, res) => {
 // Approve a template and optionally a specific version
 router.post('/:id/approve', requireFeature('admin_templates'), async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
+
     const id = req.params.id;
     const { version_id, review_notes } = req.body || {};
 
@@ -72,6 +76,8 @@ router.post('/:id/approve', requireFeature('admin_templates'), async (req, res) 
 // Reject a template with notes
 router.post('/:id/reject', requireFeature('admin_templates'), async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
+
     const id = req.params.id;
     const { review_notes } = req.body || {};
 

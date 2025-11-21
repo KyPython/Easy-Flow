@@ -28,11 +28,13 @@ router.get('/checkout', async (req, res) => {
 
     // Fetch all features (if you have a features table, otherwise skip)
     let features = [];
-    if (supabase.from('features')) {
+    try {
       const { data: featuresData, error: featuresError } = await supabase
         .from('features')
         .select('*');
       if (!featuresError && featuresData) features = featuresData;
+    } catch (err) {
+      logger.warn('Features table may not exist or is inaccessible:', err.message);
     }
 
     // Optionally, fetch feature order/labels from a config table if you have one
@@ -280,19 +282,18 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
         if (process.env.NODE_ENV !== 'production') {
           logger.info(`Subscription ${result.action} for user ${userId}:`, {
-          planId,
-          externalPaymentId: subscription.id,
-          status: subscription.status
-        });
+            planId,
+            externalPaymentId: subscription.id,
+            status: subscription.status
+          });
+        }
 
         return res.status(200).json({
           success: true,
           action: result.action,
           userId,
-            duration_ms: Date.now() - startTime
-          });
-        }
-        break;
+          duration_ms: Date.now() - startTime
+        });
       }
         case 'subscription.canceled':
       case 'subscription.revoked': {
