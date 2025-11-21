@@ -13,14 +13,18 @@ import { useEffect, useState, lazy, Suspense } from 'react';
 import PropTypes from 'prop-types';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import ReactGA from 'react-ga4';
-import useAnalytics from './hooks/useAnalytics';
-import useUsageTracking from './hooks/useUsageTracking';
+// HOOKS DISABLED FOR DEBUGGING BLOCKING ISSUE
+// import useAnalytics from './hooks/useAnalytics';
+// import useUsageTracking from './hooks/useUsageTracking';
 import Header from './components/Header/Header'; // Keep header eager (critical UI)
-import { AuthProvider, useAuth } from './utils/AuthContext';
+// USING MINIMAL AuthContext TO PREVENT BLOCKING
+import { AuthProvider, useAuth } from './utils/AuthContext.minimal';
+// import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import { LanguageProvider } from './utils/LanguageContext';
 import NetworkStatus from './components/NetworkStatus/NetworkStatus'; // Keep eager (small component)
-import './utils/firebaseConfig';
+// FIREBASE INITIALIZATION DEFERRED - was blocking main thread
+// import './utils/firebaseConfig';
 import './theme.css';
 import './App.css';
 
@@ -102,18 +106,10 @@ const LoadingSkeleton = () => (
 // ============================================================================
 
 const AnalyticsTracker = () => {
-  const location = useLocation();
-  const { trackPageView } = useAnalytics();
-
-  useEffect(() => {
-    const gaMeasurementId = process.env.REACT_APP_GA_MEASUREMENT_ID;
-    if (gaMeasurementId) {
-      // Use the custom analytics hook for domain-aware tracking
-      trackPageView(location.pathname, location.search);
-    }
-  }, [location, trackPageView]);
-
-  return null; // This component does not render anything
+  // DISABLED FOR DEBUGGING - was blocking
+  // const location = useLocation();
+  // const { trackPageView } = useAnalytics();
+  return null;
 };
 
 function Protected({ children }) {
@@ -136,12 +132,17 @@ function WorkflowIdRedirect() {
 
 function Shell() {
   const { user } = useAuth();
-  const { 
-    showMilestonePrompt, 
-    currentMilestone, 
-    dismissMilestonePrompt,
-    sessionsCount
-  } = useUsageTracking(user?.id);
+  // DISABLED FOR DEBUGGING - was blocking
+  const showMilestonePrompt = false;
+  const currentMilestone = null;
+  const dismissMilestonePrompt = () => {};
+  const sessionsCount = 0;
+  // const {
+  //   showMilestonePrompt,
+  //   currentMilestone,
+  //   dismissMilestonePrompt,
+  //   sessionsCount
+  // } = useUsageTracking(user?.id);
 
   // Email capture modal state
   const [showEmailCapture, setShowEmailCapture] = useState(false);
