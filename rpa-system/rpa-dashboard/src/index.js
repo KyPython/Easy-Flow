@@ -39,11 +39,56 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 
 // Global runtime error diagnostics (helps when mobile shows blank screen)
 if (typeof window !== 'undefined') {
+  const sendFrontError = async (body) => {
+    try {
+      // Use the dev proxy (proxy in package.json) when running locally
+      await fetch('/internal/front-errors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        keepalive: true
+      });
+    } catch (err) {
+      // best-effort - ignore network/save errors
+      // eslint-disable-next-line no-console
+      console.warn('[sendFrontError] failed to POST diagnostic', err?.message || err);
+    }
+  };
+
   window.addEventListener('error', (e) => {
+    try {
+      const payload = {
+        type: 'error',
+        message: e.message,
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno,
+        stack: e.error ? (e.error.stack || String(e.error)) : null,
+        url: window.location.href,
+        userAgent: navigator.userAgent
+      };
+      sendFrontError(payload);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[GlobalError] serialization failed', err);
+    }
     // eslint-disable-next-line no-console
     console.error('[GlobalError]', e.message, e.filename, e.lineno, e.colno, e.error);
   });
+
   window.addEventListener('unhandledrejection', (e) => {
+    try {
+      const payload = {
+        type: 'unhandledrejection',
+        reason: e.reason,
+        url: window.location.href,
+        userAgent: navigator.userAgent
+      };
+      sendFrontError(payload);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[GlobalUnhandledRejection] serialization failed', err);
+    }
     // eslint-disable-next-line no-console
     console.error('[GlobalUnhandledRejection]', e.reason);
   });

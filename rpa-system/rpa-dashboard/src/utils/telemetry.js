@@ -312,19 +312,54 @@ function initializeFrontendTelemetry() {
   return new FrontendPerformanceInstrumentation();
 }
 
-// Create global performance tracker
-const performanceTracker = initializeFrontendTelemetry();
+// NOTE: Do NOT initialize telemetry eagerly at module-load time. Initializing
+// the OpenTelemetry web SDK and registering auto-instrumentations can be
+// CPU- and IO-intensive and may block the main thread during app startup.
+// Instead expose a lazy initializer and a lightweight no-op tracker so the
+// app can opt-in to initialize telemetry after the first render.
+
+let _realTracker = null;
+
+const noopTracker = (() => {
+  const noopSpan = () => ({ addMetric: () => {}, end: () => {} });
+  return {
+    startComponentRender: () => null,
+    endComponentRender: () => {},
+    trackUserInteraction: () => ({ addAttribute: () => {}, recordError: () => {}, end: () => {} }),
+    trackApiCall: () => ({ setResponseData: () => {}, setError: () => {}, end: () => {} }),
+    trackPageLoad: () => noopSpan()
+  };
+})();
+
+export function initPerformanceTracker() {
+  if (_realTracker) return _realTracker;
+  try {
+    _realTracker = initializeFrontendTelemetry();
+  } catch (e) {
+    // Fail-safe: if initialization fails, keep using noop tracker
+    // and surface a console warning so developers can debug.
+    // eslint-disable-next-line no-console
+    console.warn('[Telemetry] initPerformanceTracker failed, using no-op tracker:', e && e.message ? e.message : e);
+    _realTracker = noopTracker;
+  }
+  // Replace exported tracker reference so other importers see the real tracker
+  try { performanceTracker = _realTracker; } catch (e) { /* ignore assignment errors */ }
+  return _realTracker;
+}
+
+// Export a default tracker that is a no-op until `initPerformanceTracker` is called.
+export let performanceTracker = noopTracker;
 
 // React Hook for component instrumentation
 export function usePerformanceTracking(componentName) {
   const [renderSpanId, setRenderSpanId] = useState(null);
 
   useEffect(() => {
-    const spanId = performanceTracker.startComponentRender(componentName);
+    const spanId = (performanceTracker && performanceTracker.startComponentRender) ? performanceTracker.startComponentRender(componentName) : null;
     setRenderSpanId(spanId);
 
     return () => {
-      if (spanId) {
+      if (spanId && performanceTracker && performanceTracker.endComponentRender) {
         performanceTracker.endComponentRender(spanId);
       }
     };
@@ -332,11 +367,11 @@ export function usePerformanceTracking(componentName) {
 
   return {
     trackInteraction: (type, element, metadata) => 
-      performanceTracker.trackUserInteraction(type, element, metadata),
+      (performanceTracker && performanceTracker.trackUserInteraction ? performanceTracker.trackUserInteraction(type, element, metadata) : { addAttribute: () => {}, recordError: () => {}, end: () => {} }),
     trackApiCall: (method, url, context) => 
-      performanceTracker.trackApiCall(method, url, context),
+      (performanceTracker && performanceTracker.trackApiCall ? performanceTracker.trackApiCall(method, url, context) : { setResponseData: () => {}, setError: () => {}, end: () => {} }),
     trackPageLoad: (pageName, params) => 
-      performanceTracker.trackPageLoad(pageName, params)
+      (performanceTracker && performanceTracker.trackPageLoad ? performanceTracker.trackPageLoad(pageName, params) : { addMetric: () => {}, end: () => {} })
   };
 }
 
@@ -385,5 +420,4 @@ export function createInstrumentedApiClient(baseConfig = {}) {
   return api;
 }
 
-export { performanceTracker };
 export default performanceTracker;

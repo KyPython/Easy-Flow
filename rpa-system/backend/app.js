@@ -674,6 +674,15 @@ if (socialProofRoutes) {
 const feedbackRoutes = require('./routes/feedbackRoutes');
 app.use('/api', feedbackRoutes);
 
+// Internal (dev) routes - accept frontend telemetry and error reports
+try {
+  const internalRoutes = require('./routes/internalRoutes');
+  app.use('/internal', internalRoutes);
+  rootLogger.info('✓ Internal routes mounted at /internal');
+} catch (e) {
+  rootLogger.warn('internalRoutes not mounted', { error: e?.message || e });
+}
+
 // Demo page for social proof testing
 app.get('/demo/social-proof', (req, res) => {
   res.sendFile(path.join(__dirname, 'demo', 'social-proof.html'));

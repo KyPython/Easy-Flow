@@ -7,12 +7,29 @@ import './App.css';
 export default function App() {
   React.useEffect(() => {
     document.title = "EasyFlow";
-    
-    // Initialize application-level performance tracking
-    const appLoadTracker = performanceTracker.trackPageLoad('app_init', {
+    // Initialize application-level performance tracking (deferred)
+    // Ensure telemetry initialization does not block the main thread.
+    let appLoadTracker = null;
+    try {
+      // Lazy-init real tracker after mount. This avoids heavy synchronous
+      // work during module import which can freeze the UI.
+      // eslint-disable-next-line no-unused-vars
+      const { initPerformanceTracker } = require('./utils/telemetry');
+      const perf = initPerformanceTracker();
+      if (perf && perf.trackPageLoad) {
+        appLoadTracker = perf.trackPageLoad('app_init', {
       'app.version': process.env.REACT_APP_VERSION || '1.0.0',
       'app.environment': process.env.NODE_ENV || 'development'
     });
+      } else {
+        appLoadTracker = { addMetric: () => {}, end: () => {} };
+      }
+    } catch (e) {
+      // If lazy init fails, fall back to a no-op tracker so app can continue.
+      // eslint-disable-next-line no-console
+      console.warn('[App] initPerformanceTracker failed:', e && e.message ? e.message : e);
+      appLoadTracker = { addMetric: () => {}, end: () => {} };
+    }
 
     // Track initial app load metrics
     const handleAppLoad = () => {
