@@ -312,8 +312,29 @@ function initializeFrontendTelemetry() {
   return new FrontendPerformanceInstrumentation();
 }
 
-// Create global performance tracker
-const performanceTracker = initializeFrontendTelemetry();
+// Create a lazy no-op performance tracker that can be replaced
+// by the real implementation via `initPerformanceTracker()`.
+export let performanceTracker = {
+  __initialized: false,
+  startComponentRender: () => null,
+  endComponentRender: () => {},
+  trackUserInteraction: () => ({ addAttribute: () => {}, recordError: () => {}, end: () => {} }),
+  trackApiCall: () => ({ setResponseData: () => {}, setError: () => {}, end: () => {} }),
+  trackPageLoad: () => ({ addMetric: () => {}, end: () => {} })
+};
+
+export function initPerformanceTracker() {
+  if (performanceTracker && performanceTracker.__initialized) return performanceTracker;
+  try {
+    const real = initializeFrontendTelemetry();
+    try { real.__initialized = true; } catch (e) {}
+    performanceTracker = real;
+    return performanceTracker;
+  } catch (e) {
+    console.warn('[Telemetry] initPerformanceTracker failed, using no-op tracker', e && e.message ? e.message : e);
+    return performanceTracker;
+  }
+}
 
 // React Hook for component instrumentation
 export function usePerformanceTracking(componentName) {
@@ -385,5 +406,5 @@ export function createInstrumentedApiClient(baseConfig = {}) {
   return api;
 }
 
-export { performanceTracker };
-export default performanceTracker;
+// Note: only named exports are provided so imports use the live binding:
+// import { performanceTracker, initPerformanceTracker } from './utils/telemetry';
