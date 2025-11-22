@@ -123,20 +123,64 @@ export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes d
 
   useEffect(() => {
     // Initial fetch - only if online or no cached data
-    if (isOnline || data.source === 'fallback') {
-      fetchMetricsRef.current?.();
-    }
+      // Schedule initial fetch during idle time (to avoid blocking first paint)
+      const shouldFetch = isOnline || data.source === 'fallback';
+      let idleId = null;
+      let timerId = null;
 
-    // Set up refresh interval if specified and online
-    if (refreshInterval > 0 && isOnline) {
-      const interval = setInterval(() => {
-        if (navigator.onLine) {
-          fetchMetricsRef.current?.();
+      const scheduleInitialFetch = () => {
+        // Suppress if another tab/component already started the fetch recently
+        if (window.__SOCIAL_PROOF_LOADING__ || (window.__SOCIAL_PROOF_LAST_FETCH__ && Date.now() - window.__SOCIAL_PROOF_LAST_FETCH__ < 30000)) {
+          console.log('📊 [SocialProof] Initial fetch suppressed by global guard/cache');
+          return;
         }
-      }, refreshInterval);
+
+        // Mark global loading flag so other consumers don't duplicate work
+        window.__SOCIAL_PROOF_LOADING__ = true;
+
+        // Trigger the fetch and clear the global flag when done
+        Promise.resolve(fetchMetricsRef.current?.()).finally(() => {
+          window.__SOCIAL_PROOF_LOADING__ = false;
+          window.__SOCIAL_PROOF_LAST_FETCH__ = Date.now();
+        });
+      };
+
+      if (shouldFetch) {
+        if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+          try {
+            idleId = window.requestIdleCallback(scheduleInitialFetch, { timeout: 2000 });
+          } catch (e) {
+            // Some environments may throw; fallback to timeout
+            timerId = setTimeout(scheduleInitialFetch, 1000);
+          }
+        } else {
+          timerId = setTimeout(scheduleInitialFetch, 1000);
+        }
+      }
+
+      // Set up refresh interval if specified and online
+      if (refreshInterval > 0 && isOnline) {
+        const interval = setInterval(() => {
+          if (navigator.onLine) {
+            fetchMetricsRef.current?.();
+          }
+        }, refreshInterval);
       
-      return () => clearInterval(interval);
-    }
+        return () => {
+          if (idleId && typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
+            window.cancelIdleCallback(idleId);
+          }
+          if (timerId) clearTimeout(timerId);
+          clearInterval(interval);
+        };
+      }
+
+      return () => {
+        if (idleId && typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
+          window.cancelIdleCallback(idleId);
+        }
+        if (timerId) clearTimeout(timerId);
+      };
   }, [refreshInterval, isOnline, data.source]); // Remove fetchMetrics dependency
 
   // Manually trigger refresh

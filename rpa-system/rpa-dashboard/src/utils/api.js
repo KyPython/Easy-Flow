@@ -94,22 +94,17 @@ api.interceptors.request.use(
         traceContext: traceContext.getCurrentContext()
       };
 
-      // Try to get session from Supabase first
-      const { data: { session }, error } = await supabase.auth.getSession();
-
-      if (session?.access_token && !error) {
-        config.headers['Authorization'] = `Bearer ${session.access_token}`;
-        // Add user context to trace headers
-        config.headers['x-user-id'] = session.user?.id || '';
-      } else {
-        // Fallback to development token or any known local token if available
+      // Non-blocking auth: prefer local cached tokens (fast) and avoid
+      // awaiting Supabase session during request interception which can
+      // block the main thread if the network/backend is slow or unreachable.
+      try {
         const candidateTokens = [
           process.env.REACT_APP_DEV_TOKEN,
-          localStorage.getItem('dev_token'),
-          localStorage.getItem('authToken'),
-          localStorage.getItem('token'),
-          localStorage.getItem('supabase-auth-token'),
-          localStorage.getItem('sb_access_token')
+          (typeof localStorage !== 'undefined' && localStorage.getItem('dev_token')),
+          (typeof localStorage !== 'undefined' && localStorage.getItem('authToken')),
+          (typeof localStorage !== 'undefined' && localStorage.getItem('token')),
+          (typeof localStorage !== 'undefined' && localStorage.getItem('supabase-auth-token')),
+          (typeof localStorage !== 'undefined' && localStorage.getItem('sb_access_token'))
         ];
 
         const normalize = (t) => (typeof t === 'string' ? t.trim() : t);
@@ -118,7 +113,22 @@ api.interceptors.request.use(
         const devToken = candidateTokens.map(normalize).find(isValid);
         if (devToken) {
           config.headers['Authorization'] = `Bearer ${devToken}`;
+        } else {
+          // Fire-and-forget: attempt to refresh/get session but DO NOT await it.
+          // If it resolves quickly it may populate localStorage for subsequent requests.
+          (async () => {
+            try {
+              const { data: { session } = {}, error } = await supabase.auth.getSession().catch(() => ({}));
+              if (session?.access_token && !error) {
+                try { localStorage.setItem('sb_access_token', session.access_token); } catch (e) {}
+              }
+            } catch (e) {
+              // swallow - this is best-effort and must not block the request
+            }
+          })();
         }
+      } catch (e) {
+        // localStorage may be unavailable; ignore and continue without auth header
       }
 
       // Log API request initiation (structured)
@@ -761,8 +771,17 @@ export const getUserPlan = async () => {
 };
 
 // Utility function to get social proof metrics
+// Small in-memory cache to avoid duplicate social-proof calls during startup bursts
+let _socialProofCache = { value: null, expiresAt: 0 };
+const SOCIAL_PROOF_TTL = 30 * 1000; // 30 seconds
+
 export const getSocialProofMetrics = async () => {
-  return apiErrorHandler.safeApiCall(
+  const now = Date.now();
+  if (_socialProofCache.value && _socialProofCache.expiresAt > now) {
+    return _socialProofCache.value;
+  }
+
+  const result = await apiErrorHandler.safeApiCall(
     async () => {
       const { data } = await api.get('/api/social-proof-metrics');
       return data;
@@ -780,4 +799,11 @@ export const getSocialProofMetrics = async () => {
       }
     }
   );
+
+  if (result) {
+    _socialProofCache.value = result;
+    _socialProofCache.expiresAt = Date.now() + SOCIAL_PROOF_TTL;
+  }
+
+  return result;
 };
