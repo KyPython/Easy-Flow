@@ -1,0 +1,184 @@
+From 1b7777d60217d891317dce9a89d959f8e6175be6 Mon Sep 17 00:00:00 2001
+From: KyPython <kyjahntsmith@gmail.com>
+Date: Fri, 21 Nov 2025 22:08:13 -0500
+Subject: [PATCH] fix(dashboard): defer social-proof initial fetch and add
+ short TTL cache for metrics
+
+---
+ .../rpa-dashboard/src/hooks/useSocialProof.js | 66 +++++++++++++++----
+ rpa-system/rpa-dashboard/src/utils/api.js     | 56 +++++++++++-----
+ 2 files changed, 96 insertions(+), 26 deletions(-)
+
+diff --git a/rpa-system/rpa-dashboard/src/hooks/useSocialProof.js b/rpa-system/rpa-dashboard/src/hooks/useSocialProof.js
+index 508f25a..403f874 100644
+--- a/rpa-system/rpa-dashboard/src/hooks/useSocialProof.js
++++ b/rpa-system/rpa-dashboard/src/hooks/useSocialProof.js
+@@ -123,20 +123,64 @@ export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes d
+ 
+   useEffect(() => {
+     // Initial fetch - only if online or no cached data
+-    if (isOnline || data.source === 'fallback') {
+-      fetchMetricsRef.current?.();
+-    }
++      // Schedule initial fetch during idle time (to avoid blocking first paint)
++      const shouldFetch = isOnline || data.source === 'fallback';
++      let idleId = null;
++      let timerId = null;
++
++      const scheduleInitialFetch = () => {
++        // Suppress if another tab/component already started the fetch recently
++        if (window.__SOCIAL_PROOF_LOADING__ || (window.__SOCIAL_PROOF_LAST_FETCH__ && Date.now() - window.__SOCIAL_PROOF_LAST_FETCH__ < 30000)) {
++          console.log('📊 [SocialProof] Initial fetch suppressed by global guard/cache');
++          return;
++        }
++
++        // Mark global loading flag so other consumers don't duplicate work
++        window.__SOCIAL_PROOF_LOADING__ = true;
+ 
+-    // Set up refresh interval if specified and online
+-    if (refreshInterval > 0 && isOnline) {
+-      const interval = setInterval(() => {
+-        if (navigator.onLine) {
+-          fetchMetricsRef.current?.();
++        // Trigger the fetch and clear the global flag when done
++        Promise.resolve(fetchMetricsRef.current?.()).finally(() => {
++          window.__SOCIAL_PROOF_LOADING__ = false;
++          window.__SOCIAL_PROOF_LAST_FETCH__ = Date.now();
++        });
++      };
++
++      if (shouldFetch) {
++        if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
++          try {
++            idleId = window.requestIdleCallback(scheduleInitialFetch, { timeout: 2000 });
++          } catch (e) {
++            // Some environments may throw; fallback to timeout
++            timerId = setTimeout(scheduleInitialFetch, 1000);
++          }
++        } else {
++          timerId = setTimeout(scheduleInitialFetch, 1000);
+         }
+-      }, refreshInterval);
++      }
++
++      // Set up refresh interval if specified and online
++      if (refreshInterval > 0 && isOnline) {
++        const interval = setInterval(() => {
++          if (navigator.onLine) {
++            fetchMetricsRef.current?.();
++          }
++        }, refreshInterval);
+       
+-      return () => clearInterval(interval);
+-    }
++        return () => {
++          if (idleId && typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
++            window.cancelIdleCallback(idleId);
++          }
++          if (timerId) clearTimeout(timerId);
++          clearInterval(interval);
++        };
++      }
++
++      return () => {
++        if (idleId && typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
++          window.cancelIdleCallback(idleId);
++        }
++        if (timerId) clearTimeout(timerId);
++      };
+   }, [refreshInterval, isOnline, data.source]); // Remove fetchMetrics dependency
+ 
+   // Manually trigger refresh
+diff --git a/rpa-system/rpa-dashboard/src/utils/api.js b/rpa-system/rpa-dashboard/src/utils/api.js
+index 55db1c3..9c7643b 100644
+--- a/rpa-system/rpa-dashboard/src/utils/api.js
++++ b/rpa-system/rpa-dashboard/src/utils/api.js
+@@ -94,22 +94,17 @@ api.interceptors.request.use(
+         traceContext: traceContext.getCurrentContext()
+       };
+ 
+-      // Try to get session from Supabase first
+-      const { data: { session }, error } = await supabase.auth.getSession();
+-
+-      if (session?.access_token && !error) {
+-        config.headers['Authorization'] = `Bearer ${session.access_token}`;
+-        // Add user context to trace headers
+-        config.headers['x-user-id'] = session.user?.id || '';
+-      } else {
+-        // Fallback to development token or any known local token if available
++      // Non-blocking auth: prefer local cached tokens (fast) and avoid
++      // awaiting Supabase session during request interception which can
++      // block the main thread if the network/backend is slow or unreachable.
++      try {
+         const candidateTokens = [
+           process.env.REACT_APP_DEV_TOKEN,
+-          localStorage.getItem('dev_token'),
+-          localStorage.getItem('authToken'),
+-          localStorage.getItem('token'),
+-          localStorage.getItem('supabase-auth-token'),
+-          localStorage.getItem('sb_access_token')
++          (typeof localStorage !== 'undefined' && localStorage.getItem('dev_token')),
++          (typeof localStorage !== 'undefined' && localStorage.getItem('authToken')),
++          (typeof localStorage !== 'undefined' && localStorage.getItem('token')),
++          (typeof localStorage !== 'undefined' && localStorage.getItem('supabase-auth-token')),
++          (typeof localStorage !== 'undefined' && localStorage.getItem('sb_access_token'))
+         ];
+ 
+         const normalize = (t) => (typeof t === 'string' ? t.trim() : t);
+@@ -118,7 +113,22 @@ api.interceptors.request.use(
+         const devToken = candidateTokens.map(normalize).find(isValid);
+         if (devToken) {
+           config.headers['Authorization'] = `Bearer ${devToken}`;
++        } else {
++          // Fire-and-forget: attempt to refresh/get session but DO NOT await it.
++          // If it resolves quickly it may populate localStorage for subsequent requests.
++          (async () => {
++            try {
++              const { data: { session } = {}, error } = await supabase.auth.getSession().catch(() => ({}));
++              if (session?.access_token && !error) {
++                try { localStorage.setItem('sb_access_token', session.access_token); } catch (e) {}
++              }
++            } catch (e) {
++              // swallow - this is best-effort and must not block the request
++            }
++          })();
+         }
++      } catch (e) {
++        // localStorage may be unavailable; ignore and continue without auth header
+       }
+ 
+       // Log API request initiation (structured)
+@@ -761,8 +771,17 @@ export const getUserPlan = async () => {
+ };
+ 
+ // Utility function to get social proof metrics
++// Small in-memory cache to avoid duplicate social-proof calls during startup bursts
++let _socialProofCache = { value: null, expiresAt: 0 };
++const SOCIAL_PROOF_TTL = 30 * 1000; // 30 seconds
++
+ export const getSocialProofMetrics = async () => {
+-  return apiErrorHandler.safeApiCall(
++  const now = Date.now();
++  if (_socialProofCache.value && _socialProofCache.expiresAt > now) {
++    return _socialProofCache.value;
++  }
++
++  const result = await apiErrorHandler.safeApiCall(
+     async () => {
+       const { data } = await api.get('/api/social-proof-metrics');
+       return data;
+@@ -780,4 +799,11 @@ export const getSocialProofMetrics = async () => {
+       }
+     }
+   );
++
++  if (result) {
++    _socialProofCache.value = result;
++    _socialProofCache.expiresAt = Date.now() + SOCIAL_PROOF_TTL;
++  }
++
++  return result;
+ };
+-- 
+2.50.1 (Apple Git-155)
+
