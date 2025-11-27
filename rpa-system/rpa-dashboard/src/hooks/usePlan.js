@@ -12,8 +12,13 @@ export const usePlan = () => {
   const [lastRefresh, setLastRefresh] = useState(Date.now());
 
   const fetchPlanData = useCallback(async () => {
+    // Prevent concurrent in-flight fetches which can overload backend
+    if (fetchPlanData.inFlight) return;
+    fetchPlanData.inFlight = true;
+    const clientStart = Date.now();
     if (!user?.id) {
       setLoading(false);
+      fetchPlanData.inFlight = false;
       return;
     }
 
@@ -62,6 +67,10 @@ export const usePlan = () => {
       setPlanData(null);
     } finally {
       setLoading(false);
+      // Log client-side duration for correlation
+      const clientEnd = Date.now();
+      console.debug('[usePlan] fetchPlanData duration_ms', { user: user?.id, duration_ms: clientEnd - clientStart });
+      fetchPlanData.inFlight = false;
     }
   }, [user?.id]);
 
