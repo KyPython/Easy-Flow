@@ -387,7 +387,18 @@ const automationLimiter = rateLimit({
 })();
 
 // Add cookie-parser with secret for signed cookies (required for CSRF)
-app.use(cookieParser(process.env.SESSION_SECRET || 'test-session-secret-32-characters-long'));
+/*
+ Use SESSION_SECRET from environment for persistent signed cookies; if not set,
+ generate a secure ephemeral secret at startup and warn so developers know to
+ configure SESSION_SECRET for production or persistent sessions.
+*/
+const sessionSecret = process.env.SESSION_SECRET || (() => {
+  const generated = crypto.randomBytes(32).toString('hex');
+  logger.warn('[app] SESSION_SECRET not set; using an ephemeral random secret for signed cookies — set SESSION_SECRET in env for persistent sessions');
+  return generated;
+})();
+
+app.use(cookieParser(sessionSecret));
 
 
 // Apply global rate limiter to all routes
@@ -578,7 +589,7 @@ const csrfProtection = csrf({
     maxAge: 3600000,
     signed: true
   },
-  secret: process.env.SESSION_SECRET || 'test-session-secret-32-characters-long'
+  secret: sessionSecret
 });
 
 // --- CSRF error handler: force 403 for CSRF errors ---
@@ -1294,11 +1305,14 @@ app.post('/api/auth/login', async (req, res) => {
         user_metadata: { name: 'Developer User' }
       };
       
+      // Prefer an explicit DEV_BYPASS_TOKEN env var; otherwise generate a non-persistent random token at runtime
+      const runtimeDevToken = process.env.DEV_BYPASS_TOKEN || crypto.randomBytes(16).toString('hex');
+      
       return res.json({
         user: devUser,
         session: {
           user: devUser,
-          access_token: process.env.DEV_BYPASS_TOKEN || 'dev-token-123',
+          access_token: runtimeDevToken,
           expires_at: Date.now() + 3600000
         }
       });
