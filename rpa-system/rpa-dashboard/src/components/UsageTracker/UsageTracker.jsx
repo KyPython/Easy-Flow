@@ -37,7 +37,7 @@ import { usePlan } from '../../hooks/usePlan';
 import { useTheme } from '../../utils/ThemeContext';
 import { FiZap, FiHardDrive, FiGitBranch, FiArrowUp, FiCalendar, FiActivity } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../utils/supabaseClient';
+import supabase, { initSupabase } from '../../utils/supabaseClient';
 import styles from './UsageTracker.module.css';
 
 function UsageTracker({ showUpgrade = true, compact = false }) {
@@ -50,7 +50,8 @@ function UsageTracker({ showUpgrade = true, compact = false }) {
   // Fetch feature labels from Supabase (same as PricingPage)
   const fetchFeatureLabels = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('plan_feature_labels')
         .select('feature_key, feature_label');
       if (error) throw error;

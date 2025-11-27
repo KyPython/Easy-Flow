@@ -14,7 +14,9 @@ const puppeteer = require('puppeteer');
   try {
     await page.goto('http://localhost:3000', { waitUntil: 'domcontentloaded', timeout: 10000 });
 
-    await page.waitForTimeout(3000);
+    // `page.waitForTimeout` may be unavailable in some Puppeteer versions.
+    // Use a small portable sleep instead to wait for client rendering.
+    await new Promise((res) => setTimeout(res, 3000));
 
     const content = await page.evaluate(() => {
       const root = document.getElementById('root');

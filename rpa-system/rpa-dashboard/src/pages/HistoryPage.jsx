@@ -3,7 +3,7 @@ import { usePlan } from '../hooks/usePlan';
 import { useI18n } from '../i18n';
 import TaskList from '../components/TaskList/TaskList';
 import { useAuth } from '../utils/AuthContext';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, initSupabase } from '../utils/supabaseClient';
 import styles from './HistoryPage.module.css';
 import ErrorMessage from '../components/ErrorMessage';
 import Chatbot from '../components/Chatbot/Chatbot';
@@ -22,7 +22,8 @@ const HistoryPage = () => {
       if (!user) return;
       setLoading(true);
       try {
-        const { data, error } = await supabase.from('automation_runs')
+        const client = await initSupabase();
+        const { data, error } = await client.from('automation_runs')
           .select(`id,status,started_at,result,artifact_url,automation_tasks(id,name,url,task_type)`)
           .eq('user_id', user.id)
           .order('started_at', { ascending: false });
@@ -62,7 +63,8 @@ const HistoryPage = () => {
     }
 
     try {
-      const { data, error: updateError } = await supabase
+      const client = await initSupabase();
+      const { data, error: updateError } = await client
         .from('automation_tasks')
         .update({ name: editName, url: editUrl })
         .eq('id', taskId)
@@ -93,7 +95,8 @@ const HistoryPage = () => {
 
     if (window.confirm(`Are you sure you want to delete the run for "${taskName}"? This action cannot be undone.`)) {
       try {
-        const { error: deleteError } = await supabase.from('automation_runs').delete().eq('id', runId);
+        const client = await initSupabase();
+        const { error: deleteError } = await client.from('automation_runs').delete().eq('id', runId);
         if (deleteError) throw deleteError;
         setRuns(prev => prev.filter(r => r.id !== runId));
       } catch (err) {

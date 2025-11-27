@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../utils/supabaseClient';
+import supabase, { initSupabase } from '../../utils/supabaseClient';
 import styles from './WorkflowsList.module.css';
 import LoadingSpinner from './LoadingSpinner';
 import ActionButton from './ActionButton';
@@ -35,7 +35,8 @@ const WorkflowsList = () => {
   const loadWorkflows = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('workflows')
         .select(`
           id,
@@ -74,7 +75,8 @@ const WorkflowsList = () => {
     if (!deletingId) return;
     try {
       setDeleting(true);
-      const { error } = await supabase
+      const client = await initSupabase();
+      const { error } = await client
         .from('workflows')
         .delete()
         .eq('id', deletingId);

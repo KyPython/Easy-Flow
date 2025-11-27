@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useI18n } from '../i18n';
-import { supabase } from '../utils/supabaseClient';
+import supabase, { initSupabase } from '../utils/supabaseClient';
 import styles from './ResetLanding.module.css';
 
 function parseHashParams(hash) {
@@ -35,7 +35,8 @@ export default function ResetLanding() {
     setLoading(true);
     try {
       // supabase-js setSession expects object with access_token/refresh_token
-      const { error: setErr } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      const client = await initSupabase();
+      const { error: setErr } = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
       if (setErr) throw setErr;
       setDone(true);
       // navigate to app root

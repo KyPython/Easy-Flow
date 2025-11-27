@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import PlanGate from '../components/PlanGate/PlanGate';
-import { supabase } from '../utils/supabaseClient';
+import supabase, { initSupabase } from '../utils/supabaseClient';
 import { useAuth } from '../utils/AuthContext';
 import { useTheme } from '../utils/ThemeContext';
 import { api } from '../utils/api';
@@ -279,7 +279,8 @@ export default function SettingsPage() {
     setMessage('');
 
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      const client = await initSupabase();
+      const { error } = await client.auth.updateUser({ password });
       if (error) setPasswordError(error.message);
       else setMessage('Password updated successfully.');
     } catch {

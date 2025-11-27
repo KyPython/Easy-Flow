@@ -8,8 +8,8 @@
  * 4. Save to your existing database
  */
 
-// ✅ INSTRUCTION 3: Import OpenTelemetry Web SDK for trace propagation
-import { context, propagation, trace } from '@opentelemetry/api';
+// OpenTelemetry is optional for trace propagation. Use dynamic import to avoid
+// pulling the OTEL packages into the main bundle at module-eval time.
 
 /**
  * ✅ INSTRUCTION 3: Helper function to inject trace context into fetch/axios headers
@@ -19,10 +19,16 @@ const getTraceHeaders = () => {
   const headers = {};
   
   try {
+    // Attempt to load OpenTelemetry API dynamically. If not present or not
+    // initialized, this will silently fall back.
+    const opentelemetry = await import('@opentelemetry/api').catch(() => null);
+    if (!opentelemetry) return headers;
+
     // Get active context (if OpenTelemetry is initialized in the frontend)
+    const { context, propagation, trace } = opentelemetry;
     const activeContext = context.active();
     const carrier = {};
-    
+
     // Inject trace context into carrier
     propagation.inject(activeContext, carrier);
     

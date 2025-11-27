@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, initSupabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
 import { api } from '../utils/api';
 
@@ -19,7 +19,8 @@ export const useWorkflow = (workflowId) => {
     const loadWorkflow = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
+        const client = await initSupabase();
+        const { data, error } = await client
           .from('workflows')
           .select(`
             *,
@@ -89,7 +90,8 @@ export const useWorkflow = (workflowId) => {
         updated_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('workflows')
         .update(payload)
         .eq('id', workflowId)
@@ -112,6 +114,7 @@ export const useWorkflow = (workflowId) => {
   const saveWorkflow = async (workflowData) => {
     try {
       setSaving(true);
+      const client = await initSupabase();
       
       // Sanitize payload: only send valid columns with correct types
       const {
@@ -147,7 +150,7 @@ export const useWorkflow = (workflowId) => {
       };
 
       // Update main workflow (exclude unknown keys like relation arrays)
-      const { data: updatedWorkflow, error: workflowError } = await supabase
+      const { data: updatedWorkflow, error: workflowError } = await client
         .from('workflows')
         .update(updatePayload)
         .eq('id', workflowId)
@@ -159,14 +162,14 @@ export const useWorkflow = (workflowId) => {
       // Update workflow steps if provided
       if (steps) {
         // Delete existing steps
-        await supabase
+        await client
           .from('workflow_steps')
           .delete()
           .eq('workflow_id', workflowId);
 
         // Insert new steps
         if (steps.length > 0) {
-          const { error: stepsError } = await supabase
+          const { error: stepsError } = await client
             .from('workflow_steps')
             .insert(steps.map(step => ({
               ...step,
@@ -180,14 +183,14 @@ export const useWorkflow = (workflowId) => {
       // Update workflow connections if provided
       if (connections) {
         // Delete existing connections
-        await supabase
+        await client
           .from('workflow_connections')
           .delete()
           .eq('workflow_id', workflowId);
 
         // Insert new connections
         if (connections.length > 0) {
-          const { error: connectionsError } = await supabase
+          const { error: connectionsError } = await client
             .from('workflow_connections')
             .insert(connections.map(conn => ({
               ...conn,
@@ -199,7 +202,7 @@ export const useWorkflow = (workflowId) => {
       }
 
       // Reload the complete workflow
-      const { data: reloadedWorkflow, error: reloadError } = await supabase
+      const { data: reloadedWorkflow, error: reloadError } = await client
         .from('workflows')
         .select(`
           *,
@@ -232,7 +235,8 @@ export const useWorkflow = (workflowId) => {
   const createWorkflow = async (workflowData) => {
     try {
       setSaving(true);
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('workflows')
         .insert({
           ...workflowData,
@@ -259,7 +263,8 @@ export const useWorkflow = (workflowId) => {
     if (!workflowId) return;
 
     try {
-      const { error } = await supabase
+      const client = await initSupabase();
+      const { error } = await client
         .from('workflows')
         .delete()
         .eq('id', workflowId);
@@ -295,7 +300,8 @@ export const useWorkflow = (workflowId) => {
     if (!workflowId) return [];
 
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('workflow_executions')
         .select(`
           *,
@@ -322,7 +328,8 @@ export const useWorkflow = (workflowId) => {
       setSaving(true);
       
       // Create new workflow
-      const { data: newWorkflow, error: workflowError } = await supabase
+      const client = await initSupabase();
+      const { data: newWorkflow, error: workflowError } = await client
         .from('workflows')
         .insert({
           ...workflow,
@@ -343,7 +350,7 @@ export const useWorkflow = (workflowId) => {
 
       // Duplicate steps
       if (workflow.workflow_steps?.length > 0) {
-        const { error: stepsError } = await supabase
+        const { error: stepsError } = await client
           .from('workflow_steps')
           .insert(workflow.workflow_steps.map(step => ({
             ...step,
@@ -358,7 +365,7 @@ export const useWorkflow = (workflowId) => {
 
       // Duplicate connections
       if (workflow.workflow_connections?.length > 0) {
-        const { error: connectionsError } = await supabase
+        const { error: connectionsError } = await client
           .from('workflow_connections')
           .insert(workflow.workflow_connections.map(conn => ({
             ...conn,

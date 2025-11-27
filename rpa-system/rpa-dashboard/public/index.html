@@ -35,22 +35,7 @@
   <!-- <script type="text/javascript" id="hs-script-loader" async defer src="https://js-na2.hs-scripts.com/243698495.js"></script> -->
   <!-- End of HubSpot Embed Code -->
 
-  <!-- Google tag (gtag.js) for domain-specific tracking -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QGYCGQFC6D"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      
-      // Configure gtag with proper domain settings
-      gtag('config', 'G-QGYCGQFC6D', {
-        // Set domain for production vs development
-        cookie_domain: window.location.hostname === 'easy-flow-lac.vercel.app' 
-          ? 'easy-flow-lac.vercel.app' 
-          : 'localhost',
-        send_page_view: false // Let React GA handle page views
-      });
-    </script>
+    <!-- Google tag (gtag.js) is injected at runtime by `env.js` when enabled -->
     
     <title>EasyFlow</title>
   </head>

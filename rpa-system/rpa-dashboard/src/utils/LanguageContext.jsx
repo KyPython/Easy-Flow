@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { api } from './api';
 import { useAuth } from './AuthContext';
 
 // Core language state only; translation handled by i18n hook now.
@@ -20,6 +19,8 @@ export const LanguageProvider = ({ children }) => {
     const load = async () => {
       if (!user) return;
       try {
+        // Lazy-import api client only when needed (user is authenticated)
+        const { api } = await import('./api');
         const resp = await api.get('/api/user/preferences');
         const pref = resp?.data?.ui_preferences?.language;
         if (pref && available.includes(pref)) {

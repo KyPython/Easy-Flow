@@ -31,8 +31,9 @@ export async function fetchWithAuth(url, options = {}) {
   };
 
   const mergedOptions = {
-    // Default to including credentials so cookie-based sessions are sent
-    credentials: (options && 'credentials' in options) ? options.credentials : 'include',
+    // Default to omitting credentials to avoid sending cookies cross-origin in dev.
+    // Call sites can still pass an explicit `credentials` option when needed.
+    credentials: (options && 'credentials' in options) ? options.credentials : 'omit',
     ...options,
     headers
   };
@@ -47,7 +48,36 @@ export async function fetchWithAuth(url, options = {}) {
     return Promise.reject(new Error('fetch not available'));
   }
 
-  return _fn(url, mergedOptions);
+  try {
+    const res = await _fn(url, mergedOptions);
+
+    // Dev diagnostic: mirror the same detection as the global fetch wrapper
+    try {
+      const acao = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-origin') : null;
+      const acc = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-credentials') : null;
+      const setCookie = res.headers && typeof res.headers.get === 'function' ? res.headers.get('set-cookie') : null;
+      if ((setCookie) || (acao === '*' && acc !== 'true')) {
+        const warn = {
+          message: '[devNetLogger] Potential CORS cookie mismatch detected',
+          url,
+          status: res.status,
+          accessControlAllowOrigin: acao,
+          accessControlAllowCredentials: acc,
+          setCookieHeader: !!setCookie
+        };
+        console.warn(warn.message, warn);
+        try {
+          if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new CustomEvent('devNetLogger:corsCookieWarning', { detail: warn }));
+          }
+        } catch (e) {}
+      }
+    } catch (e) { /* diagnostic non-fatal */ }
+
+    return res;
+  } catch (err) {
+    throw err;
+  }
 }
 if (typeof window !== 'undefined') {
   try {
@@ -69,20 +99,71 @@ if (typeof window !== 'undefined') {
           }
         } catch {}
 
-        // Always include credentials and Authorization header if token exists
-        const token = localStorage.getItem('dev_token') || localStorage.getItem('authToken') || (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_KEY);
+        // Convert Headers object to plain object if needed (Headers doesn't spread correctly)
+        let incomingHeaders = {};
+        if (init && init.headers) {
+          if (init.headers instanceof Headers) {
+            // Headers object - iterate entries
+            for (const [key, value] of init.headers.entries()) {
+              incomingHeaders[key] = value;
+            }
+          } else {
+            // Plain object or array - spread it
+            incomingHeaders = { ...init.headers };
+          }
+        }
+
+        // Only add Authorization from localStorage if not already present in incoming headers
+        const hasAuth = incomingHeaders && (incomingHeaders['Authorization'] || incomingHeaders['authorization']);
+        const token = !hasAuth ? (localStorage.getItem('dev_token') || localStorage.getItem('authToken') || (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_KEY)) : null;
+
         const enhancedInit = {
           ...init,
-          credentials: 'include',
+          // Do not include credentials by default to avoid CORS credential preflight failures.
+          credentials: (init && 'credentials' in init) ? init.credentials : 'omit',
           headers: {
             'Content-Type': 'application/json',
-            ...(init && init.headers ? init.headers : {}),
+            ...incomingHeaders,
             ...(token ? { 'Authorization': `Bearer ${token}` } : {})
           }
         };
 
         try {
           const res = await _origFetch(input, enhancedInit);
+
+          // Dev diagnostic: detect responses that set cookies while CORS allows any origin
+          try {
+            const acao = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-origin') : null;
+            const acc = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-credentials') : null;
+            // Note: browsers usually do not expose 'set-cookie' to JS; presence is often detectable only server-side.
+            // However some proxies/environments might echo a 'set-cookie' header into CORS-exposed headers.
+            const setCookie = res.headers && typeof res.headers.get === 'function' ? res.headers.get('set-cookie') : null;
+
+            if ((setCookie) || (acao === '*' && acc !== 'true')) {
+              const warn = {
+                message: '[devNetLogger] Potential CORS cookie mismatch detected',
+                url,
+                status: res.status,
+                accessControlAllowOrigin: acao,
+                accessControlAllowCredentials: acc,
+                setCookieHeader: !!setCookie
+              };
+              // Console warning so capture-trace / diagnose scripts will pick this up in diagnostics
+              console.warn(warn.message, warn);
+
+              // Broadcast an in-window event so dev tooling can capture it programmatically
+              try {
+                if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+                  window.dispatchEvent(new CustomEvent('devNetLogger:corsCookieWarning', { detail: warn }));
+                }
+              } catch (e) {
+                // ignore
+              }
+            }
+          } catch (e) {
+            // non-fatal diagnostic failure
+          }
+
           if (!res.ok && method.toUpperCase() === 'POST') {
             console.warn('[net] POST failed', { url, status: res.status, statusText: res.statusText });
           }

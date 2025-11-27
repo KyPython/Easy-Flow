@@ -164,10 +164,14 @@ venv.bak/
 *.db
 *.db3
 *.lock
+
+# SQL schema and migration files (contains sensitive database structure)
 *.sql
 **/*.sql
 migrations/*.sql
 **/migrations/*.sql
+# Specifically exclude Supabase schema file (contains RLS policies and table definitions)
+supabase-schema.sql
 .testing/
 .test
 /test-output/
@@ -280,3 +284,23 @@ DEPLOYMENT_VERIFICATION_CHECKLIST.md
 # Duplicate/temporary client files
 ccloud-nodejs-client*/
 *ccloud-nodejs-client*.zip
+
+# Shell helpers and local shell artifacts
+# Ignore local helper shell scripts that may contain commands or secrets
+*.local.sh
+*.secret.sh
+*.private.sh
+
+# Editor/backup variants of shell scripts
+*.sh.bak
+*.sh.orig
+*.sh~
+
+# Shell history and session files (may contain sensitive commands)
+.bash_history
+.zsh_history
+.sh_history
+.session
+
+# PID files and transient process artifacts
+*.pid

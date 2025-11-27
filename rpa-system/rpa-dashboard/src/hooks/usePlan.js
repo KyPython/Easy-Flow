@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../utils/AuthContext';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, initSupabase } from '../utils/supabaseClient';
 import { useRealtimeSync } from './useRealtimeSync';
-import { api } from '../utils/api';
+import { api, requestWithRetry } from '../utils/api';
 
 export const usePlan = () => {
   const { user } = useAuth();
@@ -24,7 +24,9 @@ export const usePlan = () => {
       console.log('Fetching plan data for user:', user.id);
 
       // Call the backend API endpoint to get complete plan details
-      const response = await api.get('/api/user/plan');
+      // Use requestWithRetry to handle transient network/5xx errors and support abort/timeouts.
+      const resp = await requestWithRetry({ method: 'get', url: '/api/user/plan' }, { retries: 2, backoffMs: 500, timeout: 30000 });
+      const response = resp;
 
       if (process.env.NODE_ENV === 'development') {
         console.log('API call result:', response.data);
@@ -144,7 +146,8 @@ export const usePlan = () => {
     if (!user?.id) return false;
     
     try {
-      const { error } = await supabase
+      const client = await initSupabase();
+      const { error } = await client
         .from('profiles')
         .update({ 
           plan_id: newPlanId,
@@ -204,19 +207,38 @@ export const usePlan = () => {
     };
 
     // Aggressive polling when page is visible (for checkout returns)
+    // CRITICAL: Only poll if last request succeeded to avoid cascading failures
     let visibilityPollInterval = null;
+    let consecutiveFailures = 0;
     const startVisibilityPolling = () => {
       if (document.visibilityState === 'visible' && !visibilityPollInterval) {
         console.log('Starting aggressive plan polling for 30 seconds...');
-        visibilityPollInterval = setInterval(() => {
-          fetchPlanData();
-        }, 3000); // Poll every 3 seconds
-        
+        visibilityPollInterval = setInterval(async () => {
+          // Circuit breaker: stop polling after 3 consecutive failures
+          if (consecutiveFailures >= 3) {
+            console.error('❌ Stopping aggressive polling - backend appears down');
+            if (visibilityPollInterval) {
+              clearInterval(visibilityPollInterval);
+              visibilityPollInterval = null;
+            }
+            return;
+          }
+
+          try {
+            await fetchPlanData();
+            consecutiveFailures = 0; // Reset on success
+          } catch (err) {
+            consecutiveFailures++;
+            console.warn(`⚠️ Poll attempt failed (${consecutiveFailures}/3)`);
+          }
+        }, 5000); // Poll every 5 seconds (reduced from 3)
+
         // Stop aggressive polling after 30 seconds
         setTimeout(() => {
           if (visibilityPollInterval) {
             clearInterval(visibilityPollInterval);
             visibilityPollInterval = null;
+            consecutiveFailures = 0;
             console.log('Stopped aggressive plan polling');
           }
         }, 30000);

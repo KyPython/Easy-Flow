@@ -8,7 +8,7 @@
  * REVERT: Remove React.memo wrapper and restore original export
  */
 
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import PropTypes from 'prop-types';
 import { api } from '../../utils/api';
 import { useToast } from '../WorkflowBuilder/Toast';
@@ -34,7 +34,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
   const { incrementTaskCount } = useUsageTracking(user?.id);
 
   // Form persistence setup
-  const initialFormData = {
+  const initialFormData = useMemo(() => ({
     url: initialUrl || '',
     username: '',
     password: '',
@@ -48,7 +48,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     cssSelector: '',
     linkText: '',
     testResults: [],
-  };
+  }), [initialUrl]);
 
   const {
     saveData,
@@ -147,7 +147,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [persistenceEnabled, hasStoredData, loadData, initialUrl, clearData, initialFormData]);
+  }, [persistenceEnabled, hasStoredData, loadData, initialUrl, clearData]);
 
   // Enable browser autofill on mount
   useEffect(() => {

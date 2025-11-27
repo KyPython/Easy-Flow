@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../utils/supabaseClient';
+import supabase, { initSupabase } from '../utils/supabaseClient';
 
 // Emergency fallback templates - only used when database is completely unavailable
 const emergencyFallbackTemplates = [
@@ -54,7 +54,8 @@ export const useWorkflowTemplates = (options = {}) => {
       const to = from + ps - 1;
 
       // Try ranked view first for popularity scoring; include search and filters
-      let qry = supabase
+        const client = await initSupabase();
+        let qry = client
         .from('workflow_templates_ranked')
         .select('*', { count: 'exact' })
         .order(sortBy === 'recent' ? 'updated_at' : (sortBy === 'name' ? 'name' : 'popularity_score'), { ascending: sortBy === 'name' })
@@ -89,7 +90,7 @@ export const useWorkflowTemplates = (options = {}) => {
         // If it's an undefined column (likely popularity_score), try again ordering by updated_at
         if (templatesError.code === '42703') {
           try {
-            let safeQry = supabase
+            let safeQry = client
               .from('workflow_templates_ranked')
               .select('*', { count: 'exact' })
               .order(sortBy === 'name' ? 'name' : 'updated_at', { ascending: sortBy === 'name' })
@@ -112,7 +113,7 @@ export const useWorkflowTemplates = (options = {}) => {
         // If data is still undefined from the safe retry, proceed with base table fallback
         if (!Array.isArray(data)) {
         try {
-          let baseQry = supabase
+          let baseQry = client
             .from('workflow_templates')
             .select('*', { count: 'exact' })
             // Prefer sensible sort mapping when popularity_score is unavailable
@@ -134,11 +135,11 @@ export const useWorkflowTemplates = (options = {}) => {
           }
 
           const baseRes = await baseQry;
-          if (baseRes.error) {
+            if (baseRes.error) {
             // If base table query still has schema/permission issues, fall back to public workflows
             if (baseRes.error.code === '42P01' || baseRes.error.code === '42703' || String(baseRes.error.message || '').toLowerCase().includes('permission')) {
-              const { data: workflowData, error: workflowError } = await supabase
-                .from('workflows')
+              const { data: workflowData, error: workflowError } = await client
+                  .from('workflows')
                 .select(`
                   id,
                   name,
@@ -245,7 +246,8 @@ export const useWorkflowTemplates = (options = {}) => {
           template = emergencyFallbackTemplates[0];
         } else if (uuidRegex.test(idStr)) {
           // Fetch base template row
-          const { data: tRow, error: tErr } = await supabase
+          const clientForTemplate = await initSupabase();
+          const { data: tRow, error: tErr } = await clientForTemplate
             .from('workflow_templates')
             .select('*')
             .eq('id', idStr)
@@ -255,7 +257,7 @@ export const useWorkflowTemplates = (options = {}) => {
           // Try to get latest version config
           let latestConfig = null;
           try {
-            const { data: ver, error: vErr } = await supabase
+            const { data: ver, error: vErr } = await clientForTemplate
               .from('template_versions')
               .select('config')
               .eq('template_id', idStr)
@@ -304,13 +306,14 @@ export const useWorkflowTemplates = (options = {}) => {
       }
 
       // Get current user for RLS policy
-      const { data: { user } } = await supabase.auth.getUser();
+        const clientForCreate = await initSupabase();
+        const { data: { user } } = await clientForCreate.auth.getUser();
       if (!user) {
         throw new Error('User must be authenticated to create workflows');
       }
 
       // Create new workflow based on template
-      const { data, error } = await supabase
+      const { data, error } = await clientForCreate
         .from('workflows')
         .insert({
           user_id: user.id,
@@ -331,7 +334,7 @@ export const useWorkflowTemplates = (options = {}) => {
       // Telemetry: record install via RPC (increments usage_count) only for UUID templates
       if (uuidRegex.test(idStr)) {
         try {
-          await supabase.rpc('record_template_install', { p_template_id: idStr });
+            await clientForCreate.rpc('record_template_install', { p_template_id: idStr });
         } catch (e) {
           console.warn('record_template_install RPC failed or unavailable:', e?.message || e);
         }
@@ -359,7 +362,8 @@ export const useWorkflowTemplates = (options = {}) => {
       // If it's a workflow-based template, get workflow details
       if (templateId.startsWith('workflow-')) {
         const workflowId = templateId.replace('workflow-', '');
-        const { data, error } = await supabase
+        const client3 = await initSupabase();
+        const { data, error } = await client3
           .from('workflows')
           .select(`
             *,
@@ -379,14 +383,15 @@ export const useWorkflowTemplates = (options = {}) => {
       }
 
       // Otherwise get from templates table plus versions
-      const { data: template, error: tErr } = await supabase
+      const client4 = await initSupabase();
+      const { data: template, error: tErr } = await client4
         .from('workflow_templates')
         .select('*')
         .eq('id', templateId)
         .single();
       if (tErr) throw tErr;
 
-      const { data: versions, error: vErr } = await supabase
+      const { data: versions, error: vErr } = await client4
         .from('template_versions')
         .select('*')
         .eq('template_id', templateId)
@@ -402,11 +407,12 @@ export const useWorkflowTemplates = (options = {}) => {
 
   // Publish a template (owner flow): create template + version (pending_review)
   const publishTemplate = useCallback(async ({ name, description, category = 'general', tags = [], is_public = false, version = '1.0.0', changelog = '', config, dependencies = [], screenshots = [] }) => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const client5 = await initSupabase();
+    const { data: { user } } = await client5.auth.getUser();
     if (!user) throw new Error('User must be authenticated');
 
     // Insert template draft
-    const { data: template, error: tErr } = await supabase
+    const { data: template, error: tErr } = await client5
       .from('workflow_templates')
       .insert({
         owner_id: user.id,
@@ -423,7 +429,7 @@ export const useWorkflowTemplates = (options = {}) => {
     if (tErr) throw tErr;
 
     // Insert initial version
-    const { data: ver, error: vErr } = await supabase
+    const { data: ver, error: vErr } = await client5
       .from('template_versions')
       .insert({
         template_id: template.id,
@@ -439,7 +445,7 @@ export const useWorkflowTemplates = (options = {}) => {
     if (vErr) throw vErr;
 
     // Set latest version pointer
-    await supabase
+    await client5
       .from('workflow_templates')
       .update({ latest_version_id: ver.id })
       .eq('id', template.id);
@@ -456,7 +462,8 @@ export const useWorkflowTemplates = (options = {}) => {
 
       // In a real app, you'd track individual user ratings and calculate averages
       // For now, we'll update the rating directly (simplified approach)
-      const { error } = await supabase
+      const client6 = await initSupabase();
+      const { error } = await client6
         .from('workflow_templates')
         .update({ 
           rating: rating,

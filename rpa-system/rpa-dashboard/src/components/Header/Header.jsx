@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { useI18n } from '../../i18n';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import styles from './Header.module.css';
-import { supabase } from '../../utils/supabaseClient';
+import supabase, { initSupabase } from '../../utils/supabaseClient';
 import PropTypes from 'prop-types';
-import ContactModal from './ContactModal';
-import DocumentationGuide from '../DocumentationGuide/DocumentationGuide';
 import { usePlan } from '../../hooks/usePlan';
-import NotificationCenter from '../NotificationCenter/NotificationCenter';
+
+// PERFORMANCE: Lazy-load heavy components not needed for initial render
+const NotificationCenter = lazy(() => import('../NotificationCenter/NotificationCenter'));
+const ContactModal = lazy(() => import('./ContactModal'));
+const DocumentationGuide = lazy(() => import('../DocumentationGuide/DocumentationGuide'));
 
 const Header = ({ user }) => {
   const location = useLocation();
@@ -24,7 +26,8 @@ const Header = ({ user }) => {
 
   async function handleSignOut() {
     try {
-      await supabase.auth.signOut();
+      const client = await initSupabase();
+      await client.auth.signOut();
     } catch (e) {
       console.error('Sign out error:', e);
     } finally {
@@ -199,7 +202,9 @@ const Header = ({ user }) => {
               </div>
 
               <div className={styles.userActions}>
-                <NotificationCenter user={user} />
+                <Suspense fallback={<div className={styles.notificationPlaceholder} />}>
+                  <NotificationCenter user={user} />
+                </Suspense>
                 <Link className={styles.actionButton} to="/app/settings">
                   {t('nav.settings','Settings')}
                 </Link>
@@ -237,15 +242,21 @@ const Header = ({ user }) => {
         <div className={styles.modalOverlay} onClick={() => setShowDocs(false)}>
           <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
             <button className={styles.closeButton} onClick={() => setShowDocs(false)}>&times;</button>
-            <DocumentationGuide />
+            <Suspense fallback={<div>Loading...</div>}>
+              <DocumentationGuide />
+            </Suspense>
           </div>
         </div>
       )}
       {/* Contact Modal */}
-      <ContactModal
-        open={showContact}
-        onClose={() => setShowContact(false)}
-      />
+      {showContact && (
+        <Suspense fallback={null}>
+          <ContactModal
+            open={showContact}
+            onClose={() => setShowContact(false)}
+          />
+        </Suspense>
+      )}
     </header>
   );
 };

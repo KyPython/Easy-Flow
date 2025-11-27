@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePlan } from '../../hooks/usePlan';
 import { useTheme } from '../../utils/ThemeContext';
-import { supabase } from '../../utils/supabaseClient';
+import supabase, { initSupabase } from '../../utils/supabaseClient';
 import { FiX, FiZap, FiArrowRight, FiCheck } from 'react-icons/fi';
 import PropTypes from 'prop-types';
 import conversionTracker from '../../utils/conversionTracking';
@@ -41,7 +41,8 @@ const PaywallModal = ({
   // Fetch plans and feature labels (same as PricingPage)
   const fetchPlans = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('plans')
         .select('id, name, price_cents, billing_interval, description, polar_url, feature_flags, is_most_popular')
         .order('created_at', { ascending: true });
@@ -54,7 +55,8 @@ const PaywallModal = ({
 
   const fetchFeatureLabels = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('plan_feature_labels')
         .select('feature_key, feature_label');
       if (error) throw error;

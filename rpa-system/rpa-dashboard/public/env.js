@@ -38,6 +38,11 @@
     VITE_GA_MEASUREMENT_ID: existing.VITE_GA_MEASUREMENT_ID || existing.REACT_APP_GA_MEASUREMENT_ID || '',
     VITE_UCHAT_WIDGET_ID: existing.VITE_UCHAT_WIDGET_ID || existing.REACT_APP_UCHAT_WIDGET_ID || '',
 
+    // Feature gates (string 'true' / 'false') - control at deploy/runtime
+    VITE_ENABLE_BROWSER_OTLP: existing.VITE_ENABLE_BROWSER_OTLP || existing.REACT_APP_ENABLE_BROWSER_OTLP || 'false',
+    VITE_ENABLE_GTM: existing.VITE_ENABLE_GTM || existing.REACT_APP_ENABLE_GTM || existing.ENABLE_ANALYTICS || existing.REACT_APP_ENABLE_ANALYTICS || 'false',
+    VITE_ENABLE_FIREBASE: existing.VITE_ENABLE_FIREBASE || existing.REACT_APP_ENABLE_FIREBASE || 'false',
+
     ENABLE_ANALYTICS: existing.ENABLE_ANALYTICS || existing.REACT_APP_ENABLE_ANALYTICS || 'false'
   };
 
@@ -52,5 +57,45 @@
 
   // Final window._env includes both sets (VITE_* preferred, REACT_APP_* mirrored)
   window._env = Object.assign({}, env, mirror, existing);
+})();
+
+// After window._env is populated, optionally inject analytics script at runtime
+(function injectAnalytics() {
+  try {
+    const env = window._env || {};
+    const enableGtm = String(env.VITE_ENABLE_GTM || env.ENABLE_ANALYTICS || '').toLowerCase() === 'true';
+    const gaId = env.VITE_GA_MEASUREMENT_ID || '';
+    // By default we do NOT auto-inject analytics at global startup. Use the
+    // per-user gate (`utils/analyticsGate.js`) to inject `gtag.js` only for
+    // paying users. A deployment may still opt-in to global injection by
+    // explicitly setting `VITE_GTM_GLOBAL=true` alongside `VITE_ENABLE_GTM=true`.
+    const enableGlobal = String(env.VITE_GTM_GLOBAL || '').toLowerCase() === 'true';
+
+    if (enableGtm && gaId && enableGlobal) {
+      // Inject gtag.js dynamically (global mode)
+      const s = document.createElement('script');
+      s.async = true;
+      s.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
+      document.head.appendChild(s);
+
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { window.dataLayer.push(arguments); };
+      window.gtag('js', new Date());
+      try {
+        window.gtag('config', gaId, {
+          cookie_domain: (window.location.hostname === 'easy-flow-lac.vercel.app') ? 'easy-flow-lac.vercel.app' : window.location.hostname,
+          send_page_view: false
+        });
+      } catch (e) {
+        console.warn('[env] gtag config failed', e && e.message ? e.message : e);
+      }
+    } else {
+      // Provide a safe no-op gtag to avoid runtime errors in code that calls it
+      window.gtag = window.gtag || function () { /* no-op */ };
+    }
+  } catch (e) {
+    // Swallow errors — this file should never break app startup
+    console.warn('[env] injectAnalytics failed', e && e.message ? e.message : e);
+  }
 })();
 

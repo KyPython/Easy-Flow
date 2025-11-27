@@ -15,6 +15,21 @@ async function diagnosePage() {
 
   const page = await browser.newPage();
 
+  // Inject listener to forward devNetLogger CORS/cookie warnings to console
+  try {
+    await page.evaluateOnNewDocument(() => {
+      try {
+        window.addEventListener('devNetLogger:corsCookieWarning', (e) => {
+          try {
+            console.warn('CORS_COOKIE_WARNING', JSON.stringify(e && e.detail));
+          } catch (err) {}
+        });
+      } catch (err) {}
+    });
+  } catch (e) {
+    // ignore - optional enhancement
+  }
+
   // Capture ALL console messages
   const logs = [];
   page.on('console', msg => {

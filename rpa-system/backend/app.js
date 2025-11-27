@@ -1247,8 +1247,8 @@ app.get('/api/auth/session', async (req, res) => {
       }
     }
 
-    // No valid session
-    res.status(401).json({ error: 'No valid session' });
+    // No valid session - return 200 with null user instead of 401 to avoid console errors
+    res.status(200).json({ user: null, session: null });
   } catch (error) {
     logger.error('Session check error:', error);
     res.status(500).json({ error: 'Session check failed' });

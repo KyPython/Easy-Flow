@@ -15,7 +15,7 @@ import {
   FaCalendarAlt,
   FaChartBar
 } from 'react-icons/fa';
-import { supabase } from '../../utils/supabaseClient';
+import supabase, { initSupabase } from '../../utils/supabaseClient';
 import PlanGate from '../PlanGate/PlanGate';
 import { useTheme } from '../../utils/ThemeContext';
 
@@ -40,7 +40,8 @@ const DataRetentionDashboard = ({ user }) => {
       setLoading(true);
       setError(null);
 
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
 
       if (!token) {
@@ -72,7 +73,8 @@ const DataRetentionDashboard = ({ user }) => {
       setIsRunningCleanup(true);
       setError(null);
 
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
 
       const { api } = require('../../utils/api');
@@ -93,7 +95,8 @@ const DataRetentionDashboard = ({ user }) => {
   const toggleScheduler = async (start) => {
 
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
 
       const { api } = require('../../utils/api');
