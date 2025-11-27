@@ -3507,14 +3507,18 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
 // Get user plan data
 app.get('/api/user/plan', authMiddleware, async (req, res) => {
   try {
+    const routeStart = process.hrtime.bigint();
     logger.info(`[GET /api/user/plan] Fetching plan data for user ${req.user.id}`);
 
     // Try to get user profile
+    const profileStart = process.hrtime.bigint();
     let { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
       .eq('id', req.user.id)
       .maybeSingle();
+    const profileEnd = process.hrtime.bigint();
+    logger.info('[GET /api/user/plan] profile_query_ms', { user: req.user.id, db_ms: Number(profileEnd - profileStart) / 1e6 });
 
     if (!profile) {
       // No profile found, create one with default plan_id 'free'
@@ -3545,11 +3549,14 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
     logger.info(`[GET /api/user/plan] User has plan: ${userPlanName}`);
 
     // Get plan data by name/slug
+    const planFetchStart = process.hrtime.bigint();
     let { data: plan, error: planError } = await supabase
       .from('plans')
       .select('*')
       .or(`name.eq.${userPlanName},slug.eq.${userPlanName}`)
       .single();
+    const planFetchEnd = process.hrtime.bigint();
+    logger.info('[GET /api/user/plan] plan_query_ms', { user: req.user.id, db_ms: Number(planFetchEnd - planFetchStart) / 1e6 });
 
     if (planError || !plan) {
       logger.warn(`[GET /api/user/plan] Plan ${userPlanName} not found, defaulting to Hobbyist`);
@@ -3566,6 +3573,7 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
     }
 
     // Get current usage
+    const usageStart = process.hrtime.bigint();
     const [monthlyRunsResult, storageResult, workflowsResult] = await Promise.all([
       // Monthly automation runs (completed tasks)
       supabase
@@ -3585,6 +3593,8 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
         .select('id', { count: 'exact', head: true })
         .eq('user_id', req.user.id)
     ]);
+    const usageEnd = process.hrtime.bigint();
+    logger.info('[GET /api/user/plan] usage_queries_ms', { user: req.user.id, db_ms: Number(usageEnd - usageStart) / 1e6 });
 
     const monthlyRuns = monthlyRunsResult.count || 0;
     const storageBytes = storageResult.data?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
@@ -3615,7 +3625,9 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
       can_create_workflow: (plan.limits?.workflows || 0) !== 0
     };
 
+    const routeEnd = process.hrtime.bigint();
     logger.info(`[GET /api/user/plan] Final plan data:`, JSON.stringify(planData, null, 2));
+    logger.info('[GET /api/user/plan] total_route_ms', { user: req.user.id, total_ms: Number(routeEnd - routeStart) / 1e6 });
     res.json({
       success: true,
       planData: planData

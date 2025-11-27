@@ -35,11 +35,15 @@ async function getUserPlan(userId) {
   logger.info('Fetching user plan data', { userId });
 
   // 1. Get the user's plan (join user_profiles -> plans)
+  const tStart = process.hrtime.bigint();
+  const qStart = process.hrtime.bigint();
   const { data: userProfile, error: userError } = await supabase
     .from('profiles')
     .select('plan_id, plan:plans(*)')
     .eq('id', userId)
     .execute();
+  const qEnd = process.hrtime.bigint();
+  logger.info('planService:profiles_query_timing', { userId, db_ms: Number(qEnd - qStart) / 1e6 });
   
   if (userError || !userProfile) {
     const error = new Error('User profile/plan not found');
@@ -58,8 +62,11 @@ async function getUserPlan(userId) {
 
   // 2. Get usage from SQL function  
   logger.info('Fetching monthly usage', { userId });
+  const usageStart = process.hrtime.bigint();
   const { data: usageResult, error: usageError } = await supabase
     .rpc('get_monthly_usage', { user_uuid: userId });
+  const usageEnd = process.hrtime.bigint();
+  logger.info('planService:usage_rpc_timing', { userId, db_ms: Number(usageEnd - usageStart) / 1e6 });
   if (usageError) {
     const error = new Error('Failed to fetch usage');
     error.code = 'USAGE_FETCH_FAILED';
@@ -77,8 +84,11 @@ async function getUserPlan(userId) {
 
   // 3. Get limits from SQL function
   logger.info('Fetching plan limits', { userId });
+  const limitsStart = process.hrtime.bigint();
   const { data: limitsResult, error: limitsError } = await supabase
     .rpc('get_plan_limits', { user_uuid: userId });
+  const limitsEnd = process.hrtime.bigint();
+  logger.info('planService:limits_rpc_timing', { userId, db_ms: Number(limitsEnd - limitsStart) / 1e6 });
   if (limitsError) {
     const error = new Error('Failed to fetch plan limits');
     error.code = 'LIMITS_FETCH_FAILED';
@@ -94,6 +104,8 @@ async function getUserPlan(userId) {
   }
   const limits = limitsResult;
 
+  const tEnd = process.hrtime.bigint();
+  logger.info('planService:total_time', { userId, total_ms: Number(tEnd - tStart) / 1e6 });
   return { plan, usage, limits };
 }
 
