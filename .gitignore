@@ -92,6 +92,9 @@ coverage/
 # TypeScript
 *.tsbuildinfo
 
+# Ignore built public env bundle that may contain keys
+rpa-system/rpa-dashboard/public/env.js
+
 # Disabled GitHub workflows (VM-related)
 .github/workflows/disabled/
 
