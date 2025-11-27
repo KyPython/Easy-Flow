@@ -13,7 +13,7 @@
     "node": ">=18.0.0 <23.0.0"
   },
   "dependencies": {
-    "@confluentinc/kafka-javascript": "^1.0.0",
+    "kafkajs": "^2.2.4",
     "dotenv": "^16.0.0"
   },
   "devDependencies": {},

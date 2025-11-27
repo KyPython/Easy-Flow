@@ -1545,8 +1545,41 @@ async function queueTaskRun(runId, taskData) {
     }
     
     // Prepare the payload for the automation worker
+    // Validate and normalize the target URL to prevent SSRF:
+    // - ensure a protocol is present (default to http if missing)
+    // - only allow http/https schemes
+    // - block localhost and private IP ranges using isPrivateIP helper
+    let normalizedTargetUrl;
+    if (!taskData || !taskData.url) {
+      throw new Error('Missing target url');
+    }
+    try {
+      normalizedTargetUrl = String(taskData.url).trim();
+      if (!/^https?:\/\//i.test(normalizedTargetUrl)) {
+        normalizedTargetUrl = `http://${normalizedTargetUrl}`;
+      }
+      const parsed = new URL(normalizedTargetUrl);
+
+      // Only allow http/https
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error('Invalid URL protocol');
+      }
+
+      // Block localhost and private IP addresses
+      const hostname = parsed.hostname.toLowerCase();
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || isPrivateIP(hostname)) {
+        throw new Error('URL resolves to a private or localhost address');
+      }
+
+      // Use the canonical URL string
+      normalizedTargetUrl = parsed.toString();
+    } catch (e) {
+      logger.warn('[queueTaskRun] Rejected unsafe target URL:', taskData.url, e.message);
+      throw new Error('Invalid target URL');
+    }
+
     const payload = { 
-      url: taskData.url,
+      url: normalizedTargetUrl,
       title: taskData.title || 'Untitled Task',
       run_id: runId,
       task_id: taskData.task_id,
