@@ -41,6 +41,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
+const dns = require('dns').promises; // used for DNS resolution checks to mitigate SSRF
 // Load environment variables from the backend/.env file early so modules that
 // require configuration (Firebase, Supabase, etc.) see the variables on require-time.
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
@@ -1577,8 +1578,26 @@ async function queueTaskRun(runId, taskData) {
       logger.warn('[queueTaskRun] Rejected unsafe target URL:', taskData.url, e.message);
       throw new Error('Invalid target URL');
     }
+    // Perform DNS resolution of the target hostname and reject if any resolved
+    // address is a private/loopback link to mitigate SSRF via DNS-based hosts.
+    try {
+      const hostname = new URL(normalizedTargetUrl).hostname;
+      // resolve all addresses for the hostname
+      const addresses = await dns.lookup(hostname, { all: true });
+      for (const addr of addresses) {
+        // addr.address is the resolved IP string
+        if (isPrivateIP(addr.address)) {
+          logger.warn('[queueTaskRun] DNS check rejected URL resolving to private IP:', hostname, addr.address);
+          throw new Error('URL resolves to a private or localhost address');
+        }
+      }
+    } catch (dnsErr) {
+      logger.warn('[queueTaskRun] DNS resolution failed or rejected for URL:', normalizedTargetUrl, dnsErr?.message || dnsErr);
+      // Normalize response for caller; avoid leaking internal details
+      throw new Error('Invalid target URL');
+    }
 
-    const payload = { 
+    const payload = {
       url: normalizedTargetUrl,
       title: taskData.title || 'Untitled Task',
       run_id: runId,
@@ -1586,6 +1605,7 @@ async function queueTaskRun(runId, taskData) {
       user_id: taskData.user_id,
       type: taskData.task_type || taskData.type || 'general',
       parameters: taskData.parameters || {}
+    };
     };
     
     logger.info(`[queueTaskRun] Sending to automation service: ${automationUrl}`);

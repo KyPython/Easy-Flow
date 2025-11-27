@@ -27,6 +27,10 @@ const fs = require('fs').promises;
 const path = require('path');
 const router = express.Router();
 
+// Download concurrency control to avoid excessive simultaneous streams
+let activeDownloads = 0;
+const MAX_CONCURRENT_DOWNLOADS = parseInt(process.env.MAX_CONCURRENT_DOWNLOADS, 10) || 5;
+
 // Feedback storage configuration
 const FEEDBACK_DIR = path.join(__dirname, '../../../data/feedback');
 const CHECKLISTS_DIR = path.join(__dirname, '../../../public/downloads/checklists');
@@ -213,10 +217,6 @@ router.get('/checklists', async (req, res) => {
   }
 });
 
-/**
- * GET /api/checklists/download/:filename
- * Download a specific checklist PDF
- */
 router.get('/checklists/download/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
@@ -229,11 +229,21 @@ router.get('/checklists/download/:filename', async (req, res) => {
       });
     }
 
+    // Throttle concurrent downloads to avoid excessive FS/IO operations
+    if (activeDownloads >= MAX_CONCURRENT_DOWNLOADS) {
+      logger.warn(`Too many concurrent downloads, rejecting request from ${req.ip}`);
+      return res.status(429).json({
+        error: 'Too many concurrent downloads, try again later',
+        code: 'TOO_MANY_REQUESTS'
+      });
+    }
+
     const filePath = path.join(CHECKLISTS_DIR, filename);
 
-    // Check if file exists
+    // Check if file exists and enforce size limit to avoid loading huge files into memory
+    let stats;
     try {
-      await fs.access(filePath);
+      stats = await fs.stat(filePath);
     } catch (error) {
       return res.status(404).json({
         error: 'Checklist not found',
@@ -241,22 +251,78 @@ router.get('/checklists/download/:filename', async (req, res) => {
       });
     }
 
+    // Limit file size (e.g., 50MB) to prevent excessive resource allocation
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+    if (stats.size > MAX_FILE_SIZE) {
+      logger.warn(`Rejected download of ${filename} due to size ${stats.size} bytes`);
+      return res.status(413).json({
+        error: 'File too large to download',
+        code: 'FILE_TOO_LARGE'
+      });
+    }
+
+    // Reserve a download slot
+    activeDownloads += 1;
+    let released = false;
+    const releaseSlot = () => {
+      if (!released) {
+        released = true;
+        activeDownloads = Math.max(0, activeDownloads - 1);
+      }
+    };
+
     // Set appropriate headers for PDF download
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    res.status(200);
 
-    // Stream the file
-    const fileBuffer = await fs.readFile(filePath);
-    res.send(fileBuffer);
+    // Stream the file to the response to avoid buffering the entire file in memory
+    const fsSync = require('fs');
+    const stream = fsSync.createReadStream(filePath);
 
-    // Log download
-    logger.info(`📥 Checklist downloaded: ${filename} by ${req.ip}`);
+    // Handle stream errors
+    let responded = false;
+    stream.on('error', err => {
+      logger.error('Stream error while serving checklist:', err);
+      releaseSlot();
+      if (!responded) {
+        responded = true;
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: 'Failed to download checklist',
+            code: 'DOWNLOAD_ERROR'
+          });
+        } else {
+          // If headers already sent, destroy the connection
+          res.destroy();
+        }
+      }
+    });
+
+    // Log on finish/close
+    stream.on('close', () => {
+      releaseSlot();
+      logger.info(`📥 Checklist downloaded: ${filename} by ${req.ip}`);
+    });
+
+    // If client aborts, destroy the stream to free resources and release slot
+    req.on('close', () => {
+      if (!stream.destroyed) stream.destroy();
+      releaseSlot();
+    });
+
+    // Pipe stream to response (handles backpressure)
+    stream.pipe(res);
 
   } catch (error) {
     logger.error('Failed to serve checklist:', error);
     res.status(500).json({
       error: 'Failed to download checklist',
+      code: 'DOWNLOAD_ERROR'
+    });
+  }
+});
       code: 'DOWNLOAD_ERROR'
     });
   }
