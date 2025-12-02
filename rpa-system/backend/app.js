@@ -903,6 +903,31 @@ try {
   rootLogger.warn('workflowVersioningRoutes not mounted', { error: e?.message || e });
 }
 
+// Rockefeller Operating System routes
+try {
+  const founderMetricsRoutes = require('./routes/founderMetrics');
+  app.use('/api/founder', authMiddleware, contextLoggerMiddleware, apiLimiter, founderMetricsRoutes);
+  rootLogger.info('✓ Founder metrics routes mounted at /api/founder');
+} catch (e) {
+  rootLogger.warn('founderMetricsRoutes not mounted', { error: e?.message || e });
+}
+
+try {
+  const competitiveIntelRoutes = require('./routes/competitiveIntel');
+  app.use('/api/competitive-intel', authMiddleware, contextLoggerMiddleware, apiLimiter, competitiveIntelRoutes);
+  rootLogger.info('✓ Competitive intelligence routes mounted at /api/competitive-intel');
+} catch (e) {
+  rootLogger.warn('competitiveIntelRoutes not mounted', { error: e?.message || e });
+}
+
+try {
+  const efficiencyTrackerRoutes = require('./routes/efficiencyTracker');
+  app.use('/api/efficiency', authMiddleware, contextLoggerMiddleware, apiLimiter, efficiencyTrackerRoutes);
+  rootLogger.info('✓ Efficiency tracker routes mounted at /api/efficiency');
+} catch (e) {
+  rootLogger.warn('efficiencyTrackerRoutes not mounted', { error: e?.message || e });
+}
+
 // Start a workflow execution
 try {
   const { WorkflowExecutor } = require('./services/workflowExecutor');
