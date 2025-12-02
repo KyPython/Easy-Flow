@@ -1,4 +1,3 @@
-
 const { logger } = require('../utils/logger');
 /**
  * Weekly Operations - Rockefeller Operating System
@@ -11,15 +10,93 @@ const router = express.Router();
 const { getSupabase } = require('../utils/supabaseClient');
 const { auditLogger } = require('../utils/auditLogger');
 
+// ============================================================================
+// CONSTANTS - Extracted magic numbers for maintainability
+// ============================================================================
+const VALIDATION_LIMITS = {
+  PRIORITY_TEXT_MAX: 500,
+  DESCRIPTION_MAX: 2000,
+  FOCUS_TEXT_MAX: 1000,
+  EXPERIMENT_NAME_MAX: 200,
+  HYPOTHESIS_MAX: 1000,
+  DATE_REGEX: /^\d{4}-\d{2}-\d{2}$/
+};
+
+const WEEKLY_CONFIG = {
+  DEFAULT_HISTORY_LIMIT: 12,
+  MAX_HISTORY_LIMIT: 52,
+  TREND_RECENT_WEEKS: 4,
+  TREND_PREVIOUS_WEEKS: 4
+};
+
+// ============================================================================
+// VALIDATION HELPERS
+// ============================================================================
+
+/**
+ * Validate and sanitize string input
+ */
+function validateString(value, maxLength, fieldName) {
+  if (value === undefined || value === null) {
+    return { valid: true, value: null };
+  }
+  if (typeof value !== 'string') {
+    return { valid: false, error: `${fieldName} must be a string` };
+  }
+  const trimmed = value.trim();
+  if (trimmed.length > maxLength) {
+    return { valid: false, error: `${fieldName} exceeds maximum length of ${maxLength} characters` };
+  }
+  return { valid: true, value: trimmed };
+}
+
+/**
+ * Validate date string format (YYYY-MM-DD)
+ */
+function validateDate(dateStr) {
+  if (!dateStr) {
+    return { valid: true, value: getMonday(new Date()).toISOString().split('T')[0] };
+  }
+  if (!VALIDATION_LIMITS.DATE_REGEX.test(dateStr)) {
+    return { valid: false, error: 'Date must be in YYYY-MM-DD format' };
+  }
+  const parsed = new Date(dateStr);
+  if (isNaN(parsed.getTime())) {
+    return { valid: false, error: 'Invalid date' };
+  }
+  return { valid: true, value: dateStr };
+}
+
+/**
+ * Validate time_allocation object structure
+ */
+function validateTimeAllocation(allocation) {
+  if (!allocation) return { valid: true, value: {} };
+  if (typeof allocation !== 'object' || Array.isArray(allocation)) {
+    return { valid: false, error: 'time_allocation must be an object' };
+  }
+  // Ensure all values are numbers
+  const validated = {};
+  for (const [key, value] of Object.entries(allocation)) {
+    if (typeof key !== 'string' || key.length > 100) continue;
+    if (typeof value === 'number' && value >= 0 && value <= 168) { // Max hours in a week
+      validated[key.trim()] = value;
+    }
+  }
+  return { valid: true, value: validated };
+}
+
 /**
  * POST /api/weekly/planning
  * Monday morning week planning (30 minutes)
+ *
+ * SECURITY FIX: Added input validation for all fields
  */
 router.post('/planning', async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.status(401).json({ error: 'Authentication required', code: 'AUTH_REQUIRED' });
     }
 
     const {
@@ -35,21 +112,72 @@ router.post('/planning', async (req, res) => {
       time_allocation
     } = req.body;
 
+    // Input validation
+    const dateValidation = validateDate(week_of);
+    if (!dateValidation.valid) {
+      return res.status(400).json({ error: dateValidation.error, code: 'INVALID_DATE' });
+    }
+
+    const reviewValidation = validateString(last_week_review, VALIDATION_LIMITS.DESCRIPTION_MAX, 'last_week_review');
+    if (!reviewValidation.valid) {
+      return res.status(400).json({ error: reviewValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const efficiencyValidation = validateString(efficiency_focus, VALIDATION_LIMITS.FOCUS_TEXT_MAX, 'efficiency_focus');
+    if (!efficiencyValidation.valid) {
+      return res.status(400).json({ error: efficiencyValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const dataFocusValidation = validateString(data_focus, VALIDATION_LIMITS.FOCUS_TEXT_MAX, 'data_focus');
+    if (!dataFocusValidation.valid) {
+      return res.status(400).json({ error: dataFocusValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const competitiveValidation = validateString(competitive_focus, VALIDATION_LIMITS.FOCUS_TEXT_MAX, 'competitive_focus');
+    if (!competitiveValidation.valid) {
+      return res.status(400).json({ error: competitiveValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const priorityValidation = validateString(week_priority, VALIDATION_LIMITS.PRIORITY_TEXT_MAX, 'week_priority');
+    if (!priorityValidation.valid) {
+      return res.status(400).json({ error: priorityValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const successValidation = validateString(success_looks_like, VALIDATION_LIMITS.DESCRIPTION_MAX, 'success_looks_like');
+    if (!successValidation.valid) {
+      return res.status(400).json({ error: successValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const quarterlyValidation = validateString(quarterly_connection, VALIDATION_LIMITS.DESCRIPTION_MAX, 'quarterly_connection');
+    if (!quarterlyValidation.valid) {
+      return res.status(400).json({ error: quarterlyValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const consequenceValidation = validateString(consequence_if_missed, VALIDATION_LIMITS.DESCRIPTION_MAX, 'consequence_if_missed');
+    if (!consequenceValidation.valid) {
+      return res.status(400).json({ error: consequenceValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const timeValidation = validateTimeAllocation(time_allocation);
+    if (!timeValidation.valid) {
+      return res.status(400).json({ error: timeValidation.error, code: 'INVALID_INPUT' });
+    }
+
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('weekly_plans')
       .insert({
         user_id: userId,
-        week_of: week_of || getMonday(new Date()).toISOString().split('T')[0],
-        last_week_review,
-        efficiency_focus,
-        data_focus,
-        competitive_focus,
-        week_priority,
-        success_looks_like,
-        quarterly_connection,
-        consequence_if_missed,
-        time_allocation: time_allocation || {},
+        week_of: dateValidation.value,
+        last_week_review: reviewValidation.value,
+        efficiency_focus: efficiencyValidation.value,
+        data_focus: dataFocusValidation.value,
+        competitive_focus: competitiveValidation.value,
+        week_priority: priorityValidation.value,
+        success_looks_like: successValidation.value,
+        quarterly_connection: quarterlyValidation.value,
+        consequence_if_missed: consequenceValidation.value,
+        time_allocation: timeValidation.value,
         created_at: new Date().toISOString()
       })
       .select()
@@ -59,7 +187,7 @@ router.post('/planning', async (req, res) => {
 
     await auditLogger.logUserAction(userId, 'complete_weekly_planning', {
       week_of: data.week_of,
-      priority: week_priority
+      priority: priorityValidation.value
     }, req);
 
     res.json({
@@ -70,19 +198,25 @@ router.post('/planning', async (req, res) => {
 
   } catch (error) {
     logger.error('Weekly planning error:', error);
-    res.status(500).json({ error: 'Failed to save weekly planning' });
+    res.status(500).json({
+      error: 'Failed to save weekly planning',
+      code: 'WEEKLY_PLANNING_FAILED',
+      ...(process.env.NODE_ENV === 'development' && { details: error.message })
+    });
   }
 });
 
 /**
  * POST /api/weekly/review
  * Friday evening week review (30 minutes)
+ *
+ * SECURITY FIX: Added input validation
  */
 router.post('/review', async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.status(401).json({ error: 'Authentication required', code: 'AUTH_REQUIRED' });
     }
 
     const {
@@ -97,6 +231,51 @@ router.post('/review', async (req, res) => {
       next_week_preview
     } = req.body;
 
+    // Input validation
+    const dateValidation = validateDate(week_of);
+    if (!dateValidation.valid) {
+      return res.status(400).json({ error: dateValidation.error, code: 'INVALID_DATE' });
+    }
+
+    // Validate priority_status enum
+    const validStatuses = ['hit', 'partial', 'miss', null];
+    if (priority_status && !validStatuses.includes(priority_status)) {
+      return res.status(400).json({
+        error: 'priority_status must be one of: hit, partial, miss',
+        code: 'INVALID_INPUT'
+      });
+    }
+
+    const rootCauseValidation = validateString(priority_miss_root_cause, VALIDATION_LIMITS.DESCRIPTION_MAX, 'priority_miss_root_cause');
+    if (!rootCauseValidation.valid) {
+      return res.status(400).json({ error: rootCauseValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const winsValidation = validateString(wins, VALIDATION_LIMITS.DESCRIPTION_MAX, 'wins');
+    if (!winsValidation.valid) {
+      return res.status(400).json({ error: winsValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const challengesValidation = validateString(challenges_solutions, VALIDATION_LIMITS.DESCRIPTION_MAX, 'challenges_solutions');
+    if (!challengesValidation.valid) {
+      return res.status(400).json({ error: challengesValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const learningValidation = validateString(key_learning, VALIDATION_LIMITS.DESCRIPTION_MAX, 'key_learning');
+    if (!learningValidation.valid) {
+      return res.status(400).json({ error: learningValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const feedbackValidation = validateString(feedback_summary, VALIDATION_LIMITS.DESCRIPTION_MAX, 'feedback_summary');
+    if (!feedbackValidation.valid) {
+      return res.status(400).json({ error: feedbackValidation.error, code: 'INVALID_INPUT' });
+    }
+
+    const previewValidation = validateString(next_week_preview, VALIDATION_LIMITS.DESCRIPTION_MAX, 'next_week_preview');
+    if (!previewValidation.valid) {
+      return res.status(400).json({ error: previewValidation.error, code: 'INVALID_INPUT' });
+    }
+
     const supabase = getSupabase();
 
     // Update the weekly plan with review data
@@ -104,18 +283,18 @@ router.post('/review', async (req, res) => {
       .from('weekly_plans')
       .update({
         priority_status,
-        priority_miss_root_cause,
-        metrics_results,
-        wins,
-        challenges_solutions,
-        key_learning,
-        feedback_summary,
-        next_week_preview,
+        priority_miss_root_cause: rootCauseValidation.value,
+        metrics_results: metrics_results || {},
+        wins: winsValidation.value,
+        challenges_solutions: challengesValidation.value,
+        key_learning: learningValidation.value,
+        feedback_summary: feedbackValidation.value,
+        next_week_preview: previewValidation.value,
         review_completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
       .eq('user_id', userId)
-      .eq('week_of', week_of || getMonday(new Date()).toISOString().split('T')[0])
+      .eq('week_of', dateValidation.value)
       .select()
       .single();
 
@@ -134,7 +313,11 @@ router.post('/review', async (req, res) => {
 
   } catch (error) {
     logger.error('Weekly review error:', error);
-    res.status(500).json({ error: 'Failed to save weekly review' });
+    res.status(500).json({
+      error: 'Failed to save weekly review',
+      code: 'WEEKLY_REVIEW_FAILED',
+      ...(process.env.NODE_ENV === 'development' && { details: error.message })
+    });
   }
 });
 
@@ -389,3 +572,4 @@ function calculateTrend(weeks) {
 }
 
 module.exports = router;
+
