@@ -928,6 +928,24 @@ try {
   rootLogger.warn('efficiencyTrackerRoutes not mounted', { error: e?.message || e });
 }
 
+// Daily operations routes (morning/evening sequences)
+try {
+  const dailyOperationsRoutes = require('./routes/dailyOperations');
+  app.use('/api/daily', authMiddleware, contextLoggerMiddleware, apiLimiter, dailyOperationsRoutes);
+  rootLogger.info('✓ Daily operations routes mounted at /api/daily');
+} catch (e) {
+  rootLogger.warn('dailyOperationsRoutes not mounted', { error: e?.message || e });
+}
+
+// Weekly operations routes (planning, reviews, innovation)
+try {
+  const weeklyOperationsRoutes = require('./routes/weeklyOperations');
+  app.use('/api/weekly', authMiddleware, contextLoggerMiddleware, apiLimiter, weeklyOperationsRoutes);
+  rootLogger.info('✓ Weekly operations routes mounted at /api/weekly');
+} catch (e) {
+  rootLogger.warn('weeklyOperationsRoutes not mounted', { error: e?.message || e });
+}
+
 // Start a workflow execution
 try {
   const { WorkflowExecutor } = require('./services/workflowExecutor');
