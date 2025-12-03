@@ -28,7 +28,7 @@ import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
 import { usePlan } from '../../hooks/usePlan';
 import { useAuth } from '../../utils/AuthContext';
 import useUsageTracking from '../../hooks/useUsageTracking';
-import { supabase } from '../../utils/supabaseClient';
+import supabase, { initSupabase } from '../../utils/supabaseClient';
 import LoadingSpinner from './LoadingSpinner';
 import ActionButton from './ActionButton';
 import ConfirmDialog from './ConfirmDialog';
@@ -112,9 +112,10 @@ const WorkflowBuilder = () => {
           canvas_config: currentCanvasState
         };
         
-        const { data: { user } } = await supabase.auth.getUser();
+        const client = await initSupabase();
+        const { data: { user } } = await client.auth.getUser();
         if (!user) throw new Error('User must be authenticated');
-        
+
         newWorkflowData.user_id = user.id;
         
         const newWorkflow = await createWorkflow(newWorkflowData);

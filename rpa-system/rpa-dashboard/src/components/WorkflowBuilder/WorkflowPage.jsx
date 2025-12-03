@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/AuthContext';
 import { usePlan } from '../../hooks/usePlan';
-import WorkflowBuilder from './WorkflowBuilder';
-import TemplateGallery from './TemplateGallery';
-import WorkflowsList from './WorkflowsList';
+const WorkflowBuilder = React.lazy(() => import('./WorkflowBuilder'));
+const TemplateGallery = React.lazy(() => import('./TemplateGallery'));
+const WorkflowsList = React.lazy(() => import('./WorkflowsList'));
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from '../ErrorMessage';
-import PaywallModal from '../PaywallModal/PaywallModal';
-import ScheduleList from '../ScheduleBuilder/ScheduleList';
-import ScheduleEditor from '../ScheduleBuilder/ScheduleEditor';
+const PaywallModal = React.lazy(() => import('../PaywallModal/PaywallModal'));
+const ScheduleList = React.lazy(() => import('../ScheduleBuilder/ScheduleList'));
+const ScheduleEditor = React.lazy(() => import('../ScheduleBuilder/ScheduleEditor'));
 import styles from './WorkflowPage.module.css';
 
 const WorkflowPage = () => {
@@ -182,7 +182,11 @@ const WorkflowPage = () => {
   return (
     <div className={styles.workflowPage}>
       {/* Always show workflow content, never block with paywall */}
-      {currentView === 'list' && <WorkflowsList />}
+      {currentView === 'list' && (
+        <Suspense fallback={<div className={styles.listLoading}><LoadingSpinner centered message="Loading list..." /></div>}>
+          <WorkflowsList />
+        </Suspense>
+      )}
       {currentView === 'templates' && (
         <div className={styles.templateGalleryContainer}>
           <div className={styles.galleryHeader}>
@@ -197,32 +201,38 @@ const WorkflowPage = () => {
               </button>
             </div>
           </div>
-          <TemplateGallery
-            onSelectTemplate={handleTemplateSelect}
-            onClose={() => navigate('/app/workflows')}
-          />
+          <Suspense fallback={<div className={styles.galleryLoading}><LoadingSpinner centered message="Loading templates..." /></div>}>
+            <TemplateGallery
+              onSelectTemplate={handleTemplateSelect}
+              onClose={() => navigate('/app/workflows')}
+            />
+          </Suspense>
         </div>
       )}
       {currentView === 'schedules' && (
         <div className={styles.schedulesContainer}>
           {!showScheduleEditor ? (
-            <ScheduleList
-              schedules={schedules}
-              onToggleSchedule={handleToggleSchedule}
-              onEditSchedule={handleEditSchedule}
-              onDeleteSchedule={handleDeleteSchedule}
-              onCreateSchedule={handleCreateSchedule}
-            />
+            <Suspense fallback={<div className={styles.schedulesLoading}><LoadingSpinner centered message="Loading schedules..." /></div>}>
+              <ScheduleList
+                schedules={schedules}
+                onToggleSchedule={handleToggleSchedule}
+                onEditSchedule={handleEditSchedule}
+                onDeleteSchedule={handleDeleteSchedule}
+                onCreateSchedule={handleCreateSchedule}
+              />
+            </Suspense>
           ) : (
-            <ScheduleEditor
-              schedule={editingSchedule}
-              workflows={workflows}
-              onSave={handleSaveSchedule}
-              onCancel={() => {
-                setShowScheduleEditor(false);
-                setEditingSchedule(null);
-              }}
-            />
+            <Suspense fallback={<div className={styles.schedulesEditorLoading}><LoadingSpinner centered message="Loading editor..." /></div>}>
+              <ScheduleEditor
+                schedule={editingSchedule}
+                workflows={workflows}
+                onSave={handleSaveSchedule}
+                onCancel={() => {
+                  setShowScheduleEditor(false);
+                  setEditingSchedule(null);
+                }}
+              />
+            </Suspense>
           )}
         </div>
       )}
@@ -240,7 +250,11 @@ const WorkflowPage = () => {
           <p>This feature will be available when you save your workflow.</p>
         </div>
       )}
-      {currentView === 'builder' && <WorkflowBuilder />}
+      {currentView === 'builder' && (
+        <Suspense fallback={<div className={styles.builderLoading}><LoadingSpinner centered message="Loading editor..." /></div>}>
+          <WorkflowBuilder />
+        </Suspense>
+      )}
     </div>
   );
 };

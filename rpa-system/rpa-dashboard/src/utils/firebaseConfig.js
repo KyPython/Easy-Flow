@@ -1,10 +1,9 @@
 // Firebase Configuration for EasyFlow
 // This file contains Firebase setup for real-time notifications and database
 
-import { initializeApp } from 'firebase/app';
-import { getMessaging } from 'firebase/messaging';
-import { getDatabase } from 'firebase/database';
-import { getAuth } from 'firebase/auth';
+// NOTE: we deliberately avoid static firebase/* imports to prevent
+// bundling and heavy parse/eval at app startup. Use `initFirebase()` to
+// initialize Firebase lazily after first render or on-demand.
 
 // Allow runtime-injected env (window._env) to provide Firebase keys so we don't need a rebuild
 // This mirrors the pattern used in supabaseClient.
@@ -56,36 +55,56 @@ let messaging = null;
 let database = null;
 let auth = null;
 
-const isFirebaseConfigured = isAnyConfigured;
+let isFirebaseConfigured = isAnyConfigured;
 
-// In production we usually won't spam logs, but a single informative line helps debugging.
-if (typeof window !== 'undefined' && isFirebaseConfigured && process.env.NODE_ENV !== 'test') {
-  // eslint-disable-next-line no-console
-  console.info('🔥 Firebase config detected (source:', runtimeEnv.REACT_APP_FIREBASE_PROJECT_ID ? 'runtime' : 'build', ') projectId=', firebaseConfig.projectId);
-}
+// No-op stubs to keep callers safe before init
+const noop = () => {};
 
-if (isFirebaseConfigured) {
-  try {
-    app = initializeApp(firebaseConfig);
-    
-    // Initialize services conditionally
-    if (typeof window !== 'undefined' && isMessagingConfigured) {
-      // Only initialize messaging in browser environment when configured
-      messaging = getMessaging(app);
+export async function initFirebase() {
+  if (!isAnyConfigured) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Firebase not configured - skipping init. Missing keys:', {
+        missingMessaging: missingMessaging,
+        missingDatabase: missingDatabase
+      });
     }
-    if (isDatabaseConfigured) {
-      database = getDatabase(app);
-    }
-    auth = getAuth(app);
-    
-    console.log('🔥 Firebase initialized successfully');
-  } catch (error) {
-    console.error('Firebase initialization error:', error);
+    isFirebaseConfigured = false;
+    return { app: null, messaging: null, database: null, auth: null };
   }
-} else {
-  // Only show warnings in development
-  if (process.env.NODE_ENV === 'development') {
-    console.warn('🔥 Firebase not configured - real-time features disabled');
+
+  if (app) return { app, messaging, database, auth };
+
+  try {
+    const firebaseApp = await import('firebase/app');
+    const firebaseAuth = await import('firebase/auth');
+    const firebaseDatabase = await import('firebase/database');
+    const firebaseMessaging = await import('firebase/messaging');
+
+    // Initialize app
+    app = firebaseApp.initializeApp(firebaseConfig);
+
+    if (typeof window !== 'undefined' && isMessagingConfigured) {
+      try { messaging = firebaseMessaging.getMessaging(app); } catch (e) { messaging = null; }
+    }
+
+    if (isDatabaseConfigured) {
+      try { database = firebaseDatabase.getDatabase(app); } catch (e) { database = null; }
+    }
+
+    try { auth = firebaseAuth.getAuth(app); } catch (e) { auth = null; }
+
+    isFirebaseConfigured = true;
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.info('Firebase initialized (lazy) projectId=', firebaseConfig.projectId);
+    }
+
+    return { app, messaging, database, auth };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Firebase lazy initialization failed:', error);
+    isFirebaseConfigured = false;
+    return { app: null, messaging: null, database: null, auth: null };
   }
 }
 

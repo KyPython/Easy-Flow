@@ -17,7 +17,7 @@ import {
   FaFilter,
   FaSync
 } from 'react-icons/fa';
-import { supabase } from '../../utils/supabaseClient';
+import supabase, { initSupabase } from '../../utils/supabaseClient';
 import { api } from '../../utils/api';
 import PlanGate from '../PlanGate/PlanGate';
 import { useTheme } from '../../utils/ThemeContext';
@@ -45,7 +45,8 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
       setLoading(true);
       setError(null);
 
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
 
       if (!token) {
@@ -88,7 +89,8 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
     if (selectedVersions.length !== 2) return;
 
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
 
       const [v1, v2] = selectedVersions.sort((a, b) => a.version_number - b.version_number);
@@ -104,7 +106,8 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
 
   const previewRollback = async (version) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
 
       const resp = await api.get(`/api/workflows/${workflowId}/versions/${version.version_number}/preview`, { headers: { Authorization: `Bearer ${token}` } });
@@ -122,7 +125,8 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
     }
 
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
 
       await api.post(`/api/workflows/${workflowId}/versions/${version.version_number}/rollback`, { rollbackComment: comment }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
@@ -139,7 +143,8 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
 
   const exportVersion = async (version) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
 
       const resp = await api.post(`/api/workflows/${workflowId}/versions/${version.version_number}/export`, null, { headers: { Authorization: `Bearer ${token}` } });

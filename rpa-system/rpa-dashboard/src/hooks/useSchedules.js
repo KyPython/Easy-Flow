@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../utils/supabaseClient';
+import supabase, { initSupabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
 import { api } from '../utils/api';
 
@@ -20,8 +20,9 @@ export const useSchedules = (workflowId) => {
       setLoading(true);
       setError(null);
 
-      // Get session token
-      const { data: session } = await supabase.auth.getSession();
+      // Ensure real client initialized and get session token
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       if (!session?.session?.access_token) {
         throw new Error('Not authenticated');
       }
@@ -50,7 +51,8 @@ export const useSchedules = (workflowId) => {
   // Create new schedule
   const createSchedule = async (scheduleData) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       if (!session?.session?.access_token) {
         throw new Error('Not authenticated');
       }
@@ -79,7 +81,8 @@ export const useSchedules = (workflowId) => {
   // Update existing schedule
   const updateSchedule = async (scheduleId, updates) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       if (!session?.session?.access_token) {
         throw new Error('Not authenticated');
       }
@@ -103,7 +106,8 @@ export const useSchedules = (workflowId) => {
   // Delete schedule
   const deleteSchedule = async (scheduleId) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       if (!session?.session?.access_token) {
         throw new Error('Not authenticated');
       }
@@ -123,7 +127,8 @@ export const useSchedules = (workflowId) => {
   // Trigger schedule manually
   const triggerSchedule = async (scheduleId) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       if (!session?.session?.access_token) {
         throw new Error('Not authenticated');
       }
@@ -139,7 +144,8 @@ export const useSchedules = (workflowId) => {
   // Get execution history for a schedule
   const getScheduleExecutions = async (scheduleId, limit = 50, offset = 0) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       if (!session?.session?.access_token) {
         throw new Error('Not authenticated');
       }
@@ -176,45 +182,60 @@ export const useSchedules = (workflowId) => {
   // Set up real-time subscription for schedule changes
   useEffect(() => {
     if (!workflowId) return;
+    let subscription = null;
+    (async () => {
+      try {
+        const client = await initSupabase();
+        console.info('[useSchedules] creating realtime channel for workflow', workflowId);
+        subscription = client
+          .channel('workflow_schedules')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'workflow_schedules',
+              filter: `workflow_id=eq.${workflowId}`
+            },
+            (payload) => {
+              console.info('[useSchedules] Schedule change payload:', payload);
+              switch (payload.eventType) {
+                case 'INSERT':
+                  setSchedules(prev => [payload.new, ...prev]);
+                  break;
+                case 'UPDATE':
+                  setSchedules(prev =>
+                    prev.map(schedule =>
+                      schedule.id === payload.new.id ? payload.new : schedule
+                    )
+                  );
+                  break;
+                case 'DELETE':
+                  setSchedules(prev =>
+                    prev.filter(schedule => schedule.id !== payload.old.id)
+                  );
+                  break;
+                default:
+                  break;
+              }
+            }
+          );
 
-    const subscription = supabase
-      .channel('workflow_schedules')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'workflow_schedules',
-          filter: `workflow_id=eq.${workflowId}`
-        },
-        (payload) => {
-          console.log('Schedule change detected:', payload);
-          
-          switch (payload.eventType) {
-            case 'INSERT':
-              setSchedules(prev => [payload.new, ...prev]);
-              break;
-            case 'UPDATE':
-              setSchedules(prev =>
-                prev.map(schedule =>
-                  schedule.id === payload.new.id ? payload.new : schedule
-                )
-              );
-              break;
-            case 'DELETE':
-              setSchedules(prev =>
-                prev.filter(schedule => schedule.id !== payload.old.id)
-              );
-              break;
-            default:
-              break;
-          }
+        try {
+          const sub = subscription.subscribe((status) => {
+            console.info('[useSchedules] realtime subscription status', status);
+          });
+          console.info('[useSchedules] subscribe() called for workflow_schedules', sub || subscription);
+        } catch (sErr) {
+          console.warn('[useSchedules] subscribe call failed', sErr && sErr.message ? sErr.message : sErr);
         }
-      )
-      .subscribe();
+      } catch (err) {
+        console.warn('[useSchedules] realtime init failed', err);
+      }
+    })();
 
     return () => {
-      subscription.unsubscribe();
+      try { if (subscription && subscription.unsubscribe) subscription.unsubscribe(); } catch (e) {}
     };
   }, [workflowId]);
 

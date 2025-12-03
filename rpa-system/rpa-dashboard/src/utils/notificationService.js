@@ -9,20 +9,9 @@ if (typeof import.meta !== 'undefined' && import.meta.env && typeof import.meta.
 }
 const isDev = MODE !== 'production';
 // Handles Firebase Cloud Messaging and Real-time Database notifications
-
-import { 
-  messaging, 
-  database, 
-  auth,
-  isFirebaseConfigured,
-  isMessagingConfigured,
-  NOTIFICATION_TYPES,
-  NOTIFICATION_PRIORITIES 
-} from './firebaseConfig';
-import { getToken, onMessage, deleteToken } from 'firebase/messaging';
-import { ref, push, set, onValue, off, query, orderByChild, limitToLast } from 'firebase/database';
-import { onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { supabase } from './supabaseClient';
+// Use lazy initialization to avoid bundling firebase packages at startup
+import { initFirebase, isFirebaseConfigured, isMessagingConfigured, NOTIFICATION_TYPES, NOTIFICATION_PRIORITIES } from './firebaseConfig';
+import supabase, { initSupabase } from './supabaseClient';
 import { buildApiUrl } from './config';
 
 class NotificationService {
@@ -57,8 +46,7 @@ class NotificationService {
   isFirebaseConfigured && isMessagingConfigured &&
       typeof window !== 'undefined' &&
   typeof Notification !== 'undefined' && 'Notification' in window &&
-      'serviceWorker' in navigator &&
-      messaging !== null
+      'serviceWorker' in navigator
     );
   }
 
@@ -106,14 +94,17 @@ class NotificationService {
 
   // Ensure Firebase authentication is ready
   async _ensureFirebaseAuth(user) {
+    // Ensure Firebase initialized (lazy)
+    const { auth } = await initFirebase();
     if (!auth) {
-      console.warn('🔔 Firebase auth not available');
+      console.warn('🔔 Firebase auth not available (not configured)');
       return false;
     }
 
     try {
       // Get Supabase session to create Firebase custom token
-      const { data: { session } } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: { session } } = await client.auth.getSession();
       
       if (!session) {
         console.warn('🔔 No Supabase session found');
@@ -121,10 +112,13 @@ class NotificationService {
       }
 
       // Wait for Firebase auth state to be ready
-      return new Promise((resolve, reject) => {
+      return new Promise(async (resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Firebase auth timeout'));
         }, 10000); // 10 second timeout
+
+        const firebaseAuth = await import('firebase/auth');
+        const { onAuthStateChanged } = firebaseAuth;
 
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
           clearTimeout(timeout);
@@ -184,6 +178,9 @@ class NotificationService {
       }
       
       // Sign in to Firebase with custom token
+      const firebaseAuth = await import('firebase/auth');
+      const { signInWithCustomToken } = firebaseAuth;
+      const { auth } = await initFirebase();
       const userCredential = await signInWithCustomToken(auth, tokenData.token);
       const firebaseUser = userCredential.user;
       
@@ -248,7 +245,8 @@ class NotificationService {
 
     try {
       // Get current Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: { session } } = await client.auth.getSession();
       
       if (!session) {
         console.warn('🔔 No Supabase session found during token refresh');
@@ -474,7 +472,8 @@ class NotificationService {
     // Persist via backend API
     try {
       const merged = this._mergePreferences({ push_notifications: true });
-      const { data: { session } } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: { session } } = await client.auth.getSession();
       const { api } = require('./api');
       await api.put(buildApiUrl('/api/user/notifications'), {
         preferences: merged,
@@ -501,15 +500,19 @@ class NotificationService {
     try {
       // Best-effort revoke token locally
       try {
+        const { messaging } = await initFirebase();
         if (messaging) {
-          await deleteToken(messaging);
+          const firebaseMessaging = await import('firebase/messaging');
+          const { deleteToken } = firebaseMessaging;
+          await deleteToken(messaging).catch(() => {});
           this.fcmToken = null;
         }
       } catch (revokeErr) {
         console.warn('🔔 Failed to delete FCM token (continuing):', revokeErr?.message || revokeErr);
       }
       const { api } = require('./api');
-      const { data: { session } } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: { session } } = await client.auth.getSession();
       const merged = this._mergePreferences({ push_notifications: false });
       await api.put(buildApiUrl('/api/user/notifications'), {
         preferences: merged,
@@ -585,6 +588,7 @@ class NotificationService {
 
   // Get FCM token for push notifications
   async getFCMToken() {
+    const { messaging } = await initFirebase();
     if (!messaging) return null;
 
     // Return existing token if already obtained
@@ -639,6 +643,8 @@ class NotificationService {
 
       let token = null;
       try {
+        const firebaseMessaging = await import('firebase/messaging');
+        const { getToken } = firebaseMessaging;
         token = await getToken(messaging, {
           vapidKey,
           serviceWorkerRegistration: swReg || undefined
@@ -684,7 +690,8 @@ class NotificationService {
     try {
       // Persist via backend preferences endpoint so server sees fcm_token
       const merged = this._mergePreferences({ push_notifications: true });
-      const { data: { session } } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: { session } } = await client.auth.getSession();
       const { api } = require('./api');
       try {
         await api.put(buildApiUrl('/api/user/notifications'), {
@@ -711,9 +718,14 @@ class NotificationService {
 
   // Set up listener for foreground messages
   setupMessageListener() {
-    if (!messaging) return;
+    // Ensure messaging available
+    (async () => {
+      const { messaging } = await initFirebase();
+      if (!messaging) return;
+      const firebaseMessaging = await import('firebase/messaging');
+      const { onMessage } = firebaseMessaging;
 
-    onMessage(messaging, (payload) => {
+      onMessage(messaging, (payload) => {
       if (isDev) {
         console.log('🔔 Foreground message received:', payload);
       }
@@ -739,40 +751,48 @@ class NotificationService {
         timestamp: new Date().toISOString()
       });
     });
+    })();
   }
 
   // Set up real-time database listener
   setupRealtimeListener() {
-    if (!database || !this.currentUser) return;
+    (async () => {
+      const { database } = await initFirebase();
+      if (!database || !this.currentUser) return;
 
-    const userNotificationsRef = ref(database, `notifications/${this.currentUser.id}`);
-    const recentQuery = query(userNotificationsRef, orderByChild('timestamp'), limitToLast(50));
-    
-    const unsubscribe = onValue(recentQuery, (snapshot) => {
-      const notifications = [];
-      snapshot.forEach((childSnapshot) => {
-        notifications.push({
-          id: childSnapshot.key,
-          ...childSnapshot.val()
+      const firebaseDatabase = await import('firebase/database');
+      const { ref, query, orderByChild, limitToLast, onValue } = firebaseDatabase;
+
+      const userNotificationsRef = ref(database, `notifications/${this.currentUser.id}`);
+      const recentQuery = query(userNotificationsRef, orderByChild('timestamp'), limitToLast(50));
+
+      const unsubscribe = onValue(recentQuery, (snapshot) => {
+        const notifications = [];
+        snapshot.forEach((childSnapshot) => {
+          notifications.push({
+            id: childSnapshot.key,
+            ...childSnapshot.val()
+          });
+        });
+
+        if (isDev) {
+          console.log('🔔 Real-time notifications updated:', notifications.length);
+        }
+
+        // Trigger event with all notifications
+        this.triggerNotificationEvent({
+          type: 'notifications_updated',
+          notifications: notifications.reverse() // Most recent first
         });
       });
-      
-      if (isDev) {
-        console.log('🔔 Real-time notifications updated:', notifications.length);
-      }
-      
-      // Trigger event with all notifications
-      this.triggerNotificationEvent({
-        type: 'notifications_updated',
-        notifications: notifications.reverse() // Most recent first
-      });
-    });
-    
-    this.unsubscribers.set('notifications', unsubscribe);
+
+      this.unsubscribers.set('notifications', unsubscribe);
+    })();
   }
 
   // Send notification to Firebase (to be picked up by backend)
   async sendNotification(userId, notification) {
+    const { database } = await initFirebase();
     if (!database) {
       console.warn('🔔 Database not available');
       return false;
@@ -811,6 +831,8 @@ class NotificationService {
         id: Date.now().toString()
       };
 
+      const firebaseDatabase = await import('firebase/database');
+      const { ref, push } = firebaseDatabase;
       const userNotificationsRef = ref(database, `notifications/${userId}`);
       await push(userNotificationsRef, notificationData);
       
@@ -838,7 +860,8 @@ class NotificationService {
   // Backend fallback using privileged server endpoint
   async _sendViaBackendFallback(userId, notification) {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: { session } } = await client.auth.getSession();
       if (!session) {
         console.warn('🔔 Cannot use backend fallback: no Supabase session');
         return false;
@@ -977,9 +1000,12 @@ class NotificationService {
 
   // Mark notification as read
   async markAsRead(notificationId) {
+    const { database } = await initFirebase();
     if (!database || !this.currentUser) return false;
 
     try {
+      const firebaseDatabase = await import('firebase/database');
+      const { ref, set } = firebaseDatabase;
       const notificationRef = ref(database, `notifications/${this.currentUser.id}/${notificationId}`);
       await set(notificationRef, { read: true });
       if (isDev) {
@@ -994,9 +1020,12 @@ class NotificationService {
 
   // Clear all notifications
   async clearAllNotifications() {
+    const { database } = await initFirebase();
     if (!database || !this.currentUser) return false;
 
     try {
+      const firebaseDatabase = await import('firebase/database');
+      const { ref, set } = firebaseDatabase;
       const userNotificationsRef = ref(database, `notifications/${this.currentUser.id}`);
       await set(userNotificationsRef, null);
       if (isDev) {

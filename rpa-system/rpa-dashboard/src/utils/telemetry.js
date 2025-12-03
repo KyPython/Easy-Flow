@@ -5,13 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { WebTracerProvider, BatchSpanProcessor } from '@opentelemetry/sdk-trace-web';
-import { Resource } from '@opentelemetry/resources';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { getWebAutoInstrumentations } from '@opentelemetry/auto-instrumentations-web';
-import { trace, context, SpanStatusCode } from '@opentelemetry/api';
-import { registerInstrumentations } from '@opentelemetry/instrumentation';
 
 // Custom performance instrumentation
 class FrontendPerformanceInstrumentation {
@@ -171,7 +164,7 @@ class FrontendPerformanceInstrumentation {
 }
 
 // Initialize OpenTelemetry
-function initializeFrontendTelemetry() {
+async function initializeFrontendTelemetry() {
   // Safe helpers to avoid errors when XHR is missing/polyfilled/mocked
   const WRAPPED_FLAG = Symbol.for('easyflow.telemetry.wrapped');
   const isFunction = (fn) => typeof fn === 'function';
@@ -243,26 +236,32 @@ function initializeFrontendTelemetry() {
     return new FrontendPerformanceInstrumentation();
   }
 
+  // Dynamically import OpenTelemetry packages so they are not included
+  // in the main bundle and parsed on-first-load.
+  const [{ WebTracerProvider, BatchSpanProcessor }] = [await import('@opentelemetry/sdk-trace-web')];
+  const { Resource } = await import('@opentelemetry/resources');
+  const { SemanticResourceAttributes } = await import('@opentelemetry/semantic-conventions');
+  const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');
+  const { getWebAutoInstrumentations } = await import('@opentelemetry/auto-instrumentations-web');
+  const { trace, context, SpanStatusCode } = await import('@opentelemetry/api');
+  const { registerInstrumentations } = await import('@opentelemetry/instrumentation');
+
   const resource = new Resource({
     [SemanticResourceAttributes.SERVICE_NAME]: 'easyflow-frontend',
     [SemanticResourceAttributes.SERVICE_VERSION]: process.env.REACT_APP_VERSION || '1.0.0',
     [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development'
   });
 
-  // Configure exporter. This should point to a CORS-enabled OTLP endpoint
-  // or be used only in development (default localhost collector).
   const exporterUrl = process.env.REACT_APP_OTEL_EXPORTER_URL || (process.env.NODE_ENV !== 'production' ? 'http://localhost:4318/v1/traces' : '');
   const exporter = exporterUrl ? new OTLPTraceExporter({ url: exporterUrl }) : null;
 
-  const provider = new WebTracerProvider({
-    resource
-  });
+  const provider = new WebTracerProvider({ resource });
 
   if (exporter) {
     provider.addSpanProcessor(new BatchSpanProcessor(exporter, {
-    maxExportBatchSize: 100,
-    scheduledDelayMillis: 5000,
-    maxQueueSize: 1000
+      maxExportBatchSize: 100,
+      scheduledDelayMillis: 5000,
+      maxQueueSize: 1000
     }));
   } else {
     console.info('[Telemetry] No browser exporter configured (exporter URL empty). Spans will not be sent from the browser.');
@@ -333,18 +332,24 @@ const noopTracker = (() => {
 
 export function initPerformanceTracker() {
   if (_realTracker) return _realTracker;
-  try {
-    _realTracker = initializeFrontendTelemetry();
-  } catch (e) {
-    // Fail-safe: if initialization fails, keep using noop tracker
-    // and surface a console warning so developers can debug.
-    // eslint-disable-next-line no-console
-    console.warn('[Telemetry] initPerformanceTracker failed, using no-op tracker:', e && e.message ? e.message : e);
-    _realTracker = noopTracker;
-  }
-  // Replace exported tracker reference so other importers see the real tracker
-  try { performanceTracker = _realTracker; } catch (e) { /* ignore assignment errors */ }
-  return _realTracker;
+
+  // Start initialization asynchronously so callers don't block on dynamic imports.
+  (async () => {
+    try {
+      const tracker = await initializeFrontendTelemetry();
+      _realTracker = tracker || noopTracker;
+    } catch (e) {
+      // Fail-safe: if initialization fails, keep using noop tracker
+      // and surface a console warning so developers can debug.
+      // eslint-disable-next-line no-console
+      console.warn('[Telemetry] initPerformanceTracker failed, using no-op tracker:', e && e.message ? e.message : e);
+      _realTracker = noopTracker;
+    }
+    // Replace exported tracker reference so other importers see the real tracker
+    try { performanceTracker = _realTracker; } catch (e) { /* ignore assignment errors */ }
+  })();
+
+  return noopTracker;
 }
 
 // Export a default tracker that is a no-op until `initPerformanceTracker` is called.

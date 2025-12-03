@@ -1,8 +1,49 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useRef } from 'react';
 import { useAuth } from '../utils/AuthContext';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, initSupabase } from '../utils/supabaseClient';
 import { useRealtimeSync } from './useRealtimeSync';
-import { api } from '../utils/api';
+import { api, requestWithRetry } from '../utils/api';
+import { classifyErrorType } from '../utils/errorHandler';
+
+/**
+ * Helper: Detect if an error is due to backend being unreachable (ECONNREFUSED/Proxy error)
+ */
+function isBackendUnreachable(error) {
+  const errorType = classifyErrorType(error);
+  return errorType === 'BACKEND_UNREACHABLE';
+}
+
+/**
+ * Helper: Create a user-friendly error message for plan fetch failures
+ */
+function createPlanFetchErrorMessage(error) {
+  if (isBackendUnreachable(error)) {
+    // Extract port from error response if available
+    const responseData = error?.response?.data || '';
+    const portMatch = typeof responseData === 'string' 
+      ? responseData.match(/localhost:(\d+)/) 
+      : null;
+    const port = portMatch ? portMatch[1] : '3030';
+    
+    return `Plan service is offline (connection refused to :${port}). Please start the backend server or check your API configuration.`;
+  }
+  
+  if (error?.response?.status === 401) {
+    return 'Your session has expired. Please sign in again.';
+  }
+  
+  if (error?.response?.status >= 500) {
+    return 'Server error while fetching plan data. Please try again later.';
+  }
+  
+  if (error?.code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
+    return 'Request timed out while fetching plan data. Please try again.';
+  }
+  
+  // Default message
+  return error?.message || 'Failed to fetch plan data. Please try again.';
+}
 
 export const usePlan = () => {
   const { user } = useAuth();
@@ -10,21 +51,44 @@ export const usePlan = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(Date.now());
+  
+  // NEW: Track if backend is unreachable to avoid spam
+  const [backendStatus, setBackendStatus] = useState('unknown'); // 'unknown' | 'reachable' | 'unreachable'
 
   const fetchPlanData = useCallback(async () => {
+    // Prevent concurrent in-flight fetches which can overload backend
+    if (fetchPlanData.inFlight) return;
+    // Prevent rapid repeat attempts (debounce) - skip if last attempt was very recent
+    if (!fetchPlanData._lastAttempt) fetchPlanData._lastAttempt = 0;
+    const nowMs = Date.now();
+    const MIN_ATTEMPT_INTERVAL_MS = 3000; // 3s
+    if (nowMs - fetchPlanData._lastAttempt < MIN_ATTEMPT_INTERVAL_MS) return;
+    fetchPlanData._lastAttempt = nowMs;
+    fetchPlanData.inFlight = true;
+    const clientStart = Date.now();
+    
     if (!user?.id) {
       setLoading(false);
+      fetchPlanData.inFlight = false;
       return;
     }
 
     try {
       setLoading(true);
-      setError(null);
+      // Don't clear error immediately if backend is known to be unreachable
+      if (backendStatus !== 'unreachable') {
+        setError(null);
+      }
 
       console.log('Fetching plan data for user:', user.id);
 
       // Call the backend API endpoint to get complete plan details
-      const response = await api.get('/api/user/plan');
+      // Use requestWithRetry to handle transient network/5xx errors and support abort/timeouts.
+      const resp = await requestWithRetry(
+        { method: 'get', url: '/api/user/plan' }, 
+        { retries: 2, backoffMs: 500, timeout: 30000 }
+      );
+      const response = resp;
 
       if (process.env.NODE_ENV === 'development') {
         console.log('API call result:', response.data);
@@ -41,6 +105,10 @@ export const usePlan = () => {
         return;
       }
 
+      // Backend is reachable - clear any previous error state
+      setBackendStatus('reachable');
+      setError(null);
+
       // Avoid unnecessary state updates by checking identity
       setPlanData(prev => {
         try {
@@ -55,13 +123,45 @@ export const usePlan = () => {
         return response.data.planData;
       });
     } catch (err) {
-      console.error('Error fetching plan data:', err);
-      setError(err.message || err.response?.data?.error || 'Failed to fetch plan data');
-      setPlanData(null);
+      // IMPROVED: Better error handling with specific detection for backend unreachable
+      const friendlyMessage = createPlanFetchErrorMessage(err);
+      
+      if (isBackendUnreachable(err)) {
+        // Only log once when backend becomes unreachable
+        if (backendStatus !== 'unreachable') {
+          console.error('❌ Plan service backend unreachable:', friendlyMessage);
+          setBackendStatus('unreachable');
+        }
+        // Set a user-friendly error that can be displayed in the UI
+        setError({
+          message: friendlyMessage,
+          type: 'BACKEND_UNREACHABLE',
+          recoverable: true,
+          hint: 'Make sure your backend server is running and the dev proxy is configured correctly.'
+        });
+      } else {
+        console.error('Error fetching plan data:', err);
+        setBackendStatus('unknown');
+        setError({
+          message: friendlyMessage,
+          type: 'FETCH_ERROR',
+          recoverable: true
+        });
+      }
+      
+      // Keep existing plan data if we have it (graceful degradation)
+      // Only clear if we never had data
+      if (!planData) {
+        setPlanData(null);
+      }
     } finally {
       setLoading(false);
+      // Log client-side duration for correlation
+      const clientEnd = Date.now();
+      console.debug('[usePlan] fetchPlanData duration_ms', { user: user?.id, duration_ms: clientEnd - clientStart });
+      fetchPlanData.inFlight = false;
     }
-  }, [user?.id]);
+  }, [user?.id, backendStatus, planData]);
 
   useEffect(() => {
     // Fetch plan data on mount and when the user id changes
@@ -132,11 +232,38 @@ export const usePlan = () => {
   };
 
   const canRunAutomation = () => {
-    return planData?.can_run_automation ?? false;
+    // Log gate check for debugging
+    console.log('[usePlan] canRunAutomation check:', {
+      planData: !!planData,
+      can_run_automation: planData?.can_run_automation,
+      usage: planData?.usage?.monthly_runs,
+      limit: planData?.limits?.monthly_runs,
+      loading
+    });
+
+    // If still loading, allow action (don't block during load)
+    if (loading && !planData) {
+      console.log('[usePlan] canRunAutomation: allowing during initial load');
+      return true;
+    }
+
+    // If we have plan data, use the backend's calculation
+    if (planData?.can_run_automation !== undefined) {
+      return planData.can_run_automation;
+    }
+
+    // Fallback: calculate locally if backend didn't provide the flag
+    const currentRuns = planData?.usage?.monthly_runs || 0;
+    const runLimit = planData?.limits?.monthly_runs || 50;
+
+    // Only block if actually at or over limit (not when usage is 0)
+    return currentRuns < runLimit;
   };
 
   const refresh = useCallback(() => {
     setLastRefresh(Date.now());
+    // Reset backend status to allow retry
+    setBackendStatus('unknown');
     fetchPlanData();
   }, [fetchPlanData]);
 
@@ -144,7 +271,8 @@ export const usePlan = () => {
     if (!user?.id) return false;
     
     try {
-      const { error } = await supabase
+      const client = await initSupabase();
+      const { error } = await client
         .from('profiles')
         .update({ 
           plan_id: newPlanId,
@@ -174,9 +302,10 @@ export const usePlan = () => {
   }, [fetchPlanData]);
 
   // Poll for plan updates when returning from external payment pages
+  // IMPROVED: Respects backendStatus to avoid spamming when backend is down
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && backendStatus !== 'unreachable') {
         console.log('Page became visible, checking for plan updates...');
         // Delay slightly to allow any webhooks to process
         setTimeout(() => {
@@ -186,10 +315,12 @@ export const usePlan = () => {
     };
 
     const handleFocus = () => {
-      console.log('Window focused, checking for plan updates...');
-      setTimeout(() => {
-        fetchPlanData();
-      }, 1000);
+      if (backendStatus !== 'unreachable') {
+        console.log('Window focused, checking for plan updates...');
+        setTimeout(() => {
+          fetchPlanData();
+        }, 1000);
+      }
     };
 
     // Listen for storage events (cross-tab communication)
@@ -204,19 +335,44 @@ export const usePlan = () => {
     };
 
     // Aggressive polling when page is visible (for checkout returns)
+    // IMPROVED: Skip aggressive polling if backend is known to be unreachable
     let visibilityPollInterval = null;
+    let consecutiveFailures = 0;
     const startVisibilityPolling = () => {
+      // Don't start polling if backend is already known to be down
+      if (backendStatus === 'unreachable') {
+        console.log('Skipping aggressive polling - backend is unreachable');
+        return;
+      }
+      
       if (document.visibilityState === 'visible' && !visibilityPollInterval) {
         console.log('Starting aggressive plan polling for 30 seconds...');
-        visibilityPollInterval = setInterval(() => {
-          fetchPlanData();
-        }, 3000); // Poll every 3 seconds
-        
+        visibilityPollInterval = setInterval(async () => {
+          // Circuit breaker: stop polling after 3 consecutive failures
+          if (consecutiveFailures >= 3) {
+            console.error('❌ Stopping aggressive polling - backend appears down');
+            if (visibilityPollInterval) {
+              clearInterval(visibilityPollInterval);
+              visibilityPollInterval = null;
+            }
+            return;
+          }
+
+          try {
+            await fetchPlanData();
+            consecutiveFailures = 0; // Reset on success
+          } catch (err) {
+            consecutiveFailures++;
+            console.warn(`⚠️ Poll attempt failed (${consecutiveFailures}/3)`);
+          }
+        }, 5000); // Poll every 5 seconds
+
         // Stop aggressive polling after 30 seconds
         setTimeout(() => {
           if (visibilityPollInterval) {
             clearInterval(visibilityPollInterval);
             visibilityPollInterval = null;
+            consecutiveFailures = 0;
             console.log('Stopped aggressive plan polling');
           }
         }, 30000);
@@ -237,7 +393,7 @@ export const usePlan = () => {
         clearInterval(visibilityPollInterval);
       }
     };
-  }, []);
+  }, [backendStatus, fetchPlanData]);
 
   const handleUsageUpdate = useCallback((usageData) => {
     console.log('Usage updated in realtime:', usageData);
@@ -275,11 +431,21 @@ export const usePlan = () => {
     setTimeout(() => fetchPlanData(), 500);
   }, [fetchPlanData]);
 
+  // Handle realtime errors - if realtime fails, we still have polling as fallback
+  const handleRealtimeError = useCallback((errorInfo) => {
+    console.warn('[usePlan] Realtime error:', errorInfo);
+    // Could trigger a UI notification here if needed
+  }, []);
+
   // Initialize realtime sync
-  const { isConnected, refreshData } = useRealtimeSync({
+  const { 
+    realtimeStatus, 
+    shouldFallbackToPolling 
+  } = useRealtimeSync({
     onPlanChange: handlePlanChange,
     onUsageUpdate: handleUsageUpdate,
-    onWorkflowUpdate: handleWorkflowUpdate
+    onWorkflowUpdate: handleWorkflowUpdate,
+    onError: handleRealtimeError
   });
 
   const trialDaysLeft = () => {
@@ -292,10 +458,23 @@ export const usePlan = () => {
     return Math.ceil((end - now) / (1000 * 60 * 60 * 24));
   };
 
+  // NEW: Expose error details for UI components to display friendly messages
+  const getErrorDisplay = () => {
+    if (!error) return null;
+    return {
+      message: error.message,
+      type: error.type,
+      isBackendDown: error.type === 'BACKEND_UNREACHABLE',
+      hint: error.hint,
+      canRetry: error.recoverable
+    };
+  };
+
   return {
     planData,
     loading,
-    error,
+    error: error?.message || null, // Keep backward compatibility
+    errorDetails: getErrorDisplay(), // NEW: Detailed error info for UI
     isPro,
     hasFeature,
     isAtLimit,
@@ -305,7 +484,10 @@ export const usePlan = () => {
     refresh,
     updateUserPlan,
     trialDaysLeft,
-    isRealtimeConnected: isConnected,
+    isRealtimeConnected: realtimeStatus === 'connected',
+    realtimeStatus, // Expose full status
+    shouldFallbackToPolling,
+    backendStatus, // NEW: Expose backend reachability status
     lastRefresh
   };
 };

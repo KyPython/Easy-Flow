@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../utils/supabaseClient';
+import supabase, { initSupabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
 import { api } from '../utils/api';
 
@@ -27,8 +27,9 @@ export const useWorkflowExecutions = (workflowId) => {
     try {
       setLoading(true);
       setError(null);
-
-      const { data, error: fetchError } = await supabase
+      // Ensure the real Supabase client is initialized before calling DB methods
+      const client = await initSupabase();
+      const { data, error: fetchError } = await client
         .from('workflow_executions')
         .select(`
           id,
@@ -76,14 +77,16 @@ export const useWorkflowExecutions = (workflowId) => {
   // Get detailed execution information including step executions
   const getExecutionDetails = async (executionId) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
       if (token) {
   const { data: executionData } = await api.get(buildApiUrl(`/api/executions/${executionId}`));
         if (executionData) return executionData.execution || executionData;
       }
-      // Fallback to direct Supabase if REST fails
-      const { data: execution, error: execError } = await supabase
+      // Fallback to direct Supabase if REST fails - prefer concrete client
+      const fallbackClient = await initSupabase();
+      const { data: execution, error: execError } = await fallbackClient
         .from('workflow_executions')
         .select(`
           *,
@@ -121,7 +124,8 @@ export const useWorkflowExecutions = (workflowId) => {
   // Start a new workflow execution
   const startExecution = async (inputData = {}) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       if (!session?.session?.access_token) {
         throw new Error('Not authenticated');
       }
@@ -145,7 +149,8 @@ export const useWorkflowExecutions = (workflowId) => {
   // Cancel a running execution
   const cancelExecution = async (executionId) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       if (!session?.session?.access_token) {
         throw new Error('Not authenticated');
       }
@@ -195,14 +200,16 @@ export const useWorkflowExecutions = (workflowId) => {
   // Get execution logs
   const getExecutionLogs = async (executionId) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
       if (token) {
   const { data: stepsData } = await api.get(buildApiUrl(`/api/executions/${executionId}/steps`));
         if (stepsData) return stepsData.steps || stepsData || [];
       }
-      // Fallback to direct Supabase if REST fails
-      const { data, error } = await supabase
+      // Fallback to direct Supabase if REST fails - prefer concrete client
+      const client2 = await initSupabase();
+      const { data, error } = await client2
         .from('step_executions')
         .select(`
           id,
@@ -322,66 +329,74 @@ export const useWorkflowExecutions = (workflowId) => {
   useEffect(() => {
     if (!workflowId) return;
 
-    const subscription = supabase
-      .channel('workflow_executions')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'workflow_executions',
-          filter: `workflow_id=eq.${workflowId}`
-        },
-        (payload) => {
-          console.log('Execution change detected:', payload);
-          
-          switch (payload.eventType) {
-            case 'INSERT':
-              setExecutions(prev => [payload.new, ...prev]);
-              setStats(prev => ({
-                ...prev,
-                total: prev.total + 1,
-                [payload.new.status]: (prev[payload.new.status] || 0) + 1
-              }));
-              break;
+    let subscription = null;
+    (async () => {
+      try {
+        const client = await initSupabase();
+        subscription = client
+          .channel('workflow_executions')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'workflow_executions',
+              filter: `workflow_id=eq.${workflowId}`
+            },
+            (payload) => {
+              console.log('Execution change detected:', payload);
               
-            case 'UPDATE':
-              setExecutions(prev =>
-                prev.map(execution =>
-                  execution.id === payload.new.id ? payload.new : execution
-                )
-              );
-              
-              // Recalculate stats when status changes
-              if (payload.old.status !== payload.new.status) {
-                setStats(prev => ({
-                  ...prev,
-                  [payload.old.status]: Math.max(0, (prev[payload.old.status] || 0) - 1),
-                  [payload.new.status]: (prev[payload.new.status] || 0) + 1
-                }));
+              switch (payload.eventType) {
+                case 'INSERT':
+                  setExecutions(prev => [payload.new, ...prev]);
+                  setStats(prev => ({
+                    ...prev,
+                    total: prev.total + 1,
+                    [payload.new.status]: (prev[payload.new.status] || 0) + 1
+                  }));
+                  break;
+                  
+                case 'UPDATE':
+                  setExecutions(prev =>
+                    prev.map(execution =>
+                      execution.id === payload.new.id ? payload.new : execution
+                    )
+                  );
+                  
+                  // Recalculate stats when status changes
+                  if (payload.old.status !== payload.new.status) {
+                    setStats(prev => ({
+                      ...prev,
+                      [payload.old.status]: Math.max(0, (prev[payload.old.status] || 0) - 1),
+                      [payload.new.status]: (prev[payload.new.status] || 0) + 1
+                    }));
+                  }
+                  break;
+                  
+                case 'DELETE':
+                  setExecutions(prev =>
+                    prev.filter(execution => execution.id !== payload.old.id)
+                  );
+                  setStats(prev => ({
+                    ...prev,
+                    total: Math.max(0, prev.total - 1),
+                    [payload.old.status]: Math.max(0, (prev[payload.old.status] || 0) - 1)
+                  }));
+                  break;
+                  
+                default:
+                  break;
               }
-              break;
-              
-            case 'DELETE':
-              setExecutions(prev =>
-                prev.filter(execution => execution.id !== payload.old.id)
-              );
-              setStats(prev => ({
-                ...prev,
-                total: Math.max(0, prev.total - 1),
-                [payload.old.status]: Math.max(0, (prev[payload.old.status] || 0) - 1)
-              }));
-              break;
-              
-            default:
-              break;
-          }
-        }
-      )
-      .subscribe();
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('[useWorkflowExecutions] realtime init failed', err);
+      }
+    })();
 
     return () => {
-      subscription.unsubscribe();
+      try { if (subscription && subscription.unsubscribe) subscription.unsubscribe(); } catch (e) {}
     };
   }, [workflowId]);
 

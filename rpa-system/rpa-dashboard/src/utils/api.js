@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { supabase } from './supabaseClient';
+import supabase, { initSupabase } from './supabaseClient';
 import { apiErrorHandler } from './errorHandler';
 
 // Trace context management for frontend
@@ -61,11 +61,12 @@ const traceContext = new TraceContext();
 // In local dev (CRA), keep it relative to leverage the proxy.
 export const api = axios.create({
   baseURL: process.env.REACT_APP_API_BASE || '',
-  timeout: 15000,
+  timeout: 30000,
 });
 
-// Ensure cookies are sent for same-site auth flows (Supabase uses cookies in some setups)
-api.defaults.withCredentials = true;
+// Default to not sending cookies from the SPA. We rely on PKCE + localStorage tokens
+// for auth and avoid credentialed cross-origin requests which trigger CORS preflight issues.
+api.defaults.withCredentials = false;
 // Expose api globally for debugging in all environments (harmless; same-origin only)
 if (typeof window !== 'undefined') {
   if (!window._api) {
@@ -94,31 +95,77 @@ api.interceptors.request.use(
         traceContext: traceContext.getCurrentContext()
       };
 
-      // Try to get session from Supabase first
-      const { data: { session }, error } = await supabase.auth.getSession();
+      // Get Supabase session token from localStorage
+      try {
+            let token = null;
+            let tokenKeyFound = null;
 
-      if (session?.access_token && !error) {
-        config.headers['Authorization'] = `Bearer ${session.access_token}`;
-        // Add user context to trace headers
-        config.headers['x-user-id'] = session.user?.id || '';
-      } else {
-        // Fallback to development token or any known local token if available
-        const candidateTokens = [
-          process.env.REACT_APP_DEV_TOKEN,
-          localStorage.getItem('dev_token'),
-          localStorage.getItem('authToken'),
-          localStorage.getItem('token'),
-          localStorage.getItem('supabase-auth-token'),
-          localStorage.getItem('sb_access_token')
-        ];
+            // Helper: try parse a JSON value and extract common token fields
+            const extractFromValue = (val) => {
+              if (!val) return null;
+              // Raw token
+              if (typeof val === 'string' && val.split && val.split('.').length === 3) return val;
+              try {
+                const parsed = JSON.parse(val);
+                return parsed?.access_token || parsed?.token || parsed?.accessToken || parsed?.jwt || null;
+              } catch (e) {
+                return null;
+              }
+            };
 
-        const normalize = (t) => (typeof t === 'string' ? t.trim() : t);
-        const isValid = (t) => t && t !== 'null' && t !== 'undefined';
+            // 1. Development overrides
+            token = process.env.REACT_APP_DEV_TOKEN || (typeof localStorage !== 'undefined' && localStorage.getItem('dev_token')) || null;
+            if (token) tokenKeyFound = tokenKeyFound || (process.env.REACT_APP_DEV_TOKEN ? 'REACT_APP_DEV_TOKEN' : 'dev_token');
 
-        const devToken = candidateTokens.map(normalize).find(isValid);
-        if (devToken) {
-          config.headers['Authorization'] = `Bearer ${devToken}`;
-        }
+            // 2. Supabase session object (sb-auth-token) or other common keys
+            if (!token && typeof localStorage !== 'undefined') {
+              const candidateKeys = ['sb-auth-token', 'supabase-auth-token', 'sb_access_token', 'authToken', 'token', 'supabase.session'];
+              for (const key of candidateKeys) {
+                const val = localStorage.getItem(key);
+                const extracted = extractFromValue(val);
+                if (extracted) {
+                  token = extracted;
+                  tokenKeyFound = key;
+                  break;
+                }
+              }
+            }
+
+            // 3. Defensive: if still not found, check other common localStorage entries
+            if (!token && typeof localStorage !== 'undefined') {
+              try {
+                for (let i = 0; i < localStorage.length; i++) {
+                  const key = localStorage.key(i);
+                  if (!key) continue;
+                  if (['sb-auth-token','supabase-auth-token','dev_token','authToken','token'].includes(key)) continue;
+                  const val = localStorage.getItem(key);
+                  const extracted = extractFromValue(val);
+                  if (extracted) {
+                    token = extracted;
+                    tokenKeyFound = key;
+                    break;
+                  }
+                }
+              } catch (e) {
+                // ignore storage read errors
+              }
+            }
+
+            // Add token to Authorization header if found
+            if (token && token !== 'null' && token !== 'undefined') {
+              config.headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            // DEV: show which storage key provided the token (never log the token itself)
+            if (process.env.NODE_ENV === 'development') {
+              if (tokenKeyFound) {
+                console.debug(`[api] Using token from localStorage key: ${tokenKeyFound}`);
+              } else {
+                console.debug('[api] No token found in localStorage for request - Authorization header will not be set');
+              }
+            }
+      } catch (e) {
+        // localStorage may be unavailable; ignore and continue without auth header
       }
 
       // Log API request initiation (structured)
@@ -310,7 +357,8 @@ api.interceptors.response.use(
         lastRefreshAttempt = now;
         // Force a refresh (Supabase v2 automatically refreshes, but we request explicitly)
         try {
-          await supabase.auth.refreshSession();
+          const client = await initSupabase();
+          await client.auth.refreshSession();
         } catch (e) {
           console.warn('Token refresh failed', e?.message || e);
         } finally {
@@ -322,7 +370,8 @@ api.interceptors.response.use(
         await new Promise(res => queued.push(res));
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const client = await initSupabase();
+      const { data: { session } } = await client.auth.getSession();
       if (session?.access_token) {
         error.config.headers['Authorization'] = `Bearer ${session.access_token}`;
         error.config.__isRetry = true;
@@ -343,7 +392,8 @@ api.interceptors.response.use(
         }
 
         try {
-          if (supabase?.auth?.signOut) await supabase.auth.signOut();
+          const client = await initSupabase();
+          if (client?.auth?.signOut) await client.auth.signOut();
         } catch (e) {
           // ignore signOut failures
         }
@@ -616,6 +666,49 @@ export const getFileDownloadUrl = async (fileId) => {
   );
 };
 
+// Generic request helper with AbortController + retry/backoff.
+// Returns the axios response object.
+export async function requestWithRetry(requestConfig, options = {}) {
+  const { retries = 2, backoffMs = 500, timeout = api.defaults.timeout || 30000 } = options;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller && timeout ? setTimeout(() => controller.abort(), timeout) : null;
+
+    try {
+      const cfg = {
+        ...requestConfig,
+        timeout,
+        signal: controller ? controller.signal : undefined
+      };
+
+      const resp = await api.request(cfg);
+      if (timer) clearTimeout(timer);
+      return resp;
+    } catch (err) {
+      if (timer) clearTimeout(timer);
+
+      const status = err?.response?.status;
+      const isNetwork = err.code === 'ERR_NETWORK' || err.message?.includes('Network Error');
+      const isTimeout = err.code === 'ECONNABORTED' || err.message?.toLowerCase().includes('timeout') || err.name === 'AbortError';
+      const isServerError = status && status >= 500 && status < 600;
+
+      const willRetry = attempt < retries && (isNetwork || isTimeout || isServerError);
+
+      if (!willRetry) {
+        throw err;
+      }
+
+      const wait = backoffMs * Math.pow(2, attempt);
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[api] retrying request (${attempt + 1}/${retries}) after ${wait}ms due to error:`, err.message || err.code || status);
+      }
+      await new Promise((res) => setTimeout(res, wait));
+      // continue to next attempt
+    }
+  }
+}
+
 export const deleteFile = async (fileId) => {
   return apiErrorHandler.safeApiCall(
     async () => {
@@ -761,8 +854,17 @@ export const getUserPlan = async () => {
 };
 
 // Utility function to get social proof metrics
+// Small in-memory cache to avoid duplicate social-proof calls during startup bursts
+let _socialProofCache = { value: null, expiresAt: 0 };
+const SOCIAL_PROOF_TTL = 30 * 1000; // 30 seconds
+
 export const getSocialProofMetrics = async () => {
-  return apiErrorHandler.safeApiCall(
+  const now = Date.now();
+  if (_socialProofCache.value && _socialProofCache.expiresAt > now) {
+    return _socialProofCache.value;
+  }
+
+  const result = await apiErrorHandler.safeApiCall(
     async () => {
       const { data } = await api.get('/api/social-proof-metrics');
       return data;
@@ -780,4 +882,11 @@ export const getSocialProofMetrics = async () => {
       }
     }
   );
+
+  if (result) {
+    _socialProofCache.value = result;
+    _socialProofCache.expiresAt = Date.now() + SOCIAL_PROOF_TTL;
+  }
+
+  return result;
 };

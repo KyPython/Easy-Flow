@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useI18n } from '../i18n';
-import { supabase } from '../utils/supabaseClient';
+import supabase, { initSupabase } from '../utils/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../utils/AuthContext';
 import { usePlan } from '../hooks/usePlan';
@@ -9,21 +9,124 @@ import conversionTracker from '../utils/conversionTracking';
 import styles from './PricingPage.module.css';
 import { UserCountBadge, TrustBadges } from '../components/SocialProof';
 
+// Fallback pricing when Supabase is unavailable
+const FALLBACK_PLANS = [
+  {
+    id: '68429fb4-e679-4599-a25e-0ccf9d58a6ce',
+    name: 'Professional',
+    price_cents: 9900,
+    billing_interval: 'month',
+    description: 'Professional plan for teams needing advanced automation.',
+    polar_url: 'https://buy.polar.sh/polar_cl_cFzTuhjyMJ4UrtX1Pjjda21cJ6jQEJKzLxPVA0770J1',
+    is_most_popular: true,
+    feature_flags: {
+      sso_ldap: 'Yes',
+      audit_logs: 'Yes',
+      storage_gb: 50,
+      error_handling: 'Advanced retry logic',
+      automation_runs: 1000,
+      priority_support: '4h response',
+      advanced_analytics: '90 days retention',
+      advanced_templates: 'Premium library',
+      webhook_management: '100 webhooks',
+      custom_integrations: '25 integrations',
+      automation_workflows: 'Unlimited',
+      integrations_builder: 'Yes',
+      enterprise_automation: 'Yes',
+      scheduled_automations: 'Unlimited'
+    }
+  },
+  {
+    id: '87dabdce-367b-4ef3-8b16-e8b631f88a2e',
+    name: 'Starter',
+    price_cents: 2900,
+    billing_interval: 'month',
+    description: 'Starter plan for small teams with basic automation needs.',
+    polar_url: 'https://buy.polar.sh/polar_cl_kIoOm1p5g3Z2PhuWZzSRmSHZNhwR5ho85R3nZ0URJxE',
+    is_most_popular: false,
+    feature_flags: {
+      audit_logs: 'Yes',
+      storage_gb: 10,
+      email_support: '48h response',
+      automation_runs: 100,
+      basic_analytics: '7 days retention',
+      automation_workflows: 'Unlimited',
+      webhook_integrations: '10 webhooks',
+      scheduled_automations: '5 per day',
+      unlimited_custom_templates: 'Yes'
+    }
+  },
+  {
+    id: '61a6bc79-4ad9-4886-82c5-580514c2bca5',
+    name: 'Enterprise',
+    price_cents: 29900,
+    billing_interval: 'month',
+    description: 'Enterprise plan for large organizations with full automation features.',
+    polar_url: 'https://buy.polar.sh/polar_cl_xzTaD75HJCQVTiMWUmaH5Gwn6pienFk5wW7bU2EdoZo',
+    is_most_popular: false,
+    feature_flags: {
+      sso_ldap: 'Enterprise SSO',
+      audit_logs: 'Complete logs',
+      storage_gb: 500,
+      contact_sales: 'Yes',
+      error_handling: 'Custom handlers',
+      sla_guarantees: '99.9% uptime',
+      automation_runs: 10000,
+      full_api_access: 'REST + GraphQL',
+      priority_support: '1h response',
+      advanced_security: 'SOC2 + GDPR',
+      dedicated_support: 'Dedicated CSM',
+      advanced_analytics: '1 year retention',
+      advanced_templates: 'Custom templates',
+      custom_development: 'Available',
+      webhook_management: 'Unlimited webhooks',
+      custom_integrations: 'Unlimited',
+      enterprise_features: 'All features',
+      requires_sales_team: 'Custom pricing',
+      white_label_options: 'Full branding',
+      integrations_builder: 'Yes',
+      enterprise_automation: 'Advanced workflows',
+      scheduled_automations: 'Unlimited'
+    }
+  },
+  {
+    id: 'fb3ee08c-6b26-46fd-b50c-142e11eb4bbf',
+    name: 'Hobbyist',
+    price_cents: 0,
+    billing_interval: 'month',
+    description: 'Hobbyist plan for individuals starting automation.',
+    polar_url: 'https://buy.polar.sh/polar_cl_4BKIxwmA4NBjhK5AnXdPnC5jq0zbcgkPLEuTU3hsY6b',
+    is_most_popular: false,
+    feature_flags: {
+      api_access: 'No',
+      storage_gb: 5,
+      automation_runs: 50,
+      priority_support: 'No',
+      advanced_analytics: 'No',
+      automation_workflows: 'Unlimited',
+      webhook_integrations: 'No',
+      scheduled_automations: 'No'
+    }
+  }
+];
+
 export default function PricingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { planData, trialDaysLeft } = usePlan();
-  const [plans, setPlans] = useState([]);
+  const [plans, setPlans] = useState(FALLBACK_PLANS);
   const [featureLabels, setFeatureLabels] = useState({});
   const [userSubscription, setUserSubscription] = useState(null);
-  const [mostPopularId, setMostPopularId] = useState(null);
+  const [mostPopularId, setMostPopularId] = useState('68429fb4-e679-4599-a25e-0ccf9d58a6ce');
   const [loading, setLoading] = useState(false);
+  const [usingFallback, setUsingFallback] = useState(true);
 
 
   // Fetch plans from Supabase
   const fetchPlans = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('plans')
         .select('id, name, price_cents, billing_interval, description, polar_url, feature_flags, is_most_popular')
         .order('created_at', { ascending: true });
@@ -32,22 +135,23 @@ export default function PricingPage() {
 
       if (data && data.length) {
         setPlans(data);
+        setUsingFallback(false);
         const popularPlan = data.find(p => p.is_most_popular) || data[0];
         if (popularPlan) setMostPopularId(popularPlan.id);
       } else {
-        setPlans([]);
-        setMostPopularId(null);
+        console.warn('No plans returned from Supabase, using fallback');
+        // Keep fallback plans from initial state
       }
     } catch (err) {
-      console.error('Error fetching plans:', err);
-      setPlans([]);
-      setMostPopularId(null);
+      console.error('Error fetching plans from Supabase, using fallback:', err);
+      // Keep fallback plans from initial state
     }
   }, []);
 
   const fetchFeatureLabels = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('plan_feature_labels')
         .select('feature_key, feature_label');
 
@@ -66,7 +170,8 @@ export default function PricingPage() {
   const fetchUserSubscription = useCallback(async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('subscriptions')
         .select('*, plan:plans(*)')
         .eq('user_id', user.id)

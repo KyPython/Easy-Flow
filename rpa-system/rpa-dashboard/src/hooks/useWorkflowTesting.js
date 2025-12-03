@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../utils/supabaseClient';
+import supabase, { initSupabase } from '../utils/supabaseClient';
 import { api } from '../utils/api';
 
 export const useWorkflowTesting = (workflowId) => {
@@ -16,7 +16,8 @@ export const useWorkflowTesting = (workflowId) => {
     }
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('workflow_test_scenarios')
         .select(`
           *,
@@ -45,9 +46,10 @@ export const useWorkflowTesting = (workflowId) => {
   // Create a new test scenario
   const createTestScenario = async (scenarioData) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const client2 = await initSupabase();
+      const { data: { user } } = await client2.auth.getUser();
       if (!user) throw new Error('User must be authenticated');
-      const { data, error } = await supabase
+      const { data, error } = await client2
         .from('workflow_test_scenarios')
         .insert({
           workflow_id: workflowId,
@@ -78,7 +80,8 @@ export const useWorkflowTesting = (workflowId) => {
       const scenario = testScenarios.find(s => s.id === scenarioId);
       if (!scenario) throw new Error('Test scenario not found');
       // Get auth token
-      const { data: { session } } = await supabase.auth.getSession();
+      const client3 = await initSupabase();
+      const { data: { session } } = await client3.auth.getSession();
       if (!session) throw new Error('Authentication required');
       // Execute workflow using real automation endpoint
       const executionStart = Date.now();
@@ -91,7 +94,8 @@ export const useWorkflowTesting = (workflowId) => {
       });
       const executionTime = Date.now() - executionStart;
       // Save test result to database
-      const { data, error } = await supabase
+      const client4 = await initSupabase();
+      const { data, error } = await client4
         .from('workflow_test_results')
         .insert({
           scenario_id: scenarioId,
@@ -119,7 +123,8 @@ export const useWorkflowTesting = (workflowId) => {
   // Get real execution results from backend
   const getExecutionResults = async (executionId) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const client5 = await initSupabase();
+      const { data: { session } } = await client5.auth.getSession();
       if (!session) throw new Error('Authentication required');
       const { data } = await api.get(`/api/executions/${executionId}`);
       return data;
@@ -131,7 +136,8 @@ export const useWorkflowTesting = (workflowId) => {
   // Execute workflow step using real automation
   const executeWorkflowStep = async (stepId, stepConfig, inputData) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const client6 = await initSupabase();
+      const { data: { session } } = await client6.auth.getSession();
       if (!session) throw new Error('Authentication required');
       const { data } = await api.post('/api/workflows/execute-step', {
         step_id: stepId,
@@ -153,7 +159,8 @@ export const useWorkflowTesting = (workflowId) => {
   // Get workflow execution status
   const getWorkflowExecutionStatus = async (executionId) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const client7 = await initSupabase();
+      const { data: { session } } = await client7.auth.getSession();
       if (!session) throw new Error('Authentication required');
       const { data } = await api.get(`/api/executions/${executionId}/steps`);
       return data;
@@ -165,7 +172,8 @@ export const useWorkflowTesting = (workflowId) => {
   // Cancel workflow execution
   const cancelWorkflowExecution = async (executionId) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const client8 = await initSupabase();
+      const { data: { session } } = await client8.auth.getSession();
       if (!session) throw new Error('Authentication required');
       const { data } = await api.post(`/api/executions/${executionId}/cancel`);
       return data;
@@ -200,7 +208,8 @@ export const useWorkflowTesting = (workflowId) => {
   // Delete test scenario
   const deleteTestScenario = async (scenarioId) => {
     try {
-      const { error } = await supabase
+      const client8 = await initSupabase();
+      const { error } = await client8
         .from('workflow_test_scenarios')
         .delete()
         .eq('id', scenarioId);

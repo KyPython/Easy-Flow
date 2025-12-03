@@ -12,7 +12,7 @@ import styles from './FilesPage.module.css';
 
 import { useEffect } from 'react';
 import { useTheme } from '../utils/ThemeContext';
-import { getFileShares } from '../utils/api';
+import { getFileShares, api } from '../utils/api';
 
 const FilesPage = () => {
   const { user } = useAuth();
@@ -22,8 +22,10 @@ const FilesPage = () => {
   const [uploadSuccess, setUploadSuccess] = useState('');
   const [refreshFiles, setRefreshFiles] = useState(0);
 
+  // FIX: Initialize as empty array
   const [sharedFiles, setSharedFiles] = useState([]);
   const [loadingShares, setLoadingShares] = useState(false);
+  const [sharesError, setSharesError] = useState(null);
   const { theme } = useTheme();
   
   // Check if user is at storage limit
@@ -34,12 +36,33 @@ const FilesPage = () => {
   useEffect(() => {
     async function fetchShares() {
       setLoadingShares(true);
+      setSharesError(null);
       try {
-        // Fetch all shares for the current user
+        // FIX: Use the correct endpoint for fetching ALL user's shares
+        // Option 1: If you have a dedicated endpoint for all user shares
+        // const { data } = await api.get('/api/files/shares');
+        // const shares = Array.isArray(data) ? data : (data?.shares || []);
+        
+        // Option 2: If getFileShares() without fileId returns all shares
         const result = await getFileShares();
-        setSharedFiles(result || []);
+        
+        // FIX: Safely extract the shares array from the response
+        // Handle both { shares: [...] } and direct array responses
+        let shares;
+        if (Array.isArray(result)) {
+          shares = result;
+        } else if (result && typeof result === 'object') {
+          shares = result.shares || result.data || [];
+        } else {
+          shares = [];
+        }
+        
+        // Ensure we always set an array
+        setSharedFiles(Array.isArray(shares) ? shares : []);
       } catch (e) {
-        setSharedFiles([]);
+        console.error('Error fetching shared files:', e);
+        setSharesError(e?.message || 'Failed to load shared files');
+        setSharedFiles([]); // Always set to array on error
       } finally {
         setLoadingShares(false);
       }
@@ -156,6 +179,16 @@ const FilesPage = () => {
           <h2 className={styles.sectionTitle}>{t('files.shared_title', 'Shared Files')}</h2>
           {loadingShares ? (
             <div className={styles.loadingShares}>{t('files.loading_shares', 'Loading shared files...')}</div>
+          ) : sharesError ? (
+            <div className={styles.sharesError}>
+              <span>⚠️ {sharesError}</span>
+              <button 
+                onClick={() => setRefreshFiles(prev => prev + 1)} 
+                className={styles.retryBtn}
+              >
+                Retry
+              </button>
+            </div>
           ) : sharedFiles.length === 0 ? (
             <div className={styles.noShares}>{t('files.no_shared_files', 'No files have been shared yet.')}</div>
           ) : (
@@ -170,8 +203,8 @@ const FilesPage = () => {
               </thead>
               <tbody>
                 {sharedFiles.map((share) => (
-                  <tr key={share.id}>
-                    <td>{share.fileName || share.original_name || share.name}</td>
+                  <tr key={share.id || share.shareUrl}>
+                    <td>{share.fileName || share.original_name || share.name || 'Unnamed file'}</td>
                     <td>
                       <a href={share.shareUrl} target="_blank" rel="noopener noreferrer" className={styles.shareLink}>
                         {share.shareUrl}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
-import supabase, { signInWithPassword, signUp } from '../utils/supabaseClient';
+import supabase, { initSupabase, signInWithPassword, signUp } from '../utils/supabaseClient';
 import { trackEvent, triggerCampaign } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import styles from './AuthPage.module.css';
@@ -19,7 +19,15 @@ export default function AuthPage() {
   // Check if user is already authenticated and redirect
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      try {
+        // Ensure Supabase client initialized before checking auth state
+        const mod = await import('../utils/supabaseClient');
+        if (mod && mod.initSupabase) await mod.initSupabase();
+      } catch (e) {
+        // ignore init errors and continue with stub behavior
+      }
+      const client = await initSupabase();
+      const { data: { user } } = await client.auth.getUser();
       if (user) {
         // User is already authenticated, redirect to dashboard
         navigate('/app');
@@ -36,33 +44,44 @@ export default function AuthPage() {
     
     checkUser();
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        // Complete referral if there's a referral code
-        if (referralCode) {
-          try {
-            // Use central axios `api` so trace headers and credentials are applied
-            const { api } = await import('../utils/api');
-            await api.post('/api/complete-referral', { referralCode, newUserId: session.user.id });
-          } catch (error) {
-            // Error handling logic (optional: show user feedback)
-            console.debug('complete-referral failed', error);
-          }
-        }
-        
-        // Check if this is a signup completion by looking for signup flag
-        if (sessionStorage.getItem('just_signed_up_pending') === 'true') {
-          sessionStorage.setItem('just_signed_up', 'true');
-          sessionStorage.removeItem('just_signed_up_pending');
-        }
-        
-        // User just signed in or was confirmed, redirect to dashboard
-        navigate('/app');
+    // Listen for auth state changes (ensure real client initialized first)
+    let subscription = { unsubscribe: () => {} };
+    (async () => {
+      try {
+        await initSupabase();
+      } catch (e) {
+        // ignore
       }
-    });
 
-    return () => subscription.unsubscribe();
+      try {
+        const client = await initSupabase();
+        const res = client.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_IN' && session?.user) {
+            // Complete referral if there's a referral code
+            if (referralCode) {
+              try {
+                const { api } = await import('../utils/api');
+                await api.post('/api/complete-referral', { referralCode, newUserId: session.user.id });
+              } catch (error) {
+                console.debug('complete-referral failed', error);
+              }
+            }
+
+            if (sessionStorage.getItem('just_signed_up_pending') === 'true') {
+              sessionStorage.setItem('just_signed_up', 'true');
+              sessionStorage.removeItem('just_signed_up_pending');
+            }
+
+            navigate('/app');
+          }
+        });
+        if (res && res.data && res.data.subscription) subscription = res.data.subscription;
+      } catch (e) {
+        console.debug('[AuthPage] auth listener failed to attach', e && e.message ? e.message : e);
+      }
+    })();
+
+    return () => { try { subscription.unsubscribe(); } catch (_) {} };
   }, [navigate, referralCode]);
 
   const handleResetPassword = async () => {
@@ -75,7 +94,8 @@ export default function AuthPage() {
     }
     try {
       const redirectTo = `${window.location.origin}/auth/reset`;
-      const { error } = await supabase.auth.resetPasswordForEmail(emailTrim, {
+      const client = await initSupabase();
+      const { error } = await client.auth.resetPasswordForEmail(emailTrim, {
         redirectTo
       });
       if (error) throw error;
@@ -89,7 +109,8 @@ export default function AuthPage() {
   const handleResendVerification = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resend({
+      const client = await initSupabase();
+      const { error } = await client.auth.resend({
         type: 'signup',
         email: email
       });

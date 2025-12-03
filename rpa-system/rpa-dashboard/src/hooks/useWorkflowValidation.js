@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../utils/supabaseClient';
+import supabase, { initSupabase } from '../utils/supabaseClient';
 import { usePlan } from './usePlan';
 
 export const useWorkflowValidation = () => {
@@ -23,7 +23,8 @@ export const useWorkflowValidation = () => {
       }
 
       // Get workflow details and steps
-      const { data: workflow, error: workflowError } = await supabase
+      const client = await initSupabase();
+      const { data: workflow, error: workflowError } = await client
         .from('workflows')
         .select(`
           *,
