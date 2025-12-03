@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
 import Dashboard from '../components/Dashboard/Dashboard';
-import { supabase } from '../utils/supabaseClient';
+import supabase, { initSupabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
 
 // Lazy load Chatbot component for better performance
@@ -98,35 +98,88 @@ const DashboardPage = () => {
 
   useEffect(() => {
     if (!authLoading && user) {
-      fetchDashboardData();
-
-      // Throttle realtime updates to prevent excessive API calls
+      // Schedule initial fetch and subscription during idle time so we don't
+      // block first paint or the React commit phase. This reduces main-thread
+      // contention during startup and improves Time To Interactive.
+      let idleId = null;
+      let timerId = null;
       let updateTimeout = null;
-      
-      // Supabase v2 Realtime subscription
-      const channel = supabase
-        .channel(`realtime:automation_runs:user_id=eq.${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'automation_runs',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            // Throttle updates to once every 2 seconds to prevent excessive re-renders
-            if (updateTimeout) clearTimeout(updateTimeout);
-            updateTimeout = setTimeout(() => {
-              fetchDashboardData();
-            }, 2000);
+      let channel = null;
+      let client = null;
+
+      const startRealtime = () => {
+        // Keep the effect sync entrypoint stable — run async work inside.
+        (async () => {
+          try {
+            // Start by fetching dashboard data once
+            fetchDashboardData();
+
+            // Ensure the real Supabase client is initialized before creating channels
+            client = await initSupabase();
+
+            // Then subscribe to realtime events and throttle updates
+            try {
+              console.info('[Dashboard] creating realtime channel for user', user.id);
+              channel = client
+                .channel(`realtime:automation_runs:user_id=eq.${user.id}`)
+                .on(
+                  'postgres_changes',
+                  {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'automation_runs',
+                    filter: `user_id=eq.${user.id}`
+                  },
+                  (payload) => {
+                    console.info('[Dashboard] realtime payload received', payload);
+                    if (updateTimeout) clearTimeout(updateTimeout);
+                    updateTimeout = setTimeout(() => {
+                      fetchDashboardData();
+                    }, 2000);
+                  }
+                );
+
+              // Attempt to subscribe and log lifecycle status
+              try {
+                const sub = channel.subscribe((status) => {
+                  console.info('[Dashboard] realtime channel status', status);
+                });
+                console.info('[Dashboard] subscribe() called for automation_runs channel', sub || channel);
+              } catch (sErr) {
+                console.warn('[Dashboard] subscribe call failed', sErr && sErr.message ? sErr.message : sErr);
+              }
+            } catch (e) {
+              console.warn('[Dashboard] realtime subscription setup failed', e && e.message ? e.message : e);
+            }
+          } catch (e) {
+            // Don't crash the app if realtime setup fails — log and continue
+            // eslint-disable-next-line no-console
+            console.warn('[Dashboard] realtime init failed', e && e.message ? e.message : e);
           }
-        )
-        .subscribe();
+        })();
+      };
+
+      // Use requestIdleCallback when available to avoid impacting first paint
+      if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+        try {
+          idleId = window.requestIdleCallback(startRealtime, { timeout: 2000 });
+        } catch (e) {
+          timerId = setTimeout(startRealtime, 1000);
+        }
+      } else {
+        timerId = setTimeout(startRealtime, 1000);
+      }
 
       return () => {
+        if (idleId && typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
+          window.cancelIdleCallback(idleId);
+        }
+        if (timerId) clearTimeout(timerId);
         if (updateTimeout) clearTimeout(updateTimeout);
-        supabase.removeChannel(channel);
+        try {
+          if (channel && channel.unsubscribe) channel.unsubscribe();
+        } catch (e) {}
+        try { if (channel && client && typeof client.removeChannel === 'function') client.removeChannel(channel); } catch (e) {}
       };
     }
   }, [user?.id, authLoading]); // ✅ FIXED: Removed fetchDashboardData from dependencies

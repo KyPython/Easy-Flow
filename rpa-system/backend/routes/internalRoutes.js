@@ -5,6 +5,52 @@ const { logger } = require('../utils/logger');
 
 const router = express.Router();
 
+// Create a child logger for frontend logs
+const frontendLogger = logger.child({ source: 'frontend' });
+
+// Accept frontend structured logs - integrates with observability pipeline
+// Logs are written to the same logging infrastructure as backend logs
+router.post('/front-logs', async (req, res) => {
+  try {
+    const { logs } = req.body || {};
+    if (!Array.isArray(logs)) {
+      return res.status(400).json({ error: 'logs must be an array' });
+    }
+
+    // Process each log entry through our structured logging pipeline
+    logs.forEach(entry => {
+      const { level, component, message, data, trace, user, timestamp } = entry;
+      const logData = {
+        frontend_component: component,
+        frontend_data: data,
+        frontend_trace: trace,
+        frontend_user: user,
+        frontend_timestamp: timestamp
+      };
+
+      // Route to appropriate log level
+      switch (level) {
+        case 'error':
+          frontendLogger.error(`[FE:${component}] ${message}`, logData);
+          break;
+        case 'warn':
+          frontendLogger.warn(`[FE:${component}] ${message}`, logData);
+          break;
+        case 'debug':
+          frontendLogger.debug(`[FE:${component}] ${message}`, logData);
+          break;
+        default:
+          frontendLogger.info(`[FE:${component}] ${message}`, logData);
+      }
+    });
+
+    return res.status(204).send();
+  } catch (err) {
+    logger.error('[internal/front-logs] failed to process logs', { error: err?.message || err });
+    return res.status(500).json({ error: 'failed' });
+  }
+});
+
 // Accept front-end telemetry / error payloads to help diagnose freezes.
 // This endpoint is intentionally public (no auth) so the dev dashboard can POST
 // errors when reproducing issues locally. Payloads are written to the repo's

@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import DocumentationGuide from '../DocumentationGuide/DocumentationGuide';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import headerStyles from '../Header/Header.module.css';
 import { useI18n } from '../../i18n';
 import { useNavigate } from 'react-router-dom';
 import styles from './Dashboard.module.css';
 import MetricCard from '../MetricCard/MetricCard';
-import OnboardingModal from '../OnboardingModal/OnboardingModal';
-import UsageTracker from '../UsageTracker/UsageTracker';
+const DocumentationGuide = lazy(() => import('../DocumentationGuide/DocumentationGuide'));
+const OnboardingModal = lazy(() => import('../OnboardingModal/OnboardingModal'));
+const UsageTracker = lazy(() => import('../UsageTracker/UsageTracker'));
 import { useNotifications } from '../../hooks/useNotifications';
 import PropTypes from 'prop-types';
 
@@ -49,6 +49,29 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
     }
   ];
 
+  // Defer heavy subtrees to idle time to reduce initial render work
+  const DeferredMount = ({ children, fallback = null }) => {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+      let id;
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        id = window.requestIdleCallback(() => setMounted(true), { timeout: 200 });
+      } else {
+        id = setTimeout(() => setMounted(true), 200);
+      }
+      return () => {
+        if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && id && id !== 0) {
+          window.cancelIdleCallback(id);
+        } else {
+          clearTimeout(id);
+        }
+      };
+    }, []);
+
+    return mounted ? children : fallback;
+  };
+
   useEffect(() => {
     // Find new tasks that weren't in the previous set
     const currentTaskIds = new Set(recentTasks.map(task => task.id));
@@ -76,19 +99,29 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
         </p>
       </div>
 
-      {/* Metric cards */}
-      <div className={styles.metricsGrid}>
-        {metricCards.map((metric, index) => (
-          <MetricCard
-            key={index}
-            title={metric.title}
-            value={metric.value}
-            icon={metric.icon}
-            trend={metric.trend}
-            subtitle={metric.subtitle}
-          />
-        ))}
-      </div>
+      {/* Metric cards (deferred to idle time to reduce initial React work) */}
+      <DeferredMount
+        fallback={(
+          <div className={styles.metricsGrid} aria-hidden="true">
+            {metricCards.map((_, i) => (
+              <div key={i} style={{borderRadius: 8, background: '#f3f4f6', height: 88, margin: 8, flex: '1 1 200px'}} />
+            ))}
+          </div>
+        )}
+      >
+        <div className={styles.metricsGrid}>
+          {metricCards.map((metric, index) => (
+            <MetricCard
+              key={index}
+              title={metric.title}
+              value={metric.value}
+              icon={metric.icon}
+              trend={metric.trend}
+              subtitle={metric.subtitle}
+            />
+          ))}
+        </div>
+      </DeferredMount>
 
       {/* Recent activity */}
       <div className={styles.recentActivity}>
@@ -192,7 +225,9 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
 
       {/* Usage Information Section - placed at bottom for mobile */}
       <div className={styles.usageSection}>
-        <UsageTracker showUpgrade={true} />
+        <Suspense fallback={<div style={{padding: '0.75rem', color: '#6b7280'}}>Loading usage summary…</div>}>
+          <UsageTracker showUpgrade={true} />
+        </Suspense>
       </div>
 
       {/* Documentation Modal */}
@@ -200,17 +235,21 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
         <div className={headerStyles.modalOverlay} onClick={() => setShowDocs(false)}>
           <div className={headerStyles.modalContent} onClick={e => e.stopPropagation()}>
             <button className={headerStyles.closeButton} onClick={() => setShowDocs(false)}>&times;</button>
-            <DocumentationGuide />
+            <Suspense fallback={<div style={{padding: '1rem'}}>Loading documentation…</div>}>
+              <DocumentationGuide />
+            </Suspense>
           </div>
         </div>
       )}
 
       {/* Onboarding Modal */}
-      <OnboardingModal 
-        isOpen={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
-        userEmail={user?.email || 'your email'}
-      />
+      <Suspense fallback={null}>
+        <OnboardingModal 
+          isOpen={showOnboarding}
+          onClose={() => setShowOnboarding(false)}
+          userEmail={user?.email || 'your email'}
+        />
+      </Suspense>
     </div>
   );
 };

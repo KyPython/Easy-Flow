@@ -40,20 +40,39 @@ const PlanGate = ({
 
   // Canonical feature/plan gating logic (matches Pricing Page)
   const hasAccess = (() => {
-    if (isDevelopment) return true;
-    if (!planData) return false;
+    const logContext = {
+      feature,
+      requiredPlan,
+      currentPlan: planData?.plan?.name,
+      limits: planData?.limits,
+      isDevelopment
+    };
+
+    if (isDevelopment) {
+      console.log('[PlanGate] Development bypass enabled', logContext);
+      return true;
+    }
+    if (!planData) {
+      console.log('[PlanGate] No plan data available, denying access', logContext);
+      return false;
+    }
 
     // If a feature key is provided, check planData.limits for that feature
     if (feature) {
       // Boolean feature flag (e.g. audit_logs: true)
       if (typeof planData.limits?.[feature] === 'boolean') {
-        return planData.limits[feature];
+        const access = planData.limits[feature];
+        console.log(`[PlanGate] Feature "${feature}" boolean check:`, access, logContext);
+        return access;
       }
       // Numeric feature limit (e.g. workflows: 0 or >0)
       if (typeof planData.limits?.[feature] === 'number') {
-        return planData.limits[feature] > 0;
+        const access = planData.limits[feature] > 0;
+        console.log(`[PlanGate] Feature "${feature}" numeric check:`, { limit: planData.limits[feature], access }, logContext);
+        return access;
       }
       // Fallback: not present or unknown type
+      console.log(`[PlanGate] Feature "${feature}" not found in limits, denying access`, logContext);
       return false;
     }
 
@@ -70,11 +89,13 @@ const PlanGate = ({
       };
       const currentLevel = planHierarchy[currentPlan] || 0;
       const requiredLevel = planHierarchy[required] || 0;
-      // Only show paywall if current plan is strictly less than required
-      return currentLevel >= requiredLevel;
+      const access = currentLevel >= requiredLevel;
+      console.log(`[PlanGate] Plan hierarchy check:`, { currentPlan, required, currentLevel, requiredLevel, access });
+      return access;
     }
 
     // If neither, default to allowing access (or could default to Hobbyist restrictions)
+    console.log('[PlanGate] No feature or requiredPlan specified, denying access', logContext);
     return false;
   })();
 

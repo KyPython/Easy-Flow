@@ -1,0 +1,122 @@
+.realtime-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.realtime-banner__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+}
+
+.realtime-banner__icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.realtime-banner__text {
+  flex: 1;
+}
+
+.realtime-banner__title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.realtime-banner__message {
+  opacity: 0.9;
+}
+
+.realtime-banner__action {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  margin-left: 12px;
+}
+
+/* Warning variant (degraded mode) */
+.realtime-banner--warning {
+  background-color: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+}
+
+.realtime-banner--warning .realtime-banner__action {
+  background-color: #f59e0b;
+  color: white;
+}
+
+.realtime-banner--warning .realtime-banner__action:hover {
+  background-color: #d97706;
+}
+
+/* Error variant (fatal error) */
+.realtime-banner--error {
+  background-color: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #7f1d1d;
+}
+
+.realtime-banner--error .realtime-banner__action {
+  background-color: #ef4444;
+  color: white;
+}
+
+.realtime-banner--error .realtime-banner__action:hover {
+  background-color: #dc2626;
+}
+
+/* Info variant (reconnecting) */
+.realtime-banner--info {
+  background-color: #dbeafe;
+  border: 1px solid #3b82f6;
+  color: #1e3a8a;
+}
+
+.realtime-banner--info .realtime-banner__action {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.realtime-banner--info .realtime-banner__action:hover {
+  background-color: #2563eb;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .realtime-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .realtime-banner__action {
+    margin-left: 0;
+    width: 100%;
+  }
+}

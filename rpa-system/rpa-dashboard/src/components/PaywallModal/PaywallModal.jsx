@@ -1,19 +1,17 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePlan } from '../../hooks/usePlan';
 import { useTheme } from '../../utils/ThemeContext';
-import { supabase } from '../../utils/supabaseClient';
+import { initSupabase } from '../../utils/supabaseClient';
 import { FiX, FiZap, FiArrowRight, FiCheck } from 'react-icons/fi';
 import PropTypes from 'prop-types';
 import conversionTracker from '../../utils/conversionTracking';
-import DemoBookingButton from '../DemoBookingButton/DemoBookingButton';
 import styles from './PaywallModal.module.css';
 
-const PaywallModal = ({ 
-  feature, 
-  requiredPlan, 
+const PaywallModal = ({
+  feature,
+  requiredPlan,
   message,
-  onClose 
+  onClose
 }) => {
 
   const { planData } = usePlan();
@@ -22,26 +20,36 @@ const PaywallModal = ({
   const [plans, setPlans] = useState([]);
   const [featureLabels, setFeatureLabels] = useState({});
   const [loading, setLoading] = useState(false);
-  const [showDemoOffer, setShowDemoOffer] = useState(false);
 
   // Development bypass
   const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
 
   // Track paywall shown event
   useEffect(() => {
-    if (feature && requiredPlan) {
+    if (feature || requiredPlan) {
+      console.log('[PaywallModal] Showing upgrade modal', {
+        feature,
+        requiredPlan,
+        currentPlan: planData?.plan?.name || 'hobbyist',
+        usage: planData?.usage,
+        limits: planData?.limits,
+        path: window.location.pathname,
+        timestamp: new Date().toISOString()
+      });
+
       conversionTracker.trackPaywallShown(
         feature,
         planData?.plan?.name || 'hobbyist',
         window.location.pathname
       );
     }
-  }, [feature, requiredPlan, planData?.plan?.name]);
+  }, [feature, requiredPlan, planData?.plan?.name, planData?.usage, planData?.limits]);
 
   // Fetch plans and feature labels (same as PricingPage)
   const fetchPlans = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('plans')
         .select('id, name, price_cents, billing_interval, description, polar_url, feature_flags, is_most_popular')
         .order('created_at', { ascending: true });
@@ -54,7 +62,8 @@ const PaywallModal = ({
 
   const fetchFeatureLabels = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('plan_feature_labels')
         .select('feature_key, feature_label');
       if (error) throw error;
@@ -81,19 +90,17 @@ const PaywallModal = ({
         planData?.plan?.name || 'hobbyist'
       );
     }
-    
-    // Show demo offer before fully closing
-    setIsClosing(true);
-    setShowDemoOffer(true);
-    
-    // If user doesn't interact with demo offer, close after 5 seconds
-    setTimeout(() => {
-      if (onClose) onClose();
-    }, 5000);
-  };
 
-  const handleFinalClose = () => {
-    setShowDemoOffer(false);
+    // Log gate dismissal for debugging
+    console.log('[PaywallModal] User dismissed upgrade modal', {
+      feature,
+      requiredPlan,
+      currentPlan: planData?.plan?.name || 'hobbyist',
+      timestamp: new Date().toISOString()
+    });
+
+    // Close immediately - no blocking behavior
+    setIsClosing(true);
     if (onClose) onClose();
   };
 
@@ -320,31 +327,7 @@ const PaywallModal = ({
         </div>
       </div>
       
-      {/* Demo offer - shows after dismissal */}
-      {showDemoOffer && (
-        <div className={styles.demoOffer}>
-          <div className={styles.demoOfferContent}>
-            <button 
-              onClick={handleFinalClose}
-              className={styles.demoOfferClose}
-            >
-              <FiX />
-            </button>
-            <h3 className={styles.demoOfferTitle}>Not ready yet?</h3>
-            <p className={styles.demoOfferText}>
-              Book a free demo instead and see EasyFlow in action
-            </p>
-            <DemoBookingButton
-              buttonText="📅 Book Free Demo"
-              subtext="15-min personalized walkthrough"
-              source="post_paywall"
-              variant="primary"
-              size="medium"
-              calendlyUrl="https://calendly.com/your-link/15min"
-            />
-          </div>
-        </div>
-      )}
+      {/* Demo offer removed - modal now closes immediately on dismiss */}
     </div>
   );
 };

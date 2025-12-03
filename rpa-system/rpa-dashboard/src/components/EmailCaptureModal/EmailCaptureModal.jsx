@@ -75,8 +75,27 @@ const EmailCaptureModal = ({
       }, 2000);
 
     } catch (error) {
-      console.error('Email capture submission failed:', error);
-      setError(error.message || 'Failed to save email. Please try again.');
+      console.error('[EmailCaptureModal] Submission failed:', error);
+
+      // Provide user-friendly error messages based on error type
+      let userMessage = 'Failed to save email. Please try again.';
+
+      // Check for network/connection errors
+      if (error.code === 'ECONNABORTED' ||
+          error.message?.includes('timeout') ||
+          error.message?.includes('Network Error') ||
+          error.message?.includes('network') ||
+          !navigator.onLine) {
+        userMessage = 'Unable to connect. Please check your internet connection and try again.';
+      } else if (error.response?.status >= 500) {
+        userMessage = 'Our servers are temporarily unavailable. Please try again in a moment.';
+      } else if (error.response?.status === 400) {
+        userMessage = error.response?.data?.message || 'Invalid email format. Please check and try again.';
+      } else if (error.response?.status === 429) {
+        userMessage = 'Too many requests. Please wait a moment and try again.';
+      }
+
+      setError(userMessage);
     } finally {
       setIsSubmitting(false);
     }

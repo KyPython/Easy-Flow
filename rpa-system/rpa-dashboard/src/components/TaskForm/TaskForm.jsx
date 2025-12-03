@@ -8,7 +8,7 @@
  * REVERT: Remove React.memo wrapper and restore original export
  */
 
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import PropTypes from 'prop-types';
 import { api } from '../../utils/api';
 import { useToast } from '../WorkflowBuilder/Toast';
@@ -34,7 +34,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
   const { incrementTaskCount } = useUsageTracking(user?.id);
 
   // Form persistence setup
-  const initialFormData = {
+  const initialFormData = useMemo(() => ({
     url: initialUrl || '',
     username: '',
     password: '',
@@ -48,7 +48,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     cssSelector: '',
     linkText: '',
     testResults: [],
-  };
+  }), [initialUrl]);
 
   const {
     saveData,
@@ -147,7 +147,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [persistenceEnabled, hasStoredData, loadData, initialUrl, clearData, initialFormData]);
+  }, [persistenceEnabled, hasStoredData, loadData, initialUrl, clearData]);
 
   // Enable browser autofill on mount
   useEffect(() => {
@@ -204,16 +204,21 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
       }
       
     } catch (error) {
-      console.error('Link discovery test failed:', error);
-      
-      // ✅ NEW: Enhanced error handling for discovery testing
+      console.error('[TaskForm] Link discovery test failed:', error);
+
+      // Enhanced error handling for discovery testing - always non-blocking
       const errorData = error.response?.data || {};
       const errorMessage = error.message || '';
-      let userMessage = 'Link discovery test failed. Please try again.';
-      
+      let userMessage = '🔍 Link discovery test failed. You can still submit the task - discovery will run automatically.';
+
       // Handle network/connection errors gracefully
-      if (error.name === 'TypeError' && errorMessage.includes('fetch')) {
-        userMessage = '🔧 Cannot connect to server. Link discovery testing unavailable, but you can still submit the task.';
+      if (error.code === 'ECONNABORTED' ||
+          error.message?.includes('timeout') ||
+          error.message?.includes('Network Error') ||
+          !navigator.onLine) {
+        userMessage = '🔧 Cannot connect to server. You can still submit the task - discovery will run when the server is available.';
+      } else if (error.name === 'TypeError' && errorMessage.includes('fetch')) {
+        userMessage = '🔧 Cannot connect to server. You can still submit the task normally.';
       } else if (error.response?.status === 400) {
         if (errorMessage.includes('CSS Selector is required')) {
           userMessage = '⚠️ Please provide a CSS selector for the link discovery method.';
@@ -222,18 +227,18 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
         } else if (errorMessage.includes('Username and password are required')) {
           userMessage = '🔐 Username and password are required for testing link discovery.';
         } else if (errorData.details) {
-          userMessage = `❌ Test failed: ${errorData.details}`;
+          userMessage = `❌ Test failed: ${errorData.details}. You can still submit the task.`;
         } else {
-          userMessage = `❌ ${errorMessage}`;
+          userMessage = `❌ ${errorMessage}. You can still submit the task.`;
         }
       } else if (error.response?.status === 401) {
         userMessage = '🔐 Authentication failed. Please check your login credentials.';
       } else if (error.response?.status >= 500) {
-        userMessage = '🔧 Link discovery service error. Please try again later.';
+        userMessage = '🔧 Link discovery service temporarily unavailable. You can still submit the task.';
       } else if (errorMessage.includes('Link discovery failed')) {
-        userMessage = '🔍 Could not discover PDF links. Please verify your credentials and try a different discovery method.';
+        userMessage = '🔍 Could not discover PDF links. Try a different discovery method, or submit the task anyway.';
       }
-      
+
       showWarning(userMessage);
     } finally {
       setIsTestingDiscovery(false);

@@ -7,7 +7,7 @@ import { useSchedules } from '../../hooks/useSchedules';
 import ErrorMessage from '../ErrorMessage';
 import LoadingSpinner from './LoadingSpinner';
 // Remove unused/duplicate imports: ScheduleCard (we define local), Modal, FormField, ConfirmDialog, ActionButton
-import { supabase } from '../../utils/supabaseClient';
+import supabase, { initSupabase } from '../../utils/supabaseClient';
 import { api } from '../../utils/api';
 
 const ScheduleManager = ({ workflowId, workflowName }) => {
@@ -581,7 +581,8 @@ const ExecutionHistoryModal = ({ schedule, onClose }) => {
   useEffect(() => {
     const loadExecutions = async () => {
       try {
-        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const client = await initSupabase();
+        const token = (await client.auth.getSession()).data.session?.access_token;
         const resp = await api.get(`/api/schedules/${schedule.id}/executions`, { headers: { Authorization: `Bearer ${token}` } });
         setExecutions(resp?.data?.executions || []);
       } catch (error) {

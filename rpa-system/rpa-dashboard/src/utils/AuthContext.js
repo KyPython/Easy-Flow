@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { supabase } from './supabaseClient';
+import supabase, { initSupabase } from './supabaseClient';
 import { fetchWithAuth } from './devNetLogger';
 
 const AuthContext = createContext();
@@ -36,9 +36,13 @@ export const AuthProvider = ({ children }) => {
         return false;
       }
 
-      // Provide Authorization header if token present; fetchWithAuth also sends cookies via credentials: 'include'
-      const response = await fetchWithAuth('/api/auth/session');
+      // Provide Authorization header if token present. Only send cookies when a
+      // cookie is actually present on the document (explicit opt-in per-request).
+      const response = await fetchWithAuth('/api/auth/session', {
+        credentials: hasCookie ? 'include' : 'omit'
+      });
       if (response.status === 401) {
+        console.log('[Auth] Backend returned 401, clearing session');
         setUser(null);
         setSession(null);
         localStorage.removeItem('dev_token');
@@ -53,30 +57,46 @@ export const AuthProvider = ({ children }) => {
         }
       }
     } catch (error) {
-      // Gracefully handle network/backend errors
-      setUser(null);
-      setSession(null);
-      localStorage.removeItem('dev_token');
+      // IMPROVED: Don't clear session on network errors - preserve existing session
+      // This prevents sign-out on page refresh when backend is temporarily unreachable
+      console.warn('[Auth] Backend session check failed (network error):', error.message);
+      console.log('[Auth] Preserving existing session state due to network error');
+      // Don't clear user/session - let the existing Supabase session persist
+      // Only clear on explicit 401 (handled above)
     }
     return false;
   };
 
   useEffect(() => {
     const initializeAuth = async () => {
+      console.log('[Auth] Initializing authentication...');
       try {
+        // Ensure Supabase client is initialized so auth methods and listeners
+        // attach to the real client rather than to the stub.
+        try {
+          await initSupabase();
+        } catch (e) {
+          console.warn('[Auth] Supabase init failed, continuing with stub:', e.message);
+        }
         // Prefer Supabase client-side session if available so we can forward its token to backend
         try {
-          const { data: { session: sbSession }, error } = await supabase.auth.getSession();
+          const client = await initSupabase();
+          const { data: { session: sbSession }, error } = await client.auth.getSession();
           if (!error && sbSession) {
+            console.log('[Auth] Found existing Supabase session for:', sbSession.user?.email);
             // Store token so fetchWithAuth will include Authorization header
             if (sbSession.access_token) {
               try { localStorage.setItem('dev_token', sbSession.access_token); } catch (e) {}
             }
             setSession(sbSession);
             setUser(sbSession?.user ?? null);
+          } else if (error) {
+            console.warn('[Auth] Supabase getSession error:', error.message);
+          } else {
+            console.log('[Auth] No existing Supabase session found');
           }
         } catch (supabaseError) {
-          console.warn('Supabase not available:', supabaseError.message);
+          console.warn('[Auth] Supabase not available:', supabaseError.message);
         }
 
         // Ensure token is read from storage (or session) and passed explicitly to avoid races
@@ -86,8 +106,9 @@ export const AuthProvider = ({ children }) => {
 
         // Then try backend auth (will accept Authorization header or cookie if present)
         await checkBackendAuth(startupToken);
+        console.log('[Auth] Initialization complete, user:', user?.email || 'none');
       } catch (error) {
-        console.error('Authentication initialization error:', error);
+        console.error('[Auth] Initialization error:', error);
       } finally {
         setLoading(false);
       }
@@ -95,20 +116,23 @@ export const AuthProvider = ({ children }) => {
 
     initializeAuth();
 
-    // Set up Supabase auth listener (only if Supabase is available)
+    // Set up Supabase auth listener (attach after attempting init)
     let subscription = null;
-    try {
-      const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
-        if (event === 'INITIAL_SESSION') return;
-        console.log('Auth state changed:', event, nextSession?.user?.email || 'no user');
-        setSession(nextSession);
-        setUser(nextSession?.user ?? null);
-        setLoading(false);
-      });
-      subscription = authSubscription;
-    } catch (error) {
-      console.warn('Could not set up auth listener:', error.message);
-    }
+    (async () => {
+      try {
+        const client = await initSupabase();
+        const res = client.auth.onAuthStateChange((event, nextSession) => {
+          if (event === 'INITIAL_SESSION') return;
+          console.log('Auth state changed:', event, nextSession?.user?.email || 'no user');
+          setSession(nextSession);
+          setUser(nextSession?.user ?? null);
+          setLoading(false);
+        });
+        subscription = (res && res.data && res.data.subscription) ? res.data.subscription : null;
+      } catch (error) {
+        console.warn('Could not set up auth listener:', error && error.message ? error.message : error);
+      }
+    })();
 
     return () => {
       if (subscription) {
@@ -123,9 +147,11 @@ export const AuthProvider = ({ children }) => {
       
       // Try backend authentication first
       try {
+        const hasCookie = (typeof document !== 'undefined' && document.cookie && document.cookie.length > 0);
         const response = await fetchWithAuth('/api/auth/login', {
           method: 'POST',
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify({ email, password }),
+          credentials: hasCookie ? 'include' : 'omit'
         });
         if (response.ok) {
           const { user, session } = await response.json();
@@ -142,7 +168,8 @@ export const AuthProvider = ({ children }) => {
       
       // Fallback to Supabase
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const client = await initSupabase();
+        const { data, error } = await client.auth.signInWithPassword({ email, password });
         if (error) throw error;
         return data;
       } catch (err) {
@@ -165,7 +192,8 @@ export const AuthProvider = ({ children }) => {
   const signUp = async (email, password, metadata = {}) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signUp({
+      const client = await initSupabase();
+      const { data, error } = await client.auth.signUp({
         email,
         password,
         options: {
@@ -189,17 +217,24 @@ export const AuthProvider = ({ children }) => {
       
       // Try backend logout
       try {
+        const hasCookie = (typeof document !== 'undefined' && document.cookie && document.cookie.length > 0);
         await fetchWithAuth('/api/auth/logout', {
-          method: 'POST'
+          method: 'POST',
+          credentials: hasCookie ? 'include' : 'omit'
         });
       } catch (error) {
         console.warn('Backend logout failed:', error.message);
       }
       
       // Supabase logout
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.warn('Supabase logout failed:', error.message);
+      try {
+        const client = await initSupabase();
+        const { error } = await client.auth.signOut();
+        if (error) {
+          console.warn('Supabase logout failed:', error.message);
+        }
+      } catch (e) {
+        console.warn('Supabase logout failed:', e?.message || e);
       }
       
       // Clear local state regardless of backend/Supabase results
@@ -220,7 +255,8 @@ export const AuthProvider = ({ children }) => {
 
   const resetPassword = async (email) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const client = await initSupabase();
+      const { error } = await client.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`
       });
       if (error) throw error;
@@ -232,7 +268,8 @@ export const AuthProvider = ({ children }) => {
 
   const updatePassword = async (newPassword) => {
     try {
-      const { error } = await supabase.auth.updateUser({
+      const client = await initSupabase();
+      const { error } = await client.auth.updateUser({
         password: newPassword
       });
       if (error) throw error;
@@ -244,7 +281,8 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (updates) => {
     try {
-      const { error } = await supabase.auth.updateUser({
+      const client = await initSupabase();
+      const { error } = await client.auth.updateUser({
         data: updates
       });
       if (error) throw error;

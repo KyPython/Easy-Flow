@@ -97,123 +97,54 @@ const authMiddleware = async (req, res, next) => {
   const startTime = Date.now();
   const minDelay = 100; // Minimum delay in ms to prevent timing attacks
 
-  // Test bypass for Jest tests
-  if (process.env.NODE_ENV === 'test' && process.env.ALLOW_TEST_TOKEN === 'true') {
-    try {
-      // Build a content security policy that is environment-aware.
-      // Keep it restrictive in production but allow commonly used third-party
-      // vendors used by the frontend (HubSpot, uChat, ipapi) and allow localhost
-      // OTLP in development for local collectors.
-      const connectSrc = [
-        "'self'",
-        'https://sdk.dfktv2.com',
-        'https://www.uchat.com.au',
-        'https://www.google-analytics.com',
-        'https://analytics.google.com',
-        'https://*.hubspot.com',
-        'https://*.hs-analytics.net',
-        'https://*.hs-collectedforms.net',
-        'https://api.hubapi.com'
-      ];
-      if (process.env.SUPABASE_URL) {
-        connectSrc.push(process.env.SUPABASE_URL);
-      } else {
-        connectSrc.push('https://syxzilyuysdoirnezgii.supabase.co');
+  try {
+    // Test bypass for Jest tests
+    if (process.env.NODE_ENV === 'test' && process.env.ALLOW_TEST_TOKEN === 'true') {
+      const authHeader = (req.get('authorization') || '').trim();
+      if (authHeader === 'Bearer test-token') {
+        req.user = { id: 'test-user-id', email: 'test@example.com' };
+        return next();
       }
-      if (process.env.APP_URL) {
-        connectSrc.push(process.env.APP_URL);
-      } else {
-        connectSrc.push('https://easyflow-backend-ad8e.onrender.com');
-      }
+    }
 
-      const cspDirectives = {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", 'https:'],
-        // known script providers used by the dashboard
-        scriptSrc: [
-          "'self'",
-          "'unsafe-inline'",
-          "'unsafe-eval'",
-          'https://www.uchat.com.au',
-          'https://sdk.dfktv2.com',
-          'https://www.googletagmanager.com',
-          'https://js.hs-scripts.com',
-          'https://js-na1.hs-scripts.com',
-          'https://js-na2.hs-scripts.com',
-          'https://js.hsforms.net',
-          'https://*.hubspot.com',
-          'https://js.hs-analytics.net',
-          'https://*.hs-analytics.net',
-          'https://js-na2.hs-banner.com',
-          'https://*.hscollectedforms.net',
-          'https://js.hscollectedforms.net',
-          'https://ipapi.co'
-        ],
-        imgSrc: ["'self'", 'https:'],
-        connectSrc: connectSrc,
-        fontSrc: ["'self'", 'https:'],
-        objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
-        frameSrc: ["'none'"],
-        childSrc: ["'none'"],
-        workerSrc: ["'self'"],
-        manifestSrc: ["'self'"],
-        formAction: ["'self'"],
-        frameAncestors: ["'none'"],
-        baseUri: ["'self'"],
-        upgradeInsecureRequests: []
-      };
-
-      // Allow local OTLP collector in development for browser exports (useful for local testing)
-      if (process.env.NODE_ENV !== 'production') {
-        cspDirectives.connectSrc.push('http://localhost:4318');
-      }
-
-      // If a production OTLP gateway is used (e.g. Grafana Cloud), add it to connect-src
-      if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-        // ensure full URL without trailing path is added
-        try {
-          const url = new URL(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
-          cspDirectives.connectSrc.push(url.origin);
-        } catch (e) {
-          // ignore bad URL
-        }
-      }
-
-      app.use(helmet({
-        contentSecurityPolicy: { directives: cspDirectives },
-        hsts: {
-          maxAge: 31536000,
-          includeSubDomains: true,
-          preload: true
-        },
-        permissionsPolicy: {
-          fullscreen: [],
-          camera: [],
-          microphone: [],
-          geolocation: []
-        }
-      }));
-      // attach user to request for downstream handlers
-      req.user = data.user;
-
-      // Ensure minimum delay even for successful auth
+    if (!supabase) {
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
-      return next();
-
-    } catch (err) {
-      // ✅ INSTRUCTION 2: Replace console.error with structured logger
-      rootLogger.error(err, 'Authentication middleware error', {
-        path: req.path,
-        method: req.method
-      });
-      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
-      res.set('x-auth-reason', 'exception');
       return res.status(401).json({ error: 'Authentication failed' });
     }
-    // End Jest bypass block
+
+    const authHeader = (req.get('authorization') || '').trim();
+    const parts = authHeader.split(' ');
+    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
+
+    if (!token) {
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      return res.status(401).json({ error: 'Authentication failed' });
+    }
+
+    // validate token via Supabase server client
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data || !data.user) {
+      rootLogger.warn('Auth middleware: Invalid token', { error: error?.message, path: req.path });
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+      return res.status(401).json({ error: 'Authentication failed' });
+    }
+
+    // attach user to request for downstream handlers
+    req.user = data.user;
+
+    // Ensure minimum delay even for successful auth
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+    return next();
+
+  } catch (err) {
+    rootLogger.error(err, 'Authentication middleware error', {
+      path: req.path,
+      method: req.method
+    });
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
+    res.set('x-auth-reason', 'exception');
+    return res.status(401).json({ error: 'Authentication failed' });
   }
-  // ...rest of auth logic here...
 };
 
 // Rate limiting - More restrictive limits
@@ -387,7 +318,23 @@ const automationLimiter = rateLimit({
 })();
 
 // Add cookie-parser with secret for signed cookies (required for CSRF)
-app.use(cookieParser(process.env.SESSION_SECRET || 'test-session-secret-32-characters-long'));
+const SESSION_SECRET = process.env.SESSION_SECRET;
+let sessionSecretToUse;
+
+if (!SESSION_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    rootLogger.fatal('SESSION_SECRET is required in production. Set the SESSION_SECRET environment variable and restart.');
+    process.exit(1);
+  } else {
+    // Generate a secure ephemeral secret for development/test to avoid hardcoded values.
+    sessionSecretToUse = crypto.randomBytes(32).toString('hex');
+    rootLogger.warn('SESSION_SECRET not provided; using an ephemeral secret for non-production environment (will change on restart).');
+  }
+} else {
+  sessionSecretToUse = SESSION_SECRET;
+}
+
+app.use(cookieParser(sessionSecretToUse));
 
 
 // Apply global rate limiter to all routes
@@ -1337,11 +1284,15 @@ app.post('/api/auth/login', async (req, res) => {
         user_metadata: { name: 'Developer User' }
       };
       
+      // Use a configured dev bypass token when available; otherwise generate a secure ephemeral token.
+      // Note: Generated tokens are ephemeral and intended for local development only.
+      const devAccessToken = process.env.DEV_BYPASS_TOKEN || crypto.randomBytes(24).toString('hex');
+      
       return res.json({
         user: devUser,
         session: {
           user: devUser,
-          access_token: process.env.DEV_BYPASS_TOKEN || 'dev-token-123',
+          access_token: devAccessToken,
           expires_at: Date.now() + 3600000
         }
       });

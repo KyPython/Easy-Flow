@@ -12,15 +12,16 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
 import PropTypes from 'prop-types';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
-import ReactGA from 'react-ga4';
-import useAnalytics from './hooks/useAnalytics';
+// Restore usage tracking and analytics hooks (gated at runtime where necessary)
 import useUsageTracking from './hooks/useUsageTracking';
 import Header from './components/Header/Header'; // Keep header eager (critical UI)
+// AuthContext with lazy Supabase initialization (non-blocking)
 import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import { LanguageProvider } from './utils/LanguageContext';
 import NetworkStatus from './components/NetworkStatus/NetworkStatus'; // Keep eager (small component)
-import './utils/firebaseConfig';
+// FIREBASE INITIALIZATION DEFERRED - was blocking main thread
+// import './utils/firebaseConfig';
 import './theme.css';
 import './App.css';
 
@@ -102,18 +103,34 @@ const LoadingSkeleton = () => (
 // ============================================================================
 
 const AnalyticsTracker = () => {
+  // Runtime-gated analytics: call window.gtag or a small client shim on route changes.
   const location = useLocation();
-  const { trackPageView } = useAnalytics();
 
   useEffect(() => {
-    const gaMeasurementId = process.env.REACT_APP_GA_MEASUREMENT_ID;
-    if (gaMeasurementId) {
-      // Use the custom analytics hook for domain-aware tracking
-      trackPageView(location.pathname, location.search);
-    }
-  }, [location, trackPageView]);
+    try {
+      const env = (window && window._env) || {};
+      const enableGtm = String(env.VITE_ENABLE_GTM || env.ENABLE_ANALYTICS || '').toLowerCase() === 'true';
+      if (!enableGtm) return;
 
-  return null; // This component does not render anything
+      // Fire a page_view event. `env.js` injects a safe no-op `window.gtag` when disabled,
+      // so this call is safe in all environments.
+      try {
+        if (window && typeof window.gtag === 'function') {
+          window.gtag('event', 'page_view', {
+            page_path: location.pathname + location.search,
+            page_location: window.location.href,
+            page_title: document.title
+          });
+        }
+      } catch (e) {
+        console.warn('[Analytics] page_view failed', e && e.message ? e.message : e);
+      }
+    } catch (e) {
+      console.warn('[Analytics] tracker failed', e && e.message ? e.message : e);
+    }
+  }, [location]);
+
+  return null;
 };
 
 function Protected({ children }) {
@@ -136,9 +153,46 @@ function WorkflowIdRedirect() {
 
 function Shell() {
   const { user } = useAuth();
-  const { 
-    showMilestonePrompt, 
-    currentMilestone, 
+  // Initialize Firebase on-demand when the runtime feature gate is enabled
+  // This avoids the heavy Firebase SDK being loaded at module-eval time.
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const env = (window && window._env) || {};
+      const runtimeFlag = String(env.VITE_ENABLE_FIREBASE || env.REACT_APP_ENABLE_FIREBASE || '').toLowerCase() === 'true';
+      const devMode = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
+      const enableFirebase = devMode || runtimeFlag;
+      if (!enableFirebase) return;
+
+      (async () => {
+        try {
+          const mod = await import('./utils/firebaseConfig');
+          if (mod && mod.initFirebase) {
+            // Fire-and-forget initialization — do not block UI
+            mod.initFirebase().catch(e => console.warn('[Firebase] init failed', e && e.message ? e.message : e));
+          }
+        } catch (e) {
+          console.warn('[Firebase] dynamic import failed', e && e.message ? e.message : e);
+        }
+      })();
+      // Analytics gating: enable GTM/gtag only for paying users.
+      (async () => {
+        try {
+          const mod = await import('./utils/analyticsGate');
+          mod.enableAnalyticsForUser(user).catch(e => console.debug('[analyticsGate] failed', e && e.message ? e.message : e));
+        } catch (e) {
+          console.debug('[analyticsGate] import failed', e && e.message ? e.message : e);
+        }
+      })();
+    } catch (e) {
+      console.warn('[Firebase] init gate check failed', e && e.message ? e.message : e);
+    }
+  }, [user]);
+  // Restore usage tracking (milestones, sessions). The hook is lightweight
+  // and stores metrics in localStorage. It is safe to run when user is null.
+  const {
+    showMilestonePrompt,
+    currentMilestone,
     dismissMilestonePrompt,
     sessionsCount
   } = useUsageTracking(user?.id);
