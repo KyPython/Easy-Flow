@@ -408,8 +408,9 @@ function requestLoggingMiddleware() {
     res.send = function(data) {
       const duration = Date.now() - startTime;
       
-      // Always log errors, sample successful responses
-      const shouldLogEnd = res.statusCode >= 400 || shouldSample('http.request', 'info');
+      // Only log 5xx errors always, sample everything else aggressively
+      const is5xxError = res.statusCode >= 500;
+      const shouldLogEnd = is5xxError || shouldSample('http.request', 'info');
       
       if (shouldLogEnd && !isHealthEndpoint) {
         logger.info('HTTP request completed', {

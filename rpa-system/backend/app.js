@@ -118,6 +118,7 @@ const authMiddleware = async (req, res, next) => {
         email: 'developer@localhost',
         user_metadata: { name: 'Local Developer' }
       };
+      req.devBypass = true; // Flag for feature enforcement to skip checks
       return next();
     }
 
@@ -595,24 +596,27 @@ app.get('/api/logs', authMiddleware, requireFeature('audit_logs'), async (req, r
 
 // Apply CSRF protection to state-changing routes (temporarily disabled for testing)
 
-// CSRF Protection - disabled in production for cross-domain compatibility
+// CSRF Protection - DISABLED in development for stability
 if (process.env.NODE_ENV === 'test') {
   app.post('/api/tasks', csrfProtection, (req, res, next) => next());
+} else if (process.env.NODE_ENV === 'development') {
+  // DISABLED in development - CSRF causes too many errors with SPA
+  logger.info('🔓 CSRF disabled in development');
 } else if (process.env.NODE_ENV !== 'production') {
-  // Only enable CSRF in development
+  // Staging/other: enable with exceptions
   app.use('/api', (req, res, next) => {
-    // Skip CSRF for GET requests, webhooks, and checkout endpoints
-    logger.info(`CSRF Check: ${req.method} ${req.url} | path: ${req.path}`);
-    
     if (req.method === 'GET' || 
         req.url.includes('/polar-webhook') || 
         req.url.includes('/checkout/') ||
-        req.path.includes('/polar-webhook') ||
-        req.path.includes('/checkout/')) {
-      logger.info('CSRF: Skipping CSRF for this request');
+        req.url.includes('/workflows/execute') ||
+        req.url.includes('/automation/execute') ||
+        req.url.includes('/executions/') ||
+        req.url.includes('/run-task') ||
+        req.url.includes('/track-event') ||
+        req.url.includes('/analytics') ||
+        req.url.includes('/firebase/')) {
       return next();
     }
-    logger.info('CSRF: Applying CSRF protection');
     return csrfProtection(req, res, next);
   });
 } else {
@@ -941,9 +945,24 @@ if (process.env.NODE_ENV !== 'production' && (process.env.DEV_ALLOW_EXECUTE || '
   }
 }
 
-// Use morgan for detailed, standardized request logging.
-// The 'dev' format is great for development, providing color-coded status codes.
-app.use(morgan('dev'));
+// Use morgan for HTTP request logging (sampled to reduce volume)
+// Only log 1 in N requests based on LOG_SAMPLE_RATE
+const REQUEST_LOG_SAMPLE_RATE = parseInt(process.env.REQUEST_LOG_SAMPLE_RATE || '100', 10);
+let requestCounter = 0;
+
+if (process.env.NODE_ENV === 'development') {
+  // In development, sample requests to avoid log flooding
+  app.use((req, res, next) => {
+    requestCounter++;
+    if (requestCounter % REQUEST_LOG_SAMPLE_RATE === 0) {
+      morgan('dev')(req, res, () => {});
+    }
+    next();
+  });
+} else {
+  // In production, use combined format (less verbose)
+  app.use(morgan('combined'));
+}
 
 // Serve static files from React build (if it exists)
 const reactBuildPath = path.join(__dirname, '../rpa-dashboard/build');

@@ -28,7 +28,13 @@ async function getUserPlan(userId) {
     return {
       plan: { id: 'free', name: 'Free Plan', features: {} },
       usage: { automationsThisMonth: 0, storageUsed: 0 },
-      limits: { maxAutomations: 10, maxStorage: 100 }
+      limits: { 
+        maxAutomations: 10, 
+        maxStorage: 100,
+        workflow_executions: true,
+        has_workflows: true,
+        workflows: 100
+      }
     };
   }
 
