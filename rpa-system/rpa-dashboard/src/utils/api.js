@@ -64,9 +64,9 @@ export const api = axios.create({
   timeout: 30000,
 });
 
-// Default to not sending cookies from the SPA. We rely on PKCE + localStorage tokens
-// for auth and avoid credentialed cross-origin requests which trigger CORS preflight issues.
-api.defaults.withCredentials = false;
+// Enable credentials to allow session cookies in cross-origin requests
+// Required for backend session-based authentication
+api.defaults.withCredentials = true;
 // Expose api globally for debugging in all environments (harmless; same-origin only)
 if (typeof window !== 'undefined') {
   if (!window._api) {

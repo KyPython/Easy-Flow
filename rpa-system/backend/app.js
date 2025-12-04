@@ -850,51 +850,6 @@ try {
   rootLogger.warn('workflowVersioningRoutes not mounted', { error: e?.message || e });
 }
 
-// Rockefeller Operating System routes - FOUNDER ONLY ACCESS
-const { founderOnly } = require('./middleware/founderOnly');
-
-try {
-  const founderMetricsRoutes = require('./routes/founderMetrics');
-  app.use('/api/founder', authMiddleware, founderOnly, contextLoggerMiddleware, apiLimiter, founderMetricsRoutes);
-  rootLogger.info('✓ Founder metrics routes mounted at /api/founder (FOUNDER ONLY)');
-} catch (e) {
-  rootLogger.warn('founderMetricsRoutes not mounted', { error: e?.message || e });
-}
-
-try {
-  const competitiveIntelRoutes = require('./routes/competitiveIntel');
-  app.use('/api/competitive-intel', authMiddleware, founderOnly, contextLoggerMiddleware, apiLimiter, competitiveIntelRoutes);
-  rootLogger.info('✓ Competitive intelligence routes mounted at /api/competitive-intel (FOUNDER ONLY)');
-} catch (e) {
-  rootLogger.warn('competitiveIntelRoutes not mounted', { error: e?.message || e });
-}
-
-try {
-  const efficiencyTrackerRoutes = require('./routes/efficiencyTracker');
-  app.use('/api/efficiency', authMiddleware, founderOnly, contextLoggerMiddleware, apiLimiter, efficiencyTrackerRoutes);
-  rootLogger.info('✓ Efficiency tracker routes mounted at /api/efficiency (FOUNDER ONLY)');
-} catch (e) {
-  rootLogger.warn('efficiencyTrackerRoutes not mounted', { error: e?.message || e });
-}
-
-// Daily operations routes (morning/evening sequences) - FOUNDER ONLY
-try {
-  const dailyOperationsRoutes = require('./routes/dailyOperations');
-  app.use('/api/daily', authMiddleware, founderOnly, contextLoggerMiddleware, apiLimiter, dailyOperationsRoutes);
-  rootLogger.info('✓ Daily operations routes mounted at /api/daily (FOUNDER ONLY)');
-} catch (e) {
-  rootLogger.warn('dailyOperationsRoutes not mounted', { error: e?.message || e });
-}
-
-// Weekly operations routes (planning, reviews, innovation) - FOUNDER ONLY
-try {
-  const weeklyOperationsRoutes = require('./routes/weeklyOperations');
-  app.use('/api/weekly', authMiddleware, founderOnly, contextLoggerMiddleware, apiLimiter, weeklyOperationsRoutes);
-  rootLogger.info('✓ Weekly operations routes mounted at /api/weekly (FOUNDER ONLY)');
-} catch (e) {
-  rootLogger.warn('weeklyOperationsRoutes not mounted', { error: e?.message || e });
-}
-
 // Start a workflow execution
 try {
   const { WorkflowExecutor } = require('./services/workflowExecutor');
