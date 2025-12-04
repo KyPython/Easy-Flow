@@ -35,3 +35,6 @@ tenacity>=8.2.0
 
 # Type hints and development
 typing-extensions>=4.7.0
+
+# Notion API integration
+notion-client>=2.2.1
