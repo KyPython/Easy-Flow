@@ -29,7 +29,7 @@ function looksLikePlaceholder(url) {
 }
 
 function createStubSupabase(reasonMessage) {
-  const errorResult = async () => ({ error: new Error(reasonMessage) });
+  const errorResult = async () => ({ error: new Error(reasonMessage), data: null });
 
   const auth = {
     signInWithPassword: async () => ({ error: new Error(reasonMessage) }),
@@ -41,12 +41,38 @@ function createStubSupabase(reasonMessage) {
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
   };
 
-  const from = () => ({
-    select: errorResult,
-    insert: errorResult,
-    update: errorResult,
-    delete: errorResult
-  });
+  // Chainable query builder stub that returns itself for all methods
+  const createChainableStub = () => {
+    const stub = {
+      select: () => stub,
+      insert: () => stub,
+      update: () => stub,
+      delete: () => stub,
+      eq: () => stub,
+      neq: () => stub,
+      gt: () => stub,
+      gte: () => stub,
+      lt: () => stub,
+      lte: () => stub,
+      like: () => stub,
+      ilike: () => stub,
+      is: () => stub,
+      in: () => stub,
+      contains: () => stub,
+      containedBy: () => stub,
+      filter: () => stub,
+      match: () => stub,
+      order: () => stub,
+      limit: () => stub,
+      range: () => stub,
+      single: () => stub,
+      maybeSingle: () => stub,
+      then: (resolve) => resolve({ error: new Error(reasonMessage), data: null })
+    };
+    return stub;
+  };
+
+  const from = () => createChainableStub();
 
   // Minimal stub that won't crash callers during render
   return {
@@ -63,7 +89,7 @@ let _realSupabase = null;
 let _initPromise = null;
 
 // Proxy object exported as `supabase` so existing imports continue to work
-const supabase = createStubSupabase('Supabase not initialized yet');
+const supabase = createStubSupabase('Supabase not configured. Please add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to your environment.');
 
 // Helper: apply methods of real client onto the proxy object so callers get
 // the real implementation after init. This mutates the exported proxy.
@@ -79,12 +105,14 @@ function adoptRealClient(realClient) {
       supabase.auth = realClient.auth;
     }
   } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn('[Supabase] adoptRealClient failed', e && e.message ? e.message : e);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.warn('[Supabase] adoptRealClient failed', e && e.message ? e.message : e);
+    }
   }
 
   // Expose read-only global for diagnostics in development
-  if (typeof window !== 'undefined' && !window._supabase) {
+  if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && !window._supabase) {
     try { Object.defineProperty(window, '_supabase', { value: supabase, writable: false, configurable: false }); } catch (_) {}
     // eslint-disable-next-line no-console
     console.info('[supabase] client exposed globally as window._supabase');
@@ -115,8 +143,10 @@ async function propagateTokenToApi(session) {
     }
   } catch (e) {
     // non-fatal
-    // eslint-disable-next-line no-console
-    console.debug('[supabase] propagateTokenToApi failed', e && e.message ? e.message : e);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.debug('[supabase] propagateTokenToApi failed', e && e.message ? e.message : e);
+    }
   }
 }
 
@@ -188,7 +218,12 @@ export async function initSupabase() {
               const parsed = JSON.parse(raw);
               const t = parsed?.access_token || parsed?.accessToken || null;
               if (t) {
-                try { client.realtime.setAuth(t); console.info('[supabase] realtime auth seeded from storage'); } catch(e) {}
+                try {
+                  client.realtime.setAuth(t);
+                  if (process.env.NODE_ENV === 'development') {
+                    console.info('[supabase] realtime auth seeded from storage');
+                  }
+                } catch(e) {}
               }
             } catch (e) {
               // ignore JSON parse errors
@@ -213,12 +248,16 @@ export async function initSupabase() {
               const token = s?.access_token || null;
               if (client.realtime && typeof client.realtime.setAuth === 'function' && token) {
                 client.realtime.setAuth(token);
-                // eslint-disable-next-line no-console
-                console.info('[Supabase] Realtime auth token updated after session change');
+                if (process.env.NODE_ENV === 'development') {
+                  // eslint-disable-next-line no-console
+                  console.info('[Supabase] Realtime auth token updated after session change');
+                }
               }
             } catch (e) {
-              // eslint-disable-next-line no-console
-              console.warn('[Supabase] Failed to update Realtime auth:', e && e.message ? e.message : e);
+              if (process.env.NODE_ENV === 'development') {
+                // eslint-disable-next-line no-console
+                console.warn('[Supabase] Failed to update Realtime auth:', e && e.message ? e.message : e);
+              }
             }
           });
         }
@@ -235,8 +274,10 @@ export async function initSupabase() {
       }
       return _realSupabase;
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('[Supabase] dynamic import failed', e && e.message ? e.message : e);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.warn('[Supabase] dynamic import failed', e && e.message ? e.message : e);
+      }
       // Reset init promise so future attempts can retry
       _initPromise = null;
       return supabase;
@@ -269,13 +310,17 @@ export async function isUserPaid(userId) {
 
     // Use the real client directly - _realSupabase is set by adoptRealClient after init
     if (!_realSupabase || !_realSupabase.from) {
-      console.warn('[isUserPaid] Supabase client not fully initialized yet');
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[isUserPaid] Supabase client not fully initialized yet');
+      }
       return false;
     }
 
     // Verify client has the necessary configuration
     if (!_realSupabase.supabaseUrl || !_realSupabase.supabaseKey) {
-      console.warn('[isUserPaid] Supabase client missing URL or Key');
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[isUserPaid] Supabase client missing URL or Key');
+      }
       return false;
     }
 

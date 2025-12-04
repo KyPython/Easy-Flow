@@ -30,7 +30,9 @@ const DashboardPage = () => {
         window.gtag('event', 'trial_signup', {
           'method': 'website'
         });
-        console.log('✅ New signup tracked!');
+        if (process.env.NODE_ENV === 'development') {
+          console.info('[Analytics] New signup tracked');
+        }
       }
       sessionStorage.removeItem('just_signed_up');
     }
@@ -42,7 +44,10 @@ const DashboardPage = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
+      // Ensure Supabase is initialized before querying
+      const client = await initSupabase();
+      
+      const { data, error } = await client
         .from('automation_runs')
         .select(`id,status,started_at,result,artifact_url,automation_tasks(id,name,url,task_type)`)
         .eq('user_id', user.id)
@@ -77,12 +82,16 @@ const DashboardPage = () => {
       })));
 
     } catch (err) {
-      console.error('Failed to fetch dashboard data:', err.message || err);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[Dashboard] Failed to fetch dashboard data:', err.message || err);
+      }
       
       // More user-friendly error messages
       let userMessage = 'Unable to load dashboard data';
       
-      if (err.message?.includes('Failed to fetch') || err.message?.includes('CSP') || err.message?.includes('Content Security Policy')) {
+      if (err.message?.includes('Supabase not initialized') || err.message?.includes('not configured')) {
+        userMessage = 'Database connection not configured. Please contact support or check your environment configuration.';
+      } else if (err.message?.includes('Failed to fetch') || err.message?.includes('CSP') || err.message?.includes('Content Security Policy')) {
         userMessage = 'Dashboard temporarily unavailable. Please refresh the page or try again in a moment.';
       } else if (err.message?.includes('Network Error') || err.message?.includes('CORS')) {
         userMessage = 'Connection error. Please check your internet connection and try again.';
@@ -119,7 +128,9 @@ const DashboardPage = () => {
 
             // Then subscribe to realtime events and throttle updates
             try {
-              console.info('[Dashboard] creating realtime channel for user', user.id);
+              if (process.env.NODE_ENV === 'development') {
+                console.info('[Dashboard] creating realtime channel for user', user.id);
+              }
               channel = client
                 .channel(`realtime:automation_runs:user_id=eq.${user.id}`)
                 .on(
@@ -131,7 +142,9 @@ const DashboardPage = () => {
                     filter: `user_id=eq.${user.id}`
                   },
                   (payload) => {
-                    console.info('[Dashboard] realtime payload received', payload);
+                    if (process.env.NODE_ENV === 'development') {
+                      console.info('[Dashboard] realtime payload received', payload);
+                    }
                     if (updateTimeout) clearTimeout(updateTimeout);
                     updateTimeout = setTimeout(() => {
                       fetchDashboardData();
@@ -142,19 +155,28 @@ const DashboardPage = () => {
               // Attempt to subscribe and log lifecycle status
               try {
                 const sub = channel.subscribe((status) => {
-                  console.info('[Dashboard] realtime channel status', status);
+                  if (process.env.NODE_ENV === 'development') {
+                    console.info('[Dashboard] realtime channel status', status);
+                  }
                 });
-                console.info('[Dashboard] subscribe() called for automation_runs channel', sub || channel);
+                if (process.env.NODE_ENV === 'development') {
+                  console.info('[Dashboard] subscribe() called for automation_runs channel', sub || channel);
+                }
               } catch (sErr) {
-                console.warn('[Dashboard] subscribe call failed', sErr && sErr.message ? sErr.message : sErr);
+                if (process.env.NODE_ENV === 'development') {
+                  console.warn('[Dashboard] subscribe call failed', sErr && sErr.message ? sErr.message : sErr);
+                }
               }
             } catch (e) {
-              console.warn('[Dashboard] realtime subscription setup failed', e && e.message ? e.message : e);
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('[Dashboard] realtime subscription setup failed', e && e.message ? e.message : e);
+              }
             }
           } catch (e) {
             // Don't crash the app if realtime setup fails — log and continue
-            // eslint-disable-next-line no-console
-            console.warn('[Dashboard] realtime init failed', e && e.message ? e.message : e);
+            if (process.env.NODE_ENV === 'development') {
+              console.warn('[Dashboard] realtime init failed', e && e.message ? e.message : e);
+            }
           }
         })();
       };

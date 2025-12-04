@@ -107,14 +107,24 @@ const authMiddleware = async (req, res, next) => {
       }
     }
 
+    const authHeader = (req.get('authorization') || '').trim();
+    const parts = authHeader.split(' ');
+    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
+
+    // Development bypass token - allows testing without Supabase
+    if (process.env.NODE_ENV === 'development' && process.env.DEV_BYPASS_TOKEN && token === process.env.DEV_BYPASS_TOKEN) {
+      req.user = {
+        id: process.env.DEV_USER_ID || 'dev-user-123',
+        email: 'developer@localhost',
+        user_metadata: { name: 'Local Developer' }
+      };
+      return next();
+    }
+
     if (!supabase) {
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
       return res.status(401).json({ error: 'Authentication failed' });
     }
-
-    const authHeader = (req.get('authorization') || '').trim();
-    const parts = authHeader.split(' ');
-    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
 
     if (!token) {
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
@@ -2175,7 +2185,7 @@ app.get('/api/runs', async (req, res) => {
 });
 
 // GET /api/dashboard - Fetch dashboard statistics
-app.get('/api/dashboard', async (req, res) => {
+app.get('/api/dashboard', authMiddleware, async (req, res) => {
   try {
     // Defensive check
     if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
