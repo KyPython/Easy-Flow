@@ -792,7 +792,7 @@ class NotificationService {
 
   // Send notification to Firebase (to be picked up by backend)
   async sendNotification(userId, notification) {
-    const { database } = await initFirebase();
+    const { database, auth } = await initFirebase();
     if (!database) {
       console.warn('🔔 Database not available');
       return false;
