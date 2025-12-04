@@ -362,7 +362,11 @@ class InstrumentedQuery {
     this.query = this.query.in(column, values);
     return this;
   }
-
+  or(filters, options) {
+    this.filters.push({ type: "or", filters: "string" });
+    this.query = this.query.or(filters, options);
+    return this;
+  }
   order(column, options) {
     this.filters.push({ type: 'order', column, ...options });
     this.query = this.query.order(column, options);
@@ -372,6 +376,18 @@ class InstrumentedQuery {
   limit(count) {
     this.filters.push({ type: 'limit', count });
     this.query = this.query.limit(count);
+    return this;
+  }
+
+  single() {
+    this.filters.push({ type: 'single' });
+    this.query = this.query.single();
+    return this;
+  }
+
+  maybeSingle() {
+    this.filters.push({ type: 'maybeSingle' });
+    this.query = this.query.maybeSingle();
     return this;
   }
 

@@ -80,6 +80,36 @@ const loggerConfig = {
 const rootLogger = pino(loggerConfig);
 
 /**
+ * Log Sampling Configuration
+ * Reduces volume of debug/info logs by sampling
+ */
+const SAMPLING_CONFIG = {
+  // Sample 1 in N logs for each level
+  debug: parseInt(process.env.DEBUG_LOG_SAMPLE_RATE || '100', 10), // 1% of debug logs
+  trace: parseInt(process.env.TRACE_LOG_SAMPLE_RATE || '1000', 10), // 0.1% of trace logs
+  info: parseInt(process.env.INFO_LOG_SAMPLE_RATE || '10', 10), // 10% of info logs
+  // Never sample warn/error/fatal
+  warn: 1,
+  error: 1,
+  fatal: 1
+};
+
+// Sampling counter per namespace
+const samplingCounters = new Map();
+
+function shouldSample(namespace, level) {
+  const sampleRate = SAMPLING_CONFIG[level] || 1;
+  if (sampleRate === 1) return true; // Always log warn/error/fatal
+  
+  const key = `${namespace}:${level}`;
+  const counter = (samplingCounters.get(key) || 0) + 1;
+  samplingCounters.set(key, counter);
+  
+  // Sample every Nth log
+  return counter % sampleRate === 0;
+}
+
+/**
  * Enhanced Logger Class with Business Context Support
  */
 class StructuredLogger {
@@ -136,17 +166,20 @@ class StructuredLogger {
   }
 
   /**
-   * Standard logging methods with automatic trace context injection
+   * Standard logging methods with automatic trace context injection and sampling
    */
   trace(message, extra = {}) {
+    if (!shouldSample(this.namespace, 'trace')) return;
     this.logger.trace(this._enrichLog(extra), message);
   }
 
   debug(message, extra = {}) {
+    if (!shouldSample(this.namespace, 'debug')) return;
     this.logger.debug(this._enrichLog(extra), message);
   }
 
   info(message, extra = {}) {
+    if (!shouldSample(this.namespace, 'info')) return;
     this.logger.info(this._enrichLog(extra), message);
   }
 
@@ -344,40 +377,52 @@ const deprecatedConsole = {
 // deprecation helper may be assigned at runtime by an opt-in script.
 
 /**
- * Express middleware for request logging
+ * Express middleware for request logging with sampling
  */
 function requestLoggingMiddleware() {
   return (req, res, next) => {
     const startTime = Date.now();
     const logger = createLogger('http.request');
     
-    // Log request start
-    logger.info('HTTP request started', {
-      http: {
-        method: req.method,
-        url: req.url,
-        path: req.path,
-        user_agent: req.get('User-Agent'),
-        ip: req.ip,
-        content_length: req.get('content-length')
-      }
-    });
+    // Sample info logs (only log every Nth request start)
+    const shouldLogStart = shouldSample('http.request', 'info');
+    
+    // Always log API requests, sample health/metrics endpoints
+    const isHealthEndpoint = req.path === '/health' || req.path === '/metrics' || req.path === '/api/health';
+    
+    if (shouldLogStart && !isHealthEndpoint) {
+      logger.info('HTTP request started', {
+        http: {
+          method: req.method,
+          url: req.url,
+          path: req.path,
+          user_agent: req.get('User-Agent'),
+          ip: req.ip,
+          content_length: req.get('content-length')
+        }
+      });
+    }
 
     // Capture response end
     const originalSend = res.send;
     res.send = function(data) {
       const duration = Date.now() - startTime;
       
-      logger.info('HTTP request completed', {
-        http: {
-          method: req.method,
-          url: req.url,
-          status_code: res.statusCode,
-          duration,
-          response_size: data ? Buffer.byteLength(data, 'utf8') : 0
-        },
-        performance: { duration }
-      });
+      // Always log errors, sample successful responses
+      const shouldLogEnd = res.statusCode >= 400 || shouldSample('http.request', 'info');
+      
+      if (shouldLogEnd && !isHealthEndpoint) {
+        logger.info('HTTP request completed', {
+          http: {
+            method: req.method,
+            url: req.url,
+            status_code: res.statusCode,
+            duration,
+            response_size: data ? Buffer.byteLength(data, 'utf8') : 0
+          },
+          performance: { duration }
+        });
+      }
       
       return originalSend.call(this, data);
     };

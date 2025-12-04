@@ -57,6 +57,15 @@ class TraceContext {
 // Global trace context instance
 const traceContext = new TraceContext();
 
+// Log sampling to reduce log volume (sample 5% of debug logs, 100% of errors)
+const API_LOG_SAMPLE_RATE = parseInt(process.env.REACT_APP_API_LOG_SAMPLE_RATE || '20', 10);
+let apiLogCounter = 0;
+
+function shouldLogApiCall() {
+  apiLogCounter++;
+  return apiLogCounter % API_LOG_SAMPLE_RATE === 0;
+}
+
 // Use absolute backend URL in production via REACT_APP_API_BASE.
 // In local dev (CRA), keep it relative to leverage the proxy.
 export const api = axios.create({
@@ -168,8 +177,8 @@ api.interceptors.request.use(
         // localStorage may be unavailable; ignore and continue without auth header
       }
 
-      // Log API request initiation (structured)
-      if (process.env.NODE_ENV === 'development') {
+      // Log API request initiation (structured) - sample to reduce volume
+      if (process.env.NODE_ENV === 'development' && shouldLogApiCall()) {
         console.log(JSON.stringify({
           level: 'debug',
           message: 'API request initiated',
@@ -220,8 +229,8 @@ api.interceptors.response.use(
         frontendRequestId: reqTraceContext?.requestId
       };
       
-      // Log successful API response with correlation (structured JSON)
-      if (process.env.NODE_ENV === 'development') {
+      // Log successful API response with correlation (structured JSON) - sample to reduce volume
+      if (process.env.NODE_ENV === 'development' && shouldLogApiCall()) {
         console.log(JSON.stringify({
           level: 'info',
           message: 'API response received',

@@ -191,11 +191,14 @@ async function resolveUserPlan(userId, options = {}) {
   // STEP 1: Fetch or create user profile
   // -------------------------------------------------------------------------
   
-  let { data: profile, error: profileError } = await supabase
+  const profileQuery = await supabase
     .from('profiles')
     .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
     .eq('id', userId)
-    .maybeSingle();
+    .limit(1);
+  
+  let profile = profileQuery.data?.[0] || null;
+  let profileError = profileQuery.error;
   
   if (!profile) {
     logger.info('No profile found, creating default profile', { userId });
@@ -218,11 +221,14 @@ async function resolveUserPlan(userId, options = {}) {
     }
     
     // Fetch newly created profile
-    ({ data: profile, error: profileError } = await supabase
+    const refetchQuery = await supabase
       .from('profiles')
       .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
       .eq('id', userId)
-      .maybeSingle());
+      .limit(1);
+    
+    profile = refetchQuery.data?.[0] || null;
+    profileError = refetchQuery.error;
   }
   
   if (profileError) {
@@ -240,11 +246,14 @@ async function resolveUserPlan(userId, options = {}) {
   // STEP 2: Attempt to resolve stored plan from plans table
   // -------------------------------------------------------------------------
   
-  let { data: plan, error: planError } = await supabase
+  const planQuery = await supabase
     .from('plans')
     .select('*')
     .or(`name.eq.${storedPlanId},slug.eq.${storedPlanId},id.eq.${storedPlanId}`)
-    .maybeSingle();
+    .limit(1);
+  
+  let plan = planQuery.data?.[0] || null;
+  let planError = planQuery.error;
   
   let usedFallback = false;
   let fallbackReason = null;

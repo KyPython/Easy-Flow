@@ -7,6 +7,15 @@ Dev Network Logger
 
 /* eslint-disable no-console */
 
+// Log sampling configuration - reduce log volume in development
+const LOG_SAMPLE_RATE = parseInt(localStorage.getItem('DEV_LOG_SAMPLE_RATE') || '10', 10); // Sample 10% of logs
+let logCounter = 0;
+
+function shouldLog() {
+  logCounter++;
+  return logCounter % LOG_SAMPLE_RATE === 0;
+}
+
 // Export a fetch wrapper for consistent use in app (top-level)
 export async function fetchWithAuth(url, options = {}) {
   // Normalize token retrieval: support several storage keys and guard against string 'null'/'undefined'
@@ -57,18 +66,21 @@ export async function fetchWithAuth(url, options = {}) {
       const acc = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-credentials') : null;
       const setCookie = res.headers && typeof res.headers.get === 'function' ? res.headers.get('set-cookie') : null;
       if ((setCookie) || (acao === '*' && acc !== 'true')) {
-        const warn = {
-          message: '[devNetLogger] Potential CORS cookie mismatch detected',
-          url,
-          status: res.status,
-          accessControlAllowOrigin: acao,
-          accessControlAllowCredentials: acc,
-          setCookieHeader: !!setCookie
-        };
-        console.warn(warn.message, warn);
+        // Only log CORS warnings occasionally to reduce noise
+        if (shouldLog()) {
+          const warn = {
+            message: '[devNetLogger] Potential CORS cookie mismatch detected',
+            url,
+            status: res.status,
+            accessControlAllowOrigin: acao,
+            accessControlAllowCredentials: acc,
+            setCookieHeader: !!setCookie
+          };
+          console.warn(warn.message, warn);
+        }
         try {
           if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-            window.dispatchEvent(new CustomEvent('devNetLogger:corsCookieWarning', { detail: warn }));
+            window.dispatchEvent(new CustomEvent('devNetLogger:corsCookieWarning', { detail: { url, status: res.status } }));
           }
         } catch (e) {}
       }

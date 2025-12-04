@@ -1,0 +1,277 @@
+/**
+ * Frontend Observability Logger
+ * Integrates console logging with backend telemetry via trackEvent API
+ * Provides structured logging with trace context correlation
+ */
+
+import { trackEvent, getCurrentTraceInfo } from './api';
+
+// Log levels with priorities
+const LOG_LEVELS = {
+  DEBUG: 0,
+  INFO: 1,
+  WARN: 2,
+  ERROR: 3,
+  FATAL: 4
+};
+
+// Current environment log level
+const CURRENT_LOG_LEVEL = process.env.NODE_ENV === 'production' ? LOG_LEVELS.INFO : LOG_LEVELS.DEBUG;
+
+// Rate limiting for repeated log messages
+const messageCache = new Map(); // key -> { count, firstSeen, lastSeen, lastLogged }
+const THROTTLE_WINDOW_MS = 5000; // Throttle identical messages within 5 seconds
+const MAX_LOGS_PER_WINDOW = 3; // Max 3 identical messages per window
+
+/**
+ * Structured Logger for Frontend
+ * Automatically integrates with backend observability system
+ */
+class FrontendLogger {
+  constructor(namespace = 'app', context = {}) {
+    this.namespace = namespace;
+    this.context = context;
+  }
+
+  /**
+   * Create child logger with additional context
+   */
+  child(additionalContext = {}) {
+    return new FrontendLogger(this.namespace, {
+      ...this.context,
+      ...additionalContext
+    });
+  }
+
+  /**
+   * Internal log method that handles both console and telemetry
+   */
+  _log(level, message, extra = {}, sendToBackend = false) {
+    // Check if this level should be logged
+    if (LOG_LEVELS[level] < CURRENT_LOG_LEVEL) {
+      return;
+    }
+
+    // Rate limiting: create a cache key from namespace + message + level
+    const cacheKey = `${this.namespace}:${level}:${message}`;
+    const now = Date.now();
+    const cached = messageCache.get(cacheKey);
+
+    if (cached) {
+      const timeSinceFirst = now - cached.firstSeen;
+      const timeSinceLast = now - cached.lastLogged;
+      
+      // Reset count if outside throttle window
+      if (timeSinceFirst > THROTTLE_WINDOW_MS) {
+        cached.count = 1;
+        cached.firstSeen = now;
+        cached.lastSeen = now;
+        cached.lastLogged = now;
+      } else {
+        cached.count++;
+        cached.lastSeen = now;
+        
+        // Throttle if too many logs in window
+        if (cached.count > MAX_LOGS_PER_WINDOW && timeSinceLast < THROTTLE_WINDOW_MS) {
+          // Silently drop this log
+          return;
+        }
+        
+        cached.lastLogged = now;
+      }
+    } else {
+      // First time seeing this message
+      messageCache.set(cacheKey, {
+        count: 1,
+        firstSeen: now,
+        lastSeen: now,
+        lastLogged: now
+      });
+    }
+
+    // Get trace context for correlation
+    const traceInfo = getCurrentTraceInfo();
+
+    // Build structured log entry
+    const logEntry = {
+      level,
+      namespace: this.namespace,
+      message,
+      timestamp: new Date().toISOString(),
+      trace: traceInfo || {},
+      context: this.context,
+      ...extra
+    };
+
+    // Add throttle warning if this message has been throttled
+    if (cached && cached.count > MAX_LOGS_PER_WINDOW) {
+      logEntry.throttled = true;
+      logEntry.throttledCount = cached.count - MAX_LOGS_PER_WINDOW;
+    }
+
+    // Console output (with appropriate level)
+    const consoleMethod = level === 'DEBUG' ? 'debug' : 
+                         level === 'INFO' ? 'info' : 
+                         level === 'WARN' ? 'warn' : 
+                         level === 'ERROR' || level === 'FATAL' ? 'error' : 'log';
+
+    // Format console message
+    const prefix = `[${this.namespace}]`;
+    const throttleNote = (cached && cached.count > MAX_LOGS_PER_WINDOW) ? 
+      ` (repeated ${cached.count - MAX_LOGS_PER_WINDOW} times)` : '';
+    console[consoleMethod](prefix, message + throttleNote, extra);
+
+    // Send to backend telemetry if requested or if it's a warning/error (but also throttled)
+    if ((sendToBackend || LOG_LEVELS[level] >= LOG_LEVELS.WARN) && (!cached || cached.count <= MAX_LOGS_PER_WINDOW * 2)) {
+      this._sendTelemetry(logEntry);
+    }
+  }
+
+  /**
+   * Send log entry to backend telemetry system
+   */
+  async _sendTelemetry(logEntry) {
+    try {
+      // Don't await - fire and forget
+      trackEvent({
+        event: 'frontend_log',
+        category: 'observability',
+        level: logEntry.level,
+        namespace: logEntry.namespace,
+        message: logEntry.message,
+        trace: logEntry.trace,
+        context: logEntry.context,
+        timestamp: logEntry.timestamp,
+        ...logEntry
+      }).catch(() => {
+        // Silently fail - never let telemetry break the app
+      });
+    } catch (e) {
+      // Silently fail
+    }
+  }
+
+  /**
+   * Debug level logging (development only)
+   */
+  debug(message, extra = {}) {
+    this._log('DEBUG', message, extra, false);
+  }
+
+  /**
+   * Info level logging
+   */
+  info(message, extra = {}) {
+    this._log('INFO', message, extra, false);
+  }
+
+  /**
+   * Warning level logging (sent to backend)
+   */
+  warn(message, extra = {}) {
+    this._log('WARN', message, extra, true);
+  }
+
+  /**
+   * Error level logging (sent to backend)
+   */
+  error(message, error = null, extra = {}) {
+    const errorData = error instanceof Error ? {
+      error: {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      }
+    } : error ? { error } : {};
+
+    this._log('ERROR', message, { ...extra, ...errorData }, true);
+  }
+
+  /**
+   * Fatal level logging (sent to backend)
+   */
+  fatal(message, error = null, extra = {}) {
+    const errorData = error instanceof Error ? {
+      error: {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      }
+    } : error ? { error } : {};
+
+    this._log('FATAL', message, { ...errorData, ...extra }, true);
+  }
+
+  /**
+   * Log Realtime channel events with proper categorization
+   */
+  realtimeEvent(channelKey, eventType, details = {}) {
+    const message = `Realtime: ${channelKey} ${eventType}`;
+    
+    // Map event types to log levels
+    const eventTypeMapping = {
+      'subscribed': 'INFO',
+      'disconnected': 'WARN',
+      'reconnecting': 'WARN',
+      'error': 'ERROR',
+      'permanent_error': 'ERROR',
+      'fallback_polling': 'WARN',
+      'closed': 'WARN'
+    };
+
+    const level = eventTypeMapping[eventType] || 'INFO';
+    
+    this._log(level, message, {
+      channelKey,
+      eventType,
+      ...details
+    }, level !== 'INFO'); // Send non-info events to backend
+  }
+
+  /**
+   * Log performance metrics
+   */
+  performance(operation, duration, extra = {}) {
+    this.info(`Performance: ${operation}`, {
+      operation,
+      duration,
+      category: 'performance',
+      ...extra
+    });
+  }
+
+  /**
+   * Log business metrics
+   */
+  metric(name, value, unit = 'count', extra = {}) {
+    this.info(`Metric: ${name} = ${value} ${unit}`, {
+      metric: {
+        name,
+        value,
+        unit
+      },
+      ...extra
+    });
+  }
+}
+
+/**
+ * Create a logger instance
+ */
+export function createLogger(namespace = 'app', context = {}) {
+  return new FrontendLogger(namespace, context);
+}
+
+/**
+ * Default logger instance
+ */
+export const logger = createLogger('app');
+
+/**
+ * Specialized loggers for common use cases
+ */
+export const realtimeLogger = createLogger('realtime');
+export const apiLogger = createLogger('api');
+export const authLogger = createLogger('auth');
+
+export default logger;

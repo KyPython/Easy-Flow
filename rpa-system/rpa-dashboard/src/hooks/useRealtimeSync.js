@@ -4,7 +4,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, initSupabase } from '../utils/supabaseClient';
 import { useAuth } from '../utils/AuthContext';
 import { trackEvent, getCurrentTraceInfo } from '../utils/api';
+import { createLogger } from '../utils/logger';
 // The Actual RealtimeChannel type is handled internally by Supabase JS in a .js environment
+
+// Create logger for Realtime events
+const logger = createLogger('realtime');
 
 /**
  * --- Refactored Implementation (State Machine & Smart Retry) ---
@@ -22,7 +26,7 @@ const MAX_RETRIES = 5;
 // Placeholder for data fetching used by polling fallback
 const refreshData = async () => {
     // NOTE: This function needs to be fully implemented with your actual data fetching logic.
-    console.debug('Polling fallback triggered: refreshing data...');
+    logger.debug('Polling fallback triggered: refreshing data...');
 };
 
 // --- Main Hook Definition ---
@@ -63,36 +67,57 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
   const ERROR_CATEGORIES = {
     // Stop reconnecting immediately, show error to user
     FATAL_PERMANENT: [
-      /table .* does not exist/i, /relation .* does not exist/i, /column .* does not exist/i, /schema .* does not exist/i
+      /table .* does not exist/i, 
+      /relation .* does not exist/i, 
+      /column .* does not exist/i, 
+      /schema .* does not exist/i
     ],
 
     // Retry 3 times, then fall back to polling (Likely misconfiguration)
     FATAL_CONFIG: [
-      /mismatch between.*bindings/i, /not in publication/i, /insufficient replica identity/i, /invalid.*filter/i
+      /mismatch between.*bindings/i, 
+      /not in publication/i, 
+      /insufficient replica identity/i, 
+      /invalid.*filter/i,
+      /replica identity/i
     ],
 
     // Retry with session refresh
     AUTH_ISSUE: [
-      /permission denied/i, /policy violation/i, /unauthorized/i, /jwt.*expired/i, /authentication.*failed/i
+      /permission denied/i, 
+      /policy violation/i, 
+      /unauthorized/i, 
+      /jwt.*expired/i, 
+      /authentication.*failed/i,
+      /auth.*token/i
     ],
 
     // Always retry with exponential backoff (Network/Transient issues)
     TRANSIENT: [
-      /network/i, /timeout/i, /connection/i, /socket/i
+      /network/i, 
+      /timeout/i, 
+      /connection/i, 
+      /socket/i,
+      /channel status: closed/i,
+      /channel status: error/i,
+      /channel status: timeout/i,
+      /disconnected/i,
+      /closed/i,
+      /unknown error/i
     ]
   };
 
   const categorizeError = useCallback((errorMessage) => {
     // FIXED: Handle undefined/null/empty error messages more robustly
     if (!errorMessage || errorMessage === 'Unknown error') {
-      return 'UNKNOWN';
+      return 'TRANSIENT'; // Treat unknown errors as transient for retry
     }
     
     const msg = String(errorMessage).toLowerCase();
     
-    // Empty string after conversion
+    // Empty string after conversion - treat as transient
     if (!msg || msg === 'undefined' || msg === 'null') {
-      return 'UNKNOWN';
+      return 'TRANSIENT';
     }
 
     // Check if the error matches a known category
@@ -101,8 +126,9 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
         return category;
       }
     }
-    // Default or other unhandled errors are treated as transient
-    return 'UNKNOWN';
+    
+    // Default: treat unhandled errors as transient (will retry)
+    return 'TRANSIENT';
   }, []);
 
   // Centralized Channel Status Update Function
@@ -179,7 +205,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
     
     // CRITICAL: Prevent scheduling if the channel has hit a fatal state
     if (fatalErrors.current.has(channelKey)) {
-        console.log(`[Realtime] Skipping reconnect for ${channelKey}. Already in fatal state.`);
+        logger.debug('Skipping reconnect - already in fatal state', { channelKey });
         return;
     }
     
@@ -190,7 +216,13 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
     backoffRef.current.attempts[channelKey] = attempt;
 
     if (attempt > MAX_RETRIES) {
-      console.error(`❌ Realtime: Connection FAILED for ${channelKey} after ${MAX_RETRIES} retries. Setting permanent_error.`);
+      logger.error('Connection FAILED after max retries', null, {
+        channelKey,
+        maxRetries: MAX_RETRIES,
+        lastError: errorMessage,
+        category: 'permanent_error'
+      });
+      
       fatalErrors.current.add(channelKey);
       updateChannelStatus(channelKey, {
           state: 'permanent_error',
@@ -208,8 +240,13 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
     }
 
     const delay = Math.min(1000 * Math.pow(2, attempt - 1), backoffRef.current.maxDelayMs);
-    // LOG CHANGE: Tighter logging
-    console.warn(`⚠️ Realtime channel ${channelKey} disconnected; attempting reconnect #${attempt} in ${delay}ms`);
+    // LOG CHANGE: Use structured logging with context
+    logger.warn('Channel disconnected - scheduling reconnect', {
+      channelKey,
+      attempt,
+      delay,
+      lastError: errorMessage
+    });
 
     updateChannelStatus(channelKey, {
         state: 'reconnecting',
@@ -232,25 +269,25 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
             const client = clientRef.current || supabase;
             if (client && typeof client.removeChannel === 'function') client.removeChannel(channel);
           } catch (err) {
-            console.warn(`[Realtime] Error cleaning up channel ${channel.topic}:`, err);
+            logger.warn('Error cleaning up channel', { channel: channel.topic, error: err?.message });
           }
         }
 
         // 4.2. Create a fresh channel instance and subscribe
         const factory = channelFactoriesRef.current[channelKey];
         if (factory && typeof factory === 'function') {
-          console.debug(`[Realtime] Recreating channel ${channelKey} via factory`);
+          logger.debug('Recreating channel via factory', { channelKey });
           const newCh = factory(clientRef.current || supabase);
           channelsRef.current.push(newCh);
           updateChannelStatus(channelKey, { state: 'connecting', attempts: backoffRef.current.attempts[channelKey] });
         } else {
           // Fallback to full setup if factory is missing
-          console.debug('[Realtime] No factory for', channelKey, 'recreating all subscriptions');
+          logger.debug('No factory - recreating all subscriptions', { channelKey });
           // This signal will trigger the main useEffect to clean up and re-setup all subscriptions
           setReconnectSignal(s => s + 1); 
         }
       } catch (e) {
-        console.error('[Realtime] Error during reconnection process:', e);
+        logger.error('Error during reconnection process', e, { channelKey });
         scheduleReconnect(channelKey, e?.message || 'Reconnection process failed');
       }
     }, delay);
@@ -262,7 +299,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
   // *** REFACTORED: handleChannelStatus ***
   const handleChannelStatus = useCallback(async (channelKey, channel, status, error) => {
     if (removingChannelsRef.current.has(channelKey) || fatalErrors.current.has(channelKey)) {
-      console.debug(`[Realtime] Skipping status for channel ${channelKey} (removing or fatal). Status: ${status}`);
+      logger.debug('Skipping status - channel removing or fatal', { channelKey, status });
       return;
     }
 
@@ -297,10 +334,16 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
       const category = categorizeError(msg);
       const attempts = backoffRef.current.attempts[channelKey] || 0;
 
-      // 1. Log error status
-      // LOG CHANGE: Only log the error state transition
+      // 1. Log error status with appropriate severity
+      // Transient errors are warnings, others are errors
       if (status !== 'SUBSCRIBED') {
-          console.error(`❌ ${channelKey} entered error state: ${msg}. Category: ${category}`);
+        if (category === 'TRANSIENT') {
+          logger.warn('Channel temporarily disconnected', { channelKey, msg, category, willRetry: true });
+        } else if (category === 'UNKNOWN') {
+          logger.warn('Channel disconnected - unknown cause', { channelKey, msg, category, willRetry: true });
+        } else {
+          logger.error('Channel entered error state', null, { channelKey, msg, category });
+        }
       }
 
       // Track error for diagnostics
@@ -322,7 +365,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
       switch (category) {
         case 'FATAL_PERMANENT':
             // CRITICAL: Permanent error, clean up and set permanent_error state
-            console.error(`❌ PERMANENT ERROR on ${channelKey}: ${msg}. Stopping reconnection.`);
+            logger.error('PERMANENT ERROR - stopping reconnection', null, { channelKey, msg, category: 'FATAL_PERMANENT' });
             fatalErrors.current.add(channelKey);
             updateChannelStatus(channelKey, { state: 'permanent_error', lastError: msg, attempts });
             try { if (channel && typeof channel.unsubscribe === 'function') await channel.unsubscribe(); } catch (e) {} // Cleanup
@@ -331,7 +374,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
 
         case 'FATAL_CONFIG':
             if (attempts < 3) { // Retry limited times, then fall back
-                console.warn(`⚠️ Config error on ${channelKey} (attempt ${attempts + 1}/3): ${msg}`);
+                logger.warn('Config error - will retry', { channelKey, attempt: attempts + 1, maxAttempts: 3, msg });
                 backoffRef.current.attempts[channelKey] = attempts + 1;
                 const delay = 5000 * Math.pow(2, attempts);
                 updateChannelStatus(channelKey, { state: 'reconnecting', lastError: msg, attempts: backoffRef.current.attempts[channelKey] });
@@ -342,17 +385,22 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
                 reconnectTimers.current.set(channelKey, timer);
             } else {
                 // Fallback to polling logic
-                console.error(`❌ ${channelKey} failed 3 times: ${msg}. Falling back to polling.`);
+                logger.error('Config error after 3 attempts - falling back to polling', null, { channelKey, msg, attempts });
                 fatalErrors.current.add(channelKey);
                 updateChannelStatus(channelKey, { state: 'fallback_polling', lastError: msg, attempts });
                 try { if (channel && typeof channel.unsubscribe === 'function') await channel.unsubscribe(); } catch (e) {} // Cleanup
                 if (!pollingTimers.current.has(channelKey)) {
                   const pollInterval = 30 * 1000;
                   const timer = setInterval(async () => {
-                    try { await refreshData(); console.log(`[Realtime][poll] Fallback poll for ${channelKey} completed`); } catch (e) { console.warn(`[Realtime][poll] Fallback poll for ${channelKey} failed:`, e && e.message); }
+                    try { 
+                      await refreshData(); 
+                      logger.debug('Fallback poll completed', { channelKey }); 
+                    } catch (e) { 
+                      logger.warn('Fallback poll failed', { channelKey, error: e?.message }); 
+                    }
                   }, pollInterval);
                   pollingTimers.current.set(channelKey, timer);
-                  console.warn(`[Realtime] Started fallback polling for ${channelKey} (every ${pollInterval}ms)`);
+                  logger.info('Started fallback polling', { channelKey, interval: pollInterval });
                 }
                 notifyError({ type: 'REALTIME_DEGRADED', channel: channelKey, message: 'Using backup polling due to real-time configuration issue', details: msg, action: 'CONTINUE_WITH_POLLING' });
             }
@@ -360,11 +408,11 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
 
         case 'AUTH_ISSUE':
             // ... (Auth refresh logic remains the same)
-            console.warn(`🔐 Auth issue on ${channelKey}: ${msg}. Trying refresh...`);
+            logger.warn('Auth issue detected - attempting refresh', { channelKey, msg });
             try {
                 const { data: { session } } = await supabase.auth.refreshSession();
                 if (session?.access_token) {
-                  console.log('   Session refreshed, retrying...');
+                  logger.info('Session refreshed - retrying', { channelKey });
                   const client = clientRef.current || await initSupabase();
                   if (client.realtime && typeof client.realtime.setAuth === 'function') {
                     client.realtime.setAuth(session.access_token);
@@ -373,7 +421,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
                   return;
                 }
             } catch (e) {
-                console.error('   Session refresh failed:', e);
+                logger.error('Session refresh failed', e, { channelKey });
                 fatalErrors.current.add(channelKey);
                 updateChannelStatus(channelKey, { state: 'permanent_error', lastError: msg, attempts });
                 notifyError({ type: 'REALTIME_FATAL', channel: channelKey, message: 'Authentication error - please sign in again', details: msg, action: 'SIGN_IN_AGAIN' });
@@ -383,7 +431,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
         case 'TRANSIENT':
         case 'UNKNOWN':
             // Treat as transient network failure (this covers abnormal WS CLOSE)
-            console.log(`🔄 Transient error on ${channelKey}. Scheduling reconnect...`);
+            logger.info('Transient error - scheduling reconnect', { channelKey, category });
             updateChannelStatus(channelKey, { state: 'error', lastError: msg, attempts });
 
             // CRITICAL: Cleanup current channel instance *before* scheduling reconnect to force a fresh subscription.
@@ -392,10 +440,9 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
                 if (channel && typeof channel.unsubscribe === 'function') await channel.unsubscribe();
                 const client = supabase || clientRef.current;
                 if (client && typeof client.removeChannel === 'function') client.removeChannel(channel);
-                // LOG CHANGE: Only log successful cleanup when necessary
-                console.log(`[Realtime] Cleaned up and removed ${channelKey} for retry due to ${status}`);
+                logger.debug('Cleaned up channel for retry', { channelKey, status });
             } catch (e) {
-                console.warn(`[Realtime] Error during cleanup of ${channelKey}:`, e);
+                logger.warn('Error during cleanup', { channelKey, error: e?.message });
             } finally {
                 removingChannelsRef.current.delete(channelKey);
             }
@@ -409,8 +456,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
     if (status === 'SUBSCRIBED') {
       backoffRef.current.attempts[channelKey] = 0;
       clearReconnectTimer(channelKey);
-      // LOG CHANGE: Tighter logging
-      console.log(`✅ ${channelKey} SUBSCRIBED successfully`);
+      logger.realtimeEvent(channelKey, 'subscribed');
       updateChannelStatus(channelKey, { state: 'subscribed', attempts: 0, lastError: null });
       return;
     }
@@ -431,10 +477,10 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
 
         if (session?.access_token) {
           client.realtime.setAuth(session.access_token);
-          console.log('[Realtime] Auth token updated for all channels');
+          logger.debug('Auth token updated', { hasChannels: channelsRef.current.length > 0 });
 
           if (shouldResubscribe && channelsRef.current.length > 0) {
-            console.log('[Realtime] Token refreshed - re-subscribing channels with new token');
+            logger.info('Token refreshed - re-subscribing channels', { channelCount: channelsRef.current.length });
             // Unsubscribe and remove all existing channels
             const channelsToRemove = [...channelsRef.current];
             channelsRef.current = [];
@@ -445,7 +491,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
                 await new Promise(resolve => setTimeout(resolve, 50));
                 client.removeChannel(channel);
               } catch (e) {
-                console.warn('[Realtime] Channel cleanup error during token refresh:', e);
+                logger.warn('Channel cleanup error during token refresh', { error: e?.message });
               }
             }
 
@@ -455,7 +501,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
           }
         }
       } catch (error) {
-        console.error('[Realtime] Failed to update auth token:', error);
+        logger.error('Failed to update auth token', error);
       }
     };
 
@@ -481,7 +527,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
 
     const setupRealtimeSubscriptions = async () => {
       if (isSettingUp.current) {
-        console.log('Realtime setup already in progress, skipping concurrent call');
+        logger.debug('Setup already in progress - skipping concurrent call');
         return;
       }
       isSettingUp.current = true;
@@ -491,7 +537,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
         clientRef.current = client;
 
         if (!client || typeof client.channel !== 'function') {
-          console.warn('[Realtime] Supabase client not available or realtime not supported yet, skipping subscriptions');
+          logger.warn('Supabase client not available or realtime not supported');
           isSettingUp.current = false;
           return;
         }
@@ -503,10 +549,10 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
           if (session?.access_token) {
             client.realtime.setAuth(session.access_token);
           } else {
-            console.warn('[Realtime] No active session - channels may fail with CHANNEL_ERROR');
+            logger.warn('No active session - channels may fail');
           }
         } catch (e) {
-          console.warn('[Realtime] getSession failed:', e && (e.message || String(e)));
+          logger.warn('getSession failed', { error: e?.message || String(e) });
         }
 
         // Helper factories that create fresh channels for each logical stream.
@@ -524,7 +570,10 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
                 if (now - last > emitThrottleMs) { lastEmitRef.current.plan = now; emitFn(); } else { setTimeout(() => { lastEmitRef.current.plan = Date.now(); emitFn(); }, emitThrottleMs); }
               }
             })
-            .subscribe((status, error) => { if (error) console.debug(`[Realtime] ${topic} subscribe callback error`, error?.message || error); handleChannelStatus(topic, ch, status, error); });
+            .subscribe((status, error) => { 
+              if (error) logger.debug('Plan channel subscribe error', { topic, error: error?.message || error }); 
+              handleChannelStatus(topic, ch, status, error); 
+            });
           return ch;
         };
 
@@ -541,7 +590,10 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
                 if (now - last > emitThrottleMs) { lastEmitRef.current.usage = now; emit(); } else { setTimeout(() => { lastEmitRef.current.usage = Date.now(); emit(); }, emitThrottleMs); }
               }
             })
-            .subscribe((status, error) => { if (error) console.debug(`[Realtime] ${topic} subscribe callback error`, error?.message || error); handleChannelStatus(topic, ch, status, error); });
+            .subscribe((status, error) => { 
+              if (error) logger.debug('Usage channel subscribe error', { topic, error: error?.message || error }); 
+              handleChannelStatus(topic, ch, status, error); 
+            });
           return ch;
         };
 
@@ -561,7 +613,10 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
                 if (now - last > emitThrottleMs) { lastEmitRef.current.workflow = now; emit(); } else { setTimeout(() => { lastEmitRef.current.workflow = Date.now(); emit(); }, emitThrottleMs); }
               }
             })
-            .subscribe((status, error) => { if (error) console.debug(`[Realtime] ${topic} subscribe callback error`, error?.message || error); handleChannelStatus(topic, ch, status, error); });
+            .subscribe((status, error) => { 
+              if (error) logger.debug('Executions channel subscribe error', { topic, error: error?.message || error }); 
+              handleChannelStatus(topic, ch, status, error); 
+            });
           return ch;
         };
 
@@ -570,7 +625,10 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
           const ch = client
             .channel(topic, { config: { broadcast: { self: false }, presence: { key: user.id } } })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'workflows', filter: `user_id=eq.${user.id}` }, (payload) => { handleWorkflowUpdate({ event: payload.eventType, workflow: payload.new || payload.old, oldWorkflow: payload.old }); })
-            .subscribe((status, error) => { if (error) console.debug(`[Realtime] ${topic} subscribe callback error`, error?.message || error); handleChannelStatus(topic, ch, status, error); });
+            .subscribe((status, error) => { 
+              if (error) logger.debug('Workflows channel subscribe error', { topic, error: error?.message || error }); 
+              handleChannelStatus(topic, ch, status, error); 
+            });
           return ch;
         };
 
@@ -579,7 +637,10 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
           const ch = client
             .channel(topic, { config: { broadcast: { self: false } } })
             .on('broadcast', { event: 'plan_updated' }, (payload) => { if (payload.payload?.user_id === user.id) { handlePlanChange({ trigger: 'webhook', newPlan: payload.payload.plan_id, updatedAt: payload.payload.updated_at }); } })
-            .subscribe((status, error) => { if (error) console.debug(`[Realtime] ${topic} subscribe callback error`, error?.message || error); handleChannelStatus(topic, ch, status, error); });
+            .subscribe((status, error) => { 
+              if (error) logger.debug('Plan notifications channel subscribe error', { topic, error: error?.message || error }); 
+              handleChannelStatus(topic, ch, status, error); 
+            });
           return ch;
         };
 
@@ -603,7 +664,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
         for (const [key, factory] of Object.entries(channelFactoriesRef.current)) {
           // Check if fatal, and skip creation
           if (fatalErrors.current.has(key)) {
-              console.warn(`[Realtime] Skipping channel ${key} due to recorded permanent error.`);
+              logger.warn('Skipping channel due to permanent error', { channelKey: key });
               continue;
           }
 
@@ -613,15 +674,15 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
             // Initialize state machine
             updateChannelStatus(key, { state: 'connecting', attempts: backoffRef.current.attempts[key] || 0, lastError: null });
           } catch (e) {
-            console.debug('[Realtime] Failed to create channel', key, e?.message || e);
+            logger.debug('Failed to create channel', { channelKey: key, error: e?.message || e });
             updateChannelStatus(key, { state: 'error', attempts: 0, lastError: e?.message || String(e) });
           }
         }
 
         channelsRef.current = created.map(c => c.ch).filter(Boolean);
-        console.debug('✅ Realtime subscriptions established for user:', user.id);
+        logger.info('Realtime subscriptions established', { userId: user.id, channelCount: created.length });
       } catch (error) {
-        console.error('❌ Failed to setup realtime subscriptions:', error);
+        logger.error('Failed to setup realtime subscriptions', error, { userId: user.id });
         isConnectedRef.current = false;
       } finally {
         isSettingUp.current = false;
@@ -632,7 +693,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
 
     return () => {
       // Cleanup function - runs when component unmounts or dependencies change
-      console.log('[Realtime] Cleaning up subscriptions...');
+      logger.debug('Cleaning up subscriptions', { channelCount: channelsRef.current.length });
 
       // Clear all timers
       reconnectTimers.current.forEach(clearTimeout);
@@ -651,7 +712,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
             if (channel && typeof channel.unsubscribe === 'function') await channel.unsubscribe();
             if (client && typeof client.removeChannel === 'function') client.removeChannel(channel);
           } catch (e) {
-            console.warn('[Realtime] Error cleaning up channel:', e);
+            logger.warn('Error cleaning up channel', { channel: channel?.topic, error: e?.message });
           }
         }
       })();
