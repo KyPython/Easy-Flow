@@ -67,7 +67,16 @@ function createStubSupabase(reasonMessage) {
       range: () => stub,
       single: () => stub,
       maybeSingle: () => stub,
-      then: (resolve) => resolve({ error: new Error(reasonMessage), data: null })
+      // Make it thenable so it works with await
+      then: (resolve, reject) => {
+        const result = { error: new Error(reasonMessage), data: null };
+        if (resolve) return resolve(result);
+        return Promise.resolve(result);
+      },
+      catch: (reject) => {
+        if (reject) return reject(new Error(reasonMessage));
+        return Promise.reject(new Error(reasonMessage));
+      }
     };
     return stub;
   };
