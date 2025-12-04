@@ -18,10 +18,31 @@ const LOG_LEVELS = {
 // Current environment log level
 const CURRENT_LOG_LEVEL = process.env.NODE_ENV === 'production' ? LOG_LEVELS.INFO : LOG_LEVELS.DEBUG;
 
+// Log sampling configuration - reduce log volume
+// Sample rate: 1 = log everything, 10 = log 10% (every 10th log), 100 = log 1%
+const getLogSampleRate = () => {
+  try {
+    const stored = localStorage.getItem('LOG_SAMPLE_RATE');
+    if (stored) {
+      const rate = parseInt(stored, 10);
+      if (rate > 0) return rate;
+    }
+  } catch (e) {
+    // localStorage may not be available
+  }
+  // Default: sample 1% of logs (1 in 100) for DEBUG/INFO, always log WARN/ERROR
+  // More aggressive sampling to prevent log flooding
+  return 100;
+};
+
+const LOG_SAMPLE_RATE = getLogSampleRate();
+// Per-namespace sampling counters to prevent one namespace from affecting others
+const namespaceCounters = new Map();
+
 // Rate limiting for repeated log messages
 const messageCache = new Map(); // key -> { count, firstSeen, lastSeen, lastLogged }
-const THROTTLE_WINDOW_MS = 5000; // Throttle identical messages within 5 seconds
-const MAX_LOGS_PER_WINDOW = 3; // Max 3 identical messages per window
+const THROTTLE_WINDOW_MS = 10000; // Throttle identical messages within 10 seconds
+const MAX_LOGS_PER_WINDOW = 1; // Max 1 identical message per window (more aggressive)
 
 /**
  * Structured Logger for Frontend
@@ -50,6 +71,36 @@ class FrontendLogger {
     // Check if this level should be logged
     if (LOG_LEVELS[level] < CURRENT_LOG_LEVEL) {
       return;
+    }
+
+    // Log sampling: Always log WARN/ERROR/FATAL, sample DEBUG/INFO
+    const shouldSample = LOG_LEVELS[level] < LOG_LEVELS.WARN;
+    let isSampled = false;
+    if (shouldSample) {
+      // Use per-namespace counter to prevent one namespace from affecting others
+      const namespaceCounter = (namespaceCounters.get(this.namespace) || 0) + 1;
+      namespaceCounters.set(this.namespace, namespaceCounter);
+      
+      // Only log every Nth message based on sample rate
+      if (namespaceCounter % LOG_SAMPLE_RATE !== 0) {
+        isSampled = true;
+        // Still send sampled logs to backend telemetry for observability
+        // This ensures observability system gets representative sample of all logs
+        const traceInfo = getCurrentTraceInfo();
+        const logEntry = {
+          level,
+          namespace: this.namespace,
+          message,
+          timestamp: new Date().toISOString(),
+          trace: traceInfo || {},
+          context: this.context,
+          sampled: true,
+          sampleRate: LOG_SAMPLE_RATE,
+          ...extra
+        };
+        this._sendTelemetry(logEntry);
+        return; // Skip console output for sampled logs
+      }
     }
 
     // Rate limiting: create a cache key from namespace + message + level
@@ -100,6 +151,7 @@ class FrontendLogger {
       timestamp: new Date().toISOString(),
       trace: traceInfo || {},
       context: this.context,
+      sampled: false,
       ...extra
     };
 
@@ -119,7 +171,9 @@ class FrontendLogger {
     const prefix = `[${this.namespace}]`;
     const throttleNote = (cached && cached.count > MAX_LOGS_PER_WINDOW) ? 
       ` (repeated ${cached.count - MAX_LOGS_PER_WINDOW} times)` : '';
-    console[consoleMethod](prefix, message + throttleNote, extra);
+    const sampleNote = (shouldSample && LOG_SAMPLE_RATE > 1) ? 
+      ` [sampled: 1/${LOG_SAMPLE_RATE}]` : '';
+    console[consoleMethod](prefix, message + throttleNote + sampleNote, extra);
 
     // Send to backend telemetry if requested or if it's a warning/error (but also throttled)
     if ((sendToBackend || LOG_LEVELS[level] >= LOG_LEVELS.WARN) && (!cached || cached.count <= MAX_LOGS_PER_WINDOW * 2)) {
@@ -273,5 +327,10 @@ export const logger = createLogger('app');
 export const realtimeLogger = createLogger('realtime');
 export const apiLogger = createLogger('api');
 export const authLogger = createLogger('auth');
+
+// Log sampling info on initialization
+if (LOG_SAMPLE_RATE > 1) {
+  console.info(`[logger] Log sampling active: 1/${LOG_SAMPLE_RATE} DEBUG/INFO logs will be shown. Set localStorage.setItem('LOG_SAMPLE_RATE', '1') to disable.`);
+}
 
 export default logger;
