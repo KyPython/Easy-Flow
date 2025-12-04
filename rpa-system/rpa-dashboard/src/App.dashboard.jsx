@@ -48,6 +48,7 @@ const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'));
 const WebhooksPage = lazy(() => import('./pages/WebhooksPage'));
 const AdminTemplates = lazy(() => import('./pages/AdminTemplates'));
 const UsageDebugPage = lazy(() => import('./pages/debug/UsageDebugPage'));
+const FounderMetrics = lazy(() => import('./pages/FounderMetrics'));
 
 // Heavy Feature Components (loaded only when specific features are accessed)
 const WorkflowPage = lazy(() => import('./components/WorkflowBuilder/WorkflowPage'));
@@ -253,6 +254,9 @@ function Shell() {
             <Route path="/app/analytics" element={<Protected><AnalyticsPage /></Protected>} />
             <Route path="/app/integrations" element={<Protected><IntegrationsPage /></Protected>} />
             <Route path="/app/webhooks" element={<Protected><WebhooksPage /></Protected>} />
+
+            {/* Founder Metrics - Rockefeller Dashboard */}
+            <Route path="/app/founder" element={<Protected><FounderMetrics /></Protected>} />
 
             {/* Workflow Routes - Lazy loaded (saves ~10,000+ lines from initial bundle) */}
             <Route path="/app/workflows" element={<Protected><WorkflowPage /></Protected>} />

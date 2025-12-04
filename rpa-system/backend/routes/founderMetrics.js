@@ -19,7 +19,13 @@ const { auditLogger } = require('../utils/auditLogger');
 router.get('/dashboard', async (req, res) => {
   try {
     const userId = req.user?.id;
-    const isAdmin = req.user?.role === 'admin' || req.user?.email === process.env.FOUNDER_EMAIL;
+    const userEmail = req.user?.email;
+    const founderEmail = process.env.FOUNDER_EMAIL;
+
+    // RESTRICT: Only founder can access
+    if (!founderEmail || userEmail !== founderEmail) {
+      return res.status(403).json({ error: 'Access denied - Founder only' });
+    }
 
     const supabase = getSupabase();
     if (!supabase) {
