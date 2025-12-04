@@ -227,6 +227,10 @@ ACTUAL_ENV_VALUES.txt
 **/firebase-service-account*.json
 **/firebase-adminsdk*.json
 **/*service-account*.json
+# Root-level Firebase keys
+firebase-adminsdk*.json
+*-firebase-adminsdk-*.json
+easyflow-*-firebase-adminsdk-*.json
 
 # Downloads / Artifacts
 downloads/

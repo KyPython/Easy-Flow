@@ -1,3 +1,5 @@
+// Load environment variables FIRST
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const { logger, getLogger } = require('./utils/logger');
 // ✅ Initialize OpenTelemetry FIRST (before anything else, including New Relic)

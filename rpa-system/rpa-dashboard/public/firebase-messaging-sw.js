@@ -6,15 +6,14 @@ importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
 // Initialize Firebase in the service worker
-// Note: These values will be replaced at runtime by your build process
 const firebaseConfig = {
-  apiKey: "your-api-key-will-be-injected",
-  authDomain: "your-auth-domain.firebaseapp.com",
-  databaseURL: "https://your-project-default-rtdb.firebaseio.com/",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "your-app-id"
+  apiKey: "AIzaSyB9J-5pMepaV9_pmNn7EFIEF6kjI0KHIus",
+  authDomain: "easyflow-77db9.firebaseapp.com",
+  databaseURL: "https://easyflow-77db9-default-rtdb.firebaseio.com",
+  projectId: "easyflow-77db9",
+  storageBucket: "easyflow-77db9.firebasestorage.app",
+  messagingSenderId: "499973200328",
+  appId: "1:499973200328:web:c4126fca5106e6b2e808fd"
 };
 
 firebase.initializeApp(firebaseConfig);
