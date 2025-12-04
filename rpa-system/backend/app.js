@@ -3392,126 +3392,96 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
 });
 
 // Get user plan data
+/**
+ * GET /api/user/plan
+ * 
+ * Returns user's plan, usage, limits, and features.
+ * 
+ * REFACTOR PLAN (implemented):
+ * 1. Extract plan resolution to userPlanResolver service (single responsibility)
+ * 2. Centralize default Hobbyist plan definition (DRY principle)
+ * 3. Add explicit fallback handling with structured warnings (rate-limited)
+ * 4. Implement proper ETag-based caching (only 304 when effective plan unchanged)
+ * 5. Reduce production logging (only log metadata, not full JSON)
+ * 6. Add validation for all plan fields
+ * 
+ * Response includes metadata about fallback usage (visible in dev, hidden in prod).
+ */
 app.get('/api/user/plan', authMiddleware, async (req, res) => {
+  const { resolveUserPlan, generatePlanETag } = require('./services/userPlanResolver');
+  
   try {
-    logger.info(`[GET /api/user/plan] Fetching plan data for user ${req.user.id}`);
-
-    // Try to get user profile
-    let { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
-      .eq('id', req.user.id)
-      .maybeSingle();
-
-    if (!profile) {
-      // No profile found, create one with default plan_id 'free'
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert([{
-          id: req.user.id,
-          plan_id: 'free',
-          created_at: new Date().toISOString()
-        }]);
-      if (insertError) {
-        logger.error('[GET /api/user/plan] Failed to create profile:', insertError);
-        return res.status(500).json({ error: 'Failed to create user profile', details: insertError.message });
-      }
-      // Fetch the newly created profile
-      ({ data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
-        .eq('id', req.user.id)
-        .maybeSingle());
-    }
-    if (profileError) {
-      logger.error('[GET /api/user/plan] Profile error:', profileError);
-      return res.status(500).json({ error: 'Failed to fetch user profile', details: profileError.message });
-    }
-
-    const userPlanName = profile?.plan_id || 'Hobbyist';
-    logger.info(`[GET /api/user/plan] User has plan: ${userPlanName}`);
-
-    // Get plan data by name/slug
-    let { data: plan, error: planError } = await supabase
-      .from('plans')
-      .select('*')
-      .or(`name.eq.${userPlanName},slug.eq.${userPlanName}`)
-      .single();
-
-    if (planError || !plan) {
-      logger.warn(`[GET /api/user/plan] Plan ${userPlanName} not found, defaulting to Hobbyist`);
-      // Default to Hobbyist
-      const { data: hobbyistPlan } = await supabase
-        .from('plans')
-        .select('*')
-        .eq('name', 'Hobbyist')
-        .single();
-      if (!hobbyistPlan) {
-        return res.status(500).json({ error: 'No plans available' });
-      }
-      plan = hobbyistPlan;
-    }
-
-    // Get current usage
-    const [monthlyRunsResult, storageResult, workflowsResult] = await Promise.all([
-      // Monthly automation runs (completed tasks)
-      supabase
-        .from('automation_runs')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', req.user.id)
-        .eq('status', 'completed')
-        .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
-      // Storage usage
-      supabase
-        .from('user_files')
-        .select('file_size')
-        .eq('user_id', req.user.id),
-      // Actual workflows (not automation tasks)
-      supabase
-        .from('workflows')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', req.user.id)
-    ]);
-
-    const monthlyRuns = monthlyRunsResult.count || 0;
-    const storageBytes = storageResult.data?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
-    const storageGB = storageBytes / (1024 * 1024 * 1024);
-    const workflows = workflowsResult.count || 0;
-
-    logger.info(`[GET /api/user/plan] Usage: ${workflows} workflows, ${monthlyRuns} runs, ${storageGB.toFixed(3)}GB storage`);
-
-    const planData = {
-      plan: {
-        id: plan.id,
-        name: plan.name,
-        status: 'active',
-        is_trial: profile?.is_trial || false,
-        expires_at: profile?.trial_ends_at || profile?.plan_expires_at || null
-      },
-      usage: {
-        monthly_runs: monthlyRuns,
-        automation_runs: monthlyRuns,
-        automations: monthlyRuns,
-        storage_gb: Math.round(storageGB * 1000) / 1000,
-        workflows: workflows,
-        team_members: 1
-      },
-      limits: plan.limits,
-      features: plan.feature_flags,
-      can_run_automation: monthlyRuns < (plan.limits?.monthly_runs || 50),
-      can_create_workflow: (plan.limits?.workflows || 0) !== 0
-    };
-
-    logger.info(`[GET /api/user/plan] Final plan data:`, JSON.stringify(planData, null, 2));
-    res.json({
-      success: true,
-      planData: planData
+    const userId = req.user.id;
+    logger.info('[GET /api/user/plan] Fetching plan data', { userId });
+    
+    // Resolve plan with fallback handling
+    // Set normalizeMissingPlan=true to auto-fix invalid plan_ids (optional)
+    const { planData, metadata } = await resolveUserPlan(userId, {
+      normalizeMissingPlan: false // TODO: Set to true to auto-normalize invalid plans
     });
+    
+    // Generate ETag based on effective plan state
+    const etag = generatePlanETag(planData);
+    
+    // Check if client has current version (HTTP 304 Not Modified)
+    const clientETag = req.headers['if-none-match'];
+    if (clientETag && clientETag === etag) {
+      logger.info('[GET /api/user/plan] Client has current plan (304)', { 
+        userId,
+        etag 
+      });
+      return res.status(304).end();
+    }
+    
+    // Log summary (not full JSON in production)
+    if (process.env.NODE_ENV === 'production') {
+      logger.info('[GET /api/user/plan] Plan resolved', {
+        userId,
+        planName: planData.plan.name,
+        workflows: planData.usage.workflows,
+        monthlyRuns: planData.usage.monthly_runs,
+        usedFallback: metadata.used_fallback
+      });
+    } else {
+      // Development: log full details
+      logger.info('[GET /api/user/plan] Plan resolved (dev)', {
+        userId,
+        planData: JSON.stringify(planData),
+        metadata: JSON.stringify(metadata)
+      });
+    }
+    
+    // Build response
+    const response = {
+      success: true,
+      planData
+    };
+    
+    // In development, include metadata about fallback
+    if (process.env.NODE_ENV !== 'production' && metadata.used_fallback) {
+      response._metadata = {
+        warning: 'Fallback plan used',
+        reason: metadata.fallback_reason,
+        stored_plan_id: metadata.stored_plan_id
+      };
+    }
+    
+    // Set ETag header for caching
+    res.set('ETag', etag);
+    res.set('Cache-Control', 'private, max-age=300'); // 5 minutes
+    
+    res.json(response);
+    
   } catch (error) {
-    logger.error('[GET /api/user/plan] Unexpected error:', error);
+    logger.error('[GET /api/user/plan] Unexpected error', error, { 
+      userId: req.user?.id,
+      error_code: error.code || 'UNKNOWN',
+      error_message: error.message
+    });
+    
     res.status(500).json({ 
       error: 'Internal server error',
-      details: error.message 
+      details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
   }
 });

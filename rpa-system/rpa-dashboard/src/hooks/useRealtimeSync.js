@@ -83,8 +83,17 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
   };
 
   const categorizeError = useCallback((errorMessage) => {
-    if (!errorMessage) return 'UNKNOWN';
+    // FIXED: Handle undefined/null/empty error messages more robustly
+    if (!errorMessage || errorMessage === 'Unknown error') {
+      return 'UNKNOWN';
+    }
+    
     const msg = String(errorMessage).toLowerCase();
+    
+    // Empty string after conversion
+    if (!msg || msg === 'undefined' || msg === 'null') {
+      return 'UNKNOWN';
+    }
 
     // Check if the error matches a known category
     for (const [category, patterns] of Object.entries(ERROR_CATEGORIES)) {
@@ -165,6 +174,9 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
 
   // *** REFACTORED: scheduleReconnect ***
   const scheduleReconnect = useCallback((channelKey, lastError) => {
+    // FIXED: Ensure lastError is never undefined
+    const errorMessage = lastError || 'Unknown disconnection';
+    
     // CRITICAL: Prevent scheduling if the channel has hit a fatal state
     if (fatalErrors.current.has(channelKey)) {
         console.log(`[Realtime] Skipping reconnect for ${channelKey}. Already in fatal state.`);
@@ -182,11 +194,15 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
       fatalErrors.current.add(channelKey);
       updateChannelStatus(channelKey, {
           state: 'permanent_error',
-          lastError: `Max retries (${MAX_RETRIES}) reached. Last error: ${lastError}`,
+          lastError: `Max retries (${MAX_RETRIES}) reached. Last error: ${errorMessage}`,
           attempts: attempt
       });
       notifyError({
-        type: 'REALTIME_FATAL', channel: channelKey, message: 'Real-time updates permanently failed after multiple attempts.', details: lastError, action: 'CONTACT_SUPPORT'
+        type: 'REALTIME_FATAL', 
+        channel: channelKey, 
+        message: 'Real-time updates permanently failed after multiple attempts.', 
+        details: errorMessage, 
+        action: 'CONTACT_SUPPORT'
       });
       return;
     }
@@ -197,7 +213,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
 
     updateChannelStatus(channelKey, {
         state: 'reconnecting',
-        lastError: lastError,
+        lastError: errorMessage,
         attempts: attempt
     });
 
@@ -253,7 +269,31 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
     // --- Enhanced Error Handling with Categorization ---
     // Handle error/disconnect cases: CHANNEL_ERROR, CLOSED, TIMEOUT, or actual error object
     if (error || status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMEOUT') {
-      const msg = (error && (error.message || error.details || JSON.stringify(error))) || String(error) || status;
+      // FIXED: Ensure msg is never undefined by providing comprehensive fallbacks
+      let msg = 'Unknown error';
+      
+      if (error) {
+        // Try to extract meaningful error message
+        if (error.message) {
+          msg = error.message;
+        } else if (error.details) {
+          msg = error.details;
+        } else if (error.error) {
+          msg = error.error;
+        } else if (typeof error === 'string') {
+          msg = error;
+        } else if (typeof error === 'object') {
+          try {
+            msg = JSON.stringify(error);
+          } catch (e) {
+            msg = 'Error object could not be serialized';
+          }
+        }
+      } else if (status) {
+        // Use status as message if no error object
+        msg = `Channel status: ${status}`;
+      }
+      
       const category = categorizeError(msg);
       const attempts = backoffRef.current.attempts[channelKey] || 0;
 
