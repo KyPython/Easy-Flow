@@ -633,18 +633,159 @@ export const getSubscription = async () => {
   );
 };
 
-// Enhanced tracking functions that never crash the app
-export async function trackEvent(payload) {
-  return apiErrorHandler.safeApiCall(
-    async () => {
-      await api.post('/api/track-event', payload);
-    },
-    {
-      endpoint: 'track-event',
-      silentFail: true, // Never throw errors for tracking
-      retries: 1
+// Enhanced tracking functions with batching and throttling to prevent API flooding
+class EventBatcher {
+  constructor() {
+    this.queue = [];
+    this.batchSize = 10; // Send up to 10 events per batch
+    this.batchInterval = 5000; // Send batch every 5 seconds
+    this.flushTimer = null;
+    this.isFlushing = false;
+    this.lastFlushTime = 0;
+    this.minFlushInterval = 2000; // Minimum 2 seconds between flushes
+  }
+
+  add(payload) {
+    this.queue.push({
+      ...payload,
+      timestamp: payload.timestamp || new Date().toISOString()
+    });
+
+    // If queue is full, flush immediately
+    if (this.queue.length >= this.batchSize) {
+      this.flush();
+      return;
     }
-  );
+
+    // Otherwise, schedule a flush if not already scheduled
+    if (!this.flushTimer) {
+      this.flushTimer = setTimeout(() => {
+        this.flush();
+      }, this.batchInterval);
+    }
+  }
+
+  async flush() {
+    // Clear any pending timer
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+
+    // Prevent concurrent flushes
+    if (this.isFlushing) return;
+
+    // Rate limit: don't flush more than once per minFlushInterval
+    const now = Date.now();
+    if (now - this.lastFlushTime < this.minFlushInterval && this.queue.length < this.batchSize) {
+      // Reschedule flush
+      this.flushTimer = setTimeout(() => {
+        this.flush();
+      }, this.minFlushInterval - (now - this.lastFlushTime));
+      return;
+    }
+
+    // If queue is empty, nothing to do
+    if (this.queue.length === 0) return;
+
+    this.isFlushing = true;
+    this.lastFlushTime = now;
+
+    // Take up to batchSize events from the queue
+    const batch = this.queue.splice(0, this.batchSize);
+
+    try {
+      // Send batch as a single API call
+      await apiErrorHandler.safeApiCall(
+        async () => {
+          // If single event, send as before for backward compatibility
+          if (batch.length === 1) {
+            await api.post('/api/track-event', batch[0]);
+          } else {
+            // Try batch endpoint first, fallback to individual events if not supported
+            try {
+              await api.post('/api/track-event/batch', { events: batch });
+            } catch (batchError) {
+              // If batch endpoint doesn't exist (404), send individually but throttled
+              if (batchError.response?.status === 404) {
+                // Send events one at a time with small delay to avoid flooding
+                for (let i = 0; i < batch.length; i++) {
+                  await api.post('/api/track-event', batch[i]);
+                  // Small delay between individual sends to prevent rate limiting
+                  if (i < batch.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                  }
+                }
+              } else {
+                throw batchError;
+              }
+            }
+          }
+        },
+        {
+          endpoint: 'track-event',
+          silentFail: true,
+          retries: 0 // No retries for batched events to prevent amplification
+        }
+      );
+    } catch (e) {
+      // Silently fail - tracking should never break the app
+      console.debug('[trackEvent] Batch send failed:', e);
+    } finally {
+      this.isFlushing = false;
+
+      // If there are more events in queue, schedule another flush
+      if (this.queue.length > 0) {
+        this.flushTimer = setTimeout(() => {
+          this.flush();
+        }, this.batchInterval);
+      }
+    }
+  }
+}
+
+// Create singleton batcher instance
+const eventBatcher = new EventBatcher();
+
+// Flush events on page unload to ensure nothing is lost
+if (typeof window !== 'undefined') {
+  // Use sendBeacon for reliable delivery on page unload
+  window.addEventListener('beforeunload', () => {
+    if (eventBatcher.queue.length > 0) {
+      // Try to flush synchronously
+      eventBatcher.flush().catch(() => {});
+      
+      // Also try sendBeacon as fallback for critical events
+      try {
+        const events = eventBatcher.queue.splice(0, 50); // Limit to 50 for sendBeacon
+        if (events.length > 0) {
+          navigator.sendBeacon(
+            `${api.defaults.baseURL || ''}/api/track-event/batch`,
+            JSON.stringify({ events })
+          );
+        }
+      } catch (e) {
+        // Ignore sendBeacon errors
+      }
+    }
+  });
+  
+  // Also flush on visibility change (tab switch, minimize, etc.)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && eventBatcher.queue.length > 0) {
+      eventBatcher.flush().catch(() => {});
+    }
+  });
+}
+
+// Enhanced tracking functions that never crash the app
+// Now uses batching to prevent API flooding
+export async function trackEvent(payload) {
+  // Add to batch queue instead of sending immediately
+  eventBatcher.add(payload);
+  
+  // Return a resolved promise immediately (fire-and-forget pattern)
+  return Promise.resolve();
 }
 
 export async function generateReferral(referrerEmail, referredEmail) {

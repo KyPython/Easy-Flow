@@ -6,6 +6,15 @@ import { useRealtimeSync } from './useRealtimeSync';
 import { api, requestWithRetry } from '../utils/api';
 import { classifyErrorType } from '../utils/errorHandler';
 
+// Try to import useSession - will be null if SessionProvider not available
+let useSession = null;
+try {
+  const SessionContext = require('../contexts/SessionContext');
+  useSession = SessionContext.useSession;
+} catch (e) {
+  // SessionContext not available - that's okay, we'll fall back to API calls
+}
+
 /**
  * Helper: Detect if an error is due to backend being unreachable (ECONNREFUSED/Proxy error)
  */
@@ -47,6 +56,9 @@ function createPlanFetchErrorMessage(error) {
 
 export const usePlan = () => {
   const { user } = useAuth();
+  // Try to use session context if available (reduces API calls)
+  // Always call hook if available (hooks must be called unconditionally)
+  const sessionContext = useSession ? useSession() : null;
   const [planData, setPlanData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -77,6 +89,15 @@ export const usePlan = () => {
       // Don't clear error immediately if backend is known to be unreachable
       if (backendStatus !== 'unreachable') {
         setError(null);
+      }
+
+      // ✅ OPTIMIZATION: Use session context data if available (reduces API calls)
+      if (sessionContext?.plan && !sessionContext.isLoading) {
+        setPlanData(sessionContext.plan);
+        setLoading(false);
+        setBackendStatus('reachable');
+        fetchPlanData.inFlight = false;
+        return;
       }
 
       // Call the backend API endpoint to get complete plan details

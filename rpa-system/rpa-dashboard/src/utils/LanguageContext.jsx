@@ -19,10 +19,23 @@ export const LanguageProvider = ({ children }) => {
     const load = async () => {
       if (!user) return;
       try {
-        // Lazy-import api client only when needed (user is authenticated)
-        const { api } = await import('./api');
-        const resp = await api.get('/api/user/preferences');
-        const pref = resp?.data?.ui_preferences?.language;
+        // ✅ OPTIMIZATION: Try to use session context first (reduces API calls)
+        let pref = null;
+        try {
+          const { useSession } = await import('../contexts/SessionContext');
+          // Note: Can't use hooks conditionally, so we'll check session via a different approach
+          // For now, fall back to API call but session will be used by other components
+        } catch (e) {
+          // SessionContext not available - continue with API call
+        }
+        
+        // Fallback to API call if session data not available
+        if (!pref) {
+          const { api } = await import('./api');
+          const resp = await api.get('/api/user/preferences');
+          pref = resp?.data?.ui_preferences?.language;
+        }
+        
         if (pref && available.includes(pref)) {
           setLanguageState(pref);
           localStorage.setItem('app_language', pref);

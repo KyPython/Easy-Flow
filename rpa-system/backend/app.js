@@ -88,7 +88,67 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1); // Trust first proxy only (more secure than true)
 }
 
-// --- Old CORS configuration removed - using comprehensive CORS config below ---
+// ✅ CORS MUST BE FIRST - Apply immediately after app creation
+// CORS: sensible defaults in dev; restrict in prod via ALLOWED_ORIGINS
+const DEFAULT_DEV_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3030',
+  'http://127.0.0.1:3030',
+];
+const DEFAULT_PROD_ORIGINS = [
+  'https://easy-flow-lac.vercel.app',
+];
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || (process.env.NODE_ENV === 'production'
+  ? DEFAULT_PROD_ORIGINS.join(',')
+  : DEFAULT_DEV_ORIGINS.concat(DEFAULT_PROD_ORIGINS).join(',')))
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+// Debug logging for CORS configuration (quiet in production)
+if (process.env.NODE_ENV !== 'production') {
+  rootLogger.info('🔧 CORS Debug Info (app.js):', {
+    ALLOWED_ORIGINS_env: process.env.ALLOWED_ORIGINS,
+    parsed_allowed_origins: ALLOWED_ORIGINS,
+    NODE_ENV: process.env.NODE_ENV,
+  });
+}
+
+const corsOptions = {
+  origin: (origin, cb) => {
+    // Allow non-browser requests (no Origin header)
+    if (!origin) return cb(null, true);
+
+    // Exact allow-list
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+
+    // Suffix-based allow (e.g., preview deployments like *.vercel.app)
+    if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) return cb(null, true);
+
+    // As a last resort in dev, be permissive when not explicitly configured
+    if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== 'production') return cb(null, true);
+
+    rootLogger.warn('🚫 CORS blocked origin (app.js):', origin);
+    return cb(new Error('CORS: origin not allowed'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  credentials: true,
+  optionsSuccessStatus: 204,
+  exposedHeaders: ['Content-Disposition'],
+};
+
+// Apply CORS FIRST - before any other middleware
+app.use(cors(corsOptions));
+// Ensure preflight requests are handled consistently
+app.options('*', cors(corsOptions));
 
 // Add after imports, before route definitions (around line 100)
 
@@ -421,67 +481,7 @@ const DOWNLOADS_DIR_CONTAINER = process.env.DOWNLOADS_DIR_CONTAINER || '/downloa
 const DOWNLOADS_DIR_HOST = process.env.DOWNLOADS_DIR_HOST || (process.cwd().includes('/workspace') ? '/workspace/downloads' : path.join(process.cwd(), 'downloads'));
 
 
-// CORS: sensible defaults in dev; restrict in prod via ALLOWED_ORIGINS
-// Tip: set ALLOWED_ORIGINS as a comma-separated list of exact origins.
-// Optional: set ALLOWED_ORIGIN_SUFFIXES for wildcard-like suffix matches (e.g. ".vercel.app").
-const DEFAULT_DEV_ORIGINS = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:3030',
-  'http://127.0.0.1:3030',
-];
-const DEFAULT_PROD_ORIGINS = [
-  'https://easy-flow-lac.vercel.app',
-];
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || (process.env.NODE_ENV === 'production'
-  ? DEFAULT_PROD_ORIGINS.join(',')
-  : DEFAULT_DEV_ORIGINS.concat(DEFAULT_PROD_ORIGINS).join(',')))
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
-const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
-
-// Debug logging for CORS configuration (quiet in production)
-  if (process.env.NODE_ENV !== 'production') {
-    rootLogger.info('🔧 CORS Debug Info (app.js):', {
-      ALLOWED_ORIGINS_env: process.env.ALLOWED_ORIGINS,
-      parsed_allowed_origins: ALLOWED_ORIGINS,
-      NODE_ENV: process.env.NODE_ENV,
-    });
-  }
-
-const corsOptions = {
-  origin: (origin, cb) => {
-    // Allow non-browser requests (no Origin header)
-    if (!origin) return cb(null, true);
-
-    // Exact allow-list
-    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-
-    // Suffix-based allow (e.g., preview deployments like *.vercel.app)
-    if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) return cb(null, true);
-
-    // As a last resort in dev, be permissive when not explicitly configured
-    if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== 'production') return cb(null, true);
-
-    logger.warn('🚫 CORS blocked origin (app.js):', origin);
-    return cb(new Error('CORS: origin not allowed'));
-  },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  // When allowedHeaders is omitted, the cors package reflects the request's Access-Control-Request-Headers
-  credentials: true,
-  optionsSuccessStatus: 204,
-  exposedHeaders: ['Content-Disposition'],
-};
-
-app.use(cors(corsOptions));
-// Ensure preflight requests are handled consistently
-app.options('*', cors(corsOptions));
+// CORS configuration moved to top of file (after app creation) for proper middleware order
 
 // ✅ CRITICAL: Add trace context middleware EARLY in chain
 // This must come after CORS but before auth/business logic
@@ -3099,6 +3099,190 @@ app.post('/api/trigger-automation', authMiddleware, automationLimiter, async (re
     res.status(500).json({
       error: 'Failed to trigger automation',
       details: error.message
+    });
+  }
+});
+
+// Consolidated Session Endpoint - Returns plan, preferences, and notifications in one call
+// This reduces initial API calls from 3+ to 1, preventing rate limiting issues
+app.get('/api/user/session', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Fetch all data in parallel for better performance
+    const [planResult, preferencesResult, notificationsResult] = await Promise.allSettled([
+      // Fetch plan data
+      (async () => {
+        try {
+          const { resolveUserPlan } = require('./services/userPlanResolver');
+          const { planData } = await resolveUserPlan(userId, { normalizeMissingPlan: false });
+          return { success: true, planData };
+        } catch (error) {
+          logger.warn('[GET /api/user/session] Plan fetch failed:', error?.message);
+          return { success: false, error: error?.message };
+        }
+      })(),
+      
+      // Fetch preferences
+      (async () => {
+        try {
+          const { data, error } = await supabase
+            .from('user_settings')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+          
+          if (error && error.code !== 'PGRST116') {
+            throw error;
+          }
+          
+          const preferences = data ? {
+            notification_preferences: {
+              email_notifications: data.email_notifications ?? true,
+              weekly_reports: data.weekly_reports ?? true,
+              sms_alerts: data.sms_notifications ?? false,
+              push_notifications: data.push_notifications ?? true,
+              task_completion: data.task_completion ?? true,
+              task_failures: data.task_failures ?? true,
+              system_alerts: data.system_alerts ?? true,
+              marketing_emails: data.marketing_emails ?? true,
+              security_alerts: data.security_alerts ?? true,
+              deal_updates: data.deal_updates ?? true,
+              customer_alerts: data.customer_alerts ?? true
+            },
+            ui_preferences: {
+              theme: data.theme || 'light',
+              dashboard_layout: data.dashboard_layout || 'grid',
+              timezone: data.timezone || 'UTC',
+              date_format: data.date_format || 'MM/DD/YYYY',
+              language: data.language || 'en'
+            },
+            fcm_token: data.fcm_token || null,
+            phone_number: data.phone_number || null
+          } : {
+            notification_preferences: {
+              email_notifications: true,
+              weekly_reports: true,
+              sms_alerts: false,
+              push_notifications: true,
+              task_completion: true,
+              task_failures: true,
+              system_alerts: true,
+              marketing_emails: true,
+              security_alerts: true,
+              deal_updates: true,
+              customer_alerts: true
+            },
+            ui_preferences: {
+              theme: 'light',
+              dashboard_layout: 'grid',
+              timezone: 'UTC',
+              date_format: 'MM/DD/YYYY',
+              language: 'en'
+            },
+            fcm_token: null,
+            phone_number: null
+          };
+          
+          return { success: true, preferences };
+        } catch (error) {
+          logger.warn('[GET /api/user/session] Preferences fetch failed:', error?.message);
+          return { success: false, error: error?.message };
+        }
+      })(),
+      
+      // Fetch notifications
+      (async () => {
+        try {
+          const { data, error } = await supabase
+            .from('user_settings')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+          
+          if (error && error.code !== 'PGRST116') {
+            throw error;
+          }
+          
+          const notificationSettings = data ? {
+            preferences: {
+              email_notifications: data.email_notifications ?? true,
+              weekly_reports: data.weekly_reports ?? true,
+              sms_alerts: data.sms_notifications ?? false,
+              push_notifications: data.push_notifications ?? true,
+              task_completion: data.task_completion ?? true,
+              task_failures: data.task_failures ?? true,
+              system_alerts: data.system_alerts ?? true,
+              marketing_emails: data.marketing_emails ?? true,
+              security_alerts: data.security_alerts ?? true,
+              deal_updates: data.deal_updates ?? true,
+              customer_alerts: data.customer_alerts ?? true
+            },
+            fcm_token: data.fcm_token || null,
+            phone_number: data.phone_number || null,
+            can_receive_sms: !!data.phone_number,
+            can_receive_push: !!data.fcm_token
+          } : {
+            preferences: {
+              email_notifications: true,
+              weekly_reports: true,
+              sms_alerts: false,
+              push_notifications: true,
+              task_completion: true,
+              task_failures: true,
+              system_alerts: true,
+              marketing_emails: true,
+              security_alerts: true,
+              deal_updates: true,
+              customer_alerts: true
+            },
+            fcm_token: null,
+            phone_number: null,
+            can_receive_sms: false,
+            can_receive_push: false
+          };
+          
+          return { success: true, notifications: notificationSettings };
+        } catch (error) {
+          logger.warn('[GET /api/user/session] Notifications fetch failed:', error?.message);
+          return { success: false, error: error?.message };
+        }
+      })()
+    ]);
+    
+    // Extract results (handle both fulfilled and rejected promises)
+    const plan = planResult.status === 'fulfilled' ? planResult.value : { success: false, error: planResult.reason?.message };
+    const preferences = preferencesResult.status === 'fulfilled' ? preferencesResult.value : { success: false, error: preferencesResult.reason?.message };
+    const notifications = notificationsResult.status === 'fulfilled' ? notificationsResult.value : { success: false, error: notificationsResult.reason?.message };
+    
+    // Build consolidated response
+    const response = {
+      success: true,
+      user: {
+        id: req.user.id,
+        email: req.user.email
+      },
+      plan: plan.planData || null,
+      preferences: preferences.preferences || null,
+      notifications: notifications.notifications || null,
+      // Include partial success indicators if any fetch failed
+      _partial: {
+        plan: !plan.success,
+        preferences: !preferences.success,
+        notifications: !notifications.success
+      }
+    };
+    
+    // Set cache headers
+    res.set('Cache-Control', 'private, max-age=300'); // 5 minutes
+    
+    res.json(response);
+    
+  } catch (error) {
+    logger.error('[GET /api/user/session] Unexpected error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
   }
 });

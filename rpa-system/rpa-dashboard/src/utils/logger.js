@@ -44,6 +44,9 @@ const messageCache = new Map(); // key -> { count, firstSeen, lastSeen, lastLogg
 const THROTTLE_WINDOW_MS = 10000; // Throttle identical messages within 10 seconds
 const MAX_LOGS_PER_WINDOW = 1; // Max 1 identical message per window (more aggressive)
 
+// Telemetry-specific throttling to prevent API flooding
+const telemetryThrottleMap = new Map(); // key -> timestamp of last telemetry send
+
 /**
  * Structured Logger for Frontend
  * Automatically integrates with backend observability system
@@ -187,10 +190,36 @@ class FrontendLogger {
   }
 
   /**
-   * Send log entry to backend telemetry system
+   * Send log entry to backend telemetry system with throttling
    */
   async _sendTelemetry(logEntry) {
     try {
+      // Throttle telemetry sends to prevent API flooding
+      // Only send telemetry logs at most once per 5 seconds per namespace
+      const telemetryKey = `telemetry:${this.namespace}:${logEntry.level}`;
+      const now = Date.now();
+      const lastTelemetrySend = telemetryThrottleMap.get(telemetryKey) || 0;
+      const TELEMETRY_THROTTLE_MS = 5000; // 5 seconds between telemetry sends per namespace/level
+      
+      // Skip if too soon since last send (unless it's an error/fatal)
+      if (now - lastTelemetrySend < TELEMETRY_THROTTLE_MS && 
+          LOG_LEVELS[logEntry.level] < LOG_LEVELS.ERROR) {
+        return; // Silently skip - telemetry is not critical
+      }
+      
+      // Update throttle timestamp
+      telemetryThrottleMap.set(telemetryKey, now);
+      
+      // Clean up old throttle entries periodically
+      if (telemetryThrottleMap.size > 100) {
+        const cutoff = now - (TELEMETRY_THROTTLE_MS * 10);
+        for (const [key, timestamp] of telemetryThrottleMap.entries()) {
+          if (timestamp < cutoff) {
+            telemetryThrottleMap.delete(key);
+          }
+        }
+      }
+      
       // Don't await - fire and forget
       trackEvent({
         event: 'frontend_log',

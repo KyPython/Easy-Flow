@@ -19,6 +19,7 @@ import Header from './components/Header/Header'; // Keep header eager (critical 
 import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import { LanguageProvider } from './utils/LanguageContext';
+import { SessionProvider } from './contexts/SessionContext';
 import NetworkStatus from './components/NetworkStatus/NetworkStatus'; // Keep eager (small component)
 // FIREBASE INITIALIZATION DEFERRED - was blocking main thread
 // import './utils/firebaseConfig';
@@ -327,12 +328,14 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <ThemeProvider>
-          <LanguageProvider>
-            <AnalyticsTracker />
-            <Shell />
-          </LanguageProvider>
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider>
+            <LanguageProvider>
+              <AnalyticsTracker />
+              <Shell />
+            </LanguageProvider>
+          </ThemeProvider>
+        </SessionProvider>
       </AuthProvider>
     </Router>
   );
