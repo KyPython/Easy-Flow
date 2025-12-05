@@ -413,13 +413,30 @@ function requestLoggingMiddleware() {
       const shouldLogEnd = is5xxError || shouldSample('http.request', 'info');
       
       if (shouldLogEnd && !isHealthEndpoint) {
+        // Calculate response size - handle objects, strings, and buffers
+        let responseSize = 0;
+        if (data) {
+          if (typeof data === 'string') {
+            responseSize = Buffer.byteLength(data, 'utf8');
+          } else if (Buffer.isBuffer(data)) {
+            responseSize = data.length;
+          } else if (typeof data === 'object') {
+            // Convert object to JSON string for size calculation
+            try {
+              responseSize = Buffer.byteLength(JSON.stringify(data), 'utf8');
+            } catch (e) {
+              responseSize = 0;
+            }
+          }
+        }
+        
         logger.info('HTTP request completed', {
           http: {
             method: req.method,
             url: req.url,
             status_code: res.statusCode,
             duration,
-            response_size: data ? Buffer.byteLength(data, 'utf8') : 0
+            response_size: responseSize
           },
           performance: { duration }
         });

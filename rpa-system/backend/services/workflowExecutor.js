@@ -270,7 +270,7 @@ class WorkflowExecutor {
       // ✅ INSTRUCTION 2: Structured logging
       this.logger.error('Execution exceeded maximum time limit', {
         execution_id: executionId,
-        max_timeout_seconds: maxTimeoutSeconds
+        max_timeout_seconds: EXECUTION_TIMEOUT / 1000
       });
       this.cancelExecution(executionId);
     }, EXECUTION_TIMEOUT);
