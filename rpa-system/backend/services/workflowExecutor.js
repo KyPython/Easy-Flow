@@ -100,7 +100,8 @@ class WorkflowExecutor {
       jitterRatio = 0.2,
       shouldRetry = () => true,
       isCancelled = async () => false,
-      makeController // optional: () => AbortController
+      makeController, // optional: () => AbortController
+      onRetry // optional: (attempt, error, waitMs) => void
     } = opts;
 
     let lastErr;
@@ -122,12 +123,46 @@ class WorkflowExecutor {
         lastErr = err;
         // If explicitly cancelled, propagate immediately
         if (err?.code === 'CANCELLED') throw err;
+        
+        // Check if we should retry
         const retry = await shouldRetry(err, attempt);
         if (!retry || attempt === maxAttempts) {
+          // Don't retry - either not retryable or max attempts reached
+          if (attempt === maxAttempts && retry) {
+            // Max attempts reached but error is retryable - log as potential issue
+            this.logger.warn('Max retry attempts reached', {
+              attempts: maxAttempts,
+              error_message: err.message,
+              error_code: err.code
+            });
+          }
           throw err;
         }
-        // wait with backoff, but break early if cancelled
+        
+        // Calculate wait time with exponential backoff
         const wait = this._calcBackoff(attempt, baseMs, maxMs, jitterRatio);
+        totalWaitMs += wait;
+        
+        // Call retry callback if provided
+        if (typeof onRetry === 'function') {
+          try {
+            onRetry(attempt, err, wait);
+          } catch (retryErr) {
+            // Don't let retry callback errors break the retry loop
+            this.logger.warn('Retry callback error:', retryErr);
+          }
+        }
+        
+        // Log retry attempt
+        this.logger.info('Retrying after error', {
+          attempt,
+          max_attempts: maxAttempts,
+          wait_ms: wait,
+          error_message: err.message,
+          error_code: err.code
+        });
+        
+        // Wait with backoff, checking for cancellation periodically
         const start = Date.now();
         while (Date.now() - start < wait) {
           if (await isCancelled()) {
@@ -138,7 +173,6 @@ class WorkflowExecutor {
           const remaining = wait - (Date.now() - start);
           await this._sleep(Math.min(remaining, 200));
         }
-        totalWaitMs += wait;
       } finally {
         // best-effort: abort controller on failure path if still active
         try { controller?.abort?.(); } catch (_) {}
@@ -228,9 +262,17 @@ class WorkflowExecutor {
 
   // ✅ ERROR CATEGORIZATION FOR ACTIONABLE FEEDBACK
   _categorizeError(error) {
-    const message = error.message.toLowerCase();
+    const message = (error.message || '').toLowerCase();
+    const code = error.code || '';
     
-    if (message.includes('timeout')) {
+    // Check for automation service unavailable
+    if (!process.env.AUTOMATION_URL) {
+      return 'AUTOMATION_SERVICE_NOT_CONFIGURED';
+    }
+    if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || message.includes('econnrefused')) {
+      return 'AUTOMATION_SERVICE_UNAVAILABLE';
+    }
+    if (message.includes('timeout') || code === 'ETIMEDOUT') {
       return 'TIMEOUT_ERROR';
     } else if (message.includes('selector') || message.includes('element')) {
       return 'ELEMENT_NOT_FOUND';
@@ -238,12 +280,100 @@ class WorkflowExecutor {
       return 'PAGE_LOAD_ERROR';
     } else if (message.includes('login') || message.includes('credential')) {
       return 'AUTHENTICATION_ERROR';
-    } else if (message.includes('network') || message.includes('connection')) {
+    } else if (message.includes('network') || message.includes('connection') || code === 'ECONNRESET') {
       return 'NETWORK_ERROR';
     } else if (message.includes('cancelled')) {
       return 'USER_CANCELLED';
     } else {
       return 'UNKNOWN_ERROR';
+    }
+  }
+
+  // ✅ USER-FRIENDLY ERROR MESSAGES
+  _getUserFriendlyMessage(errorCategory, error) {
+    const messages = {
+      'AUTOMATION_SERVICE_NOT_CONFIGURED': 'Automation service is not configured. Please contact support to enable this feature.',
+      'AUTOMATION_SERVICE_UNAVAILABLE': 'Automation service is temporarily unavailable. Please try again in a few minutes. If the problem persists, contact support.',
+      'TIMEOUT_ERROR': 'The operation took too long to complete. This might be due to a slow website or network issue. Please try again.',
+      'ELEMENT_NOT_FOUND': 'Could not find the expected element on the page. The website structure may have changed. Please update your workflow configuration.',
+      'PAGE_LOAD_ERROR': 'The page failed to load completely. This might be due to network issues or the website being down. Please try again later.',
+      'AUTHENTICATION_ERROR': 'Login failed. Please check your credentials and try again. If the problem persists, the website may have changed its login process.',
+      'NETWORK_ERROR': 'Network connection error. Please check your internet connection and try again.',
+      'USER_CANCELLED': 'Execution was cancelled.',
+      'UNKNOWN_ERROR': `An unexpected error occurred: ${error.message || 'Unknown error'}. Please contact support if this persists.`
+    };
+    
+    return messages[errorCategory] || messages['UNKNOWN_ERROR'];
+  }
+
+  // ✅ HEALTH CHECK FOR AUTOMATION SERVICE
+  async _checkAutomationServiceHealth() {
+    const automationUrl = process.env.AUTOMATION_URL;
+    
+    if (!automationUrl) {
+      return {
+        healthy: false,
+        error: 'AUTOMATION_SERVICE_NOT_CONFIGURED',
+        message: 'Automation service is not configured'
+      };
+    }
+
+    try {
+      // Normalize URL
+      let normalizedUrl = automationUrl.trim();
+      if (!/^https?:\/\//i.test(normalizedUrl)) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+      
+      // Try health endpoint first, then root
+      const healthEndpoints = ['/health', '/', '/status'];
+      let lastError;
+      
+      for (const endpoint of healthEndpoints) {
+        try {
+          const response = await this.httpClient.get(`${normalizedUrl}${endpoint}`, {
+            timeout: 5000,
+            validateStatus: (status) => status < 500 // Accept 2xx, 3xx, 4xx as "service is up"
+          });
+          
+          return {
+            healthy: true,
+            url: normalizedUrl
+          };
+        } catch (err) {
+          lastError = err;
+          // If it's a 404, service is up but endpoint doesn't exist - that's OK
+          if (err.response?.status === 404) {
+            return {
+              healthy: true,
+              url: normalizedUrl
+            };
+          }
+        }
+      }
+      
+      // If all endpoints failed, service is likely down
+      const code = lastError?.code || '';
+      if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ETIMEDOUT') {
+        return {
+          healthy: false,
+          error: 'AUTOMATION_SERVICE_UNAVAILABLE',
+          message: 'Automation service is not reachable'
+        };
+      }
+      
+      return {
+        healthy: false,
+        error: 'AUTOMATION_SERVICE_ERROR',
+        message: lastError?.message || 'Unknown error checking automation service'
+      };
+      
+    } catch (error) {
+      return {
+        healthy: false,
+        error: 'AUTOMATION_SERVICE_ERROR',
+        message: error.message || 'Failed to check automation service health'
+      };
     }
   }
 
@@ -261,7 +391,60 @@ class WorkflowExecutor {
   }
 
   async startExecution(config) {
-    const { workflowId, userId, triggeredBy = 'manual', triggerData = {}, inputData = {} } = config;
+    const { 
+      workflowId, 
+      userId, 
+      triggeredBy = 'manual', 
+      triggerData = {}, 
+      inputData = {},
+      resumeFromExecutionId = null // ✅ PHASE 3: Resume from previous execution
+    } = config;
+    
+    // ✅ PHASE 3: If resuming, get data from previous execution
+    let resumeData = null;
+    if (resumeFromExecutionId) {
+      try {
+        const { data: previousExecution } = await this.supabase
+          .from('workflow_executions')
+          .select('output_data, metadata, step_executions(*)')
+          .eq('id', resumeFromExecutionId)
+          .eq('user_id', userId)
+          .single();
+        
+        if (previousExecution) {
+          // Get last successful step's output data
+          const successfulSteps = (previousExecution.step_executions || [])
+            .filter(step => step.status === 'completed')
+            .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+          
+          if (successfulSteps.length > 0) {
+            resumeData = successfulSteps[0].output_data || previousExecution.output_data;
+            // Merge with provided input data
+            inputData = { ...resumeData, ...inputData };
+          }
+          
+          // Get partial results from metadata if available
+          if (previousExecution.metadata) {
+            try {
+              const metadata = typeof previousExecution.metadata === 'string' 
+                ? JSON.parse(previousExecution.metadata) 
+                : previousExecution.metadata;
+              if (metadata.partial_results) {
+                inputData._resumed_from = resumeFromExecutionId;
+                inputData._partial_results = metadata.partial_results;
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (resumeError) {
+        logger.warn('Failed to resume from previous execution', {
+          execution_id: resumeFromExecutionId,
+          error: resumeError.message
+        });
+        // Continue with normal execution if resume fails
+      }
+    }
+    
     const executionId = uuidv4();
     
     // ✅ HARD TIMEOUT CONFIGURATION
@@ -416,11 +599,15 @@ class WorkflowExecutor {
     const startTime = Date.now();
     let currentData = execution.input_data || {};
     let stepsExecuted = 0;
+    const partialResults = []; // ✅ FIX: Track partial successes
     
     try {
       if (process.env.NODE_ENV !== 'production') {
         logger.info(`[WorkflowExecutor] Executing workflow ${workflow.name} (${execution.id})`);
       }
+      
+      // ✅ FIX: Update status to show progress
+      await this._updateExecutionStatus(execution.id, 'running', 'Starting workflow execution...');
       
       // Find the start step
       const startStep = workflow.workflow_steps.find(step => step.step_type === 'start');
@@ -428,8 +615,11 @@ class WorkflowExecutor {
         throw new Error('No start step found in workflow');
       }
       
+      // ✅ FIX: Update status before executing steps
+      await this._updateExecutionStatus(execution.id, 'running', `Executing ${workflow.workflow_steps.length} steps...`);
+      
   // Execute workflow steps
-  const result = await this.executeStep(execution, startStep, currentData, workflow);
+  const result = await this.executeStep(execution, startStep, currentData, workflow, new Set(), partialResults);
       
       // On return, check if cancelled
       const run = this.runningExecutions.get(execution.id);
@@ -439,23 +629,71 @@ class WorkflowExecutor {
       }
 
       if (result.success) {
-        await this.completeExecution(execution.id, result.data, stepsExecuted, startTime);
+        // ✅ FIX: Store partial results in metadata if any steps partially succeeded
+        const outputData = result.data;
+        if (partialResults.length > 0) {
+          outputData._partial_results = partialResults;
+          outputData._partial_success_note = 'Some steps completed successfully before failure';
+        }
+        
+        await this.completeExecution(execution.id, outputData, stepsExecuted, startTime);
       } else {
-        await this.failExecution(execution.id, result.error, result.errorStepId);
+        // ✅ FIX: If we have partial results, include them in the failure
+        const errorData = {
+          error: result.error,
+          errorCategory: result.errorCategory,
+          partialResults: partialResults.length > 0 ? partialResults : undefined
+        };
+        
+        // Store partial results even on failure
+        if (partialResults.length > 0) {
+          await this.supabase
+            .from('workflow_executions')
+            .update({
+              metadata: JSON.stringify({
+                partial_results: partialResults,
+                error_category: result.errorCategory
+              })
+            })
+            .eq('id', execution.id);
+        }
+        
+        const errorCategory = result.errorCategory || this._categorizeError({ message: result.error });
+        await this.failExecution(execution.id, result.error, result.errorStepId, errorCategory);
       }
       
     } catch (error) {
       logger.error(`[WorkflowExecutor] Workflow execution failed:`, error);
       const run = this.runningExecutions.get(execution.id);
       if (!run || !run.cancelled) {
-        await this.failExecution(execution.id, error.message);
+        // ✅ FIX: Store partial results even on unexpected errors
+        if (partialResults.length > 0) {
+          try {
+            await this.supabase
+              .from('workflow_executions')
+              .update({
+                metadata: JSON.stringify({
+                  partial_results: partialResults,
+                  error_category: 'UNEXPECTED_ERROR'
+                })
+              })
+              .eq('id', execution.id);
+          } catch (metaErr) {
+            // Don't fail on metadata update errors
+            logger.warn('Failed to store partial results:', metaErr);
+          }
+        }
+        
+        const errorCategory = this._categorizeError(error);
+        const userMessage = this._getUserFriendlyMessage(errorCategory, error);
+        await this.failExecution(execution.id, userMessage, null, errorCategory);
       }
     } finally {
       this.runningExecutions.delete(execution.id);
     }
   }
 
-  async executeStep(execution, step, inputData, workflow, visitedSteps = new Set()) {
+  async executeStep(execution, step, inputData, workflow, visitedSteps = new Set(), partialResults = []) {
     try {
       // Check cancellation before starting step
       if (this._isCancelled(execution.id)) {
@@ -468,6 +706,13 @@ class WorkflowExecutor {
       visitedSteps.add(step.id);
       
       logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.step_type})`);
+      
+      // ✅ FIX: Update execution status to show current step
+      await this._updateExecutionStatus(
+        execution.id, 
+        'running', 
+        `Executing step: ${step.name} (${step.step_type})`
+      );
       
       // Create step execution record
       const stepExecution = await this.createStepExecution(execution.id, step.id, inputData);
@@ -495,8 +740,26 @@ class WorkflowExecutor {
   // Update step execution
   await this.updateStepExecution(stepExecution, result);
       
+  // ✅ FIX: Store partial results even if step fails (if it produced some data)
+      if (!result.success && result.data && Object.keys(result.data).length > 0) {
+        partialResults.push({
+          step_id: step.id,
+          step_name: step.name,
+          step_type: step.step_type,
+          data: result.data,
+          error: result.error,
+          errorCategory: result.errorCategory
+        });
+      }
+      
   if (!result.success) {
-        return { success: false, error: result.error, errorStepId: step.id };
+        // ✅ IMMEDIATE FIX: Preserve error category from action execution
+        return { 
+          success: false, 
+          error: result.error, 
+          errorStepId: step.id,
+          errorCategory: result.errorCategory
+        };
       }
       
       // Handle end step
@@ -512,10 +775,10 @@ class WorkflowExecutor {
         return { success: true, data: result.data };
       }
       
-  // Execute next step(s)
+      // Execute next step(s)
       // For now, we only handle sequential execution (single next step)
       const nextStep = nextSteps[0];
-      return await this.executeStep(execution, nextStep, result.data, workflow, visitedSteps);
+      return await this.executeStep(execution, nextStep, result.data, workflow, visitedSteps, partialResults);
       
     } catch (error) {
       logger.error(`[WorkflowExecutor] Step execution failed: ${step.name}`, error);
@@ -633,6 +896,24 @@ class WorkflowExecutor {
   // Action implementations
   async executeWebScrapeAction(config, inputData, execution) {
     try {
+      // ✅ IMMEDIATE FIX: Health check before execution
+      const healthCheck = await this._checkAutomationServiceHealth();
+      if (!healthCheck.healthy) {
+        const errorCategory = healthCheck.error || 'AUTOMATION_SERVICE_UNAVAILABLE';
+        const userMessage = this._getUserFriendlyMessage(errorCategory, { message: healthCheck.message });
+        this.logger.error('Automation service health check failed', {
+          execution_id: execution?.id,
+          error_category: errorCategory,
+          message: healthCheck.message
+        });
+        return { 
+          success: false, 
+          error: userMessage,
+          errorCategory,
+          technicalError: healthCheck.message
+        };
+      }
+      
       // This is a placeholder - integrate with your existing scraping service
       const { url, selectors, timeout = 30 } = config;
       
@@ -690,7 +971,23 @@ class WorkflowExecutor {
       };
       
     } catch (error) {
-      return { success: false, error: `Web scraping failed: ${error.message}` };
+      // ✅ IMMEDIATE FIX: Categorize error and provide user-friendly message
+      const errorCategory = this._categorizeError(error);
+      const userMessage = this._getUserFriendlyMessage(errorCategory, error);
+      
+      this.logger.error('Web scraping failed', {
+        execution_id: execution?.id,
+        error_category: errorCategory,
+        error_message: error.message,
+        error_code: error.code
+      });
+      
+      return { 
+        success: false, 
+        error: userMessage,
+        errorCategory,
+        technicalError: error.message
+      };
     }
   }
 
@@ -1100,6 +1397,24 @@ class WorkflowExecutor {
 
   async executeFormSubmitAction(config, inputData, execution) {
     try {
+      // ✅ IMMEDIATE FIX: Health check before execution
+      const healthCheck = await this._checkAutomationServiceHealth();
+      if (!healthCheck.healthy) {
+        const errorCategory = healthCheck.error || 'AUTOMATION_SERVICE_UNAVAILABLE';
+        const userMessage = this._getUserFriendlyMessage(errorCategory, { message: healthCheck.message });
+        this.logger.error('Automation service health check failed', {
+          execution_id: execution?.id,
+          error_category: errorCategory,
+          message: healthCheck.message
+        });
+        return { 
+          success: false, 
+          error: userMessage,
+          errorCategory,
+          technicalError: healthCheck.message
+        };
+      }
+      
       const { url, form_data, selectors, wait_after_submit = 3 } = config;
       
       if (!url) {
@@ -1160,12 +1475,46 @@ class WorkflowExecutor {
       };
       
     } catch (error) {
-      return { success: false, error: `Form submission failed: ${error.message}` };
+      // ✅ IMMEDIATE FIX: Categorize error and provide user-friendly message
+      const errorCategory = this._categorizeError(error);
+      const userMessage = this._getUserFriendlyMessage(errorCategory, error);
+      
+      this.logger.error('Form submission failed', {
+        execution_id: execution?.id,
+        error_category: errorCategory,
+        error_message: error.message,
+        error_code: error.code
+      });
+      
+      return { 
+        success: false, 
+        error: userMessage,
+        errorCategory,
+        technicalError: error.message
+      };
     }
   }
 
   async executeInvoiceOcrAction(config, inputData, execution) {
     try {
+      // ✅ IMMEDIATE FIX: Health check before execution
+      const healthCheck = await this._checkAutomationServiceHealth();
+      if (!healthCheck.healthy) {
+        const errorCategory = healthCheck.error || 'AUTOMATION_SERVICE_UNAVAILABLE';
+        const userMessage = this._getUserFriendlyMessage(errorCategory, { message: healthCheck.message });
+        this.logger.error('Automation service health check failed', {
+          execution_id: execution?.id,
+          error_category: errorCategory,
+          message: healthCheck.message
+        });
+        return { 
+          success: false, 
+          error: userMessage,
+          errorCategory,
+          technicalError: healthCheck.message
+        };
+      }
+      
       const { 
         file_source,        // 'url', 'file_path', or 'input_data_field'
         file_url,          // Direct URL to invoice file
@@ -1274,7 +1623,23 @@ class WorkflowExecutor {
       };
       
     } catch (error) {
-      return { success: false, error: `Invoice OCR failed: ${error.message}` };
+      // ✅ IMMEDIATE FIX: Categorize error and provide user-friendly message
+      const errorCategory = this._categorizeError(error);
+      const userMessage = this._getUserFriendlyMessage(errorCategory, error);
+      
+      this.logger.error('Invoice OCR failed', {
+        execution_id: execution?.id,
+        error_category: errorCategory,
+        error_message: error.message,
+        error_code: error.code
+      });
+      
+      return { 
+        success: false, 
+        error: userMessage,
+        errorCategory,
+        technicalError: error.message
+      };
     }
   }
 
@@ -1383,6 +1748,13 @@ class WorkflowExecutor {
   async completeExecution(executionId, outputData, stepsExecuted, startTime) {
     const duration = Math.floor((Date.now() - startTime) / 1000);
     
+    // Get execution details for metrics
+    const { data: execution } = await this.supabase
+      .from('workflow_executions')
+      .select('workflow_id, user_id, triggered_by, steps_total')
+      .eq('id', executionId)
+      .single();
+    
     const { error } = await this.supabase
       .from('workflow_executions')
       .update({
@@ -1398,25 +1770,94 @@ class WorkflowExecutor {
       logger.error('Failed to complete execution:', error);
     }
     
+    // ✅ PHASE 3: Record metrics
+    if (execution) {
+      try {
+        const { WorkflowMetricsService } = require('./workflowMetrics');
+        const metricsService = new WorkflowMetricsService();
+        await metricsService.recordExecution({
+          id: executionId,
+          workflow_id: execution.workflow_id,
+          user_id: execution.user_id,
+          status: 'completed',
+          duration_seconds: duration,
+          steps_executed: stepsExecuted,
+          steps_total: execution.steps_total || stepsExecuted,
+          triggered_by: execution.triggered_by || 'manual'
+        });
+      } catch (metricsError) {
+        // Don't fail execution if metrics fail
+        logger.warn('Failed to record execution metrics', { error: metricsError.message });
+      }
+    }
+    
     logger.info(`[WorkflowExecutor] Execution ${executionId} completed in ${duration}s`);
   }
 
-  async failExecution(executionId, errorMessage, errorStepId = null) {
+  async failExecution(executionId, errorMessage, errorStepId = null, errorCategory = null) {
+    // Get execution details for metrics
+    const { data: execution } = await this.supabase
+      .from('workflow_executions')
+      .select('workflow_id, user_id, triggered_by, steps_total, started_at')
+      .eq('id', executionId)
+      .single();
+    
+    const updateData = {
+      status: 'failed',
+      completed_at: new Date().toISOString(),
+      error_message: errorMessage,
+      error_step_id: errorStepId
+    };
+    
+    // Calculate duration if started_at exists
+    if (execution?.started_at) {
+      try {
+        const duration = Math.floor((Date.now() - new Date(execution.started_at).getTime()) / 1000);
+        updateData.duration_seconds = duration;
+      } catch (_) {}
+    }
+    
+    // Store error category if provided for analytics
+    if (errorCategory) {
+      updateData.metadata = JSON.stringify({ error_category: errorCategory });
+    }
+    
     const { error } = await this.supabase
       .from('workflow_executions')
-      .update({
-        status: 'failed',
-        completed_at: new Date().toISOString(),
-        error_message: errorMessage,
-        error_step_id: errorStepId
-      })
+      .update(updateData)
       .eq('id', executionId);
       
     if (error) {
       logger.error('Failed to update execution status:', error);
     }
     
-    logger.error(`[WorkflowExecutor] Execution ${executionId} failed: ${errorMessage}`);
+    // ✅ PHASE 3: Record metrics
+    if (execution) {
+      try {
+        const { WorkflowMetricsService } = require('./workflowMetrics');
+        const metricsService = new WorkflowMetricsService();
+        await metricsService.recordExecution({
+          id: executionId,
+          workflow_id: execution.workflow_id,
+          user_id: execution.user_id,
+          status: 'failed',
+          error_category: errorCategory,
+          duration_seconds: updateData.duration_seconds,
+          steps_executed: 0,
+          steps_total: execution.steps_total || 0,
+          triggered_by: execution.triggered_by || 'manual'
+        });
+      } catch (metricsError) {
+        // Don't fail execution if metrics fail
+        logger.warn('Failed to record execution metrics', { error: metricsError.message });
+      }
+    }
+    
+    logger.error(`[WorkflowExecutor] Execution ${executionId} failed: ${errorMessage}`, {
+      execution_id: executionId,
+      error_category: errorCategory,
+      error_step_id: errorStepId
+    });
   }
 
   getNestedValue(obj, path) {

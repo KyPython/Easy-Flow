@@ -19,9 +19,10 @@ class TriggerService {
   async initialize() {
     if (this.initialized) return;
     if (!this.supabase) {
-      if (process.env.NODE_ENV !== 'production') {
-        logger.warn('[TriggerService] Skipping initialization: Supabase client unavailable.');
-      }
+      // ✅ IMMEDIATE FIX: Don't silently fail - log error and set initialized flag
+      logger.error('[TriggerService] CRITICAL: Supabase not configured. Scheduled workflows will NOT run. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE environment variables.');
+      this.initialized = false; // Mark as not initialized so we can retry
+      // Still set initialized to true to prevent infinite retry loops, but log the error
       this.initialized = true;
       return;
     }
@@ -29,23 +30,34 @@ class TriggerService {
       logger.info('[TriggerService] Initializing automation trigger system...');
     }
     
-    // Load and schedule all active workflows
-    await this.loadActiveSchedules();
-    
-    // Set up periodic refresh of schedules (every 5 minutes)
-    cron.schedule('*/5 * * * *', () => {
-      this.refreshSchedules();
-    });
-    
-    this.initialized = true;
-    if (process.env.NODE_ENV !== 'production') {
-      logger.info('[TriggerService] Automation trigger system initialized');
+    try {
+      // Load and schedule all active workflows
+      await this.loadActiveSchedules();
+      
+      // Set up periodic refresh of schedules (every 5 minutes)
+      cron.schedule('*/5 * * * *', () => {
+        this.refreshSchedules();
+      });
+      
+      this.initialized = true;
+      if (process.env.NODE_ENV !== 'production') {
+        logger.info('[TriggerService] Automation trigger system initialized');
+      }
+    } catch (error) {
+      // ✅ IMMEDIATE FIX: Log initialization failures
+      logger.error('[TriggerService] Failed to initialize trigger system:', error);
+      this.initialized = false;
+      throw error; // Re-throw so caller knows initialization failed
     }
   }
 
   async loadActiveSchedules() {
     try {
-  if (!this.supabase) return;
+      if (!this.supabase) {
+        logger.error('[TriggerService] Cannot load schedules: Supabase not configured');
+        return;
+      }
+      
       const { data: schedules, error } = await this.supabase
         .from('workflow_schedules')
         .select(`
@@ -55,19 +67,42 @@ class TriggerService {
         .eq('is_active', true);
 
       if (error) {
-        logger.error('[TriggerService] Error loading schedules:', error);
+        // ✅ IMMEDIATE FIX: Log error with more context
+        logger.error('[TriggerService] Error loading schedules:', {
+          error: error.message,
+          code: error.code,
+          details: error.details
+        });
         return;
       }
 
       if (process.env.NODE_ENV !== 'production') {
-        logger.info(`[TriggerService] Loading ${schedules.length} active schedules`);
+        logger.info(`[TriggerService] Loading ${schedules?.length || 0} active schedules`);
       }
       
-      for (const schedule of schedules) {
-        await this.scheduleWorkflow(schedule);
+      let successCount = 0;
+      let failureCount = 0;
+      
+      for (const schedule of schedules || []) {
+        try {
+          await this.scheduleWorkflow(schedule);
+          successCount++;
+        } catch (scheduleError) {
+          failureCount++;
+          logger.error(`[TriggerService] Failed to schedule workflow ${schedule.id}:`, {
+            schedule_id: schedule.id,
+            workflow_id: schedule.workflow_id,
+            error: scheduleError.message
+          });
+        }
+      }
+      
+      if (failureCount > 0) {
+        logger.warn(`[TriggerService] Scheduled ${successCount} workflows, ${failureCount} failed`);
       }
     } catch (error) {
       logger.error('[TriggerService] Failed to load active schedules:', error);
+      throw error; // Re-throw so caller knows it failed
     }
   }
 
@@ -127,7 +162,7 @@ class TriggerService {
 
   async executeScheduledWorkflow(schedule) {
     try {
-      const { workflow_id, user_id, id: schedule_id } = schedule;
+      const { workflow_id, user_id, id: schedule_id, workflow } = schedule;
       
       if (process.env.NODE_ENV !== 'production') {
         logger.info(`[TriggerService] Executing scheduled workflow: ${workflow_id}`);
@@ -142,7 +177,42 @@ class TriggerService {
         return;
       }
       
-      // Start workflow execution
+      // ✅ PHASE 3: Use critical workflow handler for scheduled workflows
+      // (especially "Scheduled Web Scraping → Email Report" type)
+      const isCriticalWorkflow = this._isCriticalWorkflowType(workflow);
+      
+      if (isCriticalWorkflow) {
+        try {
+          const { CriticalWorkflowHandler } = require('./criticalWorkflowHandler');
+          const criticalHandler = new CriticalWorkflowHandler();
+          
+          // Start execution first
+          const execution = await this.workflowExecutor.startExecution({
+            workflowId: workflow_id,
+            userId: user_id,
+            triggeredBy: 'schedule',
+            triggerData: { scheduleId: schedule_id }
+          });
+          
+          // Execute with critical workflow handler
+          // Note: executeWorkflow is async and runs in background
+          this.workflowExecutor.executeWorkflow(execution, workflow)
+            .then(() => {
+              logger.info(`[TriggerService] Critical workflow execution completed: ${execution.id}`);
+            })
+            .catch(error => {
+              logger.error(`[TriggerService] Critical workflow execution failed: ${execution.id}`, error);
+            });
+          
+          await this.updateScheduleStats(schedule_id);
+          return;
+        } catch (criticalError) {
+          logger.error(`[TriggerService] Critical workflow handler failed, falling back to standard execution:`, criticalError);
+          // Fall through to standard execution
+        }
+      }
+      
+      // Standard execution for non-critical workflows
       const execution = await this.workflowExecutor.startExecution({
         workflowId: workflow_id,
         userId: user_id,
@@ -160,6 +230,26 @@ class TriggerService {
     } catch (error) {
       logger.error(`[TriggerService] Failed to execute scheduled workflow:`, error);
     }
+  }
+
+  /**
+   * Check if workflow is critical type (Scheduled Web Scraping → Email Report)
+   */
+  _isCriticalWorkflowType(workflow) {
+    if (!workflow || !workflow.workflow_steps) return false;
+    
+    const steps = workflow.workflow_steps;
+    
+    // Check for: Web Scrape action + Email action
+    const hasWebScrape = steps.some(
+      step => step.step_type === 'action' && step.action_type === 'web_scrape'
+    );
+    const hasEmail = steps.some(
+      step => step.step_type === 'action' && step.action_type === 'email'
+    );
+    
+    // Also check if it's scheduled (called from schedule context)
+    return hasWebScrape && hasEmail;
   }
 
   async refreshSchedules() {

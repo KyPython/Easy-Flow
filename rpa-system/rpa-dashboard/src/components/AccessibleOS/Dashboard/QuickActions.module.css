@@ -1,0 +1,12 @@
+.quickActions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+@media (max-width: 640px) {
+  .quickActions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}

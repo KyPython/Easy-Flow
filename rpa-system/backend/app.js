@@ -123,24 +123,40 @@ if (process.env.NODE_ENV !== 'production') {
 
 const corsOptions = {
   origin: (origin, cb) => {
-    // Allow non-browser requests (no Origin header)
-    if (!origin) return cb(null, true);
+    // For non-browser requests (no Origin header), still return a specific origin
+    // to avoid wildcard issues when credentials are enabled
+    if (!origin) {
+      // In development, default to localhost:3000 for server-to-server requests
+      if (process.env.NODE_ENV !== 'production') {
+        return cb(null, 'http://localhost:3000');
+      }
+      // In production, reject requests without origin for security
+      return cb(new Error('CORS: Origin header required'));
+    }
 
-    // Exact allow-list
-    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    // Exact allow-list - return the origin string (not true) when credentials are enabled
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      // Return the origin string explicitly to avoid wildcard issues with credentials
+      return cb(null, origin);
+    }
 
     // Suffix-based allow (e.g., preview deployments like *.vercel.app)
-    if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) return cb(null, true);
+    if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) {
+      return cb(null, origin);
+    }
 
     // As a last resort in dev, be permissive when not explicitly configured
-    if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== 'production') return cb(null, true);
+    // But still return the origin string, not true, to work with credentials
+    if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== 'production') {
+      return cb(null, origin);
+    }
 
     rootLogger.warn('🚫 CORS blocked origin (app.js):', origin);
     return cb(new Error('CORS: origin not allowed'));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'x-request-id', 'x-trace-id', 'traceparent', 'apikey'],
+  credentials: true, // CRITICAL: Must be true to allow cookies/credentials
   optionsSuccessStatus: 204,
   exposedHeaders: ['Content-Disposition'],
 };
@@ -359,6 +375,15 @@ const automationLimiter = rateLimit({
   // Allow local OTLP collector in development
   if (process.env.NODE_ENV !== 'production') {
     if (!directives.connectSrc.includes('http://localhost:4318')) directives.connectSrc.push('http://localhost:4318');
+    // Allow localhost scripts and connections for development
+    if (!directives.scriptSrc.includes('http://localhost:3000')) directives.scriptSrc.push('http://localhost:3000');
+    if (!directives.scriptSrc.includes('http://localhost:3030')) directives.scriptSrc.push('http://localhost:3030');
+    if (!directives.scriptSrc.includes('http://127.0.0.1:3000')) directives.scriptSrc.push('http://127.0.0.1:3000');
+    if (!directives.scriptSrc.includes('http://127.0.0.1:3030')) directives.scriptSrc.push('http://127.0.0.1:3030');
+    if (!directives.connectSrc.includes('http://localhost:3000')) directives.connectSrc.push('http://localhost:3000');
+    if (!directives.connectSrc.includes('http://localhost:3030')) directives.connectSrc.push('http://localhost:3030');
+    if (!directives.connectSrc.includes('http://127.0.0.1:3000')) directives.connectSrc.push('http://127.0.0.1:3000');
+    if (!directives.connectSrc.includes('http://127.0.0.1:3030')) directives.connectSrc.push('http://127.0.0.1:3030');
   }
 
   // Add OTLP exporter origin if provided
@@ -387,7 +412,11 @@ const automationLimiter = rateLimit({
       camera: [],
       microphone: [],
       geolocation: []
-    }
+    },
+    // CRITICAL: Disable Helmet's CORS handling - we handle it explicitly with cors() middleware
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
   }));
 })();
 
@@ -831,8 +860,18 @@ try {
   const executionRoutes = require('./routes/executionRoutes');
   // ✅ INSTRUCTION 1: Apply context logger middleware after auth
   app.use('/api/executions', authMiddleware, contextLoggerMiddleware, apiLimiter, executionRoutes);
+  rootLogger.info('✓ Execution routes mounted at /api/executions');
 } catch (e) {
   rootLogger.warn('executionRoutes not mounted', { error: e?.message || e });
+}
+
+// ✅ PHASE 3: Workflow recovery routes
+try {
+  const recoveryRoutes = require('./routes/workflowRecoveryRoutes');
+  app.use('/api/workflows', authMiddleware, contextLoggerMiddleware, apiLimiter, recoveryRoutes);
+  rootLogger.info('✓ Workflow recovery routes mounted at /api/workflows');
+} catch (e) {
+  rootLogger.warn('workflowRecoveryRoutes not mounted', { error: e?.message || e });
 }
 
 // Audit logs routes
@@ -865,6 +904,15 @@ try {
   app.use('/api/workflows', authMiddleware, contextLoggerMiddleware, apiLimiter, workflowVersioningRoutes);
 } catch (e) {
   rootLogger.warn('workflowVersioningRoutes not mounted', { error: e?.message || e });
+}
+
+// AccessibleOS Task Management routes (merged from AccessibleOS)
+try {
+  const accessibleOSTasksRoutes = require('./routes/accessibleOSTasks');
+  app.use('/api/accessibleos/tasks', authMiddleware, contextLoggerMiddleware, apiLimiter, accessibleOSTasksRoutes);
+  rootLogger.info('✓ AccessibleOS tasks routes mounted at /api/accessibleos/tasks');
+} catch (e) {
+  rootLogger.warn('accessibleOSTasksRoutes not mounted', { error: e?.message || e });
 }
 
 // Start a workflow execution
@@ -1230,7 +1278,11 @@ app.get('/api/auth/session', async (req, res) => {
     res.status(401).json({ error: 'No valid session' });
   } catch (error) {
     logger.error('Session check error:', error);
-    res.status(500).json({ error: 'Session check failed' });
+    // Always return JSON, never HTML
+    res.status(500).json({ 
+      error: 'Session check failed',
+      message: process.env.NODE_ENV === 'production' ? undefined : error.message
+    });
   }
 });
 
@@ -1510,7 +1562,32 @@ async function queueTaskRun(runId, taskData) {
     // Get the automation worker URL from environment
     const automationUrl = process.env.AUTOMATION_URL;
     if (!automationUrl) {
-      throw new Error('AUTOMATION_URL environment variable is required');
+      const errorMessage = 'Automation service is not configured. Please contact support to enable this feature.';
+      logger.error(`[queueTaskRun] ${errorMessage}`);
+      throw new Error(errorMessage);
+    }
+    
+    // ✅ IMMEDIATE FIX: Health check before execution
+    try {
+      let normalizedUrl = automationUrl.trim();
+      if (!/^https?:\/\//i.test(normalizedUrl)) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+      
+      // Quick health check
+      const axios = require('axios');
+      await axios.get(`${normalizedUrl}/health`, { timeout: 5000 }).catch(() => {
+        // Try root endpoint if /health doesn't exist
+        return axios.get(normalizedUrl, { timeout: 5000, validateStatus: () => true });
+      });
+    } catch (healthError) {
+      const errorMessage = 'Automation service is temporarily unavailable. Please try again in a few minutes. If the problem persists, contact support.';
+      logger.error(`[queueTaskRun] Automation service health check failed:`, {
+        error: healthError.message,
+        code: healthError.code,
+        automation_url: automationUrl
+      });
+      throw new Error(errorMessage);
     }
     
     // Prepare the payload for the automation worker
@@ -2497,11 +2574,13 @@ app.get('/api/schedules', authMiddleware, requireFeature('scheduled_automations'
 // Track arbitrary marketing/product events server-side
 app.post('/api/track-event', async (req, res) => {
   try {
-    const { user_id, event_name, properties, utm } = req.body || {};
-    if (!event_name) return res.status(400).json({ error: 'event_name is required' });
+    // Support both 'event_name' and 'event' for backward compatibility
+    const { user_id, event_name, event, properties, utm } = req.body || {};
+    const finalEventName = event_name || event;
+    if (!finalEventName) return res.status(400).json({ error: 'event_name or event is required' });
 
     if (supabase) {
-      await supabase.from('marketing_events').insert([{ user_id: user_id || null, event_name, properties: properties || {}, utm: utm || {}, created_at: new Date().toISOString() }]);
+      await supabase.from('marketing_events').insert([{ user_id: user_id || null, event_name: finalEventName, properties: properties || {}, utm: utm || {}, created_at: new Date().toISOString() }]);
     }
 
     // Optionally forward to external analytics asynchronously
@@ -2510,7 +2589,7 @@ app.post('/api/track-event', async (req, res) => {
         if (process.env.MIXPANEL_TOKEN && process.env.NODE_ENV !== 'test') {
           // Basic Mixpanel HTTP ingestion (lite) - non-blocking
           const mp = {
-            event: event_name,
+            event: finalEventName,
             properties: Object.assign({ token: process.env.MIXPANEL_TOKEN, distinct_id: user_id || null, time: Math.floor(Date.now() / 1000) }, properties || {}, { utm: utm || {} }),
           };
           await axios.post('https://api.mixpanel.com/track', { data: Buffer.from(JSON.stringify([mp])).toString('base64') }, { timeout: 3000 });
@@ -2523,6 +2602,79 @@ app.post('/api/track-event', async (req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     logger.error('[POST /api/track-event] error', e?.message || e);
+    return res.status(500).json({ error: 'internal' });
+  }
+});
+
+// Batch tracking endpoint - handles multiple events in a single request
+app.post('/api/track-event/batch', async (req, res) => {
+  try {
+    const { events } = req.body || {};
+    if (!events || !Array.isArray(events) || events.length === 0) {
+      return res.status(400).json({ error: 'events array is required' });
+    }
+
+    // Process events in parallel
+    const eventPromises = events.map(async (eventData) => {
+      // Support both 'event_name' and 'event' for backward compatibility
+      const { user_id, event_name, event, properties, utm } = eventData || {};
+      const finalEventName = event_name || event;
+      if (!finalEventName) {
+        logger.warn('[track-event/batch] Skipping event without event_name:', eventData);
+        return null;
+      }
+
+      try {
+        if (supabase) {
+          await supabase.from('marketing_events').insert([{ 
+            user_id: user_id || null, 
+            event_name: finalEventName, 
+            properties: properties || {}, 
+            utm: utm || {}, 
+            created_at: new Date().toISOString() 
+          }]);
+        }
+
+        // Optionally forward to external analytics asynchronously
+        if (process.env.MIXPANEL_TOKEN && process.env.NODE_ENV !== 'test') {
+          (async () => {
+            try {
+              const mp = {
+                event: finalEventName,
+                properties: Object.assign({ 
+                  token: process.env.MIXPANEL_TOKEN, 
+                  distinct_id: user_id || null, 
+                  time: Math.floor(Date.now() / 1000) 
+                }, properties || {}, { utm: utm || {} }),
+              };
+              await axios.post('https://api.mixpanel.com/track', { 
+                data: Buffer.from(JSON.stringify([mp])).toString('base64') 
+              }, { timeout: 3000 });
+            } catch (e) {
+              logger.warn('[track-event/batch] Mixpanel forward failed', e?.message || e);
+            }
+          })();
+        }
+
+        return { success: true, event_name: finalEventName };
+      } catch (e) {
+        logger.warn('[track-event/batch] Failed to process event:', e?.message || e);
+        return { success: false, event_name: finalEventName, error: e?.message };
+      }
+    });
+
+    const results = await Promise.allSettled(eventPromises);
+    const successful = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+    const failed = results.length - successful;
+
+    return res.json({ 
+      ok: true, 
+      processed: results.length,
+      successful,
+      failed 
+    });
+  } catch (e) {
+    logger.error('[POST /api/track-event/batch] error', e?.message || e);
     return res.status(500).json({ error: 'internal' });
   }
 });
@@ -2998,9 +3150,24 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
         });
 
         if (!discoveryResult.success || !discoveryResult.discoveredLinks?.length) {
+          // Check if this is a known test site (which typically don't have PDFs)
+          const testSitePatterns = [
+            'jsonplaceholder.typicode.com',
+            'httpbin.org',
+            'reqres.in'
+          ];
+          const isTestSite = testSitePatterns.some(pattern => url.includes(pattern));
+          
+          const errorMessage = isTestSite
+            ? 'No PDF download links found. Test sites (like JSON Placeholder, HttpBin, ReqRes) typically don\'t contain PDF files. Try using a real website that has PDF downloads, or provide a direct PDF URL instead.'
+            : 'Link discovery failed to find any downloadable PDF links. Please verify your credentials and discovery settings, or try using a different discovery method.';
+          
           return res.status(400).json({
             error: 'No PDF download links found',
-            details: 'Link discovery failed to find any downloadable PDF links. Please verify your credentials and discovery settings.'
+            details: errorMessage,
+            suggestion: isTestSite 
+              ? 'For testing, you can provide a direct PDF URL in the "PDF URL" field instead of using link discovery.'
+              : 'Try adjusting your discovery method or verify that the website actually contains PDF download links.'
           });
         }
 
@@ -3718,7 +3885,27 @@ const adminAuthMiddleware = (req, res, next) => {
 // Firebase custom token endpoint
 app.post('/api/firebase/token', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
+    
+    // Validate userId before proceeding
+    if (!userId || typeof userId !== 'string' || userId.length === 0) {
+      logger.error('🔥 Invalid user ID for Firebase token generation:', { userId, type: typeof userId });
+      return res.status(400).json({
+        error: 'Invalid user ID',
+        code: 'INVALID_UID',
+        message: 'User ID must be a non-empty string'
+      });
+    }
+    
+    if (userId.length > 128) {
+      logger.error('🔥 User ID too long for Firebase token:', { userId, length: userId.length });
+      return res.status(400).json({
+        error: 'User ID too long',
+        code: 'UID_TOO_LONG',
+        message: 'User ID must be 128 characters or less'
+      });
+    }
+    
     const { additionalClaims } = req.body || {};
 
     logger.info(`🔥 Generating Firebase custom token for user: ${userId}`);
@@ -3727,11 +3914,11 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
     const result = await firebaseNotificationService.generateCustomToken(userId, additionalClaims);
 
     if (!result.success) {
-      logger.error(`🔥 Failed to generate token for user ${userId}:`, result.error);
+      logger.error(`🔥 Failed to generate token for user ${userId}:`, result.error, { code: result.code });
       return res.status(500).json({
         error: 'Failed to generate Firebase token',
         details: result.error,
-        code: result.code
+        code: result.code || 'TOKEN_GENERATION_FAILED'
       });
     }
 

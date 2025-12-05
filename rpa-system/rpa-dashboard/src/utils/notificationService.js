@@ -195,7 +195,25 @@ class NotificationService {
       return true;
       
     } catch (error) {
-      console.error('🔔 Firebase authentication with custom token failed:', error);
+      // Enhanced error logging for Firebase authentication failures
+      const errorDetails = {
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN',
+        stack: isDev ? error?.stack : undefined,
+        userId: user?.id,
+        email: user?.email
+      };
+      
+      console.error('🔔 Firebase authentication with custom token failed:', errorDetails);
+      
+      // Check for specific error codes that indicate configuration issues
+      if (error?.code === 'auth/request-had-invalid-authentication-credentials') {
+        console.error('🔔 Firebase token validation failed - check backend Firebase Admin configuration and service account credentials');
+      } else if (error?.code === 'auth/invalid-custom-token') {
+        console.error('🔔 Invalid custom token format - check backend token generation logic');
+      } else if (error?.code === 'auth/custom-token-mismatch') {
+        console.error('🔔 Token project mismatch - ensure Firebase project IDs match between frontend and backend');
+      }
       
       // Fallback to application-level authentication
       if (isDev) {

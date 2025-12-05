@@ -1,0 +1,99 @@
+.chartContainer {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-sm);
+}
+
+.chartHeader {
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+
+.chartHeader h3 {
+  margin: 0 0 var(--space-1) 0;
+}
+
+.chartHeader p {
+  margin: 0;
+}
+
+.donutContainer {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-6);
+}
+
+.donutSvg {
+  max-width: 100%;
+  height: auto;
+}
+
+.centerText {
+  font-family: var(--font-family-primary);
+}
+
+.emptyState {
+  text-align: center;
+  padding: var(--space-8);
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-base);
+  transition: background var(--transition-fast);
+}
+
+.legendItem:hover {
+  background: var(--bg-secondary);
+}
+
+.legendColor {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  border: 1px solid var(--border-secondary);
+}
+
+.legendText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+/* High contrast mode adjustments */
+[data-theme="high-contrast"] .chartContainer {
+  border: 2px solid var(--border-primary);
+}
+
+[data-theme="high-contrast"] .legendColor {
+  border: 2px solid var(--border-primary);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .chartContainer {
+    padding: var(--space-4);
+  }
+  
+  .donutContainer {
+    margin-bottom: var(--space-4);
+  }
+  
+  .donutSvg {
+    width: 160px;
+    height: 160px;
+  }
+}

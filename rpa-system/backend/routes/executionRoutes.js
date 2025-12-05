@@ -226,4 +226,71 @@ router.post('/test-link-discovery', requireFeature('workflow_executions'), async
   }
 });
 
+// ✅ PHASE 3: Analytics endpoints
+const { WorkflowMetricsService } = require('../services/workflowMetrics');
+
+// Get workflow analytics
+router.get('/analytics/summary', requireFeature('workflow_executions'), async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { days = 30, workflowId } = req.query;
+    const metricsService = new WorkflowMetricsService();
+    
+    const analytics = await metricsService.getWorkflowAnalytics(userId, {
+      workflowId: workflowId || null,
+      days: parseInt(days, 10),
+      groupBy: 'day'
+    });
+
+    res.json(analytics);
+  } catch (error) {
+    logger.error('[ExecutionRoutes] Analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// Get error breakdown
+router.get('/analytics/errors', requireFeature('workflow_executions'), async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { days = 30 } = req.query;
+    const metricsService = new WorkflowMetricsService();
+    
+    const breakdown = await metricsService.getErrorBreakdown(userId, parseInt(days, 10));
+
+    res.json({ error_breakdown: breakdown });
+  } catch (error) {
+    logger.error('[ExecutionRoutes] Error breakdown error:', error);
+    res.status(500).json({ error: 'Failed to fetch error breakdown' });
+  }
+});
+
+// Get success rate by workflow
+router.get('/analytics/success-rates', requireFeature('workflow_executions'), async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { days = 30 } = req.query;
+    const metricsService = new WorkflowMetricsService();
+    
+    const successRates = await metricsService.getSuccessRateByWorkflow(userId, parseInt(days, 10));
+
+    res.json({ success_rates: successRates });
+  } catch (error) {
+    logger.error('[ExecutionRoutes] Success rates error:', error);
+    res.status(500).json({ error: 'Failed to fetch success rates' });
+  }
+});
+
 module.exports = router;

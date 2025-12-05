@@ -41,6 +41,11 @@ export const AuthProvider = ({ children }) => {
       const response = await fetchWithAuth('/api/auth/session', {
         credentials: hasCookie ? 'include' : 'omit'
       });
+      
+      // Check if response is OK and has correct content type
+      const contentType = response.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+      
       if (response.status === 401) {
         console.log('[Auth] Backend returned 401, clearing session');
         setUser(null);
@@ -48,6 +53,20 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('dev_token');
         return false;
       }
+      
+      // If response is not JSON, log the actual content for debugging
+      if (!isJson) {
+        const errorText = await response.text();
+        console.error('[Auth] Backend returned non-JSON response:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType: contentType,
+          bodyPreview: errorText.substring(0, 200), // First 200 chars
+          url: '/api/auth/session'
+        });
+        throw new Error(`Backend returned ${response.status} ${response.statusText} with content-type ${contentType}. Backend may be down or returning HTML error page.`);
+      }
+      
       if (response.ok) {
         const sessionData = await response.json();
         if (sessionData.user) {
@@ -55,11 +74,23 @@ export const AuthProvider = ({ children }) => {
           setSession(sessionData);
           return true;
         }
+      } else {
+        // Non-200 status with JSON response
+        const errorData = await response.json().catch(() => ({}));
+        console.warn('[Auth] Backend session check returned error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
       }
     } catch (error) {
       // IMPROVED: Don't clear session on network errors - preserve existing session
       // This prevents sign-out on page refresh when backend is temporarily unreachable
-      console.warn('[Auth] Backend session check failed (network error):', error.message);
+      if (error.message && error.message.includes('JSON')) {
+        console.error('[Auth] Backend session check failed - received HTML instead of JSON. Backend may be down or misconfigured:', error.message);
+      } else {
+        console.warn('[Auth] Backend session check failed (network error):', error.message);
+      }
       console.log('[Auth] Preserving existing session state due to network error');
       // Don't clear user/session - let the existing Supabase session persist
       // Only clear on explicit 401 (handled above)

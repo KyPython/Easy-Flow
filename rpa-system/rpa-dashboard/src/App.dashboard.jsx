@@ -20,6 +20,7 @@ import { AuthProvider, useAuth } from './utils/AuthContext';
 import { ThemeProvider } from './utils/ThemeContext';
 import { LanguageProvider } from './utils/LanguageContext';
 import { SessionProvider } from './contexts/SessionContext';
+import { AccessibilityProvider } from './contexts/AccessibilityContext.tsx';
 import NetworkStatus from './components/NetworkStatus/NetworkStatus'; // Keep eager (small component)
 // FIREBASE INITIALIZATION DEFERRED - was blocking main thread
 // import './utils/firebaseConfig';
@@ -59,6 +60,7 @@ const Chatbot = lazy(() => import('./components/Chatbot/Chatbot'));
 const MilestonePrompt = lazy(() => import('./components/MilestonePrompt/MilestonePrompt'));
 const EmailCaptureModal = lazy(() => import('./components/EmailCaptureModal/EmailCaptureModal'));
 const SessionExpired = lazy(() => import('./components/SessionExpired/SessionExpired'));
+const NotFound = lazy(() => import('./components/NotFound/NotFound'));
 
 // ============================================================================
 // LOADING SKELETON - Shown while lazy-loaded components are loading
@@ -281,7 +283,7 @@ function Shell() {
               <Route path="/app/debug" element={<Protected><UsageDebugPage /></Protected>} />
             )}
 
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </main>
@@ -331,8 +333,10 @@ function App() {
         <SessionProvider>
           <ThemeProvider>
             <LanguageProvider>
-              <AnalyticsTracker />
-              <Shell />
+              <AccessibilityProvider>
+                <AnalyticsTracker />
+                <Shell />
+              </AccessibilityProvider>
             </LanguageProvider>
           </ThemeProvider>
         </SessionProvider>

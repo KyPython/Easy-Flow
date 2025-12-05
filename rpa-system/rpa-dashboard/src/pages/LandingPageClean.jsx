@@ -15,15 +15,15 @@ export default function LandingPageClean() {
               Turn any repetitive computer task into a simple one-click action. No coding required.
             </p>
             <div className={styles.ctaGroup}>
-              <a href="/auth" className={styles.ctaPrimary}>Save 2+ Hours Every Day</a>
-              <a href="/auth" className={styles.ctaSecondary}>Already have an account? Login</a>
+              <Link to="/auth" className={styles.ctaPrimary}>Save 2+ Hours Every Day</Link>
+              <Link to="/auth" className={styles.ctaSecondary}>Already have an account? Login</Link>
             </div>
           </div>
         </div>
 
         <div className={styles.navTopRight}>
-          <a href="/auth" className={styles.navButtonSecondary}>Login</a>
-          <a href="/auth" className={styles.navButtonPrimary}>Sign Up</a>
+          <Link to="/auth" className={styles.navButtonSecondary}>Login</Link>
+          <Link to="/auth" className={styles.navButtonPrimary}>Sign Up</Link>
         </div>
       </div>
 
@@ -57,7 +57,7 @@ export default function LandingPageClean() {
         </div>
 
         <div className={styles.ctaBig}>
-          <a href="/pricing" className={styles.ctaPrimary}>Start Saving Time Today</a>
+          <Link to="/pricing" className={styles.ctaPrimary}>Start Saving Time Today</Link>
         </div>
       </section>
 

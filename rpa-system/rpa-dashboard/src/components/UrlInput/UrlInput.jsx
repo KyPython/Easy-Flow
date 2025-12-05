@@ -3,6 +3,31 @@ import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext';
 import styles from './UrlInput.module.css';
 
+// Test site configurations with predefined credentials
+const demoSites = [
+  { 
+    name: 'HttpBin Test API', 
+    url: 'https://httpbin.org/forms/post',
+    username: 'testuser',
+    password: 'testpass123',
+    description: 'HTTP testing service - no real authentication required'
+  },
+  { 
+    name: 'JSON Placeholder', 
+    url: 'https://jsonplaceholder.typicode.com',
+    username: 'demo@jsonplaceholder.com',
+    password: 'demo123',
+    description: 'Fake REST API for testing - credentials are optional'
+  },
+  { 
+    name: 'ReqRes Test API', 
+    url: 'https://reqres.in',
+    username: 'eve.holt@reqres.in',
+    password: 'cityslicka',
+    description: 'Test API with demo user credentials'
+  },
+];
+
 const UrlInput = ({ onUrlSubmit, onClear }) => {
   const { theme } = useTheme();
   const [url, setUrl] = useState('');
@@ -70,10 +95,19 @@ const UrlInput = ({ onUrlSubmit, onClear }) => {
     setTimeout(() => {
       const siteInfo = detectSiteType(url.trim());
       
+      // Check if this URL matches a test site
+      const testSite = demoSites.find(site => site.url === url.trim());
+      
       onUrlSubmit({
         url: url.trim(),
         siteInfo,
-        suggestions: generateSuggestions(url.trim(), siteInfo)
+        suggestions: generateSuggestions(url.trim(), siteInfo),
+        // Include test site credentials if it's a known test site
+        testSiteConfig: testSite ? {
+          username: testSite.username,
+          password: testSite.password,
+          description: testSite.description
+        } : null
       });
       
       setIsValidating(false);
@@ -119,13 +153,8 @@ const UrlInput = ({ onUrlSubmit, onClear }) => {
   const handleQuickFill = useCallback((demoUrl) => {
     setUrl(demoUrl);
     setError('');
+    // Don't auto-trigger detect & populate - let user click the button
   }, []);
-
-  const demoSites = [
-    { name: 'HttpBin Test API', url: 'https://httpbin.org/forms/post' },
-    { name: 'JSON Placeholder', url: 'https://jsonplaceholder.typicode.com' },
-    { name: 'ReqRes Test API', url: 'https://reqres.in' },
-  ];
 
   return (
     <div className={styles.container}>

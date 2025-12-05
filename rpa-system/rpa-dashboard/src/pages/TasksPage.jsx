@@ -12,14 +12,16 @@ const TasksPage = () => {
   const [targetUrl, setTargetUrl] = useState('');
   const [urlSuggestions, setUrlSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [testSiteConfig, setTestSiteConfig] = useState(null);
 
   const handleTaskSubmit = (completedTask) => {
     // TaskForm handles everything
   };
 
-  const handleUrlSubmit = useCallback(({ url, siteInfo, suggestions }) => {
+  const handleUrlSubmit = useCallback(({ url, siteInfo, suggestions, testSiteConfig: config }) => {
     setTargetUrl(url);
     setUrlSuggestions(suggestions);
+    setTestSiteConfig(config); // Store test site config for form population
     setShowSuggestions(true);
     
     // Auto-hide suggestions after 8 seconds
@@ -30,6 +32,7 @@ const TasksPage = () => {
     setTargetUrl('');
     setUrlSuggestions([]);
     setShowSuggestions(false);
+    setTestSiteConfig(null);
   }, []);
 
   const { t } = useI18n();
@@ -70,6 +73,7 @@ const TasksPage = () => {
         <TaskForm 
           onTaskSubmit={handleTaskSubmit} 
           initialUrl={targetUrl}
+          testSiteConfig={testSiteConfig}
         />
       </div>
       <Chatbot />

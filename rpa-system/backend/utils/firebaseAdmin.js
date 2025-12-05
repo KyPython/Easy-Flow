@@ -573,8 +573,31 @@ class FirebaseNotificationService {
       return { success: false, error: 'Firebase Admin not configured' };
     }
 
-    try {
+    // Validate uid format
+    if (!supabaseUserId || typeof supabaseUserId !== 'string') {
+      logger.error('🔥 Invalid user ID for Firebase token:', { userId: supabaseUserId, type: typeof supabaseUserId });
+      return { success: false, error: 'Invalid user ID: must be a non-empty string', code: 'INVALID_UID' };
+    }
 
+    if (supabaseUserId.length === 0) {
+      logger.error('🔥 Empty user ID for Firebase token');
+      return { success: false, error: 'User ID cannot be empty', code: 'EMPTY_UID' };
+    }
+
+    if (supabaseUserId.length > 128) {
+      logger.error('🔥 User ID too long for Firebase token:', { userId: supabaseUserId, length: supabaseUserId.length });
+      return { success: false, error: 'User ID exceeds 128 character limit', code: 'UID_TOO_LONG' };
+    }
+
+    // Firebase UID must not contain certain reserved characters
+    // Valid characters: letters, numbers, and these: -_@.
+    const invalidChars = /[^a-zA-Z0-9\-_@.]/;
+    if (invalidChars.test(supabaseUserId)) {
+      logger.warn('🔥 User ID contains potentially invalid characters for Firebase:', { userId: supabaseUserId });
+      // Don't fail, but log a warning - Firebase might still accept it
+    }
+
+    try {
       // Create custom claims that include Supabase user ID (do NOT include reserved fields like 'auth_time')
       const claims = {
         supabase_uid: supabaseUserId,

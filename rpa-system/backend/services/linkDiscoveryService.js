@@ -18,6 +18,14 @@ class LinkDiscoveryService {
   }
 
   /**
+   * Helper function to wait for a specified amount of time
+   * Replaces deprecated page.waitForTimeout()
+   */
+  async _wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
    * Main entry point for link discovery
    */
   async discoverPdfLinks({ url, username, password, discoveryMethod, discoveryValue, testMode = false }) {
@@ -27,10 +35,33 @@ class LinkDiscoveryService {
     try {
       logger.info(`[LinkDiscovery] Starting discovery for ${url} using method: ${discoveryMethod}`);
       
-      // Step 1: Navigate and login
-      await this._performLogin(page, { url, username, password });
+      // Step 1: Navigate to the page
+      logger.info(`[LinkDiscovery] Navigating to: ${url}`);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: this.config.TIMEOUT });
       
-      // Step 2: Discover PDF links based on method
+      // Wait for page to be ready
+      await page.waitForFunction(() => document.readyState === 'complete', {
+        timeout: this.config.SELECTOR_TIMEOUT
+      });
+      
+      // Step 2: Attempt login if credentials provided and login form detected
+      if (username && password) {
+        try {
+          await this._performLogin(page, { url, username, password });
+        } catch (loginError) {
+          // If login fails because no form was detected, continue without login
+          if (loginError.message.includes('Could not detect login form')) {
+            logger.info('[LinkDiscovery] No login form detected, proceeding without login');
+          } else {
+            // For other login errors, rethrow
+            throw loginError;
+          }
+        }
+      } else {
+        logger.info('[LinkDiscovery] No credentials provided, skipping login');
+      }
+      
+      // Step 3: Discover PDF links based on method
       let discoveredLinks = [];
       
       switch (discoveryMethod) {
@@ -68,16 +99,7 @@ class LinkDiscoveryService {
    */
   async _performLogin(page, { url, username, password }) {
     try {
-      // Navigate to target URL
-      logger.info(`[LinkDiscovery] Navigating to: ${url}`);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: this.config.TIMEOUT });
-      
-      // Wait for page to be ready
-      await page.waitForFunction(() => document.readyState === 'complete', {
-        timeout: this.config.SELECTOR_TIMEOUT
-      });
-      
-      // Auto-detect login form fields
+      // Auto-detect login form fields (page should already be navigated)
       const loginSelectors = await this._detectLoginSelectors(page);
       
       if (!loginSelectors.username || !loginSelectors.password || !loginSelectors.submit) {
@@ -162,25 +184,71 @@ class LinkDiscoveryService {
         }
       }
       
-      // Find submit button
-      const submitPatterns = [
+      // Find submit button - use standard CSS selectors first
+      const standardSelectors = [
         'button[type="submit"]',
         'input[type="submit"]',
-        'button:contains("Login")',
-        'button:contains("Sign In")',
-        'button:contains("Log In")',
-        '[role="button"]:contains("Login")',
         '.login-button',
         '#login-button',
         '.btn-login',
         '.submit-btn'
       ];
       
-      for (const pattern of submitPatterns) {
+      for (const pattern of standardSelectors) {
         const element = document.querySelector(pattern);
         if (element) {
           selectors.submit = pattern;
           break;
+        }
+      }
+      
+      // If no standard selector found, search by text content using JavaScript
+      if (!selectors.submit) {
+        // Helper function to find button by text content and return a valid CSS selector
+        const findButtonByText = (textVariations) => {
+          const allButtons = Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"]'));
+          
+          for (const button of allButtons) {
+            const buttonText = (button.textContent || button.innerText || button.value || '').trim().toLowerCase();
+            
+            for (const text of textVariations) {
+              if (buttonText.includes(text.toLowerCase())) {
+                // Generate a valid CSS selector for this button
+                if (button.id) {
+                  return `#${CSS.escape(button.id)}`;
+                } else if (button.className && typeof button.className === 'string' && button.className.trim()) {
+                  // Use first class name (escape special characters)
+                  const firstClass = button.className.trim().split(/\s+/)[0];
+                  return `.${CSS.escape(firstClass)}`;
+                } else if (button.name) {
+                  // Use name attribute if available
+                  return `${button.tagName.toLowerCase()}[name="${CSS.escape(button.name)}"]`;
+                } else if (button.type === 'submit') {
+                  // Use type attribute
+                  return `${button.tagName.toLowerCase()}[type="submit"]`;
+                } else {
+                  // Last resort: use data attribute or create a unique identifier
+                  // Try to find a parent form and use button position
+                  const form = button.closest('form');
+                  if (form) {
+                    const buttonsInForm = Array.from(form.querySelectorAll('button, input[type="submit"], input[type="button"]'));
+                    const index = buttonsInForm.indexOf(button);
+                    if (index === 0 && buttonsInForm.length === 1) {
+                      // Only one button in form, use form selector
+                      return 'form button, form input[type="submit"]';
+                    }
+                  }
+                }
+              }
+            }
+          }
+          return null;
+        };
+        
+        // Try to find login-related buttons by text
+        const loginButtonSelector = findButtonByText(['login', 'sign in', 'log in', 'signin']);
+        if (loginButtonSelector) {
+          selectors.submit = loginButtonSelector;
         }
       }
       
@@ -192,8 +260,10 @@ class LinkDiscoveryService {
           if (button) {
             if (button.id) {
               selectors.submit = `#${button.id}`;
-            } else if (button.className) {
-              selectors.submit = `.${button.className.split(' ')[0]}`;
+            } else if (button.className && button.className.trim()) {
+              selectors.submit = `.${button.className.trim().split(/\s+/)[0]}`;
+            } else if (button.type === 'submit') {
+              selectors.submit = 'input[type="submit"]';
             }
           }
         }
@@ -211,7 +281,7 @@ class LinkDiscoveryService {
       logger.info(`[LinkDiscovery] Using CSS selector: ${cssSelector}`);
       
       // Wait for elements to be available
-      await page.waitForTimeout(2000);
+      await this._wait(2000);
       
       const links = await page.evaluate((selector) => {
         const elements = document.querySelectorAll(selector);
@@ -264,7 +334,7 @@ class LinkDiscoveryService {
     try {
       logger.info(`[LinkDiscovery] Searching for links containing: "${linkText}"`);
       
-      await page.waitForTimeout(2000);
+      await this._wait(2000);
       
       const links = await page.evaluate((searchText) => {
         const results = [];
@@ -323,7 +393,7 @@ class LinkDiscoveryService {
     try {
       logger.info('[LinkDiscovery] Auto-detecting PDF links...');
       
-      await page.waitForTimeout(2000);
+      await this._wait(2000);
       
       const links = await page.evaluate(() => {
         const results = [];

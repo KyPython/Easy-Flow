@@ -100,23 +100,60 @@ async function handleItem(item) {
   try {
     logger.info('[email_worker] processing', item.id, item.to_email, item.template);
     let sent = false;
+    let lastError = null;
+    
     if (SEND_EMAIL_WEBHOOK) {
-      try {
-        const secret = process.env.SEND_EMAIL_WEBHOOK_SECRET;
-        const headers = { 'Content-Type': 'application/json' };
-        if (secret) {
-          headers['Authorization'] = `Bearer ${secret}`;
-        }
+      // ✅ FIX: Add retry logic with exponential backoff
+      const maxRetries = 3;
+      const baseDelay = 1000; // 1 second
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const secret = process.env.SEND_EMAIL_WEBHOOK_SECRET;
+          const headers = { 'Content-Type': 'application/json' };
+          if (secret) {
+            headers['Authorization'] = `Bearer ${secret}`;
+          }
 
-        await axios.post(
-          SEND_EMAIL_WEBHOOK,
-          { to_email: item.to_email, template: item.template, data: item.data },
-          { timeout: 15000, headers }
-        );
-        sent = true;
-      } catch (e) {
-        logger.warn('[email_worker] webhook send failed', e?.message || e);
-        sent = false;
+          await axios.post(
+            SEND_EMAIL_WEBHOOK,
+            { to_email: item.to_email, template: item.template, data: item.data },
+            { 
+              // Add retry-specific timeout - longer on later attempts
+              timeout: attempt === 1 ? 15000 : 20000,
+              headers
+            }
+          );
+          sent = true;
+          lastError = null;
+          break; // Success - exit retry loop
+        } catch (e) {
+          lastError = e;
+          const isRetryable = e.code === 'ECONNRESET' || 
+                             e.code === 'ETIMEDOUT' || 
+                             e.code === 'ENOTFOUND' ||
+                             (e.response && e.response.status >= 500) ||
+                             (e.response && e.response.status === 429);
+          
+          if (!isRetryable || attempt === maxRetries) {
+            // Not retryable or max retries reached
+            logger.warn(`[email_worker] webhook send failed (attempt ${attempt}/${maxRetries})`, {
+              error: e?.message || e,
+              code: e?.code,
+              status: e?.response?.status,
+              retryable: isRetryable && attempt < maxRetries
+            });
+            break;
+          }
+          
+          // Calculate exponential backoff delay
+          const delay = baseDelay * Math.pow(2, attempt - 1);
+          logger.info(`[email_worker] Retrying email send (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`, {
+            error: e?.message,
+            code: e?.code
+          });
+          await sleep(delay);
+        }
       }
     } else {
       // Development fallback: write to logs (or integrate with nodemailer)
@@ -143,16 +180,51 @@ async function handleItem(item) {
       return true;
     } else {
       const attempts = (item.attempts || 0) + 1;
-      const last_error = 'send failed';
+      // ✅ FIX: Better error message with details
+      const last_error = lastError 
+        ? `Send failed: ${lastError.message || lastError} (code: ${lastError.code || 'unknown'})`
+        : 'Send failed: Unknown error';
       const status = attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
       const client = getSupabase();
       if (!client) return false;
+      
+      // ✅ FIX: Store error details for debugging
+      const updateData = { 
+        attempts, 
+        last_error, 
+        status,
+        last_attempted_at: new Date().toISOString()
+      };
+      
+      // Store full error details in metadata if available
+      if (lastError) {
+        try {
+          updateData.metadata = JSON.stringify({
+            error_message: lastError.message,
+            error_code: lastError.code,
+            error_status: lastError.response?.status,
+            retry_count: attempts
+          });
+        } catch (metaErr) {
+          // Ignore metadata serialization errors
+        }
+      }
+      
       const { data: failData, error: failErr } = await client
         .from('email_queue')
-        .update({ attempts, last_error, status })
+        .update(updateData)
         .eq('id', item.id)
         .select('*');
-      if (failErr) logger.warn('[email_worker] failed to persist failure state', failErr.message || failErr);
+      if (failErr) {
+        logger.warn('[email_worker] failed to persist failure state', failErr.message || failErr);
+      } else if (status === 'failed') {
+        logger.error('[email_worker] Email permanently failed after max attempts', {
+          email_id: item.id,
+          to_email: item.to_email,
+          attempts,
+          last_error
+        });
+      }
       return false;
     }
   } catch (e) {

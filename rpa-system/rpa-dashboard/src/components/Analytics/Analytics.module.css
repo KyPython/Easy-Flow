@@ -1,0 +1,166 @@
+.analytics {
+  padding: var(--space-6);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: var(--space-8);
+}
+
+.header h2 {
+  margin: 0 0 var(--space-2) 0;
+}
+
+.header p {
+  margin: 0;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
+  color: var(--text-secondary);
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-secondary);
+  border-top: 2px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.metricCard {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.metricCard:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.metricIcon {
+  padding: var(--space-3);
+  border-radius: var(--radius-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.metricCard.primary .metricIcon {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.metricCard.success .metricIcon {
+  background: var(--color-success-light);
+  color: var(--color-success-dark);
+}
+
+.metricCard.info .metricIcon {
+  background: var(--color-accent-light);
+  color: var(--color-accent-dark);
+}
+
+.metricCard.warning .metricIcon {
+  background: var(--color-warning-light);
+  color: var(--color-warning-dark);
+}
+
+.metricContent {
+  flex: 1;
+}
+
+.metricContent h3 {
+  margin: 0 0 var(--space-1) 0;
+  color: var(--text-primary);
+}
+
+.metricContent p {
+  margin: 0;
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
+}
+
+.chartCard {
+  min-height: 300px;
+}
+
+.insightsSection {
+  margin-top: var(--space-8);
+}
+
+/* High contrast mode adjustments */
+[data-theme="high-contrast"] .metricCard {
+  border: 2px solid var(--border-primary);
+}
+
+[data-theme="high-contrast"] .metricCard:hover {
+  transform: none;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .metricCard {
+    transition: none;
+  }
+  
+  .metricCard:hover {
+    transform: none;
+  }
+  
+  .spinner {
+    animation: none;
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .analytics {
+    padding: var(--space-4);
+  }
+  
+  .metricsGrid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-3);
+  }
+  
+  .chartsGrid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+  
+  .chartCard {
+    min-height: 250px;
+  }
+}

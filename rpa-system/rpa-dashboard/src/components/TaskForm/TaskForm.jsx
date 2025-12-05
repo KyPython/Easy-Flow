@@ -28,7 +28,7 @@ const parsedToken = (() => {
 })();
 const accessToken = parsedToken?.access_token || parsedToken;
 
-const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
+const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
   const { warning: showWarning, success: showSuccess } = useToast();
   const { user } = useAuth();
   const { incrementTaskCount } = useUsageTracking(user?.id);
@@ -156,6 +156,35 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl }) => {
       enableBrowserAutofill(formElement, initialUrl);
     }
   }, [initialUrl]);
+
+  // Auto-populate form when URL or test site config changes
+  useEffect(() => {
+    if (initialUrl || testSiteConfig) {
+      setForm(prevForm => {
+        const newUsername = testSiteConfig?.username || prevForm.username;
+        const newPassword = testSiteConfig?.password || prevForm.password;
+        const credentialsChanged = testSiteConfig && (
+          (testSiteConfig.username && testSiteConfig.username !== prevForm.username) ||
+          (testSiteConfig.password && testSiteConfig.password !== prevForm.password)
+        );
+        
+        // Show success message only if credentials were actually populated (changed from empty or different)
+        if (credentialsChanged) {
+          setTimeout(() => {
+            showSuccess(`✅ Form populated with test site credentials: ${testSiteConfig.description || 'Test site'}`);
+          }, 100);
+        }
+        
+        return {
+          ...prevForm,
+          url: initialUrl || prevForm.url,
+          // Auto-populate credentials from test site config
+          username: newUsername,
+          password: newPassword,
+        };
+      });
+    }
+  }, [initialUrl, testSiteConfig, showSuccess]);
 
   // ✅ NEW: Link Discovery Testing Function
   const handleTestLinkDiscovery = useCallback(async () => {
@@ -921,12 +950,18 @@ TaskForm.propTypes = {
   onTaskSubmit: PropTypes.func,
   loading: PropTypes.bool,
   initialUrl: PropTypes.string,
+  testSiteConfig: PropTypes.shape({
+    username: PropTypes.string,
+    password: PropTypes.string,
+    description: PropTypes.string,
+  }),
 };
 
 TaskForm.defaultProps = {
   onTaskSubmit: null,
   loading: false,
   initialUrl: '',
+  testSiteConfig: null,
 };
 
 // PERFORMANCE OPTIMIZATION: Memoize TaskForm to prevent re-renders when props don't change
@@ -935,6 +970,7 @@ export default memo(TaskForm, (prevProps, nextProps) => {
   return (
     prevProps.loading === nextProps.loading &&
     prevProps.initialUrl === nextProps.initialUrl &&
-    prevProps.onTaskSubmit === nextProps.onTaskSubmit
+    prevProps.onTaskSubmit === nextProps.onTaskSubmit &&
+    prevProps.testSiteConfig === nextProps.testSiteConfig
   );
 });
