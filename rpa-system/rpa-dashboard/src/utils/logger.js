@@ -162,6 +162,11 @@ class FrontendLogger {
     }
 
     // Console output (with appropriate level)
+    // Use original console methods to avoid double-sampling (logger already samples)
+    const originalConsole = typeof window !== 'undefined' && window.__originalConsole 
+      ? window.__originalConsole 
+      : console;
+    
     const consoleMethod = level === 'DEBUG' ? 'debug' : 
                          level === 'INFO' ? 'info' : 
                          level === 'WARN' ? 'warn' : 
@@ -173,7 +178,7 @@ class FrontendLogger {
       ` (repeated ${cached.count - MAX_LOGS_PER_WINDOW} times)` : '';
     const sampleNote = (shouldSample && LOG_SAMPLE_RATE > 1) ? 
       ` [sampled: 1/${LOG_SAMPLE_RATE}]` : '';
-    console[consoleMethod](prefix, message + throttleNote + sampleNote, extra);
+    originalConsole[consoleMethod](prefix, message + throttleNote + sampleNote, extra);
 
     // Send to backend telemetry if requested or if it's a warning/error (but also throttled)
     if ((sendToBackend || LOG_LEVELS[level] >= LOG_LEVELS.WARN) && (!cached || cached.count <= MAX_LOGS_PER_WINDOW * 2)) {

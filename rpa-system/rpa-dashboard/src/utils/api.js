@@ -61,6 +61,49 @@ const traceContext = new TraceContext();
 const API_LOG_SAMPLE_RATE = parseInt(process.env.REACT_APP_API_LOG_SAMPLE_RATE || '20', 10);
 let apiLogCounter = 0;
 
+// Throttle repeated error logs to prevent flooding
+const errorThrottleCache = new Map(); // errorKey -> { count, lastLogged, firstSeen }
+const ERROR_THROTTLE_WINDOW_MS = 10000; // 10 seconds
+const MAX_ERRORS_PER_WINDOW = 1; // Only log once per window
+
+function shouldLogError(errorKey) {
+  const now = Date.now();
+  const cached = errorThrottleCache.get(errorKey);
+  
+  if (!cached) {
+    errorThrottleCache.set(errorKey, {
+      count: 1,
+      firstSeen: now,
+      lastLogged: now
+    });
+    return true;
+  }
+  
+  const timeSinceFirst = now - cached.firstSeen;
+  const timeSinceLast = now - cached.lastLogged;
+  
+  // Reset if outside window
+  if (timeSinceFirst > ERROR_THROTTLE_WINDOW_MS) {
+    cached.count = 1;
+    cached.firstSeen = now;
+    cached.lastLogged = now;
+    return true;
+  }
+  
+  // Check if we should log BEFORE incrementing (prevents race conditions)
+  if (timeSinceLast < ERROR_THROTTLE_WINDOW_MS) {
+    // Still within throttle window - don't log
+    cached.count++;
+    return false;
+  }
+  
+  // Enough time has passed - reset and log
+  cached.count = 1;
+  cached.firstSeen = now;
+  cached.lastLogged = now;
+  return true;
+}
+
 function shouldLogApiCall() {
   apiLogCounter++;
   return apiLogCounter % API_LOG_SAMPLE_RATE === 0;
@@ -283,22 +326,31 @@ api.interceptors.response.use(
         frontendRequestId: reqTraceContext?.requestId
       };
       
-      // Structured error logging with full correlation context
-      console.error(JSON.stringify({
-        level: 'error',
-        message: 'API request failed',
-        method: error.config?.method?.toUpperCase(),
-        url: error.config?.url,
-        status: status || 0,
-        duration_ms: duration,
-        error: {
-          message: error.message,
-          code: error.code,
-          response_data: error.response?.data
-        },
-        ...traceHeaders,
-        timestamp: new Date().toISOString()
-      }));
+      // Structured error logging with full correlation context (throttled for repeated errors)
+      const errorKey = `${error.config?.method?.toUpperCase() || 'GET'}:${error.config?.url || 'unknown'}:${error.code || 'UNKNOWN'}:${status || 0}`;
+      if (shouldLogError(errorKey)) {
+        const errorData = {
+          level: 'error',
+          message: 'API request failed',
+          method: error.config?.method?.toUpperCase(),
+          url: error.config?.url,
+          status: status || 0,
+          duration_ms: duration,
+          error: {
+            message: error.message,
+            code: error.code,
+            response_data: error.response?.data
+          },
+          ...traceHeaders,
+          timestamp: new Date().toISOString()
+        };
+        // Add throttled count if this error was repeated
+        const cached = errorThrottleCache.get(errorKey);
+        if (cached && cached.count > 1) {
+          errorData.throttled_count = cached.count - 1;
+        }
+        console.error(JSON.stringify(errorData));
+      }
       
       // Track error metrics
       if (!window._apiErrors) window._apiErrors = [];
@@ -318,21 +370,32 @@ api.interceptors.response.use(
       }
     }
     
-    // Development: log failing requests for debugging
+    // Development: log failing requests for debugging (throttled)
     if (process.env.NODE_ENV === 'development') {
       const method = (error?.config?.method || 'get').toUpperCase();
       const url = error?.config?.url || '(unknown)';
       const code = status ?? '(no-status)';
-      console.warn(`[api] ${method} ${url} failed`, { status: code, message: error?.message });
+      const errorKey = `${method}:${url}:${code}`;
+      if (shouldLogError(errorKey)) {
+        const cached = errorThrottleCache.get(errorKey);
+        const throttleNote = cached && cached.count > 1 ? ` (repeated ${cached.count - 1} times)` : '';
+        console.warn(`[api] ${method} ${url} failed${throttleNote}`, { status: code, message: error?.message });
+      }
     }
 
-    // Handle different error types
+    // Handle different error types (throttled)
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-      console.warn('[api] Request timeout detected');
+      const errorKey = `timeout:${error.config?.url || 'unknown'}`;
+      if (shouldLogError(errorKey)) {
+        console.warn('[api] Request timeout detected');
+      }
     }
     
     if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
-      console.warn('[api] Network error detected');
+      const errorKey = `network:${error.config?.url || 'unknown'}`;
+      if (shouldLogError(errorKey)) {
+        console.warn('[api] Network error detected');
+      }
     }
 
     // Only handle 401s for auth refresh
@@ -710,7 +773,11 @@ export async function requestWithRetry(requestConfig, options = {}) {
 
       const wait = backoffMs * Math.pow(2, attempt);
       if (process.env.NODE_ENV === 'development') {
-        console.warn(`[api] retrying request (${attempt + 1}/${retries}) after ${wait}ms due to error:`, err.message || err.code || status);
+        // Throttle retry logs - only log first retry attempt
+        const retryKey = `retry:${err.config?.url || 'unknown'}:${err.code || 'unknown'}`;
+        if (attempt === 0 && shouldLogError(retryKey)) {
+          console.warn(`[api] retrying request (${attempt + 1}/${retries}) after ${wait}ms due to error:`, err.message || err.code || status);
+        }
       }
       await new Promise((res) => setTimeout(res, wait));
       // continue to next attempt
@@ -817,6 +884,7 @@ export { traceContext };
 export const getCurrentTraceInfo = () => traceContext.getCurrentContext();
 
 // Helper for manual correlation logging in components
+// Note: This bypasses the logger but will still be sampled by the console wrapper
 export const logWithTraceContext = (level, message, additionalData = {}) => {
   const context = traceContext.getCurrentContext();
   const logEntry = {
@@ -827,11 +895,13 @@ export const logWithTraceContext = (level, message, additionalData = {}) => {
     timestamp: new Date().toISOString()
   };
   
+  // Use console methods - they will be sampled by the global wrapper in main.jsx
   if (level === 'error') {
     console.error(JSON.stringify(logEntry));
   } else if (level === 'warn') {
     console.warn(JSON.stringify(logEntry));
   } else {
+    // INFO/DEBUG levels will be sampled by console wrapper
     console.log(JSON.stringify(logEntry));
   }
 };

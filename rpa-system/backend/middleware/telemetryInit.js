@@ -95,32 +95,41 @@ if (!hasValidCredentials()) {
 // Parse headers with validation
 const rawHeaderString = process.env.OTEL_EXPORTER_OTLP_HEADERS || '';
 
-// Use console.error to ensure it appears in logs
-logger.error('='.repeat(80));
-logger.error('[TELEMETRY DEBUG] Raw env var:', rawHeaderString ? rawHeaderString.substring(0, 50) + '...' : 'NOT SET');
-logger.error('[TELEMETRY DEBUG] Raw env var length:', rawHeaderString.length);
+// Only show telemetry debug logs if explicitly enabled (reduces log flooding)
+// Set ENABLE_TELEMETRY_DEBUG=true in environment to see detailed telemetry debugging
+// Default to false to prevent log flooding in production/development
+const ENABLE_TELEMETRY_DEBUG = process.env.ENABLE_TELEMETRY_DEBUG === 'true';
 
 const parsedHeaders = rawHeaderString ? parseHeaders(rawHeaderString) : {};
 
-logger.error('[TELEMETRY DEBUG] Parsed headers:', JSON.stringify(parsedHeaders, null, 2));
-logger.error('[TELEMETRY DEBUG] Parsed headers has Authorization?', !!parsedHeaders.Authorization);
-logger.error('[TELEMETRY DEBUG] Authorization value:', parsedHeaders.Authorization || 'MISSING');
+// Validate and log parsed headers (only in debug mode)
+if (ENABLE_TELEMETRY_DEBUG) {
+  logger.debug('='.repeat(80));
+  logger.debug('[TELEMETRY DEBUG] Raw env var:', rawHeaderString ? rawHeaderString.substring(0, 50) + '...' : 'NOT SET');
+  logger.debug('[TELEMETRY DEBUG] Raw env var length:', rawHeaderString.length);
+  logger.debug('[TELEMETRY DEBUG] Parsed headers:', JSON.stringify(parsedHeaders, null, 2));
+  logger.debug('[TELEMETRY DEBUG] Parsed headers has Authorization?', !!parsedHeaders.Authorization);
+  logger.debug('[TELEMETRY DEBUG] Authorization value:', parsedHeaders.Authorization || 'MISSING');
+}
 
-// Validate and log parsed headers
+// Validate and clean parsed headers
 if (parsedHeaders.Authorization) {
   const authValue = parsedHeaders.Authorization;
-  logger.error('[TELEMETRY DEBUG] Auth value type:', typeof authValue);
-  logger.error('[TELEMETRY DEBUG] Auth value length:', authValue.length);
-  logger.error('[TELEMETRY DEBUG] Auth value first 30 chars:', authValue.substring(0, 30));
-  logger.error('[TELEMETRY DEBUG] Has double quotes?', authValue.includes('"'));
-  logger.error('[TELEMETRY DEBUG] Has single quotes?', authValue.includes("'"));
   
-  // Check each character in first 50 chars
-  for (let i = 0; i < Math.min(50, authValue.length); i++) {
-    const char = authValue[i];
-    const code = authValue.charCodeAt(i);
-    if (char === '"' || char === "'" || code < 32 || code > 126) {
-      logger.error(`[TELEMETRY DEBUG] Char at pos ${i}: '${char}' (code: ${code})`);
+  if (ENABLE_TELEMETRY_DEBUG) {
+    logger.debug('[TELEMETRY DEBUG] Auth value type:', typeof authValue);
+    logger.debug('[TELEMETRY DEBUG] Auth value length:', authValue.length);
+    logger.debug('[TELEMETRY DEBUG] Auth value first 30 chars:', authValue.substring(0, 30));
+    logger.debug('[TELEMETRY DEBUG] Has double quotes?', authValue.includes('"'));
+    logger.debug('[TELEMETRY DEBUG] Has single quotes?', authValue.includes("'"));
+    
+    // Check each character in first 50 chars
+    for (let i = 0; i < Math.min(50, authValue.length); i++) {
+      const char = authValue[i];
+      const code = authValue.charCodeAt(i);
+      if (char === '"' || char === "'" || code < 32 || code > 126) {
+        logger.debug(`[TELEMETRY DEBUG] Char at pos ${i}: '${char}' (code: ${code})`);
+      }
     }
   }
   
@@ -129,30 +138,33 @@ if (parsedHeaders.Authorization) {
   const cleaned = authValue.replace(/['"]/g, '').trim();
   
   if (authValue !== cleaned) {
-    logger.error('⚠️ [TELEMETRY] WARNING: Authorization header had quotes - cleaned them');
-    logger.error('[TELEMETRY DEBUG] Original first 30 chars:', authValue.substring(0, 30));
-    logger.error('[TELEMETRY DEBUG] Cleaned first 30 chars:', cleaned.substring(0, 30));
+    logger.warn('⚠️ [TELEMETRY] WARNING: Authorization header had quotes - cleaned them');
+    if (ENABLE_TELEMETRY_DEBUG) {
+      logger.debug('[TELEMETRY DEBUG] Original first 30 chars:', authValue.substring(0, 30));
+      logger.debug('[TELEMETRY DEBUG] Cleaned first 30 chars:', cleaned.substring(0, 30));
+    }
     parsedHeaders.Authorization = cleaned;
   }
 } else {
-  logger.error('⚠️ [TELEMETRY] WARNING: No Authorization header found!');
+  logger.warn('⚠️ [TELEMETRY] WARNING: No Authorization header found!');
 }
 
-logger.error('[TELEMETRY DEBUG] Final headers object:', JSON.stringify(parsedHeaders, null, 2));
-logger.error('='.repeat(80));
-
-// ✅ CRITICAL FIX: OpenTelemetry HTTP exporters REQUIRE headers as Record<string, string>
-// NOT as a Record with potential undefined values
-logger.error('[TELEMETRY DEBUG] Creating exporters with explicit headers parameter');
-logger.error('[TELEMETRY DEBUG] Headers to send:', Object.keys(parsedHeaders).join(', '));
+if (ENABLE_TELEMETRY_DEBUG) {
+  logger.debug('[TELEMETRY DEBUG] Final headers object:', JSON.stringify(parsedHeaders, null, 2));
+  logger.debug('='.repeat(80));
+  logger.debug('[TELEMETRY DEBUG] Creating exporters with explicit headers parameter');
+  logger.debug('[TELEMETRY DEBUG] Headers to send:', Object.keys(parsedHeaders).join(', '));
+}
 
 // ✅ CRITICAL: Verify headers before creating exporters
 if (!parsedHeaders.Authorization) {
   logger.error('❌ [Telemetry] CRITICAL ERROR: Authorization header is MISSING in parsedHeaders!');
-  logger.error('[Telemetry] parsedHeaders:', JSON.stringify(parsedHeaders));
-} else {
-  logger.error('✅ [Telemetry] Authorization header present:', parsedHeaders.Authorization.substring(0, 30) + '...');
-  logger.error('✅ [Telemetry] Authorization header length:', parsedHeaders.Authorization.length);
+  if (ENABLE_TELEMETRY_DEBUG) {
+    logger.debug('[Telemetry] parsedHeaders:', JSON.stringify(parsedHeaders));
+  }
+} else if (ENABLE_TELEMETRY_DEBUG) {
+  logger.debug('✅ [Telemetry] Authorization header present:', parsedHeaders.Authorization.substring(0, 30) + '...');
+  logger.debug('✅ [Telemetry] Authorization header length:', parsedHeaders.Authorization.length);
 }
 
 // ✅ CRITICAL FIX: The OTLP HTTP exporter expects headers as a plain object with string values
@@ -162,9 +174,11 @@ Object.keys(parsedHeaders).forEach(key => {
   exporterHeaders[key] = parsedHeaders[key];
 });
 
-logger.error('[TELEMETRY DEBUG] Final headers for exporters:', JSON.stringify({
-  Authorization: exporterHeaders.Authorization ? exporterHeaders.Authorization.substring(0, 30) + '...(truncated)' : 'MISSING'
-}));
+if (ENABLE_TELEMETRY_DEBUG) {
+  logger.debug('[TELEMETRY DEBUG] Final headers for exporters:', JSON.stringify({
+    Authorization: exporterHeaders.Authorization ? exporterHeaders.Authorization.substring(0, 30) + '...(truncated)' : 'MISSING'
+  }));
+}
 
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
@@ -172,7 +186,6 @@ const traceExporter = new OTLPTraceExporter({
   headers: exporterHeaders, // ✅ CRITICAL: Explicitly pass clean headers object
   timeoutMillis: 10000,
 });
-logger.error('[TELEMETRY DEBUG] Trace exporter created with headers');
 
 const metricExporter = new OTLPMetricExporter({
   url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
@@ -180,9 +193,12 @@ const metricExporter = new OTLPMetricExporter({
   headers: exporterHeaders, // ✅ CRITICAL: Explicitly pass clean headers object
   timeoutMillis: 10000,
 });
-logger.error('[TELEMETRY DEBUG] Metric exporter created with headers');
 
-logger.error('[TELEMETRY DEBUG] Exporters created successfully with Authorization header');
+if (ENABLE_TELEMETRY_DEBUG) {
+  logger.debug('[TELEMETRY DEBUG] Trace exporter created with headers');
+  logger.debug('[TELEMETRY DEBUG] Metric exporter created with headers');
+  logger.debug('[TELEMETRY DEBUG] Exporters created successfully with Authorization header');
+}
 
 // Helper function to parse headers from environment variable
 // Format: "key1=value1,key2=value2" OR single header "Authorization=Basic <token>"
@@ -344,8 +360,8 @@ if (traceExporter && typeof traceExporter.export === 'function') {
           logger.error('   Please verify your OTEL_EXPORTER_OTLP_HEADERS token is correct');
         }
       } else {
-        // ✅ Log successful exports so we can confirm traces are being sent to Grafana
-        logger.error(`✅ [Telemetry] Export success: sent ${spans.length} span(s) to Grafana at ${new Date().toISOString()}`);
+        // ✅ Log successful exports at debug level (sampled) to reduce noise
+        logger.debug(`✅ [Telemetry] Export success: sent ${spans.length} span(s) to Grafana at ${new Date().toISOString()}`);
       }
       resultCallback(result);
     });

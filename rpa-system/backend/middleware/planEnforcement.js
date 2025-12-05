@@ -3,6 +3,49 @@ const { logger, getLogger } = require('../utils/logger');
 // Dynamic, database-driven plan enforcement middleware
 const { getUserPlan } = require('../services/planService');
 
+// Throttle repeated error logs to prevent flooding
+const errorThrottleCache = new Map(); // errorKey -> { count, lastLogged, firstSeen }
+const ERROR_THROTTLE_WINDOW_MS = 60000; // 1 minute
+const MAX_ERRORS_PER_WINDOW = 1; // Only log once per window
+
+function shouldLogError(errorKey) {
+  const now = Date.now();
+  const cached = errorThrottleCache.get(errorKey);
+  
+  if (!cached) {
+    errorThrottleCache.set(errorKey, {
+      count: 1,
+      firstSeen: now,
+      lastLogged: now
+    });
+    return true;
+  }
+  
+  const timeSinceFirst = now - cached.firstSeen;
+  const timeSinceLast = now - cached.lastLogged;
+  
+  // Reset if outside window
+  if (timeSinceFirst > ERROR_THROTTLE_WINDOW_MS) {
+    cached.count = 1;
+    cached.firstSeen = now;
+    cached.lastLogged = now;
+    return true;
+  }
+  
+  // Check if we should log BEFORE incrementing (prevents race conditions)
+  if (timeSinceLast < ERROR_THROTTLE_WINDOW_MS) {
+    // Still within throttle window - don't log
+    cached.count++;
+    return false;
+  }
+  
+  // Enough time has passed - reset and log
+  cached.count = 1;
+  cached.firstSeen = now;
+  cached.lastLogged = now;
+  return true;
+}
+
 /**
  * Usage: requireFeature('feature_key')
  * Checks if the user has access to the given feature or limit, using live DB data.
@@ -22,9 +65,16 @@ const requireWorkflowRun = async (req, res, next) => {
     req.planData = planData;
     next();
   } catch (error) {
-    logger.error('Plan enforcement error:', error);
-    // Don't block workflow execution even if there's an error getting plan data
-    logger.warn('Continuing workflow execution despite plan check error');
+    // Throttle repeated errors
+    const errorKey = error.code === 'USER_PROFILE_NOT_FOUND'
+      ? `plan_enforcement:profile_not_found:${req.user?.id || 'unknown'}`
+      : `plan_enforcement:${error.code || error.message}`;
+    
+    if (shouldLogError(errorKey)) {
+      logger.error('Plan enforcement error:', error);
+      // Don't block workflow execution even if there's an error getting plan data
+      logger.warn('Continuing workflow execution despite plan check error');
+    }
     next();
   }
 };
@@ -93,7 +143,14 @@ const requireFeature = (featureKey) => {
       req.planData = planData;
       next();
     } catch (error) {
-      logger.error('Feature access error:', error);
+      // Skip logging if it's a USER_PROFILE_NOT_FOUND error (already logged in planService with throttling)
+      const errorKey = error.code === 'USER_PROFILE_NOT_FOUND' 
+        ? `profile_not_found:${req.user?.id || 'unknown'}`
+        : `feature_error:${error.code || error.message}`;
+      
+      if (shouldLogError(errorKey)) {
+        logger.error('Feature access error:', error);
+      }
       res.status(500).json({ error: 'Failed to check feature access' });
     }
   };

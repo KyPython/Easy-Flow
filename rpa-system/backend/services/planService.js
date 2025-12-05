@@ -8,6 +8,50 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY;
 const logger = createLogger('service.plan');
 
+// Throttle repeated error logs to prevent flooding
+const errorThrottleCache = new Map(); // userId -> { count, lastLogged, firstSeen }
+const ERROR_THROTTLE_WINDOW_MS = 60000; // 1 minute
+const MAX_ERRORS_PER_WINDOW = 1; // Only log once per window
+
+function shouldLogError(userId, errorCode) {
+  const now = Date.now();
+  const key = `${userId}:${errorCode}`;
+  const cached = errorThrottleCache.get(key);
+  
+  if (!cached) {
+    errorThrottleCache.set(key, {
+      count: 1,
+      firstSeen: now,
+      lastLogged: now
+    });
+    return true;
+  }
+  
+  const timeSinceFirst = now - cached.firstSeen;
+  const timeSinceLast = now - cached.lastLogged;
+  
+  // Reset if outside window
+  if (timeSinceFirst > ERROR_THROTTLE_WINDOW_MS) {
+    cached.count = 1;
+    cached.firstSeen = now;
+    cached.lastLogged = now;
+    return true;
+  }
+  
+  // Check if we should log BEFORE incrementing (prevents race conditions)
+  if (timeSinceLast < ERROR_THROTTLE_WINDOW_MS) {
+    // Still within throttle window - don't log
+    cached.count++;
+    return false;
+  }
+  
+  // Enough time has passed - reset and log
+  cached.count = 1;
+  cached.firstSeen = now;
+  cached.lastLogged = now;
+  return true;
+}
+
 // Make Supabase optional for local development
 let supabase = null;
 if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
@@ -51,13 +95,17 @@ async function getUserPlan(userId) {
     const error = new Error('User profile/plan not found');
     error.code = 'USER_PROFILE_NOT_FOUND';
     error.userId = userId;
-    logger.error('User profile/plan not found', error, { 
-      userId,
-      database_error: userError,
-      business: { 
-        operation: { operation_name: 'getUserPlan', user_id: userId }
-      }
-    });
+    
+    // Throttle repeated errors to prevent log flooding
+    if (shouldLogError(userId, 'USER_PROFILE_NOT_FOUND')) {
+      logger.error('User profile/plan not found', error, { 
+        userId,
+        database_error: userError,
+        business: { 
+          operation: { operation_name: 'getUserPlan', user_id: userId }
+        }
+      });
+    }
     throw error;
   }
   const plan = userProfile.plan;

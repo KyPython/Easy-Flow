@@ -65,7 +65,6 @@ export const usePlan = () => {
     if (nowMs - fetchPlanData._lastAttempt < MIN_ATTEMPT_INTERVAL_MS) return;
     fetchPlanData._lastAttempt = nowMs;
     fetchPlanData.inFlight = true;
-    const clientStart = Date.now();
     
     if (!user?.id) {
       setLoading(false);
@@ -80,8 +79,6 @@ export const usePlan = () => {
         setError(null);
       }
 
-      console.log('Fetching plan data for user:', user.id);
-
       // Call the backend API endpoint to get complete plan details
       // Use requestWithRetry to handle transient network/5xx errors and support abort/timeouts.
       const resp = await requestWithRetry(
@@ -89,11 +86,6 @@ export const usePlan = () => {
         { retries: 2, backoffMs: 500, timeout: 30000 }
       );
       const response = resp;
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log('API call result:', response.data);
-        console.log('Plan name from response:', response.data.planData?.plan?.name);
-      }
 
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to fetch plan data');
@@ -140,7 +132,13 @@ export const usePlan = () => {
           hint: 'Make sure your backend server is running and the dev proxy is configured correctly.'
         });
       } else {
-        console.error('Error fetching plan data:', err);
+        // Throttle error logging - only log once per 10 seconds for same error
+        const errorKey = `plan_fetch_error:${err.code || 'UNKNOWN'}`;
+        const now = Date.now();
+        if (!fetchPlanData._lastErrorLog || now - fetchPlanData._lastErrorLog > 10000) {
+          console.error('Error fetching plan data:', err);
+          fetchPlanData._lastErrorLog = now;
+        }
         setBackendStatus('unknown');
         setError({
           message: friendlyMessage,
@@ -156,9 +154,7 @@ export const usePlan = () => {
       }
     } finally {
       setLoading(false);
-      // Log client-side duration for correlation
-      const clientEnd = Date.now();
-      console.debug('[usePlan] fetchPlanData duration_ms', { user: user?.id, duration_ms: clientEnd - clientStart });
+      // Duration logged to backend telemetry if enabled
       fetchPlanData.inFlight = false;
     }
   }, [user?.id, backendStatus, planData]);
@@ -232,18 +228,8 @@ export const usePlan = () => {
   };
 
   const canRunAutomation = () => {
-    // Log gate check for debugging
-    console.log('[usePlan] canRunAutomation check:', {
-      planData: !!planData,
-      can_run_automation: planData?.can_run_automation,
-      usage: planData?.usage?.monthly_runs,
-      limit: planData?.limits?.monthly_runs,
-      loading
-    });
-
     // If still loading, allow action (don't block during load)
     if (loading && !planData) {
-      console.log('[usePlan] canRunAutomation: allowing during initial load');
       return true;
     }
 
@@ -306,7 +292,7 @@ export const usePlan = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && backendStatus !== 'unreachable') {
-        console.log('Page became visible, checking for plan updates...');
+        // Page became visible, checking for plan updates
         // Delay slightly to allow any webhooks to process
         setTimeout(() => {
           fetchPlanData();
@@ -316,7 +302,7 @@ export const usePlan = () => {
 
     const handleFocus = () => {
       if (backendStatus !== 'unreachable') {
-        console.log('Window focused, checking for plan updates...');
+        // Window focused, checking for plan updates
         setTimeout(() => {
           fetchPlanData();
         }, 1000);
@@ -326,7 +312,7 @@ export const usePlan = () => {
     // Listen for storage events (cross-tab communication)
     const handleStorageChange = (e) => {
       if (e.key === 'polar_checkout_complete' && e.newValue) {
-        console.log('Polar checkout completed in another tab, refreshing plan...');
+        // Polar checkout completed in another tab, refreshing plan
         setTimeout(() => {
           fetchPlanData();
           localStorage.removeItem('polar_checkout_complete'); // Clean up
@@ -341,12 +327,12 @@ export const usePlan = () => {
     const startVisibilityPolling = () => {
       // Don't start polling if backend is already known to be down
       if (backendStatus === 'unreachable') {
-        console.log('Skipping aggressive polling - backend is unreachable');
+        // Skipping aggressive polling - backend is unreachable
         return;
       }
       
       if (document.visibilityState === 'visible' && !visibilityPollInterval) {
-        console.log('Starting aggressive plan polling for 30 seconds...');
+        // Starting aggressive plan polling for 30 seconds
         visibilityPollInterval = setInterval(async () => {
           // Circuit breaker: stop polling after 3 consecutive failures
           if (consecutiveFailures >= 3) {
@@ -373,7 +359,7 @@ export const usePlan = () => {
             clearInterval(visibilityPollInterval);
             visibilityPollInterval = null;
             consecutiveFailures = 0;
-            console.log('Stopped aggressive plan polling');
+            // Stopped aggressive plan polling
           }
         }, 30000);
       }
@@ -396,7 +382,7 @@ export const usePlan = () => {
   }, [backendStatus, fetchPlanData]);
 
   const handleUsageUpdate = useCallback((usageData) => {
-    console.log('Usage updated in realtime:', usageData);
+    // Usage update handled silently to reduce log noise
     // Update the plan data with new usage information
     setPlanData(prevData => {
       if (!prevData) return prevData;
@@ -426,7 +412,7 @@ export const usePlan = () => {
   }, [fetchPlanData]);
 
   const handleWorkflowUpdate = useCallback((workflowData) => {
-    console.log('Workflow updated in realtime:', workflowData);
+    // Workflow update handled silently to reduce log noise
     // Refresh usage data when workflows change
     setTimeout(() => fetchPlanData(), 500);
   }, [fetchPlanData]);

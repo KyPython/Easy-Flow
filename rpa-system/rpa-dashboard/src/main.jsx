@@ -23,24 +23,60 @@ if (typeof window !== 'undefined') {
 
   const CONSOLE_SAMPLE_RATE = getConsoleSampleRate();
   let consoleLogCounter = 0;
+  let consoleInfoCounter = 0;
+  let consoleDebugCounter = 0;
+
+  // Store original console methods before wrapping (for logger to use)
+  const originalConsoleMethods = {
+    log: console.log,
+    info: console.info,
+    debug: console.debug,
+    warn: console.warn,
+    error: console.error
+  };
+  
+  // Make original methods available globally so logger can use them
+  window.__originalConsole = originalConsoleMethods;
 
   if (CONSOLE_SAMPLE_RATE > 1) {
-    const originalLog = console.log;
+    // Wrap console.log
     console.log = function(...args) {
       consoleLogCounter++;
       if (consoleLogCounter % CONSOLE_SAMPLE_RATE === 0) {
-        // Add sampling indicator
         const sampledArgs = args.length > 0 && typeof args[0] === 'string' 
           ? [`[sampled 1/${CONSOLE_SAMPLE_RATE}] ${args[0]}`, ...args.slice(1)]
           : [`[sampled 1/${CONSOLE_SAMPLE_RATE}]`, ...args];
-        originalLog.apply(console, sampledArgs);
+        originalConsoleMethods.log.apply(console, sampledArgs);
       }
-      // Always allow console.warn and console.error through
     };
+
+    // Wrap console.info (also sample it)
+    console.info = function(...args) {
+      consoleInfoCounter++;
+      if (consoleInfoCounter % CONSOLE_SAMPLE_RATE === 0) {
+        const sampledArgs = args.length > 0 && typeof args[0] === 'string' 
+          ? [`[sampled 1/${CONSOLE_SAMPLE_RATE}] ${args[0]}`, ...args.slice(1)]
+          : [`[sampled 1/${CONSOLE_SAMPLE_RATE}]`, ...args];
+        originalConsoleMethods.info.apply(console, sampledArgs);
+      }
+    };
+
+    // Wrap console.debug (also sample it)
+    console.debug = function(...args) {
+      consoleDebugCounter++;
+      if (consoleDebugCounter % CONSOLE_SAMPLE_RATE === 0) {
+        const sampledArgs = args.length > 0 && typeof args[0] === 'string' 
+          ? [`[sampled 1/${CONSOLE_SAMPLE_RATE}] ${args[0]}`, ...args.slice(1)]
+          : [`[sampled 1/${CONSOLE_SAMPLE_RATE}]`, ...args];
+        originalConsoleMethods.debug.apply(console, sampledArgs);
+      }
+    };
+
+    // Always allow console.warn and console.error through (don't sample these)
 
     // Show info message once
     if (!window._consoleSamplingNotified) {
-      console.info(`[console] Log sampling active: 1/${CONSOLE_SAMPLE_RATE} console.log calls will be shown. Set localStorage.setItem('CONSOLE_LOG_SAMPLE_RATE', '1') to disable.`);
+      originalConsoleMethods.info(`[console] Log sampling active: 1/${CONSOLE_SAMPLE_RATE} console.log/info/debug calls will be shown. Set localStorage.setItem('CONSOLE_LOG_SAMPLE_RATE', '1') to disable.`);
       window._consoleSamplingNotified = true;
     }
   }
