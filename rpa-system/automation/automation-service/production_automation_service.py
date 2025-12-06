@@ -264,6 +264,16 @@ def send_result_to_kafka(task_id, result, status='completed'):
             logger.error("Kafka producer not available")
             return False
 
+        # Determine status from result if not explicitly provided
+        if status == 'completed' and result:
+            if isinstance(result, dict):
+                if result.get('success') is False:
+                    status = 'failed'
+                elif result.get('success') is True:
+                    status = 'completed'
+                else:
+                    status = 'completed'  # Default to completed if unclear
+
         message = {
             'task_id': task_id,
             'status': status,
@@ -271,6 +281,8 @@ def send_result_to_kafka(task_id, result, status='completed'):
             'timestamp': datetime.utcnow().isoformat(),
             'worker_id': os.getenv('HOSTNAME', 'unknown')
         }
+        
+        logger.info(f"📤 Sending result to Kafka for task {task_id}: status={status}, success={result.get('success') if isinstance(result, dict) else 'N/A'}")
 
         # ✅ INSTRUCTION 2: Inject trace context into Kafka message headers
         # Note: Headers require Kafka API v0.11.0+
@@ -306,16 +318,16 @@ def send_result_to_kafka(task_id, result, status='completed'):
         future = producer.send(**send_kwargs)
         # Wait for acknowledgment
         record_metadata = future.get(timeout=10)
-        # ✅ INSTRUCTION 2: Reduced success logging verbosity (Gap 19)
-        # Log at DEBUG level - success is tracked in metrics
-        logger.debug(f"Result sent to Kafka - Topic: {record_metadata.topic}, Partition: {record_metadata.partition}")
+        logger.info(f"✅ Result sent to Kafka successfully - Topic: {record_metadata.topic}, Partition: {record_metadata.partition}, Offset: {record_metadata.offset}")
         
         # ✅ INSTRUCTION 2: REMOVED kafka_messages metric (Gap 8, 18)
         # Kafka message counts are available from Kafka broker metrics
         
         return True
     except Exception as e:
-        logger.error(f"❌ Failed to send result to Kafka: {e}")
+        logger.error(f"❌ Failed to send result to Kafka for task {task_id}: {e}", exc_info=True)
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 def process_automation_task(task_data):
@@ -375,20 +387,24 @@ def process_automation_task(task_data):
                 else:
                     result = {'success': False, 'error': scrape_result.get('error', 'Scraping failed'), 'details': scrape_result}
         elif task_type == 'invoice_download':
-            pdf_url = task_data.get('pdf_url')
+            # Support both pdf_url and url fields
+            pdf_url = task_data.get('pdf_url') or task_data.get('url')
             if not pdf_url:
-                result = {'success': False, 'error': 'Missing required field: pdf_url'}
+                result = {'success': False, 'error': 'Missing required field: pdf_url or url'}
             else:
                 try:
                     from . import web_automation
                 except ImportError:
                     import web_automation
                 
+                task_logger.info(f"📥 Starting invoice download from: {pdf_url}")
                 download_result = web_automation.download_pdf(pdf_url, task_data)
                 if download_result.get('success'):
                     result = {'success': True, 'data': download_result, 'message': f'Invoice downloaded from {pdf_url}'}
+                    task_logger.info(f"✅ Invoice download completed successfully")
                 else:
                     result = {'success': False, 'error': download_result.get('error', 'Download failed'), 'details': download_result}
+                    task_logger.error(f"❌ Invoice download failed: {result.get('error')}")
         else:
             result = {'success': False, 'error': f'Unknown task type: {task_type}'}
 
