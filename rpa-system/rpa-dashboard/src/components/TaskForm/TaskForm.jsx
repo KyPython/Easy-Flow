@@ -128,7 +128,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
             discoveryMethod: savedData.discoveryMethod || 'auto-detect',
             cssSelector: savedData.cssSelector || '',
             linkText: savedData.linkText || '',
-            // Preserve initialUrl if provided
+            // ✅ FIX: Always prioritize initialUrl over saved data for auto-population
             url: initialUrl || savedData.url || initialFormData.url
           };
           
@@ -158,55 +158,45 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     }
   }, [initialUrl]);
 
-  // ✅ UX: Auto-populate form when URL or test site config changes - sync in real-time
+  // ✅ UX: Auto-populate form when URL or test site config changes - SIMPLE VERSION
   useEffect(() => {
-    let shouldUpdate = false;
-    let updateData = {};
-    
-    // Always sync URL from top field to form field
-    if (initialUrl !== undefined && initialUrl !== form.url) {
-      updateData.url = initialUrl;
-      shouldUpdate = true;
+    // Always sync URL from top field - no conditions, just sync it
+    if (initialUrl) {
+      setForm(prevForm => {
+        if (prevForm.url !== initialUrl) {
+          // Clear error when URL is synced
+          setErrors(prevErrors => ({ ...prevErrors, url: '' }));
+          return { ...prevForm, url: initialUrl };
+        }
+        return prevForm;
+      });
     }
-    
-    // Auto-populate credentials from test site config
+  }, [initialUrl]); // Only depend on initialUrl - simple and reliable
+
+  // Separate effect for credentials
+  useEffect(() => {
     if (testSiteConfig) {
-      const credentialsChanged = (
-        (testSiteConfig.username && testSiteConfig.username !== form.username) ||
-        (testSiteConfig.password && testSiteConfig.password !== form.password)
-      );
-      
-      if (credentialsChanged) {
-        updateData.username = testSiteConfig.username || form.username;
-        updateData.password = testSiteConfig.password || form.password;
-        shouldUpdate = true;
+      setForm(prevForm => {
+        const needsUpdate = (
+          (testSiteConfig.username && testSiteConfig.username !== prevForm.username) ||
+          (testSiteConfig.password && testSiteConfig.password !== prevForm.password)
+        );
         
-        setTimeout(() => {
-          showSuccess(`✅ Credentials auto-filled for test site`);
-        }, 100);
-      }
-    }
-    
-    if (shouldUpdate) {
-      setForm(prevForm => ({
-        ...prevForm,
-        ...updateData
-      }));
-      
-      // Save to persistence when URL or credentials change (debounced)
-      if (persistenceEnabled) {
-        const timer = setTimeout(() => {
-          const dataToSave = {
-            ...form,
-            ...updateData,
-            schemaVersion: '1.2.0'
+        if (needsUpdate) {
+          setTimeout(() => {
+            showSuccess(`✅ Credentials auto-filled for test site`);
+          }, 100);
+          
+          return {
+            ...prevForm,
+            username: testSiteConfig.username || prevForm.username,
+            password: testSiteConfig.password || prevForm.password
           };
-          saveData(dataToSave);
-        }, 1000);
-        return () => clearTimeout(timer);
-      }
+        }
+        return prevForm;
+      });
     }
-  }, [initialUrl, testSiteConfig, showSuccess, persistenceEnabled, saveData, form.url, form.username, form.password]);
+  }, [testSiteConfig, showSuccess]);
 
   // ✅ NEW: Link Discovery Testing Function
   const handleTestLinkDiscovery = useCallback(async () => {
@@ -335,10 +325,11 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
 
   const validateForm = () => {
     const newErrors = {};
-    // Defensive: saved form data may omit empty keys, so guard before calling .trim()
-    if (!((form.url || '').trim())) {
+    // ✅ FIX: Check both form.url and initialUrl (in case form state hasn't synced yet)
+    const urlToValidate = form.url || initialUrl || '';
+    if (!urlToValidate.trim()) {
       newErrors.url = 'Target URL is required';
-    } else if (!isValidUrl(form.url)) {
+    } else if (!isValidUrl(urlToValidate)) {
       newErrors.url = 'Please enter a valid URL';
     }
     // Remove strict email validation for username to support username-only sites
@@ -361,23 +352,74 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    
+    // ✅ FIX: Always sync URL from initialUrl BEFORE validation
+    let finalForm = { ...form };
+    const urlToUse = initialUrl || form.url || '';
+    
+    console.log('[TaskForm] Submit - initialUrl:', initialUrl, 'form.url:', form.url, 'urlToUse:', urlToUse);
+    
+    if (initialUrl && initialUrl.trim() && (!form.url || form.url.trim() !== initialUrl.trim())) {
+      finalForm.url = initialUrl;
+      setForm(finalForm);
+      // Clear error immediately
+      if (errors.url) {
+        setErrors(prev => ({ ...prev, url: '' }));
+      }
+    }
+    
+    // ✅ FIX: Validate with the URL we'll actually use
+    const urlToValidate = urlToUse;
+    const newErrors = {};
+    if (!urlToValidate.trim()) {
+      console.error('[TaskForm] Validation failed - no URL found');
+      newErrors.url = 'Target URL is required';
+    } else if (!isValidUrl(urlToValidate)) {
+      newErrors.url = 'Please enter a valid URL';
+    }
+    
+    // Other validations
+    if (finalForm.task === 'invoice_download') {
+      if (finalForm.discoveryMethod === 'css-selector' && !((finalForm.cssSelector || '').trim())) {
+        newErrors.cssSelector = 'CSS Selector is required for this discovery method';
+      } else if (finalForm.discoveryMethod === 'text-match' && !((finalForm.linkText || '').trim())) {
+        newErrors.linkText = 'Link text is required for this discovery method';
+      }
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      console.error('[TaskForm] Validation failed:', newErrors);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
+      // ✅ FIX: Always use the URL we validated (from initialUrl or form.url)
+      const finalUrl = urlToValidate || initialUrl || form.url || '';
+      console.log('[TaskForm] Submitting with URL:', finalUrl, 'initialUrl:', initialUrl, 'form.url:', form.url);
+      
+      if (!finalUrl) {
+        console.error('[TaskForm] CRITICAL: No URL available for submission!');
+        setErrors({ url: 'Target URL is required' });
+        setIsSubmitting(false);
+        return;
+      }
+      
       // ✅ NEW: Enhanced payload with link discovery parameters
       const payload = { 
-        ...form, 
-        task_type: form.task,
+        ...finalForm,
+        url: finalUrl, // Always include URL - this is critical
+        task_type: finalForm.task,
         // For invoice_download tasks, include discovery parameters
-        ...(form.task === 'invoice_download' && {
-          discoveryMethod: form.discoveryMethod,
-          discoveryValue: form.discoveryMethod === 'css-selector' ? form.cssSelector : 
-                         form.discoveryMethod === 'text-match' ? form.linkText : null
+        ...(finalForm.task === 'invoice_download' && {
+          discoveryMethod: finalForm.discoveryMethod,
+          discoveryValue: finalForm.discoveryMethod === 'css-selector' ? finalForm.cssSelector : 
+                         finalForm.discoveryMethod === 'text-match' ? finalForm.linkText : null
         })
       };
       
-      const endpoint = form.enableAI
+      const endpoint = finalForm.enableAI
         ? '/api/run-task-with-ai'
         : '/api/automation/execute';
 
@@ -463,9 +505,10 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
       // Track task completion for milestone system
       incrementTaskCount();
 
-      // Clear form and persisted data after successful submission
+      // ✅ FIX: Preserve initialUrl when clearing form after submission
+      // Always preserve the URL from the top field so it doesn't disappear
       const clearedForm = {
-        url: initialUrl || '',
+        url: initialUrl || form.url || '', // Always preserve URL from top field or current form
         username: '',
         password: '',
         task: 'invoice_download',
@@ -480,8 +523,13 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
       };
       
       setForm(clearedForm);
-      if (persistenceEnabled) {
-        clearData();
+      
+      // Only clear persisted data if navigating away
+      // Otherwise keep it so user can quickly submit again
+      if (completedTask?.status === 'queued' || completedTask?.message) {
+        if (persistenceEnabled) {
+          clearData();
+        }
       }
 
       // ✅ UX: Auto-navigate to history after successful submission

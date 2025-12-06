@@ -76,19 +76,23 @@ const UrlInput = ({ onUrlSubmit, onUrlChange, onClear }) => {
     setUrl(newUrl);
     setError('');
     
-    // ✅ UX: Auto-populate form in real-time as user types (debounced)
+    // ✅ UX: Auto-populate form in real-time as user types (debounced, but shorter)
     if (debounceTimer) {
       clearTimeout(debounceTimer);
     }
     
-    const timer = setTimeout(() => {
-      if (newUrl.trim() && isValidUrl(newUrl.trim())) {
-        // Auto-populate form below as user types
-        onUrlChange?.(newUrl.trim());
-      }
-    }, 500); // Debounce for 500ms
-    
-    setDebounceTimer(timer);
+    // Immediate update for valid URLs (no debounce for better UX)
+    if (newUrl.trim() && isValidUrl(newUrl.trim())) {
+      onUrlChange?.(newUrl.trim());
+    } else {
+      // Debounce for partial/invalid URLs to avoid too many updates
+      const timer = setTimeout(() => {
+        if (newUrl.trim() && isValidUrl(newUrl.trim())) {
+          onUrlChange?.(newUrl.trim());
+        }
+      }, 300); // Shorter debounce: 300ms
+      setDebounceTimer(timer);
+    }
   }, [debounceTimer, onUrlChange]);
 
   const handleSubmit = useCallback((e) => {

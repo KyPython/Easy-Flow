@@ -28,10 +28,12 @@ const TasksPage = () => {
     setTimeout(() => setShowSuggestions(false), 8000);
   }, []);
 
-  // ✅ UX: Auto-populate form as user types URL (debounced)
+  // ✅ UX: Auto-populate form as user types URL (immediate for better UX)
   const handleUrlChange = useCallback((url) => {
     if (url && url.trim()) {
+      // Update immediately - no debounce needed here since UrlInput already handles it
       setTargetUrl(url.trim());
+      
       // Check if it's a known test site and auto-populate credentials
       const testSites = [
         { url: 'https://httpbin.org/forms/post', username: 'testuser', password: 'testpass123' },
@@ -45,7 +47,14 @@ const TasksPage = () => {
           password: matchedSite.password,
           description: 'Auto-detected test site'
         });
+      } else {
+        // Clear test site config if URL doesn't match
+        setTestSiteConfig(null);
       }
+    } else {
+      // Clear if URL is empty
+      setTargetUrl('');
+      setTestSiteConfig(null);
     }
   }, []);
 
