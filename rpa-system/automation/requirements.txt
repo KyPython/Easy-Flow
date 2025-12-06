@@ -10,3 +10,4 @@ asyncio-throttle==1.0.2
 prometheus-client==0.20.0
 beautifulsoup4==4.12.3
 aiokafka==0.10.0
+supabase==2.3.4
