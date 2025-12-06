@@ -328,7 +328,8 @@ class KafkaService {
                         const result = JSON.parse(message.value.toString());
                         const taskId = result.task_id;
                         
-                        logger.info(`[KafkaService] Received result for task ${taskId}:`, result);
+                        logger.info(`[KafkaService] ✅ Received result for task ${taskId}: status=${result.status}, success=${result.result?.success || 'N/A'}`);
+                        console.log(`[KafkaService] ✅ Received result for task ${taskId}:`, JSON.stringify(result, null, 2));
                         
 
                         // Update taskStatusStore for status polling endpoint
@@ -353,7 +354,13 @@ class KafkaService {
                                 // ✅ FIX: Update automation_runs database record if we have run_record_id
                                 if (runRecordId) {
                                     try {
-                                        const supabase = require('../utils/supabaseClient').supabase;
+                                        const { getSupabase } = require('../utils/supabaseClient');
+                                        const supabase = getSupabase();
+                                        if (!supabase) {
+                                            logger.error('[KafkaService] Supabase client not available for result update');
+                                            return;
+                                        }
+                                        
                                         const dbStatus = result.status === 'completed' ? 'completed' : 
                                                        result.status === 'failed' ? 'failed' : 'running';
                                         
@@ -367,9 +374,11 @@ class KafkaService {
                                             .eq('id', runRecordId);
                                         
                                         if (updateError) {
-                                            logger.error(`[KafkaService] Error updating automation_runs ${runRecordId}:`, updateError);
+                                            logger.error(`[KafkaService] ❌ Error updating automation_runs ${runRecordId}:`, updateError);
+                                            console.error(`[KafkaService] ❌ Error updating automation_runs ${runRecordId}:`, updateError);
                                         } else {
-                                            logger.info(`[KafkaService] Updated automation_runs record ${runRecordId} with status ${dbStatus}`);
+                                            logger.info(`[KafkaService] ✅ Updated automation_runs record ${runRecordId} with status ${dbStatus}`);
+                                            console.log(`[KafkaService] ✅ Updated automation_runs record ${runRecordId} with status ${dbStatus}`);
                                         }
                                     } catch (dbError) {
                                         logger.error('[KafkaService] Could not update automation_runs:', dbError);

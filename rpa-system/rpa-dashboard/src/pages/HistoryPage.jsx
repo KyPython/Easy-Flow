@@ -7,6 +7,7 @@ import { supabase, initSupabase } from '../utils/supabaseClient';
 import styles from './HistoryPage.module.css';
 import ErrorMessage from '../components/ErrorMessage';
 import Chatbot from '../components/Chatbot/Chatbot';
+import TaskResultModal from '../components/TaskResultModal/TaskResultModal';
 const HistoryPage = () => {
   const { user } = useAuth();
   const [runs, setRuns] = useState([]);
@@ -16,6 +17,7 @@ const HistoryPage = () => {
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [editError, setEditError] = useState('');
+  const [viewingTask, setViewingTask] = useState(null);
 
   useEffect(() => {
     const fetchRuns = async () => {
@@ -40,8 +42,7 @@ const HistoryPage = () => {
   }, [user]);
 
   const handleViewTask = (task) => {
-    if (task.result) alert(`Task Result:\n\n${JSON.stringify(task.result, null, 2)}`);
-    else alert('No result data available for this task.');
+    setViewingTask(task);
   };
 
   const handleEditTask = (task) => {
@@ -157,6 +158,13 @@ const HistoryPage = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {viewingTask && (
+        <TaskResultModal
+          task={viewingTask}
+          onClose={() => setViewingTask(null)}
+        />
       )}
       
       <Chatbot />

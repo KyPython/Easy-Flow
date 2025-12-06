@@ -372,7 +372,8 @@ def process_automation_task(task_data):
                     result = {'success': True, 'data': automation_result, 'message': f'Web automation completed with status: {automation_result.get("status")}'}
                 else:
                     result = {'success': False, 'error': automation_result.get('error', 'Web automation failed'), 'details': automation_result}
-        elif task_type == 'data_extraction':
+        elif task_type == 'data_extraction' or task_type == 'web_scraping':
+            # Support both 'data_extraction' and 'web_scraping' task types
             url = task_data.get('url')
             if not url:
                 result = {'success': False, 'error': 'Missing required field: url'}
@@ -381,11 +382,15 @@ def process_automation_task(task_data):
                     from . import generic_scraper
                 except ImportError:
                     import generic_scraper
+                
+                task_logger.info(f"🔍 Starting web scraping for: {url}")
                 scrape_result = generic_scraper.scrape_web_page(url, task_data)
                 if scrape_result.get('status') == 'success':
                     result = {'success': True, 'data': scrape_result}
+                    task_logger.info(f"✅ Web scraping completed successfully")
                 else:
                     result = {'success': False, 'error': scrape_result.get('error', 'Scraping failed'), 'details': scrape_result}
+                    task_logger.error(f"❌ Web scraping failed: {result.get('error')}")
         elif task_type == 'invoice_download':
             # Support both pdf_url and url fields
             pdf_url = task_data.get('pdf_url') or task_data.get('url')
