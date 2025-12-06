@@ -215,11 +215,11 @@ def get_kafka_producer():
                     kafka_producer = KafkaProducer(
                         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
                         value_serializer=lambda x: json.dumps(x).encode('utf-8'),
-                        key_serializer=lambda x: x.encode('utf-8') if x else None,
+                        key_serializer=lambda x: x.encode('utf-8') if isinstance(x, str) else (x if isinstance(x, bytes) else str(x).encode('utf-8')),
                         retries=3,
                         retry_backoff_ms=int(os.getenv('KAFKA_RETRY_BACKOFF_MS', '1000')),
                         request_timeout_ms=30000,
-                        api_version=(0, 10, 1)
+                        api_version=(0, 11, 0)  # Use v0.11.0+ to support headers
                     )
                     # ✅ INSTRUCTION 2: Reduced connection logging (Gap 19)
                     # Log at DEBUG level - connection is already monitored by Kafka metrics
@@ -273,6 +273,7 @@ def send_result_to_kafka(task_id, result, status='completed'):
         }
 
         # ✅ INSTRUCTION 2: Inject trace context into Kafka message headers
+        # Note: Headers require Kafka API v0.11.0+
         headers = []
         if OTEL_AVAILABLE and propagate is not None:
             # Create carrier dict to inject context into
@@ -281,14 +282,28 @@ def send_result_to_kafka(task_id, result, status='completed'):
             
             # Convert carrier to Kafka headers format (list of tuples with bytes)
             for key, value in carrier.items():
-                headers.append((key, value.encode('utf-8') if isinstance(value, str) else value))
+                # Ensure value is bytes - handle both str and bytes
+                if isinstance(value, str):
+                    value_bytes = value.encode('utf-8')
+                elif isinstance(value, bytes):
+                    value_bytes = value
+                else:
+                    value_bytes = str(value).encode('utf-8')
+                headers.append((key, value_bytes))
         
-        future = producer.send(
-            KAFKA_RESULT_TOPIC,
-            key=task_id.encode('utf-8'),
-            value=message,
-            headers=headers  # Add trace headers to message
-        )
+        # Pass task_id as-is (key_serializer will handle encoding)
+        # No need to pre-encode since key_serializer handles both str and bytes
+        
+        # Only include headers if we have them (and API version supports it)
+        send_kwargs = {
+            'topic': KAFKA_RESULT_TOPIC,
+            'key': task_id,
+            'value': message
+        }
+        if headers:
+            send_kwargs['headers'] = headers
+        
+        future = producer.send(**send_kwargs)
         # Wait for acknowledgment
         record_metadata = future.get(timeout=10)
         # ✅ INSTRUCTION 2: Reduced success logging verbosity (Gap 19)
@@ -476,8 +491,8 @@ def kafka_consumer_loop():
                                     }
                                 ):
                                     # ✅ INSTRUCTION 2: Reduced Kafka receive logging (Gap 19)
-                                    # Log at DEBUG level - task receipt tracked in metrics
-                                    logger.debug(f"Received Kafka task: {task_id}")
+                                    # Log at INFO level so we can see task processing
+                                    logger.info(f"📨 Received Kafka task: {task_id} (type: {task_data.get('task_type', 'unknown')})")
                                     
                                     # ✅ INSTRUCTION 2: REMOVED kafka_messages metric (Gap 8, 18)
                                     # Kafka message counts available from broker metrics
@@ -488,8 +503,8 @@ def kafka_consumer_loop():
                                 otel_context.detach(token)
                         else:
                             # Fallback without OpenTelemetry
-                            # ✅ INSTRUCTION 2: Reduced logging (Gap 19)
-                            logger.debug(f"Received Kafka task: {task_id}")
+                            # ✅ INSTRUCTION 2: Log at INFO level so we can see task processing
+                            logger.info(f"📨 Received Kafka task: {task_id} (type: {task_data.get('task_type', 'unknown')})")
                             
                             # ✅ INSTRUCTION 2: REMOVED kafka_messages metric (Gap 8, 18)
                             
