@@ -61,8 +61,21 @@ class LinkDiscoveryService {
         logger.info('[LinkDiscovery] No credentials provided, skipping login');
       }
       
-      // Step 3: Discover PDF links based on method
+      // Step 3: Get page info for better error messages
+      const pageInfo = await page.evaluate(() => {
+        return {
+          title: document.title || 'Untitled Page',
+          url: window.location.href,
+          allLinks: Array.from(document.querySelectorAll('a')).map(a => ({
+            href: a.href,
+            text: a.textContent?.trim() || ''
+          })).length
+        };
+      });
+      
+      // Step 4: Discover PDF links based on method
       let discoveredLinks = [];
+      let allLinksFound = 0;
       
       switch (discoveryMethod) {
         case 'css-selector':
@@ -73,17 +86,52 @@ class LinkDiscoveryService {
           break;
         case 'auto-detect':
         default:
-          discoveredLinks = await this._autoDetectPdfLinks(page);
+          const autoResult = await this._autoDetectPdfLinks(page);
+          discoveredLinks = autoResult.pdfLinks || [];
+          allLinksFound = autoResult.allLinksFound || 0;
           break;
       }
       
-      logger.info(`[LinkDiscovery] Found ${discoveredLinks.length} potential PDF links`);
+      // If auto-detect didn't return allLinksFound, count all links on page
+      if (allLinksFound === 0) {
+        allLinksFound = pageInfo.allLinks;
+      }
+      
+      // ✅ SEAMLESS UX: If no links found with primary method, try automatic fallback
+      if (discoveredLinks.length === 0 && discoveryMethod !== 'auto-detect') {
+        logger.info(`[LinkDiscovery] Primary method found no links, trying auto-detect as fallback...`);
+        const fallbackResult = await this._autoDetectPdfLinks(page);
+        if (fallbackResult.pdfLinks && fallbackResult.pdfLinks.length > 0) {
+          discoveredLinks = fallbackResult.pdfLinks;
+          allLinksFound = fallbackResult.allLinksFound || allLinksFound;
+          logger.info(`[LinkDiscovery] Fallback auto-detect found ${discoveredLinks.length} links`);
+        }
+      }
+      
+      // ✅ SEAMLESS UX: Extract cookies for authenticated PDF downloads
+      const cookies = await page.cookies();
+      const cookieString = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
+      
+      logger.info(`[LinkDiscovery] Found ${discoveredLinks.length} potential PDF links out of ${allLinksFound} total links`);
       
       return {
-        success: true,
+        success: discoveredLinks.length > 0,
         discoveredLinks,
         method: discoveryMethod,
-        testMode
+        testMode,
+        // ✅ SEAMLESS UX: Include cookies for authenticated downloads
+        cookies: cookies,
+        cookieString: cookieString,
+        // ✅ UX IMPROVEMENT: Include diagnostic info
+        pageTitle: pageInfo.title,
+        pageUrl: pageInfo.url,
+        allLinksFound: allLinksFound,
+        diagnosticInfo: {
+          totalLinksOnPage: pageInfo.allLinks,
+          pdfLinksFound: discoveredLinks.length,
+          discoveryMethod: discoveryMethod,
+          hasCookies: cookies.length > 0
+        }
       };
       
     } catch (error) {
@@ -388,101 +436,175 @@ class LinkDiscoveryService {
 
   /**
    * Intelligent auto-detection of PDF download links
+   * Enhanced with smarter detection patterns and multiple strategies
    */
   async _autoDetectPdfLinks(page) {
     try {
-      logger.info('[LinkDiscovery] Auto-detecting PDF links...');
+      logger.info('[LinkDiscovery] Auto-detecting PDF links with enhanced detection...');
       
       await this._wait(2000);
       
-      const links = await page.evaluate(() => {
+      const result = await page.evaluate(() => {
         const results = [];
+        let allLinksCount = 0;
         
-        // Comprehensive PDF link detection
-        const allElements = document.querySelectorAll('a, button, [onclick], [role="button"], [data-url]');
+        // Count all links first
+        allLinksCount = document.querySelectorAll('a').length;
         
-        allElements.forEach((element, index) => {
-          const text = (element.textContent || '').trim().toLowerCase();
-          const href = element.href || element.getAttribute('data-url') || '';
-          const onclick = element.onclick?.toString() || '';
-          const className = element.className || '';
-          const title = (element.title || '').toLowerCase();
-          const ariaLabel = (element.getAttribute('aria-label') || '').toLowerCase();
-          
-          let score = 0;
-          let reasons = [];
-          
-          // URL-based scoring
-          if (href.includes('.pdf')) {
-            score += 0.4;
-            reasons.push('URL contains .pdf');
-          }
-          
-          if (href.includes('download') || onclick.includes('download')) {
-            score += 0.2;
-            reasons.push('Contains download');
-          }
-          
-          if (href.includes('invoice') || onclick.includes('invoice')) {
-            score += 0.3;
-            reasons.push('Contains invoice');
-          }
-          
-          // Text-based scoring
-          const pdfKeywords = ['pdf', 'download', 'invoice', 'receipt', 'bill', 'statement', 'report'];
-          const downloadKeywords = ['download', 'get', 'save', 'export', 'print'];
-          
-          pdfKeywords.forEach(keyword => {
-            if (text.includes(keyword) || title.includes(keyword) || ariaLabel.includes(keyword)) {
-              score += 0.15;
-              reasons.push(`Text contains ${keyword}`);
-            }
-          });
-          
-          downloadKeywords.forEach(keyword => {
-            if (text.includes(keyword) || title.includes(keyword) || ariaLabel.includes(keyword)) {
-              score += 0.1;
-              reasons.push(`Action word: ${keyword}`);
-            }
-          });
-          
-          // Class/attribute-based scoring
-          if (className.includes('pdf') || className.includes('download')) {
-            score += 0.2;
-            reasons.push('CSS class suggests download');
-          }
-          
-          // Icon-based detection
-          const hasDownloadIcon = element.querySelector('[class*="download"], [class*="pdf"], [class*="file"]') ||
-                                 element.innerHTML.includes('⬇') || element.innerHTML.includes('📄');
-          if (hasDownloadIcon) {
-            score += 0.15;
-            reasons.push('Has download/file icon');
-          }
-          
-          // Only include links with reasonable confidence
-          if (score >= 0.3 && (href || onclick)) {
+        // ✅ SEAMLESS UX: Multiple detection strategies for maximum compatibility
+        // Strategy 1: Direct PDF links
+        const directPdfLinks = Array.from(document.querySelectorAll('a[href*=".pdf"], a[href*="pdf"], a[href*="PDF"]'));
+        directPdfLinks.forEach(link => {
+          if (link.href && !results.find(r => r.href === link.href)) {
             results.push({
-              href: href || onclick,
-              text: element.textContent?.trim() || 'PDF Link',
-              selector: `auto-detected`,
-              score: Math.min(score, 1.0),
-              reasons: reasons,
+              href: link.href,
+              text: link.textContent?.trim() || link.title || 'PDF Link',
+              selector: 'direct-pdf-link',
+              score: 0.95,
+              reasons: ['Direct PDF URL'],
               method: 'auto-detect'
             });
           }
         });
         
-        // Sort by confidence score
-        return results.sort((a, b) => b.score - a.score);
+        // Strategy 2: Comprehensive element detection
+        const allElements = document.querySelectorAll('a, button, [onclick], [role="button"], [data-url], [data-pdf], [data-download]');
+        
+        allElements.forEach((element, index) => {
+          // Skip if already added as direct PDF link
+          if (element.tagName === 'A' && element.href && element.href.includes('.pdf')) {
+            return;
+          }
+          
+          const text = (element.textContent || '').trim().toLowerCase();
+          const href = element.href || element.getAttribute('data-url') || element.getAttribute('data-pdf') || '';
+          const onclick = element.onclick?.toString() || '';
+          const className = (element.className || '').toString().toLowerCase();
+          const id = (element.id || '').toLowerCase();
+          const title = (element.title || '').toLowerCase();
+          const ariaLabel = (element.getAttribute('aria-label') || '').toLowerCase();
+          const dataAttr = element.getAttribute('data-download') || element.getAttribute('data-pdf') || '';
+          
+          let score = 0;
+          let reasons = [];
+          
+          // ✅ SEAMLESS UX: Enhanced URL-based scoring
+          if (href.includes('.pdf') || href.includes('/pdf/') || href.includes('/download/')) {
+            score += 0.5;
+            reasons.push('URL pattern suggests PDF');
+          }
+          
+          if (href.includes('download') || onclick.includes('download') || dataAttr.includes('download')) {
+            score += 0.25;
+            reasons.push('Download indicator found');
+          }
+          
+          if (href.includes('invoice') || onclick.includes('invoice') || text.includes('invoice')) {
+            score += 0.3;
+            reasons.push('Invoice-related content');
+          }
+          
+          // ✅ SEAMLESS UX: Enhanced text-based scoring with more keywords
+          const pdfKeywords = ['pdf', 'download', 'invoice', 'receipt', 'bill', 'statement', 'report', 'document', 'file'];
+          const downloadKeywords = ['download', 'get', 'save', 'export', 'print', 'fetch', 'retrieve'];
+          const invoiceKeywords = ['invoice', 'receipt', 'bill', 'statement', 'payment'];
+          
+          pdfKeywords.forEach(keyword => {
+            if (text.includes(keyword) || title.includes(keyword) || ariaLabel.includes(keyword) || 
+                className.includes(keyword) || id.includes(keyword)) {
+              score += 0.2;
+              reasons.push(`Contains "${keyword}"`);
+            }
+          });
+          
+          downloadKeywords.forEach(keyword => {
+            if (text.includes(keyword) || title.includes(keyword) || ariaLabel.includes(keyword)) {
+              score += 0.15;
+              reasons.push(`Action: ${keyword}`);
+            }
+          });
+          
+          invoiceKeywords.forEach(keyword => {
+            if (text.includes(keyword) || title.includes(keyword) || ariaLabel.includes(keyword)) {
+              score += 0.25;
+              reasons.push(`Invoice-related: ${keyword}`);
+            }
+          });
+          
+          // ✅ SEAMLESS UX: Enhanced class/attribute-based scoring
+          const downloadClasses = ['download', 'pdf', 'file', 'invoice', 'document', 'export', 'save'];
+          downloadClasses.forEach(cls => {
+            if (className.includes(cls) || id.includes(cls)) {
+              score += 0.2;
+              reasons.push(`CSS class/id suggests download`);
+            }
+          });
+          
+          // Icon-based detection (more comprehensive)
+          const hasDownloadIcon = element.querySelector('[class*="download"], [class*="pdf"], [class*="file"], [class*="invoice"]') ||
+                                 element.innerHTML.includes('⬇') || element.innerHTML.includes('📄') ||
+                                 element.innerHTML.includes('📥') || element.innerHTML.includes('💾');
+          if (hasDownloadIcon) {
+            score += 0.2;
+            reasons.push('Has download/file icon');
+          }
+          
+          // ✅ SEAMLESS UX: Data attribute detection
+          if (dataAttr) {
+            score += 0.3;
+            reasons.push('Has download data attribute');
+          }
+          
+          // ✅ SEAMLESS UX: Lower threshold for better discovery (was 0.3, now 0.25)
+          if (score >= 0.25 && (href || onclick || dataAttr)) {
+            const linkText = element.textContent?.trim() || element.title || ariaLabel || 'PDF Link';
+            const linkHref = href || onclick || dataAttr;
+            
+            // Avoid duplicates
+            if (!results.find(r => r.href === linkHref && r.text === linkText)) {
+              results.push({
+                href: linkHref,
+                text: linkText,
+                selector: `auto-detected`,
+                score: Math.min(score, 1.0),
+                reasons: reasons,
+                method: 'auto-detect'
+              });
+            }
+          }
+        });
+        
+        // ✅ SEAMLESS UX: Sort by confidence score (highest first)
+        const sortedResults = results.sort((a, b) => b.score - a.score);
+        
+        // ✅ SEAMLESS UX: Deduplicate similar links
+        const uniqueResults = [];
+        const seenUrls = new Set();
+        for (const link of sortedResults) {
+          const normalizedUrl = link.href.split('?')[0]; // Remove query params for comparison
+          if (!seenUrls.has(normalizedUrl)) {
+            seenUrls.add(normalizedUrl);
+            uniqueResults.push(link);
+          }
+        }
+        
+        return {
+          pdfLinks: uniqueResults,
+          allLinksFound: allLinksCount
+        };
       });
       
-      logger.info(`[LinkDiscovery] Auto-detected ${links.length} potential PDF links`);
-      return this._validatePdfLinks(links);
+      logger.info(`[LinkDiscovery] Auto-detected ${result.pdfLinks.length} potential PDF links out of ${result.allLinksFound} total links`);
+      const validatedLinks = this._validatePdfLinks(result.pdfLinks);
+      
+      return {
+        pdfLinks: validatedLinks,
+        allLinksFound: result.allLinksFound
+      };
       
     } catch (error) {
       logger.error(`[LinkDiscovery] Auto-detection failed:`, error);
-      return [];
+      return { pdfLinks: [], allLinksFound: 0 };
     }
   }
 

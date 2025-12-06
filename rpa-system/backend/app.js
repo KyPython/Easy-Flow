@@ -325,6 +325,8 @@ const automationLimiter = rateLimit({
       'https://sdk.dfktv2.com',
       'https://*.dfktv2.com',
       'https://www.googletagmanager.com',
+      'https://www.google-analytics.com',
+      'https://analytics.google.com',
       'https://js.hs-scripts.com',
       'https://js-na1.hs-scripts.com',
       'https://js-na2.hs-scripts.com',
@@ -332,10 +334,21 @@ const automationLimiter = rateLimit({
       'https://js.hs-analytics.net',
       'https://*.hs-analytics.net',
       'https://js-na2.hs-banner.com',
-      'https://*.hscollectedforms.net'
+      'https://*.hscollectedforms.net',
+      // Firebase and Google Identity Toolkit
+      'https://www.gstatic.com',
+      'https://*.gstatic.com',
+      'https://www.googleapis.com',
+      'https://*.googleapis.com',
+      'https://identitytoolkit.googleapis.com',
+      'https://securetoken.googleapis.com',
+      'https://firebase.googleapis.com',
+      'https://*.firebase.googleapis.com',
+      'https://*.firebaseapp.com',
+      'https://*.firebaseio.com'
     ],
     imgSrc: ["'self'", 'https:'],
-    connectSrc: ["'self'", 'https://sdk.dfktv2.com', 'https://*.dfktv2.com', 'https://www.uchat.com.au', 'https://*.uchat.com.au', 'https://www.google-analytics.com', 'https://analytics.google.com', 'https://*.googleapis.com', 'https://ipapi.co', 'https://*.hubspot.com', 'https://*.hs-analytics.net', 'https://*.hscollectedforms.net', 'https://api.hubapi.com'],
+    connectSrc: ["'self'", 'https://sdk.dfktv2.com', 'https://*.dfktv2.com', 'https://www.uchat.com.au', 'https://*.uchat.com.au', 'https://www.google-analytics.com', 'https://analytics.google.com', 'https://*.googleapis.com', 'https://ipapi.co', 'https://*.hubspot.com', 'https://*.hs-analytics.net', 'https://*.hscollectedforms.net', 'https://api.hubapi.com', 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://firebase.googleapis.com', 'https://*.firebase.googleapis.com', 'https://*.firebaseapp.com', 'https://*.firebaseio.com', 'https://fcmregistrations.googleapis.com'],
     fontSrc: ["'self'", 'https:'],
     objectSrc: ["'none'"],
     mediaSrc: ["'self'"],
@@ -486,14 +499,22 @@ app.use((req, res, next) => {
 });
 
 // --- Supabase & App Config ---
-const { getSupabase } = require('./utils/supabaseClient');
-const supabase = getSupabase();
+const { getSupabase, getSupabaseOrThrow, isSupabaseConfigured } = require('./utils/supabaseClient');
+let supabase = null;
+try {
+  supabase = getSupabase();
 if (!supabase) {
   logger.warn('⚠️ Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE environment variables.');
+    logger.warn('⚠️ Database operations (automation history, task tracking) will fail without Supabase configuration.');
 } else {
   // Initialize usage tracker with supabase client
   usageTracker.initialize(supabase);
   logger.info('✅ Usage tracker initialized');
+    logger.info('✅ Supabase client ready for database operations');
+  }
+} catch (err) {
+  logger.error('❌ Failed to initialize Supabase client:', err.message || err);
+  supabase = null;
 }
 const ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
 
@@ -1026,6 +1047,62 @@ app.get('/health', (_req, res) => {
 });
 
 // Enhanced health check endpoint for database services
+// ✅ DIAGNOSTIC: Add Supabase connectivity check endpoint
+app.get('/api/health/supabase', async (_req, res) => {
+  try {
+    const { isSupabaseConfigured, getSupabase } = require('./utils/supabaseClient');
+    const configured = isSupabaseConfigured();
+    const client = getSupabase();
+    
+    if (!configured) {
+      return res.status(503).json({
+        status: 'not_configured',
+        message: 'Supabase environment variables not set',
+        required: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE or SUPABASE_SERVICE_ROLE_KEY'],
+        has_url: !!process.env.SUPABASE_URL,
+        has_key: !!(process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY)
+      });
+    }
+    
+    if (!client) {
+      return res.status(503).json({
+        status: 'initialization_failed',
+        message: 'Supabase client failed to initialize',
+        configured: true
+      });
+    }
+    
+    // Test database connectivity with a simple query
+    const { data, error } = await client
+      .from('automation_tasks')
+      .select('id')
+      .limit(1);
+    
+    if (error) {
+      return res.status(503).json({
+        status: 'connection_failed',
+        message: 'Cannot connect to Supabase database',
+        error: error.message,
+        code: error.code,
+        hint: error.hint
+      });
+    }
+    
+    return res.json({
+      status: 'healthy',
+      message: 'Supabase connection successful',
+      can_read: true,
+      tables_accessible: ['automation_tasks']
+    });
+  } catch (err) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Health check failed',
+      error: err.message
+    });
+  }
+});
+
 app.get('/api/health/databases', async (_req, res) => {
   try {
     const health = {
@@ -3075,10 +3152,18 @@ app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req,
 //
 
 app.post('/api/automation/execute', authMiddleware, automationLimiter, async (req, res) => {
+  // ✅ CRITICAL: Log immediately when endpoint is hit
+  console.log('========================================');
+  console.log('[AutomationExecute] 🚨 ENDPOINT HIT 🚨');
+  console.log('[AutomationExecute] Timestamp:', new Date().toISOString());
+  console.log('[AutomationExecute] User ID:', req.user?.id);
+  console.log('========================================');
+  
   try {
     const taskData = req.body;
 
     // DEV: Log incoming payload for debugging
+    console.log('[AutomationExecute] 📥 Incoming request body:', JSON.stringify(taskData, null, 2));
     if (process.env.NODE_ENV !== 'production') {
       logger.info('[DEV DEBUG] Incoming /api/automation/execute payload:', JSON.stringify(taskData, null, 2));
     }
@@ -3110,7 +3195,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       });
     }
 
-    // ✅ Handle Invoice Download with Link Discovery
+    // ✅ SEAMLESS UX: Handle Invoice Download with Link Discovery (automatic fallback)
     if (taskData.task_type === 'invoice_download' && taskData.discoveryMethod) {
       logger.info(`[AutomationExecute] Processing invoice download with link discovery for user ${req.user.id}`);
       
@@ -3136,11 +3221,11 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
           });
         }
 
-        logger.info(`[AutomationExecute] Starting link discovery for ${url}`);
+        logger.info(`[AutomationExecute] Starting link discovery for ${url} with method: ${discoveryMethod}`);
         
-        // Run link discovery
+        // ✅ SEAMLESS UX: Run link discovery with automatic fallback
         const linkDiscovery = new LinkDiscoveryService();
-        const discoveryResult = await linkDiscovery.discoverPdfLinks({
+        let discoveryResult = await linkDiscovery.discoverPdfLinks({
           url,
           username,
           password,
@@ -3148,9 +3233,29 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
           discoveryValue,
           testMode: false
         });
+        
+        // ✅ SEAMLESS UX: If primary method fails, automatically try auto-detect as fallback
+        if (!discoveryResult.success && discoveryMethod !== 'auto-detect') {
+          logger.info(`[AutomationExecute] Primary method (${discoveryMethod}) found no links, trying auto-detect fallback...`);
+          const fallbackResult = await linkDiscovery.discoverPdfLinks({
+            url,
+            username,
+            password,
+            discoveryMethod: 'auto-detect',
+            discoveryValue: null,
+            testMode: false
+          });
+          
+          if (fallbackResult.success && fallbackResult.discoveredLinks?.length > 0) {
+            logger.info(`[AutomationExecute] Fallback auto-detect succeeded! Found ${fallbackResult.discoveredLinks.length} links`);
+            discoveryResult = fallbackResult;
+            discoveryResult.fallback_used = true;
+            discoveryResult.original_method = discoveryMethod;
+          }
+        }
 
         if (!discoveryResult.success || !discoveryResult.discoveredLinks?.length) {
-          // Check if this is a known test site (which typically don't have PDFs)
+          // ✅ UX IMPROVEMENT: More helpful error with actionable guidance
           const testSitePatterns = [
             'jsonplaceholder.typicode.com',
             'httpbin.org',
@@ -3158,19 +3263,45 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
           ];
           const isTestSite = testSitePatterns.some(pattern => url.includes(pattern));
           
-          const errorMessage = isTestSite
-            ? 'No PDF download links found. Test sites (like JSON Placeholder, HttpBin, ReqRes) typically don\'t contain PDF files. Try using a real website that has PDF downloads, or provide a direct PDF URL instead.'
-            : 'Link discovery failed to find any downloadable PDF links. Please verify your credentials and discovery settings, or try using a different discovery method.';
+          // Get what WAS found (even if not PDFs) to help user understand what happened
+          const foundLinks = discoveryResult.discoveredLinks || [];
+          const allLinksFound = discoveryResult.allLinksFound || discoveryResult.diagnosticInfo?.totalLinksOnPage || 0;
+          const pageTitle = discoveryResult.pageTitle || 'the page';
           
-          return res.status(400).json({
-            error: 'No PDF download links found',
-            details: errorMessage,
-            suggestion: isTestSite 
-              ? 'For testing, you can provide a direct PDF URL in the "PDF URL" field instead of using link discovery.'
-              : 'Try adjusting your discovery method or verify that the website actually contains PDF download links.'
-          });
-        }
-
+          let errorMessage;
+          let suggestion;
+          
+          if (isTestSite) {
+            errorMessage = 'No PDF download links found. Test sites (like JSON Placeholder, HttpBin, ReqRes) typically don\'t contain PDF files.';
+            suggestion = 'For testing, you can provide a direct PDF URL in the "PDF URL" field instead of using link discovery.';
+          } else if (allLinksFound > 0) {
+            // Found links but no PDFs - helpful!
+            errorMessage = `Found ${allLinksFound} link(s) on "${pageTitle}", but none appear to be PDF downloads. The page may not have PDF files, or they might be behind a different navigation path.`;
+            suggestion = 'Try: 1) Navigating to a page that lists invoices/downloads, 2) Using a different discovery method (CSS selector or text match), or 3) Providing a direct PDF URL if you know it.';
+          } else {
+            // No links found at all
+            errorMessage = 'No downloadable links found on the page. This could mean: the page structure is different than expected, login didn\'t complete successfully, or the page loaded incorrectly.';
+            suggestion = 'Try: 1) Verifying your login credentials work, 2) Checking that you\'re on the right page (one that should have download links), 3) Using a CSS selector or text match discovery method, or 4) Providing a direct PDF URL.';
+          }
+          
+          // ✅ UX IMPROVEMENT: Don't block - allow fallback to direct PDF URL
+          // BUT: Still create database record so task appears in history
+          // We'll continue with the normal flow but mark it as a warning
+          logger.warn(`[AutomationExecute] Link discovery failed but continuing to create database record`);
+          taskData.link_discovery_failed = true;
+          taskData.link_discovery_error = errorMessage;
+          taskData.link_discovery_warning = true;
+          taskData.discovery_info = {
+              links_found: allLinksFound,
+              pdf_links_found: foundLinks.length,
+              page_title: pageTitle,
+              discovery_method: discoveryMethod,
+              page_url: discoveryResult.pageUrl
+          };
+          // Don't return early - continue to database insert and Kafka queue
+          // The task will be created but marked as having a discovery warning
+        } else {
+          // Link discovery succeeded
         logger.info(`[AutomationExecute] Link discovery successful, found ${discoveryResult.discoveredLinks.length} links`);
 
         // Use the best discovered link (first one with highest score)
@@ -3178,15 +3309,25 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
         taskData.pdf_url = bestLink.href;
         taskData.discovered_links = discoveryResult.discoveredLinks;
         taskData.discovery_method_used = discoveryMethod;
+          
+          // ✅ SEAMLESS UX: Pass cookies for authenticated PDF downloads
+          if (discoveryResult.cookies && discoveryResult.cookies.length > 0) {
+            taskData.auth_cookies = discoveryResult.cookies;
+            taskData.cookie_string = discoveryResult.cookieString;
+            logger.info(`[AutomationExecute] Extracted ${discoveryResult.cookies.length} cookies for authenticated download`);
+          }
         
         logger.info(`[AutomationExecute] Using discovered PDF URL: ${bestLink.href.substring(0, 100)}...`);
+        }
         
       } catch (discoveryError) {
-        logger.error('[AutomationExecute] Link discovery failed:', discoveryError);
-        return res.status(500).json({
-          error: 'Link discovery failed',
-          details: discoveryError.message
-        });
+        logger.error('[AutomationExecute] Link discovery failed with exception:', discoveryError);
+        // ✅ FIX: Don't return early - continue to create database record
+        // Mark the task as having a discovery error but still process it
+        taskData.link_discovery_failed = true;
+        taskData.link_discovery_error = discoveryError.message;
+        taskData.link_discovery_exception = true;
+        logger.warn('[AutomationExecute] Link discovery exception but continuing to create database record');
       }
     }
 
@@ -3202,9 +3343,187 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       logger.info('[DEV DEBUG] /api/automation/execute enriched payload:', JSON.stringify(enrichedTask, null, 2));
     }
 
+    // ✅ FIX: Create database records so task appears in automation history
+    console.log('[AutomationExecute] 🔍 STARTING DATABASE INSERT CHECK');
+    console.log('[AutomationExecute] Supabase client exists?', !!supabase);
+    console.log('[AutomationExecute] Supabase type:', typeof supabase);
+    
+    const taskName = taskData.title || 
+                     (taskData.task_type && taskData.task_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 
+                     'Automation Task';
+    const taskType = (taskData.task_type || 'general').toLowerCase();
+    
+    // Create automation_tasks record
+    const taskParams = {
+      url: taskData.url || '',
+      username: taskData.username || '',
+      password: taskData.password || '',
+      pdf_url: taskData.pdf_url || '',
+      discoveryMethod: taskData.discoveryMethod || '',
+      discoveryValue: taskData.discoveryValue || '',
+      enableAI: taskData.enableAI || false,
+      extractionTargets: taskData.extractionTargets || []
+    };
+    
+    let taskRecord = null;
+    let runRecord = null;
+    let dbError = null;
+    
+    // ✅ FIX: Check if Supabase is configured before attempting database operations
+    if (!supabase) {
+      dbError = 'Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE environment variables.';
+      console.error('[AutomationExecute] ❌❌❌ SUPABASE CLIENT IS NULL/UNDEFINED ❌❌❌');
+      console.error('[AutomationExecute] Environment check:', {
+        SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'MISSING',
+        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE ? 'SET' : 'MISSING',
+        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING',
+        SUPABASE_KEY: process.env.SUPABASE_KEY ? 'SET' : 'MISSING',
+        SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'SET' : 'MISSING'
+      });
+      logger.error(`[AutomationExecute] ❌ ${dbError} - Task will be processed via Kafka but won't appear in history.`);
+    } else {
+      console.log('[AutomationExecute] ✅ Supabase client exists, attempting database insert...');
+      try {
+        console.log('[AutomationExecute] 🔍 Attempting to insert into automation_tasks...');
+        console.log('[AutomationExecute] User ID:', req.user.id);
+        console.log('[AutomationExecute] Task name:', taskName);
+        console.log('[AutomationExecute] Task type:', taskType);
+        
+        const insertResult = await supabase
+          .from('automation_tasks')
+          .insert([{
+            user_id: req.user.id,
+            name: taskName,
+            description: taskData.notes || taskData.description || '',
+            url: taskData.url || '',
+            task_type: taskType,
+            parameters: JSON.stringify(taskParams),
+            is_active: true
+          }])
+          .select()
+          .single();
+        
+        console.log('[AutomationExecute] 🔍 Insert result:', {
+          hasData: !!insertResult.data,
+          hasError: !!insertResult.error,
+          errorMessage: insertResult.error?.message,
+          errorCode: insertResult.error?.code
+        });
+        
+        const { data: task, error: taskError } = insertResult;
+        
+        if (taskError) {
+          console.error('[AutomationExecute] ❌❌❌ TASK INSERT ERROR ❌❌❌');
+          console.error('[AutomationExecute] Error object:', taskError);
+          // ✅ FIX: Log the FULL error object so we can see what's wrong
+          const errorDetails = {
+            message: taskError.message,
+            details: taskError.details,
+            hint: taskError.hint,
+            code: taskError.code,
+            fullError: JSON.stringify(taskError, Object.getOwnPropertyNames(taskError))
+          };
+          logger.error('[AutomationExecute] ❌ Error creating automation task:', errorDetails);
+          console.error('[AutomationExecute] ❌ FULL ERROR OBJECT:', taskError);
+          dbError = `Database error: ${taskError.message || 'Failed to create task record'}`;
+          if (taskError.details) dbError += ` (${taskError.details})`;
+          if (taskError.hint) dbError += ` Hint: ${taskError.hint}`;
+          if (taskError.code) dbError += ` [Code: ${taskError.code}]`;
+        } else {
+          taskRecord = task;
+          logger.info(`[AutomationExecute] ✅ Created automation task ${task.id} for user ${req.user.id}`);
+          
+          // Create automation_runs record
+          // ✅ FIX: Valid statuses are 'running', 'completed', 'failed' - NOT 'queued'
+          // We use 'running' initially (even though task is queued) because that's what the constraint allows
+          // The result field contains the actual queue status, and Kafka will update the DB status when processing starts/completes
+          const { data: run, error: runError } = await supabase
+            .from('automation_runs')
+            .insert([{
+              task_id: taskRecord.id,
+              user_id: req.user.id,
+              status: 'running',  // DB constraint only allows: 'running', 'completed', 'failed'
+              started_at: new Date().toISOString(),
+              result: JSON.stringify({ 
+                status: 'queued',  // Actual status in result metadata
+                message: 'Task queued for processing',
+                queue_status: 'pending'  // Additional metadata for UI display
+              })
+            }])
+            .select()
+            .single();
+          
+          if (runError) {
+            // ✅ FIX: Log the FULL error object so we can see what's wrong
+            const errorDetails = {
+              message: runError.message,
+              details: runError.details,
+              hint: runError.hint,
+              code: runError.code,
+              fullError: JSON.stringify(runError, Object.getOwnPropertyNames(runError))
+            };
+            logger.error('[AutomationExecute] ❌ Error creating automation run:', errorDetails);
+            console.error('[AutomationExecute] ❌ FULL RUN ERROR OBJECT:', runError);
+            dbError = dbError ? `${dbError}; Run error: ${runError.message}` : `Database error: ${runError.message || 'Failed to create run record'}`;
+            if (runError.details) dbError += ` (${runError.details})`;
+            if (runError.hint) dbError += ` Hint: ${runError.hint}`;
+            if (runError.code) dbError += ` [Code: ${runError.code}]`;
+          } else {
+            runRecord = run;
+            logger.info(`[AutomationExecute] ✅ Created automation run ${run.id} for task ${taskRecord.id}`);
+          }
+        }
+      } catch (dbException) {
+        logger.error('[AutomationExecute] Unexpected error creating database records:', {
+          error: dbException,
+          message: dbException.message,
+          stack: dbException.stack
+        });
+        dbError = `Unexpected database error: ${dbException.message || String(dbException)}`;
+      }
+    }
+    
+    // ✅ FIX: Log warning with FULL details if database insert failed
+    console.log('[AutomationExecute] 🔍 FINAL DB ERROR CHECK:', {
+      hasDbError: !!dbError,
+      dbError: dbError,
+      hasTaskRecord: !!taskRecord,
+      hasRunRecord: !!runRecord
+    });
+    
+    if (dbError) {
+      console.error('[AutomationExecute] ❌❌❌ DATABASE INSERT FAILED ❌❌❌');
+      console.error('[AutomationExecute] Error message:', dbError);
+      console.error('[AutomationExecute] Supabase client status:', supabase ? 'initialized' : 'NULL/UNDEFINED');
+      console.error('[AutomationExecute] Environment variables:', {
+        SUPABASE_URL: process.env.SUPABASE_URL ? `SET (${process.env.SUPABASE_URL.substring(0, 30)}...)` : 'MISSING',
+        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE ? 'SET' : 'MISSING',
+        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING',
+        SUPABASE_KEY: process.env.SUPABASE_KEY ? 'SET' : 'MISSING',
+        SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'SET' : 'MISSING'
+      });
+      
+      logger.error(`[AutomationExecute] ❌ Database insert FAILED: ${dbError}`);
+      logger.error(`[AutomationExecute] ❌ Supabase client status: ${supabase ? 'initialized' : 'NULL/UNDEFINED'}`);
+      logger.error(`[AutomationExecute] ❌ Environment check: SUPABASE_URL=${!!process.env.SUPABASE_URL}, SUPABASE_SERVICE_ROLE=${!!process.env.SUPABASE_SERVICE_ROLE}, SUPABASE_SERVICE_ROLE_KEY=${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
+    } else {
+      console.log('[AutomationExecute] ✅ Database insert succeeded!');
+    }
+
     // Send task asynchronously (fire-and-forget)
-    const result = await kafkaService.sendAutomationTask(enrichedTask);
-    const task_id = result.taskId;
+    let task_id;
+    try {
+      console.log('[AutomationExecute] 📤 Attempting to send task to Kafka...');
+      const result = await kafkaService.sendAutomationTask(enrichedTask);
+      task_id = result.taskId;
+      console.log('[AutomationExecute] ✅ Task sent to Kafka successfully:', task_id);
+    } catch (kafkaError) {
+      console.error('[AutomationExecute] ❌ Failed to send task to Kafka:', kafkaError);
+      logger.error('[AutomationExecute] Kafka send failed:', kafkaError);
+      // Generate a task_id anyway so the response is valid
+      task_id = enrichedTask.task_id || uuidv4();
+      // Continue - task will be queued but won't process until Kafka is fixed
+    }
 
     // Store initial status in Redis/memory
     await taskStatusStore.set(task_id, {
@@ -3212,15 +3531,140 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       result: null,
       updated_at: new Date().toISOString(),
       user_id: req.user.id,
-      task: enrichedTask
+      task: enrichedTask,
+      // ✅ FIX: Link to database records
+      task_record_id: taskRecord?.id,
+      run_record_id: runRecord?.id
     });
 
-    res.status(202).json({
+    const dbRecorded = !!runRecord;
+    
+    console.log('[AutomationExecute] 🔍 BEFORE BUILDING RESPONSE:', {
+      dbRecorded,
+      hasRunRecord: !!runRecord,
+      hasTaskRecord: !!taskRecord,
+      hasDbError: !!dbError,
+      dbErrorValue: dbError
+    });
+    
+    // ✅ FIX: Always include db_error_details if database insert failed
+    const response = {
       success: true,
       task_id,
       status: 'queued',
-      message: 'Task accepted and queued for execution.'
+      message: 'Task accepted and queued for execution.',
+      // ✅ FIX: Return database IDs so frontend can track the task
+      run_id: runRecord?.id || null,
+      task_record_id: taskRecord?.id || null,
+      // ✅ FIX: Include database status with FULL error details
+      db_recorded: dbRecorded,
+      db_warning: dbError || (dbRecorded ? null : 'Database record creation failed - no error details available')
+    };
+    
+    // ✅ FIX: ALWAYS include db_error_details if db_recorded is false OR if there's an error
+    // This is CRITICAL - we MUST include error details so frontend can show what went wrong
+    if (!dbRecorded || dbError) {
+      const errorDetails = {
+        message: dbError || 'Database record creation failed - unknown error',
+        supabase_configured: !!supabase,
+        supabase_exists: !!supabase,
+        can_retry: false,
+        env_check: {
+          SUPABASE_URL: !!process.env.SUPABASE_URL,
+          SUPABASE_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE,
+          SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          SUPABASE_KEY: !!process.env.SUPABASE_KEY,
+          SUPABASE_ANON_KEY: !!process.env.SUPABASE_ANON_KEY
+        },
+        task_record_created: !!taskRecord,
+        run_record_created: !!runRecord,
+        debug_info: {
+          dbError_set: !!dbError,
+          dbError_value: dbError || 'not set',
+          supabase_type: typeof supabase,
+          dbRecorded_value: dbRecorded
+        }
+      };
+      
+      // ✅ CRITICAL: Force set the property - don't rely on conditional
+      response.db_error_details = errorDetails;
+      
+      console.error('[AutomationExecute] ❌❌❌ INCLUDING ERROR DETAILS IN RESPONSE ❌❌❌');
+      console.error('[AutomationExecute] Error details object:', JSON.stringify(errorDetails, null, 2));
+      console.error('[AutomationExecute] Response object after adding error_details:', {
+        has_db_error_details: !!response.db_error_details,
+        db_error_details_type: typeof response.db_error_details,
+        db_error_details_keys: response.db_error_details ? Object.keys(response.db_error_details) : 'N/A'
+      });
+    } else {
+      // ✅ SAFETY: Even if dbRecorded is true, log that we're NOT including error details
+      console.log('[AutomationExecute] ✅ Database insert succeeded - NOT including error details');
+    }
+    
+    // ✅ CRITICAL SAFETY CHECK: Force include error details if db_recorded is false, regardless of any other condition
+    if (!response.db_recorded && !response.db_error_details) {
+      console.error('[AutomationExecute] ⚠️⚠️⚠️ SAFETY CHECK: db_recorded is false but db_error_details missing! Adding it now...');
+      response.db_error_details = {
+        message: 'Database record creation failed - error details were not captured',
+        supabase_configured: !!supabase,
+        supabase_exists: !!supabase,
+        can_retry: false,
+        env_check: {
+          SUPABASE_URL: !!process.env.SUPABASE_URL,
+          SUPABASE_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE,
+          SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+        },
+        task_record_created: !!taskRecord,
+        run_record_created: !!runRecord,
+        debug_info: {
+          safety_check_triggered: true,
+          dbError_set: !!dbError,
+          dbError_value: dbError || 'not set'
+        }
+      };
+    }
+    
+    console.log('[AutomationExecute] 🔍 FINAL RESPONSE BEFORE SENDING:', {
+      success: response.success,
+      task_id: response.task_id,
+      db_recorded: response.db_recorded,
+      has_db_error_details: !!response.db_error_details,
+      db_error_details_keys: response.db_error_details ? Object.keys(response.db_error_details) : 'N/A',
+      db_warning: response.db_warning,
+      response_keys: Object.keys(response)
     });
+    
+    console.log('[AutomationExecute] 🔍 FULL RESPONSE JSON:', JSON.stringify(response, null, 2));
+    
+    // ✅ CRITICAL: Verify the response before sending
+    const responseString = JSON.stringify(response);
+    console.log('[AutomationExecute] 🔍 Response as string (first 1000 chars):', responseString.substring(0, 1000));
+    if (responseString.includes('db_error_details')) {
+      console.log('[AutomationExecute] ✅ db_error_details IS in the JSON string');
+      const match = responseString.match(/"db_error_details":\s*({[^}]+})/);
+      if (match) {
+        console.log('[AutomationExecute] ✅ Found db_error_details in JSON:', match[1]);
+      }
+    } else {
+      console.error('[AutomationExecute] ❌❌❌ db_error_details IS NOT in the JSON string ❌❌❌');
+    }
+    
+    // ✅ FIX: If link discovery failed, include that info in the response
+    if (taskData.link_discovery_failed) {
+      response.link_discovery_warning = true;
+      response.link_discovery_error = taskData.link_discovery_error;
+      response.fallback_available = true;
+      response.fallback_message = 'You can still submit this task by providing a direct PDF URL in the "PDF URL" field.';
+      if (taskData.discovery_info) {
+        response.discovery_info = taskData.discovery_info;
+      }
+    }
+    
+    console.log('========================================');
+    console.log('[AutomationExecute] 📤 SENDING RESPONSE NOW');
+    console.log('========================================');
+    
+    res.status(202).json(response);
 
   } catch (error) {
     if (process.env.NODE_ENV !== 'production') {

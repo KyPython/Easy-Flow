@@ -481,10 +481,11 @@ def check_success_indicator(driver, indicator):
 def download_pdf(pdf_url, task_data):
     """
     Download a PDF file from a URL.
+    Supports authenticated downloads using cookies from link discovery.
     
     Args:
         pdf_url (str): URL of the PDF to download
-        task_data (dict): Task configuration
+        task_data (dict): Task configuration (may include auth_cookies or cookie_string)
     
     Returns:
         dict: Result of download operation
@@ -499,8 +500,30 @@ def download_pdf(pdf_url, task_data):
         
         logger.info(f"Downloading PDF from: {pdf_url}")
         
-        # Download the file
-        response = requests.get(pdf_url, timeout=30, stream=True)
+        # ✅ SEAMLESS UX: Use cookies for authenticated PDF downloads
+        headers = {}
+        cookies_dict = {}
+        
+        # Handle cookie string (simpler format)
+        if task_data.get('cookie_string'):
+            headers['Cookie'] = task_data['cookie_string']
+            logger.info(f"Using cookie string for authenticated download ({len(task_data['cookie_string'])} chars)")
+        
+        # Handle cookie objects (more detailed format from Puppeteer)
+        elif task_data.get('auth_cookies'):
+            # Convert cookie objects to requests-compatible format
+            for cookie in task_data['auth_cookies']:
+                cookies_dict[cookie.get('name', '')] = cookie.get('value', '')
+            logger.info(f"Using {len(cookies_dict)} cookies for authenticated download")
+        
+        # Download the file with authentication if available
+        response = requests.get(
+            pdf_url, 
+            timeout=30, 
+            stream=True,
+            headers=headers,
+            cookies=cookies_dict if cookies_dict else None
+        )
         response.raise_for_status()
         
         # Generate filename

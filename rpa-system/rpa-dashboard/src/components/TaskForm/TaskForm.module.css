@@ -588,6 +588,42 @@ code {
   margin-bottom: var(--spacing-xs);
 }
 
+/* ✅ SEAMLESS UX: Advanced Options Collapsible Section */
+.advancedOptions {
+  margin-top: var(--spacing-md, 16px);
+  padding: var(--spacing-md, 16px);
+  background: var(--color-gray-50, #f9fafb);
+  border: 1px solid var(--color-gray-200, #e5e7eb);
+  border-radius: var(--border-radius-md, 8px);
+}
+
+.advancedSummary {
+  cursor: pointer;
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--color-gray-700, #374151);
+  padding: var(--spacing-xs, 4px) 0;
+  user-select: none;
+  list-style: none;
+}
+
+.advancedSummary::-webkit-details-marker {
+  display: none;
+}
+
+.advancedSummary::marker {
+  display: none;
+}
+
+.advancedSummary:hover {
+  color: var(--color-primary-600, #2563eb);
+}
+
+.advancedOptions[open] .advancedSummary {
+  margin-bottom: var(--spacing-md, 16px);
+  border-bottom: 1px solid var(--color-gray-200, #e5e7eb);
+  padding-bottom: var(--spacing-sm, 8px);
+}
+
 /* Responsive Design for Link Discovery */
 @media (max-width: 768px) {
   .sectionTitle {
@@ -607,5 +643,9 @@ code {
   
   .resultHref code {
     font-size: 10px;
+  }
+  
+  .advancedOptions {
+    padding: var(--spacing-sm, 8px);
   }
 }

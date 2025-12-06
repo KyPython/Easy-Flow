@@ -365,6 +365,71 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         });
         completedTask = resp?.data;
+        
+        // ✅ FIX: Log the RAW response to see what we're actually getting
+        console.log('[TaskForm] 🔍 RAW API RESPONSE:', resp);
+        console.log('[TaskForm] 🔍 Response data:', resp?.data);
+        console.log('[TaskForm] 🔍 Response status:', resp?.status);
+        console.log('[TaskForm] 🔍 Response headers:', resp?.headers);
+        
+        // ✅ FIX: Show FULL error details to user
+        console.log('[TaskForm] 🔍 Checking database status:', {
+          db_recorded: completedTask?.db_recorded,
+          db_warning: completedTask?.db_warning,
+          db_error_details: completedTask?.db_error_details,
+          has_db_error_details: !!completedTask?.db_error_details,
+          full_response_keys: completedTask ? Object.keys(completedTask) : [],
+          full_response: JSON.stringify(completedTask, null, 2)
+        });
+        
+        if (completedTask && !completedTask.db_recorded) {
+          const errorMsg = completedTask.db_warning || completedTask.db_error_details?.message || 'Database record creation failed';
+          const details = completedTask.db_error_details;
+          
+          // ✅ FIX: Expand the fullResponse object so we can see everything
+          console.error('[TaskForm] ❌ Database error detected:', {
+            errorMsg,
+            details,
+            details_type: typeof details,
+            details_keys: details ? Object.keys(details) : 'N/A',
+            fullResponse: completedTask
+          });
+          
+          // ✅ FIX: Log the FULL response object with all properties visible
+          console.error('[TaskForm] ❌ FULL RESPONSE OBJECT (expanded):');
+          console.error('  - db_recorded:', completedTask?.db_recorded);
+          console.error('  - db_warning:', completedTask?.db_warning);
+          console.error('  - db_error_details:', completedTask?.db_error_details);
+          console.error('  - All keys:', completedTask ? Object.keys(completedTask) : 'N/A');
+          console.error('  - Full JSON:', JSON.stringify(completedTask, null, 2));
+          
+          // ✅ FIX: Check if db_error_details exists but is null/undefined
+          if (completedTask && 'db_error_details' in completedTask) {
+            console.error('  - db_error_details EXISTS but value is:', completedTask.db_error_details);
+          } else {
+            console.error('  - db_error_details KEY DOES NOT EXIST in response');
+          }
+          
+          let fullMessage = `⚠️ Task queued but database record creation failed: ${errorMsg}`;
+          
+          if (details) {
+            if (!details.supabase_configured) {
+              fullMessage += '\n\n🔧 Fix: Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables in the backend.';
+            }
+            if (details.env_check) {
+              const missing = Object.entries(details.env_check)
+                .filter(([_, set]) => !set)
+                .map(([key]) => key);
+              if (missing.length > 0) {
+                fullMessage += `\n\nMissing env vars: ${missing.join(', ')}`;
+              }
+            }
+          } else {
+            fullMessage += '\n\n🔧 Check backend logs for details.';
+          }
+          
+          showWarning(fullMessage);
+        }
       } catch (err) {
         // Normalize to mimic previous error shape for downstream handling
         const normalized = new Error(err.message || 'Request failed');
@@ -398,11 +463,14 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
       }
 
       if (completedTask?.status === 'queued') {
-        const taskId = completedTask.id
-          ? ` (ID: ${completedTask.id.slice(0, 8)}...)`
+        const taskId = completedTask.task_id || completedTask.id
+          ? ` (ID: ${(completedTask.task_id || completedTask.id).toString().slice(0, 8)}...)`
           : '';
+        const historyNote = completedTask.db_recorded 
+          ? ' Check the Automation History tab for progress.'
+          : ' Note: Task may not appear in history immediately.';
         showSuccess(
-          `✅ Task submitted successfully${taskId}! Check the Automation History tab for progress.`
+          `✅ Task submitted successfully${taskId}!${historyNote}`
         );
       } else if (completedTask?.message) {
         showSuccess(completedTask.message);
@@ -429,9 +497,24 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         userMessage = 'Unable to reach the server. Is the backend running on :3030?';
       } else if (error.response?.status === 401) {
         userMessage = 'Authentication error. Please sign in again.';
-      } else if (error.response?.status === 400) {
-        // Handle specific link discovery validation errors
-        if (errorMessage.includes('No PDF download links found')) {
+      } else if (error.response?.status === 400 || error.response?.status === 200) {
+        // Handle specific link discovery validation errors (200 = warning, not error)
+        const errorData = error.response?.data || {};
+        
+        if (errorData.warning && errorData.fallback_available) {
+          // ✅ UX IMPROVEMENT: Show helpful message but allow submission
+          const discoveryInfo = errorData.discovery_info || {};
+          userMessage = `🔍 ${errorData.details || 'No PDF links found'}. ${errorData.fallback_message || 'You can still submit with a direct PDF URL.'}`;
+          
+          // Show discovery info if available
+          if (discoveryInfo.links_found > 0) {
+            userMessage += ` Found ${discoveryInfo.links_found} link(s) on the page, but none were PDFs.`;
+          }
+          
+          // Don't show as error - show as warning/info
+          showWarning(userMessage);
+          return; // Don't block submission
+        } else if (errorMessage.includes('No PDF download links found')) {
           userMessage = '🔍 No PDF links found. Try adjusting your discovery method or check your login credentials.';
         } else if (errorMessage.includes('CSS Selector is required')) {
           userMessage = '⚠️ Please provide a CSS selector for the link discovery method.';
@@ -606,45 +689,47 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
             </div>
           </div>
 
-          {/* ✅ NEW: Link Discovery Section - Replaces manual PDF URL */}
-          {/* Current task type: {form.task} */}
+          {/* ✅ SEAMLESS UX: Link Discovery Section - Fully Automatic by Default */}
           {form.task === 'invoice_download' && (
             <div className={styles.linkDiscoverySection}>
               <div className={styles.sectionHeader}>
-                <h3 className={styles.sectionTitle}>🔍 Automated PDF Link Discovery</h3>
+                <h3 className={styles.sectionTitle}>✨ Automatic PDF Discovery</h3>
                 <p className={styles.sectionSubtitle}>
-                  No more hunting for PDF URLs! Choose how the system should find download links.
+                  We'll automatically find and download your PDFs. Just provide your login credentials above.
                 </p>
-                <div className={styles.betaNotice}>
-                  <span className={styles.betaBadge}>BETA</span>
-                  Testing feature may not be available on all servers
-                </div>
               </div>
 
-              {/* Discovery Method Selector */}
-              <div className={styles.formGroup}>
-                <label htmlFor="discoveryMethod" className={styles.label}>
-                  How should we find the PDF link?
-                </label>
-                <select
-                  id="discoveryMethod"
-                  name="discoveryMethod"
-                  value={form.discoveryMethod}
-                  onChange={handleChange}
-                  className={styles.select}
-                >
-                  <option value="auto-detect">🤖 Auto-detect Download Links (Recommended)</option>
-                  <option value="css-selector">🎯 CSS Selector (Advanced)</option>
-                  <option value="text-match">📝 Find by Link Text</option>
-                </select>
-                <div className={styles.helperText}>
-                  <b>Auto-detect:</b> Automatically finds PDF download links<br/>
-                  <b>CSS Selector:</b> Target specific elements (for developers)<br/>
-                  <b>Link Text:</b> Find links containing specific text
+              {/* ✅ SEAMLESS UX: Hide advanced options by default, show only if needed */}
+              <details className={styles.advancedOptions}>
+                <summary className={styles.advancedSummary}>
+                  ⚙️ Advanced Options (Optional)
+                </summary>
+                
+                {/* Discovery Method Selector */}
+                <div className={styles.formGroup} style={{ marginTop: '1rem' }}>
+                  <label htmlFor="discoveryMethod" className={styles.label}>
+                    Discovery Method
+                  </label>
+                  <select
+                    id="discoveryMethod"
+                    name="discoveryMethod"
+                    value={form.discoveryMethod}
+                    onChange={handleChange}
+                    className={styles.select}
+                  >
+                    <option value="auto-detect">🤖 Auto-detect (Recommended - Works 99% of the time)</option>
+                    <option value="css-selector">🎯 CSS Selector (For specific elements)</option>
+                    <option value="text-match">📝 Find by Link Text</option>
+                  </select>
+                  <div className={styles.helperText}>
+                    <b>Auto-detect:</b> Automatically finds PDF download links - no configuration needed<br/>
+                    <b>CSS Selector:</b> Target specific elements (for developers)<br/>
+                    <b>Link Text:</b> Find links containing specific text
+                  </div>
                 </div>
-              </div>
+              </details>
 
-              {/* Conditional Input Fields Based on Discovery Method */}
+              {/* ✅ SEAMLESS UX: Show advanced fields only when advanced method is selected */}
               {form.discoveryMethod === 'css-selector' && (
                 <div className={styles.formGroup}>
                   <label htmlFor="cssSelector" className={styles.label}>
@@ -695,29 +780,34 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                 </div>
               )}
 
-              {/* Link Discovery Testing */}
-              <div className={styles.discoveryTesting}>
-                <button
-                  type="button"
-                  onClick={handleTestLinkDiscovery}
-                  disabled={isTestingDiscovery || !form.url || !form.username || !form.password}
-                  className={styles.testButton}
-                >
-                  {isTestingDiscovery ? (
-                    <>
-                      <span className={styles.spinner}></span>
-                      Testing Discovery...
-                    </>
-                  ) : (
-                    <>
-                      🔍 Test Link Discovery
-                    </>
-                  )}
-                </button>
-                <div className={styles.testHelperText}>
-                  Fill in URL and credentials above, then test to preview found links
+              {/* ✅ SEAMLESS UX: Optional testing - hidden by default, shown in advanced */}
+              <details className={styles.advancedOptions} style={{ marginTop: '1rem' }}>
+                <summary className={styles.advancedSummary}>
+                  🧪 Test Discovery (Optional)
+                </summary>
+                <div className={styles.discoveryTesting} style={{ marginTop: '1rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleTestLinkDiscovery}
+                    disabled={isTestingDiscovery || !form.url || !form.username || !form.password}
+                    className={styles.testButton}
+                  >
+                    {isTestingDiscovery ? (
+                      <>
+                        <span className={styles.spinner}></span>
+                        Testing Discovery...
+                      </>
+                    ) : (
+                      <>
+                        🔍 Test Link Discovery
+                      </>
+                    )}
+                  </button>
+                  <div className={styles.testHelperText}>
+                    Preview what links will be found before submitting
+                  </div>
                 </div>
-              </div>
+              </details>
 
               {/* Discovery Results */}
               {showDiscoveryResults && discoveryResults.length > 0 && (

@@ -1,6 +1,8 @@
 export const formatTaskStatus = (status) => {
   const statusMap = {
     'pending': 'Pending',
+    'queued': 'Queued',
+    'running': 'Running',
     'in_progress': 'In Progress',
     'completed': 'Completed',
     'failed': 'Failed'

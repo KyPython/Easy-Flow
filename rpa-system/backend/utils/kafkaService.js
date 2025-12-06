@@ -58,8 +58,8 @@ class KafkaService {
         // Default to localhost for development, but require explicit configuration for production
         const defaultBroker = process.env.NODE_ENV === 'development' ? 'localhost:9092' : null;
         this.brokers = process.env.KAFKA_BOOTSTRAP_SERVERS || process.env.KAFKA_BROKERS || defaultBroker;
-        this.taskTopic = process.env.KAFKA_TASK_TOPIC || 'automation-tasks_';
-        this.resultTopic = process.env.KAFKA_RESULT_TOPIC || 'automation-results_';
+        this.taskTopic = process.env.KAFKA_TASK_TOPIC || 'automation-tasks';
+        this.resultTopic = process.env.KAFKA_RESULT_TOPIC || 'automation-results';
         this.consumerGroup = process.env.KAFKA_CONSUMER_GROUP || 'backend-service';
         
         // Configuration for Upstash
@@ -335,13 +335,46 @@ class KafkaService {
                         try {
                             const taskStatusStore = require('./taskStatusStore');
                             if (taskId) {
+                                // Get existing status data to preserve run_record_id
+                                const statusData = await taskStatusStore.get(taskId);
+                                const runRecordId = statusData?.run_record_id;
+                                
+                                // Update taskStatusStore
                                 await taskStatusStore.set(taskId, {
+                                    ...statusData, // Preserve existing data
                                     status: result.status || 'finished',
                                     result: result.result || result,
                                     updated_at: new Date().toISOString(),
                                     worker_id: result.worker_id,
-                                    error: result.error
+                                    error: result.error,
+                                    run_record_id: runRecordId // Preserve run_record_id
                                 });
+                                
+                                // ✅ FIX: Update automation_runs database record if we have run_record_id
+                                if (runRecordId) {
+                                    try {
+                                        const supabase = require('../utils/supabaseClient').supabase;
+                                        const dbStatus = result.status === 'completed' ? 'completed' : 
+                                                       result.status === 'failed' ? 'failed' : 'running';
+                                        
+                                        const { error: updateError } = await supabase
+                                            .from('automation_runs')
+                                            .update({
+                                                status: dbStatus,
+                                                ended_at: new Date().toISOString(),
+                                                result: JSON.stringify(result.result || result)
+                                            })
+                                            .eq('id', runRecordId);
+                                        
+                                        if (updateError) {
+                                            logger.error(`[KafkaService] Error updating automation_runs ${runRecordId}:`, updateError);
+                                        } else {
+                                            logger.info(`[KafkaService] Updated automation_runs record ${runRecordId} with status ${dbStatus}`);
+                                        }
+                                    } catch (dbError) {
+                                        logger.error('[KafkaService] Could not update automation_runs:', dbError);
+                                    }
+                                }
                             }
                         } catch (e) {
                             logger.error('[KafkaService] Could not update taskStatusStore:', e);

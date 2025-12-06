@@ -10,8 +10,10 @@ const StatusBadge = ({ status }) => {
         return styles.success;
       case 'failed':
         return styles.error;
+      case 'running':
       case 'in_progress':
         return styles.warning;
+      case 'queued':
       case 'pending':
         return styles.neutral;
       default:

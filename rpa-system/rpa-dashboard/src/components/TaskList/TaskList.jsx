@@ -262,7 +262,48 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                 </td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <StatusBadge status={task.status} />
+                    {(() => {
+                      // ✅ FIX: If status is 'running' but result indicates it's queued, show 'queued' instead
+                      let displayStatus = task.status;
+                      let isQueued = false;
+                      
+                      if (task.status === 'running') {
+                        try {
+                          const result = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
+                          if (result?.status === 'queued' || result?.queue_status === 'pending') {
+                            displayStatus = 'queued';
+                            isQueued = true;
+                          }
+                        } catch (e) {
+                          // If parsing fails, just use the original status
+                        }
+                      }
+                      
+                      // Calculate time since task was created
+                      const timeSinceStart = task.started_at 
+                        ? Math.floor((new Date() - new Date(task.started_at)) / 1000)
+                        : 0;
+                      
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <StatusBadge status={displayStatus} />
+                          {isQueued && timeSinceStart > 0 && (
+                            <span 
+                              style={{ 
+                                fontSize: '11px', 
+                                color: 'var(--text-muted)',
+                                fontStyle: 'italic'
+                              }}
+                              title="Tasks are processed by workers that poll every 1-2 seconds. Typical wait time: 1-30 seconds depending on queue length."
+                            >
+                              {timeSinceStart < 60 
+                                ? `Queued ${timeSinceStart}s ago` 
+                                : `Queued ${Math.floor(timeSinceStart / 60)}m ago`}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {useMemo(() => {
                       try {
                         const r = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
