@@ -294,3 +294,42 @@
   /* Additional styles for scraping results */
 }
 
+.navigationHint {
+  margin-top: 20px;
+  padding: 16px;
+  background: #e7f3ff;
+  border-left: 4px solid #0066cc;
+  border-radius: 6px;
+}
+
+.hintText {
+  margin: 0;
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
+}
+
+.hintText code {
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  color: #0066cc;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  margin: 0 2px;
+  font-weight: 600;
+}
+
+.linkButton:hover {
+  color: #0052a3;
+}
+

@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import PropTypes from 'prop-types';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { useToast } from '../WorkflowBuilder/Toast';
 import PlanGate from '../PlanGate/PlanGate';
@@ -29,6 +30,7 @@ const parsedToken = (() => {
 const accessToken = parsedToken?.access_token || parsedToken;
 
 const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
+  const navigate = useNavigate();
   const { warning: showWarning, success: showSuccess } = useToast();
   const { user } = useAuth();
   const { incrementTaskCount } = useUsageTracking(user?.id);
@@ -156,34 +158,55 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     }
   }, [initialUrl]);
 
-  // Auto-populate form when URL or test site config changes
+  // ✅ UX: Auto-populate form when URL or test site config changes - sync in real-time
   useEffect(() => {
-    if (initialUrl || testSiteConfig) {
-      setForm(prevForm => {
-        const newUsername = testSiteConfig?.username || prevForm.username;
-        const newPassword = testSiteConfig?.password || prevForm.password;
-        const credentialsChanged = testSiteConfig && (
-          (testSiteConfig.username && testSiteConfig.username !== prevForm.username) ||
-          (testSiteConfig.password && testSiteConfig.password !== prevForm.password)
-        );
-        
-        // Show success message only if credentials were actually populated (changed from empty or different)
-        if (credentialsChanged) {
-          setTimeout(() => {
-            showSuccess(`✅ Form populated with test site credentials: ${testSiteConfig.description || 'Test site'}`);
-          }, 100);
-        }
-        
-        return {
-          ...prevForm,
-          url: initialUrl || prevForm.url,
-          // Auto-populate credentials from test site config
-          username: newUsername,
-          password: newPassword,
-        };
-      });
+    let shouldUpdate = false;
+    let updateData = {};
+    
+    // Always sync URL from top field to form field
+    if (initialUrl !== undefined && initialUrl !== form.url) {
+      updateData.url = initialUrl;
+      shouldUpdate = true;
     }
-  }, [initialUrl, testSiteConfig, showSuccess]);
+    
+    // Auto-populate credentials from test site config
+    if (testSiteConfig) {
+      const credentialsChanged = (
+        (testSiteConfig.username && testSiteConfig.username !== form.username) ||
+        (testSiteConfig.password && testSiteConfig.password !== form.password)
+      );
+      
+      if (credentialsChanged) {
+        updateData.username = testSiteConfig.username || form.username;
+        updateData.password = testSiteConfig.password || form.password;
+        shouldUpdate = true;
+        
+        setTimeout(() => {
+          showSuccess(`✅ Credentials auto-filled for test site`);
+        }, 100);
+      }
+    }
+    
+    if (shouldUpdate) {
+      setForm(prevForm => ({
+        ...prevForm,
+        ...updateData
+      }));
+      
+      // Save to persistence when URL or credentials change (debounced)
+      if (persistenceEnabled) {
+        const timer = setTimeout(() => {
+          const dataToSave = {
+            ...form,
+            ...updateData,
+            schemaVersion: '1.2.0'
+          };
+          saveData(dataToSave);
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [initialUrl, testSiteConfig, showSuccess, persistenceEnabled, saveData, form.url, form.username, form.password]);
 
   // ✅ NEW: Link Discovery Testing Function
   const handleTestLinkDiscovery = useCallback(async () => {
@@ -461,20 +484,29 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         clearData();
       }
 
+      // ✅ UX: Auto-navigate to history after successful submission
       if (completedTask?.status === 'queued') {
         const taskId = completedTask.task_id || completedTask.id
           ? ` (ID: ${(completedTask.task_id || completedTask.id).toString().slice(0, 8)}...)`
           : '';
-        const historyNote = completedTask.db_recorded 
-          ? ' Check the Automation History tab for progress.'
-          : ' Note: Task may not appear in history immediately.';
         showSuccess(
-          `✅ Task submitted successfully${taskId}!${historyNote}`
+          `✅ Task submitted successfully${taskId}! Redirecting to Automation History...`
         );
+        
+        // Auto-navigate after 1.5 seconds
+        setTimeout(() => {
+          navigate('/app/history');
+        }, 1500);
       } else if (completedTask?.message) {
         showSuccess(completedTask.message);
+        setTimeout(() => {
+          navigate('/app/history');
+        }, 1500);
       } else {
-        showSuccess('Task submitted successfully!');
+        showSuccess('Task submitted successfully! Redirecting...');
+        setTimeout(() => {
+          navigate('/app/history');
+        }, 1500);
       }
     } catch (error) {
       console.error('Task submission failed:', error);

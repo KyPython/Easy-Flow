@@ -28,6 +28,27 @@ const TasksPage = () => {
     setTimeout(() => setShowSuggestions(false), 8000);
   }, []);
 
+  // ✅ UX: Auto-populate form as user types URL (debounced)
+  const handleUrlChange = useCallback((url) => {
+    if (url && url.trim()) {
+      setTargetUrl(url.trim());
+      // Check if it's a known test site and auto-populate credentials
+      const testSites = [
+        { url: 'https://httpbin.org/forms/post', username: 'testuser', password: 'testpass123' },
+        { url: 'https://jsonplaceholder.typicode.com', username: 'demo@jsonplaceholder.com', password: 'demo123' },
+        { url: 'https://reqres.in', username: 'eve.holt@reqres.in', password: 'cityslicka' },
+      ];
+      const matchedSite = testSites.find(site => url.trim().startsWith(site.url));
+      if (matchedSite) {
+        setTestSiteConfig({
+          username: matchedSite.username,
+          password: matchedSite.password,
+          description: 'Auto-detected test site'
+        });
+      }
+    }
+  }, []);
+
   const handleUrlClear = useCallback(() => {
     setTargetUrl('');
     setUrlSuggestions([]);
@@ -43,6 +64,7 @@ const TasksPage = () => {
       <div className={styles.formSection}>
         <UrlInput 
           onUrlSubmit={handleUrlSubmit}
+          onUrlChange={handleUrlChange}
           onClear={handleUrlClear}
         />
         

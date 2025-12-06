@@ -289,21 +289,87 @@ class WorkflowExecutor {
     }
   }
 
-  // ✅ USER-FRIENDLY ERROR MESSAGES
+  // ✅ USER-FRIENDLY ERROR MESSAGES with detailed diagnostics
   _getUserFriendlyMessage(errorCategory, error) {
-    const messages = {
-      'AUTOMATION_SERVICE_NOT_CONFIGURED': 'Automation service is not configured. Please contact support to enable this feature.',
-      'AUTOMATION_SERVICE_UNAVAILABLE': 'Automation service is temporarily unavailable. Please try again in a few minutes. If the problem persists, contact support.',
-      'TIMEOUT_ERROR': 'The operation took too long to complete. This might be due to a slow website or network issue. Please try again.',
-      'ELEMENT_NOT_FOUND': 'Could not find the expected element on the page. The website structure may have changed. Please update your workflow configuration.',
-      'PAGE_LOAD_ERROR': 'The page failed to load completely. This might be due to network issues or the website being down. Please try again later.',
-      'AUTHENTICATION_ERROR': 'Login failed. Please check your credentials and try again. If the problem persists, the website may have changed its login process.',
-      'NETWORK_ERROR': 'Network connection error. Please check your internet connection and try again.',
-      'USER_CANCELLED': 'Execution was cancelled.',
-      'UNKNOWN_ERROR': `An unexpected error occurred: ${error.message || 'Unknown error'}. Please contact support if this persists.`
-    };
+    const timestamp = new Date().toLocaleString();
+    const errorCode = error?.code || 'unknown';
+    const errorStatus = error?.response?.status || 'N/A';
+    const errorMessage = error?.message || 'Unknown error';
     
-    return messages[errorCategory] || messages['UNKNOWN_ERROR'];
+    const messages = {
+      'AUTOMATION_SERVICE_NOT_CONFIGURED': {
+        summary: `Automation service not configured at ${timestamp}`,
+        reason: 'AUTOMATION_URL environment variable missing',
+        fix: 'Contact support or check your configuration',
+        retry: false
+      },
+      'AUTOMATION_SERVICE_UNAVAILABLE': {
+        summary: `Automation service unavailable at ${timestamp}`,
+        reason: errorMessage || 'Service unreachable',
+        fix: 'Service may be temporarily down. Retrying in 5 minutes...',
+        retry: true
+      },
+      'TIMEOUT_ERROR': {
+        summary: `Operation timed out at ${timestamp}`,
+        reason: 'Request exceeded timeout limit',
+        fix: 'Try again or increase timeout in workflow configuration',
+        retry: true
+      },
+      'ELEMENT_NOT_FOUND': {
+        summary: `Element not found at ${timestamp}`,
+        reason: 'Website structure may have changed',
+        fix: 'Update your workflow configuration with new selectors',
+        retry: false
+      },
+      'PAGE_LOAD_ERROR': {
+        summary: `Page load failed at ${timestamp}`,
+        reason: `HTTP ${errorStatus}: ${errorMessage}`,
+        fix: 'The site may be down or unreachable. Verify the URL is correct.',
+        retry: true
+      },
+      'AUTHENTICATION_ERROR': {
+        summary: `Authentication failed at ${timestamp}`,
+        reason: errorMessage || 'Login credentials invalid',
+        fix: 'Check your credentials and try again',
+        retry: false
+      },
+      'NETWORK_ERROR': {
+        summary: `Network error at ${timestamp}`,
+        reason: `${errorCode}: ${errorMessage}`,
+        fix: 'Check your internet connection and try again',
+        retry: true
+      },
+      'USER_CANCELLED': {
+        summary: 'Execution cancelled by user',
+        reason: 'User requested cancellation',
+        fix: 'N/A',
+        retry: false
+      },
+      'UNKNOWN_ERROR': {
+        summary: `Unexpected error at ${timestamp}`,
+        reason: errorMessage,
+        fix: 'Please try again or contact support if the issue persists',
+        retry: true
+      }
+    };
+
+    const errorInfo = messages[errorCategory] || messages['UNKNOWN_ERROR'];
+    
+    // Return both structured and string format for backward compatibility
+    return {
+      message: errorInfo.summary,
+      reason: errorInfo.reason,
+      fix: errorInfo.fix,
+      retry: errorInfo.retry,
+      technical: {
+        category: errorCategory,
+        code: errorCode,
+        status: errorStatus,
+        message: errorMessage
+      },
+      // String format for backward compatibility
+      toString: () => `${errorInfo.summary}\n- Reason: ${errorInfo.reason}\n- Fix: ${errorInfo.fix}`
+    };
   }
 
   // ✅ HEALTH CHECK FOR AUTOMATION SERVICE
@@ -817,7 +883,7 @@ class WorkflowExecutor {
         case 'file_upload':
       return await this.executeFileUploadAction(config, inputData, execution);
         case 'email':
-          return await this.executeEmailAction(config, inputData);
+          return await this.executeEmailAction(config, inputData, execution);
         case 'delay':
           return await this.executeDelayAction(config, inputData, execution);
         case 'form_submit':
@@ -973,7 +1039,8 @@ class WorkflowExecutor {
     } catch (error) {
       // ✅ IMMEDIATE FIX: Categorize error and provide user-friendly message
       const errorCategory = this._categorizeError(error);
-      const userMessage = this._getUserFriendlyMessage(errorCategory, error);
+      const userMessageObj = this._getUserFriendlyMessage(errorCategory, error);
+      const userMessage = typeof userMessageObj === 'string' ? userMessageObj : userMessageObj.toString();
       
       this.logger.error('Web scraping failed', {
         execution_id: execution?.id,
@@ -986,7 +1053,8 @@ class WorkflowExecutor {
         success: false, 
         error: userMessage,
         errorCategory,
-        technicalError: error.message
+        technicalError: error.message,
+        errorDetails: typeof userMessageObj === 'object' ? userMessageObj : undefined
       };
     }
   }
@@ -1322,11 +1390,30 @@ class WorkflowExecutor {
     return map[mime] || '';
   }
 
-  async executeEmailAction(config, inputData) {
+  async executeEmailAction(config, inputData, execution) {
     try {
-      const { to, template, variables = {}, scheduled_at } = config || {};
+      const { to, template, variables = {}, scheduled_at, allowFailure = false } = config || {};
       if (!to || !template) {
-        throw new Error('Email step requires `to` and `template`');
+        const error = 'Email step requires `to` and `template`';
+        if (allowFailure) {
+          // ✅ FIX: Don't fail workflow if email config is missing and allowFailure is true
+          this.logger.warn('Email step skipped due to missing config', {
+            execution_id: execution?.id,
+            error
+          });
+          return {
+            success: true, // Mark as success so workflow continues
+            data: {
+              ...inputData,
+              email_result: {
+                status: 'skipped',
+                error: error,
+                warning: 'Email step skipped: missing required configuration'
+              }
+            }
+          };
+        }
+        throw new Error(error);
       }
       logger.info(`[WorkflowExecutor] Enqueue email to: ${to}`);
 
@@ -1339,7 +1426,29 @@ class WorkflowExecutor {
         scheduled_at: scheduled_at || new Date().toISOString()
       };
       const { data, error } = await this.supabase.from('email_queue').insert([insert]).select('*');
-      if (error) throw new Error(`Failed to enqueue email: ${error.message}`);
+      
+      // ✅ FIX: If email queue fails but allowFailure is true, continue workflow
+      if (error) {
+        const errorMsg = `Failed to enqueue email: ${error.message}`;
+        if (allowFailure) {
+          this.logger.warn('Email enqueue failed but continuing workflow', {
+            execution_id: execution?.id,
+            error: errorMsg
+          });
+          return {
+            success: true, // Mark as success so workflow continues
+            data: {
+              ...inputData,
+              email_result: {
+                status: 'failed',
+                error: errorMsg,
+                warning: 'Email could not be queued, but workflow continued. Data was saved successfully.'
+              }
+            }
+          };
+        }
+        throw new Error(errorMsg);
+      }
 
       const item = Array.isArray(data) ? data[0] : data;
       return {

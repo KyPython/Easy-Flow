@@ -100,6 +100,7 @@ class CriticalWorkflowHandler {
     checks.push('automation_service');
 
     // Check 2: Email service availability (if workflow has email step)
+    // ✅ SPRINT: Email failures should not block scraping
     const hasEmailStep = workflow.workflow_steps?.some(
       step => step.step_type === 'action' && step.action_type === 'email'
     );
@@ -111,6 +112,19 @@ class CriticalWorkflowHandler {
           execution_id: execution.id
         });
         // Don't fail - we can send email later
+        // Mark email steps to allow failure
+        workflow.workflow_steps = workflow.workflow_steps.map(step => {
+          if (step.step_type === 'action' && step.action_type === 'email') {
+            return {
+              ...step,
+              config: {
+                ...step.config,
+                allowFailure: true // Allow email to fail without blocking workflow
+              }
+            };
+          }
+          return step;
+        });
       }
       checks.push('email_service');
     }

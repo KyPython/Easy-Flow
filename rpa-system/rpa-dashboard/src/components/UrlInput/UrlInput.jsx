@@ -28,11 +28,12 @@ const demoSites = [
   },
 ];
 
-const UrlInput = ({ onUrlSubmit, onClear }) => {
+const UrlInput = ({ onUrlSubmit, onUrlChange, onClear }) => {
   const { theme } = useTheme();
   const [url, setUrl] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState('');
+  const [debounceTimer, setDebounceTimer] = useState(null);
 
   const isValidUrl = (string) => {
     try {
@@ -74,7 +75,21 @@ const UrlInput = ({ onUrlSubmit, onClear }) => {
     const newUrl = e.target.value;
     setUrl(newUrl);
     setError('');
-  }, []);
+    
+    // ✅ UX: Auto-populate form in real-time as user types (debounced)
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    
+    const timer = setTimeout(() => {
+      if (newUrl.trim() && isValidUrl(newUrl.trim())) {
+        // Auto-populate form below as user types
+        onUrlChange?.(newUrl.trim());
+      }
+    }, 500); // Debounce for 500ms
+    
+    setDebounceTimer(timer);
+  }, [debounceTimer, onUrlChange]);
 
   const handleSubmit = useCallback((e) => {
     e.preventDefault();
@@ -153,8 +168,28 @@ const UrlInput = ({ onUrlSubmit, onClear }) => {
   const handleQuickFill = useCallback((demoUrl) => {
     setUrl(demoUrl);
     setError('');
-    // Don't auto-trigger detect & populate - let user click the button
-  }, []);
+    // ✅ UX: Auto-populate immediately when clicking quick test site
+    if (isValidUrl(demoUrl)) {
+      onUrlChange?.(demoUrl);
+      // Also trigger full detection for credentials
+      const testSite = demoSites.find(site => site.url === demoUrl);
+      if (testSite) {
+        setTimeout(() => {
+          const siteInfo = detectSiteType(demoUrl);
+          onUrlSubmit({
+            url: demoUrl,
+            siteInfo,
+            suggestions: generateSuggestions(demoUrl, siteInfo),
+            testSiteConfig: {
+              username: testSite.username,
+              password: testSite.password,
+              description: testSite.description
+            }
+          });
+        }, 100);
+      }
+    }
+  }, [onUrlChange, onUrlSubmit]);
 
   return (
     <div className={styles.container}>
@@ -236,6 +271,7 @@ const UrlInput = ({ onUrlSubmit, onClear }) => {
 
 UrlInput.propTypes = {
   onUrlSubmit: PropTypes.func.isRequired,
+  onUrlChange: PropTypes.func,
   onClear: PropTypes.func,
 };
 

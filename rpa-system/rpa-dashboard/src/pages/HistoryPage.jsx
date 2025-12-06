@@ -39,6 +39,10 @@ const HistoryPage = () => {
       }
     };
     fetchRuns();
+    
+    // ✅ UX: Auto-refresh every 5 seconds to show status updates without manual refresh
+    const interval = setInterval(fetchRuns, 5000);
+    return () => clearInterval(interval);
   }, [user]);
 
   const handleViewTask = (task) => {
@@ -116,12 +120,33 @@ const HistoryPage = () => {
     <div className={styles.container}>
       <ErrorMessage message={error} />
 
+      {/* Step-by-step guidance banner */}
+      <div style={{
+        marginBottom: '24px',
+        padding: '16px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        borderRadius: '8px',
+        color: 'white'
+      }}>
+        <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600 }}>
+          📍 Your Automation Journey
+        </h3>
+        <div style={{ fontSize: '14px', lineHeight: '1.6', opacity: 0.95 }}>
+          <strong>Step 1:</strong> Submit tasks from <strong>Task Management</strong> → 
+          <strong>Step 2:</strong> Track progress here in <strong>Automation History</strong> → 
+          <strong>Step 3:</strong> View results by clicking 👁️ → 
+          <strong>Step 4:</strong> Download files or find them in <strong>Files</strong> page
+        </div>
+      </div>
 
       {runs.length === 0 && !error ? (
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>📊</div>
           <h3>{t('history.empty_title','No Automation History')}</h3>
           <p>{t('history.empty_message','Your automation runs will appear here once you start executing tasks.')}</p>
+          <p style={{ marginTop: '16px', fontSize: '14px', color: '#666' }}>
+            💡 <strong>Get started:</strong> Go to <strong>Task Management</strong> to create your first automation task.
+          </p>
         </div>
       ) : (
         <TaskList tasks={runs} onView={handleViewTask} onEdit={handleEditTask} onDelete={handleDeleteTask} />

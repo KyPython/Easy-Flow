@@ -1,7 +1,10 @@
 import React from 'react';
 import styles from './TaskResultModal.module.css';
 
+import { useNavigate } from 'react-router-dom';
+
 const TaskResultModal = ({ task, onClose }) => {
+  const navigate = useNavigate();
   if (!task) return null;
 
   // Parse the result - handle both string and object formats
@@ -254,6 +257,19 @@ const TaskResultModal = ({ task, onClose }) => {
                   {formatted.fileSize && (
                     <p className={styles.muted}>Size: {(formatted.fileSize / 1024).toFixed(2)} KB</p>
                   )}
+                  <div className={styles.navigationHint}>
+                    <p className={styles.hintText}>
+                      💡 <strong>Tip:</strong> This invoice is also available in your <button 
+                        className={styles.linkButton}
+                        onClick={() => {
+                          onClose();
+                          navigate('/app/files');
+                        }}
+                      >
+                        Files page
+                      </button> under the <code>/invoices</code> folder
+                    </p>
+                  </div>
                 </div>
               ) : formatted.fileUrl ? (
                 <div className={styles.downloadSection}>

@@ -14,6 +14,8 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [downloadingFiles, setDownloadingFiles] = useState(new Set());
+  const [expandedRows, setExpandedRows] = useState(new Set()); // ✅ UX: Inline expandable rows
+  const [compactView, setCompactView] = useState(false); // ✅ UX: Compact view option
 
   const handleFileDownload = async (task) => {
     if (!task.artifact_url) return;
@@ -188,6 +190,15 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
           </select>
+          
+          {/* ✅ UX: Compact view toggle */}
+          <button
+            onClick={() => setCompactView(!compactView)}
+            className={styles.compactToggle}
+            title={compactView ? "Switch to detailed view" : "Switch to compact view"}
+          >
+            {compactView ? '📋' : '📄'}
+          </button>
         </div>
       </div>
 
@@ -242,8 +253,34 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
             </tr>
           </thead>
           <tbody>
-            {paginatedTasks.map(task => (
-              <tr key={task.id} className={styles.row}>
+            {paginatedTasks.map(task => {
+              const isExpanded = expandedRows.has(task.id);
+              const toggleExpand = () => {
+                const newExpanded = new Set(expandedRows);
+                if (isExpanded) {
+                  newExpanded.delete(task.id);
+                } else {
+                  newExpanded.add(task.id);
+                }
+                setExpandedRows(newExpanded);
+              };
+              
+              // Parse result for quick preview
+              let resultPreview = null;
+              try {
+                const result = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
+                if (result?.data || result?.message) {
+                  resultPreview = result;
+                }
+              } catch (e) {}
+              
+              return (
+              <Fragment key={task.id}>
+              <tr 
+                className={`${styles.row} ${isExpanded ? styles.expandedRow : ''} ${compactView ? styles.compactRow : ''}`}
+                onClick={toggleExpand}
+                style={{ cursor: 'pointer' }}
+              >
                 <td>
                   <input
                     type="checkbox"
@@ -321,19 +358,28 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                 </td>
                 <td>
                   {task.artifact_url ? (
-                    <button
-                      onClick={() => handleFileDownload(task)}
-                      className={styles.downloadButton}
-                      disabled={downloadingFiles.has(task.id)}
-                      title="Download Result File"
-                    >
-                      {downloadingFiles.has(task.id) ? (
-                        <span className={styles.spinner}></span>
-                      ) : (
-                        <FiDownload />
-                      )}
-                      {downloadingFiles.has(task.id) ? 'Downloading...' : 'Download'}
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                      <button
+                        onClick={() => handleFileDownload(task)}
+                        className={styles.downloadButton}
+                        disabled={downloadingFiles.has(task.id)}
+                        title="Download Result File"
+                      >
+                        {downloadingFiles.has(task.id) ? (
+                          <span className={styles.spinner}></span>
+                        ) : (
+                          <FiDownload />
+                        )}
+                        {downloadingFiles.has(task.id) ? 'Downloading...' : 'Download'}
+                      </button>
+                      <span style={{ fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                        💡 Also in Files page
+                      </span>
+                    </div>
+                  ) : task.status === 'completed' ? (
+                    <span className={styles.muted} style={{ fontSize: '12px' }}>
+                      No file generated
+                    </span>
                   ) : (
                     <span className={styles.muted}>—</span>
                   )}
@@ -341,17 +387,23 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                 <td className={styles.date}>
                   {formatDateTime(task.started_at || task.created_at)}
                 </td>
-                <td>
+                <td onClick={(e) => e.stopPropagation()}>
                   <div className={styles.actions}>
                     <button
-                      onClick={() => onView?.(task)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onView?.(task);
+                      }}
                       className={styles.actionButton}
-                      title="View Details"
+                      title="View Full Details"
                     >
                       👁
                     </button>
                     <button
-                      onClick={() => onEdit?.(task)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit?.(task);
+                      }}
                       className={styles.actionButton}
                       title="Edit Task"
                     >
@@ -367,7 +419,72 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                   </div>
                 </td>
               </tr>
-            ))}
+              {/* ✅ UX: Inline expandable preview row */}
+              {isExpanded && (
+                <tr className={styles.expandedPreviewRow}>
+                  <td colSpan="7" style={{ padding: '16px', background: '#f8f9fa', borderTop: 'none' }}>
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1 }}>
+                        <strong>Quick Preview:</strong>
+                        {resultPreview ? (
+                          <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                            {resultPreview.message && (
+                              <p style={{ margin: '4px 0' }}>{resultPreview.message}</p>
+                            )}
+                            {resultPreview.data?.title && (
+                              <p style={{ margin: '4px 0' }}><strong>Title:</strong> {resultPreview.data.title}</p>
+                            )}
+                            {task.artifact_url && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleFileDownload(task);
+                                }}
+                                style={{
+                                  marginTop: '8px',
+                                  padding: '6px 12px',
+                                  background: '#0066cc',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                📥 Download File
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <p style={{ marginTop: '8px', color: '#666', fontSize: '14px' }}>
+                            {task.status === 'queued' || task.status === 'running' 
+                              ? 'Task is still processing...' 
+                              : 'No result data available'}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onView?.(task);
+                        }}
+                        style={{
+                          padding: '8px 16px',
+                          background: '#0066cc',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: 600
+                        }}
+                      >
+                        View Full Details →
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
+            )})}
           </tbody>
         </table>
       </div>

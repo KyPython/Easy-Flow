@@ -981,6 +981,60 @@ try {
       return res.status(500).json({ error: err?.message || 'Failed to start execution' });
     }
   });
+
+  // ✅ SPRINT: One-click retry endpoint for failed workflows
+  app.post('/api/workflows/:executionId/retry', authMiddleware, requireWorkflowRun, apiLimiter, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+      const { executionId } = req.params;
+      
+      const executor = new WorkflowExecutor();
+      
+      // Get the original execution
+      const { data: originalExecution, error: fetchError } = await executor.supabase
+        .from('workflow_executions')
+        .select('*, workflows(*)')
+        .eq('id', executionId)
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError || !originalExecution) {
+        return res.status(404).json({ error: 'Execution not found' });
+      }
+      
+      if (originalExecution.status !== 'failed') {
+        return res.status(400).json({ error: 'Can only retry failed executions' });
+      }
+      
+      // Start new execution with same input data
+      const newExecution = await executor.startExecution({
+        workflowId: originalExecution.workflow_id,
+        userId,
+        triggeredBy: 'retry',
+        triggerData: {
+          retry_of: executionId,
+          original_error: originalExecution.error_message
+        },
+        inputData: originalExecution.input_data || {}
+      });
+      
+      logger.info('[API] Retry execution created', {
+        original_execution_id: executionId,
+        new_execution_id: newExecution.id,
+        userId
+      });
+      
+      return res.json({ 
+        execution: newExecution,
+        retry_of: executionId,
+        message: 'Workflow retry started successfully'
+      });
+    } catch (err) {
+      logger.error('[API] /api/workflows/:executionId/retry error:', err);
+      return res.status(500).json({ error: err?.message || 'Failed to retry execution' });
+    }
+  });
 } catch (e) {
   logger.warn('[boot] workflows execute route not mounted:', e?.message || e);
 }

@@ -102,6 +102,50 @@
   border-collapse: collapse;
 }
 
+/* ✅ UX: Expandable row styles */
+.row {
+  transition: background-color 0.2s;
+}
+
+.row:hover {
+  background-color: #f8f9fa;
+}
+
+.expandedRow {
+  background-color: #e7f3ff !important;
+}
+
+.expandedPreviewRow {
+  background-color: #f8f9fa;
+}
+
+.expandedPreviewRow td {
+  border-top: 2px solid #0066cc;
+}
+
+.compactRow {
+  font-size: 13px;
+}
+
+.compactRow td {
+  padding: 8px !important;
+}
+
+.compactToggle {
+  padding: 8px 12px;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-left: 8px;
+  transition: all 0.2s;
+}
+
+.compactToggle:hover {
+  background: #e0e0e0;
+}
+
 .table th,
 .table td {
   padding: var(--spacing-md);

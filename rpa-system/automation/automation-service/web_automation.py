@@ -594,6 +594,40 @@ def download_pdf(pdf_url, task_data):
                             result["artifact_url"] = artifact_url
                             result["storage_path"] = storage_path
                             logger.info(f"✅ Uploaded invoice to Supabase storage: {artifact_url}")
+                            
+                            # ✅ Create file record in files table so it appears in Files page
+                            try:
+                                import hashlib
+                                file_content_hash = hashlib.md5(file_content).hexdigest()
+                                
+                                file_record = {
+                                    "user_id": user_id,
+                                    "original_name": filename,
+                                    "display_name": filename,
+                                    "storage_path": storage_path,
+                                    "storage_bucket": "user-files",
+                                    "file_size": file_size,
+                                    "mime_type": "application/pdf",
+                                    "file_extension": "pdf",
+                                    "checksum_md5": file_content_hash,
+                                    "folder_path": f"/invoices",
+                                    "tags": ["automation", "invoice"],
+                                    "metadata": {
+                                        "source": "automation",
+                                        "task_type": "invoice_download",
+                                        "pdf_url": pdf_url
+                                    }
+                                }
+                                
+                                file_insert_result = supabase.from('files').insert(file_record).execute()
+                                
+                                if file_insert_result.data:
+                                    result["file_record_id"] = file_insert_result.data[0].get('id') if isinstance(file_insert_result.data, list) else file_insert_result.data.get('id')
+                                    logger.info(f"✅ Created file record in files table: {result.get('file_record_id')}")
+                                else:
+                                    logger.warning("⚠️ File uploaded but file record creation returned no data")
+                            except Exception as file_record_error:
+                                logger.warning(f"⚠️ Failed to create file record (file still uploaded): {file_record_error}")
                         else:
                             logger.warning("⚠️ Uploaded to Supabase but could not get public URL")
                     else:
