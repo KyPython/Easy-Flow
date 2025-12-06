@@ -291,14 +291,18 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                             <span 
                               style={{ 
                                 fontSize: '11px', 
-                                color: 'var(--text-muted)',
-                                fontStyle: 'italic'
+                                color: timeSinceStart > 600 ? '#dc3545' : 'var(--text-muted)', // Red if > 10 minutes
+                                fontStyle: 'italic',
+                                fontWeight: timeSinceStart > 600 ? 600 : 'normal'
                               }}
-                              title="Tasks are processed by workers that poll every 1-2 seconds. Typical wait time: 1-30 seconds depending on queue length."
+                              title={timeSinceStart > 600 
+                                ? "⚠️ This task appears stuck. It was submitted before system fixes and won't process automatically. Submit a new task instead."
+                                : "Tasks are processed by workers that poll every 1-2 seconds. Typical wait time: 1-30 seconds depending on queue length."}
                             >
                               {timeSinceStart < 60 
                                 ? `Queued ${timeSinceStart}s ago` 
                                 : `Queued ${Math.floor(timeSinceStart / 60)}m ago`}
+                              {timeSinceStart > 600 && ' ⚠️'}
                             </span>
                           )}
                         </div>

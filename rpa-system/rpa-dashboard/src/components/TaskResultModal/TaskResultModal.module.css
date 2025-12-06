@@ -110,6 +110,39 @@
   color: #721c24;
 }
 
+.statusBadge .queued {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.queuedState {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.queuedState p {
+  margin: 16px 0;
+  font-size: 16px;
+}
+
+.stuckWarning {
+  margin-top: 24px;
+  padding: 16px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.stuckWarning p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.stuckWarning strong {
+  color: #856404;
+}
+
 .url {
   display: block;
   color: #0066cc;
@@ -188,6 +221,18 @@
 .genericResult {
   text-align: center;
   padding: 20px;
+}
+
+.downloadSection {
+  margin-top: 20px;
+}
+
+.fileInfo {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  text-align: left;
 }
 
 .downloadLink {

@@ -76,9 +76,8 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
 
   const taskTypes = [
     { value: 'invoice_download', label: 'Invoice Download' },
-    { value: 'data_extraction', label: 'Data Extraction' },
-    { value: 'form_submission', label: 'Form Submission' },
     { value: 'web_scraping', label: 'Web Scraping' },
+    { value: 'form_submission', label: 'Form Submission' },
   ];
 
   const isValidUrl = (string) => {
@@ -876,8 +875,8 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
             </div>
           )}
 
-          {/* Data Extraction selector */}
-          {form.task === 'data_extraction' && (
+          {/* Web Scraping selector */}
+          {form.task === 'web_scraping' && (
             <div className={styles.formGroup}>
               <label htmlFor="selector" className={styles.label}>
                 Selector <span className={styles.optional}>(Optional)</span>
@@ -901,18 +900,18 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           {/* AI Section */}
           <PlanGate
             requiredPlan="starter"
-            upgradeMessage="AI-powered data extraction is available on Starter and higher plans."
+            upgradeMessage="AI-powered web scraping is available on Starter and higher plans."
             fallback={
               <div className={styles.aiSection}>
                 <div className={styles.upgradeBanner}>
                   <span className={styles.aiIcon}>🤖</span>
                   <div>
                     <strong>
-                      AI-Powered Data Extraction (Starter+)
+                      AI-Powered Web Scraping (Starter+)
                     </strong>
                     <p>
                       Upgrade to automatically extract structured data from
-                      invoices, forms, and documents with AI.
+                      web pages with AI intelligence.
                     </p>
                   </div>
                   <button
@@ -942,11 +941,11 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                     className={styles.checkbox}
                   />
                   <span className={styles.aiIcon}>🤖</span>
-                  Enable AI-Powered Data Extraction
+                  Enable AI-Powered Web Scraping
                 </label>
                 <div className={styles.helperText}>
                   <b>What is this?</b> Use AI to intelligently extract
-                  structured data (invoices, contacts, products, etc.)
+                  structured data from web pages (contacts, products, prices, etc.)
                 </div>
               </div>
               {form.enableAI && (

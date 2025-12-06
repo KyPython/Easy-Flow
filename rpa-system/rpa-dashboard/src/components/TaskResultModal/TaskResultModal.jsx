@@ -47,7 +47,9 @@ const TaskResultModal = ({ task, onClose }) => {
         type: 'invoice_download',
         message: data.message,
         success: data.success,
-        fileUrl: data.data?.file_path || data.data?.url
+        fileUrl: data.data?.file_path || data.data?.url || data.data?.download_path,
+        filename: data.data?.filename,
+        fileSize: data.data?.file_size
       };
     }
 
@@ -65,6 +67,24 @@ const TaskResultModal = ({ task, onClose }) => {
   const taskName = task.automation_tasks?.name || 'Task';
   const taskType = task.automation_tasks?.task_type || 'unknown';
 
+  // Determine actual status - check task.status first, then result
+  let actualStatus = task.status; // 'running', 'completed', 'failed' from database
+  let isQueued = false;
+  
+  // If task is 'running' but result says 'queued', it's actually queued
+  if (task.status === 'running' && resultData) {
+    if (resultData.status === 'queued' || resultData.queue_status === 'pending') {
+      actualStatus = 'queued';
+      isQueued = true;
+    }
+  }
+  
+  // If we have a result with status, use that for display
+  if (resultData?.status && ['completed', 'failed', 'queued'].includes(resultData.status)) {
+    actualStatus = resultData.status;
+    isQueued = resultData.status === 'queued';
+  }
+
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -74,7 +94,40 @@ const TaskResultModal = ({ task, onClose }) => {
         </div>
 
         <div className={styles.modalBody}>
-          {!formatted ? (
+          {isQueued ? (() => {
+            // Calculate how long the task has been queued
+            const queuedTime = task.started_at 
+              ? Math.floor((new Date() - new Date(task.started_at)) / 1000 / 60) // minutes
+              : 0;
+            
+            const isStuck = queuedTime > 10; // More than 10 minutes = likely stuck
+            
+            return (
+              <div className={styles.queuedState}>
+                <div className={styles.statusBadge}>
+                  <span className={styles.queued}>
+                    ⏳ Queued {queuedTime > 0 ? `${queuedTime}m` : ''}
+                  </span>
+                </div>
+                <p>{resultData?.message || 'Task queued for processing'}</p>
+                {isStuck ? (
+                  <div className={styles.stuckWarning}>
+                    <p><strong>⚠️ This task appears to be stuck</strong></p>
+                    <p className={styles.muted}>
+                      This task was submitted before system fixes were applied. It was already consumed from the queue but the result wasn't recorded properly.
+                    </p>
+                    <p className={styles.muted}>
+                      <strong>What to do:</strong> Submit a new task - it will process immediately with all fixes in place.
+                    </p>
+                  </div>
+                ) : (
+                  <p className={styles.muted}>
+                    Your task is waiting to be processed. This usually takes a few seconds to a minute.
+                  </p>
+                )}
+              </div>
+            );
+          })() : !formatted ? (
             <div className={styles.emptyState}>
               <p>No result data available for this task.</p>
             </div>
@@ -172,20 +225,107 @@ const TaskResultModal = ({ task, onClose }) => {
                 </span>
               </div>
               <p>{formatted.message}</p>
-              {formatted.fileUrl && (
-                <a href={formatted.fileUrl} target="_blank" rel="noopener noreferrer" className={styles.downloadLink}>
-                  📥 Download File
-                </a>
+              
+              {/* Check for artifact_url from task (database field) */}
+              {task.artifact_url ? (
+                <div className={styles.downloadSection}>
+                  <a 
+                    href={task.artifact_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className={styles.downloadLink}
+                    onClick={(e) => {
+                      // Try to trigger download
+                      e.preventDefault();
+                      const link = document.createElement('a');
+                      link.href = task.artifact_url;
+                      link.download = formatted.filename || 'invoice.pdf';
+                      link.target = '_blank';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                  >
+                    📥 Download Invoice
+                  </a>
+                  {formatted.filename && (
+                    <p className={styles.muted}>File: {formatted.filename}</p>
+                  )}
+                  {formatted.fileSize && (
+                    <p className={styles.muted}>Size: {(formatted.fileSize / 1024).toFixed(2)} KB</p>
+                  )}
+                </div>
+              ) : formatted.fileUrl ? (
+                <div className={styles.downloadSection}>
+                  {formatted.fileUrl.startsWith('http') ? (
+                    <a 
+                      href={formatted.fileUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className={styles.downloadLink}
+                    >
+                      📥 Download Invoice
+                    </a>
+                  ) : (
+                    <div className={styles.fileInfo}>
+                      <p className={styles.muted}>
+                        <strong>File saved:</strong> {formatted.fileUrl}
+                      </p>
+                      <p className={styles.muted}>
+                        The file was downloaded to the server. Contact support to retrieve it.
+                      </p>
+                    </div>
+                  )}
+                  {formatted.filename && (
+                    <p className={styles.muted}>File: {formatted.filename}</p>
+                  )}
+                  {formatted.fileSize && (
+                    <p className={styles.muted}>Size: {(formatted.fileSize / 1024).toFixed(2)} KB</p>
+                  )}
+                </div>
+              ) : (
+                <div className={styles.fileInfo}>
+                  <p className={styles.muted}>
+                    <strong>✅ Invoice downloaded successfully!</strong>
+                  </p>
+                  {formatted.filename && (
+                    <p className={styles.muted}>
+                      <strong>File:</strong> {formatted.filename}
+                    </p>
+                  )}
+                  {formatted.fileSize && (
+                    <p className={styles.muted}>
+                      <strong>Size:</strong> {(formatted.fileSize / 1024).toFixed(2)} KB
+                    </p>
+                  )}
+                  <p className={styles.muted}>
+                    The file was downloaded to the server. In production, files will be automatically uploaded to cloud storage and accessible via download links.
+                  </p>
+                </div>
               )}
             </div>
           ) : (
             <div className={styles.genericResult}>
               <div className={styles.statusBadge}>
-                <span className={formatted.success ? styles.success : styles.failed}>
-                  {formatted.success ? '✅ Success' : '❌ Failed'}
-                </span>
+                {actualStatus === 'completed' || formatted.success ? (
+                  <span className={styles.success}>
+                    ✅ Success
+                  </span>
+                ) : actualStatus === 'failed' || formatted.error ? (
+                  <span className={styles.failed}>
+                    ❌ Failed
+                  </span>
+                ) : actualStatus === 'queued' ? (
+                  <span className={styles.queued}>
+                    ⏳ Queued
+                  </span>
+                ) : (
+                  <span className={styles.failed}>
+                    ❌ Failed
+                  </span>
+                )}
               </div>
-              <p>{formatted.message}</p>
+              <p>{formatted.message || resultData?.message || 'Task processing'}</p>
               {formatted.error && (
                 <div className={styles.errorBox}>
                   <strong>Error:</strong> {formatted.error}

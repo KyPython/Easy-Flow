@@ -17,7 +17,7 @@ export const formatDateTime = (dateString) => {
 export const formatTaskType = (taskType) => {
   const typeMap = {
     'invoice_download': 'Invoice Download',
-    'data_extraction': 'Data Extraction',
+    'data_extraction': 'Web Scraping', // Legacy: map old data_extraction to Web Scraping
     'form_submission': 'Form Submission',
     'web_scraping': 'Web Scraping'
   };

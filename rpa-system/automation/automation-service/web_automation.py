@@ -558,6 +558,53 @@ def download_pdf(pdf_url, task_data):
                 if not is_pdf:
                     result["warning"] = "Downloaded file may not be a valid PDF"
         
+        # ✅ Upload to Supabase storage if configured
+        artifact_url = None
+        try:
+            supabase_url = os.environ.get('SUPABASE_URL')
+            supabase_key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_KEY')
+            user_id = task_data.get('user_id')
+            
+            if supabase_url and supabase_key and user_id:
+                try:
+                    from supabase import create_client, Client
+                    supabase: Client = create_client(supabase_url, supabase_key)
+                    
+                    # Read file content
+                    with open(filepath, 'rb') as f:
+                        file_content = f.read()
+                    
+                    # Generate storage path
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    storage_path = f"{user_id}/invoices/{timestamp}_{filename}"
+                    
+                    # Upload to Supabase storage
+                    upload_result = supabase.storage.from('user-files').upload(
+                        storage_path,
+                        file_content,
+                        file_options={"content-type": "application/pdf", "upsert": "false"}
+                    )
+                    
+                    if not upload_result.get('error'):
+                        # Get public URL
+                        url_result = supabase.storage.from('user-files').get_public_url(storage_path)
+                        artifact_url = url_result if isinstance(url_result, str) else url_result.get('publicUrl') if isinstance(url_result, dict) else None
+                        
+                        if artifact_url:
+                            result["artifact_url"] = artifact_url
+                            result["storage_path"] = storage_path
+                            logger.info(f"✅ Uploaded invoice to Supabase storage: {artifact_url}")
+                        else:
+                            logger.warning("⚠️ Uploaded to Supabase but could not get public URL")
+                    else:
+                        logger.warning(f"⚠️ Failed to upload to Supabase: {upload_result.get('error')}")
+                except ImportError:
+                    logger.warning("⚠️ supabase-py not installed, skipping cloud upload")
+                except Exception as upload_error:
+                    logger.warning(f"⚠️ Failed to upload to Supabase storage: {upload_error}")
+        except Exception as e:
+            logger.warning(f"⚠️ Error during Supabase upload attempt: {e}")
+        
         return result
         
     except Exception as e:

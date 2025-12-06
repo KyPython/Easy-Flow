@@ -364,13 +364,25 @@ class KafkaService {
                                         const dbStatus = result.status === 'completed' ? 'completed' : 
                                                        result.status === 'failed' ? 'failed' : 'running';
                                         
+                                        // Extract artifact_url from result if available (for invoice downloads)
+                                        const resultData = result.result || result;
+                                        const artifactUrl = resultData?.data?.artifact_url || resultData?.artifact_url;
+                                        
+                                        const updateData = {
+                                            status: dbStatus,
+                                            ended_at: new Date().toISOString(),
+                                            result: JSON.stringify(resultData)
+                                        };
+                                        
+                                        // Set artifact_url if available
+                                        if (artifactUrl) {
+                                            updateData.artifact_url = artifactUrl;
+                                            logger.info(`[KafkaService] Setting artifact_url for run ${runRecordId}: ${artifactUrl}`);
+                                        }
+                                        
                                         const { error: updateError } = await supabase
                                             .from('automation_runs')
-                                            .update({
-                                                status: dbStatus,
-                                                ended_at: new Date().toISOString(),
-                                                result: JSON.stringify(result.result || result)
-                                            })
+                                            .update(updateData)
                                             .eq('id', runRecordId);
                                         
                                         if (updateError) {
