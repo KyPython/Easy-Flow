@@ -2435,14 +2435,33 @@ app.post('/api/tasks/:id/run', async (req, res) => {
 });
 
 // GET /api/runs - Fetch all automation runs for the user
-app.get('/api/runs', async (req, res) => {
+app.get('/api/runs', authMiddleware, async (req, res) => {
+  const startTime = Date.now();
+  logger.info('[GET /api/runs] Request received', {
+    user_id: req.user?.id,
+    has_user: !!req.user,
+    path: req.path,
+    method: req.method
+  });
+
   try {
     // Defensive check
-    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+    if (!req.user || !req.user.id) {
+      logger.warn('[GET /api/runs] No user in request', {
+        has_user: !!req.user,
+        user_id: req.user?.id
+      });
+      return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+    }
 
-    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+    if (!supabase) {
+      logger.error('[GET /api/runs] Supabase not available');
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
 
-    const { data, error } = await supabase
+    // ✅ PERFORMANCE: Optimize query - fetch without expensive join first
+    // Then fetch task details separately if needed
+    const { data: runsData, error } = await supabase
       .from('automation_runs')
       .select(`
         id,
@@ -2450,16 +2469,59 @@ app.get('/api/runs', async (req, res) => {
         started_at,
         ended_at,
         result,
-        automation_tasks ( name, url )
+        artifact_url,
+        task_id
       `)
       .eq('user_id', req.user.id)
       .order('started_at', { ascending: false })
       .limit(100);
-
+    
     if (error) throw error;
+    
+    // Fetch task details separately to avoid slow join
+    const taskIds = [...new Set(runsData.filter(r => r.task_id).map(r => r.task_id))];
+    let tasksMap = {};
+    
+    if (taskIds.length > 0) {
+      const { data: tasks, error: tasksError } = await supabase
+        .from('automation_tasks')
+        .select('id, name, url, task_type')
+        .in('id', taskIds);
+      
+      if (!tasksError && tasks) {
+        tasksMap = tasks.reduce((acc, task) => {
+          acc[task.id] = { name: task.name, url: task.url, task_type: task.task_type };
+          return acc;
+        }, {});
+      }
+    }
+    
+    // Merge task data into runs
+    const data = runsData.map(run => ({
+      id: run.id,
+      status: run.status,
+      started_at: run.started_at,
+      ended_at: run.ended_at,
+      result: run.result,
+      artifact_url: run.artifact_url,
+      automation_tasks: run.task_id ? tasksMap[run.task_id] || null : null
+    }));
+    
+    const duration = Date.now() - startTime;
+    logger.info('[GET /api/runs] Success', {
+      user_id: req.user.id,
+      runs_count: data?.length || 0,
+      duration_ms: duration
+    });
     res.json(data || []);
   } catch (err) {
-    logger.error('[GET /api/runs] Error:', err.message);
+    const duration = Date.now() - startTime;
+    logger.error('[GET /api/runs] Error', {
+      error: err.message,
+      stack: err.stack,
+      user_id: req.user?.id,
+      duration_ms: duration
+    });
     res.status(500).json({ error: 'Failed to fetch runs', details: err.message });
   }
 });

@@ -4,6 +4,7 @@ import { useI18n } from '../i18n';
 import TaskList from '../components/TaskList/TaskList';
 import { useAuth } from '../utils/AuthContext';
 import { supabase, initSupabase } from '../utils/supabaseClient';
+import { fetchWithAuth } from '../utils/devNetLogger';
 import styles from './HistoryPage.module.css';
 import ErrorMessage from '../components/ErrorMessage';
 import Chatbot from '../components/Chatbot/Chatbot';
@@ -41,74 +42,59 @@ const HistoryPage = () => {
       }, 30000);
 
       try {
-        logger.info('Fetching automation runs', { user_id: user.id });
+        logger.info('Fetching automation runs via backend API', { user_id: user.id });
         
-        // ✅ PERFORMANCE: Initialize Supabase with timeout protection
-        const initStartTime = Date.now();
-        const client = await Promise.race([
-          initSupabase(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Supabase initialization timeout')), 10000)
-          )
-        ]);
-        const initDuration = Date.now() - initStartTime;
-        
-        if (initDuration > 2000) {
-          logger.warn('Slow Supabase initialization', {
-            duration_ms: initDuration,
-            user_id: user.id
-          });
-        }
-        
-        // ✅ PERFORMANCE: Add limit and optimize query
-        // Limit to 100 most recent runs to prevent timeout
-        // Only fetch essential fields to reduce payload size
+        // ✅ PERFORMANCE: Use backend API instead of direct Supabase query
+        // Backend has better connection pooling and optimized queries
         const queryStartTime = Date.now();
         
-        // Create query with timeout protection
-        const queryPromise = client.from('automation_runs')
-          .select(`id,status,started_at,result,artifact_url,automation_tasks(id,name,url,task_type)`)
-          .eq('user_id', user.id)
-          .order('started_at', { ascending: false })
-          .limit(100); // ✅ CRITICAL: Add limit to prevent timeout
+        // Use full URL or relative path depending on environment
+        const apiUrl = process.env.REACT_APP_API_BASE 
+          ? `${process.env.REACT_APP_API_BASE}/api/runs`
+          : '/api/runs';
         
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Query timeout after 25 seconds')), 25000)
-        );
+        logger.info('Calling backend API', { 
+          url: apiUrl,
+          user_id: user.id 
+        });
         
-        const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+        const response = await Promise.race([
+          fetchWithAuth(apiUrl),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('API request timeout after 15 seconds')), 15000)
+          )
+        ]);
         
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        
+        const runsData = await response.json();
         const queryDuration = Date.now() - queryStartTime;
-        logger.info('Query completed', { 
+        
+        logger.info('Query completed via backend API', { 
           duration_ms: queryDuration,
-          init_duration_ms: initDuration,
+          runs_count: runsData?.length || 0,
           user_id: user.id 
         });
         
         if (queryDuration > 5000) {
-          logger.warn('Slow query detected', {
+          logger.warn('Slow API response detected', {
             duration_ms: queryDuration,
             user_id: user.id,
-            message: 'Query took longer than 5 seconds - database indexes may be missing'
+            message: 'Backend API took longer than 5 seconds - check database indexes'
           });
         }
         
-        if (error) {
-          logger.error('Supabase query error', {
-            error: error.message,
-            code: error.code,
-            user_id: user.id,
-            hint: error.hint || 'No hint available'
-          });
-          throw error;
-        }
-        const runsData = data || [];
+        const runsDataFinal = Array.isArray(runsData) ? runsData : [];
         logger.info('Automation runs fetched successfully', {
           user_id: user.id,
-          count: runsData.length
+          count: runsDataFinal.length,
+          query_duration_ms: queryDuration
         });
-        setRuns(runsData);
-        runsRef.current = runsData; // Update ref
+        setRuns(runsDataFinal);
+        runsRef.current = runsDataFinal; // Update ref
       } catch (err) {
         logger.error('Failed to fetch automation runs', {
           error: err.message,
