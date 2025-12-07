@@ -380,7 +380,7 @@
 .progressBarContainer {
   width: 100%;
   height: 8px;
-  background: var(--color-gray-200, var(--bg-secondary));
+  background: var(--color-gray-200, var(--bg-secondary, var(--surface)));
   border-radius: var(--radius-full, 999px);
   overflow: hidden;
 }
@@ -399,9 +399,10 @@
 
 .currentStep {
   padding: var(--spacing-md);
-  background: var(--color-primary-50, var(--bg-secondary));
+  background: var(--color-primary-50, var(--bg-secondary, var(--surface)));
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-primary-200, var(--border-color));
+  box-shadow: var(--shadow-sm);
 }
 
 .currentStepHeader {
@@ -435,6 +436,36 @@
   color: var(--text-muted);
   margin-left: var(--spacing-sm);
   font-weight: var(--font-weight-normal);
+}
+
+.stepElapsed {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-left: var(--spacing-sm);
+  font-weight: var(--font-weight-normal);
+  font-style: italic;
+}
+
+.diagnosticInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-warning-50, var(--bg-secondary));
+  border: 1px solid var(--color-warning-200, var(--border-color));
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+}
+
+.diagnosticIcon {
+  font-size: var(--font-size-sm);
+  flex-shrink: 0;
+}
+
+.diagnosticText {
+  color: var(--color-warning-700, var(--text-muted));
+  font-weight: var(--font-weight-medium);
 }
 
 .stepDuration {
@@ -484,7 +515,7 @@
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: var(--spacing-md);
   padding: var(--spacing-md);
-  background: var(--bg-secondary, var(--color-gray-50));
+  background: var(--bg-secondary, var(--surface));
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
 }
@@ -555,11 +586,11 @@
   }
 }
 
-/* ✅ UX: Minimized Execution Indicator */
+/* ✅ UX: Minimized Execution Indicator - Theme Consistent */
 .minimizedIndicator {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  bottom: var(--spacing-lg, 20px);
+  right: var(--spacing-lg, 20px);
   z-index: 9999;
   animation: slideUp 0.3s ease-out;
 }
@@ -582,6 +613,7 @@
   align-items: center;
   gap: var(--spacing-sm);
   flex: 1;
+  min-width: 0;
 }
 
 .minimizedSpinner {
@@ -598,6 +630,7 @@
   font-size: var(--font-size-sm);
   color: var(--text-primary);
   font-weight: var(--font-weight-medium);
+  line-height: 1.4;
 }
 
 .minimizedProgress {
@@ -625,6 +658,7 @@
   background: var(--color-primary-100, var(--hover-bg));
   border-color: var(--color-primary-400, var(--color-primary));
   transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .minimizeButton {
@@ -645,6 +679,7 @@
 .minimizeButton:hover {
   background: var(--hover-bg);
   border-color: var(--color-primary-300, var(--border-color));
+  color: var(--text-primary);
 }
 
 .headerActions {
@@ -675,7 +710,7 @@
 }
 
 .errorContainer p {
-  color: var(--color-error-600);
+  color: var(--color-error-600, var(--color-error));
   font-size: var(--font-size-base);
 }
 

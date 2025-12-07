@@ -182,24 +182,28 @@ class WorkflowExecutor {
   }
 
   // ✅ IMMEDIATE STATUS UPDATE METHODS
-  async _updateExecutionStatus(executionId, status, message) {
+  async _updateExecutionStatus(executionId, status, message, additionalData = {}) {
     if (!this.supabase) return;
     
     try {
+      const updateData = {
+        status,
+        status_message: message,
+        updated_at: new Date().toISOString(),
+        ...additionalData
+      };
+      
       await this.supabase
         .from('workflow_executions')
-        .update({
-          status,
-          status_message: message,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', executionId);
       
       // ✅ INSTRUCTION 2: Use structured logger
       this.logger.info('Execution status updated', {
         execution_id: executionId,
         status,
-        message
+        message,
+        ...additionalData
       });
     } catch (error) {
       // ✅ INSTRUCTION 2: Pass error object to logger for full stack trace (Gap 15)
@@ -736,8 +740,16 @@ class WorkflowExecutor {
             span_id: span.spanContext().spanId
           });
           
-          // ✅ FIX: Update status to show progress
-          await this._updateExecutionStatus(execution.id, 'running', 'Starting workflow execution...');
+          // ✅ FIX: Update status to show progress with detailed info
+          await this._updateExecutionStatus(
+            execution.id, 
+            'running', 
+            'Starting workflow execution...',
+            {
+              steps_total: workflow.workflow_steps?.length || 0,
+              steps_executed: 0
+            }
+          );
       
       // Find the start step
       const startStep = workflow.workflow_steps.find(step => step.step_type === 'start');
@@ -749,8 +761,16 @@ class WorkflowExecutor {
         return;
       }
       
-      // ✅ FIX: Update status before executing steps
-      await this._updateExecutionStatus(execution.id, 'running', `Executing ${workflow.workflow_steps.length} steps...`);
+          // ✅ FIX: Update status before executing steps with step count
+      await this._updateExecutionStatus(
+        execution.id, 
+        'running', 
+        `Executing ${workflow.workflow_steps.length} steps...`,
+        {
+          steps_total: workflow.workflow_steps.length,
+          steps_executed: 0
+        }
+      );
       
   // Execute workflow steps
   const result = await this.executeStep(execution, startStep, currentData, workflow, new Set(), partialResults);
@@ -949,11 +969,18 @@ class WorkflowExecutor {
             span_id: stepSpan.spanContext().spanId
           });
           
-          // ✅ FIX: Update execution status to show current step
+          // ✅ FIX: Update execution status to show current step with detailed progress
+          const stepNumber = Array.from(visitedSteps).length;
+          const totalSteps = workflow.workflow_steps?.length || 0;
+          const stepTypeInfo = step.action_type ? ` (${step.action_type})` : '';
           await this._updateExecutionStatus(
             execution.id, 
             'running', 
-            `Executing step: ${step.name} (${step.step_type})`
+            `Executing step ${stepNumber}/${totalSteps}: ${step.name}${stepTypeInfo}`,
+            {
+              steps_executed: stepNumber - 1,
+              steps_total: totalSteps
+            }
           );
           
           // Create step execution record
@@ -1223,6 +1250,15 @@ class WorkflowExecutor {
       // This is a placeholder - integrate with your existing scraping service
       const { url, selectors, timeout = 30 } = config;
       
+      // ✅ VISIBILITY: Update status to show what's happening
+      if (execution?.id) {
+        await this._updateExecutionStatus(
+          execution.id,
+          'running',
+          `Scraping data from ${url}...`
+        );
+      }
+      
       logger.info(`[WorkflowExecutor] Web scraping: ${url}`);
       
       // ✅ INSTRUCTION 1: Use instrumented HTTP client for trace propagation
@@ -1302,6 +1338,15 @@ class WorkflowExecutor {
   async executeApiCallAction(config, inputData, execution) {
     try {
       const { method, url, headers = {}, body, timeout = 30 } = config;
+      
+      // ✅ VISIBILITY: Update status to show what's happening
+      if (execution?.id) {
+        await this._updateExecutionStatus(
+          execution.id,
+          'running',
+          `Calling API: ${method} ${url}...`
+        );
+      }
       
       logger.info(`[WorkflowExecutor] API call: ${method} ${url}`);
       

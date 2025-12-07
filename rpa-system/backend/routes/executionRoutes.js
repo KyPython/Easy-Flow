@@ -35,7 +35,7 @@ router.get('/:executionId', requireFeature('workflow_executions'), async (req, r
 
     const { data: execution, error } = await supabase
       .from('workflow_executions')
-      .select(`*, step_executions(*)`)
+      .select(`*, step_executions(*, workflow_steps(*))`)
       .eq('id', executionId)
       .single();
 

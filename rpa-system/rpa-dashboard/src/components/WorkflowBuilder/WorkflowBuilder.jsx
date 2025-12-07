@@ -265,7 +265,49 @@ const WorkflowBuilder = () => {
           console.error('Failed to load initial execution details:', err);
         }
       }
-      showSuccess('✅ Workflow execution started! You can continue working while it runs.');
+      // ✅ TIME ESTIMATION: Calculate initial time estimate before execution
+      const initialEstimate = (() => {
+        const defaultStepTimes = {
+          'web_scraping': 15,
+          'web_scrape': 15,
+          'api_request': 3,
+          'api_call': 3,
+          'send_email': 5,
+          'email': 5,
+          'transform_data': 2,
+          'data_transform': 2,
+          'condition': 1,
+          'upload_file': 8,
+          'file_upload': 8,
+          'delay': 5
+        };
+        
+        if (currentWorkflow?.canvas_config?.nodes) {
+          const totalEstimate = currentWorkflow.canvas_config.nodes
+            .filter(node => node.data?.stepType !== 'start' && node.data?.stepType !== 'end')
+            .reduce((sum, node) => {
+              const stepType = node.data?.stepType || node.data?.actionType || '';
+              return sum + (defaultStepTimes[stepType] || 5);
+            }, 0);
+          
+          if (totalEstimate > 0) {
+            const minutes = Math.floor(totalEstimate / 60);
+            const seconds = totalEstimate % 60;
+            if (minutes > 0) {
+              return `Estimated time: ~${minutes}m ${seconds > 0 ? `${seconds}s` : ''}`;
+            } else {
+              return `Estimated time: ~${seconds}s`;
+            }
+          }
+        }
+        return null;
+      })();
+      
+      showSuccess(
+        initialEstimate 
+          ? `✅ Workflow execution started! ${initialEstimate}. You can continue working while it runs.`
+          : '✅ Workflow execution started! You can continue working while it runs.'
+      );
     } catch (error) {
       console.error('Failed to start workflow execution:', error);
       
@@ -779,23 +821,192 @@ const WorkflowBuilder = () => {
                     step.status === 'running' || step.status === 'pending'
                   ) || stepExecutions[stepExecutions.length - 1];
                   
-                  // Calculate estimated time remaining
-                  const calculateTimeRemaining = () => {
-                    if (!executionDetails.started_at || stepsTotal === 0 || stepsExecuted === 0) {
-                      return null;
+                  // Default time estimates per step type (in seconds) - shared across functions
+                  const defaultStepTimes = {
+                    'start': 1,
+                    'web_scraping': 15, // Web scraping typically takes 10-20s
+                    'web_scrape': 15,
+                    'api_request': 3, // API calls are usually fast
+                    'api_call': 3,
+                    'send_email': 5, // Email sending takes 3-7s
+                    'email': 5,
+                    'transform_data': 2, // Data transforms are quick
+                    'data_transform': 2,
+                    'condition': 1, // Conditions are instant
+                    'upload_file': 8, // File uploads vary
+                    'file_upload': 8,
+                    'delay': 5, // Delays are configurable
+                    'end': 1
+                  };
+                  
+                  // ✅ VISIBILITY: Calculate what's actually happening
+                  const getCurrentActivity = () => {
+                    // First, try to get status_message from execution (most up-to-date)
+                    if (executionDetails.status_message) {
+                      const statusMsg = executionDetails.status_message;
+                      // If status_message contains step info, use it
+                      if (statusMsg.includes('Executing step:') || statusMsg.includes('step')) {
+                        return statusMsg;
+                      }
                     }
                     
-                    const elapsed = Math.floor((Date.now() - new Date(executionDetails.started_at).getTime()) / 1000);
-                    const avgTimePerStep = elapsed / Math.max(1, stepsExecuted);
-                    const remainingSteps = stepsTotal - stepsExecuted;
-                    const estimatedSeconds = Math.ceil(avgTimePerStep * remainingSteps);
+                    // Second, try to get info from current step execution
+                    if (currentStep) {
+                      const stepType = currentStep.workflow_steps?.action_type || 
+                                     currentStep.workflow_steps?.step_type || 
+                                     currentStep.step_type || '';
+                      const stepName = currentStep.workflow_steps?.name || 
+                                     currentStep.step_name || 
+                                     currentStep.name || 
+                                     'Current step';
+                      
+                      // Get detailed activity description
+                      const activityDescriptions = {
+                        'web_scraping': `Scraping data from ${stepName}`,
+                        'web_scrape': `Scraping data from ${stepName}`,
+                        'api_request': `Calling API: ${stepName}`,
+                        'api_call': `Calling API: ${stepName}`,
+                        'send_email': `Sending email: ${stepName}`,
+                        'email': `Sending email: ${stepName}`,
+                        'transform_data': `Transforming data: ${stepName}`,
+                        'data_transform': `Transforming data: ${stepName}`,
+                        'condition': `Evaluating condition: ${stepName}`,
+                        'upload_file': `Uploading file: ${stepName}`,
+                        'file_upload': `Uploading file: ${stepName}`,
+                        'delay': `Waiting: ${stepName}`,
+                        'start': 'Initializing workflow',
+                        'end': 'Finalizing workflow'
+                      };
+                      
+                      return activityDescriptions[stepType] || `Processing: ${stepName}`;
+                    }
                     
-                    if (estimatedSeconds < 60) {
+                    // Third, try to infer from workflow structure if we have canvas_config
+                    if (executionDetails.canvas_config?.nodes && stepsExecuted < stepsTotal) {
+                      const remainingNodes = executionDetails.canvas_config.nodes
+                        .filter(node => {
+                          const stepExec = stepExecutions.find(se => 
+                            se.workflow_steps?.id === node.id || 
+                            se.step_id === node.id
+                          );
+                          return !stepExec || stepExec.status !== 'completed';
+                        });
+                      
+                      if (remainingNodes.length > 0) {
+                        const nextNode = remainingNodes[0];
+                        const stepType = nextNode.data?.stepType || nextNode.data?.actionType || '';
+                        const stepName = nextNode.data?.label || nextNode.id || 'Next step';
+                        
+                        const activityDescriptions = {
+                          'web_scraping': `Preparing to scrape: ${stepName}`,
+                          'web_scrape': `Preparing to scrape: ${stepName}`,
+                          'api_request': `Preparing API call: ${stepName}`,
+                          'api_call': `Preparing API call: ${stepName}`,
+                          'send_email': `Preparing to send email: ${stepName}`,
+                          'email': `Preparing to send email: ${stepName}`,
+                          'transform_data': `Preparing data transformation: ${stepName}`,
+                          'data_transform': `Preparing data transformation: ${stepName}`,
+                          'condition': `Preparing condition check: ${stepName}`,
+                          'upload_file': `Preparing file upload: ${stepName}`,
+                          'file_upload': `Preparing file upload: ${stepName}`,
+                          'delay': `Preparing delay: ${stepName}`,
+                          'start': 'Initializing workflow',
+                          'end': 'Finalizing workflow'
+                        };
+                        
+                        return activityDescriptions[stepType] || `Preparing: ${stepName}`;
+                      }
+                    }
+                    
+                    // Fallback activity description
+                    if (executionDetails.status === 'running') {
+                      if (stepsTotal > 0 && stepsExecuted < stepsTotal) {
+                        return `Processing step ${stepsExecuted + 1} of ${stepsTotal}...`;
+                      }
+                      return 'Processing your automation workflow...';
+                    }
+                    
+                    return 'Workflow is running';
+                  };
+                  
+                  // ✅ TIME ESTIMATION: Smart time estimation based on step types and historical data
+                  const calculateTimeRemaining = () => {
+                    if (!executionDetails.started_at) return null;
+                    
+                    // Calculate based on multiple factors
+                    let estimatedSeconds = 0;
+                    
+                    // Method 1: Use historical average if we have completed steps
+                    if (stepsExecuted > 0 && stepsTotal > 0) {
+                      const elapsed = Math.floor((Date.now() - new Date(executionDetails.started_at).getTime()) / 1000);
+                      const avgTimePerStep = elapsed / Math.max(1, stepsExecuted);
+                      const remainingSteps = stepsTotal - stepsExecuted;
+                      estimatedSeconds = Math.ceil(avgTimePerStep * remainingSteps);
+                    }
+                    
+                    // Method 2: Use step type estimates for remaining steps
+                    if (stepsTotal > 0 && stepExecutions.length > 0) {
+                      let typeBasedEstimate = 0;
+                      const completedStepTypes = stepExecutions
+                        .filter(s => s.status === 'completed')
+                        .map(s => s.workflow_steps?.action_type || s.workflow_steps?.step_type || s.step_type || '')
+                        .filter(Boolean);
+                      
+                      // Get remaining steps from canvas config
+                      const allSteps = executionDetails.canvas_config?.nodes || [];
+                      const remainingStepTypes = allSteps
+                        .filter((node, idx) => {
+                          const stepExec = stepExecutions.find(se => 
+                            se.workflow_steps?.id === node.id || 
+                            se.step_id === node.id
+                          );
+                          return !stepExec || stepExec.status !== 'completed';
+                        })
+                        .map(node => node.data?.stepType || node.data?.actionType || '')
+                        .filter(Boolean);
+                      
+                      // Calculate estimate based on remaining step types
+                      remainingStepTypes.forEach(stepType => {
+                        const stepTime = defaultStepTimes[stepType] || 5; // Default 5s for unknown
+                        typeBasedEstimate += stepTime;
+                      });
+                      
+                      // If we have both estimates, use weighted average (70% historical, 30% type-based)
+                      if (estimatedSeconds > 0 && typeBasedEstimate > 0) {
+                        estimatedSeconds = Math.ceil(estimatedSeconds * 0.7 + typeBasedEstimate * 0.3);
+                      } else if (typeBasedEstimate > 0) {
+                        estimatedSeconds = typeBasedEstimate;
+                      }
+                    }
+                    
+                    // Method 3: If current step is running, add its estimated time
+                    if (currentStep && currentStep.status === 'running') {
+                      const currentStepType = currentStep.workflow_steps?.action_type || 
+                                            currentStep.workflow_steps?.step_type || 
+                                            currentStep.step_type || '';
+                      const currentStepTime = defaultStepTimes[currentStepType] || 5;
+                      const stepElapsed = currentStep.started_at 
+                        ? Math.floor((Date.now() - new Date(currentStep.started_at).getTime()) / 1000)
+                        : 0;
+                      const currentStepRemaining = Math.max(0, currentStepTime - stepElapsed);
+                      estimatedSeconds += currentStepRemaining;
+                    }
+                    
+                    // Format the estimate
+                    if (estimatedSeconds <= 0) return null;
+                    
+                    if (estimatedSeconds < 10) {
+                      return `~${estimatedSeconds} seconds`;
+                    } else if (estimatedSeconds < 60) {
                       return `~${estimatedSeconds} seconds`;
                     } else {
                       const minutes = Math.floor(estimatedSeconds / 60);
                       const seconds = estimatedSeconds % 60;
-                      return seconds > 0 ? `~${minutes}m ${seconds}s` : `~${minutes} minutes`;
+                      if (seconds === 0) {
+                        return `~${minutes} minute${minutes !== 1 ? 's' : ''}`;
+                      } else {
+                        return `~${minutes}m ${seconds}s`;
+                      }
                     }
                   };
                   
@@ -836,7 +1047,7 @@ const WorkflowBuilder = () => {
                           <span className={styles.currentStepName}>{stepName}</span>
                         </div>
                         <div className={styles.stepDescription}>
-                          {getStepDescription(stepType)}
+                          {getCurrentActivity()}
                         </div>
                         {currentStep.status === 'running' && (
                           <div className={styles.stepStatus}>
@@ -846,6 +1057,20 @@ const WorkflowBuilder = () => {
                                 • Estimated time remaining: {timeRemaining}
                               </span>
                             )}
+                            {(() => {
+                              // Show elapsed time for current step
+                              if (currentStep.started_at) {
+                                const stepElapsed = Math.floor((Date.now() - new Date(currentStep.started_at).getTime()) / 1000);
+                                if (stepElapsed > 0) {
+                                  return (
+                                    <span className={styles.stepElapsed}>
+                                      • Running for {stepElapsed < 60 ? `${stepElapsed}s` : `${Math.floor(stepElapsed / 60)}m ${stepElapsed % 60}s`}
+                                    </span>
+                                  );
+                                }
+                              }
+                              return null;
+                            })()}
                           </div>
                         )}
                         {currentStep.status === 'completed' && (
@@ -897,25 +1122,44 @@ const WorkflowBuilder = () => {
                     }
                   }
                   
-                  // If no step info available, show progress info
+                  // If no step info available, show progress info with diagnostic details
                   if (executionDetails.status === 'running') {
+                    const elapsed = executionDetails.started_at 
+                      ? Math.floor((Date.now() - new Date(executionDetails.started_at).getTime()) / 1000)
+                      : 0;
+                    
+                    // Show diagnostic info if workflow appears stuck
+                    const showDiagnostic = elapsed > 30 && (!stepExecutions || stepExecutions.length === 0);
+                    
                     return (
                       <div className={styles.currentStep}>
                         <div className={styles.currentStepHeader}>
                           <span className={styles.currentStepLabel}>Status:</span>
-                          <span className={styles.currentStepName}>Workflow is running</span>
+                          <span className={styles.currentStepName}>
+                            {executionDetails.status_message || 'Workflow is running'}
+                          </span>
                         </div>
                         <div className={styles.stepDescription}>
-                          {stepsTotal > 0 
-                            ? `Processing step ${stepsExecuted + 1} of ${stepsTotal}`
-                            : 'Processing your automation steps...'
-                          }
+                          {getCurrentActivity()}
                         </div>
+                        {showDiagnostic && (
+                          <div className={styles.diagnosticInfo}>
+                            <span className={styles.diagnosticIcon}>⚠️</span>
+                            <span className={styles.diagnosticText}>
+                              Workflow is taking longer than expected. Checking progress...
+                            </span>
+                          </div>
+                        )}
                         <div className={styles.stepStatus}>
                           <span className={styles.statusDot} /> Active
                           {timeRemaining && (
                             <span className={styles.timeEstimate}>
                               • Estimated time remaining: {timeRemaining}
+                            </span>
+                          )}
+                          {elapsed > 0 && (
+                            <span className={styles.stepElapsed}>
+                              • Running for {elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`}
                             </span>
                           )}
                         </div>
