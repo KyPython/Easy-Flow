@@ -2629,6 +2629,136 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/queue/status - Get queue status and task positions
+app.get('/api/queue/status', authMiddleware, async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user?.id;
+  
+  logger.info('📋 [Queue] Status request received', {
+    user_id: userId
+  });
+
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (!supabase) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    // Get all queued/running tasks for this user
+    const { data: queuedTasks, error: tasksError } = await supabase
+      .from('automation_runs')
+      .select('id, status, started_at, task_id, result')
+      .eq('user_id', userId)
+      .in('status', ['running']) // Tasks with status 'running' but result says 'queued'
+      .order('started_at', { ascending: true }); // Oldest first
+
+    if (tasksError) throw tasksError;
+
+    // Filter to only tasks that are actually queued (check result field)
+    const actuallyQueued = (queuedTasks || []).filter(task => {
+      try {
+        const result = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
+        return result?.status === 'queued' || result?.queue_status === 'pending' || !result;
+      } catch {
+        return !task.result; // If no result, assume queued
+      }
+    });
+
+    // Check Kafka/worker health
+    const { getKafkaService } = require('./utils/kafkaService');
+    const kafkaService = getKafkaService();
+    const kafkaConnected = kafkaService?.isConnected || false;
+    
+    // Check worker health (automation service)
+    let workerHealthy = false;
+    let workerResponseTime = null;
+    try {
+      const automationUrl = process.env.AUTOMATION_URL;
+      if (automationUrl) {
+        const axios = require('axios');
+        const healthStart = Date.now();
+        const normalizedUrl = automationUrl.trim().startsWith('http') ? automationUrl : `http://${automationUrl}`;
+        await axios.get(`${normalizedUrl}/health`, { timeout: 3000 }).catch(() => {
+          return axios.get(normalizedUrl, { timeout: 3000, validateStatus: () => true });
+        });
+        workerResponseTime = Date.now() - healthStart;
+        workerHealthy = true;
+      }
+    } catch (e) {
+      logger.warn('📋 [Queue] Worker health check failed', {
+        error: e.message,
+        user_id: userId
+      });
+    }
+
+    // Calculate queue position for each task
+    const queueInfo = actuallyQueued.map((task, index) => {
+      const queuedAt = new Date(task.started_at);
+      const waitTimeMs = Date.now() - queuedAt.getTime();
+      const waitTimeMinutes = Math.floor(waitTimeMs / 60000);
+      const waitTimeSeconds = Math.floor((waitTimeMs % 60000) / 1000);
+      
+      // Estimate processing time (average 30 seconds per task, 3 workers = ~10 seconds per task)
+      const avgProcessingTimeSeconds = 10;
+      const tasksAhead = index;
+      const estimatedWaitSeconds = tasksAhead * avgProcessingTimeSeconds;
+      
+      return {
+        task_id: task.id,
+        position: index + 1,
+        queued_at: task.started_at,
+        wait_time_seconds: Math.floor(waitTimeMs / 1000),
+        wait_time_display: waitTimeMinutes > 0 
+          ? `${waitTimeMinutes}m ${waitTimeSeconds}s`
+          : `${waitTimeSeconds}s`,
+        estimated_wait_seconds: estimatedWaitSeconds,
+        estimated_wait_display: estimatedWaitSeconds < 60
+          ? `${estimatedWaitSeconds}s`
+          : `${Math.floor(estimatedWaitSeconds / 60)}m`,
+        is_stuck: waitTimeMs > 600000 // > 10 minutes
+      };
+    });
+
+    const duration = Date.now() - startTime;
+    logger.info('📋 [Queue] Status retrieved', {
+      user_id: userId,
+      queued_count: actuallyQueued.length,
+      kafka_connected: kafkaConnected,
+      worker_healthy: workerHealthy,
+      worker_response_ms: workerResponseTime,
+      duration_ms: duration
+    });
+
+    res.json({
+      queue_health: {
+        kafka_connected: kafkaConnected,
+        worker_healthy: workerHealthy,
+        worker_response_ms: workerResponseTime,
+        total_queued: actuallyQueued.length
+      },
+      tasks: queueInfo,
+      estimated_processing_rate: '~10 seconds per task (3 workers)',
+      message: actuallyQueued.length === 0 
+        ? 'No tasks in queue'
+        : workerHealthy && kafkaConnected
+          ? `${actuallyQueued.length} task(s) queued and processing`
+          : 'Tasks queued but worker may be unavailable'
+    });
+  } catch (err) {
+    const duration = Date.now() - startTime;
+    logger.error('❌ [Queue] Status error', {
+      error: err.message,
+      user_id: userId,
+      duration_ms: duration,
+      stack: err.stack
+    });
+    res.status(500).json({ error: 'Failed to get queue status', details: err.message });
+  }
+});
+
 // GET /api/dashboard - Fetch dashboard statistics
 app.get('/api/dashboard', authMiddleware, async (req, res) => {
   const startTime = Date.now();

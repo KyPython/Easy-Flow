@@ -1,9 +1,71 @@
-import React, { useState, useMemo, useCallback, Fragment } from 'react';
+import React, { useState, useMemo, useCallback, Fragment, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import styles from './TaskList.module.css';
 import StatusBadge from '../StatusBadge/StatusBadge';
 import { FiDownload, FiExternalLink } from 'react-icons/fi';
 import { formatDateTime, formatTaskType } from '../../utils/formatters';
+import { fetchWithAuth } from '../../utils/devNetLogger';
+
+// Queue Status Badge Component
+const QueueStatusBadge = ({ taskId, queuedAt, timeSinceStart }) => {
+  const [queueInfo, setQueueInfo] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchQueueStatus = async () => {
+      if (timeSinceStart < 5) return; // Don't fetch for very new tasks
+      setLoading(true);
+      try {
+        const response = await fetchWithAuth('/api/queue/status');
+        if (response.ok) {
+          const data = await response.json();
+          const taskInfo = data.tasks?.find(t => t.task_id === taskId);
+          setQueueInfo(taskInfo || null);
+        }
+      } catch (e) {
+        // Silently fail - queue info is nice to have but not critical
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchQueueStatus();
+    const interval = setInterval(fetchQueueStatus, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, [taskId, timeSinceStart]);
+
+  const isStuck = timeSinceStart > 600; // > 10 minutes
+  const position = queueInfo?.position;
+  const estimatedWait = queueInfo?.estimated_wait_display;
+
+  return (
+    <span 
+      style={{ 
+        fontSize: '11px', 
+        color: isStuck ? '#dc3545' : 'var(--text-muted)',
+        fontStyle: 'italic',
+        fontWeight: isStuck ? 600 : 'normal'
+      }}
+      title={
+        isStuck 
+          ? "⚠️ This task appears stuck. It was submitted before system fixes and won't process automatically. Submit a new task instead."
+          : position
+            ? `Position ${position} in queue. Estimated wait: ${estimatedWait || 'calculating...'}`
+            : queueInfo?.queue_health?.worker_healthy === false
+              ? "⚠️ Worker may be unavailable. Tasks are queued but not processing."
+              : "Tasks are processed by workers. Typical wait time: 1-30 seconds depending on queue length."
+      }
+    >
+      {timeSinceStart < 60 
+        ? `Queued ${timeSinceStart}s ago` 
+        : `Queued ${Math.floor(timeSinceStart / 60)}m ago`}
+      {position && ` • Position ${position}`}
+      {estimatedWait && ` • ~${estimatedWait}`}
+      {isStuck && ' ⚠️'}
+      {queueInfo?.queue_health?.worker_healthy === false && ' 🔴'}
+    </span>
+  );
+};
 
 const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
   const [selectedTasks, setSelectedTasks] = useState(new Set());
@@ -325,22 +387,11 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <StatusBadge status={displayStatus} />
                           {isQueued && timeSinceStart > 0 && (
-                            <span 
-                              style={{ 
-                                fontSize: '11px', 
-                                color: timeSinceStart > 600 ? '#dc3545' : 'var(--text-muted)', // Red if > 10 minutes
-                                fontStyle: 'italic',
-                                fontWeight: timeSinceStart > 600 ? 600 : 'normal'
-                              }}
-                              title={timeSinceStart > 600 
-                                ? "⚠️ This task appears stuck. It was submitted before system fixes and won't process automatically. Submit a new task instead."
-                                : "Tasks are processed by workers that poll every 1-2 seconds. Typical wait time: 1-30 seconds depending on queue length."}
-                            >
-                              {timeSinceStart < 60 
-                                ? `Queued ${timeSinceStart}s ago` 
-                                : `Queued ${Math.floor(timeSinceStart / 60)}m ago`}
-                              {timeSinceStart > 600 && ' ⚠️'}
-                            </span>
+                            <QueueStatusBadge 
+                              taskId={task.id}
+                              queuedAt={task.started_at}
+                              timeSinceStart={timeSinceStart}
+                            />
                           )}
                         </div>
                       );
