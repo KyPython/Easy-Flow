@@ -82,14 +82,27 @@ const rootLogger = pino(loggerConfig);
 /**
  * Log Sampling Configuration
  * Reduces volume of debug/info logs by sampling
+ * 
+ * Sampling rates (1 in N logs):
+ * - trace: 0.1% (1 in 1000) - Very verbose tracing
+ * - debug: 1% (1 in 100) - Detailed debugging
+ * - info: 2% (1 in 50) - General information (reduced from 10% for less noise)
+ * - warn: 10% (1 in 10) - Warnings (sampled to reduce noise, but still catch issues)
+ * - error/fatal: 100% (always logged) - Critical issues
+ * 
+ * Override via environment variables:
+ * - TRACE_LOG_SAMPLE_RATE (default: 1000)
+ * - DEBUG_LOG_SAMPLE_RATE (default: 100)
+ * - INFO_LOG_SAMPLE_RATE (default: 50)
+ * - WARN_LOG_SAMPLE_RATE (default: 10)
  */
 const SAMPLING_CONFIG = {
   // Sample 1 in N logs for each level
-  debug: parseInt(process.env.DEBUG_LOG_SAMPLE_RATE || '100', 10), // 1% of debug logs
   trace: parseInt(process.env.TRACE_LOG_SAMPLE_RATE || '1000', 10), // 0.1% of trace logs
-  info: parseInt(process.env.INFO_LOG_SAMPLE_RATE || '10', 10), // 10% of info logs
-  // Never sample warn/error/fatal
-  warn: 1,
+  debug: parseInt(process.env.DEBUG_LOG_SAMPLE_RATE || '100', 10), // 1% of debug logs
+  info: parseInt(process.env.INFO_LOG_SAMPLE_RATE || '50', 10), // 2% of info logs (reduced from 10%)
+  warn: parseInt(process.env.WARN_LOG_SAMPLE_RATE || '10', 10), // 10% of warn logs (new - sampled to reduce noise)
+  // Never sample error/fatal - always log critical issues
   error: 1,
   fatal: 1
 };
@@ -99,7 +112,7 @@ const samplingCounters = new Map();
 
 function shouldSample(namespace, level) {
   const sampleRate = SAMPLING_CONFIG[level] || 1;
-  if (sampleRate === 1) return true; // Always log warn/error/fatal
+  if (sampleRate === 1) return true; // Always log error/fatal (no sampling)
   
   const key = `${namespace}:${level}`;
   const counter = (samplingCounters.get(key) || 0) + 1;
@@ -184,6 +197,8 @@ class StructuredLogger {
   }
 
   warn(message, extra = {}) {
+    // Sample warn logs to reduce noise (but still catch issues)
+    if (!shouldSample(this.namespace, 'warn')) return;
     this.logger.warn(this._enrichLog(extra), message);
   }
 

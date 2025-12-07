@@ -1093,7 +1093,8 @@ if (process.env.NODE_ENV !== 'production' && (process.env.DEV_ALLOW_EXECUTE || '
 }
 
 // Use morgan for HTTP request logging (sampled to reduce volume)
-// Only log 1 in N requests based on LOG_SAMPLE_RATE
+// Only log 1 in N requests based on REQUEST_LOG_SAMPLE_RATE
+// Default: 1% (1 in 100) - reduced from previous to minimize log noise
 const REQUEST_LOG_SAMPLE_RATE = parseInt(process.env.REQUEST_LOG_SAMPLE_RATE || '100', 10);
 let requestCounter = 0;
 
@@ -3556,11 +3557,12 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
         supabase_type: typeof supabase,
         supabase_exists: !!supabase,
         env_check: {
-        SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'MISSING',
-        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE ? 'SET' : 'MISSING',
-        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING',
-        SUPABASE_KEY: process.env.SUPABASE_KEY ? 'SET' : 'MISSING',
-        SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'SET' : 'MISSING'
+          SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'MISSING',
+          SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE ? 'SET' : 'MISSING',
+          SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING',
+          SUPABASE_KEY: process.env.SUPABASE_KEY ? 'SET' : 'MISSING',
+          SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'SET' : 'MISSING'
+        }
       });
       logger.error(`[AutomationExecute] ❌ ${dbError} - Task will be processed via Kafka but won't appear in history.`);
     } else {
@@ -3689,7 +3691,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       logger.error(`[AutomationExecute] ❌ Supabase client status: ${supabase ? 'initialized' : 'NULL/UNDEFINED'}`);
       logger.error(`[AutomationExecute] ❌ Environment check: SUPABASE_URL=${!!process.env.SUPABASE_URL}, SUPABASE_SERVICE_ROLE=${!!process.env.SUPABASE_SERVICE_ROLE}, SUPABASE_SERVICE_ROLE_KEY=${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
     } else {
-      console.log('[AutomationExecute] ✅ Database insert succeeded!');
+      logger.debug('[AutomationExecute] ✅ Database insert succeeded!');
     }
 
     // Send task asynchronously (fire-and-forget)
@@ -3735,7 +3737,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
 
     const dbRecorded = !!runRecord;
     
-    console.log('[AutomationExecute] 🔍 BEFORE BUILDING RESPONSE:', {
+    logger.debug('[AutomationExecute] 🔍 BEFORE BUILDING RESPONSE', {
       dbRecorded,
       hasRunRecord: !!runRecord,
       hasTaskRecord: !!taskRecord,
@@ -3785,21 +3787,20 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       // ✅ CRITICAL: Force set the property - don't rely on conditional
       response.db_error_details = errorDetails;
       
-      console.error('[AutomationExecute] ❌❌❌ INCLUDING ERROR DETAILS IN RESPONSE ❌❌❌');
-      console.error('[AutomationExecute] Error details object:', JSON.stringify(errorDetails, null, 2));
-      console.error('[AutomationExecute] Response object after adding error_details:', {
+      logger.error('[AutomationExecute] ❌ INCLUDING ERROR DETAILS IN RESPONSE', null, {
+        error_details: errorDetails,
         has_db_error_details: !!response.db_error_details,
         db_error_details_type: typeof response.db_error_details,
         db_error_details_keys: response.db_error_details ? Object.keys(response.db_error_details) : 'N/A'
       });
     } else {
       // ✅ SAFETY: Even if dbRecorded is true, log that we're NOT including error details
-      console.log('[AutomationExecute] ✅ Database insert succeeded - NOT including error details');
+      logger.debug('[AutomationExecute] ✅ Database insert succeeded - NOT including error details');
     }
     
     // ✅ CRITICAL SAFETY CHECK: Force include error details if db_recorded is false, regardless of any other condition
     if (!response.db_recorded && !response.db_error_details) {
-      console.error('[AutomationExecute] ⚠️⚠️⚠️ SAFETY CHECK: db_recorded is false but db_error_details missing! Adding it now...');
+      logger.error('[AutomationExecute] ⚠️ SAFETY CHECK: db_recorded is false but db_error_details missing! Adding it now...');
       response.db_error_details = {
         message: 'Database record creation failed - error details were not captured',
         supabase_configured: !!supabase,
@@ -3820,7 +3821,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       };
     }
     
-    console.log('[AutomationExecute] 🔍 FINAL RESPONSE BEFORE SENDING:', {
+    logger.debug('[AutomationExecute] 🔍 FINAL RESPONSE BEFORE SENDING', {
       success: response.success,
       task_id: response.task_id,
       db_recorded: response.db_recorded,
@@ -3830,20 +3831,13 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       response_keys: Object.keys(response)
     });
     
-    console.log('[AutomationExecute] 🔍 FULL RESPONSE JSON:', JSON.stringify(response, null, 2));
-    
-    // ✅ CRITICAL: Verify the response before sending
+    // ✅ CRITICAL: Verify the response before sending (debug only - sampled)
     const responseString = JSON.stringify(response);
-    console.log('[AutomationExecute] 🔍 Response as string (first 1000 chars):', responseString.substring(0, 1000));
-    if (responseString.includes('db_error_details')) {
-      console.log('[AutomationExecute] ✅ db_error_details IS in the JSON string');
-      const match = responseString.match(/"db_error_details":\s*({[^}]+})/);
-      if (match) {
-        console.log('[AutomationExecute] ✅ Found db_error_details in JSON:', match[1]);
-      }
-    } else {
-      console.error('[AutomationExecute] ❌❌❌ db_error_details IS NOT in the JSON string ❌❌❌');
-    }
+    logger.debug('[AutomationExecute] 🔍 Response verification', {
+      response_length: responseString.length,
+      includes_db_error_details: responseString.includes('db_error_details'),
+      first_1000_chars: responseString.substring(0, 1000)
+    });
     
     // ✅ FIX: If link discovery failed, include that info in the response
     if (taskData.link_discovery_failed) {
@@ -3856,9 +3850,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       }
     }
     
-    console.log('========================================');
-    console.log('[AutomationExecute] 📤 SENDING RESPONSE NOW');
-    console.log('========================================');
+    logger.debug('[AutomationExecute] 📤 SENDING RESPONSE NOW');
     
     res.status(202).json(response);
 
