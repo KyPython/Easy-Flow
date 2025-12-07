@@ -134,13 +134,22 @@ router.post('/:executionId/cancel', requireFeature('workflow_executions'), async
       return res.status(400).json({ error: `Cannot cancel execution in status: ${execution.status}` });
     }
 
-    // Mark as cancelled
+    // ✅ FIX: Cancel the execution in the WorkflowExecutor first
+    // This marks it as cancelled in the runningExecutions map so the workflow loop can check and stop
+    const { WorkflowExecutor } = require('../services/workflowExecutor');
+    const cancelled = WorkflowExecutor.cancelExecutionById(executionId);
+    if (!cancelled) {
+      logger.warn('[ExecutionRoutes] Execution not found in registry (may have already completed)', { execution_id: executionId });
+    }
+
+    // Mark as cancelled in database
     const { error: updateError } = await supabase
       .from('workflow_executions')
       .update({
         status: 'cancelled',
         completed_at: new Date().toISOString(),
-        error_message: 'Execution cancelled by user'
+        error_message: 'Execution cancelled by user',
+        status_message: 'Execution cancelled by user'
       })
       .eq('id', executionId);
 
@@ -148,7 +157,9 @@ router.post('/:executionId/cancel', requireFeature('workflow_executions'), async
       throw new Error(updateError.message);
     }
 
-    return res.json({ success: true });
+    logger.info('[ExecutionRoutes] Execution cancelled', { execution_id: executionId, user_id: userId });
+
+    return res.json({ success: true, message: 'Execution cancelled successfully' });
   } catch (error) {
     logger.error('[ExecutionRoutes] Cancel error:', error);
     return res.status(500).json({ error: 'Failed to cancel execution' });

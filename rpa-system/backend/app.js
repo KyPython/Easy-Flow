@@ -1,15 +1,20 @@
 
 const { logger, getLogger } = require('./utils/logger');
 // --- Initialize OpenTelemetry first for comprehensive instrumentation ---
-// Allow disabling telemetry in local dev to avoid requiring OpenTelemetry packages
-if (process.env.DISABLE_TELEMETRY !== 'true') {
+// ✅ OBSERVABILITY: Always enable telemetry - use sampling to control volume, not disable
+// Sampling is configured in telemetryInit.js (default 10% via OTEL_TRACE_SAMPLING_RATIO)
+if (process.env.DISABLE_TELEMETRY === 'true') {
+  logger.warn('⚠️ [Observability] Telemetry disabled via DISABLE_TELEMETRY=true');
+  logger.warn('⚠️ [Observability] Consider using OTEL_TRACE_SAMPLING_RATIO=0.1 (10%) instead of disabling');
+  logger.warn('⚠️ [Observability] Disabling telemetry removes visibility into application behavior');
+} else {
   try {
     require('./middleware/telemetryInit');
+    logger.info('✅ [Observability] OpenTelemetry initialized - all logs integrated with traces');
   } catch (e) {
-    logger.warn('[app] telemetryInit failed to load - continuing without telemetry:', e?.message || e);
+    logger.error('❌ [Observability] telemetryInit failed to load:', e?.message || e);
+    logger.error('   Application will continue but observability will be limited');
   }
-} else {
-  logger.warn('[app] Telemetry disabled via DISABLE_TELEMETRY=true');
 }
 
 // --- Initialize structured logging after telemetry ---
@@ -3239,17 +3244,24 @@ app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req,
 
 app.post('/api/automation/execute', authMiddleware, automationLimiter, async (req, res) => {
   // ✅ CRITICAL: Log immediately when endpoint is hit
-  console.log('========================================');
-  console.log('[AutomationExecute] 🚨 ENDPOINT HIT 🚨');
-  console.log('[AutomationExecute] Timestamp:', new Date().toISOString());
-  console.log('[AutomationExecute] User ID:', req.user?.id);
-  console.log('========================================');
+  // ✅ OBSERVABILITY: Use structured logging with trace context
+  logger.info('🚨 Automation execute endpoint hit', {
+    user_id: req.user?.id,
+    timestamp: new Date().toISOString(),
+    operation: 'automation_execute'
+  });
   
   try {
     const taskData = req.body;
 
     // DEV: Log incoming payload for debugging
-    console.log('[AutomationExecute] 📥 Incoming request body:', JSON.stringify(taskData, null, 2));
+    // ✅ OBSERVABILITY: Log incoming request with structured data
+    logger.debug('Incoming automation request', {
+      task_type: taskData.task_type,
+      url: taskData.url,
+      has_credentials: !!(taskData.username || taskData.password),
+      discovery_method: taskData.discoveryMethod
+    });
     if (process.env.NODE_ENV !== 'production') {
       logger.info('[DEV DEBUG] Incoming /api/automation/execute payload:', JSON.stringify(taskData, null, 2));
     }
@@ -3430,9 +3442,12 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
     }
 
     // ✅ FIX: Create database records so task appears in automation history
-    console.log('[AutomationExecute] 🔍 STARTING DATABASE INSERT CHECK');
-    console.log('[AutomationExecute] Supabase client exists?', !!supabase);
-    console.log('[AutomationExecute] Supabase type:', typeof supabase);
+    // ✅ OBSERVABILITY: Log database insert attempt with trace context
+    logger.debug('Starting database insert for automation task', {
+      supabase_configured: !!supabase,
+      user_id: req.user?.id,
+      task_type: taskType
+    });
     
     const taskName = taskData.title || 
                      (taskData.task_type && taskData.task_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 
@@ -3458,8 +3473,11 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
     // ✅ FIX: Check if Supabase is configured before attempting database operations
     if (!supabase) {
       dbError = 'Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE environment variables.';
-      console.error('[AutomationExecute] ❌❌❌ SUPABASE CLIENT IS NULL/UNDEFINED ❌❌❌');
-      console.error('[AutomationExecute] Environment check:', {
+      // ✅ OBSERVABILITY: Log Supabase configuration error with full context
+      logger.error('Supabase client is null/undefined', null, {
+        supabase_type: typeof supabase,
+        supabase_exists: !!supabase,
+        env_check: {
         SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'MISSING',
         SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE ? 'SET' : 'MISSING',
         SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING',
@@ -3468,12 +3486,15 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       });
       logger.error(`[AutomationExecute] ❌ ${dbError} - Task will be processed via Kafka but won't appear in history.`);
     } else {
-      console.log('[AutomationExecute] ✅ Supabase client exists, attempting database insert...');
+      // ✅ OBSERVABILITY: Supabase client verified
+      logger.debug('Supabase client verified, proceeding with database insert');
       try {
-        console.log('[AutomationExecute] 🔍 Attempting to insert into automation_tasks...');
-        console.log('[AutomationExecute] User ID:', req.user.id);
-        console.log('[AutomationExecute] Task name:', taskName);
-        console.log('[AutomationExecute] Task type:', taskType);
+        // ✅ OBSERVABILITY: Log task insert attempt
+        logger.debug('Inserting automation task record', {
+          user_id: req.user.id,
+          task_name: taskName,
+          task_type: taskType
+        });
         
         const insertResult = await supabase
           .from('automation_tasks')
@@ -3489,18 +3510,19 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
           .select()
           .single();
         
-        console.log('[AutomationExecute] 🔍 Insert result:', {
-          hasData: !!insertResult.data,
-          hasError: !!insertResult.error,
-          errorMessage: insertResult.error?.message,
-          errorCode: insertResult.error?.code
-        });
+        // ✅ OBSERVABILITY: Log insert result (already logged above)
         
         const { data: task, error: taskError } = insertResult;
         
         if (taskError) {
-          console.error('[AutomationExecute] ❌❌❌ TASK INSERT ERROR ❌❌❌');
-          console.error('[AutomationExecute] Error object:', taskError);
+          // ✅ OBSERVABILITY: Log task insert error with full context
+          logger.error('Failed to insert automation task', taskError, {
+            user_id: req.user.id,
+            task_name: taskName,
+            task_type: taskType,
+            error_code: taskError.code,
+            error_message: taskError.message
+          });
           // ✅ FIX: Log the FULL error object so we can see what's wrong
           const errorDetails = {
             message: taskError.message,
@@ -3510,7 +3532,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
             fullError: JSON.stringify(taskError, Object.getOwnPropertyNames(taskError))
           };
           logger.error('[AutomationExecute] ❌ Error creating automation task:', errorDetails);
-          console.error('[AutomationExecute] ❌ FULL ERROR OBJECT:', taskError);
+          // Error already logged above with full context
           dbError = `Database error: ${taskError.message || 'Failed to create task record'}`;
           if (taskError.details) dbError += ` (${taskError.details})`;
           if (taskError.hint) dbError += ` Hint: ${taskError.hint}`;
@@ -3549,7 +3571,7 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
               fullError: JSON.stringify(runError, Object.getOwnPropertyNames(runError))
             };
             logger.error('[AutomationExecute] ❌ Error creating automation run:', errorDetails);
-            console.error('[AutomationExecute] ❌ FULL RUN ERROR OBJECT:', runError);
+            // ✅ OBSERVABILITY: Error already logged above with full context
             dbError = dbError ? `${dbError}; Run error: ${runError.message}` : `Database error: ${runError.message || 'Failed to create run record'}`;
             if (runError.details) dbError += ` (${runError.details})`;
             if (runError.hint) dbError += ` Hint: ${runError.hint}`;
@@ -3569,24 +3591,20 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
       }
     }
     
-    // ✅ FIX: Log warning with FULL details if database insert failed
-    console.log('[AutomationExecute] 🔍 FINAL DB ERROR CHECK:', {
-      hasDbError: !!dbError,
-      dbError: dbError,
-      hasTaskRecord: !!taskRecord,
-      hasRunRecord: !!runRecord
-    });
-    
+    // ✅ OBSERVABILITY: Log final database error status
     if (dbError) {
-      console.error('[AutomationExecute] ❌❌❌ DATABASE INSERT FAILED ❌❌❌');
-      console.error('[AutomationExecute] Error message:', dbError);
-      console.error('[AutomationExecute] Supabase client status:', supabase ? 'initialized' : 'NULL/UNDEFINED');
-      console.error('[AutomationExecute] Environment variables:', {
-        SUPABASE_URL: process.env.SUPABASE_URL ? `SET (${process.env.SUPABASE_URL.substring(0, 30)}...)` : 'MISSING',
-        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE ? 'SET' : 'MISSING',
-        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING',
-        SUPABASE_KEY: process.env.SUPABASE_KEY ? 'SET' : 'MISSING',
-        SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'SET' : 'MISSING'
+      logger.error('Database insert failed for automation task', new Error(dbError), {
+        has_task_record: !!taskRecord,
+        has_run_record: !!runRecord,
+        supabase_status: supabase ? 'initialized' : 'NULL/UNDEFINED',
+        env_variables: {
+          SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'MISSING',
+          SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE ? 'SET' : 'MISSING',
+          SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING',
+          SUPABASE_KEY: process.env.SUPABASE_KEY ? 'SET' : 'MISSING',
+          SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'SET' : 'MISSING'
+        },
+        user_id: req.user?.id
       });
       
       logger.error(`[AutomationExecute] ❌ Database insert FAILED: ${dbError}`);
@@ -3599,12 +3617,26 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
     // Send task asynchronously (fire-and-forget)
     let task_id;
     try {
-      console.log('[AutomationExecute] 📤 Attempting to send task to Kafka...');
+      // ✅ OBSERVABILITY: Log Kafka send attempt
+      logger.debug('Attempting to send task to Kafka', {
+        task_id: task_id,
+        task_type: taskType
+      });
       const result = await kafkaService.sendAutomationTask(enrichedTask);
       task_id = result.taskId;
-      console.log('[AutomationExecute] ✅ Task sent to Kafka successfully:', task_id);
+      // ✅ OBSERVABILITY: Log successful Kafka send
+      logger.info('Task sent to Kafka successfully', {
+        task_id: task_id,
+        task_type: taskType,
+        kafka_enabled: true
+      });
     } catch (kafkaError) {
-      console.error('[AutomationExecute] ❌ Failed to send task to Kafka:', kafkaError);
+      // ✅ OBSERVABILITY: Log Kafka send failure
+      logger.error('Failed to send task to Kafka', kafkaError, {
+        task_id: task_id,
+        task_type: taskType,
+        user_id: req.user?.id
+      });
       logger.error('[AutomationExecute] Kafka send failed:', kafkaError);
       // Generate a task_id anyway so the response is valid
       task_id = enrichedTask.task_id || uuidv4();

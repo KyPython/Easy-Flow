@@ -64,7 +64,23 @@ export const useWorkflowValidation = () => {
         });
       }
 
-      // Check for start step
+      // ✅ FIX: Check canvas_config first (ReactFlow nodes), then fall back to workflow_steps
+      const canvasConfig = workflow.canvas_config || {};
+      const canvasNodes = canvasConfig.nodes || [];
+      const canvasEdges = canvasConfig.edges || [];
+      
+      // Check for start step in canvas nodes
+      const hasStartStepInCanvas = canvasNodes.some(node => {
+        const stepType = node.data?.stepType;
+        const label = node.data?.label?.toLowerCase();
+        const id = node.id?.toLowerCase();
+        return stepType === 'start' || 
+               stepType === 'trigger' ||
+               label === 'start' ||
+               id?.includes('start');
+      });
+      
+      // Also check workflow_steps table as fallback
       const steps = workflow.workflow_steps || [];
       const startSteps = steps.filter(step => 
         step.step_type === 'start' || 
@@ -73,7 +89,8 @@ export const useWorkflowValidation = () => {
         step.execution_order === 0
       );
 
-      if (startSteps.length === 0) {
+      // If no start step found in either location, add error
+      if (!hasStartStepInCanvas && startSteps.length === 0) {
         errors.push({
           type: 'no_start_step',
           message: 'This workflow has no start step. Please add a start step before executing.',
@@ -82,9 +99,11 @@ export const useWorkflowValidation = () => {
         });
       }
 
-      // Check for enabled steps
-      const enabledSteps = steps.filter(step => step.is_enabled !== false);
-      if (enabledSteps.length === 0) {
+      // Check for enabled steps - use canvas nodes if available, otherwise workflow_steps
+      const hasEnabledSteps = canvasNodes.length > 0 || 
+                             steps.some(step => step.is_enabled !== false);
+      
+      if (!hasEnabledSteps) {
         errors.push({
           type: 'no_enabled_steps',
           message: 'This workflow has no enabled steps. Please enable at least one step.'

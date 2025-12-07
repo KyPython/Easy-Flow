@@ -339,14 +339,30 @@ def process_automation_task(task_data):
     user_id = task_data.get('user_id', 'unknown')
     workflow_id = task_data.get('workflow_id', 'unknown')
 
-    # ✅ INSTRUCTION 3: Create context-aware logger with user_id and workflow_id bound (Gap 9)
-    # This allows filtering logs by user or workflow in Grafana
-    task_logger = logging.LoggerAdapter(logger, {
+    # ✅ OBSERVABILITY: Create context-aware logger with user_id, workflow_id, and trace context
+    # This allows filtering logs by user or workflow in Grafana and correlates with traces
+    extra_context = {
         'user_id': user_id,
         'workflow_id': workflow_id,
         'task_id': task_id,
         'task_type': task_type
-    })
+    }
+    
+    # ✅ OBSERVABILITY: Add OpenTelemetry trace context to log context
+    if OTEL_AVAILABLE and otel_context is not None:
+        try:
+            span = trace.get_current_span()
+            if span:
+                span_context = span.get_span_context()
+                if span_context and span_context.is_valid:
+                    extra_context['otel_trace_id'] = format(span_context.trace_id, '032x')
+                    extra_context['otel_span_id'] = format(span_context.span_id, '016x')
+                    extra_context['otel_trace_flags'] = span_context.trace_flags
+        except Exception as e:
+            # Silently fail if trace context extraction fails
+            pass
+    
+    task_logger = logging.LoggerAdapter(logger, extra_context)
     
     # ✅ INSTRUCTION 2: Reduced task processing logging (Gap 19)
     # Log at DEBUG level - task receipt is already logged in consumer

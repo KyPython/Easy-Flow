@@ -14,7 +14,9 @@ import {
   FaCog,
   FaEye,
   FaFlask,
-  FaHistory
+  FaHistory,
+  FaChevronDown,
+  FaBell
 } from 'react-icons/fa';
 
 import WorkflowCanvas from './WorkflowCanvas';
@@ -25,6 +27,7 @@ import WorkflowTesting from './WorkflowTesting';
 import WorkflowVersionHistory from './WorkflowVersionHistory';
 import { useWorkflow } from '../../hooks/useWorkflow';
 import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
+import { useWorkflowValidation } from '../../hooks/useWorkflowValidation';
 import { usePlan } from '../../hooks/usePlan';
 import { useAuth } from '../../utils/AuthContext';
 import useUsageTracking from '../../hooks/useUsageTracking';
@@ -46,6 +49,8 @@ const WorkflowBuilder = () => {
   const [isExecuting, setIsExecuting] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [currentExecutionId, setCurrentExecutionId] = useState(null);
+  const [executionDetails, setExecutionDetails] = useState(null); // ✅ UX: Store execution details for real-time display
+  const [showExecutionOverlay, setShowExecutionOverlay] = useState(true); // ✅ UX: Allow users to minimize/close overlay
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallFeature, setPaywallFeature] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -79,16 +84,37 @@ const WorkflowBuilder = () => {
     getExecutionDetails,
     refreshExecutions
   } = useWorkflowExecutions(workflowId);
+  
+  // ✅ UX: Get validation hook
+  const { validateWorkflowExecution } = useWorkflowValidation();
 
   // All callback hooks must be called before any early returns
   const handleSaveWorkflow = useCallback(async () => {
     try {
       if (currentWorkflow && workflowId) {
-        // Update existing workflow
-        await saveWorkflow(currentWorkflow);
+        // ✅ FIX: Get current canvas state before saving
+        const currentCanvasState = canvasRef.current?.getCurrentCanvasState() || {
+          nodes: [],
+          edges: [],
+          viewport: { x: 0, y: 0, zoom: 1 }
+        };
+        
+        // Update existing workflow with current canvas state
+        const workflowToSave = {
+          ...currentWorkflow,
+          canvas_config: currentCanvasState
+        };
+        
+        await saveWorkflow(workflowToSave);
         console.log('Workflow updated successfully');
+        
+        // ✅ UX: Show success feedback
+        showSuccess('✅ Workflow saved successfully!');
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 2500);
+        
+        // ✅ UX: Refresh workflow data to get updated status
+        // The useWorkflow hook should automatically refresh, but we can trigger it manually if needed
       } else {
         // Check if user can create new workflow (bypass in development)
         if (!isDevelopment && !canCreateWorkflow()) {
@@ -107,11 +133,38 @@ const WorkflowBuilder = () => {
           viewport: { x: 0, y: 0, zoom: 1 }
         };
         
+        // ✅ UX: Auto-add a Start step for new workflows so users don't have to figure it out
+        const hasStartStep = currentCanvasState.nodes?.some(node => 
+          node.data?.stepType === 'start' || node.data?.stepType === 'trigger'
+        );
+        
+        let initialNodes = currentCanvasState.nodes || [];
+        let initialEdges = currentCanvasState.edges || [];
+        
+        if (!hasStartStep && initialNodes.length === 0) {
+          // Auto-add Start step at center of canvas
+          const startNode = {
+            id: `node-start-${Date.now()}`,
+            type: 'customStep',
+            position: { x: 100, y: 100 },
+            data: {
+              label: 'Start',
+              stepType: 'start',
+              isConfigured: true,
+            },
+          };
+          initialNodes = [startNode];
+        }
+        
         const newWorkflowData = {
           name: `New Workflow - ${timestamp}`,
           description: 'A new automation workflow created from the canvas',
-          status: 'draft',
-          canvas_config: currentCanvasState
+          status: 'active', // ✅ UX: Set to 'active' by default so users can run immediately
+          canvas_config: {
+            ...currentCanvasState,
+            nodes: initialNodes,
+            edges: initialEdges
+          }
         };
         
         const client = await initSupabase();
@@ -126,8 +179,8 @@ const WorkflowBuilder = () => {
         // Track workflow creation for milestone system
         incrementWorkflowCount();
         
-        // Show success message with instructions
-        alert(`Workflow "${newWorkflow.name}" created successfully!\n\nYour workflow has been saved and you can now:\n• Start building by adding steps from the Actions toolbar\n• Use the "Browse Workflows" button to see all your workflows\n• Navigate between different workflow tabs`);
+        // ✅ UX: Show helpful success message with clear next steps
+        showSuccess(`✅ Workflow "${newWorkflow.name}" saved and activated!\n\n👉 Next steps:\n1. Add action steps (Web Scraping, Email, etc.) from the Actions toolbar\n2. Connect the Start step to your first action\n3. Click "🎬 Run" to execute your workflow`);
         
         // Navigate to the new workflow
         navigate(`/app/workflows/builder/${newWorkflow.id}`);
@@ -136,11 +189,11 @@ const WorkflowBuilder = () => {
       console.error('Failed to save workflow:', error);
       alert('Failed to save workflow: ' + error.message);
     }
-  }, [currentWorkflow, workflowId, saveWorkflow, createWorkflow, navigate, canCreateWorkflow]);
+  }, [currentWorkflow, workflowId, saveWorkflow, createWorkflow, navigate, canCreateWorkflow, showSuccess, canvasRef]);
 
   const handleExecuteWorkflow = useCallback(async () => {
     if (!workflowId) {
-  showWarning('Select a saved workflow first');
+      showWarning('💡 Save your workflow first, then you can run it!');
       return;
     }
 
@@ -151,25 +204,89 @@ const WorkflowBuilder = () => {
       return;
     }
     
+    // ✅ UX: Check if workflow is active (allow running even if not active, but prompt to activate)
+    if (currentWorkflow?.status !== 'active') {
+      const shouldActivate = window.confirm('⚠️ This workflow is not active. Would you like to activate it and run it now?');
+      if (shouldActivate) {
+        try {
+          await updateWorkflow({ status: 'active' });
+          showSuccess('✅ Workflow activated! Starting execution...');
+        } catch (err) {
+          showError('Failed to activate workflow: ' + (err.message || 'Unknown error'));
+          return;
+        }
+      } else {
+        return; // User cancelled
+      }
+    }
+    
+    // ✅ UX: Validate workflow before execution with clear, actionable errors
     try {
+      const validation = await validateWorkflowExecution(workflowId);
+      
+      if (!validation.isValid) {
+        // Show user-friendly error messages with clear actions
+        const errorMessages = validation.errors.map(err => {
+          switch (err.type) {
+            case 'no_start_step':
+              return '🚀 Your workflow needs a Start step!\n\n👉 Click the "🎬 Start" button in the Actions toolbar, then connect it to your first action step.';
+            case 'workflow_not_found':
+              return '❌ Workflow not found. Please save your workflow first.';
+            case 'workflow_archived':
+              return '📦 This workflow is archived. Activate it to run.';
+            case 'workflow_paused':
+              return '⏸️ This workflow is paused. Activate it to run.';
+            case 'isolated_steps':
+              return '🔗 Some steps are not connected!\n\n👉 Connect all your steps together by dragging from one step to another.';
+            case 'plan_limit':
+              return err.message;
+            default:
+              return err.message || 'Please fix the workflow configuration before running.';
+          }
+        });
+        
+        showError(errorMessages.join('\n\n'));
+        return;
+      }
+      
+      // Validation passed - start execution
       setIsExecuting(true);
+      setShowExecutionOverlay(true); // Show overlay when execution starts
+      setExecutionDetails(null); // Reset previous execution details
       const result = await startExecution();
       const execId = result?.execution?.id || result?.id || null;
-      if (execId) setCurrentExecutionId(execId);
-      showInfo('Workflow execution started');
+      if (execId) {
+        setCurrentExecutionId(execId);
+        // ✅ UX: Immediately fetch initial execution details for display
+        try {
+          const initialDetails = await getExecutionDetails(execId);
+          if (initialDetails) setExecutionDetails(initialDetails);
+        } catch (err) {
+          console.error('Failed to load initial execution details:', err);
+        }
+      }
+      showSuccess('✅ Workflow execution started! You can continue working while it runs.');
     } catch (error) {
       console.error('Failed to start workflow execution:', error);
-      // Friendlier messages based on backend status codes
-      if (error?.status === 404) {
-        showWarning('Select a saved workflow first');
+      
+      // Parse error messages for user-friendly display
+      let errorMessage = error?.message || 'Unknown error';
+      
+      // Check for common backend errors
+      if (errorMessage.includes('No start step') || errorMessage.includes('start step')) {
+        errorMessage = '🚀 Your workflow needs a Start step!\n\n👉 Click the "🎬 Start" button in the Actions toolbar, then connect it to your first action step.';
+      } else if (errorMessage.includes('Automation service is not configured')) {
+        errorMessage = '⚠️ Automation service is not available. Please contact support.';
+      } else if (error?.status === 404) {
+        errorMessage = '💡 Save your workflow first, then you can run it!';
       } else if (error?.status === 409) {
-        showWarning('Activate workflow before running');
-      } else {
-        showError('Failed to start workflow: ' + (error?.message || 'Unknown error'));
+        errorMessage = '⏸️ Activate your workflow before running it.';
       }
+      
+      showError(errorMessage);
       setIsExecuting(false);
     }
-  }, [workflowId, startExecution, canRunAutomation]);
+  }, [workflowId, startExecution, canRunAutomation, showWarning, showError, showSuccess, validateWorkflowExecution, currentWorkflow, updateWorkflow]);
 
   const handleStopExecution = useCallback(async () => {
     // Find the running execution and cancel it
@@ -202,10 +319,19 @@ const WorkflowBuilder = () => {
       try {
         const execution = await getExecutionDetails(currentExecutionId);
         
+        // ✅ UX: Update execution details for real-time display
+        if (execution) {
+          setExecutionDetails(execution);
+        }
+        
         if (execution && ['completed', 'failed', 'cancelled'].includes(execution.status)) {
-          // Execution finished
-          setIsExecuting(false);
-          setCurrentExecutionId(null);
+          // Execution finished - keep details visible for a moment before hiding
+          setTimeout(() => {
+            setIsExecuting(false);
+            setCurrentExecutionId(null);
+            setExecutionDetails(null);
+          }, 2000); // Show final status for 2 seconds
+          
           if (execution.status === 'failed') {
             showError(`Workflow execution failed: ${execution.error_message || 'Unknown error'}`);
           } else if (execution.status === 'completed') {
@@ -456,11 +582,11 @@ const WorkflowBuilder = () => {
               <button
                 className={`${styles.actionButton} ${styles.executeButton}`}
                 onClick={handleExecuteWorkflow}
-                disabled={!canClickRun}
-                aria-disabled={!canClickRun}
+                disabled={!hasWorkflowId}
+                aria-disabled={!hasWorkflowId}
                 title={!hasWorkflowId
-                  ? 'Save the workflow before running'
-                  : (!isActive ? 'Activate the workflow (status = active) to run' : 'Run this workflow')}
+                  ? '💡 Save the workflow first, then you can run it!'
+                  : (!isActive ? '⚠️ Activate the workflow to enable running' : '🎬 Run this workflow')}
               >
                 <FaPlay /> Run
               </button>
@@ -531,19 +657,418 @@ const WorkflowBuilder = () => {
         </div>
       )}
 
-      {/* Execution Status Overlay */}
-      {isExecuting && (
-        <div className={styles.executionOverlay}>
-          <div className={styles.executionStatus}>
-            <div className={styles.spinner} />
-            <p>Executing workflow...</p>
+      {/* ✅ UX: Enhanced Execution Status Overlay with Real-Time Progress */}
+      {isExecuting && showExecutionOverlay && (
+        <div className={styles.executionOverlay} onClick={(e) => {
+          // Allow clicking outside to minimize (but not close completely)
+          if (e.target === e.currentTarget) {
+            setShowExecutionOverlay(false);
+          }
+        }}>
+          <div className={styles.executionStatus} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.executionHeader}>
+              <div className={styles.executionTitle}>
+                <div className={styles.spinner} />
+                <h3>Executing Workflow</h3>
+              </div>
+              <div className={styles.headerActions}>
+                <button 
+                  className={styles.minimizeButton}
+                  onClick={() => setShowExecutionOverlay(false)}
+                  title="Minimize (workflow will continue running in the background)"
+                >
+                  <FaChevronDown /> Minimize
+                </button>
+                <button 
+                  className={styles.stopButton}
+                  onClick={handleStopExecution}
+                  disabled={!currentExecutionId}
+                  title={!currentExecutionId ? 'No active execution id found' : 'Stop the current execution'}
+                >
+                  <FaStop /> Stop Execution
+                </button>
+              </div>
+            </div>
+            
+            {/* Real-Time Progress Display */}
+            {executionDetails && (
+              <div className={styles.executionProgress}>
+                {/* Progress Bar */}
+                {(() => {
+                  // Try multiple ways to get step counts
+                  const stepsTotal = executionDetails.steps_total || 
+                                   executionDetails.total_steps ||
+                                   (executionDetails.metadata?.total_steps) ||
+                                   (executionDetails.canvas_config?.nodes?.filter(n => 
+                                     n.data?.stepType !== 'start' && n.data?.stepType !== 'end'
+                                   ).length) ||
+                                   0;
+                  
+                  const stepsExecuted = executionDetails.steps_executed || 
+                                       executionDetails.completed_steps ||
+                                       (executionDetails.metadata?.completed_steps) ||
+                                       (executionDetails.step_executions?.filter(s => 
+                                         s.status === 'completed'
+                                       ).length) ||
+                                       0;
+                  
+                  if (stepsTotal > 0) {
+                    const progressPercent = Math.round((stepsExecuted / stepsTotal) * 100);
+                    return (
+                      <div className={styles.progressSection}>
+                        <div className={styles.progressInfo}>
+                          <span className={styles.progressLabel}>
+                            Step {stepsExecuted} of {stepsTotal}
+                          </span>
+                          <span className={styles.progressPercent}>
+                            {progressPercent}%
+                          </span>
+                        </div>
+                        <div className={styles.progressBarContainer}>
+                          <div 
+                            className={styles.progressBarFill}
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Fallback: Show indeterminate progress if we don't know total steps
+                  return (
+                    <div className={styles.progressSection}>
+                      <div className={styles.progressInfo}>
+                        <span className={styles.progressLabel}>Processing your workflow...</span>
+                        <span className={styles.progressPercent}>—</span>
+                      </div>
+                      <div className={styles.progressBarContainer}>
+                        <div 
+                          className={styles.progressBarFill}
+                          style={{ width: '100%', animation: 'indeterminate 2s linear infinite' }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+                
+                {/* ✅ UX: Enhanced Current Step Status with User-Friendly Info */}
+                {(() => {
+                  // Try multiple ways to get step executions
+                  const stepExecutions = executionDetails.step_executions || 
+                                        executionDetails.step_executions_data ||
+                                        (executionDetails.metadata?.step_executions) ||
+                                        [];
+                  
+                  // Calculate progress info
+                  const stepsTotal = executionDetails.steps_total || 
+                                   executionDetails.total_steps ||
+                                   (executionDetails.metadata?.total_steps) ||
+                                   (executionDetails.canvas_config?.nodes?.filter(n => 
+                                     n.data?.stepType !== 'start' && n.data?.stepType !== 'end'
+                                   ).length) ||
+                                   0;
+                  
+                  const stepsExecuted = executionDetails.steps_executed || 
+                                       executionDetails.completed_steps ||
+                                       (executionDetails.metadata?.completed_steps) ||
+                                       (stepExecutions.filter(s => s.status === 'completed').length) ||
+                                       0;
+                  
+                  // Find current step
+                  const currentStep = stepExecutions.find(step => 
+                    step.status === 'running' || step.status === 'pending'
+                  ) || stepExecutions[stepExecutions.length - 1];
+                  
+                  // Calculate estimated time remaining
+                  const calculateTimeRemaining = () => {
+                    if (!executionDetails.started_at || stepsTotal === 0 || stepsExecuted === 0) {
+                      return null;
+                    }
+                    
+                    const elapsed = Math.floor((Date.now() - new Date(executionDetails.started_at).getTime()) / 1000);
+                    const avgTimePerStep = elapsed / Math.max(1, stepsExecuted);
+                    const remainingSteps = stepsTotal - stepsExecuted;
+                    const estimatedSeconds = Math.ceil(avgTimePerStep * remainingSteps);
+                    
+                    if (estimatedSeconds < 60) {
+                      return `~${estimatedSeconds} seconds`;
+                    } else {
+                      const minutes = Math.floor(estimatedSeconds / 60);
+                      const seconds = estimatedSeconds % 60;
+                      return seconds > 0 ? `~${minutes}m ${seconds}s` : `~${minutes} minutes`;
+                    }
+                  };
+                  
+                  const timeRemaining = calculateTimeRemaining();
+                  
+                  if (currentStep) {
+                    const stepName = currentStep.workflow_steps?.name || 
+                                   currentStep.workflow_steps?.step_key || 
+                                   currentStep.step_name ||
+                                   currentStep.name ||
+                                   `Step ${currentStep.execution_order || 0}`;
+                    
+                    // Get step type for user-friendly description
+                    const stepType = currentStep.workflow_steps?.step_type || 
+                                   currentStep.workflow_steps?.action_type ||
+                                   currentStep.step_type ||
+                                   '';
+                    
+                    const getStepDescription = (type) => {
+                      const descriptions = {
+                        'web_scraping': 'Scraping data from the web',
+                        'api_request': 'Making an API call',
+                        'send_email': 'Sending an email',
+                        'transform_data': 'Transforming data',
+                        'condition': 'Checking conditions',
+                        'upload_file': 'Uploading a file',
+                        'delay': 'Waiting',
+                        'start': 'Starting workflow',
+                        'end': 'Finishing workflow'
+                      };
+                      return descriptions[type] || 'Processing step';
+                    };
+                    
+                    return (
+                      <div className={styles.currentStep}>
+                        <div className={styles.currentStepHeader}>
+                          <span className={styles.currentStepLabel}>Current Step:</span>
+                          <span className={styles.currentStepName}>{stepName}</span>
+                        </div>
+                        <div className={styles.stepDescription}>
+                          {getStepDescription(stepType)}
+                        </div>
+                        {currentStep.status === 'running' && (
+                          <div className={styles.stepStatus}>
+                            <span className={styles.statusDot} /> Running...
+                            {timeRemaining && (
+                              <span className={styles.timeEstimate}>
+                                • Estimated time remaining: {timeRemaining}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {currentStep.status === 'completed' && (
+                          <div className={`${styles.stepStatus} ${styles.completed}`}>
+                            <span className={styles.statusDot} /> Completed
+                            {currentStep.duration_ms && (
+                              <span className={styles.stepDuration}>
+                                • Took {currentStep.duration_ms < 1000 
+                                  ? `${currentStep.duration_ms}ms` 
+                                  : `${(currentStep.duration_ms / 1000).toFixed(1)}s`}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {currentStep.status === 'failed' && (
+                          <div className={`${styles.stepStatus} ${styles.failed}`}>
+                            <span className={styles.statusDot} /> Failed: {currentStep.error_message || 'Unknown error'}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  
+                  // Fallback: Show execution metadata if available
+                  if (executionDetails.metadata) {
+                    const metadata = typeof executionDetails.metadata === 'string' 
+                      ? JSON.parse(executionDetails.metadata) 
+                      : executionDetails.metadata;
+                    
+                    if (metadata.current_step || metadata.step_name) {
+                      return (
+                        <div className={styles.currentStep}>
+                          <div className={styles.currentStepHeader}>
+                            <span className={styles.currentStepLabel}>Current Step:</span>
+                            <span className={styles.currentStepName}>
+                              {metadata.current_step || metadata.step_name || 'Processing...'}
+                            </span>
+                          </div>
+                          <div className={styles.stepStatus}>
+                            <span className={styles.statusDot} /> Running...
+                            {timeRemaining && (
+                              <span className={styles.timeEstimate}>
+                                • Estimated time remaining: {timeRemaining}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                  }
+                  
+                  // If no step info available, show progress info
+                  if (executionDetails.status === 'running') {
+                    return (
+                      <div className={styles.currentStep}>
+                        <div className={styles.currentStepHeader}>
+                          <span className={styles.currentStepLabel}>Status:</span>
+                          <span className={styles.currentStepName}>Workflow is running</span>
+                        </div>
+                        <div className={styles.stepDescription}>
+                          {stepsTotal > 0 
+                            ? `Processing step ${stepsExecuted + 1} of ${stepsTotal}`
+                            : 'Processing your automation steps...'
+                          }
+                        </div>
+                        <div className={styles.stepStatus}>
+                          <span className={styles.statusDot} /> Active
+                          {timeRemaining && (
+                            <span className={styles.timeEstimate}>
+                              • Estimated time remaining: {timeRemaining}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return null;
+                })()}
+                
+                {/* ✅ UX: Enhanced Execution Stats with More Useful Info */}
+                <div className={styles.executionStats}>
+                  <div className={styles.statItem}>
+                    <span className={styles.statLabel}>Status:</span>
+                    <span className={`${styles.statValue} ${styles[executionDetails.status] || styles.running}`}>
+                      {executionDetails.status === 'running' ? 'Running' : 
+                       executionDetails.status === 'completed' ? 'Completed' :
+                       executionDetails.status === 'failed' ? 'Failed' :
+                       executionDetails.status || 'Running'}
+                    </span>
+                  </div>
+                  
+                  {(() => {
+                    const stepsTotal = executionDetails.steps_total || 
+                                     executionDetails.total_steps ||
+                                     (executionDetails.metadata?.total_steps) ||
+                                     0;
+                    const stepsExecuted = executionDetails.steps_executed || 
+                                       executionDetails.completed_steps ||
+                                       (executionDetails.metadata?.completed_steps) ||
+                                       0;
+                    
+                    if (stepsTotal > 0) {
+                      return (
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>Progress:</span>
+                          <span className={styles.statValue}>
+                            {stepsExecuted} of {stepsTotal} steps
+                          </span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                  
+                  {executionDetails.started_at && (
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Started:</span>
+                      <span className={styles.statValue}>
+                        {new Date(executionDetails.started_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {(() => {
+                    // Calculate duration from started_at if duration_seconds not available
+                    let duration = executionDetails.duration_seconds;
+                    if (!duration && executionDetails.started_at) {
+                      const startTime = new Date(executionDetails.started_at);
+                      const now = new Date();
+                      duration = Math.floor((now - startTime) / 1000);
+                    }
+                    
+                    if (duration !== undefined && duration !== null) {
+                      return (
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>Elapsed Time:</span>
+                          <span className={styles.statValue}>
+                            {duration < 60 
+                              ? `${duration} seconds`
+                              : `${Math.floor(duration / 60)} minutes ${duration % 60} seconds`
+                            }
+                          </span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                  
+                  {(() => {
+                    // Calculate estimated time remaining
+                    const stepsTotal = executionDetails.steps_total || 
+                                     executionDetails.total_steps ||
+                                     0;
+                    const stepsExecuted = executionDetails.steps_executed || 
+                                       executionDetails.completed_steps ||
+                                       0;
+                    
+                    if (executionDetails.started_at && stepsTotal > 0 && stepsExecuted > 0 && executionDetails.status === 'running') {
+                      const elapsed = Math.floor((Date.now() - new Date(executionDetails.started_at).getTime()) / 1000);
+                      const avgTimePerStep = elapsed / stepsExecuted;
+                      const remainingSteps = stepsTotal - stepsExecuted;
+                      const estimatedSeconds = Math.ceil(avgTimePerStep * remainingSteps);
+                      
+                      if (estimatedSeconds > 0) {
+                        return (
+                          <div className={styles.statItem}>
+                            <span className={styles.statLabel}>Est. Time Remaining:</span>
+                            <span className={styles.statValue}>
+                              {estimatedSeconds < 60 
+                                ? `~${estimatedSeconds} seconds`
+                                : `~${Math.floor(estimatedSeconds / 60)} minutes`
+                              }
+                            </span>
+                          </div>
+                        );
+                      }
+                    }
+                    return null;
+                  })()}
+                </div>
+                
+                
+                {/* Error Display */}
+                {executionDetails.error_message && (
+                  <div className={styles.executionError}>
+                    <strong>Something went wrong:</strong> {executionDetails.error_message}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Fallback if no details yet */}
+            {!executionDetails && (
+              <div className={styles.executionLoading}>
+                <p>Starting your workflow...</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* ✅ UX: Minimized Execution Indicator - Shows when overlay is closed but workflow is running */}
+      {isExecuting && !showExecutionOverlay && (
+        <div className={styles.minimizedIndicator}>
+          <div className={styles.minimizedContent}>
+            <div className={styles.minimizedInfo}>
+              <div className={styles.minimizedSpinner} />
+              <span className={styles.minimizedText}>
+                Workflow is running in the background
+                {executionDetails && executionDetails.steps_total > 0 && (
+                  <span className={styles.minimizedProgress}>
+                    {' '}• Step {executionDetails.steps_executed || 0} of {executionDetails.steps_total}
+                  </span>
+                )}
+              </span>
+            </div>
             <button 
-              className={styles.stopButton}
-              onClick={handleStopExecution}
-              disabled={!currentExecutionId}
-              title={!currentExecutionId ? 'No active execution id found' : 'Stop the current execution'}
+              className={styles.viewProgressButton}
+              onClick={() => setShowExecutionOverlay(true)}
+              title="View detailed progress"
             >
-              <FaStop /> Stop Execution
+              <FaEye /> View Progress
             </button>
           </div>
         </div>

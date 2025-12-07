@@ -7,8 +7,8 @@ const path = require('path');
 const crypto = require('crypto');
 const axios = require('axios');
 
-// ✅ INSTRUCTION 1: Import OpenTelemetry API for trace propagation
-const { trace, context, propagation } = require('@opentelemetry/api');
+// ✅ OBSERVABILITY: Import OpenTelemetry API for trace propagation and span creation
+const { trace, context, propagation, SpanStatusCode } = require('@opentelemetry/api');
 
 // ✅ INSTRUCTION 2: Import structured logger (Gap 13, 15)
 const { createLogger } = require('../middleware/structuredLogging');
@@ -464,7 +464,8 @@ class WorkflowExecutor {
 
   // ✅ EXECUTION CANCELLATION
   cancelExecution(executionId) {
-    const execution = this.runningExecutions.get(executionId);
+    // ✅ FIX: Check both local map and shared registry
+    const execution = this.runningExecutions.get(executionId) || executionRegistry.get(executionId);
     if (execution) {
       execution.cancelled = true;
       // ✅ INSTRUCTION 2: Structured logging
@@ -472,7 +473,23 @@ class WorkflowExecutor {
         execution_id: executionId
       });
       this._updateExecutionStatus(executionId, 'cancelled', 'Execution cancelled by timeout or user request');
+      
+      // ✅ FIX: Also update in registry
+      const registryEntry = executionRegistry.get(executionId);
+      if (registryEntry) {
+        registryEntry.cancelled = true;
+      }
     }
+  }
+  
+  // ✅ FIX: Static method to cancel execution from any executor instance
+  static cancelExecutionById(executionId) {
+    const registryEntry = executionRegistry.get(executionId);
+    if (registryEntry && registryEntry.executor) {
+      registryEntry.executor.cancelExecution(executionId);
+      return true;
+    }
+    return false;
   }
 
   async startExecution(config) {
@@ -661,6 +678,9 @@ class WorkflowExecutor {
       
       // Mark as running
       this.runningExecutions.set(execution.id, { cancelled: false });
+      
+      // ✅ FIX: Also register in shared registry so cancel endpoint can find it
+      executionRegistry.set(execution.id, { cancelled: false, executor: this });
 
       // Start execution asynchronously
       this.executeWorkflow(execution, workflow).catch(error => {
@@ -686,13 +706,38 @@ class WorkflowExecutor {
     let stepsExecuted = 0;
     const partialResults = []; // ✅ FIX: Track partial successes
     
-    try {
-      if (process.env.NODE_ENV !== 'production') {
-        logger.info(`[WorkflowExecutor] Executing workflow ${workflow.name} (${execution.id})`);
-      }
-      
-      // ✅ FIX: Update status to show progress
-      await this._updateExecutionStatus(execution.id, 'running', 'Starting workflow execution...');
+    // ✅ OBSERVABILITY: Create OpenTelemetry span for workflow execution
+    const tracer = trace.getTracer('workflow.executor');
+    
+    return await tracer.startActiveSpan(
+      `workflow.execute.${workflow.name || workflow.id}`,
+      {
+        kind: 1, // SpanKind.SERVER
+        attributes: {
+          'workflow.id': workflow.id,
+          'workflow.name': workflow.name || 'unnamed',
+          'workflow.status': workflow.status || 'unknown',
+          'execution.id': execution.id,
+          'execution.user_id': execution.user_id,
+          'workflow.steps_count': workflow.workflow_steps?.length || 0,
+          'business.operation': 'workflow_execution',
+          'business.workflow_type': workflow.workflow_type || 'generic'
+        }
+      },
+      async (span) => {
+        try {
+          // ✅ OBSERVABILITY: Log execution start with structured data
+          this.logger.info('🚀 Starting workflow execution', {
+            execution_id: execution.id,
+            workflow_id: workflow.id,
+            workflow_name: workflow.name,
+            steps_count: workflow.workflow_steps?.length || 0,
+            trace_id: span.spanContext().traceId,
+            span_id: span.spanContext().spanId
+          });
+          
+          // ✅ FIX: Update status to show progress
+          await this._updateExecutionStatus(execution.id, 'running', 'Starting workflow execution...');
       
       // Find the start step
       const startStep = workflow.workflow_steps.find(step => step.step_type === 'start');
@@ -717,53 +762,112 @@ class WorkflowExecutor {
         return;
       }
 
-      if (result.success) {
-        // ✅ FIX: Store partial results in metadata if any steps partially succeeded
-        const outputData = result.data;
-        if (partialResults.length > 0) {
-          outputData._partial_results = partialResults;
-          outputData._partial_success_note = 'Some steps completed successfully before failure';
-        }
-        
-        await this.completeExecution(execution.id, outputData, stepsExecuted, startTime);
-      } else {
-        // ✅ FIX: If we have partial results, include them in the failure
-        const errorData = {
-          error: result.error,
-          errorCategory: result.errorCategory,
-          partialResults: partialResults.length > 0 ? partialResults : undefined
-        };
-        
-        // Store partial results even on failure
-        if (partialResults.length > 0) {
-          try {
-            await this.supabase
-              .from('workflow_executions')
-              .update({
-                metadata: JSON.stringify({
-                  partial_results: partialResults,
-                  error_category: result.errorCategory
-                })
-              })
-              .eq('id', execution.id);
-          } catch (metaError) {
-            // ✅ FIX: Gracefully handle missing metadata column
-            if (metaError.message?.includes('metadata') || metaError.message?.includes('column')) {
-              logger.warn('Metadata column not available, skipping partial results storage', { execution_id: execution.id });
-            } else {
-              throw metaError;
+          if (result.success) {
+            // ✅ FIX: Store partial results in metadata if any steps partially succeeded
+            const outputData = result.data;
+            if (partialResults.length > 0) {
+              outputData._partial_results = partialResults;
+              outputData._partial_success_note = 'Some steps completed successfully before failure';
             }
+            
+            const duration = Date.now() - startTime;
+            span.setStatus({ code: SpanStatusCode.OK });
+            span.setAttributes({
+              'workflow.completed': true,
+              'workflow.steps_executed': stepsExecuted,
+              'workflow.duration_ms': duration,
+              'workflow.success': true
+            });
+            
+            this.logger.info('✅ Workflow execution completed successfully', {
+              execution_id: execution.id,
+              steps_executed: stepsExecuted,
+              duration_ms: duration,
+              workflow_name: workflow.name
+            });
+            await this.completeExecution(execution.id, outputData, stepsExecuted, startTime);
+          } else {
+            // ✅ FIX: If we have partial results, include them in the failure
+            const errorData = {
+              error: result.error,
+              errorCategory: result.errorCategory,
+              partialResults: partialResults.length > 0 ? partialResults : undefined
+            };
+            
+            const duration = Date.now() - startTime;
+            span.setStatus({ 
+              code: SpanStatusCode.ERROR, 
+              message: result.error || 'Workflow execution failed' 
+            });
+            span.setAttributes({
+              'workflow.completed': false,
+              'workflow.success': false,
+              'workflow.duration_ms': duration,
+              'error': true,
+              'error.type': result.errorCategory || 'UNKNOWN',
+              'error.message': result.error || 'Unknown error',
+              'error.step_id': result.errorStepId || null,
+              'workflow.partial_results_count': partialResults.length
+            });
+            
+            // Store partial results even on failure
+            if (partialResults.length > 0) {
+              try {
+                await this.supabase
+                  .from('workflow_executions')
+                  .update({
+                    metadata: JSON.stringify({
+                      partial_results: partialResults,
+                      error_category: result.errorCategory
+                    })
+                  })
+                  .eq('id', execution.id);
+              } catch (metaError) {
+                // ✅ FIX: Gracefully handle missing metadata column
+                if (metaError.message?.includes('metadata') || metaError.message?.includes('column')) {
+                  this.logger.warn('Metadata column not available, skipping partial results storage', { execution_id: execution.id });
+                } else {
+                  throw metaError;
+                }
+              }
+            }
+            
+            const errorCategory = result.errorCategory || this._categorizeError({ message: result.error });
+            this.logger.error('❌ Workflow execution failed', {
+              execution_id: execution.id,
+              error: result.error,
+              error_category: errorCategory,
+              error_step_id: result.errorStepId,
+              duration_ms: duration,
+              partial_results_count: partialResults.length
+            });
+            await this.failExecution(execution.id, result.error, result.errorStepId, errorCategory);
           }
-        }
-        
-        const errorCategory = result.errorCategory || this._categorizeError({ message: result.error });
-        await this.failExecution(execution.id, result.error, result.errorStepId, errorCategory);
-      }
-      
-    } catch (error) {
-      logger.error(`[WorkflowExecutor] Workflow execution failed:`, error);
-      const run = this.runningExecutions.get(execution.id);
-      if (!run || !run.cancelled) {
+          
+        } catch (error) {
+          const duration = Date.now() - startTime;
+          span.setStatus({ 
+            code: SpanStatusCode.ERROR, 
+            message: error.message || 'Unexpected workflow execution error' 
+          });
+          span.setAttributes({
+            'workflow.completed': false,
+            'workflow.success': false,
+            'workflow.duration_ms': duration,
+            'error': true,
+            'error.type': 'UNEXPECTED_ERROR',
+            'error.message': error.message || 'Unknown error',
+            'error.stack': error.stack || null
+          });
+          
+          this.logger.error('❌ Workflow execution failed with unexpected error', error, {
+            execution_id: execution.id,
+            workflow_id: workflow.id,
+            duration_ms: duration
+          });
+          
+          const run = this.runningExecutions.get(execution.id);
+          if (!run || !run.cancelled) {
         // ✅ FIX: Store partial results even on unexpected errors
         if (partialResults.length > 0) {
           try {
@@ -782,106 +886,210 @@ class WorkflowExecutor {
           }
         }
         
-        const errorCategory = this._categorizeError(error);
-        const userMessage = this._getUserFriendlyMessage(errorCategory, error);
-        await this.failExecution(execution.id, userMessage, null, errorCategory);
+            const errorCategory = this._categorizeError(error);
+            const userMessage = this._getUserFriendlyMessage(errorCategory, error);
+            await this.failExecution(execution.id, userMessage, null, errorCategory);
+          }
+        } finally {
+          this.runningExecutions.delete(execution.id);
+          // ✅ FIX: Clean up shared registry
+          executionRegistry.delete(execution.id);
+          // ✅ OBSERVABILITY: End span
+          span.end();
+        }
       }
-    } finally {
-      this.runningExecutions.delete(execution.id);
-    }
+    );
   }
 
   async executeStep(execution, step, inputData, workflow, visitedSteps = new Set(), partialResults = []) {
-    try {
-      // Check cancellation before starting step
-      if (this._isCancelled(execution.id)) {
-        return { success: false, error: 'Execution cancelled', errorStepId: step.id };
+    // ✅ OBSERVABILITY: Create span for step execution
+    const tracer = trace.getTracer('workflow.step');
+    const stepStartTime = Date.now();
+    
+    return await tracer.startActiveSpan(
+      `workflow.step.${step.step_type}.${step.name || step.id}`,
+      {
+        kind: 1, // SpanKind.INTERNAL
+        attributes: {
+          'workflow.step.id': step.id,
+          'workflow.step.name': step.name || 'unnamed',
+          'workflow.step.type': step.step_type,
+          'workflow.step.action_type': step.action_type || 'none',
+          'execution.id': execution.id,
+          'workflow.id': workflow.id
+        }
+      },
+      async (stepSpan) => {
+        try {
+          // ✅ FIX: Check cancellation before starting step (check both local and registry)
+          if (this._isCancelled(execution.id)) {
+            stepSpan.setStatus({ code: SpanStatusCode.ERROR, message: 'Execution cancelled' });
+            stepSpan.setAttributes({ 'step.cancelled': true });
+            stepSpan.end();
+            return { success: false, error: 'Execution cancelled', errorStepId: step.id };
+          }
+          
+          // Prevent infinite loops
+          if (visitedSteps.has(step.id)) {
+            const error = new Error(`Circular dependency detected at step: ${step.name}`);
+            stepSpan.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+            stepSpan.setAttributes({ 'error': true, 'error.type': 'CIRCULAR_DEPENDENCY' });
+            stepSpan.end();
+            throw error;
+          }
+          visitedSteps.add(step.id);
+          
+          this.logger.info('Executing workflow step', {
+            execution_id: execution.id,
+            step_id: step.id,
+            step_name: step.name,
+            step_type: step.step_type,
+            action_type: step.action_type,
+            trace_id: stepSpan.spanContext().traceId,
+            span_id: stepSpan.spanContext().spanId
+          });
+          
+          // ✅ FIX: Update execution status to show current step
+          await this._updateExecutionStatus(
+            execution.id, 
+            'running', 
+            `Executing step: ${step.name} (${step.step_type})`
+          );
+          
+          // Create step execution record
+          const stepExecution = await this.createStepExecution(execution.id, step.id, inputData);
+          
+          let result = { success: true, data: inputData };
+          
+          // Execute based on step type
+          switch (step.step_type) {
+            case 'start':
+              result = await this.executeStartStep(step, inputData);
+              break;
+            case 'action':
+              result = await this.executeActionStep(step, inputData, execution);
+              break;
+            case 'condition':
+              result = await this.executeConditionStep(step, inputData);
+              break;
+            case 'end':
+              result = await this.executeEndStep(step, inputData);
+              break;
+            default:
+              throw new Error(`Unknown step type: ${step.step_type}`);
+          }
+          
+          // Update step execution
+          await this.updateStepExecution(stepExecution, result);
+          
+          const stepDuration = Date.now() - stepStartTime;
+          
+          // ✅ OBSERVABILITY: Update span with step results
+          if (result.success) {
+            stepSpan.setStatus({ code: SpanStatusCode.OK });
+            stepSpan.setAttributes({
+              'step.completed': true,
+              'step.success': true,
+              'step.duration_ms': stepDuration,
+              'step.output_data_size': result.data ? JSON.stringify(result.data).length : 0
+            });
+            this.logger.info('Step completed successfully', {
+              execution_id: execution.id,
+              step_id: step.id,
+              step_name: step.name,
+              duration_ms: stepDuration
+            });
+          } else {
+            stepSpan.setStatus({ 
+              code: SpanStatusCode.ERROR, 
+              message: result.error || 'Step execution failed' 
+            });
+            stepSpan.setAttributes({
+              'step.completed': false,
+              'step.success': false,
+              'step.duration_ms': stepDuration,
+              'error': true,
+              'error.type': result.errorCategory || 'UNKNOWN',
+              'error.message': result.error || 'Unknown error'
+            });
+            this.logger.error('Step execution failed', {
+              execution_id: execution.id,
+              step_id: step.id,
+              step_name: step.name,
+              error: result.error,
+              error_category: result.errorCategory,
+              duration_ms: stepDuration
+            });
+          }
+          
+          // ✅ FIX: Store partial results even if step fails (if it produced some data)
+          if (!result.success && result.data && Object.keys(result.data).length > 0) {
+            partialResults.push({
+              step_id: step.id,
+              step_name: step.name,
+              step_type: step.step_type,
+              data: result.data,
+              error: result.error,
+              errorCategory: result.errorCategory
+            });
+          }
+          
+          if (!result.success) {
+            // ✅ IMMEDIATE FIX: Preserve error category from action execution
+            stepSpan.end();
+            return { 
+              success: false, 
+              error: result.error, 
+              errorStepId: step.id,
+              errorCategory: result.errorCategory
+            };
+          }
+          
+          // Handle end step
+          if (step.step_type === 'end') {
+            stepSpan.end();
+            return { success: true, data: result.data };
+          }
+          
+          // Find next step(s)
+          const nextSteps = await this.getNextSteps(step, result.data, workflow);
+          
+          if (nextSteps.length === 0) {
+            // No more steps, workflow complete
+            stepSpan.end();
+            return { success: true, data: result.data };
+          }
+          
+          // Execute next step(s)
+          // For now, we only handle sequential execution (single next step)
+          const nextStep = nextSteps[0];
+          stepSpan.end();
+          return await this.executeStep(execution, nextStep, result.data, workflow, visitedSteps, partialResults);
+          
+        } catch (error) {
+          const stepDuration = Date.now() - stepStartTime;
+          stepSpan.setStatus({ 
+            code: SpanStatusCode.ERROR, 
+            message: error.message || 'Step execution error' 
+          });
+          stepSpan.setAttributes({
+            'error': true,
+            'error.type': 'EXCEPTION',
+            'error.message': error.message || 'Unknown error',
+            'error.stack': error.stack || null,
+            'step.duration_ms': stepDuration
+          });
+          this.logger.error('Step execution failed with exception', error, {
+            execution_id: execution.id,
+            step_id: step.id,
+            step_name: step.name,
+            duration_ms: stepDuration
+          });
+          stepSpan.end();
+          return { success: false, error: error.message, errorStepId: step.id };
+        }
       }
-      // Prevent infinite loops
-      if (visitedSteps.has(step.id)) {
-        throw new Error(`Circular dependency detected at step: ${step.name}`);
-      }
-      visitedSteps.add(step.id);
-      
-      logger.info(`[WorkflowExecutor] Executing step: ${step.name} (${step.step_type})`);
-      
-      // ✅ FIX: Update execution status to show current step
-      await this._updateExecutionStatus(
-        execution.id, 
-        'running', 
-        `Executing step: ${step.name} (${step.step_type})`
-      );
-      
-      // Create step execution record
-      const stepExecution = await this.createStepExecution(execution.id, step.id, inputData);
-      
-      let result = { success: true, data: inputData };
-      
-      // Execute based on step type
-    switch (step.step_type) {
-        case 'start':
-          result = await this.executeStartStep(step, inputData);
-          break;
-        case 'action':
-      result = await this.executeActionStep(step, inputData, execution);
-          break;
-        case 'condition':
-          result = await this.executeConditionStep(step, inputData);
-          break;
-        case 'end':
-          result = await this.executeEndStep(step, inputData);
-          break;
-        default:
-          throw new Error(`Unknown step type: ${step.step_type}`);
-      }
-      
-  // Update step execution
-  await this.updateStepExecution(stepExecution, result);
-      
-  // ✅ FIX: Store partial results even if step fails (if it produced some data)
-      if (!result.success && result.data && Object.keys(result.data).length > 0) {
-        partialResults.push({
-          step_id: step.id,
-          step_name: step.name,
-          step_type: step.step_type,
-          data: result.data,
-          error: result.error,
-          errorCategory: result.errorCategory
-        });
-      }
-      
-  if (!result.success) {
-        // ✅ IMMEDIATE FIX: Preserve error category from action execution
-        return { 
-          success: false, 
-          error: result.error, 
-          errorStepId: step.id,
-          errorCategory: result.errorCategory
-        };
-      }
-      
-      // Handle end step
-      if (step.step_type === 'end') {
-        return { success: true, data: result.data };
-      }
-      
-      // Find next step(s)
-      const nextSteps = await this.getNextSteps(step, result.data, workflow);
-      
-      if (nextSteps.length === 0) {
-        // No more steps, workflow complete
-        return { success: true, data: result.data };
-      }
-      
-      // Execute next step(s)
-      // For now, we only handle sequential execution (single next step)
-      const nextStep = nextSteps[0];
-      return await this.executeStep(execution, nextStep, result.data, workflow, visitedSteps, partialResults);
-      
-    } catch (error) {
-      logger.error(`[WorkflowExecutor] Step execution failed: ${step.name}`, error);
-      return { success: false, error: error.message, errorStepId: step.id };
-    }
+    );
   }
 
   async executeStartStep(step, inputData) {
@@ -2033,8 +2241,14 @@ class WorkflowExecutor {
 
   // Cancellation helpers
   async _isCancelled(executionId) {
+    // ✅ FIX: Check local map first
     const run = this.runningExecutions.get(executionId);
     if (run && run.cancelled) return true;
+    
+    // ✅ FIX: Check shared registry (in case cancel came from different executor instance)
+    const registryEntry = executionRegistry.get(executionId);
+    if (registryEntry && registryEntry.cancelled) return true;
+    
     // Check DB status as source of truth in case cancel came from API route
     try {
       const { data, error } = await this.supabase

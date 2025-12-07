@@ -130,11 +130,33 @@ export const useWorkflowExecutions = (workflowId) => {
         throw new Error('Not authenticated');
       }
 
-  const { data: result } = await api.post(buildApiUrl('/api/workflows/execute'), {
+      const response = await api.post(buildApiUrl('/api/workflows/execute'), {
         workflowId,
         inputData,
         triggeredBy: 'manual'
       });
+      
+      const result = response.data || response;
+      
+      // ✅ UX: Parse and enhance error messages for better user experience
+      if (result.error) {
+        const errorMessage = result.error;
+        let enhancedError = new Error(errorMessage);
+        
+        // Map common backend errors to user-friendly messages
+        if (errorMessage.includes('No start step') || errorMessage.includes('start step')) {
+          enhancedError = new Error('🚀 Your workflow needs a Start step!\n\n👉 Click the "🎬 Start" button in the Actions toolbar, then connect it to your first action step.');
+        } else if (errorMessage.includes('Automation service is not configured')) {
+          enhancedError = new Error('⚠️ Automation service is not available. Please contact support.');
+        } else if (errorMessage.includes('Workflow not found')) {
+          enhancedError = new Error('💡 Save your workflow first, then you can run it!');
+        } else if (errorMessage.includes('not active') || errorMessage.includes('paused')) {
+          enhancedError = new Error('⏸️ Activate your workflow before running it.');
+        }
+        
+        enhancedError.status = response.status || 500;
+        throw enhancedError;
+      }
       
       // Refresh executions to include the new one
       await loadExecutions();
@@ -142,6 +164,7 @@ export const useWorkflowExecutions = (workflowId) => {
       return result;
     } catch (err) {
       console.error('Error starting execution:', err);
+      // ✅ UX: Preserve enhanced error messages
       throw err;
     }
   };

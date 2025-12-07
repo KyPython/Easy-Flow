@@ -262,11 +262,11 @@ const prometheusExporter = new PrometheusExporter({
   endpoint: '/metrics'
 });
 
-// ✅ INSTRUCTION 1: Configure trace sampler (Gap 10)
+// ✅ OBSERVABILITY: Configure trace sampler with smart defaults
 // Uses ParentBasedSampler: preserves all traces initiated by sampled requests
-// TEMPORARY: Using 100% sampling for initial Grafana Cloud verification
-// TODO: Reduce to 0.1 (10%) after traces are confirmed in Grafana Cloud
-const samplingRatio = process.env.OTEL_TRACE_SAMPLING_RATIO ? parseFloat(process.env.OTEL_TRACE_SAMPLING_RATIO) : 1.0;
+// Default: 10% sampling (0.1) - balances observability with performance
+// Set OTEL_TRACE_SAMPLING_RATIO=1.0 for 100% (debugging) or 0.01 for 1% (high volume)
+const samplingRatio = process.env.OTEL_TRACE_SAMPLING_RATIO ? parseFloat(process.env.OTEL_TRACE_SAMPLING_RATIO) : 0.1;
 const sampler = new ParentBasedSampler({
   root: new TraceIdRatioBasedSampler(samplingRatio), // Configurable sampling for root spans
   remoteParentSampled: new AlwaysOnSampler(), // Always sample if parent was sampled

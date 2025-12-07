@@ -46,10 +46,15 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
   const [selectedNode, setSelectedNode] = useState(null);
   const [showConfigPanel, setShowConfigPanel] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false); // ✅ UX: Track auto-save status
+  const [dismissedGuidance, setDismissedGuidance] = useState({}); // ✅ UX: Track dismissed guidance messages
+  const [lastGuidanceKey, setLastGuidanceKey] = useState(null); // ✅ FIX: Track last guidance key to detect changes
   
   const { fitView, getViewport } = useReactFlow();
   // track whether we've applied the initial fitView so we don't re-center on subsequent updates
   const initialFitRef = useRef(false);
+  // ✅ FIX: Track if we've already checked/added Start step to prevent infinite loop
+  const startStepCheckedRef = useRef(false);
   const { workflow, updateWorkflow, saveWorkflow } = useWorkflow(workflowId);
 
   // Use stable module-level types to avoid React Flow warnings about changing objects
@@ -95,14 +100,74 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
         }
         initialFitRef.current = true;
       }
+    } else if (workflow && !workflow.canvas_config && !startStepCheckedRef.current) {
+      // ✅ UX: Auto-add Start step for existing workflows that don't have one (only once)
+      const hasStartStep = nodes.some(node => 
+        node.data?.stepType === 'start' || node.data?.stepType === 'trigger'
+      );
+      
+      if (!hasStartStep && nodes.length === 0) {
+        const startNode = {
+          id: `node-start-${Date.now()}`,
+          type: 'customStep',
+          position: { x: 100, y: 100 },
+          data: {
+            label: 'Start',
+            stepType: 'start',
+            isConfigured: true,
+          },
+        };
+        setNodes([startNode]);
+        startStepCheckedRef.current = true; // Mark as checked to prevent re-triggering
+      } else {
+        startStepCheckedRef.current = true; // Mark as checked even if Start step exists
+      }
+    } else if (workflow && workflow.canvas_config && nodes.length > 0 && !startStepCheckedRef.current) {
+      // ✅ UX: Check if existing workflow is missing Start step and add it (only once)
+      const hasStartStep = nodes.some(node => 
+        node.data?.stepType === 'start' || node.data?.stepType === 'trigger'
+      );
+      
+      if (!hasStartStep) {
+        // Find the leftmost node to place Start step to its left
+        const leftmostNode = nodes.reduce((leftmost, node) => 
+          !leftmost || node.position.x < leftmost.position.x ? node : leftmost
+        );
+        
+        const startNode = {
+          id: `node-start-${Date.now()}`,
+          type: 'customStep',
+          position: { 
+            x: Math.max(0, leftmostNode.position.x - 200), 
+            y: leftmostNode.position.y 
+          },
+          data: {
+            label: 'Start',
+            stepType: 'start',
+            isConfigured: true,
+          },
+        };
+        setNodes(prev => [startNode, ...prev]);
+        startStepCheckedRef.current = true; // Mark as checked to prevent re-triggering
+      } else {
+        startStepCheckedRef.current = true; // Mark as checked even if Start step exists
+      }
     }
     setIsLoading(false);
-  }, [workflow, setNodes, setEdges, fitView]);
+  }, [workflow, setNodes, setEdges, fitView]); // ✅ FIX: Removed 'nodes' from dependencies to prevent infinite loop
 
+  // ✅ OBSERVABILITY: Track save attempts for debugging
+  const saveAttemptsRef = useRef(0);
+  
   // Auto-save canvas state
   const saveCanvasState = useCallback(async () => {
-    if (isReadOnly || !workflow) return;
+    // ✅ FIX: Only save if workflow exists (has been saved at least once)
+    if (isReadOnly || !workflow || !workflow.id) {
+      // Silently skip if workflow doesn't exist yet (user needs to click Save first)
+      return;
+    }
     
+    saveAttemptsRef.current += 1;
     const viewport = getViewport();
     const canvasConfig = {
       nodes,
@@ -110,14 +175,24 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
       viewport
     };
     
+    setIsSaving(true);
     try {
       await updateWorkflow({
         canvas_config: canvasConfig
       });
+      // ✅ UX: Log successful saves (only in dev to avoid noise)
+      if (process.env.NODE_ENV === 'development') {
+        console.debug(`✅ Auto-saved canvas state (attempt ${saveAttemptsRef.current})`);
+      }
     } catch (error) {
       console.error('Failed to save canvas state:', error);
+      // ✅ OBSERVABILITY: Log save failures for debugging
+      console.error('Save attempt:', saveAttemptsRef.current, 'Workflow ID:', workflow?.id);
+    } finally {
+      // ✅ UX: Add small delay before hiding "Saving..." to show feedback
+      setTimeout(() => setIsSaving(false), 300);
     }
-  }, [nodes, edges, getViewport, updateWorkflow, workflow?.id, isReadOnly]);
+  }, [nodes, edges, getViewport, updateWorkflow, workflow?.id, isReadOnly, workflow]);
 
   // Expose methods to parent component via ref
   useImperativeHandle(ref, () => ({
@@ -129,13 +204,65 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
     saveCanvasState
   }), [nodes, edges, getViewport, saveCanvasState]);
 
-  // Debounced auto-save
+  // ✅ Debounced auto-save (only for existing workflows)
   useEffect(() => {
-    if (nodes.length === 0 && edges.length === 0) return;
+    // Skip if no workflow exists yet (user needs to click Save first)
+    if (!workflow || !workflow.id) {
+      return;
+    }
     
-    const timeout = setTimeout(saveCanvasState, 1000);
+    // Skip if canvas is empty (nothing to save)
+    if (nodes.length === 0 && edges.length === 0) {
+      return;
+    }
+    
+    // ✅ UX: Debounce saves to avoid excessive API calls (1 second delay)
+    const timeout = setTimeout(() => {
+      saveCanvasState();
+    }, 1000);
+    
     return () => clearTimeout(timeout);
-  }, [nodes, edges, saveCanvasState]);
+  }, [nodes, edges, saveCanvasState, workflow?.id]);
+
+  // ✅ FIX: Reset dismissed guidance when workflow state changes (real-time updates)
+  useEffect(() => {
+    if (nodes.length === 0) {
+      setLastGuidanceKey(null);
+      return;
+    }
+    
+    const hasStartStep = nodes.some(node => 
+      node.data?.stepType === 'start' || node.data?.stepType === 'trigger'
+    );
+    const hasConnections = edges.length > 0;
+    const actionSteps = nodes.filter(node => 
+      node.data?.stepType !== 'start' && node.data?.stepType !== 'end'
+    );
+    
+    const currentGuidanceKey = !hasStartStep && actionSteps.length > 0 
+      ? 'missing_start' 
+      : hasStartStep && actionSteps.length > 0 && !hasConnections 
+      ? 'missing_connections' 
+      : null;
+    
+    // If guidance key changed OR became null (workflow is complete), clear dismissed state
+    if (currentGuidanceKey !== lastGuidanceKey) {
+      if (lastGuidanceKey !== null) {
+        // Clear dismissed state for the old key
+        setDismissedGuidance(prev => {
+          const updated = { ...prev };
+          delete updated[lastGuidanceKey];
+          return updated;
+        });
+      }
+      // If workflow is now complete (no guidance needed), clear all dismissed states
+      if (currentGuidanceKey === null) {
+        setDismissedGuidance({});
+      }
+    }
+    
+    setLastGuidanceKey(currentGuidanceKey);
+  }, [nodes, edges, lastGuidanceKey]);
 
   // Handle connections between nodes
   const onConnect = useCallback(
@@ -324,7 +451,8 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
         <MiniMap 
           className={styles.minimap}
           nodeColor={(node) => getNodeColor(node?.data?.stepType || 'unknown')}
-          maskColor="rgba(0, 0, 0, 0.1)"
+          maskColor="var(--color-gray-900)"
+          maskOpacity={0.1}
         />
         <Background color="var(--color-primary-100)" gap={20} />
         
@@ -332,12 +460,119 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
         {nodes.length === 0 && (
           <div className={styles.emptyState}>
             <div className={styles.emptyStateContent}>
-              <h3>Start Building Your Workflow</h3>
-              <p>Click on any action from the toolbar to add your first step</p>
-              <div className={styles.emptyStateIcon}>🚀</div>
+              <h3>🚀 Start Building Your Workflow</h3>
+              <p>Your workflow already has a Start step! Now add action steps from the toolbar.</p>
+              <div className={styles.emptyStateIcon}>✨</div>
+              <div className={styles.emptyStateQuickStart}>
+                <strong>Quick Start:</strong>
+                <ol className={styles.emptyStateList}>
+                  <li>Click an action (🌐 Web Scraping, 📧 Send Email, etc.)</li>
+                  <li>Connect the Start step to your action</li>
+                  <li>Click "🎬 Start" to run!</li>
+                </ol>
+              </div>
             </div>
           </div>
         )}
+        
+        {/* ✅ UX: Show helpful guidance as floating notification (non-blocking) */}
+        {nodes.length > 0 && (() => {
+          // ✅ FIX: More robust Start step detection - check stepType, label, and id
+          const hasStartStep = nodes.some(node => {
+            const stepType = node.data?.stepType;
+            const label = node.data?.label?.toLowerCase();
+            const id = node.id?.toLowerCase();
+            const isStart = stepType === 'start' || 
+                           stepType === 'trigger' ||
+                           label === 'start' ||
+                           id?.includes('start');
+            // Debug logging in development
+            if (process.env.NODE_ENV === 'development' && isStart) {
+              console.debug('[Guidance] Found Start step:', { stepType, label, id, node });
+            }
+            return isStart;
+          });
+          const hasConnections = edges.length > 0;
+          const actionSteps = nodes.filter(node => {
+            const stepType = node.data?.stepType;
+            return stepType !== 'start' && 
+                   stepType !== 'trigger' && 
+                   stepType !== 'end';
+          });
+          
+          // ✅ FIX: Only show guidance if workflow is actually incomplete
+          // If workflow has Start + connections, don't show any guidance
+          if (hasStartStep && hasConnections) {
+            // Debug logging in development
+            if (process.env.NODE_ENV === 'development') {
+              console.debug('[Guidance] Workflow complete - hiding guidance', { 
+                hasStartStep, 
+                hasConnections, 
+                nodesCount: nodes.length, 
+                edgesCount: edges.length 
+              });
+            }
+            return null; // Workflow is complete, no guidance needed
+          }
+          
+          // Check if guidance was dismissed
+          const guidanceKey = !hasStartStep && actionSteps.length > 0 
+            ? 'missing_start' 
+            : hasStartStep && actionSteps.length > 0 && !hasConnections 
+            ? 'missing_connections' 
+            : null;
+          
+          // Debug logging in development
+          if (process.env.NODE_ENV === 'development' && guidanceKey) {
+            console.debug('[Guidance] Showing guidance', { 
+              guidanceKey, 
+              hasStartStep, 
+              hasConnections, 
+              actionStepsCount: actionSteps.length,
+              nodes: nodes.map(n => ({ id: n.id, stepType: n.data?.stepType, label: n.data?.label })),
+              dismissed: dismissedGuidance[guidanceKey]
+            });
+          }
+          
+          if (!guidanceKey || dismissedGuidance[guidanceKey]) {
+            return null;
+          }
+          
+          const guidanceContent = !hasStartStep && actionSteps.length > 0 ? {
+            title: '💡 Missing Start Step!',
+            message: 'Click the "🎬 Start" button in the Actions toolbar, then connect it to your first action step.',
+            variant: 'warning'
+          } : {
+            title: '🔗 Connect Your Steps!',
+            message: 'Drag from the Start step to your action step to connect them. All steps need to be connected to run.',
+            variant: 'primary'
+          };
+          
+          return (
+            <div className={styles.floatingGuidance}>
+              <div className={`${styles.floatingGuidanceContent} ${styles[guidanceContent.variant]}`}>
+                <div className={styles.guidanceHeader}>
+                  <div className={styles.guidanceText}>
+                    <strong className={styles.guidanceTitle}>
+                      {guidanceContent.title}
+                    </strong>
+                    <p className={styles.guidanceMessage}>
+                      {guidanceContent.message}
+                    </p>
+                  </div>
+                  <button
+                    className={styles.guidanceDismiss}
+                    onClick={() => setDismissedGuidance(prev => ({ ...prev, [guidanceKey]: true }))}
+                    title="Dismiss"
+                    aria-label="Dismiss guidance"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         
         {/* Action Toolbar */}
         {!isReadOnly && (
@@ -376,6 +611,26 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
                 className={`${styles.statusBadge} ${styles[workflow.status]}`}
               >
                 {workflow.status}
+              </span>
+            </div>
+          )}
+          {/* ✅ UX: Show auto-save status */}
+          {workflow?.id ? (
+            <div className={styles.infoItem} style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
+              {isSaving ? (
+                <span style={{ color: 'var(--color-primary-600)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>💾</span> Saving...
+                </span>
+              ) : (
+                <span style={{ color: 'var(--color-success-600)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  ✓ Saved
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className={styles.infoItem} style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
+              <span style={{ color: 'var(--color-warning-600)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                ⚠️ Click "Save" to enable auto-save
               </span>
             </div>
           )}

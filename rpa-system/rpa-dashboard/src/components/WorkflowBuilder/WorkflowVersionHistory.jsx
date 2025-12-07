@@ -64,7 +64,15 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
 
     } catch (err) {
       console.error('Failed to load version data:', err);
-      setError(err.message);
+      
+      // ✅ UX: Handle 403 errors with user-friendly message
+      if (err.response?.status === 403 || err.message?.includes('403')) {
+        setError('Version history is not available on your current plan. Please upgrade to access this feature.');
+      } else if (err.response?.status === 401) {
+        setError('Please sign in to view version history.');
+      } else {
+        setError(err.response?.data?.error || err.message || 'Failed to load version history. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -100,7 +108,13 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
 
     } catch (err) {
       console.error('Failed to compare versions:', err);
-      setError(err.message);
+      
+      // ✅ UX: Handle 403 errors with user-friendly message
+      if (err.response?.status === 403 || err.message?.includes('403')) {
+        setError('Version comparison is not available on your current plan. Please upgrade to access this feature.');
+      } else {
+        setError(err.response?.data?.error || err.message || 'Failed to compare versions. Please try again.');
+      }
     }
   };
 
@@ -115,7 +129,13 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
 
     } catch (err) {
       console.error('Failed to preview rollback:', err);
-      setError(err.message);
+      
+      // ✅ UX: Handle 403 errors with user-friendly message
+      if (err.response?.status === 403 || err.message?.includes('403')) {
+        setError('Version rollback is not available on your current plan. Please upgrade to access this feature.');
+      } else {
+        setError(err.response?.data?.error || err.message || 'Failed to preview rollback. Please try again.');
+      }
     }
   };
 
@@ -137,7 +157,16 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
 
     } catch (err) {
       console.error('Failed to rollback version:', err);
-      setError(err.message);
+      
+      // ✅ UX: Handle 403 errors with user-friendly message
+      if (err.response?.status === 403 || err.message?.includes('403')) {
+        setError('Version rollback is not available on your current plan. Please upgrade to access this feature.');
+        alert('Version rollback is not available on your current plan. Please upgrade to access this feature.');
+      } else {
+        const errorMsg = err.response?.data?.error || err.message || 'Failed to rollback version. Please try again.';
+        setError(errorMsg);
+        alert(errorMsg);
+      }
     }
   };
 
@@ -160,7 +189,13 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
 
     } catch (err) {
       console.error('Failed to export version:', err);
-      setError(err.message);
+      
+      // ✅ UX: Handle 403 errors with user-friendly message
+      if (err.response?.status === 403 || err.message?.includes('403')) {
+        setError('Version export is not available on your current plan. Please upgrade to access this feature.');
+      } else {
+        setError(err.response?.data?.error || err.message || 'Failed to export version. Please try again.');
+      }
     }
   };
 
@@ -236,11 +271,23 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
         {error && (
           <div className={styles.errorMessage}>
             <FaExclamationTriangle />
-            {error}
-            <button onClick={loadVersionData} className={styles.retryButton}>
-              <FaSync />
-              Retry
-            </button>
+            <span>{error}</span>
+            {error.includes('not available on your current plan') ? (
+              <button 
+                onClick={() => {
+                  // Navigate to upgrade/pricing page or show upgrade modal
+                  window.location.href = '/app/settings?tab=billing';
+                }} 
+                className={styles.upgradeButton}
+              >
+                Upgrade Plan
+              </button>
+            ) : (
+              <button onClick={loadVersionData} className={styles.retryButton}>
+                <FaSync />
+                Retry
+              </button>
+            )}
           </div>
         )}
 
