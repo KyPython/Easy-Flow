@@ -229,7 +229,38 @@ router.get('/checklists/download/:filename', async (req, res) => {
       });
     }
 
-    const filePath = path.join(CHECKLISTS_DIR, filename);
+    // ✅ SECURITY: Prevent path traversal attacks
+    // Normalize filename and ensure it doesn't contain path separators
+    const normalizedFilename = path.basename(filename);
+    if (normalizedFilename !== filename || normalizedFilename.includes('..') || normalizedFilename.includes('/') || normalizedFilename.includes('\\')) {
+      logger.warn(`[feedbackRoutes] Path traversal attempt blocked: ${filename}`);
+      return res.status(400).json({
+        error: 'Invalid filename',
+        code: 'INVALID_FILENAME'
+      });
+    }
+    
+    // Ensure filename ends with .pdf
+    if (!normalizedFilename.endsWith('.pdf')) {
+      logger.warn(`[feedbackRoutes] Invalid file extension: ${normalizedFilename}`);
+      return res.status(400).json({
+        error: 'Only PDF files are allowed',
+        code: 'INVALID_FILE_TYPE'
+      });
+    }
+    
+    const filePath = path.join(CHECKLISTS_DIR, normalizedFilename);
+    
+    // ✅ SECURITY: Ensure resolved path is within CHECKLISTS_DIR (prevent directory traversal)
+    const resolvedPath = path.resolve(filePath);
+    const resolvedDir = path.resolve(CHECKLISTS_DIR);
+    if (!resolvedPath.startsWith(resolvedDir)) {
+      logger.warn(`[feedbackRoutes] Path traversal attempt blocked: ${filename} -> ${resolvedPath}`);
+      return res.status(400).json({
+        error: 'Invalid file path',
+        code: 'INVALID_PATH'
+      });
+    }
 
     // Check if file exists
     try {
@@ -243,7 +274,7 @@ router.get('/checklists/download/:filename', async (req, res) => {
 
     // Set appropriate headers for PDF download
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${normalizedFilename}"`);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 
     // Stream the file

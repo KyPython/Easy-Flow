@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { usePlan } from '../hooks/usePlan';
 import { useI18n } from '../i18n';
 import TaskList from '../components/TaskList/TaskList';
@@ -18,6 +18,7 @@ const HistoryPage = () => {
   const [editUrl, setEditUrl] = useState('');
   const [editError, setEditError] = useState('');
   const [viewingTask, setViewingTask] = useState(null);
+  const runsRef = useRef([]); // Store runs in ref to avoid dependency issues
 
   useEffect(() => {
     const fetchRuns = async () => {
@@ -30,7 +31,9 @@ const HistoryPage = () => {
           .eq('user_id', user.id)
           .order('started_at', { ascending: false });
         if (error) throw error;
-        setRuns(data || []);
+        const runsData = data || [];
+        setRuns(runsData);
+        runsRef.current = runsData; // Update ref
       } catch (err) {
         console.error('Failed to fetch automation runs:', err.message || err);
         setError(err.message || 'Could not load automation history. The backend may be unavailable.');
@@ -40,9 +43,48 @@ const HistoryPage = () => {
     };
     fetchRuns();
     
-    // ✅ UX: Auto-refresh every 5 seconds to show status updates without manual refresh
-    const interval = setInterval(fetchRuns, 5000);
-    return () => clearInterval(interval);
+    // ✅ UX: Smart auto-refresh - only refresh if there are active tasks, and pause when user is interacting
+    let refreshInterval;
+    let isUserInteracting = false;
+    let interactionTimeout;
+    
+    const handleUserInteraction = () => {
+      isUserInteracting = true;
+      clearTimeout(interactionTimeout);
+      interactionTimeout = setTimeout(() => {
+        isUserInteracting = false;
+      }, 5000); // Pause refresh for 5 seconds after user interaction
+    };
+    
+    // Track user interactions (mouse, keyboard, text selection)
+    document.addEventListener('mousedown', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+    document.addEventListener('selectionchange', handleUserInteraction);
+    
+    const smartRefresh = () => {
+      // Don't refresh if user is actively interacting
+      if (isUserInteracting) return;
+      
+      // Only auto-refresh if there are queued/running tasks that need updates
+      const hasActiveTasks = runsRef.current.some(run => 
+        run.status === 'queued' || run.status === 'running' || run.status === 'pending'
+      );
+      
+      if (hasActiveTasks) {
+        fetchRuns();
+      }
+    };
+    
+    // Refresh every 10 seconds (increased from 5), but only if there are active tasks
+    refreshInterval = setInterval(smartRefresh, 10000);
+    
+    return () => {
+      clearInterval(refreshInterval);
+      clearTimeout(interactionTimeout);
+      document.removeEventListener('mousedown', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('selectionchange', handleUserInteraction);
+    };
   }, [user]);
 
   const handleViewTask = (task) => {

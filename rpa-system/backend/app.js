@@ -589,7 +589,10 @@ const csrfProtection = csrf({
     maxAge: 3600000,
     signed: true
   },
-  secret: process.env.SESSION_SECRET || 'test-session-secret-32-characters-long'
+  secret: process.env.SESSION_SECRET || (() => {
+    logger.warn('⚠️ SESSION_SECRET not set in environment. Using default (INSECURE for production).');
+    return 'test-session-secret-32-characters-long';
+  })()
 });
 
 // --- CSRF error handler: force 403 for CSRF errors ---
@@ -1615,7 +1618,7 @@ function isValidUrl(url) {
   try {
     const parsed = new URL(url);
     // Block private IPs and localhost
-    if (isPrivateIp(parsed.hostname)) return { valid: false, reason: 'private-ip' };
+    if (isPrivateIP(parsed.hostname)) return { valid: false, reason: 'private-ip' };
     // Only allow http and https, block ALL others
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return { valid: false, reason: 'protocol' };
     return { valid: true };
@@ -1719,6 +1722,15 @@ async function queueTaskRun(runId, taskData) {
         automation_url: automationUrl
       });
       throw new Error(errorMessage);
+    }
+    
+    // ✅ SECURITY: Validate URL to prevent SSRF
+    if (taskData.url) {
+      const urlValidation = isValidUrl(taskData.url);
+      if (!urlValidation.valid) {
+        logger.warn(`[queueTaskRun] Invalid URL rejected: ${taskData.url} (reason: ${urlValidation.reason})`);
+        throw new Error(`Invalid URL: ${urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format'}`);
+      }
     }
     
     // Prepare the payload for the automation worker
@@ -2298,6 +2310,26 @@ app.post('/api/tasks/:id/run', async (req, res) => {
     if (!automationUrl) {
       throw new Error('AUTOMATION_URL environment variable is required');
     }
+    // ✅ SECURITY: Validate URLs to prevent SSRF
+    if (task.url) {
+      const urlValidation = isValidUrl(task.url);
+      if (!urlValidation.valid) {
+        logger.warn(`[POST /api/tasks/${taskId}/run] Invalid URL rejected: ${task.url} (reason: ${urlValidation.reason})`);
+        return res.status(400).json({ 
+          error: urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format' 
+        });
+      }
+    }
+    if (task.parameters?.pdf_url) {
+      const pdfUrlValidation = isValidUrl(task.parameters.pdf_url);
+      if (!pdfUrlValidation.valid) {
+        logger.warn(`[POST /api/tasks/${taskId}/run] Invalid PDF URL rejected: ${task.parameters.pdf_url} (reason: ${pdfUrlValidation.reason})`);
+        return res.status(400).json({ 
+          error: pdfUrlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid PDF URL format' 
+        });
+      }
+    }
+    
     const payload = { 
       url: task.url, 
       username: task.parameters?.username, 

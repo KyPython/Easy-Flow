@@ -75,7 +75,9 @@ const WorkflowBuilder = () => {
   const { 
     startExecution, 
     cancelExecution,
-    stats: executionStats 
+    stats: executionStats,
+    getExecutionDetails,
+    refreshExecutions
   } = useWorkflowExecutions(workflowId);
 
   // All callback hooks must be called before any early returns
@@ -189,13 +191,59 @@ const WorkflowBuilder = () => {
     }
   }, [executionStats, cancelExecution, currentExecutionId]);
 
-  // Auto-hide overlay when no runs are active anymore
+  // ✅ FIX: Poll execution status when execution is active
+  useEffect(() => {
+    if (!isExecuting || !currentExecutionId) return;
+    
+    let pollInterval;
+    let timeoutId;
+    
+    const pollExecutionStatus = async () => {
+      try {
+        const { getExecutionDetails } = useWorkflowExecutions(workflowId);
+        const execution = await getExecutionDetails(currentExecutionId);
+        
+        if (execution && ['completed', 'failed', 'cancelled'].includes(execution.status)) {
+          // Execution finished
+          setIsExecuting(false);
+          setCurrentExecutionId(null);
+          if (execution.status === 'failed') {
+            showError(`Workflow execution failed: ${execution.error_message || 'Unknown error'}`);
+          } else if (execution.status === 'completed') {
+            showSuccess('Workflow execution completed successfully!');
+          }
+          if (pollInterval) clearInterval(pollInterval);
+          if (timeoutId) clearTimeout(timeoutId);
+        }
+      } catch (error) {
+        console.error('Error polling execution status:', error);
+      }
+    };
+    
+    // Poll every 2 seconds
+    pollInterval = setInterval(pollExecutionStatus, 2000);
+    
+    // Timeout after 5 minutes
+    timeoutId = setTimeout(() => {
+      setIsExecuting(false);
+      setCurrentExecutionId(null);
+      showWarning('Workflow execution timed out. Please check the Executions tab for details.');
+      if (pollInterval) clearInterval(pollInterval);
+    }, 300000); // 5 minutes
+    
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [isExecuting, currentExecutionId, workflowId]);
+  
+  // Auto-hide overlay when no runs are active anymore (backup check)
   useEffect(() => {
     if (isExecuting && (executionStats?.running || 0) === 0) {
       setIsExecuting(false);
       setCurrentExecutionId(null);
     }
-  }, [executionStats?.running]);
+  }, [executionStats?.running, isExecuting]);
 
   const handleTemplateSelect = useCallback(async (newWorkflow) => {
     try {

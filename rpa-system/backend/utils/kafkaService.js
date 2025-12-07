@@ -96,7 +96,11 @@ class KafkaService {
             return;
         }
 
-        this.initialize();
+        // ✅ FIX: Initialize asynchronously and log errors
+        this.initialize().catch(err => {
+            logger.error('[KafkaService] Initialization failed:', err);
+            this.isConnected = false;
+        });
     }
     
     async initialize() {
@@ -164,11 +168,16 @@ class KafkaService {
             logger.info('[KafkaService] Admin client connected');
             
             // Define required topics
+            // ✅ FIX: Use replicationFactor: 1 for local development (single broker)
+            // In production with multiple brokers, this should be 3
+            const isLocalDev = this.brokers.includes('localhost') || this.brokers.includes('127.0.0.1');
+            const replicationFactor = isLocalDev ? 1 : 3;
+            
             const requiredTopics = [
                 {
                     topic: this.taskTopic,
-                    numPartitions: 3,
-                    replicationFactor: 3, // Confluent Cloud default
+                    numPartitions: 1,
+                    replicationFactor: replicationFactor,
                     configEntries: [
                         { name: 'cleanup.policy', value: 'delete' },
                         { name: 'retention.ms', value: '604800000' } // 7 days
@@ -176,8 +185,8 @@ class KafkaService {
                 },
                 {
                     topic: this.resultTopic,
-                    numPartitions: 3,
-                    replicationFactor: 3,
+                    numPartitions: 1,
+                    replicationFactor: replicationFactor,
                     configEntries: [
                         { name: 'cleanup.policy', value: 'delete' },
                         { name: 'retention.ms', value: '604800000' } // 7 days
@@ -186,7 +195,7 @@ class KafkaService {
                 {
                     topic: 'workflow-events',
                     numPartitions: 1,
-                    replicationFactor: 3,
+                    replicationFactor: replicationFactor,
                     configEntries: [
                         { name: 'cleanup.policy', value: 'delete' },
                         { name: 'retention.ms', value: '604800000' } // 7 days
@@ -195,7 +204,7 @@ class KafkaService {
                 {
                     topic: 'status-updates',
                     numPartitions: 1,
-                    replicationFactor: 3,
+                    replicationFactor: replicationFactor,
                     configEntries: [
                         { name: 'cleanup.policy', value: 'delete' },
                         { name: 'retention.ms', value: '86400000' } // 1 day

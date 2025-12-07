@@ -226,15 +226,34 @@ class WorkflowExecutor {
     try {
       if (this.supabase) {
         // Update execution status immediately
-        await this.supabase
-          .from('workflow_executions')
-          .update({
-            status: 'failed',
-            error_message: error.message,
-            completed_at: new Date().toISOString(),
-            metadata: JSON.stringify(failureData)
-          })
-          .eq('id', executionId);
+        const updateData = {
+          status: 'failed',
+          error_message: error.message,
+          completed_at: new Date().toISOString()
+        };
+        
+        // ✅ FIX: Only include metadata if column exists (graceful degradation)
+        // Try to update with metadata, but don't fail if column doesn't exist
+        try {
+          await this.supabase
+            .from('workflow_executions')
+            .update({
+              ...updateData,
+              metadata: JSON.stringify(failureData)
+            })
+            .eq('id', executionId);
+        } catch (metaError) {
+          // If metadata column doesn't exist, update without it
+          if (metaError.message?.includes('metadata') || metaError.message?.includes('column')) {
+            logger.warn('Metadata column not available, updating without it', { execution_id: executionId });
+            await this.supabase
+              .from('workflow_executions')
+              .update(updateData)
+              .eq('id', executionId);
+          } else {
+            throw metaError;
+          }
+        }
         
         // Log to automation history
         await this.supabase
@@ -678,7 +697,11 @@ class WorkflowExecutor {
       // Find the start step
       const startStep = workflow.workflow_steps.find(step => step.step_type === 'start');
       if (!startStep) {
-        throw new Error('No start step found in workflow');
+        // ✅ FIX: Provide helpful error message and mark execution as failed immediately
+        const errorMsg = 'Workflow has no start step. Please add a start step to your workflow.';
+        await this._updateExecutionStatus(execution.id, 'failed', errorMsg);
+        await this.failExecution(execution.id, errorMsg, null, 'WORKFLOW_CONFIGURATION_ERROR');
+        return;
       }
       
       // ✅ FIX: Update status before executing steps
