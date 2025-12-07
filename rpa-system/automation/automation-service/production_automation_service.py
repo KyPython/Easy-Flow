@@ -240,19 +240,20 @@ def get_kafka_consumer():
                     return None
                 try:
                     kafka_consumer = KafkaConsumer(
-                        KAFKA_TASK_TOPIC,
                         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
                         group_id=KAFKA_CONSUMER_GROUP,
                         value_deserializer=lambda x: json.loads(x.decode('utf-8')),
                         key_deserializer=lambda x: x.decode('utf-8') if x else None,
-                        auto_offset_reset='latest',
+                        auto_offset_reset='earliest',  # ✅ FIX: Process queued messages, not just new ones
                         enable_auto_commit=True,
-                        api_version=(0, 10, 1)
+                        api_version=(0, 10, 1),
+                        consumer_timeout_ms=1000  # Timeout for polling
                     )
-                    # ✅ INSTRUCTION 2: Reduced connection logging (Gap 19)
-                    logger.debug(f"Kafka consumer connected to {KAFKA_BOOTSTRAP_SERVERS}")
+                    # ✅ FIX: Explicitly subscribe to topic to ensure partitions are assigned
+                    kafka_consumer.subscribe([KAFKA_TASK_TOPIC])
+                    logger.info(f"✅ Kafka consumer connected and subscribed to {KAFKA_TASK_TOPIC} on {KAFKA_BOOTSTRAP_SERVERS}")
                 except Exception as e:
-                    logger.error(f"Failed to connect Kafka consumer: {e}")
+                    logger.error(f"❌ Failed to connect Kafka consumer: {e}", exc_info=True)
                     kafka_consumer = None
     return kafka_consumer
 

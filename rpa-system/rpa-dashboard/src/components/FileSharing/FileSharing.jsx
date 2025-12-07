@@ -96,13 +96,34 @@ const FileSharing = ({
     }
   };
 
-  const handleCopyLink = async (shareUrl, shareId) => {
+  const handleCopyLink = async (share, shareId) => {
     try {
+      // Construct share URL if not provided
+      let shareUrl = share.shareUrl || share.share_url;
+      
+      // If still not available, construct it from share token
+      if (!shareUrl && share.share_token) {
+        shareUrl = getShareUrl(share.share_token);
+      }
+      
+      // If still not available, try to construct from share ID (fallback)
+      if (!shareUrl && share.id) {
+        // This shouldn't happen, but provide a fallback
+        shareUrl = `${window.location.origin}/shared/${share.id}`;
+      }
+      
+      if (!shareUrl) {
+        console.error('Cannot copy link: shareUrl is undefined', share);
+        alert('Unable to copy link: Share URL not available');
+        return;
+      }
+      
       await navigator.clipboard.writeText(shareUrl);
       setCopiedLink(shareId);
       setTimeout(() => setCopiedLink(''), 2000);
     } catch (error) {
       console.error('Failed to copy link:', error);
+      alert('Failed to copy link to clipboard');
     }
   };
 
@@ -328,7 +349,7 @@ const FileSharing = ({
                   />
                   <button
                     className={`${styles.actionButton} ${styles.copy}`}
-                    onClick={() => handleCopyLink(newlyCreatedShare.shareUrl, newlyCreatedShare.id)}
+                    onClick={() => handleCopyLink(newlyCreatedShare, newlyCreatedShare.id)}
                     title={t('sharing.copy_link', 'Copy link')}
                   >
                     {copiedLink === newlyCreatedShare.id ? <FiCheck /> : <FiCopy />}
@@ -379,7 +400,7 @@ const FileSharing = ({
                     <div className={styles.shareActions}>
                       <button
                         className={`${styles.actionButton} ${styles.copy}`}
-                        onClick={() => handleCopyLink(share.shareUrl, share.id)}
+                        onClick={() => handleCopyLink(share, share.id)}
                         title={t('sharing.copy_link', 'Copy link')}
                       >
                         {copiedLink === share.id ? <FiCheck /> : <FiCopy />}
