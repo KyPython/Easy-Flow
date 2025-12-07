@@ -452,20 +452,23 @@
   gap: var(--spacing-xs);
   margin-top: var(--spacing-sm);
   padding: var(--spacing-xs) var(--spacing-sm);
-  background: var(--color-warning-50, var(--bg-secondary));
+  background: var(--color-warning-50, var(--warning-bg, var(--bg-secondary)));
   border: 1px solid var(--color-warning-200, var(--border-color));
   border-radius: var(--radius-md);
   font-size: var(--font-size-xs);
+  box-shadow: var(--shadow-xs);
 }
 
 .diagnosticIcon {
   font-size: var(--font-size-sm);
   flex-shrink: 0;
+  line-height: 1;
 }
 
 .diagnosticText {
-  color: var(--color-warning-700, var(--text-muted));
+  color: var(--color-warning-700, var(--warning-text, var(--text-muted)));
   font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal, 1.5);
 }
 
 .stepDuration {

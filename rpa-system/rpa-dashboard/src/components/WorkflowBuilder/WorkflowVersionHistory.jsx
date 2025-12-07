@@ -275,8 +275,8 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
             {error.includes('not available on your current plan') ? (
               <button 
                 onClick={() => {
-                  // Navigate to upgrade/pricing page or show upgrade modal
-                  window.location.href = '/app/settings?tab=billing';
+                  // Navigate to pricing page
+                  window.location.href = '/pricing';
                 }} 
                 className={styles.upgradeButton}
               >

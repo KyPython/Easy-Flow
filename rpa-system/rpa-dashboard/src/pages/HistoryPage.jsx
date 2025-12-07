@@ -8,8 +8,11 @@ import styles from './HistoryPage.module.css';
 import ErrorMessage from '../components/ErrorMessage';
 import Chatbot from '../components/Chatbot/Chatbot';
 import TaskResultModal from '../components/TaskResultModal/TaskResultModal';
+import { createLogger } from '../utils/logger';
 const HistoryPage = () => {
   const { user } = useAuth();
+  const logger = createLogger('HistoryPage');
+  const loadingTimeoutRef = useRef(null);
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,20 +27,101 @@ const HistoryPage = () => {
     const fetchRuns = async () => {
       if (!user) return;
       setLoading(true);
+      setError('');
+
+      // Set timeout to prevent infinite loading (30 seconds)
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = setTimeout(() => {
+        logger.error('History fetch timeout - taking longer than 30 seconds', {
+          user_id: user.id,
+          timeout: 30000
+        });
+        setError('Loading is taking longer than expected. Please refresh the page.');
+        setLoading(false);
+      }, 30000);
+
       try {
-        const client = await initSupabase();
-        const { data, error } = await client.from('automation_runs')
+        logger.info('Fetching automation runs', { user_id: user.id });
+        
+        // ✅ PERFORMANCE: Initialize Supabase with timeout protection
+        const initStartTime = Date.now();
+        const client = await Promise.race([
+          initSupabase(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Supabase initialization timeout')), 10000)
+          )
+        ]);
+        const initDuration = Date.now() - initStartTime;
+        
+        if (initDuration > 2000) {
+          logger.warn('Slow Supabase initialization', {
+            duration_ms: initDuration,
+            user_id: user.id
+          });
+        }
+        
+        // ✅ PERFORMANCE: Add limit and optimize query
+        // Limit to 100 most recent runs to prevent timeout
+        // Only fetch essential fields to reduce payload size
+        const queryStartTime = Date.now();
+        
+        // Create query with timeout protection
+        const queryPromise = client.from('automation_runs')
           .select(`id,status,started_at,result,artifact_url,automation_tasks(id,name,url,task_type)`)
           .eq('user_id', user.id)
-          .order('started_at', { ascending: false });
-        if (error) throw error;
+          .order('started_at', { ascending: false })
+          .limit(100); // ✅ CRITICAL: Add limit to prevent timeout
+        
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Query timeout after 25 seconds')), 25000)
+        );
+        
+        const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+        
+        const queryDuration = Date.now() - queryStartTime;
+        logger.info('Query completed', { 
+          duration_ms: queryDuration,
+          init_duration_ms: initDuration,
+          user_id: user.id 
+        });
+        
+        if (queryDuration > 5000) {
+          logger.warn('Slow query detected', {
+            duration_ms: queryDuration,
+            user_id: user.id,
+            message: 'Query took longer than 5 seconds - database indexes may be missing'
+          });
+        }
+        
+        if (error) {
+          logger.error('Supabase query error', {
+            error: error.message,
+            code: error.code,
+            user_id: user.id,
+            hint: error.hint || 'No hint available'
+          });
+          throw error;
+        }
         const runsData = data || [];
+        logger.info('Automation runs fetched successfully', {
+          user_id: user.id,
+          count: runsData.length
+        });
         setRuns(runsData);
         runsRef.current = runsData; // Update ref
       } catch (err) {
-        console.error('Failed to fetch automation runs:', err.message || err);
+        logger.error('Failed to fetch automation runs', {
+          error: err.message,
+          error_code: err.code,
+          user_id: user.id,
+          stack: err.stack
+        });
         setError(err.message || 'Could not load automation history. The backend may be unavailable.');
       } finally {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+          loadingTimeoutRef.current = null;
+        }
         setLoading(false);
       }
     };
@@ -129,7 +213,12 @@ const HistoryPage = () => {
       }));
       setEditingTask(null);
     } catch (err) {
-      console.error('Error updating task:', err.message);
+      logger.error('Error updating task', {
+        error: err.message,
+        task_id: editingTask.id,
+        user_id: user.id,
+        stack: err.stack
+      });
       setEditError('Failed to update the task. Please try again.');
     }
   };
@@ -147,7 +236,12 @@ const HistoryPage = () => {
         if (deleteError) throw deleteError;
         setRuns(prev => prev.filter(r => r.id !== runId));
       } catch (err) {
-        console.error('Error deleting run:', err.message || err);
+        logger.error('Error deleting run', {
+          error: err.message || err,
+          run_id: runId,
+          user_id: user.id,
+          stack: err.stack
+        });
         setError(err.message || 'Failed to delete the run. Please try again.');
       }
     }
@@ -195,33 +289,72 @@ const HistoryPage = () => {
       )}
 
       {editingTask && (
-        <div className={styles.modalBackdrop}>
+        <div 
+          className={styles.modalBackdrop}
+          onClick={(e) => {
+            // Close modal when clicking backdrop
+            if (e.target === e.currentTarget) {
+              setEditingTask(null);
+            }
+          }}
+        >
           <div className={styles.modal}>
-            <h3>{t('history.edit_task','Edit Task')}</h3>
-            <form onSubmit={handleEditSubmit}>
-              {editError && <p className={styles.formError}>{editError}</p>}
-              <input
-                id="edit-task-name"
-                name="task_name"
-                type="text"
-                value={editName}
-                onChange={e => setEditName(e.target.value)}
-                className={styles.input}
-                required
-                autoComplete="off"
-              />
-              <input
-                id="edit-task-url"
-                name="task_url"
-                type="url"
-                value={editUrl}
-                onChange={e => setEditUrl(e.target.value)}
-                className={styles.input}
-                required
-                autoComplete="url"
-              />
-              <button type="submit" className={styles.submitButton}>{t('action.save','Save')}</button>
-              <button type="button" className={styles.cancelButton} onClick={() => setEditingTask(null)}>{t('action.cancel','Cancel')}</button>
+            <div className={styles.modalHeader}>
+              <h3>{t('history.edit_task','Edit Task')}</h3>
+              <button 
+                className={styles.modalCloseButton}
+                onClick={() => setEditingTask(null)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className={styles.modalForm}>
+              {editError && <div className={styles.formError}>{editError}</div>}
+              <div className={styles.formGroup}>
+                <label htmlFor="edit-task-name" className={styles.formLabel}>
+                  {t('history.task_name','Task Name')}
+                </label>
+                <input
+                  id="edit-task-name"
+                  name="task_name"
+                  type="text"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  className={styles.input}
+                  required
+                  autoComplete="off"
+                  placeholder={t('history.task_name_placeholder','Enter task name')}
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label htmlFor="edit-task-url" className={styles.formLabel}>
+                  {t('history.task_url','Task URL')}
+                </label>
+                <input
+                  id="edit-task-url"
+                  name="task_url"
+                  type="url"
+                  value={editUrl}
+                  onChange={e => setEditUrl(e.target.value)}
+                  className={styles.input}
+                  required
+                  autoComplete="url"
+                  placeholder={t('history.task_url_placeholder','https://example.com')}
+                />
+              </div>
+              <div className={styles.modalActions}>
+                <button type="submit" className={styles.submitButton}>
+                  {t('action.save','Save')}
+                </button>
+                <button 
+                  type="button" 
+                  className={styles.cancelButton} 
+                  onClick={() => setEditingTask(null)}
+                >
+                  {t('action.cancel','Cancel')}
+                </button>
+              </div>
             </form>
           </div>
         </div>

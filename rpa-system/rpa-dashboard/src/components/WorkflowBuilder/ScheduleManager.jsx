@@ -9,8 +9,10 @@ import LoadingSpinner from './LoadingSpinner';
 // Remove unused/duplicate imports: ScheduleCard (we define local), Modal, FormField, ConfirmDialog, ActionButton
 import supabase, { initSupabase } from '../../utils/supabaseClient';
 import { api } from '../../utils/api';
+import { useNavigate } from 'react-router-dom';
 
 const ScheduleManager = ({ workflowId, workflowName }) => {
+  const navigate = useNavigate();
   const { schedules, loading, error, createSchedule, updateSchedule, deleteSchedule, triggerSchedule, refreshSchedules } = useSchedules(workflowId);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
@@ -19,8 +21,10 @@ const ScheduleManager = ({ workflowId, workflowName }) => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    refreshSchedules();
-  }, [workflowId]);
+    if (workflowId) {
+      refreshSchedules();
+    }
+  }, [workflowId, refreshSchedules]);
 
   const handleCreateSchedule = (scheduleData) => {
     createSchedule({ ...scheduleData, workflowId });
@@ -68,6 +72,12 @@ const ScheduleManager = ({ workflowId, workflowName }) => {
   }
 
   if (error) {
+    // Handle different error types
+    const errorType = typeof error === 'object' ? error?.type : null;
+    const errorMessage = typeof error === 'object' ? error.message : error;
+    const isPlanRestriction = errorType === 'plan_restriction';
+    const isRateLimit = errorType === 'rate_limit';
+    
     return (
       <div className={styles.scheduleManager}>
         <div className={styles.header}>
@@ -76,7 +86,25 @@ const ScheduleManager = ({ workflowId, workflowName }) => {
             <p className={styles.subtitle}>Automate &quot;{workflowName}&quot; execution</p>
           </div>
         </div>
-        <ErrorMessage message={error} />
+        <div className={styles.errorContainer}>
+          <ErrorMessage message={errorMessage} />
+          {isPlanRestriction && (
+            <button
+              className={styles.upgradeButton}
+              onClick={() => navigate('/pricing')}
+            >
+              Upgrade Plan
+            </button>
+          )}
+          {isRateLimit && (
+            <button
+              className={styles.retryButton}
+              onClick={() => refreshSchedules()}
+            >
+              Retry
+            </button>
+          )}
+        </div>
       </div>
     );
   }

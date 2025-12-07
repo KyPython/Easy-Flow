@@ -847,23 +847,24 @@ export const uploadFile = async (file, options = {}) => {
 };
 
 export const getFiles = async (options = {}) => {
-  return apiErrorHandler.safeApiCall(
-    async () => {
-      const params = new URLSearchParams();
-      if (options.folder) params.append('folder', options.folder);
-      if (options.search) params.append('search', options.search);
-      if (options.tags) params.append('tags', Array.isArray(options.tags) ? options.tags.join(',') : options.tags);
-      if (options.limit) params.append('limit', options.limit);
-      if (options.offset) params.append('offset', options.offset);
+  try {
+    const params = new URLSearchParams();
+    if (options.folder) params.append('folder', options.folder);
+    if (options.search) params.append('search', options.search);
+    if (options.tags) params.append('tags', Array.isArray(options.tags) ? options.tags.join(',') : options.tags);
+    if (options.limit) params.append('limit', options.limit);
+    if (options.offset) params.append('offset', options.offset);
 
-      const { data } = await api.get(`/api/files?${params.toString()}`);
-      return data;
-    },
-    {
-      endpoint: 'files',
-      fallbackData: { files: [], message: 'Files unavailable offline' }
-    }
-  );
+    console.log('[getFiles] Making API call:', `/api/files?${params.toString()}`);
+    const { data } = await api.get(`/api/files?${params.toString()}`);
+    console.log('[getFiles] API response:', data);
+    return data;
+  } catch (error) {
+    console.error('[getFiles] API error:', error);
+    console.error('[getFiles] Error response:', error.response?.data);
+    // Re-throw to let FileManager handle it
+    throw error;
+  }
 };
 
 export const getFileDownloadUrl = async (fileId) => {

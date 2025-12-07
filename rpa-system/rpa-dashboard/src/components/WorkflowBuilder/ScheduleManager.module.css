@@ -9,6 +9,81 @@
   overflow: hidden;
 }
 
+/* Error Container */
+.errorContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-xl);
+  background: var(--surface, var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.errorContainer p {
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+  margin: 0;
+}
+
+/* Upgrade Button */
+.upgradeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: var(--color-primary-600, #2563eb);
+  color: white;
+  border: 1px solid var(--color-primary-600, #2563eb);
+  border-radius: var(--radius-md, 6px);
+  font-size: var(--font-size-sm, 14px);
+  font-weight: var(--font-weight-medium, 500);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.upgradeButton:hover {
+  background: var(--color-primary-700, #1d4ed8);
+  border-color: var(--color-primary-700, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+}
+
+.upgradeButton:active {
+  transform: translateY(0);
+}
+
+.retryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: var(--color-primary-600, #2563eb);
+  color: white;
+  border: 1px solid var(--color-primary-600, #2563eb);
+  border-radius: var(--radius-md, 6px);
+  font-size: var(--font-size-sm, 14px);
+  font-weight: var(--font-weight-medium, 500);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.retryButton:hover {
+  background: var(--color-primary-700, #1d4ed8);
+  border-color: var(--color-primary-700, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+}
+
+.retryButton:active {
+  transform: translateY(0);
+}
+
 /* Header */
 .header {
   display: flex;

@@ -221,6 +221,14 @@ Return valid JSON only, no additional text.
           span.setAttribute('http.status_code', error.response?.status || 0);
           
           logger.error('[AIDataExtractor] AI structuring failed:', error);
+          
+          // Preserve rate limit status codes
+          if (error.response?.status === 429) {
+            const rateLimitError = new Error('Rate limit exceeded. The AI extraction service is temporarily busy. Please wait a moment and try again.');
+            rateLimitError.statusCode = 429;
+            throw rateLimitError;
+          }
+          
           throw new Error(`Failed to structure invoice data: ${error.message}`);
         } finally {
           span.end();
@@ -314,6 +322,14 @@ If a data point cannot be found, set its value to null.
           span.setAttribute('http.status_code', error.response?.status || 0);
           
           logger.error('[AIDataExtractor] Specific data extraction failed:', error);
+          
+          // Preserve rate limit status codes
+          if (error.response?.status === 429) {
+            const rateLimitError = new Error('Rate limit exceeded. The AI extraction service is temporarily busy. Please wait a moment and try again.');
+            rateLimitError.statusCode = 429;
+            throw rateLimitError;
+          }
+          
           throw new Error(`Failed to extract specific data: ${error.message}`);
         } finally {
           span.end();

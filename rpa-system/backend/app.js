@@ -257,6 +257,10 @@ const globalLimiter = rateLimit({
     } catch (e) {
       return 'unknown';
     }
+  },
+  skip: (req) => {
+    // Skip rate limiting if dev bypass is active
+    return req.devBypass === true;
   }
 });
 
@@ -265,9 +269,13 @@ const authLimiter = rateLimit({
   max: 100, // Increased for development
   message: {
     error: 'Too many authentication attempts, please try again later.'
-  }
-  , keyGenerator: (req) => {
+  },
+  keyGenerator: (req) => {
     try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
+  },
+  skip: (req) => {
+    // Skip rate limiting if dev bypass is active
+    return req.devBypass === true;
   }
 });
 
@@ -296,9 +304,13 @@ const apiLimiter = rateLimit({
   max: 200, // Increased for development
   message: {
     error: 'API rate limit exceeded, please try again later.'
-  }
-  , keyGenerator: (req) => {
+  },
+  keyGenerator: (req) => {
     try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
+  },
+  skip: (req) => {
+    // Skip rate limiting if dev bypass is active
+    return req.devBypass === true;
   }
 });
 
@@ -308,9 +320,13 @@ const automationLimiter = rateLimit({
   max: 100, // Increased for development
   message: {
     error: 'Automation rate limit exceeded, please try again later.'
-  }
-  , keyGenerator: (req) => {
+  },
+  keyGenerator: (req) => {
     try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
+  },
+  skip: (req) => {
+    // Skip rate limiting if dev bypass is active
+    return req.devBypass === true;
   }
 });
 
@@ -4774,11 +4790,20 @@ app.get('/api/files', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const { folder, limit = 50, offset = 0, search, tags, category } = req.query;
     
+    logger.info(`[GET /api/files] Fetching files for user ${userId}`, {
+      folder,
+      limit,
+      offset,
+      search,
+      tags,
+      category
+    });
+    
     let query = supabase
       .from('files')
       .select('*')
-      .eq('user_id', userId)
-      .is('expires_at', null);
+      .eq('user_id', userId);
+      // Removed .is('expires_at', null) to show all files, including those with expiration dates
 
     if (folder) {
       query = query.eq('folder_path', folder);
@@ -4805,15 +4830,23 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
       
     if (error) {
-      logger.error('Files query error:', error);
-      return res.status(500).json({ error: 'Failed to fetch files' });
+      logger.error('[GET /api/files] Files query error:', error);
+      logger.error('[GET /api/files] Error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      return res.status(500).json({ error: 'Failed to fetch files', details: error.message });
     }
 
+    logger.info(`[GET /api/files] Found ${data?.length || 0} files for user ${userId}`);
     res.json({ files: data || [] });
     
   } catch (err) {
-    logger.error('[GET /api/files] Error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch files' });
+    logger.error('[GET /api/files] Unexpected error:', err);
+    logger.error('[GET /api/files] Stack trace:', err.stack);
+    res.status(500).json({ error: 'Failed to fetch files', details: err.message });
   }
 });
 
@@ -4969,6 +5002,7 @@ app.post('/api/files/shares', authMiddleware, async (req, res) => {
     res.status(201).json({
       ...share,
       shareUrl,
+      permissions: share.permissions || permission, // Ensure permissions field is included
       password_hash: undefined // Don't return password hash
     });
 
@@ -5013,6 +5047,7 @@ app.get('/api/files/:id/shares', authMiddleware, async (req, res) => {
     const sharesWithUrls = shares.map(share => ({
       ...share,
       shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/shared/${share.share_token}`,
+      permissions: share.permissions || 'view', // Ensure permissions field is included
       password_hash: undefined
     }));
 
@@ -5221,37 +5256,101 @@ app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req,
   }
 
   try {
-    const { extractionType, targets } = req.body;
+    const { extractionType, targets, fileId } = req.body;
     const file = req.file;
     const userId = req.user.id;
 
-    if (!file && !req.body.htmlContent) {
+    // Handle fileId: fetch file from database and download from storage
+    let fileBuffer = file?.buffer;
+    let fileName = file?.originalname;
+    
+    if (fileId && !file) {
+      // Fetch file metadata from database
+      const { data: fileRecord, error: fileError } = await supabase
+        .from('files')
+        .select('*')
+        .eq('id', fileId)
+        .eq('user_id', userId)
+        .single();
+
+      if (fileError || !fileRecord) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      fileName = fileRecord.original_name || fileRecord.name;
+
+      // Download file from Supabase storage
+      try {
+        const bucket = fileRecord.storage_bucket || 'user-files';
+        const { data: fileData, error: downloadError } = await supabase
+          .storage
+          .from(bucket)
+          .download(fileRecord.storage_path || fileRecord.name);
+
+        if (downloadError) {
+          logger.error('[extract-data] Failed to download file from storage:', downloadError);
+          return res.status(500).json({ error: 'Failed to download file from storage' });
+        }
+
+        // Convert blob to buffer
+        fileBuffer = Buffer.from(await fileData.arrayBuffer());
+      } catch (storageError) {
+        logger.error('[extract-data] Storage download error:', storageError);
+        return res.status(500).json({ error: 'Failed to download file' });
+      }
+    }
+
+    if (!fileBuffer && !req.body.htmlContent) {
       return res.status(400).json({ error: 'File or HTML content required' });
     }
 
     let extractionResult;
 
-    if (extractionType === 'invoice' && file) {
-      extractionResult = await aiDataExtractor.extractInvoiceData(file.buffer, file.originalname);
-    } else if (extractionType === 'webpage' && req.body.htmlContent) {
-      const extractionTargets = JSON.parse(targets || '[]');
-      extractionResult = await aiDataExtractor.extractWebPageData(req.body.htmlContent, extractionTargets);
-    } else {
-      return res.status(400).json({ error: 'Invalid extraction type or missing data' });
+    // Determine extraction type if 'auto'
+    const actualExtractionType = extractionType === 'auto' 
+      ? (fileBuffer && (fileName?.toLowerCase().endsWith('.pdf') || fileName?.match(/\.(jpg|jpeg|png|gif|bmp|tiff)$/i)) ? 'invoice' : 'webpage')
+      : extractionType;
+
+    try {
+      if (actualExtractionType === 'invoice' && fileBuffer) {
+        extractionResult = await aiDataExtractor.extractInvoiceData(fileBuffer, fileName);
+      } else if (actualExtractionType === 'webpage' && req.body.htmlContent) {
+        const extractionTargets = JSON.parse(targets || '[]');
+        extractionResult = await aiDataExtractor.extractWebPageData(req.body.htmlContent, extractionTargets);
+      } else {
+        return res.status(400).json({ error: 'Invalid extraction type or missing data' });
+      }
+    } catch (extractionError) {
+      // Re-throw rate limit errors with status code preserved
+      if (extractionError.statusCode === 429) {
+        throw extractionError;
+      }
+      // Re-throw other errors
+      throw extractionError;
     }
 
-    // Save extraction results to user_files table if file was processed
-    if (extractionResult.success && file) {
+    // Save extraction results to files table if file was processed
+    if (extractionResult.success && (file || fileId)) {
       try {
-        await supabase
-          .from('user_files')
-          .update({
-            extracted_data: extractionResult.structuredData,
-            ai_confidence: extractionResult.metadata?.confidence,
-            processing_status: 'completed'
-          })
-          .eq('user_id', userId)
-          .eq('file_name', file.originalname);
+        const updateData = {
+          extracted_data: extractionResult.structuredData,
+          ai_confidence: extractionResult.metadata?.confidence,
+          processing_status: 'completed'
+        };
+
+        if (fileId) {
+          await supabase
+            .from('files')
+            .update(updateData)
+            .eq('id', fileId)
+            .eq('user_id', userId);
+        } else if (file) {
+          await supabase
+            .from('files')
+            .update(updateData)
+            .eq('user_id', userId)
+            .eq('original_name', file.originalname);
+        }
       } catch (dbError) {
         logger.warn('[extract-data] Failed to update database:', dbError.message);
       }
@@ -5264,9 +5363,26 @@ app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req,
 
   } catch (error) {
     logger.error('[extract-data] Error:', error);
-    res.status(500).json({
+    
+    // Handle specific error types
+    let statusCode = 500;
+    let errorMessage = error.message || 'Failed to extract data';
+    
+    // Check if it's a rate limit error from OpenAI
+    if (error.response?.status === 429 || error.message?.includes('rate limit') || error.message?.includes('429')) {
+      statusCode = 429;
+      errorMessage = 'Rate limit exceeded. The AI extraction service is temporarily busy. Please wait a moment and try again.';
+    } else if (error.response?.status === 503 || error.message?.includes('service unavailable')) {
+      statusCode = 503;
+      errorMessage = 'AI extraction service is currently unavailable. Please try again later.';
+    } else if (error.response?.status === 400) {
+      statusCode = 400;
+      errorMessage = error.message || 'Invalid file format or extraction request.';
+    }
+    
+    res.status(statusCode).json({
       success: false,
-      error: error.message
+      error: errorMessage
     });
   }
 });

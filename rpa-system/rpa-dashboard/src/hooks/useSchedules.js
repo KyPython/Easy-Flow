@@ -42,7 +42,37 @@ export const useSchedules = (workflowId) => {
       }
     } catch (err) {
       console.error('Error loading schedules:', err);
-      setError(err.message);
+      // Check for 403 (plan restriction), 401 (auth), or 429 (rate limit) errors
+      // Handle both axios errors (err.response) and direct status codes
+      const status = err.response?.status || err.status || 
+        (err.message?.includes('403') ? 403 : 
+         err.message?.includes('429') ? 429 : 
+         err.message?.includes('401') ? 401 : null);
+      const is403 = status === 403 || err.message?.includes('403') || err.message?.includes('status code 403');
+      const is401 = status === 401 || err.message?.includes('401') || err.message?.includes('status code 401');
+      const is429 = status === 429 || err.message?.includes('429') || err.message?.includes('status code 429') || err.message?.includes('rate limit');
+      
+      if (is429) {
+        setError({
+          type: 'rate_limit',
+          message: 'Rate limit exceeded. The service is temporarily busy. Please wait a moment and try again.'
+        });
+      } else if (is403) {
+        setError({
+          type: 'plan_restriction',
+          message: 'Scheduled automations are not available on your current plan. Please upgrade to access this feature.'
+        });
+      } else if (is401) {
+        setError({
+          type: 'auth',
+          message: 'Please sign in to view schedules.'
+        });
+      } else {
+        setError({
+          type: 'generic',
+          message: err.message || 'Failed to load schedules'
+        });
+      }
     } finally {
       setLoading(false);
     }

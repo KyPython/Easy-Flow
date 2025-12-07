@@ -1,6 +1,8 @@
 
 const { logger, getLogger } = require('../utils/logger');
 const puppeteer = require('puppeteer');
+const { PasswordResetService } = require('./PasswordResetService');
+const { SiteAdaptationService } = require('./SiteAdaptationService');
 
 /**
  * Link Discovery Service for Seamless Invoice Download
@@ -15,6 +17,8 @@ class LinkDiscoveryService {
       SELECTOR_TIMEOUT: 15000,
       LOGIN_TIMEOUT: 25000
     };
+    this.passwordResetService = new PasswordResetService();
+    this.siteAdaptationService = new SiteAdaptationService();
   }
 
   /**
@@ -47,8 +51,83 @@ class LinkDiscoveryService {
       // Step 2: Attempt login if credentials provided and login form detected
       if (username && password) {
         try {
-          await this._performLogin(page, { url, username, password });
+          // ✅ INTELLIGENT ADAPTATION: Get adapted selectors for this site
+          const adaptedSelectors = await this.siteAdaptationService.getAdaptedSelectors(url, 'login');
+          
+          await this._performLogin(page, { url, username, password, adaptedSelectors });
+          
+          // ✅ LEARNING: Store successful pattern
+          await this.siteAdaptationService.learnFromSuccess({
+            siteUrl: url,
+            taskType: 'login',
+            selectorsUsed: adaptedSelectors,
+            executionTime: Date.now(),
+            successPattern: { method: 'login', selectors: adaptedSelectors }
+          });
         } catch (loginError) {
+          // ✅ AUTO PASSWORD RESET: Check if password reset is needed
+          const resetCheck = await this.passwordResetService.detectPasswordResetNeeded(page, loginError);
+          
+          if (resetCheck.needsReset && resetCheck.canAutoReset) {
+            logger.info('[LinkDiscovery] Password reset needed, attempting automated reset');
+            
+            const resetResult = await this.passwordResetService.performPasswordReset(page, {
+              email: username, // Assuming username is email
+              resetLinkUrl: resetCheck.resetLinkUrl,
+              siteUrl: url
+            });
+            
+            if (resetResult.success) {
+              // ✅ LEARNING: Store failure pattern for future reference
+              await this.siteAdaptationService.learnFromFailure({
+                siteUrl: url,
+                taskType: 'login',
+                errorMessage: loginError.message,
+                attemptedSelectors: adaptedSelectors || [],
+                pageStructure: await this._getPageStructure(page)
+              });
+              
+              throw new Error(`Password reset email sent. ${resetResult.message}. Please update your password in EasyFlow and try again.`);
+            }
+          }
+          
+          // ✅ SELF-HEALING: Try alternative strategies
+          const pageStructure = await this._getPageStructure(page);
+          const healing = await this.siteAdaptationService.selfHeal(url, 'login', null, pageStructure);
+          
+          if (healing.shouldRetry && healing.strategies.length > 0) {
+            logger.info('[LinkDiscovery] Attempting self-healing with alternative selectors', {
+              strategyCount: healing.strategies.length
+            });
+            
+            // Try alternative selectors
+            for (const strategy of healing.strategies.slice(0, healing.maxRetries)) {
+              try {
+                await this._performLogin(page, { 
+                  url, 
+                  username, 
+                  password, 
+                  adaptedSelectors: [strategy] 
+                });
+                logger.info('[LinkDiscovery] Self-healing succeeded with alternative selector', { strategy });
+                
+                // Store successful healing pattern
+                await this.siteAdaptationService.learnFromSuccess({
+                  siteUrl: url,
+                  taskType: 'login',
+                  selectorsUsed: [strategy],
+                  executionTime: Date.now(),
+                  successPattern: { method: 'self-healed', selector: strategy }
+                });
+                
+                break; // Success, exit retry loop
+              } catch (retryError) {
+                logger.warn('[LinkDiscovery] Self-healing attempt failed', { strategy, error: retryError.message });
+                // Continue to next strategy
+              }
+            }
+          }
+          
           // If login fails because no form was detected, continue without login
           if (loginError.message.includes('Could not detect login form')) {
             logger.info('[LinkDiscovery] No login form detected, proceeding without login');
@@ -143,12 +222,50 @@ class LinkDiscoveryService {
   }
 
   /**
-   * Enhanced login with robust timeout handling
+   * Get page structure for adaptation learning
    */
-  async _performLogin(page, { url, username, password }) {
+  async _getPageStructure(page) {
     try {
-      // Auto-detect login form fields (page should already be navigated)
-      const loginSelectors = await this._detectLoginSelectors(page);
+      return await page.evaluate(() => {
+        const forms = Array.from(document.querySelectorAll('form')).map(form => ({
+          action: form.action,
+          method: form.method,
+          inputs: Array.from(form.querySelectorAll('input')).map(input => ({
+            type: input.type,
+            name: input.name,
+            id: input.id,
+            placeholder: input.placeholder
+          }))
+        }));
+        
+        const links = Array.from(document.querySelectorAll('a')).map(link => ({
+          href: link.href,
+          text: link.textContent.trim()
+        }));
+        
+        return { forms, links, title: document.title, url: window.location.href };
+      });
+    } catch (error) {
+      logger.error('[LinkDiscovery] Error getting page structure:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Enhanced login with robust timeout handling and adaptive selectors
+   */
+  async _performLogin(page, { url, username, password, adaptedSelectors = null }) {
+    try {
+      // ✅ INTELLIGENT ADAPTATION: Use adapted selectors if available, otherwise auto-detect
+      let loginSelectors;
+      if (adaptedSelectors && adaptedSelectors.length > 0) {
+        // Use learned/adapted selectors
+        loginSelectors = await this._mapAdaptedSelectors(page, adaptedSelectors);
+        logger.info('[LinkDiscovery] Using adapted selectors for login', { selectors: Object.keys(loginSelectors) });
+      } else {
+        // Auto-detect login form fields (page should already be navigated)
+        loginSelectors = await this._detectLoginSelectors(page);
+      }
       
       if (!loginSelectors.username || !loginSelectors.password || !loginSelectors.submit) {
         throw new Error('Could not detect login form. Page may not require login or form structure is unusual.');
@@ -185,8 +302,85 @@ class LinkDiscoveryService {
       
       logger.info('[LinkDiscovery] Login completed successfully');
       
+      // ✅ LEARNING: Detect if site structure changed
+      const currentStructure = await this._getPageStructure(page);
+      const siteChange = await this.siteAdaptationService.detectSiteChange(url, currentStructure);
+      if (siteChange.changed) {
+        logger.warn('[LinkDiscovery] Site structure change detected after successful login', {
+          similarity: (siteChange.similarity * 100).toFixed(1) + '%',
+          confidence: (siteChange.confidence * 100).toFixed(1) + '%'
+        });
+      }
+      
+      return true;
     } catch (error) {
-      throw new Error(`Login failed: ${error.message}`);
+      // ✅ LEARNING: Store failure for adaptation
+      const pageStructure = await this._getPageStructure(page).catch(() => null);
+      await this.siteAdaptationService.learnFromFailure({
+        siteUrl: url,
+        taskType: 'login',
+        errorMessage: error.message,
+        attemptedSelectors: adaptedSelectors || [],
+        pageStructure
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Map adapted selectors to login form fields
+   */
+  async _mapAdaptedSelectors(page, adaptedSelectors) {
+    try {
+      const selectors = {
+        username: null,
+        password: null,
+        submit: null
+      };
+
+      // Find username/email field
+      for (const selector of adaptedSelectors) {
+        if (selector.includes('email') || selector.includes('user')) {
+          const element = await page.$(selector).catch(() => null);
+          if (element) {
+            selectors.username = selector;
+            break;
+          }
+        }
+      }
+
+      // Find password field
+      for (const selector of adaptedSelectors) {
+        if (selector.includes('password')) {
+          const element = await page.$(selector).catch(() => null);
+          if (element) {
+            selectors.password = selector;
+            break;
+          }
+        }
+      }
+
+      // Find submit button
+      for (const selector of adaptedSelectors) {
+        if (selector.includes('submit') || selector.includes('button')) {
+          const element = await page.$(selector).catch(() => null);
+          if (element) {
+            selectors.submit = selector;
+            break;
+          }
+        }
+      }
+
+      // Fallback to auto-detect if adapted selectors don't work
+      if (!selectors.username || !selectors.password || !selectors.submit) {
+        logger.warn('[LinkDiscovery] Adapted selectors incomplete, falling back to auto-detect');
+        return await this._detectLoginSelectors(page);
+      }
+
+      return selectors;
+    } catch (error) {
+      logger.error('[LinkDiscovery] Error mapping adapted selectors:', error);
+      return await this._detectLoginSelectors(page); // Fallback
     }
   }
 

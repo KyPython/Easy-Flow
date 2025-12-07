@@ -10,12 +10,14 @@ import { FileManager } from '../components/LazyLoader';
 import ErrorMessage from '../components/ErrorMessage';
 import styles from './FilesPage.module.css';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTheme } from '../utils/ThemeContext';
 import { getFileShares, api } from '../utils/api';
+import { createLogger } from '../utils/logger';
 
 const FilesPage = () => {
   const { user } = useAuth();
+  const logger = createLogger('FilesPage');
   const { t } = useI18n();
   const { planData, isAtLimit } = usePlan();
   const [uploadError, setUploadError] = useState('');
@@ -27,6 +29,7 @@ const FilesPage = () => {
   const [loadingShares, setLoadingShares] = useState(false);
   const [sharesError, setSharesError] = useState(null);
   const { theme } = useTheme();
+  const loadingTimeoutRef = useRef(null);
   
   // Check if user is at storage limit
   const isStorageAtLimit = isAtLimit('storage_gb');
@@ -35,9 +38,24 @@ const FilesPage = () => {
 
   useEffect(() => {
     async function fetchShares() {
+      if (!user) return;
       setLoadingShares(true);
       setSharesError(null);
+
+      // Set timeout to prevent infinite loading (30 seconds)
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = setTimeout(() => {
+        logger.error('Shares fetch timeout - taking longer than 30 seconds', {
+          user_id: user.id,
+          timeout: 30000
+        });
+        setSharesError('Loading is taking longer than expected. Please refresh the page.');
+        setLoadingShares(false);
+      }, 30000);
+
       try {
+        logger.info('Fetching file shares', { user_id: user.id });
+        
         // FIX: Use the correct endpoint for fetching ALL user's shares
         // Option 1: If you have a dedicated endpoint for all user shares
         // const { data } = await api.get('/api/files/shares');
@@ -57,18 +75,31 @@ const FilesPage = () => {
           shares = [];
         }
         
+        logger.info('File shares fetched successfully', {
+          user_id: user.id,
+          count: shares.length
+        });
+        
         // Ensure we always set an array
         setSharedFiles(Array.isArray(shares) ? shares : []);
       } catch (e) {
-        console.error('Error fetching shared files:', e);
+        logger.error('Error fetching shared files', {
+          error: e?.message || e,
+          user_id: user.id,
+          stack: e?.stack
+        });
         setSharesError(e?.message || 'Failed to load shared files');
         setSharedFiles([]); // Always set to array on error
       } finally {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+          loadingTimeoutRef.current = null;
+        }
         setLoadingShares(false);
       }
     }
     fetchShares();
-  }, [refreshFiles]);
+  }, [refreshFiles, user, logger]);
 
   const handleUploadComplete = (result) => {
     setUploadError('');

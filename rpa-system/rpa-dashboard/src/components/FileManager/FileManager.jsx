@@ -48,6 +48,8 @@ const FileManager = ({
     try {
       setLoading(true);
       setError('');
+      console.log('[FileManager] Loading files with params:', { folder, searchQuery, categoryFilter, tagFilter });
+      
       const result = await getFiles({
         folder,
         search: searchQuery.trim() || undefined,
@@ -55,10 +57,32 @@ const FileManager = ({
         tags: tagFilter || undefined,
         limit: 100
       });
-      setFiles(result.files || []);
+      
+      console.log('[FileManager] API response:', result);
+      
+      // Handle both { files: [...] } and direct array responses
+      let filesArray = [];
+      if (Array.isArray(result)) {
+        filesArray = result;
+      } else if (result && typeof result === 'object') {
+        filesArray = result.files || result.data || [];
+      }
+      
+      console.log('[FileManager] Parsed files array:', filesArray);
+      setFiles(Array.isArray(filesArray) ? filesArray : []);
+      
+      if (filesArray.length === 0) {
+        console.log('[FileManager] No files found. Result was:', result);
+      }
     } catch (err) {
-      setError(err.message || 'Failed to load files');
-      console.error('Error loading files:', err);
+      const errorMessage = err.message || 'Failed to load files';
+      setError(errorMessage);
+      console.error('[FileManager] Error loading files:', err);
+      console.error('[FileManager] Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
     } finally {
       setLoading(false);
     }
@@ -179,8 +203,10 @@ const FileManager = ({
     setSharingFile(file);
     // Load existing shares for this file
     try {
-      const shares = await getFileShares(file.id);
-      setFileShares(shares);
+      const result = await getFileShares(file.id);
+      // Handle both { shares: [...] } and direct array responses
+      const shares = Array.isArray(result) ? result : (result?.shares || []);
+      setFileShares(Array.isArray(shares) ? shares : []);
     } catch (error) {
       console.error('Error loading file shares:', error);
       setFileShares([]);
@@ -192,19 +218,26 @@ const FileManager = ({
   }, []);
 
   const handleShareCreated = useCallback((newShare) => {
-    setFileShares(prev => [...prev, newShare]);
+    setFileShares(prev => {
+      const prevArray = Array.isArray(prev) ? prev : [];
+      return [...prevArray, newShare];
+    });
   }, []);
 
   const handleShareUpdated = useCallback((updatedShare) => {
-    setFileShares(prev => 
-      prev.map(share => 
+    setFileShares(prev => {
+      const prevArray = Array.isArray(prev) ? prev : [];
+      return prevArray.map(share => 
         share.id === updatedShare.id ? updatedShare : share
-      )
-    );
+      );
+    });
   }, []);
 
   const handleShareDeleted = useCallback((shareId) => {
-    setFileShares(prev => prev.filter(share => share.id !== shareId));
+    setFileShares(prev => {
+      const prevArray = Array.isArray(prev) ? prev : [];
+      return prevArray.filter(share => share.id !== shareId);
+    });
   }, []);
 
   const sortedFiles = React.useMemo(() => {
@@ -345,7 +378,20 @@ const FileManager = ({
         );
       }
     } catch (err) {
-      setError(`Failed to extract data from ${file.original_name}: ${err.message}`);
+      // Handle specific error types with user-friendly messages
+      let errorMessage = `Failed to extract data from ${file.original_name}`;
+      
+      if (err.response?.status === 429) {
+        errorMessage = `Rate limit exceeded. The AI extraction service is temporarily busy. Please wait a moment and try again.`;
+      } else if (err.response?.status === 503) {
+        errorMessage = `AI extraction service is currently unavailable. Please try again later.`;
+      } else if (err.response?.status === 400) {
+        errorMessage = `Invalid file format or extraction request. This file type may not be supported for data extraction.`;
+      } else if (err.message) {
+        errorMessage = `${errorMessage}: ${err.message}`;
+      }
+      
+      setError(errorMessage);
       // Reset processing status on error
       setFiles(prevFiles => 
         prevFiles.map(f => 

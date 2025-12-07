@@ -48,6 +48,7 @@ const FileSharing = ({
   const [isCreating, setIsCreating] = useState(false);
   const [copiedLink, setCopiedLink] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [newlyCreatedShare, setNewlyCreatedShare] = useState(null);
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -62,6 +63,7 @@ const FileSharing = ({
         notifyOnAccess: false
       });
       setShowAdvanced(false);
+      setNewlyCreatedShare(null);
     }
   }, [isOpen]);
 
@@ -77,6 +79,9 @@ const FileSharing = ({
       };
       
       const newShare = await onCreateShare(shareData);
+      
+      // Store newly created share to show it prominently
+      setNewlyCreatedShare(newShare);
       
       // Copy link to clipboard
       if (newShare.shareUrl) {
@@ -304,6 +309,45 @@ const FileSharing = ({
             </button>
           </div>
 
+          {/* Newly Created Share - Show prominently */}
+          {newlyCreatedShare && newlyCreatedShare.shareUrl && (
+            <div className={styles.newShareBanner}>
+              <div className={styles.newShareHeader}>
+                <FiCheck className={styles.successIcon} />
+                <h4>{t('sharing.link_created', 'Share link created successfully!')}</h4>
+              </div>
+              <div className={styles.newShareLink}>
+                <div className={styles.linkDisplay}>
+                  <FiLink className={styles.linkIcon} />
+                  <input
+                    type="text"
+                    readOnly
+                    value={newlyCreatedShare.shareUrl}
+                    className={styles.linkInput}
+                    onClick={(e) => e.target.select()}
+                  />
+                  <button
+                    className={`${styles.actionButton} ${styles.copy}`}
+                    onClick={() => handleCopyLink(newlyCreatedShare.shareUrl, newlyCreatedShare.id)}
+                    title={t('sharing.copy_link', 'Copy link')}
+                  >
+                    {copiedLink === newlyCreatedShare.id ? <FiCheck /> : <FiCopy />}
+                  </button>
+                  <button
+                    className={`${styles.actionButton} ${styles.open}`}
+                    onClick={() => window.open(newlyCreatedShare.shareUrl, '_blank')}
+                    title={t('sharing.open_link', 'Open link in new tab')}
+                  >
+                    <FiGlobe />
+                  </button>
+                </div>
+                <p className={styles.linkHint}>
+                  {t('sharing.link_copied', 'Link copied to clipboard! Click the globe icon to open it.')}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Existing Shares */}
           {existingShares.length > 0 && (
             <div className={styles.existingShares}>
@@ -313,8 +357,8 @@ const FileSharing = ({
                   <div key={share.id} className={styles.shareItem}>
                     <div className={styles.shareInfo}>
                       <div className={styles.sharePermission}>
-                        {getPermissionIcon(share.permissions)}
-                        {getPermissionLabel(share.permissions)}
+                        {getPermissionIcon(share.permissions || share.permission || 'view')}
+                        {getPermissionLabel(share.permissions || share.permission || 'view')}
                       </div>
                       <div className={styles.shareDetails}>
                         {share.requirePassword && (

@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from 'react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
 import Dashboard from '../components/Dashboard/Dashboard';
 import supabase, { initSupabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
+import { createLogger } from '../utils/logger';
 
 // Lazy load Chatbot component for better performance
 const Chatbot = lazy(() => import('../components/Chatbot/Chatbot'));
@@ -11,6 +12,8 @@ const Chatbot = lazy(() => import('../components/Chatbot/Chatbot'));
 
 const DashboardPage = () => {
   const { user, loading: authLoading } = useAuth();
+  const logger = createLogger('DashboardPage');
+  const loadingTimeoutRef = useRef(null);
   const [metrics, setMetrics] = useState({
     totalTasks: 0,
     completedTasks: 0,
@@ -42,8 +45,22 @@ const DashboardPage = () => {
   const fetchDashboardData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setError('');
+
+    // Set timeout to prevent infinite loading (30 seconds)
+    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    loadingTimeoutRef.current = setTimeout(() => {
+      logger.error('Dashboard data fetch timeout - taking longer than 30 seconds', {
+        user_id: user.id,
+        timeout: 30000
+      });
+      setError('Loading is taking longer than expected. Please refresh the page.');
+      setLoading(false);
+    }, 30000);
 
     try {
+      logger.info('Fetching dashboard data', { user_id: user.id });
+      
       // Ensure Supabase is initialized before querying
       const client = await initSupabase();
       
@@ -53,7 +70,10 @@ const DashboardPage = () => {
         .eq('user_id', user.id)
         .order('started_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        logger.error('Supabase query error', { error: error.message, code: error.code, user_id: user.id });
+        throw error;
+      }
 
       // Calculate metrics from the data
       const runs = data || [];
@@ -64,6 +84,14 @@ const DashboardPage = () => {
         run.automation_tasks?.task_type?.includes('invoice') || 
         run.automation_tasks?.task_type?.includes('document')
       ).length;
+
+      logger.info('Dashboard data fetched successfully', {
+        user_id: user.id,
+        totalTasks,
+        completedTasks,
+        timeSavedHours,
+        documentsProcessed
+      });
 
       setMetrics({
         totalTasks,
@@ -82,9 +110,13 @@ const DashboardPage = () => {
       })));
 
     } catch (err) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('[Dashboard] Failed to fetch dashboard data:', err.message || err);
-      }
+      logger.error('Failed to fetch dashboard data', {
+        error: err.message,
+        error_code: err.code,
+        error_details: err.details,
+        user_id: user.id,
+        stack: err.stack
+      });
       
       // More user-friendly error messages
       let userMessage = 'Unable to load dashboard data';
@@ -101,9 +133,13 @@ const DashboardPage = () => {
       
       setError(userMessage);
     } finally {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
       setLoading(false);
     }
-  }, [user]);
+  }, [user, logger]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -159,24 +195,33 @@ const DashboardPage = () => {
                     console.info('[Dashboard] realtime channel status', status);
                   }
                 });
-                if (process.env.NODE_ENV === 'development') {
-                  console.info('[Dashboard] subscribe() called for automation_runs channel', sub || channel);
-                }
+                logger.debug('Subscribe() called for automation_runs channel', {
+                  channel: sub || channel,
+                  user_id: user.id
+                });
               } catch (sErr) {
                 if (process.env.NODE_ENV === 'development') {
-                  console.warn('[Dashboard] subscribe call failed', sErr && sErr.message ? sErr.message : sErr);
+                  logger.warn('Subscribe call failed', {
+                    error: sErr?.message || sErr,
+                    user_id: user.id
+                  });
                 }
               }
             } catch (e) {
               if (process.env.NODE_ENV === 'development') {
-                console.warn('[Dashboard] realtime subscription setup failed', e && e.message ? e.message : e);
+                logger.warn('Realtime subscription setup failed', {
+                  error: e?.message || e,
+                  user_id: user.id
+                });
               }
             }
           } catch (e) {
             // Don't crash the app if realtime setup fails — log and continue
-            if (process.env.NODE_ENV === 'development') {
-              console.warn('[Dashboard] realtime init failed', e && e.message ? e.message : e);
-            }
+            logger.warn('Realtime init failed', {
+              error: e?.message || e,
+              user_id: user.id,
+              stack: e?.stack
+            });
           }
         })();
       };

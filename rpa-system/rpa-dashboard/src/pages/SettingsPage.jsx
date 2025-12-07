@@ -9,9 +9,11 @@ import ReferralForm from '../components/ReferralForm';
 import { useLanguage } from '../utils/LanguageContext';
 import { useI18n } from '../i18n';
 import { usePlan } from '../hooks/usePlan';
+import { createLogger } from '../utils/logger';
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const logger = createLogger('SettingsPage');
   const { theme, toggle } = useTheme();
   const { setLanguage } = useLanguage();
   const { t } = useI18n();
@@ -118,15 +120,26 @@ export default function SettingsPage() {
           phone_number: formatPhoneForDisplay(data.phone_number)
         }));
       } else {
-        console.error('Failed to fetch preferences (non-200)', response.status);
+        logger.error('Failed to fetch preferences (non-200)', {
+          status: response.status,
+          user_id: user?.id
+        });
       }
     } catch (err) {
-      console.error('Error fetching preferences:', err);
+      logger.error('Error fetching preferences', {
+        error: err.message,
+        user_id: user?.id,
+        status: err?.response?.status,
+        stack: err.stack
+      });
       if (err?.response?.status === 401) {
         // Diagnostic header from backend (added via x-auth-reason) helps identify cause
         const reason = err?.response?.headers?.['x-auth-reason'];
         if (reason) {
-          console.warn('[preferences] 401 x-auth-reason:', reason);
+          logger.warn('Preferences 401 x-auth-reason', {
+            reason,
+            user_id: user?.id
+          });
         }
         // Do NOT reset fetchedOnceRef automatically to avoid tight 401 loops.
       }
@@ -167,7 +180,11 @@ export default function SettingsPage() {
         setPreferencesError(response.data.error || 'Failed to update preferences');
       }
     } catch (err) {
-      console.error('Error saving preferences:', err);
+      logger.error('Error saving preferences', {
+        error: err.message || err,
+        user_id: user?.id,
+        stack: err.stack
+      });
       
       // Provide user-friendly error message
       if (err.message?.includes('Network Error') || err.message?.includes('CORS')) {
@@ -235,7 +252,11 @@ export default function SettingsPage() {
       setSubscription(data || null);
       setPlanId(data?.plan?.id || null);
     } catch (err) {
-      console.error(err);
+      logger.error('Error fetching subscription', {
+        error: err.message || err,
+        user_id: user?.id,
+        stack: err.stack
+      });
       setPlanError('Error fetching subscription');
     } finally {
       setPageLoading(false);
@@ -253,7 +274,11 @@ export default function SettingsPage() {
       if (error) throw error;
       setPlans(data || []);
     } catch (err) {
-      console.error('Error fetching plans:', err);
+      logger.error('Error fetching plans', {
+        error: err.message || err,
+        user_id: user?.id,
+        stack: err.stack
+      });
       setPlanError('Error loading plans');
     }
   }, []);
@@ -309,7 +334,12 @@ export default function SettingsPage() {
 
       window.open(selected.polar_url, '_blank');
     } catch (err) {
-      console.error(err);
+      logger.error('Error opening checkout', {
+        error: err.message || err,
+        plan_id: planId,
+        user_id: user?.id,
+        stack: err.stack
+      });
       setPlanError('Failed to start plan');
     } finally {
       setLoading(false);

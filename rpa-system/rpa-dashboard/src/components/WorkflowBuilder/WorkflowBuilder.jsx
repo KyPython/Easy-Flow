@@ -364,6 +364,22 @@ const WorkflowBuilder = () => {
         // ✅ UX: Update execution details for real-time display
         if (execution) {
           setExecutionDetails(execution);
+          
+          // ✅ DIAGNOSTIC: Log execution state for debugging
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('[Execution Poll] Workflow status:', {
+              execution_id: currentExecutionId,
+              elapsed_seconds: execution.started_at 
+                ? Math.floor((Date.now() - new Date(execution.started_at).getTime()) / 1000)
+                : 0,
+              status: execution.status,
+              status_message: execution.status_message,
+              step_executions_count: execution.step_executions?.length || 0,
+              steps_total: execution.steps_total,
+              steps_executed: execution.steps_executed,
+              has_canvas_config: !!execution.canvas_config
+            });
+          }
         }
         
         if (execution && ['completed', 'failed', 'cancelled'].includes(execution.status)) {
@@ -383,6 +399,27 @@ const WorkflowBuilder = () => {
           if (refreshExecutions) refreshExecutions();
           if (pollInterval) clearInterval(pollInterval);
           if (timeoutId) clearTimeout(timeoutId);
+        } else if (execution && execution.status === 'running') {
+          // ✅ DIAGNOSTIC: Check if workflow appears stuck
+          const elapsed = execution.started_at 
+            ? Math.floor((Date.now() - new Date(execution.started_at).getTime()) / 1000)
+            : 0;
+          
+          if (elapsed > 120 && (!execution.step_executions || execution.step_executions.length === 0)) {
+            // Workflow has been running for > 2 minutes with no step executions
+            console.warn('[Execution Poll] Workflow appears stuck:', {
+              execution_id: currentExecutionId,
+              elapsed_seconds: elapsed,
+              status_message: execution.status_message,
+              step_executions: execution.step_executions?.length || 0,
+              possible_causes: [
+                'Automation service may be unavailable',
+                'Workflow executor may not be processing steps',
+                'Network connectivity issues',
+                'Step execution records may not be created'
+              ]
+            });
+          }
         }
       } catch (error) {
         console.error('Error polling execution status:', error);
@@ -735,58 +772,86 @@ const WorkflowBuilder = () => {
             {/* Real-Time Progress Display */}
             {executionDetails && (
               <div className={styles.executionProgress}>
-                {/* Progress Bar */}
+                {/* Progress Bar - Dynamic progress tracking */}
                 {(() => {
-                  // Try multiple ways to get step counts
+                  // Get step executions for accurate progress calculation
+                  const stepExecutions = executionDetails.step_executions || 
+                                        executionDetails.step_executions_data ||
+                                        (executionDetails.metadata?.step_executions) ||
+                                        [];
+                  
+                  // Calculate total steps from multiple sources
                   const stepsTotal = executionDetails.steps_total || 
                                    executionDetails.total_steps ||
                                    (executionDetails.metadata?.total_steps) ||
                                    (executionDetails.canvas_config?.nodes?.filter(n => 
                                      n.data?.stepType !== 'start' && n.data?.stepType !== 'end'
                                    ).length) ||
-                                   0;
+                                   (stepExecutions.length > 0 ? stepExecutions.length : 0);
                   
+                  // Calculate completed steps
+                  const stepsCompleted = stepExecutions.filter(s => s.status === 'completed').length;
                   const stepsExecuted = executionDetails.steps_executed || 
                                        executionDetails.completed_steps ||
                                        (executionDetails.metadata?.completed_steps) ||
-                                       (executionDetails.step_executions?.filter(s => 
-                                         s.status === 'completed'
-                                       ).length) ||
+                                       stepsCompleted ||
                                        0;
                   
+                  // Find current step (running or next pending)
+                  const currentRunningStep = stepExecutions.find(s => s.status === 'running');
+                  const currentPendingStep = stepExecutions.find(s => s.status === 'pending');
+                  const hasActiveStep = currentRunningStep || currentPendingStep;
+                  
+                  // Calculate current step number
+                  const currentStepNumber = hasActiveStep 
+                    ? (stepsExecuted + 1)
+                    : (stepsExecuted < stepsTotal ? stepsExecuted + 1 : stepsExecuted);
+                  
+                  // Calculate progress percentage
+                  let progressPercent = 0;
                   if (stepsTotal > 0) {
-                    const progressPercent = Math.round((stepsExecuted / stepsTotal) * 100);
-                    return (
-                      <div className={styles.progressSection}>
-                        <div className={styles.progressInfo}>
-                          <span className={styles.progressLabel}>
-                            Step {stepsExecuted} of {stepsTotal}
-                          </span>
-                          <span className={styles.progressPercent}>
-                            {progressPercent}%
-                          </span>
-                        </div>
-                        <div className={styles.progressBarContainer}>
-                          <div 
-                            className={styles.progressBarFill}
-                            style={{ width: `${progressPercent}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
+                    if (hasActiveStep) {
+                      // Show partial progress for current running step (50% of step progress)
+                      progressPercent = Math.round(((stepsExecuted + 0.5) / stepsTotal) * 100);
+                    } else {
+                      // Show progress based on completed steps
+                      progressPercent = Math.round((stepsExecuted / stepsTotal) * 100);
+                    }
+                  } else if (stepExecutions.length > 0) {
+                    // If we don't know total but have step executions, use those
+                    const completed = stepExecutions.filter(s => s.status === 'completed').length;
+                    const running = stepExecutions.filter(s => s.status === 'running').length;
+                    if (running > 0) {
+                      progressPercent = Math.round(((completed + 0.5) / stepExecutions.length) * 100);
+                    } else {
+                      progressPercent = Math.round((completed / stepExecutions.length) * 100);
+                    }
                   }
                   
-                  // Fallback: Show indeterminate progress if we don't know total steps
+                  // Always show progress bar
                   return (
                     <div className={styles.progressSection}>
                       <div className={styles.progressInfo}>
-                        <span className={styles.progressLabel}>Processing your workflow...</span>
-                        <span className={styles.progressPercent}>—</span>
+                        <span className={styles.progressLabel}>
+                          {stepsTotal > 0 
+                            ? `Step ${currentStepNumber} of ${stepsTotal}`
+                            : stepExecutions.length > 0
+                            ? `Step ${currentStepNumber} of ${stepExecutions.length}`
+                            : 'Processing workflow...'}
+                        </span>
+                        {progressPercent > 0 && (
+                          <span className={styles.progressPercent}>
+                            {progressPercent}%
+                          </span>
+                        )}
                       </div>
                       <div className={styles.progressBarContainer}>
                         <div 
                           className={styles.progressBarFill}
-                          style={{ width: '100%', animation: 'indeterminate 2s linear infinite' }}
+                          style={{ 
+                            width: progressPercent > 0 ? `${progressPercent}%` : '100%',
+                            animation: progressPercent === 0 ? 'indeterminate 2s linear infinite' : 'none'
+                          }}
                         />
                       </div>
                     </div>
@@ -923,10 +988,11 @@ const WorkflowBuilder = () => {
                       if (stepsTotal > 0 && stepsExecuted < stepsTotal) {
                         return `Processing step ${stepsExecuted + 1} of ${stepsTotal}...`;
                       }
-                      return 'Processing your automation workflow...';
+                      // Don't show redundant "Processing..." if status message already says it
+                      return null;
                     }
                     
-                    return 'Workflow is running';
+                    return null;
                   };
                   
                   // ✅ TIME ESTIMATION: Smart time estimation based on step types and historical data
@@ -1128,25 +1194,90 @@ const WorkflowBuilder = () => {
                       ? Math.floor((Date.now() - new Date(executionDetails.started_at).getTime()) / 1000)
                       : 0;
                     
-                    // Show diagnostic info if workflow appears stuck
-                    const showDiagnostic = elapsed > 30 && (!stepExecutions || stepExecutions.length === 0);
+                    // Determine what the system is checking/doing
+                    const getDiagnosticMessage = () => {
+                      // If we have a status message, use it
+                      if (executionDetails.status_message) {
+                        return executionDetails.status_message;
+                      }
+                      
+                      // If we have step executions but they're all pending, it's initializing
+                      if (stepExecutions && stepExecutions.length > 0) {
+                        const allPending = stepExecutions.every(se => se.status === 'pending');
+                        if (allPending) {
+                          return 'Initializing workflow steps...';
+                        }
+                      }
+                      
+                      // If we have a workflow structure but no step executions yet
+                      if (executionDetails.canvas_config?.nodes && executionDetails.canvas_config.nodes.length > 0) {
+                        const firstActionNode = executionDetails.canvas_config.nodes.find(
+                          node => node.data?.stepType !== 'start' && node.data?.stepType !== 'end'
+                        );
+                        if (firstActionNode) {
+                          const stepType = firstActionNode.data?.stepType || firstActionNode.data?.actionType || 'action';
+                          const stepName = firstActionNode.data?.label || 'first step';
+                          
+                          const actionDescriptions = {
+                            'web_scraping': `Preparing to scrape data from ${stepName}...`,
+                            'web_scrape': `Preparing to scrape data from ${stepName}...`,
+                            'api_request': `Preparing API call: ${stepName}...`,
+                            'api_call': `Preparing API call: ${stepName}...`,
+                            'send_email': `Preparing to send email: ${stepName}...`,
+                            'email': `Preparing to send email: ${stepName}...`,
+                            'transform_data': `Preparing data transformation: ${stepName}...`,
+                            'data_transform': `Preparing data transformation: ${stepName}...`,
+                            'condition': `Preparing condition check: ${stepName}...`,
+                            'upload_file': `Preparing file upload: ${stepName}...`,
+                            'file_upload': `Preparing file upload: ${stepName}...`,
+                            'delay': `Preparing delay: ${stepName}...`
+                          };
+                          
+                          return actionDescriptions[stepType] || `Preparing ${stepName}...`;
+                        }
+                      }
+                      
+                      // Default messages based on elapsed time
+                      if (elapsed < 10) {
+                        return 'Starting workflow execution...';
+                      } else if (elapsed < 30) {
+                        return 'Processing workflow steps...';
+                      } else {
+                        return 'Verifying automation service connection...';
+                      }
+                    };
+                    
+                    const statusMessage = executionDetails.status_message || getDiagnosticMessage() || 'Workflow is running';
+                    const activityDescription = getCurrentActivity();
+                    
+                    // Only show diagnostic warning if:
+                    // 1. Workflow is stuck (>30s with no step progress)
+                    // 2. The diagnostic message is different from the status message (to avoid duplication)
+                    // 3. The activity description doesn't already convey the same information
+                    const showDiagnostic = elapsed > 30 && 
+                                         (!stepExecutions || stepExecutions.length === 0) &&
+                                         statusMessage !== activityDescription &&
+                                         !statusMessage.includes('Verifying') &&
+                                         !activityDescription.includes('Verifying');
                     
                     return (
                       <div className={styles.currentStep}>
                         <div className={styles.currentStepHeader}>
                           <span className={styles.currentStepLabel}>Status:</span>
                           <span className={styles.currentStepName}>
-                            {executionDetails.status_message || 'Workflow is running'}
+                            {statusMessage}
                           </span>
                         </div>
-                        <div className={styles.stepDescription}>
-                          {getCurrentActivity()}
-                        </div>
+                        {activityDescription && activityDescription !== statusMessage && (
+                          <div className={styles.stepDescription}>
+                            {activityDescription}
+                          </div>
+                        )}
                         {showDiagnostic && (
                           <div className={styles.diagnosticInfo}>
                             <span className={styles.diagnosticIcon}>⚠️</span>
                             <span className={styles.diagnosticText}>
-                              Workflow is taking longer than expected. Checking progress...
+                              Verifying automation service connection and workflow progress...
                             </span>
                           </div>
                         )}
