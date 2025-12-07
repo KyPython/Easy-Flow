@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import supabase, { initSupabase, signInWithPassword, signUp } from '../utils/supabaseClient';
+import { useAuth } from '../utils/AuthContext';
 import { trackEvent, triggerCampaign } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import styles from './AuthPage.module.css';
@@ -14,6 +15,7 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [referralCode, setReferralCode] = useState('');
   const navigate = useNavigate();
+  const { signIn } = useAuth(); // Use AuthContext signIn which has backend fallback
   // removed language context
 
   // Check if user is already authenticated and redirect
@@ -143,13 +145,22 @@ export default function AuthPage() {
     setLoading(true);
     try {
         if (mode === 'login') {
-          const { data, error } = await signInWithPassword({ email, password });
-          if (error) throw error;
+          // Use AuthContext.signIn which tries backend first, then Supabase fallback
+          const result = await signIn(email, password);
+          // AuthContext.signIn returns { data: { user, session }, error: null }
+          const data = result?.data || result; // Handle both formats
+          const user = data?.user || result?.user;
+          const session = data?.session || result?.session;
+          
+          if (!user) {
+            throw new Error('Login failed: No user data returned');
+          }
+          
           // Successful login - redirect to dashboard
           setSuccess('Login successful! Redirecting to dashboard...');
           // Track login event and trigger any first-login campaigns
-          try { trackEvent({ user_id: data.user?.id, event_name: 'user_login' }); } catch (e) { console.debug('trackEvent failed', e); }
-          try { triggerCampaign({ user_id: data.user?.id, reason: 'first_login' }); } catch (e) { console.debug('triggerCampaign failed', e); }
+          try { trackEvent({ user_id: user.id, event_name: 'user_login' }); } catch (e) { console.debug('trackEvent failed', e); }
+          try { triggerCampaign({ user_id: user.id, reason: 'first_login' }); } catch (e) { console.debug('triggerCampaign failed', e); }
           setTimeout(() => {
             navigate('/app');
           }, 1500);

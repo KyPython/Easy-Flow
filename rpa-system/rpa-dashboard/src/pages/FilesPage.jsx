@@ -12,7 +12,7 @@ import styles from './FilesPage.module.css';
 
 import { useEffect, useRef } from 'react';
 import { useTheme } from '../utils/ThemeContext';
-import { getFileShares, api } from '../utils/api';
+import { getFileShares, api, getShareUrl } from '../utils/api';
 import { createLogger } from '../utils/logger';
 
 const FilesPage = () => {
@@ -233,29 +233,53 @@ const FilesPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {sharedFiles.map((share) => (
-                  <tr key={share.id || share.shareUrl}>
-                    <td>{share.fileName || share.original_name || share.name || 'Unnamed file'}</td>
-                    <td>
-                      <a href={share.shareUrl} target="_blank" rel="noopener noreferrer" className={styles.shareLink}>
-                        {share.shareUrl}
-                      </a>
-                    </td>
-                    <td>{share.permissions || share.permission || 'view'}</td>
-                    <td>
-                      <button
-                        className={styles.copyBtn}
-                        onClick={() => {
-                          navigator.clipboard.writeText(share.shareUrl);
-                        }}
-                        title={t('files.copy_link', 'Copy link')}
-                      >
-                        Copy
-                      </button>
-                      {/* Add revoke/delete action if needed */}
-                    </td>
-                  </tr>
-                ))}
+                {sharedFiles.map((share) => {
+                  // Construct share URL if not provided (same logic as FileSharing.jsx)
+                  let shareUrl = share.shareUrl || share.share_url;
+                  if (!shareUrl && share.share_token) {
+                    shareUrl = getShareUrl(share.share_token);
+                  }
+                  if (!shareUrl && share.id) {
+                    // Fallback: construct from share ID
+                    shareUrl = `${window.location.origin}/shared/${share.id}`;
+                  }
+                  
+                  return (
+                    <tr key={share.id || share.shareUrl}>
+                      <td>{share.fileName || share.original_name || share.name || 'Unnamed file'}</td>
+                      <td>
+                        {shareUrl ? (
+                          <a href={shareUrl} target="_blank" rel="noopener noreferrer" className={styles.shareLink}>
+                            {shareUrl}
+                          </a>
+                        ) : (
+                          <span className={styles.shareLink}>No share URL available</span>
+                        )}
+                      </td>
+                      <td>{share.permissions || share.permission || 'view'}</td>
+                      <td>
+                        <button
+                          className={styles.copyBtn}
+                          onClick={() => {
+                            if (shareUrl) {
+                              navigator.clipboard.writeText(shareUrl).catch(err => {
+                                console.error('Failed to copy link:', err);
+                                alert('Failed to copy link to clipboard');
+                              });
+                            } else {
+                              alert('Unable to copy link: Share URL not available');
+                            }
+                          }}
+                          title={t('files.copy_link', 'Copy link')}
+                          disabled={!shareUrl}
+                        >
+                          Copy
+                        </button>
+                        {/* Add revoke/delete action if needed */}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

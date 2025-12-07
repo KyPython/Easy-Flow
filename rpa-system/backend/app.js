@@ -1443,10 +1443,32 @@ app.get('/api/auth/session', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
+  const startTime = Date.now();
+  const email = req.body?.email;
+  const requestId = req.headers['x-request-id'] || auditLogger.generateRequestId();
+  
+  // Log login attempt with observability
+  logger.info('🔐 [Auth] Login attempt', {
+    email: email ? email.substring(0, 3) + '***' : 'missing',
+    ip: req.ip || req.connection?.remoteAddress || 'unknown',
+    user_agent: req.get('User-Agent') || 'unknown',
+    request_id: requestId,
+    timestamp: new Date().toISOString()
+  });
+
   try {
     const { email, password } = req.body;
     
     if (!email || !password) {
+      logger.warn('🔐 [Auth] Login failed: missing credentials', {
+        email: email ? email.substring(0, 3) + '***' : 'missing',
+        has_password: !!password,
+        request_id: requestId
+      });
+      await auditLogger.logAuthEvent(null, 'login_attempt', false, {
+        reason: 'missing_credentials',
+        email: email || 'missing'
+      }, req);
       return res.status(400).json({ error: 'Email and password required' });
     }
 
@@ -1459,6 +1481,17 @@ app.post('/api/auth/login', async (req, res) => {
         });
         
         if (!error && data.user) {
+          const duration = Date.now() - startTime;
+          logger.info('✅ [Auth] Login successful', {
+            user_id: data.user.id,
+            email: email.substring(0, 3) + '***',
+            duration_ms: duration,
+            request_id: requestId
+          });
+          await auditLogger.logAuthEvent(data.user.id, 'login', true, {
+            method: 'supabase',
+            duration_ms: duration
+          }, req);
           return res.json({
             user: data.user,
             session: data.session
@@ -1466,20 +1499,63 @@ app.post('/api/auth/login', async (req, res) => {
         }
         
         if (error) {
+          const duration = Date.now() - startTime;
+          logger.warn('❌ [Auth] Login failed: Supabase error', {
+            email: email.substring(0, 3) + '***',
+            error: error.message,
+            error_code: error.status || 'unknown',
+            duration_ms: duration,
+            request_id: requestId
+          });
+          await auditLogger.logAuthEvent(null, 'login_attempt', false, {
+            reason: 'supabase_error',
+            error: error.message,
+            error_code: error.status || 'unknown',
+            email: email.substring(0, 3) + '***'
+          }, req);
           return res.status(401).json({ error: error.message });
         }
       } catch (error) {
-        logger.warn('Supabase login failed:', error.message);
+        const duration = Date.now() - startTime;
+        logger.error('❌ [Auth] Supabase login exception', {
+          email: email.substring(0, 3) + '***',
+          error: error.message,
+          stack: error.stack,
+          duration_ms: duration,
+          request_id: requestId
+        });
+        await auditLogger.logAuthEvent(null, 'login_attempt', false, {
+          reason: 'supabase_exception',
+          error: error.message,
+          email: email.substring(0, 3) + '***'
+        }, req);
       }
+    } else {
+      logger.warn('⚠️ [Auth] Supabase client not initialized', {
+        email: email.substring(0, 3) + '***',
+        request_id: requestId
+      });
     }
 
     // Development fallback - accept any login in dev mode
     if (process.env.NODE_ENV === 'development') {
+      const duration = Date.now() - startTime;
       const devUser = {
         id: process.env.DEV_USER_ID || 'dev-user-123',
         email: email,
         user_metadata: { name: 'Developer User' }
       };
+      
+      logger.info('🔧 [Auth] Dev mode login (bypass)', {
+        email: email.substring(0, 3) + '***',
+        user_id: devUser.id,
+        duration_ms: duration,
+        request_id: requestId
+      });
+      await auditLogger.logAuthEvent(devUser.id, 'login', true, {
+        method: 'dev_bypass',
+        duration_ms: duration
+      }, req);
       
       // Use a configured dev bypass token when available; otherwise generate a secure ephemeral token.
       // Note: Generated tokens are ephemeral and intended for local development only.
@@ -1495,9 +1571,35 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
+    const duration = Date.now() - startTime;
+    logger.error('❌ [Auth] Authentication not configured', {
+      email: email.substring(0, 3) + '***',
+      has_supabase: !!supabase,
+      node_env: process.env.NODE_ENV,
+      duration_ms: duration,
+      request_id: requestId
+    });
+    await auditLogger.logAuthEvent(null, 'login_attempt', false, {
+      reason: 'auth_not_configured',
+      has_supabase: !!supabase,
+      node_env: process.env.NODE_ENV,
+      email: email.substring(0, 3) + '***'
+    }, req);
     res.status(401).json({ error: 'Authentication not configured' });
   } catch (error) {
-    logger.error('Login error:', error);
+    const duration = Date.now() - startTime;
+    logger.error('❌ [Auth] Login exception', {
+      email: email ? email.substring(0, 3) + '***' : 'missing',
+      error: error.message,
+      stack: error.stack,
+      duration_ms: duration,
+      request_id: requestId
+    });
+    await auditLogger.logAuthEvent(null, 'login_attempt', false, {
+      reason: 'exception',
+      error: error.message,
+      email: email ? email.substring(0, 3) + '***' : 'missing'
+    }, req).catch(() => {}); // Don't fail if audit logging fails
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -2529,33 +2631,114 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
 
 // GET /api/dashboard - Fetch dashboard statistics
 app.get('/api/dashboard', authMiddleware, async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user?.id;
+  
+  logger.info('📊 [Dashboard] Request received', {
+    user_id: userId,
+    has_user: !!req.user,
+    path: req.path,
+    method: req.method
+  });
+
   try {
     // Defensive check
-    if (!req.user || !req.user.id) return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+    if (!req.user || !req.user.id) {
+      logger.warn('📊 [Dashboard] No user in request', {
+        has_user: !!req.user,
+        user_id: userId
+      });
+      return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+    }
 
-    if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
+    if (!supabase) {
+      logger.error('📊 [Dashboard] Supabase not available');
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
 
-    const userId = req.user.id;
-
+    // ✅ PERFORMANCE: Optimize query - fetch without expensive join first
+    // Then fetch task details separately if needed (similar to /api/runs)
+    const queryStartTime = Date.now();
+    
     // Perform all queries in parallel for efficiency
-    const [tasksCount, runsCount, recentRuns] = await Promise.all([
+    const [tasksCount, runsCount, recentRunsData] = await Promise.all([
       supabase.from('automation_tasks').select('id', { count: 'exact', head: true }).eq('user_id', userId),
       supabase.from('automation_runs').select('id', { count: 'exact', head: true }).eq('user_id', userId),
-      supabase.from('automation_runs').select('id, status, started_at, automation_tasks(name)').eq('user_id', userId).order('started_at', { ascending: false }).limit(5)
+      supabase.from('automation_runs')
+        .select('id, status, started_at, result, artifact_url, task_id')
+        .eq('user_id', userId)
+        .order('started_at', { ascending: false })
+        .limit(10) // Limit to 10 most recent for dashboard
     ]);
 
     if (tasksCount.error) throw tasksCount.error;
     if (runsCount.error) throw runsCount.error;
-    if (recentRuns.error) throw recentRuns.error;
-
-    res.json({
+    if (recentRunsData.error) throw recentRunsData.error;
+    
+    // Fetch task details separately to avoid slow join
+    const taskIds = [...new Set((recentRunsData.data || []).filter(r => r.task_id).map(r => r.task_id))];
+    let tasksMap = {};
+    
+    if (taskIds.length > 0) {
+      const { data: tasks, error: tasksError } = await supabase
+        .from('automation_tasks')
+        .select('id, name, url, task_type')
+        .in('id', taskIds);
+      
+      if (!tasksError && tasks) {
+        tasksMap = tasks.reduce((acc, task) => {
+          acc[task.id] = { name: task.name, url: task.url, task_type: task.task_type };
+          return acc;
+        }, {});
+      }
+    }
+    
+    // Merge task data into runs
+    const recentRuns = (recentRunsData.data || []).map(run => ({
+      id: run.id,
+      status: run.status,
+      started_at: run.started_at,
+      result: run.result,
+      artifact_url: run.artifact_url,
+      automation_tasks: tasksMap[run.task_id] || null
+    }));
+    
+    const queryDuration = Date.now() - queryStartTime;
+    const totalDuration = Date.now() - startTime;
+    
+    logger.info('✅ [Dashboard] Data fetched successfully', {
+      user_id: userId,
+      query_duration_ms: queryDuration,
+      total_duration_ms: totalDuration,
       totalTasks: tasksCount.count,
       totalRuns: runsCount.count,
-      recentRuns: recentRuns.data,
+      recentRuns_count: recentRuns.length
+    });
+    
+    // Log performance warning if query is slow
+    if (queryDuration > 2000) {
+      logger.warn('⚠️ [Dashboard] Slow query detected', {
+        user_id: userId,
+        query_duration_ms: queryDuration,
+        threshold_ms: 2000
+      });
+    }
+
+    res.json({
+      totalTasks: tasksCount.count || 0,
+      totalRuns: runsCount.count || 0,
+      recentRuns: recentRuns,
     });
 
   } catch (err) {
-    logger.error('[GET /api/dashboard] Error:', err.message);
+    const duration = Date.now() - startTime;
+    logger.error('❌ [Dashboard] Error fetching dashboard data', {
+      error: err.message,
+      error_code: err.code,
+      user_id: userId,
+      duration_ms: duration,
+      stack: err.stack
+    });
     res.status(500).json({ error: 'Failed to fetch dashboard data', details: err.message });
   }
 });

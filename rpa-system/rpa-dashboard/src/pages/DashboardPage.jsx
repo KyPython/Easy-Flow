@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from 
 import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
 import Dashboard from '../components/Dashboard/Dashboard';
-import supabase, { initSupabase } from '../utils/supabaseClient';
+import { initSupabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
 import { createLogger } from '../utils/logger';
 
@@ -41,57 +41,81 @@ const DashboardPage = () => {
     }
   }, []);
 
-  // Fetch dashboard data directly from automation_runs table
+  // Fetch dashboard data via optimized backend API
   const fetchDashboardData = useCallback(async () => {
     if (!user) return;
+    const queryStartTime = Date.now();
     setLoading(true);
     setError('');
 
-    // Set timeout to prevent infinite loading (30 seconds)
+    // Set timeout to prevent infinite loading (15 seconds - reduced from 30)
     if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     loadingTimeoutRef.current = setTimeout(() => {
-      logger.error('Dashboard data fetch timeout - taking longer than 30 seconds', {
+      const duration = Date.now() - queryStartTime;
+      logger.error('Dashboard data fetch timeout', {
         user_id: user.id,
-        timeout: 30000
+        timeout: 15000,
+        duration_ms: duration
       });
       setError('Loading is taking longer than expected. Please refresh the page.');
       setLoading(false);
-    }, 30000);
+    }, 15000);
 
     try {
-      logger.info('Fetching dashboard data', { user_id: user.id });
+      logger.info('📊 [Dashboard] Fetching dashboard data', { 
+        user_id: user.id,
+        method: 'backend_api'
+      });
       
-      // Ensure Supabase is initialized before querying
-      const client = await initSupabase();
+      // ✅ PERFORMANCE: Use optimized backend API instead of direct Supabase query
+      // Backend has better connection pooling, query optimization, and parallel queries
+      const { fetchWithAuth } = await import('../utils/devNetLogger');
+      const apiUrl = '/api/dashboard';
       
-      const { data, error } = await client
-        .from('automation_runs')
-        .select(`id,status,started_at,result,artifact_url,automation_tasks(id,name,url,task_type)`)
-        .eq('user_id', user.id)
-        .order('started_at', { ascending: false });
-
-      if (error) {
-        logger.error('Supabase query error', { error: error.message, code: error.code, user_id: user.id });
-        throw error;
+      const response = await Promise.race([
+        fetchWithAuth(apiUrl),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('API request timeout after 10 seconds')), 10000)
+        )
+      ]);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
-
-      // Calculate metrics from the data
-      const runs = data || [];
-      const totalTasks = runs.length;
-      const completedTasks = runs.filter(run => run.status === 'completed').length;
+      
+      const dashboardData = await response.json();
+      const queryDuration = Date.now() - queryStartTime;
+      
+      // Calculate metrics from backend response
+      const totalTasks = dashboardData.totalTasks || 0;
+      const totalRuns = dashboardData.totalRuns || 0;
+      const completedTasks = dashboardData.recentRuns?.filter(run => run.status === 'completed').length || 0;
       const timeSavedHours = Math.floor(completedTasks * 2.5); // Estimate 2.5h saved per completed task
-      const documentsProcessed = runs.filter(run => 
+      const documentsProcessed = dashboardData.recentRuns?.filter(run => 
         run.automation_tasks?.task_type?.includes('invoice') || 
         run.automation_tasks?.task_type?.includes('document')
-      ).length;
+      ).length || 0;
 
-      logger.info('Dashboard data fetched successfully', {
+      logger.info('✅ [Dashboard] Data fetched successfully', {
         user_id: user.id,
+        duration_ms: queryDuration,
         totalTasks,
+        totalRuns,
         completedTasks,
         timeSavedHours,
-        documentsProcessed
+        documentsProcessed,
+        recentRuns_count: dashboardData.recentRuns?.length || 0
       });
+      
+      // Log performance warning if query is slow
+      if (queryDuration > 3000) {
+        logger.warn('⚠️ [Dashboard] Slow query detected', {
+          user_id: user.id,
+          duration_ms: queryDuration,
+          threshold_ms: 3000
+        });
+      }
 
       setMetrics({
         totalTasks,
@@ -100,7 +124,8 @@ const DashboardPage = () => {
         documentsProcessed
       });
 
-      setRecentTasks(runs.slice(0, 5).map(run => ({
+      // Map recent runs to the format expected by the Dashboard component
+      setRecentTasks((dashboardData.recentRuns || []).map(run => ({
         id: run.id,
         type: run.automation_tasks?.name || 'Unknown Task',
         url: run.automation_tasks?.url || 'N/A',
@@ -110,25 +135,31 @@ const DashboardPage = () => {
       })));
 
     } catch (err) {
-      logger.error('Failed to fetch dashboard data', {
+      const queryDuration = Date.now() - queryStartTime;
+      logger.error('❌ [Dashboard] Failed to fetch dashboard data', {
         error: err.message,
         error_code: err.code,
         error_details: err.details,
         user_id: user.id,
+        duration_ms: queryDuration,
         stack: err.stack
       });
       
       // More user-friendly error messages
       let userMessage = 'Unable to load dashboard data';
       
-      if (err.message?.includes('Supabase not initialized') || err.message?.includes('not configured')) {
-        userMessage = 'Database connection not configured. Please contact support or check your environment configuration.';
-      } else if (err.message?.includes('Failed to fetch') || err.message?.includes('CSP') || err.message?.includes('Content Security Policy')) {
-        userMessage = 'Dashboard temporarily unavailable. Please refresh the page or try again in a moment.';
-      } else if (err.message?.includes('Network Error') || err.message?.includes('CORS')) {
+      if (err.message?.includes('timeout')) {
+        userMessage = 'Request timed out. The server may be slow. Please try again.';
+      } else if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
         userMessage = 'Connection error. Please check your internet connection and try again.';
-      } else if (err.message?.includes('not authenticated') || err.message?.includes('unauthorized')) {
+      } else if (err.message?.includes('CSP') || err.message?.includes('Content Security Policy')) {
+        userMessage = 'Dashboard temporarily unavailable. Please refresh the page or try again in a moment.';
+      } else if (err.message?.includes('CORS')) {
+        userMessage = 'Connection error. Please check your internet connection and try again.';
+      } else if (err.message?.includes('not authenticated') || err.message?.includes('unauthorized') || err.message?.includes('401')) {
         userMessage = 'Please sign in again to access your dashboard.';
+      } else if (err.message?.includes('500') || err.message?.includes('Database')) {
+        userMessage = 'Database connection issue. Please try again in a moment.';
       }
       
       setError(userMessage);

@@ -179,41 +179,106 @@ export const AuthProvider = ({ children }) => {
       // Try backend authentication first
       try {
         const hasCookie = (typeof document !== 'undefined' && document.cookie && document.cookie.length > 0);
-        const response = await fetchWithAuth('/api/auth/login', {
+        const loginUrl = '/api/auth/login';
+        console.log('[Auth] Attempting backend login', { 
+          url: loginUrl, 
+          email: email ? email.substring(0, 3) + '***' : 'missing',
+          hasCookie 
+        });
+        
+        const response = await fetchWithAuth(loginUrl, {
           method: 'POST',
           body: JSON.stringify({ email, password }),
           credentials: hasCookie ? 'include' : 'omit'
         });
+        
+        console.log('[Auth] Backend login response', { 
+          status: response.status, 
+          ok: response.ok,
+          url: response.url 
+        });
+        
         if (response.ok) {
           const { user, session } = await response.json();
+          console.log('[Auth] Backend login successful', { 
+            userId: user?.id, 
+            hasSession: !!session 
+          });
           setUser(user);
           setSession(session);
-          if (session.access_token) {
+          if (session?.access_token) {
             localStorage.setItem('dev_token', session.access_token);
           }
-          return { user, session };
+          // Return consistent format: { data: { user, session } } to match Supabase format
+          return { data: { user, session }, error: null };
+        } else {
+          // Backend returned error - parse and throw
+          const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+          console.warn('[Auth] Backend login returned error', { 
+            status: response.status, 
+            error: errorData 
+          });
+          const backendError = new Error(errorData.error || `Login failed with status ${response.status}`);
+          backendError.status = response.status;
+          throw backendError;
         }
       } catch (backendError) {
-        console.warn('Backend login failed, trying Supabase:', backendError.message);
+        // Log backend error for observability
+        console.warn('[Auth] Backend login failed, trying Supabase fallback:', {
+          message: backendError.message,
+          status: backendError.status,
+          isNetworkError: backendError instanceof TypeError || backendError.message?.includes('Failed to fetch'),
+          stack: backendError.stack
+        });
+        
+        // If it's a network error reaching backend, try Supabase
+        // If it's a 401 (invalid credentials), also try Supabase in case backend config is wrong
+        const isNetworkError = backendError instanceof TypeError || 
+                               backendError.message?.includes('Failed to fetch') ||
+                               backendError.message?.includes('NetworkError');
+        
+        if (!isNetworkError && backendError.status !== 401) {
+          // Non-network, non-auth errors from backend should be thrown
+          throw backendError;
+        }
       }
       
       // Fallback to Supabase
       try {
         const client = await initSupabase();
         const { data, error } = await client.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        return data;
+        if (error) {
+          // Enhance error with more context
+          const enhancedError = new Error(error.message || 'Supabase authentication failed');
+          enhancedError.status = error.status || 401;
+          enhancedError.original = error;
+          throw enhancedError;
+        }
+        // Supabase returns { data: { user, session } } format
+        if (data?.user) {
+          setUser(data.user);
+          setSession(data.session);
+          if (data.session?.access_token) {
+            localStorage.setItem('dev_token', data.session.access_token);
+          }
+        }
+        return { data, error: null };
       } catch (err) {
         // Enhance network-related errors with clearer message so callers can surface helpful UI
         if (err instanceof TypeError || (err && typeof err.message === 'string' && err.message.toLowerCase().includes('failed to fetch'))) {
           const enriched = new Error('Network error: cannot reach Supabase auth endpoint. Check SUPABASE_URL and your network.');
           enriched.original = err;
+          enriched.status = 0; // Network error
           throw enriched;
         }
         throw err;
       }
     } catch (error) {
-      console.error('Error signing in:', error);
+      console.error('[Auth] Error signing in:', {
+        message: error.message,
+        status: error.status,
+        stack: error.stack
+      });
       throw error;
     } finally {
       setLoading(false);

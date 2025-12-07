@@ -16,6 +16,46 @@ function shouldLog() {
   return logCounter % LOG_SAMPLE_RATE === 0;
 }
 
+// Helper to get API base URL (same logic as config.js)
+function getApiBaseUrl() {
+  // Check for explicit env vars first
+  if (typeof window !== 'undefined' && window._env) {
+    if (window._env.VITE_API_URL) return window._env.VITE_API_URL;
+    if (window._env.VITE_API_BASE) return window._env.VITE_API_BASE;
+    if (window._env.REACT_APP_API_BASE) return window._env.REACT_APP_API_BASE;
+  }
+  
+  // Check process.env (build-time)
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
+    if (process.env.REACT_APP_API_BASE) return process.env.REACT_APP_API_BASE;
+    if (process.env.VITE_API_BASE) return process.env.VITE_API_BASE;
+  }
+  
+  // Auto-detect based on hostname (only if env vars are not set)
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    
+    // Development environments
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:3030';
+    }
+    
+    // Production environments
+    if (hostname === 'app.easyflow.com') {
+      return 'https://api.easyflow.com';
+    }
+    
+    // Vercel frontend (fallback only)
+    if (hostname === 'easy-flow-lac.vercel.app') {
+      return 'https://easyflow-backend-ad8e.onrender.com';
+    }
+  }
+  
+  // Fallback: empty string (relative URLs will work with proxy)
+  return '';
+}
+
 // Export a fetch wrapper for consistent use in app (top-level)
 export async function fetchWithAuth(url, options = {}) {
   // Normalize token retrieval: support several storage keys and guard against string 'null'/'undefined'
@@ -27,6 +67,16 @@ export async function fetchWithAuth(url, options = {}) {
     rawToken = null;
   }
   const token = (rawToken && rawToken !== 'undefined' && rawToken !== 'null') ? rawToken : null;
+
+  // Build full URL: if url is relative, prepend API base URL
+  let fullUrl = url;
+  if (url && typeof url === 'string' && url.startsWith('/')) {
+    const baseUrl = getApiBaseUrl();
+    if (baseUrl) {
+      // Remove trailing slash from baseUrl and leading slash from url to avoid double slashes
+      fullUrl = `${baseUrl.replace(/\/$/, '')}${url}`;
+    }
+  }
 
   // Build headers: do not add Content-Type for GET requests without a body
   const incomingHeaders = (options && options.headers) || {};
@@ -58,7 +108,7 @@ export async function fetchWithAuth(url, options = {}) {
   }
 
   try {
-    const res = await _fn(url, mergedOptions);
+    const res = await _fn(fullUrl, mergedOptions);
 
     // Dev diagnostic: mirror the same detection as the global fetch wrapper
     try {
