@@ -193,14 +193,13 @@ const WorkflowBuilder = () => {
 
   // ✅ FIX: Poll execution status when execution is active
   useEffect(() => {
-    if (!isExecuting || !currentExecutionId) return;
+    if (!isExecuting || !currentExecutionId || !getExecutionDetails) return;
     
     let pollInterval;
     let timeoutId;
     
     const pollExecutionStatus = async () => {
       try {
-        const { getExecutionDetails } = useWorkflowExecutions(workflowId);
         const execution = await getExecutionDetails(currentExecutionId);
         
         if (execution && ['completed', 'failed', 'cancelled'].includes(execution.status)) {
@@ -212,6 +211,8 @@ const WorkflowBuilder = () => {
           } else if (execution.status === 'completed') {
             showSuccess('Workflow execution completed successfully!');
           }
+          // Refresh executions list
+          if (refreshExecutions) refreshExecutions();
           if (pollInterval) clearInterval(pollInterval);
           if (timeoutId) clearTimeout(timeoutId);
         }
@@ -235,7 +236,7 @@ const WorkflowBuilder = () => {
       if (pollInterval) clearInterval(pollInterval);
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [isExecuting, currentExecutionId, workflowId]);
+  }, [isExecuting, currentExecutionId, workflowId, getExecutionDetails, refreshExecutions, showError, showSuccess, showWarning]);
   
   // Auto-hide overlay when no runs are active anymore (backup check)
   useEffect(() => {

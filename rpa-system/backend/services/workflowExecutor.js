@@ -736,15 +736,24 @@ class WorkflowExecutor {
         
         // Store partial results even on failure
         if (partialResults.length > 0) {
-          await this.supabase
-            .from('workflow_executions')
-            .update({
-              metadata: JSON.stringify({
-                partial_results: partialResults,
-                error_category: result.errorCategory
+          try {
+            await this.supabase
+              .from('workflow_executions')
+              .update({
+                metadata: JSON.stringify({
+                  partial_results: partialResults,
+                  error_category: result.errorCategory
+                })
               })
-            })
-            .eq('id', execution.id);
+              .eq('id', execution.id);
+          } catch (metaError) {
+            // ✅ FIX: Gracefully handle missing metadata column
+            if (metaError.message?.includes('metadata') || metaError.message?.includes('column')) {
+              logger.warn('Metadata column not available, skipping partial results storage', { execution_id: execution.id });
+            } else {
+              throw metaError;
+            }
+          }
         }
         
         const errorCategory = result.errorCategory || this._categorizeError({ message: result.error });
