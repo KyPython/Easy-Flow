@@ -1006,10 +1006,24 @@ class WorkflowExecutor {
               throw new Error(`Unknown step type: ${step.step_type}`);
           }
           
-          // Update step execution
+          // ✅ ENHANCED: Update step execution with detailed information
+          // Store step start time for duration calculation
+          stepExecution._startTime = stepStartTime;
           await this.updateStepExecution(stepExecution, result);
           
           const stepDuration = Date.now() - stepStartTime;
+          
+          // ✅ ENHANCED: Update status message with step details
+          if (execution?.id && result.success && result.meta?.stepDetails) {
+            const stepNumber = Array.from(visitedSteps).length;
+            const totalSteps = workflow.workflow_steps?.length || 0;
+            const durationDisplay = result.meta.duration || `${(stepDuration / 1000).toFixed(1)}s`;
+            await this._updateExecutionStatus(
+              execution.id,
+              'running',
+              `✓ Step ${stepNumber}: ${result.meta.stepDetails} (${durationDisplay})`
+            );
+          }
           
           // ✅ OBSERVABILITY: Update span with step results
           if (result.success) {
@@ -1121,7 +1135,14 @@ class WorkflowExecutor {
 
   async executeStartStep(step, inputData) {
     // Start step just passes data through
-    return { success: true, data: inputData };
+    return { 
+      success: true, 
+      data: inputData,
+      meta: {
+        stepDetails: 'Workflow started',
+        duration: '0.0s'
+      }
+    };
   }
 
   async executeActionStep(step, inputData, execution) {
@@ -1222,6 +1243,10 @@ class WorkflowExecutor {
       data: { 
         ...inputData, 
         workflowResult: { success, message }
+      },
+      meta: {
+        stepDetails: success ? 'Workflow completed' : 'Workflow ended',
+        duration: '0.0s'
       }
     };
   }
@@ -1255,11 +1280,14 @@ class WorkflowExecutor {
         await this._updateExecutionStatus(
           execution.id,
           'running',
-          `Scraping data from ${url}...`
+          `Step 1: Connecting to scraping service...`
         );
       }
       
       logger.info(`[WorkflowExecutor] Web scraping: ${url}`);
+      
+      // Track step start time for duration
+      const stepStartTime = Date.now();
       
       // ✅ PRIORITY 2: Retry scraping 3x with exponential backoff (0s, 5s, 15s)
       const maxAttempts = 3;
@@ -1268,6 +1296,15 @@ class WorkflowExecutor {
       let lastError;
       let attempts = 0;
       let scrapedData = null;
+      
+      // Update status to show connection
+      if (execution?.id) {
+        await this._updateExecutionStatus(
+          execution.id,
+          'running',
+          `Step 1: Connected to scraping service (${((Date.now() - stepStartTime) / 1000).toFixed(1)} sec)`
+        );
+      }
       
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         attempts = attempt;
@@ -1283,7 +1320,13 @@ class WorkflowExecutor {
             await this._updateExecutionStatus(
               execution.id,
               'running',
-              `Retrying scraping (attempt ${attempt}/${maxAttempts})...`
+              `Step 1: Retrying scraping (attempt ${attempt}/${maxAttempts})...`
+            );
+          } else if (execution?.id && attempt === 1) {
+            await this._updateExecutionStatus(
+              execution.id,
+              'running',
+              `Step 1: Scraping data from ${url}...`
             );
           }
           
@@ -1359,9 +1402,7 @@ class WorkflowExecutor {
         totalWaitMs: backoffDelays.slice(0, attempts - 1).reduce((a, b) => a + b, 0)
       };
 
-      // ✅ PRIORITY 3: Store scraped data immediately (before email step)
-      
-      // ✅ PRIORITY 3: Store data in execution immediately so it's saved even if email fails
+      // ✅ PRIORITY 3: Store scraped data immediately (before email step) so it's saved even if email fails
       if (execution?.id && scrapedData) {
         try {
           await this.supabase
@@ -1396,11 +1437,37 @@ class WorkflowExecutor {
         );
       }
       
+      // Calculate records count for user-friendly message
+      let recordsCount = 0;
+      let stepDetails = '';
+      if (scrapedData) {
+        if (Array.isArray(scrapedData)) {
+          recordsCount = scrapedData.length;
+          stepDetails = `Scraped ${recordsCount} record${recordsCount !== 1 ? 's' : ''}`;
+        } else if (scrapedData.data && Array.isArray(scrapedData.data)) {
+          recordsCount = scrapedData.data.length;
+          stepDetails = `Scraped ${recordsCount} record${recordsCount !== 1 ? 's' : ''}`;
+        } else if (typeof scrapedData === 'object') {
+          const keys = Object.keys(scrapedData);
+          recordsCount = keys.length;
+          stepDetails = `Scraped data with ${recordsCount} field${recordsCount !== 1 ? 's' : ''}`;
+        } else {
+          stepDetails = 'Scraping completed';
+        }
+      }
+      
+      const stepDuration = (Date.now() - (stepStartTime || Date.now())) / 1000;
+      const durationDisplay = stepDuration < 1 
+        ? `${Math.round(stepDuration * 1000)}ms` 
+        : `${stepDuration.toFixed(1)}s`;
+      
       this.logger.info(`[WorkflowExecutor] ✅ Scraping completed successfully`, {
         execution_id: execution?.id,
         url,
         attempts: backoff.attempts,
         total_wait_ms: backoff.totalWaitMs,
+        records_count: recordsCount,
+        duration_sec: stepDuration,
         data_size: scrapedData ? JSON.stringify(scrapedData).length : 0
       });
       
@@ -1410,28 +1477,57 @@ class WorkflowExecutor {
           ...inputData,
           scraped_data: scrapedData
         },
-        meta: { attempts: backoff.attempts, backoffWaitMs: backoff.totalWaitMs }
+        meta: { 
+          attempts: backoff.attempts, 
+          backoffWaitMs: backoff.totalWaitMs,
+          stepDetails: stepDetails || 'Scraping completed',
+          duration: durationDisplay,
+          recordsCount
+        }
       };
       
     } catch (error) {
-      // ✅ IMMEDIATE FIX: Categorize error and provide user-friendly message
+      // ✅ ENHANCED: Categorize error and provide detailed user-friendly message
       const errorCategory = this._categorizeError(error);
       const userMessageObj = this._getUserFriendlyMessage(errorCategory, error);
-      const userMessage = typeof userMessageObj === 'string' ? userMessageObj : userMessageObj.toString();
+      const timestamp = new Date().toLocaleString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      
+      // Build enhanced error message with all details
+      const enhancedError = {
+        summary: `Web scraping failed: ${userMessageObj.message || error.message}`,
+        timestamp: timestamp,
+        reason: userMessageObj.reason || error.message,
+        fix: userMessageObj.fix || 'Please try again or contact support',
+        retry: userMessageObj.retry !== false,
+        errorCategory,
+        technical: {
+          code: error.code,
+          status: error.response?.status,
+          message: error.message
+        },
+        // Formatted message for display
+        formatted: `Web scraping failed: ${userMessageObj.message || error.message} at ${timestamp}\n- Reason: ${userMessageObj.reason || error.message}\n- Fix: ${userMessageObj.fix || 'Please try again or contact support'}`
+      };
       
       this.logger.error('Web scraping failed', {
         execution_id: execution?.id,
         error_category: errorCategory,
         error_message: error.message,
-        error_code: error.code
+        error_code: error.code,
+        timestamp,
+        retry_available: enhancedError.retry
       });
       
       return { 
         success: false, 
-        error: userMessage,
+        error: enhancedError.formatted,
         errorCategory,
         technicalError: error.message,
-        errorDetails: typeof userMessageObj === 'object' ? userMessageObj : undefined
+        errorDetails: enhancedError
       };
     }
   }
@@ -1918,6 +2014,10 @@ class WorkflowExecutor {
             queue_id: item?.id || null,
             status: 'queued'
           }
+        },
+        meta: {
+          stepDetails: 'Email queued',
+          duration: '0.1s'
         }
       };
       
@@ -2315,23 +2415,57 @@ class WorkflowExecutor {
   }
 
   async updateStepExecution(stepExecution, result) {
+    const stepStartTime = stepExecution?.started_at ? new Date(stepExecution.started_at).getTime() : Date.now();
+    const stepDuration = Date.now() - stepStartTime;
+    const durationSec = (stepDuration / 1000).toFixed(1);
+    
+    // Build step details message
+    let stepDetails = '';
+    if (result.success) {
+      // Extract meaningful details from result
+      if (result.meta?.stepDetails) {
+        stepDetails = result.meta.stepDetails;
+      } else if (result.data?.scraped_data) {
+        const scraped = result.data.scraped_data;
+        if (Array.isArray(scraped)) {
+          stepDetails = `Scraped ${scraped.length} record${scraped.length !== 1 ? 's' : ''}`;
+        } else {
+          stepDetails = 'Scraping completed';
+        }
+      } else if (result.data?.email_result) {
+        stepDetails = result.data.email_result.status === 'queued' 
+          ? 'Email queued' 
+          : 'Email sent';
+      } else {
+        stepDetails = 'Step completed';
+      }
+    } else {
+      // For failed steps, include error category
+      stepDetails = result.errorDetails?.reason || result.error || 'Step failed';
+    }
+    
     const updateData = {
       completed_at: new Date().toISOString(),
       status: result.success ? 'completed' : 'failed',
       output_data: result.data,
-      result: result
+      result: result,
+      step_details: stepDetails, // User-friendly step description
+      duration_ms: Math.max(0, stepDuration),
+      duration_sec: parseFloat(durationSec)
     };
     
     if (!result.success) {
+      // ✅ ENHANCED: Store detailed error information
+      const errorDetails = result.errorDetails || {};
       updateData.error_message = result.error;
+      updateData.error_category = result.errorCategory;
+      updateData.error_reason = errorDetails.reason;
+      updateData.error_fix = errorDetails.fix;
+      updateData.error_timestamp = errorDetails.timestamp || new Date().toLocaleString();
+      updateData.retry_available = errorDetails.retry !== false;
     }
-    // Add duration and retry metrics if available
-    if (stepExecution?.started_at) {
-      try {
-        const dur = Date.now() - new Date(stepExecution.started_at).getTime();
-        updateData.duration_ms = Math.max(0, dur);
-      } catch (_) {}
-    }
+    
+    // Add retry metrics if available
     const attempts = result?.meta?.attempts;
     if (typeof attempts === 'number' && attempts >= 1) {
       updateData.retry_count = Math.max(0, attempts - 1);
@@ -2404,11 +2538,40 @@ class WorkflowExecutor {
       .eq('id', executionId)
       .single();
     
+    // ✅ ENHANCED: Parse error message to extract structured details
+    let errorDetails = {};
+    let formattedErrorMessage = errorMessage;
+    
+    // Try to parse structured error if it's an object or contains structured format
+    if (typeof errorMessage === 'object' && errorMessage.errorDetails) {
+      errorDetails = errorMessage.errorDetails;
+      formattedErrorMessage = errorMessage.formatted || errorMessage.summary || errorMessage.message || JSON.stringify(errorMessage);
+    } else if (typeof errorMessage === 'string' && errorMessage.includes('\n')) {
+      // Parse multi-line error message
+      const lines = errorMessage.split('\n');
+      formattedErrorMessage = lines[0] || errorMessage;
+      const reasonLine = lines.find(l => l.includes('Reason:'));
+      const fixLine = lines.find(l => l.includes('Fix:'));
+      if (reasonLine) errorDetails.reason = reasonLine.replace('Reason:', '').trim();
+      if (fixLine) errorDetails.fix = fixLine.replace('Fix:', '').trim();
+    }
+    
+    const timestamp = new Date().toLocaleString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
     const updateData = {
       status: 'failed',
       completed_at: new Date().toISOString(),
-      error_message: errorMessage,
-      error_step_id: errorStepId
+      error_message: formattedErrorMessage,
+      error_step_id: errorStepId,
+      error_category: errorCategory,
+      error_reason: errorDetails.reason,
+      error_fix: errorDetails.fix,
+      error_timestamp: errorDetails.timestamp || timestamp,
+      retry_available: errorDetails.retry !== false
     };
     
     // Calculate duration if started_at exists
@@ -2419,9 +2582,13 @@ class WorkflowExecutor {
       } catch (_) {}
     }
     
-    // Store error category if provided for analytics
-    if (errorCategory) {
-      updateData.metadata = JSON.stringify({ error_category: errorCategory });
+    // Store error category and details in metadata for analytics
+    if (errorCategory || Object.keys(errorDetails).length > 0) {
+      updateData.metadata = JSON.stringify({ 
+        error_category: errorCategory,
+        error_details: errorDetails,
+        retry_available: errorDetails.retry !== false
+      });
     }
     
     const { error } = await this.supabase

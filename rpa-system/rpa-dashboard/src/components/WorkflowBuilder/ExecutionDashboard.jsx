@@ -238,6 +238,30 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [stepExecutions, setStepExecutions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
+  
+  const handleRetry = async () => {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      const { fetchWithAuth } = await import('../../utils/devNetLogger');
+      const response = await fetchWithAuth(`/api/workflows/${execution.id}/retry`, {
+        method: 'POST'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Workflow retry started! New execution ID: ${data.execution?.id || data.new_execution_id}`);
+        onClose(); // Close modal to show new execution
+      } else {
+        const error = await response.json().catch(() => ({ error: 'Retry failed' }));
+        alert(`Retry failed: ${error.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      alert(`Retry error: ${err.message}`);
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   useEffect(() => {
     // Load step executions
@@ -342,7 +366,47 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
               {execution.error_message && (
                 <div className={styles.errorSection}>
                   <h4>Error Details</h4>
-                  <pre className={styles.errorText}>{execution.error_message}</pre>
+                  <div className={styles.enhancedError}>
+                    {(() => {
+                      // Parse error message if it contains structured data
+                      let errorParts = execution.error_message.split('\n');
+                      const summary = errorParts[0] || execution.error_message;
+                      const reason = errorParts.find(p => p.includes('Reason:'))?.replace('Reason:', '').trim();
+                      const fix = errorParts.find(p => p.includes('Fix:'))?.replace('Fix:', '').trim();
+                      const timestamp = errorParts.find(p => p.includes('at'))?.match(/\d{1,2}:\d{2}\s?(AM|PM)/)?.[0];
+                      
+                      return (
+                        <>
+                          <div className={styles.errorSummary}>
+                            <strong>{summary}</strong>
+                            {timestamp && <span className={styles.errorTime}> at {timestamp}</span>}
+                          </div>
+                          {reason && (
+                            <div className={styles.errorReason}>
+                              <strong>Reason:</strong> {reason}
+                            </div>
+                          )}
+                          {fix && (
+                            <div className={styles.errorFix}>
+                              <strong>Fix:</strong> {fix}
+                            </div>
+                          )}
+                          {execution.error_category && (
+                            <div className={styles.errorCategory}>
+                              <strong>Category:</strong> {execution.error_category}
+                            </div>
+                          )}
+                          <button 
+                            className={styles.retryButton}
+                            onClick={handleRetry}
+                            disabled={retrying || execution.status !== 'failed'}
+                          >
+                            <FaRedo /> {retrying ? 'RETRYING...' : 'RETRY NOW'}
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
             </div>
@@ -359,41 +423,96 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
                 <p>No step execution details available.</p>
               ) : (
                 <div className={styles.stepsList}>
-                  {stepExecutions.map((step, index) => (
-                    <div key={step.id} className={styles.stepItem}>
-                      <div className={styles.stepHeader}>
-                        <span className={styles.stepNumber}>#{index + 1}</span>
-                        {getStepStatusIcon(step.status)}
-                        <span className={styles.stepName}>
-                          {step.step_name || `Step ${index + 1}`}
-                        </span>
-                        <span className={styles.stepDuration}>
-                          {step.duration_ms ? `${step.duration_ms}ms` : 'N/A'}
-                        </span>
-                            {typeof step.retry_count === 'number' && (
-                              <span className={styles.stepRetry} title="Retry attempts (retries)">
-                                attempts: {step.retry_count + 1}
-                              </span>
-                            )}
-                      </div>
-                          {/* Backoff/attempt metadata if present in result */}
-                          {step?.result?.meta && (
-                            <div className={styles.stepMeta}>
-                              {typeof step.result.meta.attempts === 'number' && (
-                                <span className={styles.metaItem}>attempts: {step.result.meta.attempts}</span>
-                              )}
-                              {typeof step.result.meta.backoffWaitMs === 'number' && (
-                                <span className={styles.metaItem}>waited: {step.result.meta.backoffWaitMs} ms</span>
-                              )}
-                            </div>
+                  {stepExecutions.map((step, index) => {
+                    const stepNumber = index + 1;
+                    const statusIcon = getStepStatusIcon(step.status);
+                    const isSuccess = step.status === 'completed';
+                    const isFailed = step.status === 'failed';
+                    const isRunning = step.status === 'running';
+                    
+                    // Format duration
+                    let durationDisplay = 'N/A';
+                    if (step.duration_sec) {
+                      durationDisplay = step.duration_sec < 1 
+                        ? `${Math.round(step.duration_sec * 1000)}ms` 
+                        : `${step.duration_sec}s`;
+                    } else if (step.duration_ms) {
+                      durationDisplay = step.duration_ms < 1000 
+                        ? `${step.duration_ms}ms` 
+                        : `${(step.duration_ms / 1000).toFixed(1)}s`;
+                    }
+                    
+                    // Get step details
+                    const stepDetails = step.step_details || 
+                                      (step.result?.meta?.stepDetails) ||
+                                      (isSuccess ? 'Completed' : '');
+                    
+                    return (
+                      <div key={step.id} className={styles.stepItem}>
+                        <div className={styles.stepHeader}>
+                          <span className={styles.stepNumber}>Step {stepNumber}:</span>
+                          {statusIcon}
+                          <span className={styles.stepName}>
+                            {step.step_name || `Step ${stepNumber}`}
+                          </span>
+                          {stepDetails && (
+                            <span className={styles.stepDetails}>
+                              {stepDetails}
+                            </span>
                           )}
-                      {step.error_message && (
-                        <div className={styles.stepError}>
-                          Error: {step.error_message}
+                          <span className={styles.stepDuration}>
+                            ({durationDisplay})
+                          </span>
+                          {typeof step.retry_count === 'number' && step.retry_count > 0 && (
+                            <span className={styles.stepRetry} title="Retry attempts">
+                              {step.retry_count} retry{step.retry_count !== 1 ? 'ies' : ''}
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        
+                        {/* Enhanced error display with retry button */}
+                        {isFailed && step.error_message && (
+                          <div className={styles.stepError}>
+                            <div className={styles.errorHeader}>
+                              <strong>Error:</strong> {step.error_message.split('\n')[0]}
+                            </div>
+                            {step.error_reason && (
+                              <div className={styles.errorReason}>
+                                <strong>Reason:</strong> {step.error_reason}
+                              </div>
+                            )}
+                            {step.error_fix && (
+                              <div className={styles.errorFix}>
+                                <strong>Fix:</strong> {step.error_fix}
+                              </div>
+                            )}
+                            {step.error_timestamp && (
+                              <div className={styles.errorTimestamp}>
+                                <strong>Time:</strong> {step.error_timestamp}
+                              </div>
+                            )}
+                            {step.retry_available !== false && (
+                              <button 
+                                className={styles.retryButton}
+                                onClick={handleRetry}
+                                disabled={retrying}
+                              >
+                                <FaRedo /> {retrying ? 'RETRYING...' : 'RETRY NOW'}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Retry status for running steps */}
+                        {isRunning && step.result?.meta?.retry_scheduled && (
+                          <div className={styles.retryStatus}>
+                            <span className={styles.retryIndicator}>⏳</span>
+                            Retrying in 5 seconds...
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
