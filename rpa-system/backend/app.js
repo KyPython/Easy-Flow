@@ -1825,7 +1825,8 @@ async function queueTaskRun(runId, taskData) {
       throw new Error(errorMessage);
     }
     
-    // ✅ IMMEDIATE FIX: Health check before execution
+    // ✅ PRIORITY 1: Health check before execution with retry scheduling
+    let healthCheckPassed = false;
     try {
       let normalizedUrl = automationUrl.trim();
       if (!/^https?:\/\//i.test(normalizedUrl)) {
@@ -1838,14 +1839,70 @@ async function queueTaskRun(runId, taskData) {
         // Try root endpoint if /health doesn't exist
         return axios.get(normalizedUrl, { timeout: 5000, validateStatus: () => true });
       });
+      healthCheckPassed = true;
     } catch (healthError) {
-      const errorMessage = 'Automation service is temporarily unavailable. Please try again in a few minutes. If the problem persists, contact support.';
-      logger.error(`[queueTaskRun] Automation service health check failed:`, {
+      // ✅ PRIORITY 1: Schedule retry in 5 minutes instead of failing immediately
+      logger.warn(`[queueTaskRun] ⚠️ Automation service health check failed, scheduling retry in 5 minutes`, {
+        run_id: runId,
         error: healthError.message,
         code: healthError.code,
-        automation_url: automationUrl
+        automation_url: automationUrl,
+        retry_scheduled_at: new Date(Date.now() + 5 * 60 * 1000).toISOString()
       });
-      throw new Error(errorMessage);
+      
+      // Update run status to show retry scheduled
+      try {
+        await supabase
+          .from('automation_runs')
+          .update({
+            status: 'running', // Keep as running to show it's pending retry
+            result: JSON.stringify({
+              status: 'queued',
+              message: 'Service unavailable, retrying in 5 min',
+              retry_scheduled: true,
+              retry_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+              health_check_error: healthError.message
+            })
+          })
+          .eq('id', runId);
+      } catch (updateErr) {
+        logger.error(`[queueTaskRun] Failed to update run status for retry:`, updateErr.message);
+      }
+      
+      // Schedule retry in 5 minutes
+      setTimeout(async () => {
+        logger.info(`[queueTaskRun] 🔄 Retrying automation run ${runId} after health check failure`);
+        try {
+          await queueTaskRun(runId, taskData);
+        } catch (retryError) {
+          logger.error(`[queueTaskRun] Retry failed for run ${runId}:`, retryError.message);
+          // Mark as failed if retry also fails
+          try {
+            await supabase
+              .from('automation_runs')
+              .update({
+                status: 'failed',
+                ended_at: new Date().toISOString(),
+                result: JSON.stringify({
+                  error: 'Automation service unavailable after retry',
+                  message: 'Service was unavailable and retry also failed. Please try again later.',
+                  retry_attempted: true
+                })
+              })
+              .eq('id', runId);
+          } catch (finalErr) {
+            logger.error(`[queueTaskRun] Failed to mark run as failed after retry:`, finalErr.message);
+          }
+        }
+      }, 5 * 60 * 1000); // 5 minutes
+      
+      // Don't throw - let the retry happen in background
+      return { 
+        success: false, 
+        retry_scheduled: true,
+        message: 'Service unavailable, retrying in 5 min',
+        retry_at: new Date(Date.now() + 5 * 60 * 1000).toISOString()
+      };
     }
     
     // ✅ SECURITY: Validate URL to prevent SSRF
@@ -1870,51 +1927,116 @@ async function queueTaskRun(runId, taskData) {
     
     logger.info(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
     
-    // Call the real automation service
+    // ✅ PRIORITY 2: Call automation service with retry logic (3x: 0s, 5s, 15s)
     try {
       let automationResult;
       let response = null;
+      const maxRetries = 3;
+      const backoffDelays = [0, 5000, 15000]; // 0s, 5s, 15s
+      let lastError;
       
-      {
-        // Ensure URL has protocol; accept values like 'localhost:5001' and normalize to 'http://localhost:5001'
-        let normalizedUrl = automationUrl;
-        if (!/^https?:\/\//i.test(normalizedUrl)) {
-          normalizedUrl = `http://${normalizedUrl}`;
-        }
-        // Ensure no accidental whitespace
-        normalizedUrl = normalizedUrl.trim();
-        // Try type-specific endpoints first, then fall back to generic /automate
-        const taskTypeSlug = String(payload.type || 'general').toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-');
-        const candidates = [
-          `/automate/${encodeURIComponent(taskTypeSlug)}`,
-          `/${encodeURIComponent(taskTypeSlug)}`,
-          '/automate'
-        ];
+      // Ensure URL has protocol; accept values like 'localhost:5001' and normalize to 'http://localhost:5001'
+      let normalizedUrl = automationUrl;
+      if (!/^https?:\/\//i.test(normalizedUrl)) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+      normalizedUrl = normalizedUrl.trim();
+      
+      // Try type-specific endpoints first, then fall back to generic /automate
+      const taskTypeSlug = String(payload.type || 'general').toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-');
+      const candidates = [
+        `/automate/${encodeURIComponent(taskTypeSlug)}`,
+        `/${encodeURIComponent(taskTypeSlug)}`,
+        '/automate'
+      ];
 
-        let lastError;
+      // Retry loop with exponential backoff
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        lastError = null;
+        
+        logger.info(`[queueTaskRun] 🔄 Automation attempt ${attempt}/${maxRetries}`, {
+          run_id: runId,
+          attempt,
+          wait_ms: attempt > 1 ? backoffDelays[attempt - 1] : 0
+        });
+        
+        // Wait before retry (except first attempt)
+        if (attempt > 1) {
+          const waitMs = backoffDelays[attempt - 1];
+          logger.info(`[queueTaskRun] ⏳ Waiting ${waitMs}ms before retry`, { run_id: runId });
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+        }
+        
+        // Try each endpoint candidate
         for (const pathSuffix of candidates) {
           const base = normalizedUrl.replace(/\/$/, '');
           const fullAutomationUrl = `${base}${pathSuffix}`;
-          logger.info(`[queueTaskRun] Trying automation endpoint: ${fullAutomationUrl}`);
+          
           try {
             const headers = { 'Content-Type': 'application/json' };
             if (process.env.AUTOMATION_API_KEY) {
               headers['Authorization'] = `Bearer ${process.env.AUTOMATION_API_KEY}`;
             }
+            
             response = await axios.post(fullAutomationUrl, payload, {
               timeout: 30000,
               headers
             });
+            
             automationResult = response.data || { message: 'Execution completed with no data returned' };
-            logger.info(`[queueTaskRun] Automation service response (${pathSuffix}):`,
-              response.status, response.data ? 'data received' : 'no data');
-            break;
+            logger.info(`[queueTaskRun] ✅ Automation succeeded on attempt ${attempt}`, {
+              run_id: runId,
+              endpoint: pathSuffix,
+              status: response.status,
+              attempt
+            });
+            break; // Success - exit both loops
           } catch (err) {
             lastError = err;
-            logger.warn(`[queueTaskRun] Endpoint ${pathSuffix} failed:`, err?.response?.status || err?.message || err);
+            const isRetryable = 
+              err.code === 'ECONNRESET' || 
+              err.code === 'ETIMEDOUT' || 
+              err.code === 'ENOTFOUND' ||
+              err.code === 'EAI_AGAIN' ||
+              (err.response?.status >= 500) ||
+              (err.response?.status === 408) ||
+              (err.response?.status === 429) ||
+              err.message?.toLowerCase().includes('timeout') ||
+              err.message?.toLowerCase().includes('network');
+            
+            logger.warn(`[queueTaskRun] ⚠️ Endpoint ${pathSuffix} failed (attempt ${attempt})`, {
+              run_id: runId,
+              status: err?.response?.status,
+              error: err.message,
+              is_retryable: isRetryable,
+              attempt
+            });
+            
+            // If not retryable, don't try other endpoints
+            if (!isRetryable) {
+              break;
+            }
           }
         }
-        if (!automationResult && lastError) throw lastError;
+        
+        // If we got a result, exit retry loop
+        if (automationResult) {
+          break;
+        }
+        
+        // If last attempt and still no result, throw
+        if (attempt === maxRetries && lastError) {
+          logger.error(`[queueTaskRun] ❌ All ${maxRetries} attempts failed`, {
+            run_id: runId,
+            final_error: lastError.message,
+            attempts: maxRetries
+          });
+          throw lastError;
+        }
+      }
+      
+      if (!automationResult) {
+        throw new Error('Automation service returned no result after all retries');
       }
       
       // Update the run with the result

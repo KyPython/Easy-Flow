@@ -1261,53 +1261,154 @@ class WorkflowExecutor {
       
       logger.info(`[WorkflowExecutor] Web scraping: ${url}`);
       
-      // ✅ INSTRUCTION 1: Use instrumented HTTP client for trace propagation
-      const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
-      const baseMs = Number(config?.retries?.baseMs || 300);
-
-      const backoff = await this._withBackoff(async ({ controller }) => {
-        // Cooperative cancellation: periodic check and abort
-        const cancelTimer = setInterval(async () => {
-          if (execution && await this._isCancelled(execution.id)) {
-            try { controller?.abort?.(); } catch (_) {}
-          }
-        }, 500);
+      // ✅ PRIORITY 2: Retry scraping 3x with exponential backoff (0s, 5s, 15s)
+      const maxAttempts = 3;
+      const backoffDelays = [0, 5000, 15000]; // 0s, 5s, 15s
+      
+      let lastError;
+      let attempts = 0;
+      let scrapedData = null;
+      
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        attempts = attempt;
+        
+        // Check for cancellation
+        if (execution && await this._isCancelled(execution.id)) {
+          throw new Error('Execution cancelled');
+        }
+        
         try {
+          // Update status to show retry attempt
+          if (execution?.id && attempt > 1) {
+            await this._updateExecutionStatus(
+              execution.id,
+              'running',
+              `Retrying scraping (attempt ${attempt}/${maxAttempts})...`
+            );
+          }
+          
+          this.logger.info(`[WorkflowExecutor] Scraping attempt ${attempt}/${maxAttempts}`, {
+            execution_id: execution?.id,
+            url,
+            attempt
+          });
+          
           // Use instrumented client for automatic trace propagation
-          return await this.httpClient.post(`${process.env.AUTOMATION_URL}/scrape`, {
+          const response = await this.httpClient.post(`${process.env.AUTOMATION_URL}/scrape`, {
             url,
             selectors,
             timeout
           }, {
-            timeout: timeout * 1000,
-            signal: controller?.signal
+            timeout: timeout * 1000
           });
-        } finally {
-          clearInterval(cancelTimer);
-        }
-      }, {
-        maxAttempts,
-        baseMs,
-        shouldRetry: (err) => {
-          // Retry on network errors/timeouts/5xx
+          
+          scrapedData = response.data;
+          this.logger.info(`[WorkflowExecutor] ✅ Scraping succeeded on attempt ${attempt}`, {
+            execution_id: execution?.id,
+            url,
+            attempts
+          });
+          break; // Success - exit retry loop
+          
+        } catch (err) {
+          lastError = err;
           const status = err?.response?.status;
           const code = err?.code || '';
-          if (code && ['ECONNRESET','ETIMEDOUT','ENOTFOUND','EAI_AGAIN'].includes(code)) return true;
-          if (status && (status >= 500 || status === 408 || status === 429)) return true;
-          const msg = `${err?.message || ''}`.toLowerCase();
-          if (msg.includes('timeout') || msg.includes('network')) return true;
-          return false;
-        },
-        isCancelled: async () => execution && await this._isCancelled(execution.id),
-        makeController: () => new AbortController()
-      });
+          const isRetryable = 
+            (code && ['ECONNRESET','ETIMEDOUT','ENOTFOUND','EAI_AGAIN'].includes(code)) ||
+            (status && (status >= 500 || status === 408 || status === 429)) ||
+            (err?.message?.toLowerCase().includes('timeout') || err?.message?.toLowerCase().includes('network'));
+          
+          if (!isRetryable || attempt === maxAttempts) {
+            // Not retryable or max attempts reached
+            this.logger.error(`[WorkflowExecutor] ❌ Scraping failed (not retrying)`, {
+              execution_id: execution?.id,
+              url,
+              attempt,
+              error: err.message,
+              is_retryable: isRetryable
+            });
+            throw err;
+          }
+          
+          // Calculate wait time for this attempt
+          const waitMs = backoffDelays[attempt - 1] || 0;
+          
+          this.logger.warn(`[WorkflowExecutor] ⚠️ Scraping attempt ${attempt} failed, retrying in ${waitMs}ms`, {
+            execution_id: execution?.id,
+            url,
+            attempt,
+            wait_ms: waitMs,
+            error: err.message
+          });
+          
+          // Wait before retry (except first attempt which is immediate)
+          if (waitMs > 0) {
+            await new Promise(resolve => setTimeout(resolve, waitMs));
+          }
+        }
+      }
+      
+      if (!scrapedData && lastError) {
+        throw lastError;
+      }
+      
+      const backoff = {
+        value: { data: scrapedData },
+        attempts,
+        totalWaitMs: backoffDelays.slice(0, attempts - 1).reduce((a, b) => a + b, 0)
+      };
 
-      const response = backoff.value;
+      // ✅ PRIORITY 3: Store scraped data immediately (before email step)
+      
+      // ✅ PRIORITY 3: Store data in execution immediately so it's saved even if email fails
+      if (execution?.id && scrapedData) {
+        try {
+          await this.supabase
+            .from('workflow_executions')
+            .update({
+              output_data: {
+                ...inputData,
+                scraped_data: scrapedData
+              },
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', execution.id);
+          
+          this.logger.info(`[WorkflowExecutor] 💾 Scraped data stored in execution`, {
+            execution_id: execution.id,
+            data_size: JSON.stringify(scrapedData).length
+          });
+        } catch (storeError) {
+          this.logger.warn('Failed to store scraped data immediately', {
+            execution_id: execution.id,
+            error: storeError.message
+          });
+        }
+      }
+      
+      // Update status to show scraping succeeded
+      if (execution?.id) {
+        await this._updateExecutionStatus(
+          execution.id,
+          'running',
+          'Scraping ✓ | Preparing next step...'
+        );
+      }
+      
+      this.logger.info(`[WorkflowExecutor] ✅ Scraping completed successfully`, {
+        execution_id: execution?.id,
+        url,
+        attempts: backoff.attempts,
+        total_wait_ms: backoff.totalWaitMs,
+        data_size: scrapedData ? JSON.stringify(scrapedData).length : 0
+      });
+      
       return {
         success: true,
         data: {
           ...inputData,
-          scraped_data: response.data
+          scraped_data: scrapedData
         },
         meta: { attempts: backoff.attempts, backoffWaitMs: backoff.totalWaitMs }
       };
@@ -1677,14 +1778,17 @@ class WorkflowExecutor {
 
   async executeEmailAction(config, inputData, execution) {
     try {
-      const { to, template, variables = {}, scheduled_at, allowFailure = false } = config || {};
+      // ✅ PRIORITY 3: Default to allowFailure=true if scraping data exists (decouple email from scraping)
+      const hasScrapedData = inputData?.scraped_data || inputData?._partial_results?.some(r => r.data?.scraped_data);
+      const { to, template, variables = {}, scheduled_at, allowFailure = hasScrapedData } = config || {};
+      
       if (!to || !template) {
         const error = 'Email step requires `to` and `template`';
         if (allowFailure) {
-          // ✅ FIX: Don't fail workflow if email config is missing and allowFailure is true
           this.logger.warn('Email step skipped due to missing config', {
             execution_id: execution?.id,
-            error
+            error,
+            has_scraped_data: hasScrapedData
           });
           return {
             success: true, // Mark as success so workflow continues
@@ -1693,14 +1797,30 @@ class WorkflowExecutor {
               email_result: {
                 status: 'skipped',
                 error: error,
-                warning: 'Email step skipped: missing required configuration'
+                warning: 'Email step skipped: missing required configuration. Scraped data was saved successfully.'
               }
             }
           };
         }
         throw new Error(error);
       }
-      logger.info(`[WorkflowExecutor] Enqueue email to: ${to}`);
+      
+      // ✅ PRIORITY 3: Update status to show email is being sent
+      if (execution?.id) {
+        await this._updateExecutionStatus(
+          execution.id,
+          'running',
+          hasScrapedData 
+            ? 'Scraping ✓ | Sending email...'
+            : 'Sending email...'
+        );
+      }
+      
+      logger.info(`[WorkflowExecutor] Enqueue email to: ${to}`, {
+        execution_id: execution?.id,
+        has_scraped_data: hasScrapedData,
+        allow_failure: allowFailure
+      });
 
       // Insert into email_queue (processed by email_worker)
       const insert = {
@@ -1712,22 +1832,64 @@ class WorkflowExecutor {
       };
       const { data, error } = await this.supabase.from('email_queue').insert([insert]).select('*');
       
-      // ✅ FIX: If email queue fails but allowFailure is true, continue workflow
+      // ✅ PRIORITY 3: If email queue fails but allowFailure is true, continue workflow and retry email separately
       if (error) {
         const errorMsg = `Failed to enqueue email: ${error.message}`;
         if (allowFailure) {
-          this.logger.warn('Email enqueue failed but continuing workflow', {
+          this.logger.warn('Email enqueue failed but continuing workflow - will retry email separately', {
             execution_id: execution?.id,
-            error: errorMsg
+            error: errorMsg,
+            has_scraped_data: hasScrapedData
           });
+          
+          // ✅ PRIORITY 3: Schedule email retry in background (separate from workflow)
+          setImmediate(async () => {
+            try {
+              // Retry email enqueue after 10 seconds
+              await new Promise(resolve => setTimeout(resolve, 10000));
+              const retryInsert = { ...insert };
+              const { data: retryData, error: retryError } = await this.supabase
+                .from('email_queue')
+                .insert([retryInsert])
+                .select('*');
+              
+              if (retryError) {
+                this.logger.warn('Email retry also failed', {
+                  execution_id: execution?.id,
+                  error: retryError.message
+                });
+              } else {
+                this.logger.info('✅ Email retry succeeded', {
+                  execution_id: execution?.id,
+                  queue_id: retryData?.[0]?.id
+                });
+              }
+            } catch (retryErr) {
+              this.logger.error('Email retry exception', {
+                execution_id: execution?.id,
+                error: retryErr.message
+              });
+            }
+          });
+          
+          // Update status to show email is retrying
+          if (execution?.id) {
+            await this._updateExecutionStatus(
+              execution.id,
+              'running',
+              'Scraping ✓ | Email ✗ (retrying)'
+            );
+          }
+          
           return {
             success: true, // Mark as success so workflow continues
             data: {
               ...inputData,
               email_result: {
-                status: 'failed',
+                status: 'retrying',
                 error: errorMsg,
-                warning: 'Email could not be queued, but workflow continued. Data was saved successfully.'
+                warning: 'Email could not be queued initially, but workflow continued. Scraped data was saved. Email will be retried automatically.',
+                retry_scheduled: true
               }
             }
           };
@@ -1736,6 +1898,18 @@ class WorkflowExecutor {
       }
 
       const item = Array.isArray(data) ? data[0] : data;
+      
+      // Update status to show success
+      if (execution?.id) {
+        await this._updateExecutionStatus(
+          execution.id,
+          'running',
+          hasScrapedData 
+            ? 'Scraping ✓ | Email ✓'
+            : 'Email queued successfully'
+        );
+      }
+      
       return {
         success: true,
         data: {
@@ -1748,6 +1922,40 @@ class WorkflowExecutor {
       };
       
     } catch (error) {
+      // ✅ PRIORITY 3: If email fails but we have scraped data, don't fail the workflow
+      const hasScrapedData = inputData?.scraped_data || inputData?._partial_results?.some(r => r.data?.scraped_data);
+      const allowFailure = config?.allowFailure !== false && hasScrapedData;
+      
+      if (allowFailure) {
+        this.logger.warn('Email sending failed but continuing workflow (scraped data preserved)', {
+          execution_id: execution?.id,
+          error: error.message,
+          has_scraped_data: hasScrapedData
+        });
+        
+        // Update status
+        if (execution?.id) {
+          await this._updateExecutionStatus(
+            execution.id,
+            'running',
+            'Scraping ✓ | Email ✗ (will retry)'
+          );
+        }
+        
+        return {
+          success: true,
+          data: {
+            ...inputData,
+            email_result: {
+              status: 'failed',
+              error: error.message,
+              warning: 'Email sending failed, but scraped data was saved successfully. Email will be retried separately.',
+              retry_scheduled: true
+            }
+          }
+        };
+      }
+      
       return { success: false, error: `Email sending failed: ${error.message}` };
     }
   }
