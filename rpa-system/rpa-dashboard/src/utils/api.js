@@ -474,7 +474,7 @@ api.interceptors.response.use(
           // Dispatch a global event so the app can show a UX before redirecting.
           try {
             const ev = new CustomEvent('easyflow:session-expired', {
-              detail: { redirect: '/login', message: 'Your session expired. Please sign in again.', countdown: 8 }
+              detail: { redirect: '/auth', message: 'Your session expired. Please sign in again.', countdown: 8 }
             });
             // Clear tokens first
             window.dispatchEvent(ev);
@@ -482,12 +482,12 @@ api.interceptors.response.use(
             setTimeout(() => {
               if (!window.__easyflowSessionHandled) {
                 window.__easyflowSessionHandled = true;
-                window.location.replace('/login');
+                window.location.replace('/auth');
               }
             }, 8000);
           } catch (e) {
             // If events aren't supported, do best-effort redirect
-            try { window.location.replace('/login'); } catch{ /* ignore */ }
+            try { window.location.replace('/auth'); } catch{ /* ignore */ }
           }
         }
       }

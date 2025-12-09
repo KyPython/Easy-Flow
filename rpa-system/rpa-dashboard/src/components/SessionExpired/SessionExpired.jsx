@@ -30,7 +30,7 @@ export default function SessionExpired() {
           clearInterval(tick);
           // mark handled and redirect
           window.__easyflowSessionHandled = true;
-          window.location.replace('/login');
+          window.location.replace('/auth');
           return 0;
         }
         return c - 1;
@@ -52,7 +52,7 @@ export default function SessionExpired() {
         <div className={styles.actions}>
           <button
             className={`${styles.btn} ${styles.primary}`}
-            onClick={() => { window.__easyflowSessionHandled = true; window.location.replace('/login'); }}
+            onClick={() => { window.__easyflowSessionHandled = true; window.location.replace('/auth'); }}
           >
             Sign in now
           </button>
