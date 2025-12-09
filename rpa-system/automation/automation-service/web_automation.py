@@ -606,7 +606,14 @@ def download_pdf(pdf_url, task_data):
                         file_options={"content-type": "application/pdf", "upsert": "false"}
                     )
                     
-                    if not upload_result.get('error'):
+                    # Check if upload was successful (new supabase version returns object, not dict)
+                    upload_error = None
+                    if hasattr(upload_result, 'error'):
+                        upload_error = upload_result.error
+                    elif isinstance(upload_result, dict):
+                        upload_error = upload_result.get('error')
+                    
+                    if not upload_error:
                         # Get public URL
                         url_result = supabase.storage.from_('user-files').get_public_url(storage_path)
                         artifact_url = url_result if isinstance(url_result, str) else url_result.get('publicUrl') if isinstance(url_result, dict) else None
