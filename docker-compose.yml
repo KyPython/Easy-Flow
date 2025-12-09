@@ -66,9 +66,11 @@ services:
     environment:
       DATABASE_URL: "postgres://easyflow:easyflow@postgres:5432/easyflow"
       REDIS_URL: "redis://redis:6379"
-      KAFKA_BROKERS: "kafka:9092"
+      KAFKA_BROKERS: "kafka:29092"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       AUTOMATION_URL: "http://automation-worker:5000"
       ALLOW_DRAFT_EXECUTION: 'true'
+      KAFKA_ENABLED: 'true'
 
   automation-worker:
     build:

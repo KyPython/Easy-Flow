@@ -579,7 +579,7 @@ def download_pdf(pdf_url, task_data):
                     storage_path = f"{user_id}/invoices/{timestamp}_{filename}"
                     
                     # Upload to Supabase storage
-                    upload_result = supabase.storage.from('user-files').upload(
+                    upload_result = supabase.storage.from_('user-files').upload(
                         storage_path,
                         file_content,
                         file_options={"content-type": "application/pdf", "upsert": "false"}
@@ -587,7 +587,7 @@ def download_pdf(pdf_url, task_data):
                     
                     if not upload_result.get('error'):
                         # Get public URL
-                        url_result = supabase.storage.from('user-files').get_public_url(storage_path)
+                        url_result = supabase.storage.from_('user-files').get_public_url(storage_path)
                         artifact_url = url_result if isinstance(url_result, str) else url_result.get('publicUrl') if isinstance(url_result, dict) else None
                         
                         if artifact_url:
@@ -619,7 +619,7 @@ def download_pdf(pdf_url, task_data):
                                     }
                                 }
                                 
-                                file_insert_result = supabase.from('files').insert(file_record).execute()
+                                file_insert_result = supabase.from_('files').insert(file_record).execute()
                                 
                                 if file_insert_result.data:
                                     result["file_record_id"] = file_insert_result.data[0].get('id') if isinstance(file_insert_result.data, list) else file_insert_result.data.get('id')

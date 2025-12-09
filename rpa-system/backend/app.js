@@ -1121,6 +1121,10 @@ if (fs.existsSync(reactBuildPath)) {
   });
 }
 
+// Serve demo pages and assets
+const demoRoutes = require('./routes/demoRoutes');
+app.use(demoRoutes);
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'backend', time: new Date().toISOString() });
 });

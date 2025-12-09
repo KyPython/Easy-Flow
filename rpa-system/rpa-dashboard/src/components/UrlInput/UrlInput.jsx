@@ -3,28 +3,14 @@ import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext';
 import styles from './UrlInput.module.css';
 
-// Test site configurations with predefined credentials
+// Demo site configuration - reliable demo hosted on your backend
 const demoSites = [
   { 
-    name: 'HttpBin Test API', 
-    url: 'https://httpbin.org/forms/post',
-    username: 'testuser',
-    password: 'testpass123',
-    description: 'HTTP testing service - no real authentication required'
-  },
-  { 
-    name: 'JSON Placeholder', 
-    url: 'https://jsonplaceholder.typicode.com',
-    username: 'demo@jsonplaceholder.com',
+    name: '🎯 Try Demo Portal', 
+    url: 'http://localhost:3030/demo',
+    username: 'demo@easyflow.com',
     password: 'demo123',
-    description: 'Fake REST API for testing - credentials are optional'
-  },
-  { 
-    name: 'ReqRes Test API', 
-    url: 'https://reqres.in',
-    username: 'eve.holt@reqres.in',
-    password: 'cityslicka',
-    description: 'Test API with demo user credentials'
+    description: 'EasyFlow demo invoice portal - always available, always works!'
   },
 ];
 
@@ -252,23 +238,25 @@ const UrlInput = ({ onUrlSubmit, onUrlChange, onClear }) => {
         </div>
       </form>
 
-      {/* Demo Sites for Testing */}
-      <div className={styles.demoSection}>
-        <span className={styles.demoLabel}>Quick Test Sites:</span>
-        <div className={styles.demoButtons}>
-          {demoSites.map((site, index) => (
-            <button
-              key={index}
-              type="button"
-              onClick={() => handleQuickFill(site.url)}
-              className={styles.demoButton}
-              disabled={isValidating}
-            >
-              {site.name}
-            </button>
-          ))}
+      {/* Demo Sites for Testing - only show if demo sites are configured */}
+      {demoSites.length > 0 && (
+        <div className={styles.demoSection}>
+          <span className={styles.demoLabel}>Quick Test Sites:</span>
+          <div className={styles.demoButtons}>
+            {demoSites.map((site, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => handleQuickFill(site.url)}
+                className={styles.demoButton}
+                disabled={isValidating}
+              >
+                {site.name}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

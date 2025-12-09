@@ -4,6 +4,7 @@
 echo "Starting backend..."
 cd rpa-system/backend
 NODE_ENV=development PORT=3030 DISABLE_TELEMETRY=true KAFKA_ENABLED=true \
+  KAFKA_BROKERS=localhost:9092 KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
   node server.js > ../../logs/backend.log 2>&1 &
 echo $! > /tmp/backend.pid
 cd ../..

@@ -1,0 +1,1 @@
+supabase==2.25.0  # For cloud storage upload

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EasyFlow Demo - Invoice Portal</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            color: #333;
+        }
+        h1 { color: #667eea; margin-top: 0; }
+        .login-form { margin: 30px 0; }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover { background: #5568d3; }
+        .invoice-list {
+            display: none;
+            margin-top: 30px;
+        }
+        .invoice-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        .download-btn {
+            background: #28a745;
+            padding: 8px 20px;
+            width: auto;
+            margin-top: 10px;
+        }
+        .download-btn:hover { background: #218838; }
+        .badge {
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .success { color: #28a745; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧾 Demo Invoice Portal</h1>
+        <p><strong>Welcome to the EasyFlow demo!</strong></p>
+        <p>This is a test invoice portal. Use these credentials to test automation:</p>
+        
+        <div class="login-form" id="loginForm">
+            <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <strong>Demo Credentials:</strong><br>
+                Username: <code>demo@easyflow.com</code><br>
+                Password: <code>demo123</code>
+            </div>
+            
+            <input type="email" id="username" placeholder="Username / Email" value="demo@easyflow.com">
+            <input type="password" id="password" placeholder="Password" value="demo123">
+            <button onclick="login()">Login to View Invoices</button>
+        </div>
+        
+        <div class="invoice-list" id="invoiceList">
+            <p class="success">✓ Login successful!</p>
+            <h2>Available Invoices</h2>
+            
+            <div class="invoice-item">
+                <h3>Invoice #2024-001 <span class="badge">PDF</span></h3>
+                <p><strong>Date:</strong> December 1, 2024</p>
+                <p><strong>Amount:</strong> $1,250.00</p>
+                <button class="download-btn" onclick="downloadInvoice('001')">Download PDF</button>
+            </div>
+            
+            <div class="invoice-item">
+                <h3>Invoice #2024-002 <span class="badge">PDF</span></h3>
+                <p><strong>Date:</strong> December 5, 2024</p>
+                <p><strong>Amount:</strong> $3,450.00</p>
+                <button class="download-btn" onclick="downloadInvoice('002')">Download PDF</button>
+            </div>
+            
+            <div class="invoice-item">
+                <h3>Invoice #2024-003 <span class="badge">PDF</span></h3>
+                <p><strong>Date:</strong> December 9, 2024</p>
+                <p><strong>Amount:</strong> $875.50</p>
+                <button class="download-btn" onclick="downloadInvoice('003')">Download PDF</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            // Simple demo validation
+            if (username === 'demo@easyflow.com' && password === 'demo123') {
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('invoiceList').style.display = 'block';
+            } else {
+                alert('Invalid credentials. Please use demo@easyflow.com / demo123');
+            }
+        }
+        
+        function downloadInvoice(id) {
+            // In a real scenario, this would download an actual PDF
+            window.location.href = '/demo/invoice-' + id + '.pdf';
+        }
+    </script>
+</body>
+</html>
