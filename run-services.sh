@@ -3,7 +3,7 @@
 
 echo "Starting backend..."
 cd rpa-system/backend
-NODE_ENV=development PORT=3030 DISABLE_TELEMETRY=true KAFKA_ENABLED=false \
+NODE_ENV=development PORT=3030 DISABLE_TELEMETRY=true KAFKA_ENABLED=true \
   node server.js > ../../logs/backend.log 2>&1 &
 echo $! > /tmp/backend.pid
 cd ../..
