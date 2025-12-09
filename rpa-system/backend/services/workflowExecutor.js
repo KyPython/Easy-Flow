@@ -1959,10 +1959,18 @@ class WorkflowExecutor {
         );
       }
       
+      // ✅ OBSERVABILITY: Log email action with context
       logger.info(`[WorkflowExecutor] Enqueue email to: ${to}`, {
         execution_id: execution?.id,
         has_scraped_data: hasScrapedData,
-        allow_failure: allowFailure
+        allow_failure: allowFailure,
+        template,
+        timestamp: new Date().toISOString(),
+        observability: {
+          event: 'email_action_started',
+          has_scraped_data: hasScrapedData,
+          allow_failure: allowFailure
+        }
       });
 
       // Insert into email_queue (processed by email_worker)

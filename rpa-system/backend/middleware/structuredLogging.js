@@ -340,56 +340,8 @@ function createLogger(namespace = 'app', context = {}) {
   return new StructuredLogger(namespace, context);
 }
 
-/**
- * Migration helper: Replace console.log across the application
- */
-const deprecatedConsole = {
-  log: (...args) => {
-    const logger = createLogger('deprecated');
-    logger.warn('DEPRECATED: console.log usage detected, use structured logger instead', {
-      legacy_args: args,
-      stack: new Error().stack
-    });
-  },
-  
-  error: (...args) => {
-    const logger = createLogger('deprecated');
-    logger.error('DEPRECATED: console.error usage detected, use structured logger instead', null, {
-      legacy_args: args,
-      stack: new Error().stack
-    });
-  },
-  
-  warn: (...args) => {
-    const logger = createLogger('deprecated');
-    logger.warn('DEPRECATED: console.warn usage detected, use structured logger instead', {
-      legacy_args: args,
-      stack: new Error().stack
-    });
-  },
-  
-  info: (...args) => {
-    const logger = createLogger('deprecated');
-    logger.info('DEPRECATED: console.info usage detected, use structured logger instead', {
-      legacy_args: args,
-      stack: new Error().stack
-    });
-  }
-};
-
-// NOTE: previously this module monkey-patched `console` to emit deprecation
-// warnings when code called `console.log`/`console.warn`/etc. That caused
-// excessive noisy warnings. We no longer automatically replace `console`.
-//
-// Migration strategy:
-// - `deprecatedConsole` is exported as a helper for a coordinated codemod
-//   or temporary usage by maintainers.
-// - Applications should import `../utils/logger.js` and call the
-//   structured logger directly (see `utils/logger.js`).
-//
-// If you need to temporarily enable the old behavior for testing, set
-// `ENABLE_CONSOLE_DEPRECATION_WARNINGS=true` in your environment and the
-// deprecation helper may be assigned at runtime by an opt-in script.
+// NOTE: Previously this module had a `deprecatedConsole` helper for migration.
+// It's been removed as it's no longer used. All code should use the structured logger directly.
 
 /**
  * Express middleware for request logging with sampling
