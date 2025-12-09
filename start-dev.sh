@@ -18,10 +18,16 @@ pkill -f "node server.js" 2>/dev/null || true
 pkill -f "react-app-rewired" 2>/dev/null || true
 sleep 2
 
+# Export environment for backend
+export NODE_ENV=development
+export PORT=3030
+export DISABLE_TELEMETRY=true
+export KAFKA_ENABLED=false
+
 # Start backend
 echo -e "${GREEN}Starting backend on port 3030...${NC}"
 cd rpa-system/backend
-NODE_ENV=development PORT=3030 DISABLE_TELEMETRY=true node server.js > ../../logs/backend.log 2>&1 &
+nohup node server.js > ../../logs/backend.log 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > /tmp/backend.pid
 cd ../..
@@ -39,7 +45,7 @@ fi
 # Start frontend
 echo -e "${GREEN}Starting frontend on port 3000...${NC}"
 cd rpa-system/rpa-dashboard
-npm start > ../../logs/frontend.log 2>&1 &
+nohup npm start > ../../logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > /tmp/frontend.pid
 cd ../..

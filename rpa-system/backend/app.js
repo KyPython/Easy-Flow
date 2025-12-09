@@ -266,7 +266,7 @@ const globalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Increased for development
+  max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Much higher limit for development
   message: {
     error: 'Too many authentication attempts, please try again later.'
   },
@@ -274,8 +274,8 @@ const authLimiter = rateLimit({
     try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
   },
   skip: (req) => {
-    // Skip rate limiting if dev bypass is active
-    return req.devBypass === true;
+    // Skip rate limiting if dev bypass is active OR in development mode
+    return req.devBypass === true || process.env.NODE_ENV === 'development';
   }
 });
 
