@@ -22,6 +22,21 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
+def translate_localhost_url(url):
+    """
+    Translate localhost URLs to work from inside Docker containers.
+    In Docker, localhost refers to the container itself, not the host machine.
+    Use host.docker.internal to access services on the host.
+    """
+    if 'localhost' in url or '127.0.0.1' in url:
+        # Check if running in Docker (common env var or file existence)
+        if os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER'):
+            logger.info(f"Running in Docker, translating localhost URL: {url}")
+            url = url.replace('localhost', 'host.docker.internal')
+            url = url.replace('127.0.0.1', 'host.docker.internal')
+            logger.info(f"Translated URL: {url}")
+    return url
+
 def create_webdriver():
     """Create a headless Chrome WebDriver instance optimized for automation."""
     options = Options()
@@ -54,6 +69,9 @@ def perform_web_automation(url, task_data):
     Returns:
         dict: Result of automation including success status and data
     """
+    # Translate localhost URLs for Docker environment
+    url = translate_localhost_url(url)
+    
     driver = create_webdriver()
     if not driver:
         return {"error": "Failed to create WebDriver", "status": "failed"}
@@ -493,6 +511,9 @@ def download_pdf(pdf_url, task_data):
     import requests
     import tempfile
     import os
+    
+    # Translate localhost URLs for Docker environment
+    pdf_url = translate_localhost_url(pdf_url)
     
     try:
         download_path = task_data.get('download_path', tempfile.gettempdir())
