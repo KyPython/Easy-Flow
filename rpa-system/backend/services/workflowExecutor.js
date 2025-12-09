@@ -1346,10 +1346,21 @@ class WorkflowExecutor {
           });
           
           scrapedData = response.data;
+          const scrapeDuration = (Date.now() - scrapeStartTime) / 1000;
+          
+          // ✅ OBSERVABILITY: Log successful scraping with metrics
           this.logger.info(`[WorkflowExecutor] ✅ Scraping succeeded on attempt ${attempt}`, {
             execution_id: execution?.id,
             url,
-            attempts
+            attempts,
+            duration_sec: scrapeDuration,
+            data_size: scrapedData ? JSON.stringify(scrapedData).length : 0,
+            timestamp: new Date().toISOString(),
+            observability: {
+              event: 'scraping_success',
+              attempt_number: attempt,
+              duration_sec: scrapeDuration
+            }
           });
           break; // Success - exit retry loop
           
@@ -1364,12 +1375,25 @@ class WorkflowExecutor {
           
           if (!isRetryable || attempt === maxAttempts) {
             // Not retryable or max attempts reached
+            const errorCategory = this._categorizeError(err);
             this.logger.error(`[WorkflowExecutor] ❌ Scraping failed (not retrying)`, {
               execution_id: execution?.id,
               url,
               attempt,
+              max_attempts: maxAttempts,
               error: err.message,
-              is_retryable: isRetryable
+              error_code: err.code,
+              error_status: err.response?.status,
+              is_retryable: isRetryable,
+              error_category: errorCategory,
+              timestamp: new Date().toISOString(),
+              observability: {
+                event: 'scraping_failed_final',
+                attempt_number: attempt,
+                max_attempts: maxAttempts,
+                error_category: errorCategory,
+                is_retryable: isRetryable
+              }
             });
             throw err;
           }
@@ -1377,12 +1401,23 @@ class WorkflowExecutor {
           // Calculate wait time for this attempt
           const waitMs = backoffDelays[attempt - 1] || 0;
           
+          // ✅ OBSERVABILITY: Log retry attempt with full context
           this.logger.warn(`[WorkflowExecutor] ⚠️ Scraping attempt ${attempt} failed, retrying in ${waitMs}ms`, {
             execution_id: execution?.id,
             url,
             attempt,
+            max_attempts: maxAttempts,
             wait_ms: waitMs,
-            error: err.message
+            error: err.message,
+            error_code: err.code,
+            error_status: err.response?.status,
+            timestamp: new Date().toISOString(),
+            observability: {
+              event: 'scraping_retry',
+              attempt_number: attempt,
+              wait_ms: waitMs,
+              error_category: this._categorizeError(err)
+            }
           });
           
           // Wait before retry (except first attempt which is immediate)
@@ -1482,7 +1517,9 @@ class WorkflowExecutor {
           backoffWaitMs: backoff.totalWaitMs,
           stepDetails: stepDetails || 'Scraping completed',
           duration: durationDisplay,
-          recordsCount
+          recordsCount,
+          connectionTime: (connectionTime / 1000).toFixed(1),
+          scrapeTime: scrapeDuration.toFixed(1)
         }
       };
       
@@ -1513,13 +1550,23 @@ class WorkflowExecutor {
         formatted: `Web scraping failed: ${userMessageObj.message || error.message} at ${timestamp}\n- Reason: ${userMessageObj.reason || error.message}\n- Fix: ${userMessageObj.fix || 'Please try again or contact support'}`
       };
       
+      // ✅ OBSERVABILITY: Log error with full context for observability
       this.logger.error('Web scraping failed', {
         execution_id: execution?.id,
         error_category: errorCategory,
         error_message: error.message,
         error_code: error.code,
+        error_status: error.response?.status,
         timestamp,
-        retry_available: enhancedError.retry
+        retry_available: enhancedError.retry,
+        url: config?.url,
+        observability: {
+          event: 'web_scraping_failed',
+          error_category: errorCategory,
+          retry_available: enhancedError.retry,
+          error_reason: enhancedError.reason,
+          error_fix: enhancedError.fix
+        }
       });
       
       return { 

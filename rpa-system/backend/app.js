@@ -1825,7 +1825,8 @@ async function queueTaskRun(runId, taskData) {
       throw new Error(errorMessage);
     }
     
-    // ✅ PRIORITY 1: Health check before execution with retry scheduling
+    // ✅ PRIORITY 1: Health check before execution with retry scheduling + OBSERVABILITY
+    const healthCheckStartTime = Date.now();
     let healthCheckPassed = false;
     try {
       let normalizedUrl = automationUrl.trim();
@@ -1833,21 +1834,48 @@ async function queueTaskRun(runId, taskData) {
         normalizedUrl = `http://${normalizedUrl}`;
       }
       
+      // ✅ OBSERVABILITY: Log health check attempt
+      logger.info(`[queueTaskRun] 🔍 Health check: ${normalizedUrl}`, {
+        run_id: runId,
+        automation_url: normalizedUrl,
+        timestamp: new Date().toISOString()
+      });
+      
       // Quick health check
       const axios = require('axios');
       await axios.get(`${normalizedUrl}/health`, { timeout: 5000 }).catch(() => {
         // Try root endpoint if /health doesn't exist
         return axios.get(normalizedUrl, { timeout: 5000, validateStatus: () => true });
       });
+      
+      const healthCheckDuration = Date.now() - healthCheckStartTime;
       healthCheckPassed = true;
+      
+      // ✅ OBSERVABILITY: Log successful health check
+      logger.info(`[queueTaskRun] ✅ Health check passed`, {
+        run_id: runId,
+        automation_url: normalizedUrl,
+        duration_ms: healthCheckDuration,
+        timestamp: new Date().toISOString()
+      });
     } catch (healthError) {
+      const healthCheckDuration = Date.now() - healthCheckStartTime;
+      
       // ✅ PRIORITY 1: Schedule retry in 5 minutes instead of failing immediately
+      // ✅ OBSERVABILITY: Log health check failure with full context
       logger.warn(`[queueTaskRun] ⚠️ Automation service health check failed, scheduling retry in 5 minutes`, {
         run_id: runId,
         error: healthError.message,
-        code: healthError.code,
+        error_code: healthError.code,
         automation_url: automationUrl,
-        retry_scheduled_at: new Date(Date.now() + 5 * 60 * 1000).toISOString()
+        duration_ms: healthCheckDuration,
+        retry_scheduled_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        timestamp: new Date().toISOString(),
+        observability: {
+          event: 'health_check_failed',
+          retry_scheduled: true,
+          retry_delay_seconds: 300
+        }
       });
       
       // Update run status to show retry scheduled
@@ -1950,20 +1978,41 @@ async function queueTaskRun(runId, taskData) {
         '/automate'
       ];
 
+      // ✅ OBSERVABILITY: Track retry attempts with timing
+      const automationStartTime = Date.now();
+      
       // Retry loop with exponential backoff
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         lastError = null;
+        const attemptStartTime = Date.now();
         
+        // ✅ OBSERVABILITY: Log each retry attempt with full context
         logger.info(`[queueTaskRun] 🔄 Automation attempt ${attempt}/${maxRetries}`, {
           run_id: runId,
           attempt,
-          wait_ms: attempt > 1 ? backoffDelays[attempt - 1] : 0
+          max_attempts: maxRetries,
+          wait_ms: attempt > 1 ? backoffDelays[attempt - 1] : 0,
+          backoff_delays: backoffDelays,
+          timestamp: new Date().toISOString(),
+          observability: {
+            event: 'automation_retry_attempt',
+            attempt_number: attempt,
+            total_attempts: maxRetries
+          }
         });
         
         // Wait before retry (except first attempt)
         if (attempt > 1) {
           const waitMs = backoffDelays[attempt - 1];
-          logger.info(`[queueTaskRun] ⏳ Waiting ${waitMs}ms before retry`, { run_id: runId });
+          logger.info(`[queueTaskRun] ⏳ Waiting ${waitMs}ms before retry`, { 
+            run_id: runId,
+            wait_ms,
+            attempt,
+            observability: {
+              event: 'retry_backoff_wait',
+              wait_ms
+            }
+          });
           await new Promise(resolve => setTimeout(resolve, waitMs));
         }
         
@@ -1984,11 +2033,24 @@ async function queueTaskRun(runId, taskData) {
             });
             
             automationResult = response.data || { message: 'Execution completed with no data returned' };
+            const attemptDuration = Date.now() - attemptStartTime;
+            const totalDuration = Date.now() - automationStartTime;
+            
+            // ✅ OBSERVABILITY: Log successful automation with timing metrics
             logger.info(`[queueTaskRun] ✅ Automation succeeded on attempt ${attempt}`, {
               run_id: runId,
               endpoint: pathSuffix,
               status: response.status,
-              attempt
+              attempt,
+              attempt_duration_ms: attemptDuration,
+              total_duration_ms: totalDuration,
+              timestamp: new Date().toISOString(),
+              observability: {
+                event: 'automation_success',
+                attempt_number: attempt,
+                duration_ms: attemptDuration,
+                total_duration_ms: totalDuration
+              }
             });
             break; // Success - exit both loops
           } catch (err) {
@@ -2026,10 +2088,22 @@ async function queueTaskRun(runId, taskData) {
         
         // If last attempt and still no result, throw
         if (attempt === maxRetries && lastError) {
+          const totalDuration = Date.now() - automationStartTime;
           logger.error(`[queueTaskRun] ❌ All ${maxRetries} attempts failed`, {
             run_id: runId,
             final_error: lastError.message,
-            attempts: maxRetries
+            final_error_code: lastError.code,
+            attempts: maxRetries,
+            total_duration_ms: totalDuration,
+            backoff_delays_used: backoffDelays,
+            timestamp: new Date().toISOString(),
+            observability: {
+              event: 'automation_all_retries_failed',
+              total_attempts: maxRetries,
+              total_duration_ms: totalDuration,
+              final_error: lastError.message,
+              final_error_code: lastError.code
+            }
           });
           throw lastError;
         }
