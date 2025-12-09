@@ -1,6 +1,6 @@
 // Cleanup script for stale tasks
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
-const { getSupabase } = require('./utils/supabaseClient');
+const { getSupabase } = require('../utils/supabaseClient');
 
 async function cleanupStaleTasks() {
   const supabase = getSupabase();
