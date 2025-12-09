@@ -4031,16 +4031,17 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
 
     // ✅ FIX: Create database records so task appears in automation history
     // ✅ OBSERVABILITY: Log database insert attempt with trace context
+    // ✅ FIX: Declare taskType before using it in logger
+    const taskType = (taskData.task_type || 'general').toLowerCase();
+    const taskName = taskData.title || 
+                     (taskData.task_type && taskData.task_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 
+                     'Automation Task';
+    
     logger.debug('Starting database insert for automation task', {
       supabase_configured: !!supabase,
       user_id: req.user?.id,
       task_type: taskType
     });
-    
-    const taskName = taskData.title || 
-                     (taskData.task_type && taskData.task_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 
-                     'Automation Task';
-    const taskType = (taskData.task_type || 'general').toLowerCase();
     
     // Create automation_tasks record
     const taskParams = {
