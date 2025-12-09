@@ -1,18 +1,27 @@
-// Demo routes for testing automation
+// Demo routes for testing automation - Integrated with observability
 const express = require('express');
 const path = require('path');
 const router = express.Router();
+const { getLogger } = require('../utils/logger');
+
+const logger = getLogger('demo');
 
 // Serve demo portal page
 router.get('/demo', (req, res) => {
+  logger.info('[Demo] Portal accessed', {
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+    referrer: req.get('referer')
+  });
   res.sendFile(path.join(__dirname, '../public/demo/index.html'));
 });
 
-// Generate simple PDF invoice on the fly
+// Generate PDF invoice with observability
 router.get('/demo/invoice-:id.pdf', (req, res) => {
   const { id } = req.params;
   
-  // Simple PDF content (minimal valid PDF)
+  logger.info('[Demo] PDF requested', { invoiceId: id, ip: req.ip });
+  
   const pdfContent = `%PDF-1.4
 1 0 obj
 <<
@@ -86,6 +95,8 @@ trailer
 startxref
 601
 %%EOF`;
+
+  logger.info('[Demo] PDF generated', { invoiceId: id, size: pdfContent.length });
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="invoice-${id}.pdf"`);

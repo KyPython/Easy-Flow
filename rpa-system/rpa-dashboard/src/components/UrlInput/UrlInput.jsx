@@ -3,11 +3,21 @@ import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext';
 import styles from './UrlInput.module.css';
 
+// Get API base URL from environment or use relative path for production
+const getApiBaseUrl = () => {
+  // In development, use localhost
+  if (process.env.NODE_ENV === 'development') {
+    return process.env.REACT_APP_API_BASE || 'http://localhost:3030';
+  }
+  // In production, use the same origin as the frontend (works for deployed apps)
+  return window.location.origin;
+};
+
 // Demo site configuration - reliable demo hosted on your backend
 const demoSites = [
   { 
     name: '🎯 Try Demo Portal', 
-    url: 'http://localhost:3030/demo',
+    url: `${getApiBaseUrl()}/demo`,
     username: 'demo@easyflow.com',
     password: 'demo123',
     description: 'EasyFlow demo invoice portal - always available, always works!'
