@@ -1039,7 +1039,7 @@ class WorkflowExecutor {
       async (stepSpan) => {
         try {
           // ✅ FIX: Check cancellation before starting step (check both local and registry)
-          if (this._isCancelled(execution.id)) {
+          if (await this._isCancelled(execution.id)) {
             stepSpan.setStatus({ code: SpanStatusCode.ERROR, message: 'Execution cancelled' });
             stepSpan.setAttributes({ 'step.cancelled': true });
             stepSpan.end();

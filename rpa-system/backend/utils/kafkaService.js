@@ -144,6 +144,15 @@ class KafkaService {
                 retry: {
                     initialRetryTime: 100,
                     retries: 8
+                },
+                // ✅ Suppress KafkaJS internal connection logs in development
+                logLevel: process.env.NODE_ENV === 'development' ? 3 : 2, // 3=WARN, 2=ERROR
+                logCreator: () => ({ namespace, level, label, log }) => {
+                    // Only log WARN and ERROR from KafkaJS library
+                    if (level >= 3) { // 3=WARN, 4=ERROR
+                        const { message, ...extra } = log;
+                        logger.warn(`[KafkaJS:${label}] ${message}`, extra);
+                    }
                 }
             };
 
