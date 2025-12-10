@@ -1,9 +1,11 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './AdminTemplates.module.css';
 import PlanGate from '../components/PlanGate/PlanGate';
 
 const AdminTemplates = () => {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -58,7 +60,10 @@ const AdminTemplates = () => {
     <PlanGate 
       feature="admin_templates" 
       upgradeMessage="Admin template moderation is restricted to authorized users."
-      onPaywallClose={() => window.location.href = '/app'}
+      onPaywallClose={() => {
+        console.log('[AdminTemplates] Paywall dismissed, navigating back');
+        navigate(-1);
+      }}
     >
       <div className={styles.wrapper}>
       <div className={styles.header}>

@@ -1,17 +1,22 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../utils/ThemeContext';
 import PlanGate from '../components/PlanGate/PlanGate';
 import styles from './WebhooksPage.module.css';
 
 const WebhooksPage = () => {
   const { theme } = useTheme();
+  const navigate = useNavigate();
   
   return (
     <PlanGate 
       requiredPlan="Professional"
       feature="webhook_management"
       upgradeMessage="Webhook Management allows you to receive real-time notifications and trigger automations from external services. Set up unlimited webhooks with Professional and Enterprise plans."
-      onPaywallClose={() => window.location.href = '/app'}
+      onPaywallClose={() => {
+        console.log('[WebhooksPage] Paywall dismissed, navigating back');
+        navigate(-1);
+      }}
     >
       <div className={`${styles.webhooksPage} ${theme === 'dark' ? styles.darkTheme : ''}`}>
         <header className={styles.header}>

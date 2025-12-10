@@ -1,17 +1,22 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../utils/ThemeContext';
 import PlanGate from '../components/PlanGate/PlanGate';
 import styles from './IntegrationsPage.module.css';
 
 const IntegrationsPage = () => {
   const { theme } = useTheme();
+  const navigate = useNavigate();
   
   return (
     <PlanGate 
       requiredPlan="Professional"
       feature="custom_integrations"
       upgradeMessage="Custom Integrations allow you to connect with any API or service. Build custom webhooks, API calls, and data synchronization. Available on Professional and Enterprise plans."
-      onPaywallClose={() => window.location.href = '/app'}
+      onPaywallClose={() => {
+        console.log('[IntegrationsPage] Paywall dismissed, navigating back');
+        navigate(-1);
+      }}
     >
       <div className={`${styles.integrationsPage} ${theme === 'dark' ? styles.darkTheme : ''}`}>
         <header className={styles.header}>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePlan } from '../../hooks/usePlan';
 import { useTheme } from '../../utils/ThemeContext';
 import { initSupabase } from '../../utils/supabaseClient';
@@ -16,6 +17,7 @@ const PaywallModal = ({
 
   const { planData } = usePlan();
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [isClosing, setIsClosing] = useState(false);
   const [plans, setPlans] = useState([]);
   const [featureLabels, setFeatureLabels] = useState({});
@@ -107,10 +109,15 @@ const PaywallModal = ({
     if (onClose) {
       onClose();
     } else {
-      // Default behavior: redirect to dashboard after short delay
-      console.log('[PaywallModal] No onClose callback, redirecting to /app');
+      // Default behavior: navigate back or to dashboard
+      console.log('[PaywallModal] No onClose callback, navigating back or to /app');
       setTimeout(() => {
-        window.location.href = '/app';
+        // Try to go back if there's history, otherwise go to dashboard
+        if (window.history.length > 1) {
+          navigate(-1);
+        } else {
+          navigate('/app');
+        }
       }, 200);
     }
   };

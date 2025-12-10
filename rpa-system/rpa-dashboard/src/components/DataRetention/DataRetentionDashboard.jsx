@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import styles from './DataRetentionDashboard.module.css';
 import {
@@ -21,6 +22,7 @@ import { useTheme } from '../../utils/ThemeContext';
 
 const DataRetentionDashboard = ({ user }) => {
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [retentionStatus, setRetentionStatus] = useState(null);
   const [statistics, setStatistics] = useState(null);
   const [policies, setPolicies] = useState(null);
@@ -126,7 +128,10 @@ const DataRetentionDashboard = ({ user }) => {
     <PlanGate 
       feature="data_retention"
       upgradeMessage="Data retention management requires a Professional or Enterprise plan to ensure compliance and automated data cleanup."
-      onPaywallClose={() => window.location.href = '/app'}
+      onPaywallClose={() => {
+        console.log('[DataRetentionDashboard] Paywall dismissed, navigating back');
+        navigate(-1);
+      }}
     >
       {loading ? (
         <div className={styles.loading}>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   FaPlus, 
   FaTrash, 
@@ -21,6 +22,7 @@ const BulkInvoiceProcessor = () => {
   const { user } = useAuth();
   const { theme } = useTheme();
   const { t } = useI18n();
+  const navigate = useNavigate();
   const { error: showError, warning: showWarning, success: showSuccess } = useToast();
   const [vendors, setVendors] = useState([]);
   const [batchJobs, setBatchJobs] = useState([]);
@@ -198,9 +200,10 @@ const BulkInvoiceProcessor = () => {
     }
   };
 
-  // Handler to route to dashboard tab when paywall is closed
+  // Handler to route back when paywall is closed
   const handlePaywallClose = () => {
-    window.location.href = '/dashboard?tab=bulk';
+    console.log('[BulkProcessor] Paywall dismissed, navigating back');
+    navigate(-1); // Go back to previous page
   };
 
   return (
