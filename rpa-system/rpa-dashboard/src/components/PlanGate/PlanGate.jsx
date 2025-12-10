@@ -24,6 +24,7 @@ const PlanGate = ({
   onPaywallClose
 }) => {
   const { planData, loading } = usePlan();
+  const [modalDismissed, setModalDismissed] = React.useState(false);
 
   // Development bypass
   const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
@@ -108,7 +109,7 @@ const PlanGate = ({
   })();
 
   // If user has access or is already on the required plan, render children (never show a modal)
-  if (hasAccess || isOnRequiredPlan) {
+  if (hasAccess || isOnRequiredPlan || modalDismissed) {
     if (!children) return null;
     if (Array.isArray(children)) {
       return <React.Fragment>{children}</React.Fragment>;
@@ -123,12 +124,20 @@ const PlanGate = ({
 
   // Show upgrade modal if enabled
   if (showUpgrade) {
+    const handleModalClose = () => {
+      console.log('[PlanGate] Modal dismissed by user');
+      setModalDismissed(true);
+      if (onPaywallClose) {
+        onPaywallClose();
+      }
+    };
+
     return (
       <PaywallModal
         feature={feature}
         requiredPlan={requiredPlan}
         message={upgradeMessage}
-        onClose={onPaywallClose}
+        onClose={handleModalClose}
       />
     );
   }

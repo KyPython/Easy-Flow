@@ -96,12 +96,23 @@ const PaywallModal = ({
       feature,
       requiredPlan,
       currentPlan: planData?.plan?.name || 'hobbyist',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      hasOnCloseCallback: !!onClose
     });
 
-    // Close immediately - no blocking behavior
+    // Close modal with animation
     setIsClosing(true);
-    if (onClose) onClose();
+    
+    // If onClose callback provided, use it
+    if (onClose) {
+      onClose();
+    } else {
+      // Default behavior: redirect to dashboard after short delay
+      console.log('[PaywallModal] No onClose callback, redirecting to /app');
+      setTimeout(() => {
+        window.location.href = '/app';
+      }, 200);
+    }
   };
 
   const handleUpgrade = () => {

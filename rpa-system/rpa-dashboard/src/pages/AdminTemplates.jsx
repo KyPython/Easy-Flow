@@ -55,7 +55,11 @@ const AdminTemplates = () => {
   }, [fetchTemplates]);
 
   return (
-    <PlanGate feature="admin_templates" upgradeMessage="Admin template moderation is restricted to authorized users.">
+    <PlanGate 
+      feature="admin_templates" 
+      upgradeMessage="Admin template moderation is restricted to authorized users."
+      onPaywallClose={() => window.location.href = '/app'}
+    >
       <div className={styles.wrapper}>
       <div className={styles.header}>
         <h2>Template Moderation</h2>

@@ -1,11 +1,82 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styles from './TaskResultModal.module.css';
 
 import { useNavigate } from 'react-router-dom';
 
 const TaskResultModal = ({ task, onClose }) => {
   const navigate = useNavigate();
+  const [downloading, setDownloading] = useState(false);
+  
   if (!task) return null;
+
+  // ✅ OBSERVABILITY: Unified download handler that matches TaskList behavior
+  const handleDownload = async (artifactUrl, filename) => {
+    if (!artifactUrl) {
+      console.error('[TaskResultModal] No artifact URL provided');
+      return;
+    }
+
+    console.log('[TaskResultModal] Starting download', { 
+      url: artifactUrl,
+      filename,
+      task_id: task.id 
+    });
+    
+    setDownloading(true);
+    
+    try {
+      // Use the same safe download method as TaskList
+      const response = await fetch(artifactUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/pdf,application/octet-stream,*/*'
+        }
+      });
+
+      if (!response.ok) {
+        console.error('[TaskResultModal] Download failed', { 
+          status: response.status, 
+          statusText: response.statusText 
+        });
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      console.log('[TaskResultModal] Fetched blob, creating download link');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Get filename from parameter or URL
+      const downloadFilename = filename || (() => {
+        try {
+          const urlPath = new URL(artifactUrl).pathname;
+          return urlPath.split('/').pop() || `task-${task.id}-result.pdf`;
+        } catch {
+          return `task-${task.id}-result.pdf`;
+        }
+      })();
+      
+      // Create download link and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = downloadFilename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the blob URL
+      window.URL.revokeObjectURL(url);
+      
+      console.log('[TaskResultModal] Download successful', { filename: downloadFilename });
+      
+    } catch (error) {
+      console.error('[TaskResultModal] Download failed, trying fallback', error);
+      // Fallback to direct link opening in new tab
+      window.open(artifactUrl, '_blank', 'noopener,noreferrer');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   // Parse the result - handle both string and object formats
   let resultData = null;
@@ -233,23 +304,15 @@ const TaskResultModal = ({ task, onClose }) => {
               {task.artifact_url ? (
                 <div className={styles.downloadSection}>
                   <a 
-                    href={task.artifact_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className={styles.downloadLink}
                     onClick={(e) => {
-                      // Try to trigger download
                       e.preventDefault();
-                      const link = document.createElement('a');
-                      link.href = task.artifact_url;
-                      link.download = formatted.filename || 'invoice.pdf';
-                      link.target = '_blank';
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
+                      handleDownload(task.artifact_url, formatted.filename || 'invoice.pdf');
                     }}
+                    href="#"
+                    className={styles.downloadLink}
+                    style={{ cursor: downloading ? 'wait' : 'pointer', opacity: downloading ? 0.6 : 1 }}
                   >
-                    📥 Download Invoice
+                    {downloading ? '⏳ Downloading...' : '📥 Download Invoice'}
                   </a>
                   {formatted.filename && (
                     <p className={styles.muted}>File: {formatted.filename}</p>

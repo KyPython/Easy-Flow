@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext';
+import SearchSuggestions from '../SearchSuggestions/SearchSuggestions';
 import styles from './UrlInput.module.css';
 
 // Get API base URL from environment or use relative path for production
@@ -191,6 +192,16 @@ const UrlInput = ({ onUrlSubmit, onUrlChange, onClear }) => {
     }
   }, [onUrlChange, onUrlSubmit]);
 
+  // Handle search result selection
+  const handleSearchSelect = useCallback((selectedUrl) => {
+    console.log('[UrlInput] Search selected', { url: selectedUrl });
+    setUrl(selectedUrl);
+    setError('');
+    if (isValidUrl(selectedUrl)) {
+      onUrlChange?.(selectedUrl);
+    }
+  }, [onUrlChange]);
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -205,17 +216,24 @@ const UrlInput = ({ onUrlSubmit, onUrlChange, onClear }) => {
           <label htmlFor="targetUrl" className={styles.label}>
             Website URL
           </label>
-          <div className={styles.inputWrapper}>
+          <div className={styles.inputWrapper} style={{ position: 'relative' }}>
             <input
               type="url"
               id="targetUrl"
               value={url}
               onChange={handleUrlChange}
-              placeholder="https://example.com"
+              placeholder="https://example.com or search the web..."
               className={`${styles.input} ${error ? styles.error : ''}`}
               disabled={isValidating}
               autoComplete="url"
             />
+            {/* Search suggestions dropdown */}
+            {!isValidUrl(url) && url.length >= 3 && (
+              <SearchSuggestions 
+                query={url} 
+                onSelect={handleSearchSelect}
+              />
+            )}
             <div className={styles.inputActions}>
               {url && (
                 <button

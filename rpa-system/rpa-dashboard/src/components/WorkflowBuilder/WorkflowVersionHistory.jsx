@@ -227,6 +227,10 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
     <PlanGate 
       feature="workflow_versioning"
       upgradeMessage="Workflow versioning and rollback requires a Professional or Enterprise plan for advanced workflow management."
+      onPaywallClose={() => {
+        console.log('[WorkflowVersionHistory] Paywall dismissed, closing modal');
+        onClose();
+      }}
     >
       {loading ? (
         <div className={styles.modal}>

@@ -17,6 +17,7 @@ import PlanGate from '../PlanGate/PlanGate';
 import { useFormPersistence, enableBrowserAutofill } from '../../utils/formPersistence';
 import { useAuth } from '../../utils/AuthContext';
 import useUsageTracking from '../../hooks/useUsageTracking';
+import SearchSuggestions from '../SearchSuggestions/SearchSuggestions';
 import styles from './TaskForm.module.css';
 
 const token = localStorage.getItem('sb-syxzilyuysdoirnezgii-auth-token');
@@ -700,7 +701,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           </div>
 
           {/* URL */}
-          <div className={styles.formGroup}>
+          <div className={styles.formGroup} style={{ position: 'relative' }}>
             <label htmlFor="url" className={styles.label}>
               Target URL <span className={styles.required}>*</span>
             </label>
@@ -710,12 +711,22 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
               name="url"
               value={form.url}
               onChange={handleChange}
-              placeholder="https://example.com"
+              placeholder="https://example.com or search the web..."
               className={`${styles.input} ${
                 errors.url ? styles.error : ''
               }`}
               required
             />
+            {/* Search suggestions dropdown */}
+            {form.url && form.url.length >= 3 && !form.url.startsWith('http') && (
+              <SearchSuggestions 
+                query={form.url} 
+                onSelect={(url) => {
+                  console.log('[TaskForm] Search selected', { url });
+                  handleChange({ target: { name: 'url', value: url } });
+                }}
+              />
+            )}
             {errors.url && (
               <span className={styles.errorText}>{errors.url}</span>
             )}

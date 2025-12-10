@@ -126,6 +126,7 @@ const DataRetentionDashboard = ({ user }) => {
     <PlanGate 
       feature="data_retention"
       upgradeMessage="Data retention management requires a Professional or Enterprise plan to ensure compliance and automated data cleanup."
+      onPaywallClose={() => window.location.href = '/app'}
     >
       {loading ? (
         <div className={styles.loading}>
