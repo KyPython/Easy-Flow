@@ -156,9 +156,14 @@ if (ENABLE_TELEMETRY_DEBUG) {
   logger.debug('[TELEMETRY DEBUG] Headers to send:', Object.keys(parsedHeaders).join(', '));
 }
 
-// ✅ CRITICAL: Verify headers before creating exporters
+// ✅ FIX: Verify headers before creating exporters (non-critical in development)
 if (!parsedHeaders.Authorization) {
-  logger.error('❌ [Telemetry] CRITICAL ERROR: Authorization header is MISSING in parsedHeaders!');
+  // ✅ Only log as warning in development, info otherwise (expected when telemetry not configured)
+  if (process.env.NODE_ENV === 'production') {
+    logger.warn('⚠️  [Telemetry] Authorization header missing - telemetry may not export correctly');
+  } else {
+    logger.info('ℹ️  [Telemetry] No OTEL_EXPORTER_OTLP_HEADERS configured (expected in local development)');
+  }
   if (ENABLE_TELEMETRY_DEBUG) {
     logger.debug('[Telemetry] parsedHeaders:', JSON.stringify(parsedHeaders));
   }

@@ -166,10 +166,17 @@ async function getUserPlan(userId) {
 
   // 2. Get the plan details separately (avoids PostgREST FK relationship requirement)
   const planId = userProfile.plan_id || 'free';
+  
+  // ✅ FIX: Only query by id if planId is a valid UUID, otherwise query by name/slug
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(planId);
+  const orQuery = isUuid 
+    ? `id.eq.${planId},name.eq.${planId},slug.eq.${planId}`
+    : `name.eq.${planId},slug.eq.${planId}`;
+  
   const { data: planData, error: planError } = await supabase
     .from('plans')
     .select('*')
-    .or(`id.eq.${planId},name.eq.${planId},slug.eq.${planId}`)
+    .or(orQuery)
     .maybeSingle();
 
   let plan;

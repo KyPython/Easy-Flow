@@ -269,7 +269,17 @@ class KafkaService {
             logger.info('[KafkaService] Successfully connected to Kafka with auto-topic creation');
             
         } catch (error) {
-            logger.error('[KafkaService] Failed to initialize Kafka:', error);
+            // ✅ FIX: Log at appropriate level based on environment and expectation
+            // In development with default localhost:9092, this is expected if Kafka isn't running
+            const isDevelopmentDefault = process.env.NODE_ENV === 'development' && 
+                                        this.brokers && this.brokers.includes('localhost:9092');
+            
+            if (isDevelopmentDefault) {
+                logger.info('[KafkaService] Kafka not available (expected in local development without Kafka running)');
+                logger.info('[KafkaService] To enable: Install Kafka or set KAFKA_ENABLED=false to suppress this');
+            } else {
+                logger.error('[KafkaService] Failed to initialize Kafka:', error);
+            }
             this.isConnected = false;
         } finally {
             // Always disconnect admin client
@@ -337,8 +347,12 @@ class KafkaService {
                         const result = JSON.parse(message.value.toString());
                         const taskId = result.task_id;
                         
-                        logger.info(`[KafkaService] ✅ Received result for task ${taskId}: status=${result.status}, success=${result.result?.success || 'N/A'}`);
-                        console.log(`[KafkaService] ✅ Received result for task ${taskId}:`, JSON.stringify(result, null, 2));
+                        logger.info('[KafkaService] Received result for task', {
+                            task_id: taskId,
+                            status: result.status,
+                            success: result.result?.success || 'N/A',
+                            result_details: result
+                        });
                         
 
                         // Update taskStatusStore for status polling endpoint
@@ -395,11 +409,15 @@ class KafkaService {
                                             .eq('id', runRecordId);
                                         
                                         if (updateError) {
-                                            logger.error(`[KafkaService] ❌ Error updating automation_runs ${runRecordId}:`, updateError);
-                                            console.error(`[KafkaService] ❌ Error updating automation_runs ${runRecordId}:`, updateError);
+                                            logger.error('[KafkaService] Error updating automation_runs', {
+                                                run_record_id: runRecordId,
+                                                database_error: updateError
+                                            });
                                         } else {
-                                            logger.info(`[KafkaService] ✅ Updated automation_runs record ${runRecordId} with status ${dbStatus}`);
-                                            console.log(`[KafkaService] ✅ Updated automation_runs record ${runRecordId} with status ${dbStatus}`);
+                                            logger.info('[KafkaService] Updated automation_runs record', {
+                                                run_record_id: runRecordId,
+                                                status: dbStatus
+                                            });
                                         }
                                     } catch (dbError) {
                                         logger.error('[KafkaService] Could not update automation_runs:', dbError);

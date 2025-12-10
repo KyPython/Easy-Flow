@@ -11,11 +11,39 @@ const { trace, SpanStatusCode, SpanKind } = require('@opentelemetry/api');
 
 class InstrumentedSupabaseClient {
   constructor(supabaseUrl, supabaseKey, options = {}) {
-    this.client = createClient(supabaseUrl, supabaseKey, options);
+    try {
+      this.client = createClient(supabaseUrl, supabaseKey, options);
+      
+      // ✅ FIX: Validate that the client was created successfully
+      if (!this.client) {
+        throw new Error('Supabase client creation failed - client is null/undefined');
+      }
+      
+    } catch (error) {
+      // If client creation fails, create a null client
+      this.client = null;
+      // Logger not available yet, will log in next block
+    }
+    
     this.logger = createContextLogger('database.supabase');
+    
+    // ✅ Log initialization failure after logger is available
+    if (!this.client) {
+      this.logger.error('Failed to create Supabase client - client is null');
+    }
     
     // ✅ INSTRUCTION 1: Get tracer for database operations
     this.tracer = trace.getTracer('database.supabase');
+    
+    // Log initialization status
+    if (this.client) {
+      this.logger.info('Instrumented Supabase client initialized', {
+        has_rpc: typeof this.client.rpc === 'function',
+        has_from: typeof this.client.from === 'function'
+      });
+    } else {
+      this.logger.warn('Supabase client is null - operations will fail');
+    }
   }
 
   /**
@@ -41,6 +69,17 @@ class InstrumentedSupabaseClient {
    * RPC calls work like: client.rpc('function_name', params)
    */
   rpc(functionName, params = {}) {
+    // ✅ FIX: Check if the underlying client has rpc method before proceeding
+    if (!this.client || typeof this.client.rpc !== 'function') {
+      const error = new Error('Supabase client RPC method not available');
+      this.logger.error('RPC method not available on client', {
+        has_client: !!this.client,
+        client_type: this.client ? typeof this.client : 'undefined',
+        has_rpc: this.client && typeof this.client.rpc
+      });
+      return Promise.reject(error);
+    }
+    
     const tracer = this.tracer;
     const logger = this.logger;
     const originalRpc = this.client.rpc.bind(this.client);
