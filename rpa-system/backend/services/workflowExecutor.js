@@ -13,6 +13,9 @@ const { trace, context, propagation, SpanStatusCode } = require('@opentelemetry/
 // ✅ INSTRUCTION 2: Import structured logger (Gap 13, 15)
 const { createLogger } = require('../middleware/structuredLogging');
 
+// ✅ FIX: Global execution registry for tracking running executions across instances
+const executionRegistry = new Map();
+
 class WorkflowExecutor {
   constructor(logger) {
     this.supabase = getSupabase();
@@ -752,9 +755,25 @@ class WorkflowExecutor {
           );
       
       // Find the start step
+      this.logger.info('[WorkflowExecutor] Looking for start step', {
+        workflow_id: workflow.id,
+        total_steps: workflow.workflow_steps?.length || 0,
+        step_types: workflow.workflow_steps?.map(s => s.step_type) || [],
+        execution_id: execution.id
+      });
+      
       const startStep = workflow.workflow_steps.find(step => step.step_type === 'start');
       if (!startStep) {
         // ✅ FIX: Provide helpful error message and mark execution as failed immediately
+        this.logger.error('[WorkflowExecutor] No start step found', {
+          workflow_id: workflow.id,
+          available_steps: workflow.workflow_steps?.map(s => ({ 
+            id: s.id, 
+            type: s.step_type, 
+            name: s.name 
+          })) || [],
+          execution_id: execution.id
+        });
         const errorMsg = 'Workflow has no start step. Please add a start step to your workflow.';
         await this._updateExecutionStatus(execution.id, 'failed', errorMsg);
         await this.failExecution(execution.id, errorMsg, null, 'WORKFLOW_CONFIGURATION_ERROR');
