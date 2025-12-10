@@ -99,6 +99,15 @@ const WorkflowBuilder = () => {
           viewport: { x: 0, y: 0, zoom: 1 }
         };
         
+        // ✅ OBSERVABILITY: Log what we're about to save for debugging
+        console.log('💾 Saving workflow canvas state:', {
+          workflow_id: workflowId,
+          nodes_count: currentCanvasState.nodes?.length || 0,
+          edges_count: currentCanvasState.edges?.length || 0,
+          has_start_step: currentCanvasState.nodes?.some(n => n.data?.stepType === 'start'),
+          node_types: currentCanvasState.nodes?.map(n => n.data?.stepType) || []
+        });
+        
         // Update existing workflow with current canvas state
         const workflowToSave = {
           ...currentWorkflow,
@@ -106,7 +115,7 @@ const WorkflowBuilder = () => {
         };
         
         await saveWorkflow(workflowToSave);
-        console.log('Workflow updated successfully');
+        console.log('✅ Workflow saved successfully');
         
         // ✅ UX: Show success feedback
         showSuccess('✅ Workflow saved successfully!');

@@ -38,97 +38,85 @@ class InstrumentedSupabaseClient {
 
   /**
    * ✅ INSTRUCTION 1: Instrumented RPC access with span creation
-   * Previously bypassed instrumentation - now wraps RPC calls with spans
+   * RPC calls work like: client.rpc('function_name', params)
    */
-  get rpc() {
-    const originalRpc = this.client.rpc;
+  rpc(functionName, params = {}) {
     const tracer = this.tracer;
     const logger = this.logger;
+    const originalRpc = this.client.rpc.bind(this.client);
     
-    // Return a proxy that wraps RPC function calls with spans
-    return new Proxy(originalRpc, {
-      get: (target, prop) => {
-        if (typeof target[prop] === 'function') {
-          return async function(...args) {
-            const functionName = prop;
-            
-            // Create span for RPC call
-            return await tracer.startActiveSpan(
-              `supabase.rpc.${functionName}`,
-              {
-                kind: SpanKind.CLIENT,
-                attributes: {
-                  'db.system': 'supabase_postgres',
-                  'db.operation': 'rpc',
-                  'db.name': 'supabase',
-                  'db.supabase.function': functionName,
-                  'db.supabase.args_count': args.length
-                }
-              },
-              async (span) => {
-                const startTime = Date.now();
-                
-                try {
-                  logger.info(`RPC function call started: ${functionName}`, {
-                    database: {
-                      system: 'supabase_postgres',
-                      operation: 'rpc',
-                      function: functionName
-                    }
-                  });
-                  
-                  // Execute the RPC call
-                  const result = await target[prop].apply(target, args);
-                  const duration = Date.now() - startTime;
-                  
-                  span.setStatus({ code: SpanStatusCode.OK });
-                  span.setAttribute('db.supabase.duration_ms', duration);
-                  span.setAttribute('db.supabase.has_error', !!result.error);
-                  
-                  logger.info(`RPC function call completed: ${functionName}`, {
-                    database: {
-                      system: 'supabase_postgres',
-                      operation: 'rpc',
-                      function: functionName
-                    },
-                    performance: { duration }
-                  });
-                  
-                  return result;
-                } catch (error) {
-                  const duration = Date.now() - startTime;
-                  
-                  span.recordException(error);
-                  span.setStatus({ 
-                    code: SpanStatusCode.ERROR, 
-                    message: error.message 
-                  });
-                  span.setAttribute('db.supabase.duration_ms', duration);
-                  
-                  logger.error(`RPC function call failed: ${functionName}`, {
-                    database: {
-                      system: 'supabase_postgres',
-                      operation: 'rpc',
-                      function: functionName
-                    },
-                    error: {
-                      message: error.message,
-                      type: error.constructor.name
-                    },
-                    performance: { duration }
-                  });
-                  
-                  throw error;
-                } finally {
-                  span.end();
-                }
-              }
-            );
-          };
+    // Create span for RPC call
+    return tracer.startActiveSpan(
+      `supabase.rpc.${functionName}`,
+      {
+        kind: SpanKind.CLIENT,
+        attributes: {
+          'db.system': 'supabase_postgres',
+          'db.operation': 'rpc',
+          'db.name': 'supabase',
+          'db.supabase.function': functionName,
+          'db.supabase.has_params': Object.keys(params).length > 0
         }
-        return target[prop];
+      },
+      async (span) => {
+        const startTime = Date.now();
+        
+        try {
+          logger.info(`RPC function call started: ${functionName}`, {
+            database: {
+              system: 'supabase_postgres',
+              operation: 'rpc',
+              function: functionName
+            }
+          });
+          
+          // Execute the RPC call
+          const result = await originalRpc(functionName, params);
+          const duration = Date.now() - startTime;
+          
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.setAttribute('db.supabase.duration_ms', duration);
+          span.setAttribute('db.supabase.has_error', !!result.error);
+          
+          logger.info(`RPC function call completed: ${functionName}`, {
+            database: {
+              system: 'supabase_postgres',
+              operation: 'rpc',
+              function: functionName
+            },
+            performance: { duration }
+          });
+          
+          return result;
+        } catch (error) {
+          const duration = Date.now() - startTime;
+          
+          span.recordException(error);
+          span.setStatus({ 
+            code: SpanStatusCode.ERROR, 
+            message: error.message 
+          });
+          span.setAttribute('db.supabase.duration_ms', duration);
+          
+          logger.error(`RPC function call failed: ${functionName}`, {
+            database: {
+              system: 'supabase_postgres',
+              operation: 'rpc',
+              function: functionName
+            },
+            error: {
+              message: error.message,
+              type: error.constructor.name
+            },
+            performance: { duration }
+          });
+          
+          throw error;
+        } finally {
+          span.end();
+        }
       }
-    });
+    );
   }
 }
 

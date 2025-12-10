@@ -192,8 +192,8 @@ async function getUserPlan(userId) {
   let usage = { automationsThisMonth: 0, storageUsed: 0 };
   
   // ✅ FIX: Check supabase and rpc function exist before calling
-  if (supabase && typeof supabase.rpc === 'function') {
-    try {
+  try {
+    if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
       const { data: usageResult, error: usageError } = await supabase
         .rpc('get_monthly_usage', { user_uuid: userId });
       if (usageError) {
@@ -202,12 +202,20 @@ async function getUserPlan(userId) {
       } else if (usageResult) {
         usage = usageResult;
       }
-    } catch (rpcError) {
-      logger.warn('RPC call failed, using default usage', { userId, error: rpcError.message });
-      // Use default usage instead of throwing
+    } else {
+      logger.debug('Supabase RPC not available, using default usage', { 
+        userId,
+        has_supabase: !!supabase,
+        has_rpc: supabase && !!supabase.rpc
+      });
     }
-  } else {
-    logger.debug('Supabase RPC not available, using default usage', { userId });
+  } catch (rpcError) {
+    logger.warn('RPC call failed, using default usage', { 
+      userId, 
+      error: rpcError.message,
+      stack: rpcError.stack
+    });
+    // Use default usage instead of throwing
   }
 
   // 3. Get limits from SQL function (with fallback for dev)
@@ -221,9 +229,9 @@ async function getUserPlan(userId) {
   };
   
   // ✅ FIX: Check supabase and rpc function exist before calling
-  if (supabase && typeof supabase.rpc === 'function') {
-    try {
-      const { data: limitsResult, error: limitsError } = await supabase
+  try {
+    if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
+      const { data: limitsResult, error: limitsError} = await supabase
         .rpc('get_plan_limits', { user_uuid: userId });
       if (limitsError) {
         logger.warn('Failed to fetch plan limits, using defaults', { userId, database_error: limitsError });
@@ -231,12 +239,20 @@ async function getUserPlan(userId) {
       } else if (limitsResult) {
         limits = limitsResult;
       }
-    } catch (rpcError) {
-      logger.warn('RPC call failed, using default limits', { userId, error: rpcError.message });
-      // Use default limits instead of throwing
+    } else {
+      logger.debug('Supabase RPC not available, using default limits', { 
+        userId,
+        has_supabase: !!supabase,
+        has_rpc: supabase && !!supabase.rpc
+      });
     }
-  } else {
-    logger.debug('Supabase RPC not available, using default limits', { userId });
+  } catch (rpcError) {
+    logger.warn('RPC call failed, using default limits', { 
+      userId, 
+      error: rpcError.message,
+      stack: rpcError.stack
+    });
+    // Use default limits instead of throwing
   }
 
   return { plan, usage, limits };

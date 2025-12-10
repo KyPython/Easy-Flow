@@ -666,7 +666,7 @@ class WorkflowExecutor {
           input_data: inputData,
           triggered_by: triggeredBy,
           trigger_data: triggerData,
-          steps_total: workflow.workflow_steps.length
+          steps_total: workflow.workflow_steps?.length || 0
         })
         .select()
         .single();
@@ -754,24 +754,99 @@ class WorkflowExecutor {
             }
           );
       
-      // Find the start step
+      // Find the start step - check workflow_steps first, then canvas_config
+      let steps = workflow.workflow_steps || [];
+      
+      // If no steps in workflow_steps table, try to parse from canvas_config
+      if (steps.length === 0 && workflow.canvas_config) {
+        this.logger.info('[WorkflowExecutor] No steps in workflow_steps, parsing from canvas_config', {
+          workflow_id: workflow.id,
+          has_canvas_config: !!workflow.canvas_config,
+          execution_id: execution.id
+        });
+        
+        try {
+          const canvasConfig = typeof workflow.canvas_config === 'string' 
+            ? JSON.parse(workflow.canvas_config) 
+            : workflow.canvas_config;
+          
+          // ✅ FIX: Add detailed logging to debug step parsing
+          this.logger.info('[WorkflowExecutor] Canvas config structure', {
+            workflow_id: workflow.id,
+            has_nodes: !!canvasConfig.nodes,
+            nodes_count: canvasConfig.nodes?.length || 0,
+            sample_node: canvasConfig.nodes?.[0] ? {
+              id: canvasConfig.nodes[0].id,
+              type: canvasConfig.nodes[0].type,
+              data: canvasConfig.nodes[0].data
+            } : null,
+            execution_id: execution.id
+          });
+          
+          // Convert canvas nodes to step format
+          if (canvasConfig.nodes && Array.isArray(canvasConfig.nodes)) {
+            steps = canvasConfig.nodes.map(node => {
+              // ✅ FIX: Check both node.data.stepType and node.type, with detailed logging
+              const stepType = node.data?.stepType || node.type || 'unknown';
+              
+              // Log any node that might be a start node
+              if (stepType === 'start' || node.id?.includes('start') || node.data?.label?.toLowerCase().includes('start')) {
+                this.logger.info('[WorkflowExecutor] Found potential start node', {
+                  node_id: node.id,
+                  node_type: node.type,
+                  data_stepType: node.data?.stepType,
+                  computed_stepType: stepType,
+                  label: node.data?.label,
+                  execution_id: execution.id
+                });
+              }
+              
+              return {
+                id: node.id,
+                workflow_id: workflow.id,
+                step_type: stepType,
+                name: node.data?.label || node.data?.name || 'Unnamed Step',
+                config: node.data || {},
+                position_x: node.position?.x || 0,
+                position_y: node.position?.y || 0
+              };
+            });
+            
+            this.logger.info('[WorkflowExecutor] Parsed steps from canvas_config', {
+              workflow_id: workflow.id,
+              steps_count: steps.length,
+              step_types: steps.map(s => s.step_type),
+              all_steps: steps.map(s => ({ id: s.id, type: s.step_type, name: s.name })),
+              execution_id: execution.id
+            });
+          }
+        } catch (parseError) {
+          this.logger.error('[WorkflowExecutor] Failed to parse canvas_config', {
+            workflow_id: workflow.id,
+            error: parseError.message,
+            execution_id: execution.id
+          });
+        }
+      }
+      
       this.logger.info('[WorkflowExecutor] Looking for start step', {
         workflow_id: workflow.id,
-        total_steps: workflow.workflow_steps?.length || 0,
-        step_types: workflow.workflow_steps?.map(s => s.step_type) || [],
+        total_steps: steps.length,
+        step_types: steps.map(s => s.step_type),
         execution_id: execution.id
       });
       
-      const startStep = workflow.workflow_steps.find(step => step.step_type === 'start');
+      const startStep = steps.find(step => step.step_type === 'start');
       if (!startStep) {
         // ✅ FIX: Provide helpful error message and mark execution as failed immediately
         this.logger.error('[WorkflowExecutor] No start step found', {
           workflow_id: workflow.id,
-          available_steps: workflow.workflow_steps?.map(s => ({ 
+          available_steps: steps.map(s => ({ 
             id: s.id, 
             type: s.step_type, 
             name: s.name 
-          })) || [],
+          })),
+          has_canvas_config: !!workflow.canvas_config,
           execution_id: execution.id
         });
         const errorMsg = 'Workflow has no start step. Please add a start step to your workflow.';
@@ -779,6 +854,9 @@ class WorkflowExecutor {
         await this.failExecution(execution.id, errorMsg, null, 'WORKFLOW_CONFIGURATION_ERROR');
         return;
       }
+      
+      // Update workflow object to use parsed steps
+      workflow.workflow_steps = steps;
       
           // ✅ FIX: Update status before executing steps with step count
       await this._updateExecutionStatus(
@@ -2636,15 +2714,12 @@ class WorkflowExecutor {
       hour12: true 
     });
     
+    // ✅ FIX: Build update data with only core columns that exist in DB
     const updateData = {
       status: 'failed',
       completed_at: new Date().toISOString(),
       error_message: formattedErrorMessage,
-      error_step_id: errorStepId,
-      error_category: errorCategory,
-      error_reason: errorDetails.reason,
-      error_fix: errorDetails.fix,
-      error_timestamp: errorDetails.timestamp || timestamp,
+      error_category: errorCategory || null,
       retry_available: errorDetails.retry !== false
     };
     
@@ -2656,14 +2731,25 @@ class WorkflowExecutor {
       } catch (_) {}
     }
     
-    // Store error category and details in metadata for analytics
-    if (errorCategory || Object.keys(errorDetails).length > 0) {
-      updateData.metadata = JSON.stringify({ 
-        error_category: errorCategory,
-        error_details: errorDetails,
-        retry_available: errorDetails.retry !== false
-      });
+    // ✅ FIX: Only set error_step_id if it's a valid UUID (from workflow_steps table)
+    // Canvas nodes have IDs like "node-1764837203725" which are not UUIDs
+    if (errorStepId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(errorStepId)) {
+      updateData.error_step_id = errorStepId;
     }
+    
+    // ✅ FIX: Store all error details in metadata field as JSON
+    const errorDetailsForStorage = {
+      category: errorCategory,
+      step_id: errorStepId, // Store the actual step ID (canvas node or workflow_step UUID)
+      step_name: errorDetails.step_name,
+      reason: errorDetails.reason,
+      fix: errorDetails.fix,
+      timestamp: errorDetails.timestamp || timestamp,
+      retry_available: errorDetails.retry !== false,
+      details: errorDetails
+    };
+    
+    updateData.metadata = errorDetailsForStorage;
     
     const { error } = await this.supabase
       .from('workflow_executions')
