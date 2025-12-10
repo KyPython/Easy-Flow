@@ -424,35 +424,55 @@ const WorkflowBuilder = () => {
                   }, 2000);
                 } else if (primaryAction.tab) {
                   // Internal tab switch within workflow builder
+                  const workflowPath = workflowId || currentWorkflow?.id;
+                  const tabPath = workflowPath 
+                    ? `/app/workflows/builder/${workflowPath}/${primaryAction.tab}`
+                    : `/app/workflows/builder/${primaryAction.tab}`;
+                  
                   setTimeout(() => {
                     showSuccess(`${primaryAction.icon} ${primaryAction.description}`);
                     setTimeout(() => {
-                      setActiveTab(primaryAction.tab);
+                      navigate(tabPath);
                     }, 1500);
                   }, 2000);
                 } else if (nextSteps.steps_completed === 0) {
                   // If no steps completed, switch to executions tab
+                  const workflowPath = workflowId || currentWorkflow?.id;
+                  const executionsPath = workflowPath
+                    ? `/app/workflows/builder/${workflowPath}/executions`
+                    : '/app/workflows/builder/executions';
+                  
                   setTimeout(() => {
                     showSuccess('📊 Switching to executions view...');
                     setTimeout(() => {
-                      setActiveTab('executions');
+                      navigate(executionsPath);
                     }, 1500);
                   }, 2000);
                 }
               } else if (nextSteps.steps_completed === 0) {
                 // If no next steps and no steps completed, show executions
+                const workflowPath = workflowId || currentWorkflow?.id;
+                const executionsPath = workflowPath
+                  ? `/app/workflows/builder/${workflowPath}/executions`
+                  : '/app/workflows/builder/executions';
+                
                 setTimeout(() => {
                   showSuccess('📊 Switching to executions view...');
                   setTimeout(() => {
-                    setActiveTab('executions');
+                    navigate(executionsPath);
                   }, 1500);
                 }, 2000);
               }
             } else {
               showSuccess('Workflow execution completed successfully!');
               // Default: switch to executions tab
+              const workflowPath = workflowId || currentWorkflow?.id;
+              const executionsPath = workflowPath
+                ? `/app/workflows/builder/${workflowPath}/executions`
+                : '/app/workflows/builder/executions';
+              
               setTimeout(() => {
-                setActiveTab('executions');
+                navigate(executionsPath);
               }, 2000);
             }
           }
