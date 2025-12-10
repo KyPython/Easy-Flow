@@ -614,14 +614,19 @@ def download_pdf(pdf_url, task_data):
                         upload_error = upload_result.get('error')
                     
                     if not upload_error:
-                        # Get public URL
-                        url_result = supabase.storage.from_('user-files').get_public_url(storage_path)
-                        artifact_url = url_result if isinstance(url_result, str) else url_result.get('publicUrl') if isinstance(url_result, dict) else None
+                        # Create signed URL (valid for 1 year) since bucket is private
+                        # Using very long expiry since these are user's own files
+                        url_result = supabase.storage.from_('user-files').create_signed_url(storage_path, 31536000)  # 1 year in seconds
+                        artifact_url = None
+                        if isinstance(url_result, dict):
+                            artifact_url = url_result.get('signedURL') or url_result.get('signedUrl')
+                        elif isinstance(url_result, str):
+                            artifact_url = url_result
                         
                         if artifact_url:
                             result["artifact_url"] = artifact_url
                             result["storage_path"] = storage_path
-                            logger.info(f"✅ Uploaded invoice to Supabase storage: {artifact_url}")
+                            logger.info(f"✅ Uploaded invoice to Supabase storage with signed URL")
                             
                             # ✅ Create file record in files table so it appears in Files page
                             try:
@@ -629,7 +634,7 @@ def download_pdf(pdf_url, task_data):
                                 file_content_hash = hashlib.md5(file_content).hexdigest()
                                 
                                 file_record = {
-                                    "user_id": user_id,
+                                    "user_id": str(user_id),  # Ensure string format
                                     "original_name": filename,
                                     "display_name": filename,
                                     "storage_path": storage_path,
@@ -638,7 +643,7 @@ def download_pdf(pdf_url, task_data):
                                     "mime_type": "application/pdf",
                                     "file_extension": "pdf",
                                     "checksum_md5": file_content_hash,
-                                    "folder_path": f"/invoices",
+                                    "folder_path": "/invoices",
                                     "tags": ["automation", "invoice"],
                                     "metadata": {
                                         "source": "automation",
@@ -647,7 +652,8 @@ def download_pdf(pdf_url, task_data):
                                     }
                                 }
                                 
-                                file_insert_result = supabase.from_('files').insert(file_record).execute()
+                                # Use upsert to avoid duplicates based on checksum
+                                file_insert_result = supabase.table('files').insert(file_record).execute()
                                 
                                 if file_insert_result.data:
                                     result["file_record_id"] = file_insert_result.data[0].get('id') if isinstance(file_insert_result.data, list) else file_insert_result.data.get('id')

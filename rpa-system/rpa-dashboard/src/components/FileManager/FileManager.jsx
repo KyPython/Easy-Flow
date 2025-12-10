@@ -17,6 +17,9 @@ import FileSharing from '../FileSharing/FileSharing';
 import styles from './FileManager.module.css';
 import PropTypes from 'prop-types';
 import { FaCloud, FaCog, FaSync, FaDownload, FaUpload } from 'react-icons/fa';
+import { createLogger } from '../../utils/logger';
+
+const fileLogger = createLogger('FileManager');
 
 const FileManager = ({ 
   onFileSelect = null,
@@ -48,7 +51,7 @@ const FileManager = ({
     try {
       setLoading(true);
       setError('');
-      console.log('[FileManager] Loading files with params:', { folder, searchQuery, categoryFilter, tagFilter });
+      fileLogger.debug('Loading files', { folder, searchQuery, categoryFilter, tagFilter });
       
       const result = await getFiles({
         folder,
@@ -58,7 +61,11 @@ const FileManager = ({
         limit: 100
       });
       
-      console.log('[FileManager] API response:', result);
+      fileLogger.debug('Files loaded', { 
+        resultType: Array.isArray(result) ? 'array' : typeof result,
+        hasFiles: !!(result?.files || result?.data),
+        count: Array.isArray(result) ? result.length : (result?.files?.length || result?.data?.length || 0)
+      });
       
       // Handle both { files: [...] } and direct array responses
       let filesArray = [];
@@ -68,20 +75,19 @@ const FileManager = ({
         filesArray = result.files || result.data || [];
       }
       
-      console.log('[FileManager] Parsed files array:', filesArray);
       setFiles(Array.isArray(filesArray) ? filesArray : []);
       
       if (filesArray.length === 0) {
-        console.log('[FileManager] No files found. Result was:', result);
+        fileLogger.info('No files found');
       }
     } catch (err) {
       const errorMessage = err.message || 'Failed to load files';
       setError(errorMessage);
-      console.error('[FileManager] Error loading files:', err);
-      console.error('[FileManager] Error details:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status
+      fileLogger.error('Failed to load files', err, {
+        folder,
+        searchQuery,
+        categoryFilter,
+        tagFilter
       });
     } finally {
       setLoading(false);
@@ -98,7 +104,7 @@ const FileManager = ({
       const response = await api.get('/api/integrations');
       setIntegrations(response.data.integrations || []);
     } catch (error) {
-      console.error('Error loading integrations:', error);
+      fileLogger.error('Failed to load integrations', error);
     }
   }, []);
 
@@ -145,7 +151,23 @@ const FileManager = ({
 
   const handleDownload = useCallback(async (file) => {
     try {
+      fileLogger.debug('Download initiated', { fileId: file?.id, fileName: file?.original_name });
+      
+      if (!file || !file.id) {
+        const errorMsg = 'Cannot download: file ID is missing';
+        setError(errorMsg);
+        fileLogger.error('Download failed - missing file ID', null, { file });
+        alert(errorMsg);
+        return;
+      }
+      
       const result = await getFileDownloadUrl(file.id);
+      
+      fileLogger.info('Download URL obtained', { 
+        fileId: file.id,
+        fileName: file.original_name,
+        hasUrl: !!result?.download_url
+      });
       
       // Create a temporary link to trigger download
       const link = document.createElement('a');
@@ -156,10 +178,20 @@ const FileManager = ({
       link.click();
       document.body.removeChild(link);
       
+      fileLogger.metric('file_download', 1, 'count', { fileId: file.id, fileName: file.original_name });
+      
       // Refresh files to update download count
       loadFiles();
     } catch (err) {
-      setError(`Failed to download ${file.original_name}: ${err.message}`);
+      const errorMsg = err.response?.data || err.message || 'Unknown error';
+      const fullError = typeof errorMsg === 'object' ? JSON.stringify(errorMsg, null, 2) : errorMsg;
+      setError(`Failed to download ${file?.original_name || 'file'}: ${fullError}`);
+      fileLogger.error('Download failed', err, {
+        fileId: file?.id,
+        fileName: file?.original_name,
+        errorResponse: err.response?.data
+      });
+      alert(`Download failed:\n${fullError}`);
     }
   }, [loadFiles]);
 
@@ -208,7 +240,7 @@ const FileManager = ({
       const shares = Array.isArray(result) ? result : (result?.shares || []);
       setFileShares(Array.isArray(shares) ? shares : []);
     } catch (error) {
-      console.error('Error loading file shares:', error);
+      fileLogger.error('Failed to load file shares', error, { fileId: file.id });
       setFileShares([]);
     }
   }, []);
@@ -304,10 +336,11 @@ const FileManager = ({
       
       if (response.data.success) {
         setError('');
-        // Show success message
         const successMsg = `Successfully synced ${selectedFileList.length} file(s) to ${serviceName}`;
-        // You can implement a success toast here
-        console.log(successMsg);
+        fileLogger.info('Files synced to integration', { 
+          service: serviceName, 
+          fileCount: selectedFileList.length 
+        });
         setSelectedFiles(new Set());
       } else {
         setError(`Failed to sync files to ${serviceName}: ${response.data.error}`);
@@ -341,8 +374,10 @@ const FileManager = ({
       });
       
       if (response.data.success) {
-        // Show success message and refresh files to show extraction results
-        console.log(`Data extraction started for ${supportedFiles.length} file(s)`);
+        fileLogger.info('Bulk data extraction started', { 
+          fileCount: supportedFiles.length,
+          fileIds: supportedFiles.map(f => f.id)
+        });
         loadFiles();
         setSelectedFiles(new Set());
       }
@@ -691,6 +726,7 @@ const FileManager = ({
                   }}
                   className={styles.actionBtn}
                   title={t('files.download', 'Download')}
+                  disabled={!file.id || loading}
                 >
                   <FaDownload />
                 </button>
@@ -705,7 +741,7 @@ const FileManager = ({
                     }}
                     className={styles.actionBtn}
                     title="Extract data using AI"
-                    disabled={file.processing_status === 'processing'}
+                    disabled={!file.id || file.processing_status === 'processing' || loading}
                   >
                     🤖
                   </button>
@@ -718,6 +754,7 @@ const FileManager = ({
                   }}
                   className={styles.actionBtn}
                   title={t('files.share', 'Share')}
+                  disabled={!file.id || loading}
                 >
                   🔗
                 </button>
@@ -728,6 +765,7 @@ const FileManager = ({
                   }}
                   className={`${styles.actionBtn} ${styles.deleteBtn}`}
                   title={t('files.delete', 'Delete')}
+                  disabled={!file.id || loading}
                 >
                   🗑️
                 </button>

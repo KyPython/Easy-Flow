@@ -424,7 +424,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                         {downloadingFiles.has(task.id) ? 'Downloading...' : 'Download'}
                       </button>
                       <span style={{ fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
-                        💡 Also in Files page
+                        {/* Files badge removed - database constraint prevents file records */}
                       </span>
                     </div>
                   ) : task.status === 'completed' ? (

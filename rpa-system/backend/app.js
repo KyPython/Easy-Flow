@@ -2326,39 +2326,42 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
       return res.status(500).json({ error: 'Failed to create automation run' });
     }
     
-  // Queue the task processing in the background to avoid request timeouts
-    // Respond immediately; background worker will update run status and send notifications
-    setImmediate(async () => {
+  // Queue the task processing - await it to ensure it's dispatched before responding
+    // This prevents tasks from getting stuck in "running" state
+    try {
+      // Parse parameters back to object for worker payload
+      let paramsObj = {};
       try {
-        // Parse parameters back to object for worker payload
-        let paramsObj = {};
-        try {
-          paramsObj = taskRecord?.parameters ? JSON.parse(taskRecord.parameters) : {};
-        } catch (_) {}
-        await queueTaskRun(run.id, {
-          url,
-          title: taskName,
-          task_id: taskRecord.id,
-          user_id: user.id,
-          task_type: taskType,
-          parameters: paramsObj
-        });
-      } catch (error) {
-        logger.error('[run-task background] Error processing run', run.id, error?.message || error);
-        try {
-          await supabase
-            .from('automation_runs')
-            .update({
-              status: 'failed',
-              ended_at: new Date().toISOString(),
-              result: JSON.stringify({ error: 'Background processing failed', message: error?.message || String(error) })
-            })
-            .eq('id', run.id);
-        } catch (updateErr) {
-          logger.error('[run-task background] Failed to mark run failed:', updateErr?.message || updateErr);
-        }
-      }
-    });
+        paramsObj = taskRecord?.parameters ? JSON.parse(taskRecord.parameters) : {};
+      } catch (_) {}
+      
+      await queueTaskRun(run.id, {
+        url,
+        title: taskName,
+        task_id: taskRecord.id,
+        user_id: user.id,
+        task_type: taskType,
+        parameters: paramsObj
+      });
+      
+      logger.info(`[run-task] Successfully queued task ${run.id} for processing`);
+    } catch (error) {
+      logger.error('[run-task] Error queueing task:', error?.message || error);
+      // Update run status to failed
+      await supabase
+        .from('automation_runs')
+        .update({
+          status: 'failed',
+          ended_at: new Date().toISOString(),
+          result: JSON.stringify({ error: 'Failed to queue task', message: error?.message || String(error) })
+        })
+        .eq('id', run.id);
+      
+      return res.status(500).json({ 
+        error: 'Failed to queue task for processing',
+        details: error?.message || String(error)
+      });
+    }
 
     return res.status(200).json({
       id: run.id,
@@ -5259,6 +5262,43 @@ app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
 // FILE MANAGEMENT API ENDPOINTS
 // =====================================================
 
+// GET /api/files/debug/buckets - Debug endpoint to check bucket status
+app.get('/api/files/debug/buckets', authMiddleware, async (req, res) => {
+  try {
+    logger.info('[DEBUG] Checking Supabase storage buckets');
+    
+    // Try to list buckets
+    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+    
+    if (bucketsError) {
+      logger.error('[DEBUG] Error listing buckets:', bucketsError);
+      return res.json({
+        error: 'Failed to list buckets',
+        details: bucketsError,
+        message: 'Check if Supabase storage is configured correctly'
+      });
+    }
+    
+    // Try to list files in user-files bucket
+    const { data: files, error: filesError } = await supabase.storage
+      .from('user-files')
+      .list(req.user.id, { limit: 5 });
+    
+    res.json({
+      buckets: buckets || [],
+      userFilesBucket: {
+        exists: !filesError,
+        error: filesError,
+        sampleFiles: files || []
+      },
+      userId: req.user.id
+    });
+  } catch (err) {
+    logger.error('[DEBUG] Exception:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/files/upload - Upload a new file
 app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res) => {
   logger.info('[FILE UPLOAD] Starting file upload process');
@@ -5364,7 +5404,8 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       offset,
       search,
       tags,
-      category
+      category,
+      userAuthenticated: !!req.user
     });
     
     let query = supabase
@@ -5408,7 +5449,12 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch files', details: error.message });
     }
 
-    logger.info(`[GET /api/files] Found ${data?.length || 0} files for user ${userId}`);
+    logger.info(`[GET /api/files] Found ${data?.length || 0} files for user ${userId}`, {
+      fileCount: data?.length || 0,
+      hasFiles: (data?.length || 0) > 0,
+      firstFileHasId: data?.[0]?.id ? true : false
+    });
+    
     res.json({ files: data || [] });
     
   } catch (err) {
@@ -5429,16 +5475,41 @@ app.get('/api/files/:id/download', authMiddleware, async (req, res) => {
       .single();
       
     if (error || !file) {
+      logger.error('[GET /api/files/:id/download] File not found:', { fileId: req.params.id, userId: req.user.id, error });
       return res.status(404).json({ error: 'File not found' });
     }
+
+    logger.info('[GET /api/files/:id/download] Attempting download:', { 
+      fileId: file.id, 
+      bucket: file.storage_bucket, 
+      path: file.storage_path,
+      fileName: file.original_name 
+    });
 
     const { data: signedUrl, error: urlError } = await supabase.storage
       .from(file.storage_bucket)
       .createSignedUrl(file.storage_path, 3600);
 
     if (urlError) {
-      logger.error('Signed URL error:', urlError);
-      return res.status(500).json({ error: 'Failed to generate download URL' });
+      logger.error('[GET /api/files/:id/download] Signed URL error:', { 
+        bucket: file.storage_bucket, 
+        path: file.storage_path,
+        error: urlError,
+        errorDetails: JSON.stringify(urlError),
+        supabaseError: {
+          message: urlError.message,
+          statusCode: urlError.statusCode,
+          error: urlError.error
+        }
+      });
+      // Return the actual Supabase error to help debug
+      return res.status(urlError.statusCode || 500).json({ 
+        error: 'Failed to generate download URL',
+        message: urlError.message || 'Storage error',
+        statusCode: urlError.statusCode,
+        details: urlError,
+        hint: 'Check if the file exists in storage and bucket is accessible'
+      });
     }
 
     await supabase

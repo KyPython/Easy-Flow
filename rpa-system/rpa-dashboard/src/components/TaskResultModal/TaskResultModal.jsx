@@ -259,15 +259,7 @@ const TaskResultModal = ({ task, onClose }) => {
                   )}
                   <div className={styles.navigationHint}>
                     <p className={styles.hintText}>
-                      💡 <strong>Tip:</strong> This invoice is also available in your <button 
-                        className={styles.linkButton}
-                        onClick={() => {
-                          onClose();
-                          navigate('/app/files');
-                        }}
-                      >
-                        Files page
-                      </button> under the <code>/invoices</code> folder
+                      💡 <strong>Tip:</strong> Download your file here - it's saved for this automation task
                     </p>
                   </div>
                 </div>
