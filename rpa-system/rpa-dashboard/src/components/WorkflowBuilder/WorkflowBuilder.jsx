@@ -402,7 +402,59 @@ const WorkflowBuilder = () => {
           if (execution.status === 'failed') {
             showError(`Workflow execution failed: ${execution.error_message || 'Unknown error'}`);
           } else if (execution.status === 'completed') {
-            showSuccess('Workflow execution completed successfully!');
+            // ✅ FIX: Show actionable next steps from metadata
+            const nextSteps = execution.metadata?.next_steps;
+            if (nextSteps && nextSteps.message) {
+              showSuccess(nextSteps.message);
+              
+              // Display next step actions if available
+              if (nextSteps.actions && nextSteps.actions.length > 0) {
+                console.log('[WorkflowExecutor] Next steps:', nextSteps.actions);
+                
+                // ✅ FIX: Handle both path navigation and tab switching
+                const primaryAction = nextSteps.actions[0];
+                
+                if (primaryAction.path) {
+                  // External navigation (e.g., to Files page)
+                  setTimeout(() => {
+                    showSuccess(`${primaryAction.icon} Redirecting you to ${primaryAction.label}...`);
+                    setTimeout(() => {
+                      navigate(primaryAction.path);
+                    }, 1500);
+                  }, 2000);
+                } else if (primaryAction.tab) {
+                  // Internal tab switch within workflow builder
+                  setTimeout(() => {
+                    showSuccess(`${primaryAction.icon} ${primaryAction.description}`);
+                    setTimeout(() => {
+                      setActiveTab(primaryAction.tab);
+                    }, 1500);
+                  }, 2000);
+                } else if (nextSteps.steps_completed === 0) {
+                  // If no steps completed, switch to executions tab
+                  setTimeout(() => {
+                    showSuccess('📊 Switching to executions view...');
+                    setTimeout(() => {
+                      setActiveTab('executions');
+                    }, 1500);
+                  }, 2000);
+                }
+              } else if (nextSteps.steps_completed === 0) {
+                // If no next steps and no steps completed, show executions
+                setTimeout(() => {
+                  showSuccess('📊 Switching to executions view...');
+                  setTimeout(() => {
+                    setActiveTab('executions');
+                  }, 1500);
+                }, 2000);
+              }
+            } else {
+              showSuccess('Workflow execution completed successfully!');
+              // Default: switch to executions tab
+              setTimeout(() => {
+                setActiveTab('executions');
+              }, 2000);
+            }
           }
           // Refresh executions list
           if (refreshExecutions) refreshExecutions();

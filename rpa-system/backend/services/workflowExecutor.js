@@ -191,10 +191,19 @@ class WorkflowExecutor {
     try {
       const updateData = {
         status,
-        status_message: message,
         updated_at: new Date().toISOString(),
         ...additionalData
       };
+      
+      // Store status message in metadata instead of non-existent status_message column
+      if (message) {
+        const currentMetadata = additionalData.metadata || {};
+        updateData.metadata = {
+          ...currentMetadata,
+          status_message: message,
+          last_updated: new Date().toISOString()
+        };
+      }
       
       await this.supabase
         .from('workflow_executions')
@@ -470,7 +479,7 @@ class WorkflowExecutor {
   }
 
   // ✅ EXECUTION CANCELLATION
-  cancelExecution(executionId) {
+  async cancelExecution(executionId) {
     // ✅ FIX: Check both local map and shared registry
     const execution = this.runningExecutions.get(executionId) || executionRegistry.get(executionId);
     if (execution) {
@@ -479,7 +488,7 @@ class WorkflowExecutor {
       this.logger.info('Execution marked for cancellation', {
         execution_id: executionId
       });
-      this._updateExecutionStatus(executionId, 'cancelled', 'Execution cancelled by timeout or user request');
+      await this._updateExecutionStatus(executionId, 'cancelled', 'Execution cancelled by timeout or user request');
       
       // ✅ FIX: Also update in registry
       const registryEntry = executionRegistry.get(executionId);
@@ -490,10 +499,10 @@ class WorkflowExecutor {
   }
   
   // ✅ FIX: Static method to cancel execution from any executor instance
-  static cancelExecutionById(executionId) {
+  static async cancelExecutionById(executionId) {
     const registryEntry = executionRegistry.get(executionId);
     if (registryEntry && registryEntry.executor) {
-      registryEntry.executor.cancelExecution(executionId);
+      await registryEntry.executor.cancelExecution(executionId);
       return true;
     }
     return false;
@@ -785,9 +794,20 @@ class WorkflowExecutor {
           
           // Convert canvas nodes to step format
           if (canvasConfig.nodes && Array.isArray(canvasConfig.nodes)) {
+            const crypto = require('crypto');
+            const nodeIdToUuidMap = new Map();
+            
             steps = canvasConfig.nodes.map(node => {
               // ✅ FIX: Check both node.data.stepType and node.type, with detailed logging
-              const stepType = node.data?.stepType || node.type || 'unknown';
+              let stepType = node.data?.stepType || node.type || 'unknown';
+              let actionType = null;
+              
+              // ✅ FIX: Map specific types to action steps with action_type
+              const actionTypes = ['email', 'api_call', 'web_scraping', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr'];
+              if (actionTypes.includes(stepType)) {
+                actionType = stepType;
+                stepType = 'action';
+              }
               
               // Log any node that might be a start node
               if (stepType === 'start' || node.id?.includes('start') || node.data?.label?.toLowerCase().includes('start')) {
@@ -801,10 +821,16 @@ class WorkflowExecutor {
                 });
               }
               
+              // ✅ FIX: Generate proper UUID for step_id, store canvas node ID in step_key
+              const uuid = crypto.randomUUID();
+              nodeIdToUuidMap.set(node.id, uuid);
+              
               return {
-                id: node.id,
+                id: uuid,
+                step_key: node.id,
                 workflow_id: workflow.id,
                 step_type: stepType,
+                action_type: actionType,
                 name: node.data?.label || node.data?.name || 'Unnamed Step',
                 config: node.data || {},
                 position_x: node.position?.x || 0,
@@ -812,13 +838,78 @@ class WorkflowExecutor {
               };
             });
             
-            this.logger.info('[WorkflowExecutor] Parsed steps from canvas_config', {
+            // ✅ FIX: Insert steps into database so foreign keys work
+            const stepsToInsert = steps.map(step => ({
+              id: step.id,
+              workflow_id: step.workflow_id,
+              step_key: step.step_key,
+              name: step.name,
+              step_type: step.step_type,
+              action_type: step.config?.action_type || null,
+              config: step.config,
+              position_x: step.position_x,
+              position_y: step.position_y
+            }));
+            
+            const { error: insertError } = await this.supabase
+              .from('workflow_steps')
+              .insert(stepsToInsert);
+            
+            if (insertError) {
+              this.logger.error('[WorkflowExecutor] Failed to insert steps from canvas', {
+                workflow_id: workflow.id,
+                error: insertError.message,
+                execution_id: execution.id
+              });
+              throw new Error(`Failed to persist workflow steps: ${insertError.message}`);
+            }
+            
+            // ✅ FIX: Parse edges and convert to workflow_connections
+            if (canvasConfig.edges && Array.isArray(canvasConfig.edges)) {
+              const connections = canvasConfig.edges.map(edge => {
+                const sourceUuid = nodeIdToUuidMap.get(edge.source);
+                const targetUuid = nodeIdToUuidMap.get(edge.target);
+                return {
+                  id: crypto.randomUUID(),
+                  workflow_id: workflow.id,
+                  source_step_id: sourceUuid,
+                  target_step_id: targetUuid,
+                  connection_type: edge.type || 'next',
+                  condition: edge.data?.condition || edge.data?.conditions || {}
+                };
+              }).filter(conn => conn.source_step_id && conn.target_step_id);
+              
+              // Insert connections into database
+              if (connections.length > 0) {
+                const { error: connError } = await this.supabase
+                  .from('workflow_connections')
+                  .insert(connections);
+                
+                if (connError) {
+                  this.logger.error('[WorkflowExecutor] Failed to insert connections', {
+                    workflow_id: workflow.id,
+                    error: connError.message,
+                    execution_id: execution.id
+                  });
+                }
+              }
+              
+              workflow.workflow_connections = connections;
+            } else {
+              workflow.workflow_connections = [];
+            }
+            
+            this.logger.info('[WorkflowExecutor] Parsed and persisted steps from canvas_config', {
               workflow_id: workflow.id,
               steps_count: steps.length,
               step_types: steps.map(s => s.step_type),
               all_steps: steps.map(s => ({ id: s.id, type: s.step_type, name: s.name })),
+              connections_count: workflow.workflow_connections.length,
               execution_id: execution.id
             });
+            
+            // ✅ FIX: Update workflow object with persisted steps
+            workflow.workflow_steps = steps;
           }
         } catch (parseError) {
           this.logger.error('[WorkflowExecutor] Failed to parse canvas_config', {
@@ -2501,7 +2592,7 @@ class WorkflowExecutor {
   async getNextSteps(currentStep, data, workflow) {
     try {
       // Find connections from current step
-      const connections = workflow.workflow_connections.filter(
+      const connections = (workflow.workflow_connections || []).filter(
         conn => conn.source_step_id === currentStep.id
       );
       
@@ -2600,21 +2691,26 @@ class WorkflowExecutor {
       completed_at: new Date().toISOString(),
       status: result.success ? 'completed' : 'failed',
       output_data: result.data,
-      result: result,
-      step_details: stepDetails, // User-friendly step description
-      duration_ms: Math.max(0, stepDuration),
-      duration_sec: parseFloat(durationSec)
+      result: {
+        ...result,
+        step_details: stepDetails // Store in result JSONB instead
+      },
+      duration_ms: Math.max(0, stepDuration)
     };
     
     if (!result.success) {
-      // ✅ ENHANCED: Store detailed error information
+      // ✅ ENHANCED: Store detailed error information in result JSONB
       const errorDetails = result.errorDetails || {};
       updateData.error_message = result.error;
-      updateData.error_category = result.errorCategory;
-      updateData.error_reason = errorDetails.reason;
-      updateData.error_fix = errorDetails.fix;
-      updateData.error_timestamp = errorDetails.timestamp || new Date().toLocaleString();
-      updateData.retry_available = errorDetails.retry !== false;
+      updateData.result = {
+        ...result,
+        step_details: stepDetails,
+        error_category: result.errorCategory,
+        error_reason: errorDetails.reason,
+        error_fix: errorDetails.fix,
+        error_timestamp: errorDetails.timestamp || new Date().toLocaleString(),
+        retry_available: errorDetails.retry !== false
+      };
     }
     
     // Add retry metrics if available
@@ -2643,6 +2739,9 @@ class WorkflowExecutor {
       .eq('id', executionId)
       .single();
     
+    // ✅ FIX: Add actionable next steps guidance in metadata
+    const nextSteps = this._generateNextStepsGuidance(outputData, stepsExecuted);
+    
     const { error } = await this.supabase
       .from('workflow_executions')
       .update({
@@ -2650,7 +2749,12 @@ class WorkflowExecutor {
         completed_at: new Date().toISOString(),
         duration_seconds: duration,
         output_data: outputData,
-        steps_executed: stepsExecuted
+        steps_executed: stepsExecuted,
+        metadata: {
+          next_steps: nextSteps,
+          completion_time: new Date().toISOString(),
+          status_message: nextSteps.message
+        }
       })
       .eq('id', executionId);
       
@@ -2731,10 +2835,24 @@ class WorkflowExecutor {
       } catch (_) {}
     }
     
-    // ✅ FIX: Only set error_step_id if it's a valid UUID (from workflow_steps table)
-    // Canvas nodes have IDs like "node-1764837203725" which are not UUIDs
+    // ✅ FIX: Only set error_step_id if it's a valid UUID that exists in workflow_steps
+    // Verify the step exists in the database to avoid foreign key constraint violations
     if (errorStepId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(errorStepId)) {
-      updateData.error_step_id = errorStepId;
+      // Verify step exists in database
+      const { data: stepExists } = await this.supabase
+        .from('workflow_steps')
+        .select('id')
+        .eq('id', errorStepId)
+        .single();
+      
+      if (stepExists) {
+        updateData.error_step_id = errorStepId;
+      } else {
+        this.logger.warn('[WorkflowExecutor] Error step ID not found in database, skipping error_step_id', {
+          error_step_id: errorStepId,
+          execution_id: executionId
+        });
+      }
     }
     
     // ✅ FIX: Store all error details in metadata field as JSON
@@ -2817,6 +2935,111 @@ class WorkflowExecutor {
       default:
         return array;
     }
+  }
+
+  // ✅ FIX: Generate actionable next steps guidance based on workflow results
+  _generateNextStepsGuidance(outputData, stepsExecuted) {
+    const actions = [];
+    let message = '✅ Workflow completed successfully!';
+    
+    // ✅ FIX: If no steps completed, prioritize debugging
+    if (stepsExecuted === 0) {
+      actions.push({
+        label: 'View Workflow Execution',
+        path: null, // Stay in workflow builder, switch to executions tab
+        tab: 'executions',
+        icon: '🔍',
+        description: 'See what went wrong - no steps were executed'
+      });
+      message = '⚠️ Workflow completed but no steps were executed. Check execution details.';
+      
+      actions.push({
+        label: 'Edit Workflow',
+        path: null, // Stay in workflow builder, switch to canvas tab
+        tab: 'canvas',
+        icon: '✏️',
+        description: 'Review and fix your workflow configuration'
+      });
+      
+      return {
+        message,
+        actions,
+        steps_completed: stepsExecuted
+      };
+    }
+    
+    // Check for scraped data
+    if (outputData?.scraped_data || outputData?.web_scraping_result) {
+      actions.push({
+        label: 'View Scraped Data',
+        path: '/app/files',
+        icon: '📁',
+        description: 'Check the Files tab to see your scraped data'
+      });
+      message = '✅ Data scraped successfully! Check the Files tab to view your results.';
+    }
+    
+    // Check for email sent
+    if (outputData?.email_result || outputData?.email_sent) {
+      const emailStatus = outputData?.email_result?.status || 'sent';
+      if (emailStatus === 'sent' || emailStatus === 'pending') {
+        actions.push({
+          label: 'Check Your Inbox',
+          path: null,
+          icon: '📧',
+          description: 'Email has been sent - check your inbox'
+        });
+        message = '✅ Email sent successfully!';
+      }
+    }
+    
+    // Check for API call results
+    if (outputData?.api_response || outputData?.api_call_result) {
+      actions.push({
+        label: 'View API Results',
+        path: null,
+        tab: 'executions',
+        icon: '🔗',
+        description: 'Check workflow execution details for API response data'
+      });
+    }
+    
+    // Check for file uploads
+    if (outputData?.file_upload_result || outputData?.uploaded_file) {
+      actions.push({
+        label: 'View Uploaded Files',
+        path: '/app/files',
+        icon: '📁',
+        description: 'See your uploaded files in the Files tab'
+      });
+      message = '✅ Files uploaded successfully!';
+    }
+    
+    // Add workflow executions view (only if we don't already have it)
+    if (!actions.find(a => a.tab === 'executions')) {
+      actions.push({
+        label: 'View Workflow Executions',
+        path: null,
+        tab: 'executions',
+        icon: '📊',
+        description: `Review this workflow execution (${stepsExecuted} steps completed)`
+      });
+    }
+    
+    // Always add option to run again
+    actions.push({
+      label: 'Run Workflow Again',
+      path: null,
+      tab: 'canvas',
+      icon: '🔄',
+      description: 'Execute this workflow with new data'
+    });
+    
+    return {
+      message,
+      actions,
+      steps_completed: stepsExecuted
+    };
   }
 
   // Cancellation helpers

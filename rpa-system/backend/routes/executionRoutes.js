@@ -137,7 +137,7 @@ router.post('/:executionId/cancel', requireFeature('workflow_executions'), async
     // ✅ FIX: Cancel the execution in the WorkflowExecutor first
     // This marks it as cancelled in the runningExecutions map so the workflow loop can check and stop
     const { WorkflowExecutor } = require('../services/workflowExecutor');
-    const cancelled = WorkflowExecutor.cancelExecutionById(executionId);
+    const cancelled = await WorkflowExecutor.cancelExecutionById(executionId);
     if (!cancelled) {
       logger.warn('[ExecutionRoutes] Execution not found in registry (may have already completed)', { execution_id: executionId });
     }
@@ -148,8 +148,7 @@ router.post('/:executionId/cancel', requireFeature('workflow_executions'), async
       .update({
         status: 'cancelled',
         completed_at: new Date().toISOString(),
-        error_message: 'Execution cancelled by user',
-        status_message: 'Execution cancelled by user'
+        error_message: 'Execution cancelled by user'
       })
       .eq('id', executionId);
 

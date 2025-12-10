@@ -226,7 +226,6 @@ async function getUserPlan(userId) {
   }
 
   // 3. Get limits from SQL function (with fallback for dev)
-  logger.info('Fetching plan limits', { userId });
   let limits = {
     workflow_executions: true,
     has_workflows: true,
@@ -235,31 +234,39 @@ async function getUserPlan(userId) {
     maxStorage: 100
   };
   
-  // ✅ FIX: Check supabase and rpc function exist before calling
-  try {
-    if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
-      const { data: limitsResult, error: limitsError} = await supabase
-        .rpc('get_plan_limits', { user_uuid: userId });
-      if (limitsError) {
-        logger.warn('Failed to fetch plan limits, using defaults', { userId, database_error: limitsError });
-        // Use default limits instead of throwing
-      } else if (limitsResult) {
-        limits = limitsResult;
+  // ✅ FIX: Skip RPC call if function doesn't exist (development mode)
+  const skipRpcInDev = process.env.NODE_ENV === 'development' && !process.env.ENABLE_PLAN_RPC;
+  
+  if (!skipRpcInDev) {
+    try {
+      if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
+        const { data: limitsResult, error: limitsError} = await supabase
+          .rpc('get_plan_limits', { user_uuid: userId });
+        if (limitsError) {
+          // Only log once per session to avoid spam
+          if (!planService._rpcWarningLogged) {
+            logger.warn('Plan limits RPC not available, using defaults. Set ENABLE_PLAN_RPC=true to enable.', { 
+              userId, 
+              error_code: limitsError.code 
+            });
+            planService._rpcWarningLogged = true;
+          }
+        } else if (limitsResult) {
+          limits = limitsResult;
+        }
       }
-    } else {
-      logger.debug('Supabase RPC not available, using default limits', { 
-        userId,
-        has_supabase: !!supabase,
-        has_rpc: supabase && !!supabase.rpc
-      });
+    } catch (rpcError) {
+      // Only log once per session
+      if (!planService._rpcErrorLogged) {
+        logger.warn('RPC call failed, using default limits', { 
+          userId, 
+          error: rpcError.message
+        });
+        planService._rpcErrorLogged = true;
+      }
     }
-  } catch (rpcError) {
-    logger.warn('RPC call failed, using default limits', { 
-      userId, 
-      error: rpcError.message,
-      stack: rpcError.stack
-    });
-    // Use default limits instead of throwing
+  } else {
+    logger.debug('Using default plan limits in development mode');
   }
 
   return { plan, usage, limits };

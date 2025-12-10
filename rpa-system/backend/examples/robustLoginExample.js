@@ -313,7 +313,10 @@ async function updateExecutionStatus(supabase, executionId, status, message) {
       .from('workflow_executions')
       .update({
         status,
-        status_message: message,
+        metadata: {
+          status_message: message,
+          last_updated: new Date().toISOString()
+        },
         updated_at: new Date().toISOString()
       })
       .eq('id', executionId);
