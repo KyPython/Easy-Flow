@@ -1351,6 +1351,9 @@ app.get('/auth', (_req, res) => {
 
 // Backend authentication endpoints for when Supabase isn't available
 app.get('/api/auth/session', async (req, res) => {
+  // ✅ OBSERVABILITY: Use structured logger that integrates with OpenTelemetry traces
+  const authLogger = createLogger('auth.session');
+  
   try {
     // Diagnostic: prefer Authorization header but also accept cookies (signed or unsigned)
     const headerToken = req.headers.authorization?.replace('Bearer ', '') || null;
@@ -1456,22 +1459,60 @@ app.get('/api/auth/session', async (req, res) => {
     const tokenToVerify = headerToken || cookieToken;
     if (supabase && tokenToVerify) {
       try {
+        // ✅ FIX: Validate token format before calling Supabase to avoid verbose error logging
+        // Check if token looks like a valid JWT (has 3 parts separated by dots)
+        const tokenParts = tokenToVerify.split('.');
+        if (tokenParts.length !== 3) {
+          // Malformed token - clear it and return 401
+          // ✅ OBSERVABILITY: Use structured logger with sampling (warn level sampled at 10%)
+          authLogger.warn('Malformed JWT token format', {
+            token_parts: tokenParts.length,
+            has_token: !!tokenToVerify
+          });
+          return res.status(401).json({ error: 'Invalid token format' });
+        }
+        
+        // Check for invalid characters that would cause parsing errors
+        if (/[\x00-\x1F\x7F]/.test(tokenToVerify)) {
+          // Token contains control characters - likely corrupted
+          // ✅ OBSERVABILITY: Log with structured logger (sampled automatically)
+          authLogger.warn('JWT token contains invalid control characters', {
+            token_length: tokenToVerify.length,
+            has_control_chars: true
+          });
+          return res.status(401).json({ error: 'Invalid token format' });
+        }
+        
         const { data: { user }, error } = await supabase.auth.getUser(tokenToVerify);
         if (!error && user) {
           return res.json({ user, access_token: tokenToVerify, expires_at: Date.now() + 3600000 });
         }
         if (error) {
-          if (process.env.NODE_ENV !== 'production') logger.warn('[auth/session] supabase.getUser returned error:', error.message || error);
+          // ✅ OBSERVABILITY: Use structured logger - automatically integrates with traces and sampling
+          // Warn level is sampled at 10% by default (configurable via WARN_LOG_SAMPLE_RATE)
+          const errorMessage = error?.message || (typeof error === 'string' ? error : 'Unknown error');
+          authLogger.warn('Supabase getUser returned error', {
+            error_code: error?.code,
+            error_message: errorMessage,
+            error_type: error?.name || 'AuthError'
+          });
         }
       } catch (error) {
-        logger.warn('Supabase session check failed:', error?.message || error);
+        // ✅ OBSERVABILITY: Structured error logging with full context
+        authLogger.error('Supabase session check failed', error, {
+          error_type: error?.constructor?.name || 'UnknownError',
+          has_token: !!tokenToVerify
+        });
       }
     }
 
     // No valid session
     res.status(401).json({ error: 'No valid session' });
   } catch (error) {
-    logger.error('Session check error:', error);
+    // ✅ OBSERVABILITY: Use structured logger for errors (always logged, not sampled)
+    authLogger.error('Session check error', error, {
+      error_type: error?.constructor?.name || 'UnknownError'
+    });
     // Always return JSON, never HTML
     res.status(500).json({ 
       error: 'Session check failed',
