@@ -106,9 +106,10 @@ async function findUserByEmail(email) {
 
 async function findPlanByPolarProductId(polarProductId) {
   try {
+    // ✅ FIX: Get both id (UUID) and slug/name for compatibility with profiles.plan_id (text)
     const { data, error } = await supabase
       .from('plans')
-      .select('id')
+      .select('id, slug, name')
       .eq('external_product_id', polarProductId)
       .single();
 
@@ -117,14 +118,23 @@ async function findPlanByPolarProductId(polarProductId) {
       return null;
     }
 
-    return data?.id || null;
+    if (!data) return null;
+    
+    // Return object with both UUID (for subscriptions) and slug/name (for profiles)
+    // profiles.plan_id is text, so we can store UUID as string or use slug/name
+    // planService handles both UUID and text lookups, so UUID string works fine
+    return {
+      id: data.id, // UUID for subscriptions.plan_id
+      slug: data.slug || data.name, // For profiles.plan_id (text field)
+      name: data.name
+    };
   } catch (err) {
     logger.error('Error in findPlanByPolarProductId:', err);
     return null;
   }
 }
 
-async function updateUserSubscription(userId, planId, externalPaymentId, status = 'active', subscription = null) {
+async function updateUserSubscription(userId, planId, externalPaymentId, status = 'active', subscription = null, planSlug = null) {
   try {
     const { data: existingSubscription, error: fetchError } = await supabase
       .from('subscriptions')
@@ -190,10 +200,14 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
       subscriptionResult = { action: 'created' };
     }
 
+    // ✅ FIX: profiles.plan_id is text, so use plan slug/name if available, otherwise UUID as string
+    // planService handles both UUID and text lookups, so either works
+    const profilePlanId = planSlug || planId.toString();
+    
     const { error: profileError } = await supabase
       .from('profiles')
       .update({
-        plan_id: planId,
+        plan_id: profilePlanId,
         plan_changed_at: new Date().toISOString()
       })
       .eq('id', userId);
@@ -279,11 +293,15 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           return res.status(404).json({ error: 'User not found' });
         }
 
-        const planId = await findPlanByPolarProductId(subscription.product_id);
-        if (!planId) {
+        const planData = await findPlanByPolarProductId(subscription.product_id);
+        if (!planData) {
           logger.error(`Plan not found for Polar product ID: ${subscription.product_id}`);
           return res.status(404).json({ error: 'Plan not found' });
         }
+
+        // ✅ FIX: Use plan UUID for subscriptions table, slug/name for profiles table
+        const planId = planData.id; // UUID for subscriptions.plan_id
+        const planSlug = planData.slug || planData.name; // Text for profiles.plan_id
 
         // ✅ FIX: Pass full subscription object to capture trial and billing cycle info
         const result = await updateUserSubscription(
@@ -291,7 +309,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           planId,
           subscription.id,
           subscription.status,
-          subscription // Pass full subscription object for trial_end, billing_cycle_anchor, etc.
+          subscription, // Pass full subscription object for trial_end, billing_cycle_anchor, etc.
+          planSlug // Pass slug/name for profiles.plan_id update
         );
 
         if (!result) {
@@ -300,7 +319,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
         if (process.env.NODE_ENV !== 'production') {
           logger.info(`Subscription ${result.action} for user ${userId}:`, {
-          planId,
+          planId: planId,
+          planSlug: planSlug,
           externalPaymentId: subscription.id,
           status: subscription.status
         });
@@ -345,8 +365,9 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         }
 
         // ✅ FIX: Downgrade user's plan to 'free' when subscription is canceled
-        // Find the free plan ID (try common names: 'free', 'hobbyist', or look for plan with lowest price)
-        let freePlanId = null;
+        // Find the free plan (try common names: 'free', 'hobbyist', or look for plan with lowest price)
+        // profiles.plan_id is text, so we can use slug/name or UUID as string
+        let freePlanId = 'free'; // Default fallback (text)
         const { data: freePlan, error: freePlanError } = await supabase
           .from('plans')
           .select('id, name, slug')
@@ -356,17 +377,16 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           .maybeSingle();
 
         if (!freePlanError && freePlan) {
-          freePlanId = freePlan.id;
-        } else {
-          // Fallback: use 'free' as plan_id (will be resolved by planService)
-          freePlanId = 'free';
+          // ✅ FIX: Use slug/name for profiles.plan_id (text field), UUID for subscriptions (if needed)
+          freePlanId = freePlan.slug || freePlan.name || freePlan.id.toString();
         }
+        // If not found, use 'free' as fallback (planService will handle it)
 
         // Update user's profile to downgrade plan
         const { error: profileError } = await supabase
           .from('profiles')
           .update({
-            plan_id: freePlanId,
+            plan_id: freePlanId, // Text field - use slug/name
             plan_changed_at: new Date().toISOString()
           })
           .eq('id', userId);

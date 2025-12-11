@@ -7,6 +7,13 @@
 **/test.js
 **/test_*.py
 **/tests_*.py
+**/*.test.*
+**/test/
+**/test-*/
+**/*.spec.js
+**/*.spec.jsx
+**/*.spec.ts
+**/*.spec.tsx
 # Node.js
 node_modules/
 npm-debug.log*
