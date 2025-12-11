@@ -51,6 +51,13 @@ services:
       - ./:/app
     command: >
       sh -c "
+      echo '⏳ Waiting for PostgreSQL to be ready...' &&
+      # Wait for postgres using nc (netcat) which is available in alpine
+      until nc -z postgres 5432; do
+        echo 'Waiting for postgres...'
+        sleep 2
+      done &&
+      echo '✅ PostgreSQL is ready' &&
       echo '🧹 Cleaning node_modules and npm cache...' &&
       # Function to forcefully remove with retry (handles ENOTEMPTY)
       cleanup_dir() {
@@ -58,7 +65,6 @@ services:
         for i in 1 2 3; do
           rm -rf \"\$dir\" 2>/dev/null && return 0 || sleep 1
         done
-        # If still exists, remove contents first
         if [ -d \"\$dir\" ]; then
           find \"\$dir\" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
           rmdir \"\$dir\" 2>/dev/null || true
@@ -68,12 +74,14 @@ services:
       cleanup_dir backend/node_modules &&
       cleanup_dir rpa-dashboard/node_modules &&
       npm cache clean --force 2>/dev/null || true &&
-      echo '📦 Installing dependencies...' &&
-      if [ -f package-lock.json ] || [ -f backend/package-lock.json ]; then
-        npm ci || npm install
+      echo '📦 Installing backend dependencies...' &&
+      cd backend &&
+      if [ -f package-lock.json ]; then
+        npm ci --legacy-peer-deps || npm install --legacy-peer-deps
       else
-        npm install
+        npm install --legacy-peer-deps
       fi &&
+      cd .. &&
       echo '🚀 Starting server...' &&
       node backend/server.js
       "
@@ -111,6 +119,12 @@ services:
         condition: service_started
       kafka:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 3030 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     ports:
       - "3030:3030"
 
