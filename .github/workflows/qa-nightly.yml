@@ -94,16 +94,28 @@ jobs:
           echo "Services are ready!"
           docker compose -f docker-compose.test.yml ps
 
+      - name: Upgrade npm to latest
+        run: |
+          echo "⬆️ Upgrading npm to latest version..."
+          npm install -g npm@latest || true
+          npm --version
+
       - name: Clean up node_modules and fix permissions
         run: |
-          # Remove node_modules directories to avoid permission issues
-          rm -rf rpa-system/node_modules rpa-system/rpa-dashboard/node_modules 2>/dev/null || true
+          echo "🧹 Cleaning up node_modules and npm cache..."
+          # Forcefully remove all node_modules directories (more thorough than rm -rf)
+          find . -name "node_modules" -type d -prune -exec rm -rf {} + 2>/dev/null || true
           # Try with sudo if regular rm fails (for permission issues)
-          sudo rm -rf rpa-system/node_modules rpa-system/rpa-dashboard/node_modules 2>/dev/null || true
+          sudo find . -name "node_modules" -type d -prune -exec rm -rf {} + 2>/dev/null || true
+          # Also try direct removal of known paths
+          rm -rf rpa-system/node_modules rpa-system/backend/node_modules rpa-system/rpa-dashboard/node_modules 2>/dev/null || true
+          sudo rm -rf rpa-system/node_modules rpa-system/backend/node_modules rpa-system/rpa-dashboard/node_modules 2>/dev/null || true
           # Fix permissions on workspace if needed
           sudo chown -R $USER:$USER . 2>/dev/null || true
-          # Clear npm cache to avoid permission issues
+          # Clear npm cache completely
           npm cache clean --force || true
+          # Verify cleanup
+          echo "✅ Cleanup complete"
 
       - name: Install backend deps
         working-directory: rpa-system
