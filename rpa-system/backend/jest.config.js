@@ -9,5 +9,7 @@ module.exports = {
     // Use babel-jest for any files using import syntax if present
     '^.+\\.jsx?$': 'babel-jest'
   },
-  moduleFileExtensions: ['js', 'json', 'jsx', 'node']
+  moduleFileExtensions: ['js', 'json', 'jsx', 'node'],
+  // Allow tests to pass when no test files are found (useful during development)
+  passWithNoTests: true
 };

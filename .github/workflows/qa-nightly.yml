@@ -111,7 +111,7 @@ jobs:
 
       - name: Run backend unit tests
         working-directory: rpa-system
-        run: npm run test:backend --silent || true
+        run: npm run test:backend --silent -- --passWithNoTests || true
 
       - name: Install dashboard deps
         working-directory: rpa-system/rpa-dashboard

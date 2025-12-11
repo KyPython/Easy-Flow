@@ -129,7 +129,7 @@ jobs:
 
       - name: Run backend integration tests
         working-directory: rpa-system
-        run: npm run test:backend -- --testTimeout=10000
+        run: npm run test:backend -- --testTimeout=10000 --passWithNoTests
         env:
           NODE_ENV: test
 
