@@ -102,6 +102,16 @@ jobs:
             npm install
           fi
 
+      - name: Install backend-specific dependencies
+        working-directory: rpa-system/backend
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            echo "⚠️ package-lock.json not found, using npm install"
+            npm install
+          fi
+
       - name: Run backend unit tests
         working-directory: rpa-system
         run: npm run test:backend --silent -- --passWithNoTests
