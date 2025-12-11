@@ -243,8 +243,22 @@ async function getUserPlan(userId) {
         const { data: limitsResult, error: limitsError} = await supabase
           .rpc('get_plan_limits', { user_uuid: userId });
         if (limitsError) {
-          // Only log once per session to avoid spam
-          if (!planService._rpcWarningLogged) {
+          // ✅ FIX: Handle schema errors (like missing owner_id column) gracefully
+          const isSchemaError = limitsError.code === '42703' || // undefined_column
+                               limitsError.message?.includes('owner_id') ||
+                               limitsError.message?.includes('does not exist');
+          
+          if (isSchemaError && shouldLogError(userId, 'SCHEMA_ERROR')) {
+            logger.warn('Failed to fetch usage data, using defaults', {
+              userId,
+              database_error: {
+                code: limitsError.code,
+                message: limitsError.message,
+                hint: limitsError.hint
+              }
+            });
+          } else if (!isSchemaError && !planService._rpcWarningLogged) {
+            // Only log once per session to avoid spam for non-schema errors
             logger.warn('Plan limits RPC not available, using defaults. Set ENABLE_PLAN_RPC=true to enable.', { 
               userId, 
               error_code: limitsError.code 
@@ -256,8 +270,20 @@ async function getUserPlan(userId) {
         }
       }
     } catch (rpcError) {
-      // Only log once per session
-      if (!planService._rpcErrorLogged) {
+      // ✅ FIX: Handle schema errors gracefully
+      const isSchemaError = rpcError.message?.includes('owner_id') ||
+                           rpcError.message?.includes('does not exist');
+      
+      if (isSchemaError && shouldLogError(userId, 'SCHEMA_ERROR')) {
+        logger.warn('Failed to fetch usage data, using defaults', {
+          userId,
+          database_error: {
+            code: rpcError.code,
+            message: rpcError.message
+          }
+        });
+      } else if (!isSchemaError && !planService._rpcErrorLogged) {
+        // Only log once per session
         logger.warn('RPC call failed, using default limits', { 
           userId, 
           error: rpcError.message

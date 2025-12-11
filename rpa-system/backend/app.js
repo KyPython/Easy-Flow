@@ -1276,6 +1276,40 @@ app.get('/', (_req, res) => {
 if ((process.env.ENABLE_EMAIL_WORKER || 'true').toLowerCase() === 'true') {
   // Fire and forget; any errors are logged inside the worker loop
   startEmailWorker();
+  
+  // ✅ FIX: Start periodic cleanup of stuck executions
+  const { WorkflowExecutor } = require('./services/workflowExecutor');
+  const CLEANUP_INTERVAL_MS = (process.env.STUCK_EXECUTION_CLEANUP_INTERVAL_MINUTES || 10) * 60 * 1000;
+  const MAX_AGE_MINUTES = process.env.STUCK_EXECUTION_MAX_AGE_MINUTES || 10;
+  
+  // Run cleanup immediately on startup (after 30 seconds to let server stabilize)
+  setTimeout(async () => {
+    try {
+      const result = await WorkflowExecutor.cleanupStuckExecutions(MAX_AGE_MINUTES);
+      if (result.cleaned > 0) {
+        rootLogger.info(`✅ Cleaned up ${result.cleaned} stuck execution(s) on startup`);
+      }
+      if (result.errors.length > 0) {
+        rootLogger.warn(`⚠️ Encountered ${result.errors.length} error(s) during cleanup`);
+      }
+    } catch (error) {
+      rootLogger.error('Failed to run initial stuck execution cleanup:', error);
+    }
+  }, 30000);
+  
+  // Schedule periodic cleanup
+  setInterval(async () => {
+    try {
+      const result = await WorkflowExecutor.cleanupStuckExecutions(MAX_AGE_MINUTES);
+      if (result.cleaned > 0) {
+        rootLogger.info(`✅ Cleaned up ${result.cleaned} stuck execution(s)`);
+      }
+    } catch (error) {
+      rootLogger.error('Failed to run periodic stuck execution cleanup:', error);
+    }
+  }, CLEANUP_INTERVAL_MS);
+  
+  rootLogger.info(`✅ Stuck execution cleanup scheduled (every ${CLEANUP_INTERVAL_MS / 60000} minutes, max age: ${MAX_AGE_MINUTES} minutes)`);
 }
 
 // Optional embedded Python automation supervisor (disabled in production by default)

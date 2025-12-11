@@ -567,14 +567,32 @@ class WorkflowExecutor {
     
     // ✅ HARD TIMEOUT CONFIGURATION
     const EXECUTION_TIMEOUT = 300000; // 5 minutes maximum execution time
-    const executionTimer = setTimeout(() => {
+    let executionTimer = null;
+    
+    // ✅ FIX: Store timer reference so we can clear it if execution completes early
+    const timeoutHandler = async () => {
       // ✅ INSTRUCTION 2: Structured logging
       this.logger.error('Execution exceeded maximum time limit', {
         execution_id: executionId,
         max_timeout_seconds: EXECUTION_TIMEOUT / 1000
       });
-      this.cancelExecution(executionId);
-    }, EXECUTION_TIMEOUT);
+      
+      // ✅ FIX: Mark execution as failed with timeout error
+      try {
+        await this._updateExecutionStatus(executionId, 'failed', `Execution exceeded maximum time limit of ${EXECUTION_TIMEOUT / 1000} seconds`);
+        await this.failExecution(executionId, `Execution exceeded maximum time limit of ${EXECUTION_TIMEOUT / 1000} seconds`, null, 'TIMEOUT');
+      } catch (timeoutError) {
+        this.logger.error('Failed to update execution status on timeout', {
+          execution_id: executionId,
+          error: timeoutError.message
+        });
+      }
+      
+      // Cancel the execution
+      await this.cancelExecution(executionId);
+    };
+    
+    executionTimer = setTimeout(timeoutHandler, EXECUTION_TIMEOUT);
     
     try {
       if (process.env.NODE_ENV !== 'production') {
@@ -693,13 +711,31 @@ class WorkflowExecutor {
       }
       
       // Mark as running
-      this.runningExecutions.set(execution.id, { cancelled: false });
+      this.runningExecutions.set(execution.id, { cancelled: false, timer: executionTimer });
       
       // ✅ FIX: Also register in shared registry so cancel endpoint can find it
-      executionRegistry.set(execution.id, { cancelled: false, executor: this });
+      executionRegistry.set(execution.id, { cancelled: false, executor: this, timer: executionTimer });
 
       // Start execution asynchronously
-      this.executeWorkflow(execution, workflow).catch(error => {
+      this.executeWorkflow(execution, workflow).then(() => {
+        // ✅ FIX: Clear timeout timer when execution completes successfully
+        if (executionTimer) {
+          clearTimeout(executionTimer);
+        }
+        const registryEntry = executionRegistry.get(execution.id);
+        if (registryEntry && registryEntry.timer) {
+          clearTimeout(registryEntry.timer);
+        }
+      }).catch(error => {
+        // ✅ FIX: Clear timeout timer on error too
+        if (executionTimer) {
+          clearTimeout(executionTimer);
+        }
+        const registryEntry = executionRegistry.get(execution.id);
+        if (registryEntry && registryEntry.timer) {
+          clearTimeout(registryEntry.timer);
+        }
+        
         logger.error(`[WorkflowExecutor] Execution ${execution.id} failed:`, error);
         // If cancelled, don't overwrite cancelled status with failed
         const run = this.runningExecutions.get(execution.id);
@@ -803,9 +839,23 @@ class WorkflowExecutor {
               let actionType = null;
               
               // ✅ FIX: Map specific types to action steps with action_type
-              const actionTypes = ['email', 'api_call', 'web_scraping', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr'];
-              if (actionTypes.includes(stepType)) {
-                actionType = stepType;
+              // Handle both direct action types and variations
+              const actionTypes = ['email', 'api_call', 'web_scraping', 'web_scrape', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr'];
+              
+              // Normalize action type names
+              let normalizedActionType = stepType;
+              if (stepType === 'web_scraping') {
+                normalizedActionType = 'web_scrape';
+              }
+              
+              if (actionTypes.includes(stepType) || actionTypes.includes(normalizedActionType)) {
+                actionType = normalizedActionType;
+                stepType = 'action';
+              }
+              
+              // ✅ FIX: Also check node.data.action_type if stepType wasn't an action
+              if (stepType !== 'action' && node.data?.action_type) {
+                actionType = node.data.action_type;
                 stepType = 'action';
               }
               
@@ -1177,7 +1227,24 @@ class WorkflowExecutor {
           let result = { success: true, data: inputData };
           
           // Execute based on step type
-          switch (step.step_type) {
+          // ✅ FIX: Handle case where step_type might be an action type directly (legacy support)
+          let stepType = step.step_type;
+          if (stepType && ['email', 'api_call', 'web_scrape', 'web_scraping', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr'].includes(stepType)) {
+            // If step_type is an action type, treat it as an action step
+            this.logger.warn('Step has action type as step_type, converting to action step', {
+              execution_id: execution.id,
+              step_id: step.id,
+              step_type: stepType,
+              action_type: step.action_type
+            });
+            stepType = 'action';
+            // Ensure action_type is set
+            if (!step.action_type) {
+              step.action_type = step.step_type;
+            }
+          }
+          
+          switch (stepType) {
             case 'start':
               result = await this.executeStartStep(step, inputData);
               break;
@@ -1191,7 +1258,7 @@ class WorkflowExecutor {
               result = await this.executeEndStep(step, inputData);
               break;
             default:
-              throw new Error(`Unknown step type: ${step.step_type}`);
+              throw new Error(`Unknown step type: ${step.step_type}${step.action_type ? ` (action_type: ${step.action_type})` : ''}`);
           }
           
           // ✅ ENHANCED: Update step execution with detailed information
@@ -2637,11 +2704,79 @@ class WorkflowExecutor {
   }
 
   async createStepExecution(workflowExecutionId, stepId, inputData) {
+    // ✅ FIX: Handle canvas node IDs (node-xxx) vs UUID step IDs
+    // If stepId is a canvas node ID, look up the actual step UUID from workflow_steps
+    let actualStepId = stepId;
+    
+    // Check if stepId is a canvas node ID (starts with "node-")
+    if (stepId && typeof stepId === 'string' && stepId.startsWith('node-')) {
+      this.logger.warn('Canvas node ID detected, looking up step UUID', {
+        workflow_execution_id: workflowExecutionId,
+        canvas_node_id: stepId
+      });
+      
+      // Try to find the step by step_key (which stores the canvas node ID)
+      const { data: step, error: lookupError } = await this.supabase
+        .from('workflow_steps')
+        .select('id')
+        .eq('step_key', stepId)
+        .maybeSingle();
+      
+      if (lookupError || !step) {
+        // If lookup fails, try to get workflow_id from execution and search there
+        const { data: execution } = await this.supabase
+          .from('workflow_executions')
+          .select('workflow_id')
+          .eq('id', workflowExecutionId)
+          .single();
+        
+        if (execution?.workflow_id) {
+          const { data: workflowStep } = await this.supabase
+            .from('workflow_steps')
+            .select('id')
+            .eq('workflow_id', execution.workflow_id)
+            .eq('step_key', stepId)
+            .maybeSingle();
+          
+          if (workflowStep) {
+            actualStepId = workflowStep.id;
+          } else {
+            // Last resort: generate a UUID and log warning
+            this.logger.error('Could not find step UUID for canvas node ID, generating temporary UUID', {
+              workflow_execution_id: workflowExecutionId,
+              canvas_node_id: stepId,
+              workflow_id: execution.workflow_id
+            });
+            // Use the canvas node ID as-is and let database handle it (might fail, but better than crashing)
+            actualStepId = stepId;
+          }
+        } else {
+          this.logger.error('Could not find workflow_id for execution', {
+            workflow_execution_id: workflowExecutionId
+          });
+          actualStepId = stepId;
+        }
+      } else {
+        actualStepId = step.id;
+      }
+    }
+    
+    // Validate that actualStepId is a valid UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(actualStepId)) {
+      this.logger.error('Invalid step ID format (not a UUID)', {
+        workflow_execution_id: workflowExecutionId,
+        original_step_id: stepId,
+        resolved_step_id: actualStepId
+      });
+      throw new Error(`Invalid step ID format: ${stepId}. Expected UUID but got: ${actualStepId}`);
+    }
+    
     const { data, error } = await this.supabase
       .from('step_executions')
       .insert({
         workflow_execution_id: workflowExecutionId,
-        step_id: stepId,
+        step_id: actualStepId,
         status: 'running',
         started_at: new Date().toISOString(),
         input_data: inputData,
@@ -2651,6 +2786,13 @@ class WorkflowExecutor {
       .single();
       
     if (error) {
+      this.logger.error('Failed to create step execution', {
+        workflow_execution_id: workflowExecutionId,
+        step_id: actualStepId,
+        original_step_id: stepId,
+        error: error.message,
+        error_code: error.code
+      });
       throw new Error(`Failed to create step execution: ${error.message}`);
     }
     
@@ -3070,6 +3212,91 @@ class WorkflowExecutor {
     return false;
   }
 
+  // ✅ FIX: Static method to cleanup stuck executions
+  static async cleanupStuckExecutions(maxAgeMinutes = 10) {
+    const supabase = getSupabase();
+    if (!supabase) {
+      logger.warn('Cannot cleanup stuck executions: Supabase not configured');
+      return { cleaned: 0, errors: [] };
+    }
+    
+    const maxAgeMs = maxAgeMinutes * 60 * 1000;
+    const cutoffTime = new Date(Date.now() - maxAgeMs).toISOString();
+    
+    try {
+      // Find executions that have been running for too long
+      const { data: stuckExecutions, error: findError } = await supabase
+        .from('workflow_executions')
+        .select('id, started_at, workflow_id, user_id')
+        .eq('status', 'running')
+        .lt('started_at', cutoffTime);
+      
+      if (findError) {
+        logger.error('Error finding stuck executions:', findError);
+        return { cleaned: 0, errors: [findError.message] };
+      }
+      
+      if (!stuckExecutions || stuckExecutions.length === 0) {
+        return { cleaned: 0, errors: [] };
+      }
+      
+      logger.warn(`Found ${stuckExecutions.length} stuck execution(s) to cleanup`, {
+        max_age_minutes: maxAgeMinutes,
+        cutoff_time: cutoffTime
+      });
+      
+      const errors = [];
+      let cleaned = 0;
+      
+      // Mark each stuck execution as failed
+      for (const execution of stuckExecutions) {
+        try {
+          const ageMinutes = Math.round((Date.now() - new Date(execution.started_at).getTime()) / 60000);
+          const errorMessage = `Execution stuck in running state for ${ageMinutes} minutes. Marked as failed by cleanup job.`;
+          
+          await supabase
+            .from('workflow_executions')
+            .update({
+              status: 'failed',
+              completed_at: new Date().toISOString(),
+              metadata: {
+                cleanup_reason: 'stuck_execution',
+                stuck_duration_minutes: ageMinutes,
+                cleaned_at: new Date().toISOString()
+              }
+            })
+            .eq('id', execution.id);
+          
+          // Also cancel in registry if still there
+          const registryEntry = executionRegistry.get(execution.id);
+          if (registryEntry) {
+            registryEntry.cancelled = true;
+            if (registryEntry.timer) {
+              clearTimeout(registryEntry.timer);
+            }
+          }
+          
+          cleaned++;
+          logger.info('Cleaned up stuck execution', {
+            execution_id: execution.id,
+            age_minutes: ageMinutes,
+            workflow_id: execution.workflow_id
+          });
+        } catch (execError) {
+          errors.push(`Failed to cleanup execution ${execution.id}: ${execError.message}`);
+          logger.error('Error cleaning up stuck execution', {
+            execution_id: execution.id,
+            error: execError.message
+          });
+        }
+      }
+      
+      return { cleaned, errors };
+    } catch (error) {
+      logger.error('Unexpected error during stuck execution cleanup:', error);
+      return { cleaned: 0, errors: [error.message] };
+    }
+  }
 }
 
 module.exports = { WorkflowExecutor };
