@@ -1,93 +1,3 @@
-<<<<<<< HEAD
-services:
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: easyflow
-      POSTGRES_PASSWORD: easyflow
-      POSTGRES_DB: easyflow
-    ports:
-      - '5432:5432'
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U easyflow -d easyflow"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7
-    ports:
-      - '6379:6379'
-
-  kafka:
-    image: confluentinc/cp-kafka:7.3.0
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-    depends_on:
-      - zookeeper
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.3.0
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - '3030:3030'
-    depends_on:
-      - postgres
-      - redis
-      - kafka
-    environment:
-      # Database & Services
-      DATABASE_URL: "postgres://easyflow:easyflow@postgres:5432/easyflow"
-      REDIS_URL: "redis://redis:6379"
-      KAFKA_BROKERS: "kafka:9092"
-      AUTOMATION_URL: "http://automation-worker:7001"
-      ALLOW_DRAFT_EXECUTION: 'true'
-      
-      # Test environment configs
-      NODE_ENV: test
-      PORT: 3030
-      
-      # Required for tests (use test values)
-      SUPABASE_URL: "https://syxzilyuysdoirnezgii.supabase.co"
-      SUPABASE_SERVICE_ROLE: "test_key"
-      SUPABASE_ANON_KEY: "test_key"
-      
-      # Security (test values)
-      CREDENTIAL_ENCRYPTION_KEY: "test_encryption_key_32_characters_long"
-      SESSION_SECRET: "test_session_secret"
-      ADMIN_API_SECRET: "test_admin_secret"
-      
-      # New Relic (disabled for tests)
-      NEW_RELIC_ENABLED: 'false'
-
-  automation-worker:
-    build:
-      context: ./automation
-      dockerfile: automation-service/Dockerfile
-    ports:
-      - '7001:7001'
-    depends_on:
-      - backend
-      - kafka
-      - postgres
-    environment:
-      AUTOMATION_WORKER_MODE: local
-      BACKEND_URL: "http://backend:3030"
-      KAFKA_BROKERS: kafka:9092
-=======
 version: "3.9"
 
 services:
@@ -106,6 +16,33 @@ services:
       timeout: 3s
       retries: 20
 
+  redis:
+    image: redis:7-alpine
+    container_name: easyflow_redis
+    ports:
+      - "6379:6379"
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    container_name: easyflow_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: easyflow_kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+
   backend:
     image: node:20-alpine
     container_name: easyflow_backend
@@ -117,22 +54,59 @@ services:
       NODE_ENV: test
       PORT: "3030"
       HOST: 0.0.0.0
-      # Database (if backend uses Postgres in tests)
+      # Database
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/testdb"
       PGHOST: postgres
       PGPORT: "5432"
       PGUSER: postgres
       PGPASSWORD: postgres
       PGDATABASE: testdb
+      # Redis
+      REDIS_URL: "redis://redis:6379"
+      # Kafka
+      KAFKA_BROKERS: "kafka:9092"
+      # Automation
+      AUTOMATION_URL: "http://automation-worker:7001"
+      ALLOW_DRAFT_EXECUTION: "true"
       # Provide pass-throughs for Supabase if defined in workflow secrets
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_SERVICE_ROLE: ${SUPABASE_SERVICE_ROLE}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      # Test security values
+      CREDENTIAL_ENCRYPTION_KEY: "test_encryption_key_32_characters_long"
+      SESSION_SECRET: "test_session_secret"
+      ADMIN_API_SECRET: "test_admin_secret"
+      NEW_RELIC_ENABLED: "false"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
     ports:
       - "3030:3030"
+
+  automation-worker:
+    image: python:3.11-alpine
+    container_name: easyflow_automation_worker
+    working_dir: /app
+    volumes:
+      - ./automation:/app
+    command: sh -c "pip install -r requirements.txt && python automation-service/production_automation_service.py"
+    environment:
+      AUTOMATION_WORKER_MODE: local
+      BACKEND_URL: "http://backend:3030"
+      KAFKA_BROKERS: "kafka:9092"
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_KEY: ${SUPABASE_SERVICE_ROLE}
+    depends_on:
+      - backend
+      - kafka
+      - postgres
+    ports:
+      - "7001:7001"
 
 networks:
   default:
     name: easyflow_test_net
->>>>>>> restored-37cdb23

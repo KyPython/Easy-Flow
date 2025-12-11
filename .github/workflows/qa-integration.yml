@@ -58,9 +58,13 @@ jobs:
       - name: Clean up conflicting containers and start Docker services
         working-directory: rpa-system
         run: |
-          # Stop any existing containers using port 5432
-          docker ps -aq --filter "publish=5432" | xargs -r docker stop
-          docker ps -aq --filter "publish=5432" | xargs -r docker rm
+          # Stop any existing test containers to avoid port conflicts
+          docker compose -f docker-compose.test.yml down -v || true
+          # Stop any containers that might be using port 5432
+          CONTAINERS=$(docker ps --format "{{.ID}}\t{{.Ports}}" | grep ":5432" | cut -f1 || true)
+          if [ -n "$CONTAINERS" ]; then
+            echo "$CONTAINERS" | xargs docker stop || true
+          fi
           # Start test services
           docker compose -f docker-compose.test.yml up -d
           sleep 15

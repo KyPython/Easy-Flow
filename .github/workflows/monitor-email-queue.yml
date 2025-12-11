@@ -32,6 +32,13 @@ jobs:
           echo "🔍 Configuration check:"
           echo "APP_URL is set to: $APP_URL"
           echo "Target endpoint: $APP_URL/admin/email-queue-stats"
+          echo ""
+          echo "⚠️  IMPORTANT: APP_URL must point to your BACKEND API, not the frontend!"
+          echo "   ✅ Correct: https://easyflow-backend.onrender.com"
+          echo "   ✅ Correct: https://api.yourdomain.com"
+          echo "   ❌ Wrong: https://yourdomain.com (frontend)"
+          echo "   ❌ Wrong: https://easy-flow-lac.vercel.app (frontend)"
+          echo ""
 
           # Determine if we need to skip SSL verification for IP addresses
           curl_opts="-sS --max-time 30"
@@ -60,17 +67,38 @@ jobs:
           }
 
           # Check if response is HTML instead of JSON
-          if [[ "$resp" == "<!doctype"* ]] || [[ "$resp" == "<!DOCTYPE"* ]] || [[ "$resp" == "<html"* ]]; then
-            echo "❌ ERROR: Endpoint returned HTML instead of JSON!"
-            echo "This indicates APP_URL may be pointing to a frontend site instead of the backend API."
-            echo "Response preview: ${resp:0:200}..."
+          if [[ "$resp" == "<!doctype"* ]] || [[ "$resp" == "<!DOCTYPE"* ]] || [[ "$resp" == "<html"* ]] || [[ "$resp" == *"<!DOCTYPE"* ]] || [[ "$resp" == *"<html"* ]]; then
             echo ""
-            echo "💡 Solutions:"
-            echo "1. Update APP_URL secret to point to your backend API (e.g., https://api.yourdomain.com)"
-            echo "2. Ensure the /admin/email-queue-stats endpoint exists on your backend"
-            echo "3. Verify ADMIN_API_SECRET is correct for your backend"
+            echo "❌ ERROR: Endpoint returned HTML instead of JSON!"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "This indicates APP_URL is pointing to the FRONTEND instead of the BACKEND API."
+            echo ""
+            echo "Current APP_URL: $APP_URL"
+            echo "Response preview: ${resp:0:300}..."
+            echo ""
+            echo "💡 FIX: Update GitHub Secret 'APP_URL' to point to your BACKEND API:"
+            echo ""
+            echo "   For Render.com backend:"
+            echo "   https://easyflow-backend.onrender.com"
+            echo "   (or your actual Render backend service URL)"
+            echo ""
+            echo "   For custom domain:"
+            echo "   https://api.yourdomain.com"
+            echo ""
+            echo "   Steps to fix:"
+            echo "   1. Go to GitHub → Settings → Secrets and variables → Actions"
+            echo "   2. Edit the 'APP_URL' secret"
+            echo "   3. Set it to your backend API URL (not frontend)"
+            echo "   4. Ensure it does NOT end with /api or any path"
+            echo "   5. The endpoint will be: \$APP_URL/admin/email-queue-stats"
+            echo ""
+            echo "   Also verify:"
+            echo "   - ADMIN_API_SECRET matches your backend's ADMIN_API_SECRET env var"
+            echo "   - Backend is running and accessible"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
             
-            resp='{"error":"html_response","message":"Endpoint returned HTML instead of JSON - check APP_URL configuration"}'
+            resp='{"error":"html_response","message":"Endpoint returned HTML instead of JSON - APP_URL must point to backend API, not frontend","current_url":"'$APP_URL'"}'
           fi
 
           # Check if response is empty
@@ -125,11 +153,16 @@ jobs:
               core.error(`Response preview: ${resp.substring(0, 200)}...`);
               
               // Check for common error patterns
-              if (resp.includes('<!doctype') || resp.includes('<html')) {
-                core.error('🚨 CONFIGURATION ERROR: APP_URL points to frontend instead of backend API');
-                core.error('💡 Fix: Update APP_URL secret to your backend API endpoint');
-                core.error('   Example: https://api.yourdomain.com (not https://yourdomain.com)');
-                core.setFailed('APP_URL configuration error - receiving HTML instead of JSON');
+              if (resp.includes('<!doctype') || resp.includes('<html') || resp.includes('<!DOCTYPE')) {
+                core.error('🚨 CONFIGURATION ERROR: Endpoint returned HTML instead of JSON');
+                core.error('💡 Solutions:');
+                core.error('   1. Update APP_URL to point to backend API, not frontend');
+                core.error('   2. Ensure /admin/email-queue-stats endpoint exists');
+                core.error('   3. Verify ADMIN_API_SECRET is correct');
+                core.error('');
+                core.error('   Current APP_URL likely points to frontend (returns HTML)');
+                core.error('   Should point to backend API (e.g., https://easyflow-backend.onrender.com)');
+                core.setFailed('APP_URL misconfiguration - HTML response detected');
               } else if (resp.includes('curl_failed')) {
                 core.warning('curl failed to fetch email stats - connectivity issue');
                 core.warning('This may be due to SSL certificate mismatch or network issues');
