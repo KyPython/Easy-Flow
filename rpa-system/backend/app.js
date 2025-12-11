@@ -128,15 +128,12 @@ if (process.env.NODE_ENV !== 'production') {
 
 const corsOptions = {
   origin: (origin, cb) => {
-    // For non-browser requests (no Origin header), still return a specific origin
-    // to avoid wildcard issues when credentials are enabled
+    // ✅ FIX: Allow webhook endpoints without origin (Polar sends webhooks without Origin header)
+    // For non-browser requests (no Origin header), allow them (needed for webhooks)
     if (!origin) {
-      // In development, default to localhost:3000 for server-to-server requests
-      if (process.env.NODE_ENV !== 'production') {
-        return cb(null, 'http://localhost:3000');
-      }
-      // In production, reject requests without origin for security
-      return cb(new Error('CORS: Origin header required'));
+      // Allow requests without origin (webhooks, server-to-server)
+      // Return a permissive origin for webhook compatibility
+      return cb(null, '*');
     }
 
     // Exact allow-list - return the origin string (not true) when credentials are enabled

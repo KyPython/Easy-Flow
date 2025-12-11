@@ -7,6 +7,24 @@ const { getSupabase } = require('../utils/supabaseClient');
 const router = express.Router();
 const { requireFeature } = require('../middleware/planEnforcement');
 
+// ✅ FIX: CORS headers for webhook endpoint (handled by main CORS middleware, but ensure webhook works)
+// The main CORS middleware already handles requests without origin, but we ensure webhook is accessible
+router.use('/webhook', (req, res, next) => {
+  // Ensure CORS headers are set (backup in case main CORS middleware doesn't catch it)
+  if (!res.headersSent) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, x-polar-signature');
+  }
+  
+  // Handle preflight OPTIONS request
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
+
 // Make Supabase optional for local development
 const supabase = getSupabase();
 if (!supabase) {
@@ -267,11 +285,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           return res.status(404).json({ error: 'Plan not found' });
         }
 
+        // ✅ FIX: Pass full subscription object to capture trial and billing cycle info
         const result = await updateUserSubscription(
           userId,
           planId,
           subscription.id,
-          subscription.status
+          subscription.status,
+          subscription // Pass full subscription object for trial_end, billing_cycle_anchor, etc.
         );
 
         if (!result) {
@@ -310,7 +330,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           return res.status(404).json({ error: 'User not found' });
         }
 
-        const { error } = await supabase
+        // ✅ FIX: Update subscription status to canceled
+        const { error: subscriptionError } = await supabase
           .from('subscriptions')
           .update({
             status: 'canceled',
@@ -318,14 +339,67 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           })
           .eq('external_payment_id', subscription.id);
 
-        if (error) {
-          logger.error('Error canceling subscription:', error);
+        if (subscriptionError) {
+          logger.error('Error canceling subscription:', subscriptionError);
           return res.status(500).json({ error: 'Failed to cancel subscription' });
         }
 
+        // ✅ FIX: Downgrade user's plan to 'free' when subscription is canceled
+        // Find the free plan ID (try common names: 'free', 'hobbyist', or look for plan with lowest price)
+        let freePlanId = null;
+        const { data: freePlan, error: freePlanError } = await supabase
+          .from('plans')
+          .select('id, name, slug')
+          .or('name.eq.free,name.eq.Free,name.eq.hobbyist,name.eq.Hobbyist,slug.eq.free,slug.eq.hobbyist')
+          .order('price_cents', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (!freePlanError && freePlan) {
+          freePlanId = freePlan.id;
+        } else {
+          // Fallback: use 'free' as plan_id (will be resolved by planService)
+          freePlanId = 'free';
+        }
+
+        // Update user's profile to downgrade plan
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            plan_id: freePlanId,
+            plan_changed_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+
+        if (profileError) {
+          logger.error('Error downgrading user plan after cancellation:', profileError);
+          // Don't fail the webhook - subscription was already canceled
+        } else {
+          logger.info(`User ${userId} downgraded to free plan after subscription cancellation`);
+          
+          // ✅ FIX: Send realtime notification to update frontend
+          try {
+            await supabase
+              .channel('plan-notifications')
+              .send({
+                type: 'broadcast',
+                event: 'plan_updated',
+                payload: {
+                  user_id: userId,
+                  plan_id: freePlanId,
+                  updated_at: new Date().toISOString(),
+                  trigger: 'polar_webhook_cancellation'
+                }
+              });
+          } catch (broadcastError) {
+            logger.warn('Failed to send realtime notification for plan downgrade:', broadcastError);
+          }
+        }
+
         if (process.env.NODE_ENV !== 'production') {
-	  logger.info(`Subscription canceled for user ${userId}:`, {
-            externalPaymentId: subscription.id
+          logger.info(`Subscription canceled for user ${userId}:`, {
+            externalPaymentId: subscription.id,
+            downgraded_to_plan: freePlanId
           });
         }
 
@@ -333,6 +407,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           success: true,
           action: 'canceled',
           userId,
+          downgraded_to_plan: freePlanId,
           duration_ms: Date.now() - startTime
         });
       }
