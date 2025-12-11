@@ -69,6 +69,17 @@ jobs:
           docker compose -f docker-compose.test.yml up -d
           sleep 15
 
+      - name: Clean up node_modules and fix permissions
+        run: |
+          # Remove node_modules directories to avoid permission issues
+          rm -rf node_modules rpa-system/node_modules rpa-system/rpa-dashboard/node_modules 2>/dev/null || true
+          # Try with sudo if regular rm fails (for permission issues)
+          sudo rm -rf node_modules rpa-system/node_modules rpa-system/rpa-dashboard/node_modules 2>/dev/null || true
+          # Fix permissions on workspace if needed
+          sudo chown -R $USER:$USER . 2>/dev/null || true
+          # Clear npm cache to avoid permission issues
+          npm cache clean --force || true
+
       - name: Install root dependencies
         run: npm ci
 

@@ -46,6 +46,17 @@ jobs:
           echo "Services are ready!"
           docker compose -f docker-compose.test.yml ps
 
+      - name: Clean up node_modules and fix permissions
+        run: |
+          # Remove node_modules directories to avoid permission issues
+          rm -rf rpa-system/node_modules rpa-system/rpa-dashboard/node_modules 2>/dev/null || true
+          # Try with sudo if regular rm fails (for permission issues)
+          sudo rm -rf rpa-system/node_modules rpa-system/rpa-dashboard/node_modules 2>/dev/null || true
+          # Fix permissions on workspace if needed
+          sudo chown -R $USER:$USER . 2>/dev/null || true
+          # Clear npm cache to avoid permission issues
+          npm cache clean --force || true
+
       - name: Install backend deps
         working-directory: rpa-system
         run: npm ci
