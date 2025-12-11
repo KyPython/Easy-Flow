@@ -24,6 +24,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -45,6 +48,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
+
+      - name: Upgrade npm to latest
+        run: |
+          echo "⬆️ Upgrading npm to latest version..."
+          npm install -g npm@latest || true
+          npm --version
 
       - name: Create backend .env file from secrets
         run: |
@@ -76,17 +85,50 @@ jobs:
       - name: Clean up node_modules and fix permissions
         run: |
           echo "🧹 Cleaning up node_modules and npm cache..."
-          # Forcefully remove all node_modules directories
-          find . -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
-          # Try with sudo if regular rm fails (for permission issues)
-          sudo find . -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
-          # Note: We do NOT delete package-lock.json files as npm ci requires them
-          # Fix permissions on workspace if needed
+          
+          # Function to forcefully remove directories (handles ENOTEMPTY)
+          force_remove() {
+            local dir="$1"
+            if [ -d "$dir" ]; then
+              # Try multiple times with delays to handle file locks
+              for i in 1 2 3; do
+                rm -rf "$dir" 2>/dev/null && break || sleep 1
+              done
+              # If still exists, try with find to remove contents first
+              if [ -d "$dir" ]; then
+                find "$dir" -mindepth 1 -delete 2>/dev/null || true
+                rmdir "$dir" 2>/dev/null || true
+              fi
+            fi
+          }
+          
+          # Remove all node_modules directories with retry logic
+          while IFS= read -r -d '' dir; do
+            echo "Removing: $dir"
+            force_remove "$dir"
+            sudo force_remove "$dir" 2>/dev/null || true
+          done < <(find . -name "node_modules" -type d -print0 2>/dev/null)
+          
+          # Also try direct removal of known paths with retry
+          for dir in node_modules rpa-system/node_modules rpa-system/backend/node_modules rpa-system/rpa-dashboard/node_modules; do
+            if [ -d "$dir" ]; then
+              echo "Force removing: $dir"
+              for attempt in 1 2 3; do
+                rm -rf "$dir" 2>/dev/null && break || sleep 2
+              done
+              sudo rm -rf "$dir" 2>/dev/null || true
+            fi
+          done
+          
+          # Fix permissions on workspace
           sudo chown -R $USER:$USER . 2>/dev/null || true
+          
           # Clear npm cache completely
           npm cache clean --force || true
+          
           # Verify cleanup
           echo "✅ Cleanup complete"
+          echo "Remaining node_modules: $(find . -name "node_modules" -type d 2>/dev/null | wc -l)"
 
       - name: Install root dependencies
         run: |

@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -55,18 +57,39 @@ jobs:
       - name: Clean up node_modules and fix permissions
         run: |
           echo "🧹 Cleaning up node_modules and npm cache..."
-          # Forcefully remove all node_modules directories (more thorough than rm -rf)
-          find . -name "node_modules" -type d -prune -exec rm -rf {} + 2>/dev/null || true
-          # Try with sudo if regular rm fails (for permission issues)
-          sudo find . -name "node_modules" -type d -prune -exec rm -rf {} + 2>/dev/null || true
-          # Also try direct removal of known paths
-          rm -rf rpa-system/node_modules rpa-system/backend/node_modules rpa-system/rpa-dashboard/node_modules 2>/dev/null || true
-          sudo rm -rf rpa-system/node_modules rpa-system/backend/node_modules rpa-system/rpa-dashboard/node_modules 2>/dev/null || true
-          # Fix permissions on workspace if needed
+          
+          # Function to forcefully remove directories (handles ENOTEMPTY)
+          force_remove() {
+            local dir="$1"
+            if [ -d "$dir" ]; then
+              for i in 1 2 3; do
+                rm -rf "$dir" 2>/dev/null && break || sleep 1
+              done
+              if [ -d "$dir" ]; then
+                find "$dir" -mindepth 1 -delete 2>/dev/null || true
+                rmdir "$dir" 2>/dev/null || true
+              fi
+            fi
+          }
+          
+          # Remove all node_modules with retry
+          while IFS= read -r -d '' dir; do
+            force_remove "$dir"
+            sudo force_remove "$dir" 2>/dev/null || true
+          done < <(find . -name "node_modules" -type d -print0 2>/dev/null)
+          
+          # Direct removal of known paths with retry
+          for dir in rpa-system/node_modules rpa-system/backend/node_modules rpa-system/rpa-dashboard/node_modules; do
+            if [ -d "$dir" ]; then
+              for attempt in 1 2 3; do
+                rm -rf "$dir" 2>/dev/null && break || sleep 2
+              done
+              sudo rm -rf "$dir" 2>/dev/null || true
+            fi
+          done
+          
           sudo chown -R $USER:$USER . 2>/dev/null || true
-          # Clear npm cache completely
           npm cache clean --force || true
-          # Verify cleanup
           echo "✅ Cleanup complete"
 
       - name: Install backend deps

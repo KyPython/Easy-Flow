@@ -51,12 +51,30 @@ services:
       - ./:/app
     command: >
       sh -c "
-      echo 'Cleaning node_modules and npm cache...' &&
-      rm -rf node_modules backend/node_modules rpa-dashboard/node_modules 2>/dev/null || true &&
+      echo '🧹 Cleaning node_modules and npm cache...' &&
+      # Function to forcefully remove with retry (handles ENOTEMPTY)
+      cleanup_dir() {
+        local dir=\"\$1\"
+        for i in 1 2 3; do
+          rm -rf \"\$dir\" 2>/dev/null && return 0 || sleep 1
+        done
+        # If still exists, remove contents first
+        if [ -d \"\$dir\" ]; then
+          find \"\$dir\" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
+          rmdir \"\$dir\" 2>/dev/null || true
+        fi
+      } &&
+      cleanup_dir node_modules &&
+      cleanup_dir backend/node_modules &&
+      cleanup_dir rpa-dashboard/node_modules &&
       npm cache clean --force 2>/dev/null || true &&
-      echo 'Installing dependencies...' &&
-      npm ci &&
-      echo 'Starting server...' &&
+      echo '📦 Installing dependencies...' &&
+      if [ -f package-lock.json ] || [ -f backend/package-lock.json ]; then
+        npm ci || npm install
+      else
+        npm install
+      fi &&
+      echo '🚀 Starting server...' &&
       node backend/server.js
       "
     environment:
