@@ -119,7 +119,13 @@ jobs:
 
       - name: Install backend deps
         working-directory: rpa-system
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            echo "⚠️ package-lock.json not found, using npm install"
+            npm install
+          fi
 
       - name: Run backend unit tests
         working-directory: rpa-system
@@ -127,7 +133,13 @@ jobs:
 
       - name: Install dashboard deps
         working-directory: rpa-system/rpa-dashboard
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            echo "⚠️ package-lock.json not found, using npm install"
+            npm install
+          fi
 
       - name: Run dashboard lint
         working-directory: rpa-system/rpa-dashboard

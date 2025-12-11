@@ -80,8 +80,7 @@ jobs:
           find . -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
           # Try with sudo if regular rm fails (for permission issues)
           sudo find . -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
-          # Remove package-lock.json files to ensure fresh install (optional, but helps with ENOTEMPTY)
-          find . -name "package-lock.json" -delete 2>/dev/null || true
+          # Note: We do NOT delete package-lock.json files as npm ci requires them
           # Fix permissions on workspace if needed
           sudo chown -R $USER:$USER . 2>/dev/null || true
           # Clear npm cache completely
@@ -90,15 +89,33 @@ jobs:
           echo "✅ Cleanup complete"
 
       - name: Install root dependencies
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            echo "⚠️ package-lock.json not found, using npm install"
+            npm install
+          fi
 
       - name: Install backend dependencies
         working-directory: rpa-system
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            echo "⚠️ package-lock.json not found, using npm install"
+            npm install
+          fi
 
       - name: Install frontend dependencies
         working-directory: rpa-system/rpa-dashboard
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            echo "⚠️ package-lock.json not found, using npm install"
+            npm install
+          fi
 
       - name: Install Python dependencies
         working-directory: rpa-system
