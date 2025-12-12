@@ -36,12 +36,39 @@ echo -e "${YELLOW}Killing any remaining processes...${NC}"
 pkill -f "node server.js" 2>/dev/null && echo -e "${GREEN}✓ Killed node server.js processes${NC}" || true
 pkill -f "react-app-rewired" 2>/dev/null && echo -e "${GREEN}✓ Killed react-app-rewired processes${NC}" || true
 
-# Stop Docker frontend container if running
-echo -e "${YELLOW}Stopping Docker frontend container...${NC}"
+# Kill processes on port 7070 (automation worker)
+echo -e "${YELLOW}Killing processes on port 7070...${NC}"
+if lsof -ti :7070 | xargs kill -9 2>/dev/null; then
+    echo -e "${GREEN}✓ Killed processes on port 7070${NC}"
+else
+    echo -e "${YELLOW}⚠ No processes found on port 7070${NC}"
+fi
+
+# Stop Docker containers
+echo -e "${YELLOW}Stopping Docker containers...${NC}"
 if docker stop easy-flow-rpa-dashboard-1 2>/dev/null; then
     echo -e "${GREEN}✓ Docker frontend container stopped${NC}"
 else
     echo -e "${YELLOW}⚠ Docker frontend container not running${NC}"
+fi
+
+if docker stop easy-flow-automation-worker-1 2>/dev/null; then
+    echo -e "${GREEN}✓ Docker automation worker stopped${NC}"
+else
+    echo -e "${YELLOW}⚠ Docker automation worker not running${NC}"
+fi
+
+# Stop Kafka and Zookeeper if running
+if docker stop easy-flow-kafka-1 2>/dev/null; then
+    echo -e "${GREEN}✓ Docker Kafka stopped${NC}"
+else
+    echo -e "${YELLOW}⚠ Docker Kafka not running${NC}"
+fi
+
+if docker stop easy-flow-zookeeper-1 2>/dev/null; then
+    echo -e "${GREEN}✓ Docker Zookeeper stopped${NC}"
+else
+    echo -e "${YELLOW}⚠ Docker Zookeeper not running${NC}"
 fi
 
 sleep 1
@@ -59,6 +86,12 @@ if lsof -i :3000 | grep LISTEN > /dev/null 2>&1; then
     echo -e "${RED}⚠ Port 3000 still in use${NC}"
 else
     echo -e "${GREEN}✓ Port 3000 is free${NC}"
+fi
+
+if lsof -i :7070 | grep LISTEN > /dev/null 2>&1; then
+    echo -e "${RED}⚠ Port 7070 still in use${NC}"
+else
+    echo -e "${GREEN}✓ Port 7070 is free${NC}"
 fi
 
 echo ""

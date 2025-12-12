@@ -97,6 +97,7 @@ class FrontendPerformanceInstrumentation {
     });
 
     return {
+      addAttribute: (key, value) => span.setAttributes({ [key]: value }),
       setResponseData: (response) => {
         span.setAttributes({
           'http.status_code': response.status,
@@ -325,7 +326,7 @@ const noopTracker = (() => {
     startComponentRender: () => null,
     endComponentRender: () => {},
     trackUserInteraction: () => ({ addAttribute: () => {}, recordError: () => {}, end: () => {} }),
-    trackApiCall: () => ({ setResponseData: () => {}, setError: () => {}, end: () => {} }),
+    trackApiCall: () => ({ addAttribute: () => {}, setResponseData: () => {}, setError: () => {}, end: () => {} }),
     trackPageLoad: () => noopSpan()
   };
 })();
@@ -374,7 +375,7 @@ export function usePerformanceTracking(componentName) {
     trackInteraction: (type, element, metadata) => 
       (performanceTracker && performanceTracker.trackUserInteraction ? performanceTracker.trackUserInteraction(type, element, metadata) : { addAttribute: () => {}, recordError: () => {}, end: () => {} }),
     trackApiCall: (method, url, context) => 
-      (performanceTracker && performanceTracker.trackApiCall ? performanceTracker.trackApiCall(method, url, context) : { setResponseData: () => {}, setError: () => {}, end: () => {} }),
+      (performanceTracker && performanceTracker.trackApiCall ? performanceTracker.trackApiCall(method, url, context) : { addAttribute: () => {}, setResponseData: () => {}, setError: () => {}, end: () => {} }),
     trackPageLoad: (pageName, params) => 
       (performanceTracker && performanceTracker.trackPageLoad ? performanceTracker.trackPageLoad(pageName, params) : { addMetric: () => {}, end: () => {} })
   };

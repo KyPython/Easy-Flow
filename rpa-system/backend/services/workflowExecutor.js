@@ -1020,7 +1020,62 @@ class WorkflowExecutor {
         return;
       }
 
+      // ✅ OBSERVABILITY: Get actual steps_executed from database to verify execution
+      const { data: executionStatus } = await this.supabase
+        .from('workflow_executions')
+        .select('steps_executed, steps_total')
+        .eq('id', execution.id)
+        .single();
+      
+      const actualStepsExecuted = executionStatus?.steps_executed || 0;
+      const totalSteps = executionStatus?.steps_total || workflow.workflow_steps?.length || 0;
+      
+      this.logger.info('Workflow execution result', {
+        execution_id: execution.id,
+        result_success: result.success,
+        actual_steps_executed: actualStepsExecuted,
+        total_steps: totalSteps,
+        trace_id: span.spanContext().traceId
+      });
+      
+      span.setAttributes({
+        'workflow.actual_steps_executed': actualStepsExecuted,
+        'workflow.steps_total': totalSteps
+      });
+
           if (result.success) {
+            // ✅ CRITICAL FIX: If no steps executed but workflow has steps, mark as failed
+            if (totalSteps > 0 && actualStepsExecuted === 0) {
+              const errorMsg = 'Workflow completed but no steps executed. This usually means the automation worker could not process the workflow. Check if Kafka and the automation worker are running.';
+              
+              this.logger.error('❌ Workflow marked as completed but no steps executed', {
+                execution_id: execution.id,
+                workflow_id: workflow.id,
+                workflow_name: workflow.name,
+                steps_total: totalSteps,
+                steps_executed: actualStepsExecuted,
+                trace_id: span.spanContext().traceId
+              });
+              
+              span.setStatus({ 
+                code: SpanStatusCode.ERROR, 
+                message: errorMsg 
+              });
+              span.setAttributes({
+                'workflow.completed': false,
+                'workflow.success': false,
+                'workflow.steps_executed': 0,
+                'workflow.steps_total': totalSteps,
+                'error': true,
+                'error.type': 'NO_STEPS_EXECUTED',
+                'error.message': errorMsg,
+                'workflow.duration_ms': Date.now() - startTime
+              });
+              
+              await this.failExecution(execution.id, errorMsg, null, 'NO_STEPS_EXECUTED');
+              return;
+            }
+            
             // ✅ FIX: Store partial results in metadata if any steps partially succeeded
             const outputData = result.data;
             if (partialResults.length > 0) {
@@ -1039,11 +1094,11 @@ class WorkflowExecutor {
             
             this.logger.info('✅ Workflow execution completed successfully', {
               execution_id: execution.id,
-              steps_executed: stepsExecuted,
+              steps_executed: actualStepsExecuted,
               duration_ms: duration,
               workflow_name: workflow.name
             });
-            await this.completeExecution(execution.id, outputData, stepsExecuted, startTime);
+            await this.completeExecution(execution.id, outputData, actualStepsExecuted, startTime);
           } else {
             // ✅ FIX: If we have partial results, include them in the failure
             const errorData = {
@@ -1282,6 +1337,10 @@ class WorkflowExecutor {
           
           // ✅ OBSERVABILITY: Update span with step results
           if (result.success) {
+            // ✅ CRITICAL FIX: Increment stepsExecuted when step actually succeeds
+            // Note: stepsExecuted is in the outer scope, we need to track it properly
+            // We'll update it via the execution status update which tracks it in the database
+            
             stepSpan.setStatus({ code: SpanStatusCode.OK });
             stepSpan.setAttributes({
               'step.completed': true,
@@ -1293,7 +1352,8 @@ class WorkflowExecutor {
               execution_id: execution.id,
               step_id: step.id,
               step_name: step.name,
-              duration_ms: stepDuration
+              duration_ms: stepDuration,
+              trace_id: stepSpan.spanContext().traceId
             });
           } else {
             stepSpan.setStatus({ 

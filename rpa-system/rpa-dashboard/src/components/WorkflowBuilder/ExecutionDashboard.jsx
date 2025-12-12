@@ -71,10 +71,21 @@ const ExecutionDashboard = ({ workflowId, workflowName }) => {
     }
   };
 
+  // Helper to detect false "completed" status
+  const getActualStatus = (execution) => {
+    if (execution.status === 'completed' && 
+        execution.steps_total > 0 && 
+        (execution.steps_executed === 0 || !execution.steps_executed)) {
+      return 'failed';
+    }
+    return execution.status;
+  };
+
   const filteredExecutions = executions
     .filter(execution => {
       if (filter === 'all') return true;
-      return execution.status === filter;
+      const actual = getActualStatus(execution);
+      return actual === filter;
     })
     .sort((a, b) => {
       const aValue = a[sortBy];

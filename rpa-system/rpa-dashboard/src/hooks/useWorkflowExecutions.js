@@ -56,11 +56,27 @@ export const useWorkflowExecutions = (workflowId) => {
 
       setExecutions(data || []);
 
-      // Calculate stats
+      // Helper to detect false "completed" status (0 steps executed = actually failed)
+      const getActualStatus = (execution) => {
+        if (execution.status === 'completed' && 
+            execution.steps_total > 0 && 
+            (execution.steps_executed === 0 || !execution.steps_executed)) {
+          return 'failed';
+        }
+        return execution.status;
+      };
+
+      // Calculate stats (treat false "completed" as failed)
       const newStats = {
         total: data?.length || 0,
-        completed: data?.filter(e => e.status === 'completed').length || 0,
-        failed: data?.filter(e => e.status === 'failed').length || 0,
+        completed: data?.filter(e => {
+          const actual = getActualStatus(e);
+          return actual === 'completed';
+        }).length || 0,
+        failed: data?.filter(e => {
+          const actual = getActualStatus(e);
+          return actual === 'failed';
+        }).length || 0,
         running: data?.filter(e => e.status === 'running').length || 0,
         cancelled: data?.filter(e => e.status === 'cancelled').length || 0
       };

@@ -391,7 +391,19 @@ const WorkflowBuilder = () => {
           }
         }
         
-        if (execution && ['completed', 'failed', 'cancelled'].includes(execution.status)) {
+        // Helper to detect false "completed" status
+        const getActualStatus = (exec) => {
+          if (exec.status === 'completed' && 
+              exec.steps_total > 0 && 
+              (exec.steps_executed === 0 || !exec.steps_executed)) {
+            return 'failed';
+          }
+          return exec.status;
+        };
+
+        const actualStatus = getActualStatus(execution);
+
+        if (execution && ['completed', 'failed', 'cancelled'].includes(actualStatus)) {
           // Execution finished - keep details visible for a moment before hiding
           setTimeout(() => {
             setIsExecuting(false);
@@ -399,9 +411,42 @@ const WorkflowBuilder = () => {
             setExecutionDetails(null);
           }, 2000); // Show final status for 2 seconds
           
-          if (execution.status === 'failed') {
-            showError(`Workflow execution failed: ${execution.error_message || 'Unknown error'}`);
-          } else if (execution.status === 'completed') {
+          // Check if we're in development mode
+          const isDevelopment = process.env.NODE_ENV === 'development' || 
+                                (typeof window !== 'undefined' && window.location.hostname === 'localhost');
+
+          if (actualStatus === 'failed') {
+            let errorMsg = execution.error_message;
+            
+            // Generate user-friendly or developer message based on environment
+            if (!errorMsg && execution.status === 'completed' && actualStatus === 'failed') {
+              if (isDevelopment) {
+                errorMsg = 'Workflow completed but no steps executed. This usually means the automation worker could not process the workflow. Check if Kafka and the automation worker are running.';
+              } else {
+                errorMsg = 'Your workflow completed but no steps were executed. This may indicate a temporary service issue. Please try running the workflow again.';
+              }
+            }
+            
+            if (!errorMsg) {
+              errorMsg = 'Unknown error';
+            }
+            
+            showError(`❌ Workflow execution failed: ${errorMsg}`);
+            
+            // Auto-redirect to executions tab only in development
+            if (isDevelopment) {
+              const workflowPath = workflowId || currentWorkflow?.id;
+              if (workflowPath) {
+                setTimeout(() => {
+                  const executionsPath = `/app/workflows/builder/${workflowPath}/executions`;
+                  showWarning('📊 Redirecting to execution details for troubleshooting...');
+                  setTimeout(() => {
+                    navigate(executionsPath);
+                  }, 2000);
+                }, 3000);
+              }
+            }
+          } else if (actualStatus === 'completed' && execution.status === 'completed') {
             // ✅ FIX: Show actionable next steps from metadata
             const nextSteps = execution.metadata?.next_steps;
             if (nextSteps && nextSteps.message) {

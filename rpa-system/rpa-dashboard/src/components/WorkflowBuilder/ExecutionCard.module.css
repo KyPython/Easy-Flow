@@ -103,6 +103,9 @@
 
 .statusBadge {
   margin-bottom: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
 }
 
 .badge {
@@ -114,6 +117,88 @@
   font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.warningBadge {
+  font-size: var(--font-size-lg, 1.125rem);
+  color: var(--color-warning-600, #d97706);
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--color-warning-100, #fef3c7);
+  border: 1px solid var(--color-warning-300, #fcd34d);
+  transition: all 0.2s ease;
+}
+
+.warningBadge:hover {
+  background: var(--color-warning-200, #fde68a);
+  transform: scale(1.1);
+}
+
+/* User-friendly help tips (production) */
+.userHelpTips {
+  margin-top: var(--spacing-md, 1rem);
+  padding: var(--spacing-md, 1rem);
+  background: var(--color-primary-50, #eff6ff);
+  border: 1px solid var(--color-primary-200, #bfdbfe);
+  border-radius: var(--radius-md, 6px);
+  font-size: var(--font-size-sm, 0.875rem);
+  line-height: 1.6;
+  box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+}
+
+.userHelpTips strong {
+  display: block;
+  margin-bottom: var(--spacing-sm, 0.75rem);
+  color: var(--color-primary-800, #1e40af);
+  font-weight: var(--font-weight-semibold, 600);
+  font-size: var(--font-size-base, 1rem);
+}
+
+.userHelpTips ul {
+  margin: var(--spacing-sm, 0.75rem) 0 0 0;
+  padding-left: var(--spacing-lg, 1.5rem);
+  color: var(--color-primary-700, #1d4ed8);
+  list-style-type: disc;
+}
+
+.userHelpTips li {
+  margin-bottom: var(--spacing-xs, 0.5rem);
+  line-height: 1.6;
+}
+
+.userHelpTips li:last-child {
+  margin-bottom: 0;
+}
+
+/* Dark theme support for warning badge */
+.theme-dark .warningBadge {
+  background: var(--color-warning-100, #78350f);
+  border-color: var(--color-warning-500, #f59e0b);
+  color: var(--color-warning-400, #fbbf24);
+}
+
+.theme-dark .warningBadge:hover {
+  background: var(--color-warning-200, #92400e);
+}
+
+/* Dark theme support for user help tips */
+.theme-dark .userHelpTips {
+  background: var(--color-primary-50, #0f1629);
+  border-color: var(--color-primary-700, #1d4ed8);
+  color: var(--color-primary-300, #93c5fd);
+}
+
+.theme-dark .userHelpTips strong {
+  color: var(--color-primary-400, #60a5fa);
+}
+
+.theme-dark .userHelpTips ul {
+  color: var(--color-primary-300, #93c5fd);
 }
 
 .badge.success {
@@ -174,20 +259,101 @@
   margin-top: var(--spacing-sm);
 }
 
-/* Error Message */
+/* Error Message - Matches app theme */
 .errorMessage {
-  padding: var(--spacing-md);
-  background: var(--color-error-50);
-  border: 1px solid var(--color-error-200);
-  border-radius: var(--radius-lg);
-  font-size: var(--font-size-sm);
-  color: var(--color-error-700);
-  margin-top: var(--spacing-md);
-  line-height: 1.4;
+  padding: var(--spacing-md, 1rem);
+  background: var(--color-error-50, #fef2f2);
+  border: 1px solid var(--color-error-200, #fecaca);
+  border-radius: var(--radius-lg, 8px);
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--color-error-700, #b91c1c);
+  margin-top: var(--spacing-md, 1rem);
+  line-height: 1.5;
+  box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
 }
 
 .errorMessage strong {
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-bold, 600);
+  display: block;
+  margin-bottom: var(--spacing-xs, 0.5rem);
+  color: var(--color-error-800, #991b1b);
+}
+
+/* Troubleshooting Tips - Matches warning banner style */
+.troubleshootingTips {
+  margin-top: var(--spacing-md, 1rem);
+  padding: var(--spacing-md, 1rem);
+  background: var(--color-warning-50, #fffbeb);
+  border: 1px solid var(--color-warning-200, #fde68a);
+  border-radius: var(--radius-md, 6px);
+  font-size: var(--font-size-sm, 0.875rem);
+  line-height: 1.6;
+  box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+}
+
+.troubleshootingTips strong {
+  display: block;
+  margin-bottom: var(--spacing-sm, 0.75rem);
+  color: var(--color-warning-800, #92400e);
+  font-weight: var(--font-weight-semibold, 600);
+  font-size: var(--font-size-base, 1rem);
+}
+
+.troubleshootingTips ul {
+  margin: var(--spacing-sm, 0.75rem) 0 0 0;
+  padding-left: var(--spacing-lg, 1.5rem);
+  color: var(--color-warning-700, #b45309);
+  list-style-type: disc;
+}
+
+.troubleshootingTips li {
+  margin-bottom: var(--spacing-xs, 0.5rem);
+  line-height: 1.6;
+}
+
+.troubleshootingTips li:last-child {
+  margin-bottom: 0;
+}
+
+.troubleshootingTips code {
+  background: var(--color-warning-100, #fef3c7);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm, 4px);
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--color-warning-900, #78350f);
+  border: 1px solid var(--color-warning-200, #fde68a);
+}
+
+/* Dark theme support */
+.theme-dark .errorMessage {
+  background: var(--color-error-50, #2d0a0a);
+  border-color: var(--color-error-700, #b91c1c);
+  color: var(--color-error-400, #fca5a5);
+}
+
+.theme-dark .errorMessage strong {
+  color: var(--color-error-300, #fca5a5);
+}
+
+.theme-dark .troubleshootingTips {
+  background: var(--color-warning-50, #2d1b00);
+  border-color: var(--color-warning-700, #b45309);
+  color: var(--color-warning-300, #fcd34d);
+}
+
+.theme-dark .troubleshootingTips strong {
+  color: var(--color-warning-400, #fbbf24);
+}
+
+.theme-dark .troubleshootingTips ul {
+  color: var(--color-warning-300, #fcd34d);
+}
+
+.theme-dark .troubleshootingTips code {
+  background: var(--color-warning-100, #78350f);
+  border-color: var(--color-warning-700, #b45309);
+  color: var(--color-warning-200, #fde68a);
 }
 
 /* Animations */
