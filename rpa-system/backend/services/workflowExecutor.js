@@ -1046,7 +1046,7 @@ class WorkflowExecutor {
           if (result.success) {
             // ✅ CRITICAL FIX: If no steps executed but workflow has steps, mark as failed
             if (totalSteps > 0 && actualStepsExecuted === 0) {
-              const errorMsg = 'Workflow completed but no steps executed. This usually means the automation worker could not process the workflow. Check if Kafka and the automation worker are running.';
+              const errorMsg = 'Workflow execution failed. Please try running the workflow again.';
               
               this.logger.error('❌ Workflow marked as completed but no steps executed', {
                 execution_id: execution.id,

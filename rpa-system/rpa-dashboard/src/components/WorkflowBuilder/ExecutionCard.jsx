@@ -74,19 +74,10 @@ const ExecutionCard = ({
   const actualStatus = getActualStatus(execution);
   const statusColor = getStatusColor(actualStatus);
   
-  // Check if we're in development mode
-  const isDevelopment = process.env.NODE_ENV === 'development' || 
-                        (typeof window !== 'undefined' && window.location.hostname === 'localhost');
-  
-  // Generate helpful error message for false completed executions
+  // Generate user-friendly error message
   const getFailureMessage = () => {
     if (actualStatus === 'failed' && execution.status === 'completed') {
-      // User-friendly message for production
-      if (!isDevelopment) {
-        return 'Your workflow completed but no steps were executed. This may indicate a temporary service issue. Please try running the workflow again, or contact support if the problem persists.';
-      }
-      // Developer message for development
-      return 'Workflow completed but no steps executed. This usually means the automation worker could not process the workflow. Check if Kafka and the automation worker are running.';
+      return 'Your workflow completed but no steps were executed. Please try running the workflow again, or contact support if the problem persists.';
     }
     return execution.error_message;
   };
@@ -200,20 +191,7 @@ const ExecutionCard = ({
           {(getFailureMessage() || execution.error_message) && (
             <div className={styles.errorMessage}>
               <strong>Error:</strong> {getFailureMessage() || execution.error_message}
-              {/* Show developer troubleshooting only in development */}
-              {isDevelopment && actualStatus === 'failed' && execution.status === 'completed' && (
-                <div className={styles.troubleshootingTips}>
-                  <strong>Developer Troubleshooting:</strong>
-                  <ul>
-                    <li>Check if Kafka is running: <code>docker ps | grep kafka</code></li>
-                    <li>Check if automation worker is running: <code>docker ps | grep automation</code></li>
-                    <li>Check backend logs for connection errors</li>
-                    <li>Try restarting services: <code>./stop-dev.sh && ./start-dev.sh</code></li>
-                  </ul>
-                </div>
-              )}
-              {/* Show user-friendly help in production */}
-              {!isDevelopment && actualStatus === 'failed' && execution.status === 'completed' && (
+              {actualStatus === 'failed' && (
                 <div className={styles.userHelpTips}>
                   <strong>What you can do:</strong>
                   <ul>

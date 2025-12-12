@@ -411,29 +411,23 @@ const WorkflowBuilder = () => {
             setExecutionDetails(null);
           }, 2000); // Show final status for 2 seconds
           
-          // Check if we're in development mode
-          const isDevelopment = process.env.NODE_ENV === 'development' || 
-                                (typeof window !== 'undefined' && window.location.hostname === 'localhost');
-
           if (actualStatus === 'failed') {
             let errorMsg = execution.error_message;
             
-            // Generate user-friendly or developer message based on environment
+            // Generate user-friendly message
             if (!errorMsg && execution.status === 'completed' && actualStatus === 'failed') {
-              if (isDevelopment) {
-                errorMsg = 'Workflow completed but no steps executed. This usually means the automation worker could not process the workflow. Check if Kafka and the automation worker are running.';
-              } else {
-                errorMsg = 'Your workflow completed but no steps were executed. This may indicate a temporary service issue. Please try running the workflow again.';
-              }
+              errorMsg = 'Your workflow completed but no steps were executed. Please try running the workflow again.';
             }
             
             if (!errorMsg) {
-              errorMsg = 'Unknown error';
+              errorMsg = 'An error occurred while executing the workflow.';
             }
             
             showError(`❌ Workflow execution failed: ${errorMsg}`);
             
-            // Auto-redirect to executions tab only in development
+            // Auto-redirect to executions tab
+            const isDevelopment = process.env.NODE_ENV === 'development' || 
+                                  (typeof window !== 'undefined' && window.location.hostname === 'localhost');
             if (isDevelopment) {
               const workflowPath = workflowId || currentWorkflow?.id;
               if (workflowPath) {
