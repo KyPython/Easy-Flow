@@ -10,10 +10,15 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
-  # Generate basic span metrics
+  # Generate basic span metrics (metrics are automatically exported via metrics pipeline)
   spanmetrics:
-    metrics_exporter: prometheus/spanmetrics
+    metrics_exporter: prometheus
     latency_histogram_buckets: [100ms, 500ms, 1s, 3s, 10s]
+    dimensions:
+      - name: http.method
+        default: GET
+      - name: http.status_code
+        default: 200
 
   batch:
     timeout: 5s
@@ -21,15 +26,12 @@ processors:
 
   memory_limiter:
     limit_mib: 256
+    check_interval: 1s
 
 exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
     namespace: "easyflow"
-
-  prometheus/spanmetrics:
-    endpoint: "0.0.0.0:8890"
-    namespace: "traces"
 
   debug:
     verbosity: basic

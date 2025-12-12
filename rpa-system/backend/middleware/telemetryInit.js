@@ -262,8 +262,11 @@ function parseHeaders(headerString) {
 }
 
 // Prometheus exporter for local metrics scraping
+// Use a different port to avoid conflict with Prometheus (9090)
+// Prometheus will scrape from host.docker.internal:9091
+const PROMETHEUS_METRICS_PORT = process.env.PROMETHEUS_METRICS_PORT || 9091;
 const prometheusExporter = new PrometheusExporter({
-  port: 9090,
+  port: PROMETHEUS_METRICS_PORT,
   endpoint: '/metrics'
 });
 

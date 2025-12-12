@@ -1,0 +1,55 @@
+# Grafana Service Configuration for Render.com Production
+# Add these services to your existing render.yaml
+
+services:
+  # ... your existing services (backend, automation-worker, etc.) ...
+  
+  # Grafana Service - Option 1: Self-hosted on Render
+  - type: web
+    name: easyflow-grafana
+    runtime: docker
+    region: oregon
+    plan: starter
+    dockerfilePath: ./rpa-system/monitoring/grafana/Dockerfile
+    dockerContext: ./rpa-system/monitoring/grafana
+    envVars:
+      - key: GF_SECURITY_ADMIN_USER
+        value: admin
+      - key: GF_SECURITY_ADMIN_PASSWORD
+        sync: false  # IMPORTANT: Set this securely in Render dashboard
+      - key: GF_SERVER_ROOT_URL
+        fromService:
+          type: web
+          name: easyflow-grafana
+          property: host
+      - key: GF_SERVER_DOMAIN
+        fromService:
+          type: web
+          name: easyflow-grafana
+          property: host
+      - key: PROMETHEUS_URL
+        value: http://easyflow-prometheus:9090  # Update if Prometheus is external
+      - key: ENVIRONMENT
+        value: production
+    healthCheckPath: /api/health
+
+  # Prometheus Service - Optional: Self-hosted on Render
+  # Only needed if not using Grafana Cloud
+  - type: web
+    name: easyflow-prometheus
+    runtime: docker
+    region: oregon
+    plan: starter
+    dockerfilePath: ./rpa-system/monitoring/prometheus/Dockerfile
+    dockerContext: ./rpa-system/monitoring
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      # Uncomment if using Grafana Cloud remote write
+      # - key: GRAFANA_CLOUD_PROMETHEUS_URL
+      #   sync: false
+      # - key: GRAFANA_CLOUD_PROMETHEUS_USERNAME
+      #   sync: false
+      # - key: GRAFANA_CLOUD_PROMETHEUS_API_KEY
+      #   sync: false
+

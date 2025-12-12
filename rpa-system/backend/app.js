@@ -106,12 +106,15 @@ const DEFAULT_DEV_ORIGINS = [
 const DEFAULT_PROD_ORIGINS = [
   'https://easy-flow-lac.vercel.app',
 ];
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || (process.env.NODE_ENV === 'production'
-  ? DEFAULT_PROD_ORIGINS.join(',')
-  : DEFAULT_DEV_ORIGINS.concat(DEFAULT_PROD_ORIGINS).join(',')))
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
+// In development, always include dev origins even if ALLOWED_ORIGINS env var is set
+// This ensures localhost works in dev mode
+const envOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+  : [];
+  
+const ALLOWED_ORIGINS = process.env.NODE_ENV === 'production'
+  ? (envOrigins.length > 0 ? envOrigins : DEFAULT_PROD_ORIGINS)
+  : [...new Set([...DEFAULT_DEV_ORIGINS, ...DEFAULT_PROD_ORIGINS, ...envOrigins])]; // Merge and dedupe
 const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
   .split(',')
   .map(s => s.trim())
@@ -123,6 +126,11 @@ if (process.env.NODE_ENV !== 'production') {
     ALLOWED_ORIGINS_env: process.env.ALLOWED_ORIGINS,
     parsed_allowed_origins: ALLOWED_ORIGINS,
     NODE_ENV: process.env.NODE_ENV,
+  });
+  console.log('🔧 CORS Configuration:', {
+    ALLOWED_ORIGINS,
+    DEFAULT_DEV_ORIGINS,
+    NODE_ENV: process.env.NODE_ENV
   });
 }
 
@@ -139,7 +147,17 @@ const corsOptions = {
     // Exact allow-list - return the origin string (not true) when credentials are enabled
     if (ALLOWED_ORIGINS.includes(origin)) {
       // Return the origin string explicitly to avoid wildcard issues with credentials
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('✅ CORS: Allowing origin:', origin);
+      }
       return cb(null, origin);
+    }
+    
+    // Debug: Log why origin was rejected
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔍 CORS: Checking origin:', origin);
+      console.log('🔍 CORS: Allowed origins:', ALLOWED_ORIGINS);
+      console.log('🔍 CORS: Origin in list?', ALLOWED_ORIGINS.includes(origin));
     }
 
     // Suffix-based allow (e.g., preview deployments like *.vercel.app)
@@ -167,6 +185,14 @@ const corsOptions = {
 app.use(cors(corsOptions));
 // Ensure preflight requests are handled consistently
 app.options('*', cors(corsOptions));
+// Explicit OPTIONS handler for all routes to ensure CORS preflight works
+app.options('/*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(204);
+});
 
 // Add after imports, before route definitions (around line 100)
 
@@ -337,6 +363,7 @@ const automationLimiter = rateLimit({
       "'self'",
       "'unsafe-inline'",
       "'unsafe-eval'",
+      'http://localhost:*',
       'https://www.uchat.com.au',
       'https://*.uchat.com.au',
       'https://uchat.com.au',
@@ -363,14 +390,16 @@ const automationLimiter = rateLimit({
       'https://firebase.googleapis.com',
       'https://*.firebase.googleapis.com',
       'https://*.firebaseapp.com',
-      'https://*.firebaseio.com'
+      'https://*.firebaseio.com',
+      // IP Geolocation
+      'https://ipapi.co'
     ],
     imgSrc: ["'self'", 'https:'],
-    connectSrc: ["'self'", 'https://sdk.dfktv2.com', 'https://*.dfktv2.com', 'https://www.uchat.com.au', 'https://*.uchat.com.au', 'https://www.google-analytics.com', 'https://analytics.google.com', 'https://*.googleapis.com', 'https://ipapi.co', 'https://*.hubspot.com', 'https://*.hs-analytics.net', 'https://*.hscollectedforms.net', 'https://api.hubapi.com', 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://firebase.googleapis.com', 'https://*.firebase.googleapis.com', 'https://*.firebaseapp.com', 'https://*.firebaseio.com', 'https://fcmregistrations.googleapis.com'],
+    connectSrc: ["'self'", 'http://localhost:*', 'ws://localhost:*', 'wss://localhost:*', 'https://sdk.dfktv2.com', 'https://*.dfktv2.com', 'https://www.uchat.com.au', 'https://*.uchat.com.au', 'https://www.google-analytics.com', 'https://analytics.google.com', 'https://*.googleapis.com', 'https://ipapi.co', 'https://*.hubspot.com', 'https://*.hs-analytics.net', 'https://*.hscollectedforms.net', 'https://api.hubapi.com', 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://firebase.googleapis.com', 'https://*.firebase.googleapis.com', 'https://*.firebaseapp.com', 'https://*.firebaseio.com', 'wss://*.firebaseio.com', 'https://fcmregistrations.googleapis.com'],
     fontSrc: ["'self'", 'https:'],
     objectSrc: ["'none'"],
     mediaSrc: ["'self'"],
-    frameSrc: ["'none'"],
+    frameSrc: ["'self'", 'https://sdk.dfktv2.com', 'https://*.dfktv2.com', 'https://www.uchat.com.au', 'https://*.uchat.com.au', 'https://vercel.live', 'https://*.firebaseio.com'],
     childSrc: ["'none'"],
     workerSrc: ["'self'"],
     manifestSrc: ["'self'"],
@@ -704,6 +733,10 @@ if (polarRoutes) {
 if (socialProofRoutes) {
   app.use('/api', socialProofRoutes);
 }
+
+// Mount email capture routes (public endpoint, no auth required)
+const emailCaptureRoutes = require('./routes/emailCaptureRoutes');
+app.use('/api', emailCaptureRoutes);
 
 // Mount feedback routes (public endpoint, no auth required for submissions)
 const feedbackRoutes = require('./routes/feedbackRoutes');

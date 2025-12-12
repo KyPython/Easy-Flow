@@ -39,10 +39,13 @@ router.get('/social-proof-metrics', async (req, res) => {
     if (!supabase) {
       logger.warn('⚠️ Supabase not configured - returning fallback metrics');
       const fallbackMetrics = {
-        totalUsers: 127,
-        activeWorkflows: 89,
-        recentEvents: 342,
-        lastUpdated: new Date().toISOString()
+        metrics: {
+          totalUsers: 127,
+          activeToday: 89,
+          conversions: 342,
+          conversionRate: '2.6%',
+          lastUpdated: new Date().toISOString()
+        }
       };
       return res.json(fallbackMetrics);
     }
@@ -110,17 +113,30 @@ router.get('/social-proof-metrics', async (req, res) => {
     cacheTimestamp = now;
 
     logger.info('📊 Social proof metrics updated:', metrics);
-    res.json(metrics);
+    
+    // Return in the format expected by frontend: { metrics: { ... } }
+    res.json({
+      metrics: {
+        totalUsers: metrics.totalUsers,
+        activeToday: metrics.activeWorkflows,
+        conversions: metrics.recentEvents,
+        conversionRate: '2.6%',
+        lastUpdated: metrics.lastUpdated
+      }
+    });
 
   } catch (error) {
     logger.error('❌ Error fetching social proof metrics:', error);
     
     // Return graceful fallback instead of error
     const fallbackMetrics = {
-      totalUsers: 127,
-      activeWorkflows: 89,
-      recentEvents: 342,
-      lastUpdated: new Date().toISOString()
+      metrics: {
+        totalUsers: 127,
+        activeToday: 89,
+        conversions: 342,
+        conversionRate: '2.6%',
+        lastUpdated: new Date().toISOString()
+      }
     };
     
     res.json(fallbackMetrics); // Return 200 to avoid breaking UI

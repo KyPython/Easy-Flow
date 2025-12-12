@@ -56,9 +56,11 @@
                    wss://*.firebaseio.com;
                  frame-src 'self' 
                    https://www.uchat.com.au
+                   https://*.uchat.com.au
                    https://vercel.live
                    https://*.firebaseio.com
-                   https://sdk.dfktv2.com;
+                   https://sdk.dfktv2.com
+                   https://*.dfktv2.com;
                  img-src 'self' data: blob:
                    https://www.google-analytics.com 
                    https://www.googletagmanager.com 
@@ -89,8 +91,26 @@
   <script src="%PUBLIC_URL%/env.js" defer onerror="console.warn('env.js not found; falling back to defaults'); window._env = window._env || {};"></script>
   <script>window._env = window._env || {};</script>
     
-  <!-- Start of HubSpot Embed Code (disabled for local dev) -->
-  <!-- <script type="text/javascript" id="hs-script-loader" async defer src="https://js-na2.hs-scripts.com/243698495.js"></script> -->
+  <!-- Start of HubSpot Embed Code -->
+  <!-- Only load in production to avoid tracking local development -->
+  <script type="text/javascript">
+    (function() {
+      // Only load HubSpot in production
+      const isProduction = window.location.hostname !== 'localhost' && 
+                          window.location.hostname !== '127.0.0.1' &&
+                          !window.location.hostname.includes('localhost');
+      
+      if (isProduction) {
+        var hsScript = document.createElement('script');
+        hsScript.type = 'text/javascript';
+        hsScript.id = 'hs-script-loader';
+        hsScript.async = true;
+        hsScript.defer = true;
+        hsScript.src = 'https://js-na2.hs-scripts.com/243698495.js';
+        document.head.appendChild(hsScript);
+      }
+    })();
+  </script>
   <!-- End of HubSpot Embed Code -->
 
   <!-- Google tag (gtag.js) for domain-specific tracking -->

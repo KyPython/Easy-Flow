@@ -112,6 +112,11 @@ firebase-service-account.json
 config/secrets/
 ACTUAL_ENV_VALUES.txt
 **/ACTUAL_ENV_VALUES.txt
+# Grafana Cloud credentials
+*GRAFANA_CLOUD_CREDENTIALS*
+*GRAFANA_CLOUD_CREDENTIALS*.md
+**/*credentials*.md
+**/*CREDENTIALS*.md
 
 # Kafka templates with credentials
 .kafka-templates/

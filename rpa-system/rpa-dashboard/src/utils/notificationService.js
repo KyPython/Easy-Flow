@@ -196,8 +196,12 @@ class NotificationService {
       
     } catch (error) {
       // Enhanced error logging for Firebase authentication failures
+      const errorCode = error?.code || error?.errorInfo?.code || 'UNKNOWN';
+      const errorMessage = error?.message || error?.errorInfo?.message || 'Unknown error';
+      
       const errorDetails = {
-        message: error?.message || 'Unknown error',
+        message: errorMessage,
+        code: errorCode,
         code: error?.code || 'UNKNOWN',
         stack: isDev ? error?.stack : undefined,
         userId: user?.id,

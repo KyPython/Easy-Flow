@@ -34,14 +34,9 @@ scrape_configs:
     scrape_interval: 15s
     metrics_path: "/metrics"
 
-  # Backend application metrics
-  - job_name: "easyflow-backend"
-    static_configs:
-      - targets: ["host.docker.internal:3030"]
-    metrics_path: "/metrics"
-    scrape_interval: 30s
-    scrape_timeout: 5s
-
+  # Note: Backend metrics come through OpenTelemetry Collector (otel-collector job above)
+  # Backend sends metrics via OTLP to collector, which exposes them as Prometheus metrics
+  
   # Automation service metrics
   - job_name: "easyflow-automation"
     static_configs:

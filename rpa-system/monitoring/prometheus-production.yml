@@ -1,0 +1,61 @@
+# Prometheus Configuration for Production
+# Supports both local Prometheus and remote write to Grafana Cloud
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    monitor: "easyflow-slo-monitor"
+    environment: "${ENVIRONMENT:-production}"
+    cluster: "${CLUSTER_NAME:-production}"
+
+# Remote write configuration for Grafana Cloud
+# Configured with environment variables for security
+remote_write:
+  - url: ${GRAFANA_CLOUD_PROMETHEUS_URL}
+    basic_auth:
+      username: ${GRAFANA_CLOUD_PROMETHEUS_USERNAME}
+      password: ${GRAFANA_CLOUD_PROMETHEUS_API_KEY}
+    write_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'easyflow_.*'
+        action: keep
+
+rule_files:
+  - "slo-recording-rules-simple.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - ${ALERTMANAGER_URL:-alertmanager:9093}
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # OpenTelemetry Collector metrics
+  - job_name: "otel-collector"
+    static_configs:
+      - targets: ["${OTEL_COLLECTOR_URL:-otel-collector:8889}"]
+    scrape_interval: 15s
+    metrics_path: "/metrics"
+
+  # Backend application metrics
+  - job_name: "easyflow-backend"
+    static_configs:
+      - targets: ["${BACKEND_METRICS_URL:-backend:3030}"]
+    metrics_path: "/metrics"
+    scrape_interval: 30s
+    scrape_timeout: 5s
+
+  # Automation service metrics
+  - job_name: "easyflow-automation"
+    static_configs:
+      - targets: ["${AUTOMATION_METRICS_URL:-automation-worker:7001}"]
+    metrics_path: "/metrics"
+    scrape_interval: 10s
+    scrape_timeout: 5s
+

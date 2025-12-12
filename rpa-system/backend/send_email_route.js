@@ -48,6 +48,24 @@ router.post('/send', async (req, res) => {
 			resolvedSubject = subject || 'How is EasyFlow working for you?';
 			resolvedText = text || 'Just checking in to see how your automations are going.';
 			resolvedHtml = html || '<p>Just checking in to see how your automations are going.</p>';
+		} else if (template === 'automation_tips') {
+			// Use the email template from utils if available
+			try {
+				const { getAutomationTipsEmail } = require('./utils/emailTemplates');
+				const emailTemplate = getAutomationTipsEmail({ 
+					email: to_email, 
+					source: data?.source || 'unknown',
+					userPlan: data?.userPlan || 'hobbyist'
+				});
+				resolvedSubject = subject || emailTemplate.subject;
+				resolvedText = text || emailTemplate.text;
+				resolvedHtml = html || emailTemplate.html;
+			} catch (templateError) {
+				logger.warn('[send_email_route] Could not load automation_tips template, using fallback');
+				resolvedSubject = subject || '🚀 Your Free Automation Tips - Get Started with EasyFlow';
+				resolvedText = text || 'Thanks for signing up! Check out our automation tips to get started.';
+				resolvedHtml = html || '<p>Thanks for signing up! Check out our automation tips to get started.</p>';
+			}
 		} else if (template === 'custom') {
 			if (!text && !html) {
 				resolvedText = 'Hello from EasyFlow';
