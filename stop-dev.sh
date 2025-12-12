@@ -31,17 +31,28 @@ if [ -f /tmp/frontend.pid ]; then
     rm /tmp/frontend.pid
 fi
 
+if [ -f /tmp/automation.pid ]; then
+    AUTOMATION_PID=$(cat /tmp/automation.pid)
+    if kill $AUTOMATION_PID 2>/dev/null; then
+        echo -e "${GREEN}✓ Automation worker stopped (PID: $AUTOMATION_PID)${NC}"
+    else
+        echo -e "${YELLOW}⚠ Automation worker process not found (may have already stopped)${NC}"
+    fi
+    rm /tmp/automation.pid
+fi
+
 # Fallback: kill by process name (more aggressive)
 echo -e "${YELLOW}Killing any remaining processes...${NC}"
 pkill -f "node server.js" 2>/dev/null && echo -e "${GREEN}✓ Killed node server.js processes${NC}" || true
 pkill -f "react-app-rewired" 2>/dev/null && echo -e "${GREEN}✓ Killed react-app-rewired processes${NC}" || true
+pkill -f "production_automation_service.py" 2>/dev/null && echo -e "${GREEN}✓ Killed automation service processes${NC}" || true
 
-# Kill processes on port 7070 (automation worker)
-echo -e "${YELLOW}Killing processes on port 7070...${NC}"
-if lsof -ti :7070 | xargs kill -9 2>/dev/null; then
-    echo -e "${GREEN}✓ Killed processes on port 7070${NC}"
+# Kill processes on port 7001 (automation worker)
+echo -e "${YELLOW}Killing processes on port 7001...${NC}"
+if lsof -ti :7001 | xargs kill -9 2>/dev/null; then
+    echo -e "${GREEN}✓ Killed processes on port 7001${NC}"
 else
-    echo -e "${YELLOW}⚠ No processes found on port 7070${NC}"
+    echo -e "${YELLOW}⚠ No processes found on port 7001${NC}"
 fi
 
 # Stop Docker containers
@@ -58,17 +69,12 @@ else
     echo -e "${YELLOW}⚠ Docker automation worker not running${NC}"
 fi
 
-# Stop Kafka and Zookeeper if running
-if docker stop easy-flow-kafka-1 2>/dev/null; then
-    echo -e "${GREEN}✓ Docker Kafka stopped${NC}"
+# Stop Kafka and Zookeeper using docker-compose
+echo -e "${YELLOW}Stopping Kafka and Zookeeper...${NC}"
+if docker-compose stop kafka zookeeper 2>/dev/null; then
+    echo -e "${GREEN}✓ Kafka and Zookeeper stopped${NC}"
 else
-    echo -e "${YELLOW}⚠ Docker Kafka not running${NC}"
-fi
-
-if docker stop easy-flow-zookeeper-1 2>/dev/null; then
-    echo -e "${GREEN}✓ Docker Zookeeper stopped${NC}"
-else
-    echo -e "${YELLOW}⚠ Docker Zookeeper not running${NC}"
+    echo -e "${YELLOW}⚠ Could not stop Kafka/Zookeeper via docker-compose${NC}"
 fi
 
 sleep 1
@@ -88,10 +94,10 @@ else
     echo -e "${GREEN}✓ Port 3000 is free${NC}"
 fi
 
-if lsof -i :7070 | grep LISTEN > /dev/null 2>&1; then
-    echo -e "${RED}⚠ Port 7070 still in use${NC}"
+if lsof -i :7001 | grep LISTEN > /dev/null 2>&1; then
+    echo -e "${RED}⚠ Port 7001 still in use${NC}"
 else
-    echo -e "${GREEN}✓ Port 7070 is free${NC}"
+    echo -e "${GREEN}✓ Port 7001 is free${NC}"
 fi
 
 echo ""
