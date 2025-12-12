@@ -1,0 +1,131 @@
+{
+  "title": "Workflow Execution Observability",
+  "tags": ["workflow", "execution", "traces"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Workflow Execution Traces",
+      "type": "traces",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "targets": [{
+        "datasource": {"type": "tempo", "uid": "tempo"},
+        "queryType": "traceql",
+          "query": "{service.name=\"rpa-system-backend\" && name=~\"workflow.execute.*\"}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 2,
+      "title": "Execution Rate",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+      "targets": [{
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum(rate(easyflow_span_calls_total{service_name=\"rpa-system-backend\", span_name=~\"workflow.execute.*\"}[5m]))",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "decimals": 2
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "P95 Duration",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+      "targets": [{
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "histogram_quantile(0.95, sum(rate(easyflow_span_duration_bucket{service_name=\"rpa-system-backend\", span_name=~\"workflow.execute.*\"}[5m])) by (le))",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "P50 Duration",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+      "targets": [{
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "expr": "histogram_quantile(0.50, sum(rate(easyflow_span_duration_bucket{service_name=\"rpa-system-backend\", span_name=~\"workflow.execute.*\"}[5m])) by (le))",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Total Spans (1h)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8},
+      "targets": [{
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "expr": "sum(increase(easyflow_span_calls_total{service_name=\"rpa-system-backend\", span_name=~\"workflow.execute.*\"}[1h]))",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Execution Duration Over Time",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 12},
+      "targets": [{
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "histogram_quantile(0.95, sum(rate(easyflow_span_duration_bucket{service_name=\"rpa-system-backend\", span_name=~\"workflow.execute.*\"}[5m])) by (le))",
+        "legendFormat": "P95",
+        "refId": "A"
+      }, {
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "expr": "histogram_quantile(0.50, sum(rate(easyflow_span_duration_bucket{service_name=\"rpa-system-backend\", span_name=~\"workflow.execute.*\"}[5m])) by (le))",
+        "legendFormat": "P50",
+        "refId": "B"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {"mode": "palette-classic"}
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Execution Rate Over Time",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 12},
+      "targets": [{
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum(rate(easyflow_span_calls_total{service_name=\"rpa-system-backend\", span_name=~\"workflow.execute.*\"}[5m]))",
+        "legendFormat": "Executions/sec",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "color": {"mode": "palette-classic"}
+        }
+      }
+    }
+  ]
+}

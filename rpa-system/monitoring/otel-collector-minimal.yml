@@ -33,6 +33,12 @@ exporters:
     endpoint: "0.0.0.0:8889"
     namespace: "easyflow"
 
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+    # Send traces to Tempo via gRPC
+
   debug:
     verbosity: basic
 
@@ -47,7 +53,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, spanmetrics, batch]
-      exporters: [debug]
+      exporters: [otlp/tempo, debug]
 
     metrics:
       receivers: [otlp]

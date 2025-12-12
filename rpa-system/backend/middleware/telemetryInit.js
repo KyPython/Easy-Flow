@@ -46,12 +46,28 @@ const {
 // ✅ INSTRUCTION 1: Import span processor for data redaction (Gap 14)
 const { BatchSpanProcessor, SimpleSpanProcessor } = require('@opentelemetry/sdk-trace-base');
 
-// ✅ PART 2.1: Use OTEL_SERVICE_NAME environment variable for service identification
+// ✅ PART 2.1: Use OTEL_SERVICE_NAME or OTEL_RESOURCE_ATTRIBUTES for service identification
+// Support both Grafana Cloud format (OTEL_RESOURCE_ATTRIBUTES="service.name=...") and standard format (OTEL_SERVICE_NAME)
+let serviceName = process.env.OTEL_SERVICE_NAME || 'rpa-system-backend';
+let serviceNamespace = process.env.OTEL_SERVICE_NAMESPACE || 'easyflow';
+let deploymentEnvironment = process.env.OTEL_DEPLOYMENT_ENVIRONMENT || process.env.NODE_ENV || 'development';
+
+// Parse OTEL_RESOURCE_ATTRIBUTES if provided (Grafana Cloud format)
+if (process.env.OTEL_RESOURCE_ATTRIBUTES) {
+  const attributes = process.env.OTEL_RESOURCE_ATTRIBUTES.split(',');
+  attributes.forEach(attr => {
+    const [key, value] = attr.split('=').map(s => s.trim());
+    if (key === 'service.name') serviceName = value;
+    if (key === 'service.namespace') serviceNamespace = value;
+    if (key === 'deployment.environment') deploymentEnvironment = value;
+  });
+}
+
 const resource = new Resource({
-  [SemanticResourceAttributes.SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'rpa-system-backend',
+  [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
   [SemanticResourceAttributes.SERVICE_VERSION]: process.env.SERVICE_VERSION || '1.0.0',
-  [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
-  [SemanticResourceAttributes.SERVICE_NAMESPACE]: 'easyflow',
+  [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: deploymentEnvironment,
+  [SemanticResourceAttributes.SERVICE_NAMESPACE]: serviceNamespace,
   
   // Business context attributes
   'business.domain': 'rpa-automation',
@@ -185,16 +201,26 @@ if (ENABLE_TELEMETRY_DEBUG) {
   }));
 }
 
+// ✅ Grafana Cloud OTLP endpoint format: https://otlp-gateway-prod-XX.grafana.net/otlp
+// The endpoint already includes /otlp, so we append /v1/traces or /v1/metrics
+const otlpBaseEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318';
+const tracesEndpoint = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || 
+  (otlpBaseEndpoint.endsWith('/otlp') ? `${otlpBaseEndpoint}/v1/traces` : 
+   otlpBaseEndpoint.includes('/v1/') ? otlpBaseEndpoint : 
+   `${otlpBaseEndpoint}/v1/traces`);
+const metricsEndpoint = process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || 
+  (otlpBaseEndpoint.endsWith('/otlp') ? `${otlpBaseEndpoint}/v1/metrics` : 
+   otlpBaseEndpoint.includes('/v1/') ? otlpBaseEndpoint.replace('/traces', '/metrics') : 
+   `${otlpBaseEndpoint}/v1/metrics`);
+
 const traceExporter = new OTLPTraceExporter({
-  url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
-       (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` : 'http://localhost:4318/v1/traces'),
+  url: tracesEndpoint,
   headers: exporterHeaders, // ✅ CRITICAL: Explicitly pass clean headers object
   timeoutMillis: 10000,
 });
 
 const metricExporter = new OTLPMetricExporter({
-  url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
-       (process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics` : 'http://localhost:4318/v1/metrics'),
+  url: metricsEndpoint,
   headers: exporterHeaders, // ✅ CRITICAL: Explicitly pass clean headers object
   timeoutMillis: 10000,
 });
@@ -604,7 +630,9 @@ try {
   
   // ✅ PART 2.3: Verification - Print success message indicating OTEL Exporters are active
   logger.info('✅ [Telemetry] OpenTelemetry backend instrumentation initialized successfully');
-  logger.info(`✅ [Telemetry] Service Name: ${process.env.OTEL_SERVICE_NAME || 'rpa-system-backend'}`);
+  logger.info(`✅ [Telemetry] Service Name: ${serviceName}`);
+  logger.info(`✅ [Telemetry] Service Namespace: ${serviceNamespace}`);
+  logger.info(`✅ [Telemetry] Deployment Environment: ${deploymentEnvironment}`);
   logger.info(`✅ [Telemetry] OTLP Endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4318'}`);
   logger.info(`✅ [Telemetry] OTLP Headers: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? 'CONFIGURED ✓' : '❌ MISSING - Traces will NOT reach Grafana!'}`);
   logger.info(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with ${(samplingRatio * 100).toFixed(0)}% sampling ratio`);
