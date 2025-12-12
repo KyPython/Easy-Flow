@@ -81,17 +81,32 @@ const resource = new Resource({
 // Helper to check if we have valid credentials
 const hasValidCredentials = () => {
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
-  const headers = process.env.OTEL_EXPORTER_OTLP_HEADERS;
 
-  if (!endpoint || !headers) {
+  // Endpoint is required
+  if (!endpoint) {
     return false;
   }
 
-  // Check for placeholder values
+  // Check for placeholder values in endpoint
   if (endpoint.includes('your-grafana') || endpoint.includes('your-actual')) {
     return false;
   }
 
+  // For local testing, headers can be empty (no auth needed)
+  // For Grafana Cloud, headers are required
+  const headers = process.env.OTEL_EXPORTER_OTLP_HEADERS || '';
+  
+  // If endpoint is localhost, headers can be empty (local testing)
+  if (endpoint.includes('localhost') || endpoint.includes('127.0.0.1')) {
+    return true; // Local testing - headers not required
+  }
+
+  // For remote endpoints (Grafana Cloud), headers are required
+  if (!headers || headers.trim() === '') {
+    return false;
+  }
+
+  // Check for placeholder values in headers
   if (headers.includes('your-base64') || headers.includes('your-actual')) {
     return false;
   }

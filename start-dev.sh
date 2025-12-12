@@ -20,14 +20,13 @@ sleep 2
 
 # Export environment for backend
 export NODE_ENV=development
-export PORT=3030
 export DISABLE_TELEMETRY=true
 export KAFKA_ENABLED=false
 
-# Start backend
+# Start backend (with PORT=3030 only for backend)
 echo -e "${GREEN}Starting backend on port 3030...${NC}"
 cd rpa-system/backend
-nohup node server.js > ../../logs/backend.log 2>&1 &
+PORT=3030 nohup node server.js > ../../logs/backend.log 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > /tmp/backend.pid
 cd ../..
@@ -42,10 +41,10 @@ else
     exit 1
 fi
 
-# Start frontend
+# Start frontend (explicitly set PORT=3000 to override any inherited PORT)
 echo -e "${GREEN}Starting frontend on port 3000...${NC}"
 cd rpa-system/rpa-dashboard
-nohup npm start > ../../logs/frontend.log 2>&1 &
+PORT=3000 nohup npm start > ../../logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > /tmp/frontend.pid
 cd ../..
