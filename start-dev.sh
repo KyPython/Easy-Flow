@@ -16,11 +16,17 @@ NC='\033[0m' # No Color
 echo -e "${YELLOW}Killing existing processes...${NC}"
 pkill -f "node server.js" 2>/dev/null || true
 pkill -f "react-app-rewired" 2>/dev/null || true
+
+# Stop Docker frontend container if running (it uses port 3000)
+echo -e "${YELLOW}Stopping Docker frontend container...${NC}"
+docker stop easy-flow-rpa-dashboard-1 2>/dev/null || true
+
 sleep 2
 
 # Export environment for backend
 export NODE_ENV=development
-export DISABLE_TELEMETRY=true
+# ✅ TELEMETRY ENABLED - Remove DISABLE_TELEMETRY to allow traces to flow
+# export DISABLE_TELEMETRY=true  # REMOVED - We want telemetry enabled!
 export KAFKA_ENABLED=false
 
 # Start backend (with PORT=3030 only for backend)
