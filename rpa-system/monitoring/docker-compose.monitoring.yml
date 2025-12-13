@@ -97,11 +97,12 @@ services:
       - "3100:3100"
     volumes:
       - ./loki-config.yml:/etc/loki/local-config.yaml
-      - loki-data:/tmp/loki
+      - loki-data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     networks:
       - monitoring
     restart: unless-stopped
+    user: "0:0"  # Run as root to avoid permission issues in dev
 
   promtail:
     image: grafana/promtail:latest
