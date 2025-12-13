@@ -978,6 +978,7 @@ class WorkflowExecutor {
       });
       
       const startStep = steps.find(step => step.step_type === 'start');
+      
       if (!startStep) {
         // ✅ FIX: Provide helpful error message and mark execution as failed immediately
         this.logger.error('[WorkflowExecutor] No start step found', {
