@@ -2,16 +2,21 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const { logger, getLogger } = require('./utils/logger');
-// ✅ Initialize OpenTelemetry FIRST (before anything else, including New Relic)
-// Allow disabling telemetry during local dev (avoids requiring heavy OTEL deps)
+// ✅ OBSERVABILITY: Initialize OpenTelemetry FIRST (before anything else)
+// All telemetry flows through OpenTelemetry -> OTEL Collector -> Prometheus/Tempo/Grafana
 if (process.env.DISABLE_TELEMETRY !== 'true') {
   try {
     require('./middleware/telemetryInit');
+    logger.info('[server] ✅ OpenTelemetry initialized - traces flowing to Tempo, metrics to Prometheus');
   } catch (e) {
-    logger.warn('[server] telemetryInit failed to load - continuing without telemetry:', e?.message || e);
+    logger.error('[server] ❌ OpenTelemetry initialization failed - observability disabled', {
+      error: e?.message,
+      stack: e?.stack,
+      code: e?.code
+    });
   }
 } else {
-  logger.warn('[server] Telemetry disabled via DISABLE_TELEMETRY=true');
+  logger.info('[server] Telemetry disabled via DISABLE_TELEMETRY=true');
 }
 
 // Initialize New Relic monitoring SECOND (if needed)
