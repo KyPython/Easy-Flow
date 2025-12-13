@@ -36,6 +36,13 @@ echo -e "${YELLOW}Starting Kafka and Zookeeper...${NC}"
 docker-compose up -d kafka zookeeper
 sleep 5
 
+# Initialize Kafka topics
+echo -e "${YELLOW}Initializing Kafka topics...${NC}"
+./scripts/init-kafka-topics.sh || {
+  echo -e "${RED}⚠ Warning: Failed to initialize Kafka topics${NC}"
+  echo -e "${YELLOW}  Topics will be auto-created on first use${NC}"
+}
+
 # Start Observability Stack (Prometheus, Grafana, Loki, Promtail, Tempo, OTEL Collector)
 echo -e "${YELLOW}Starting Observability Stack...${NC}"
 cd rpa-system/monitoring

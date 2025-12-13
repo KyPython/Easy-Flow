@@ -13,6 +13,9 @@ const { trace, context, propagation, SpanStatusCode } = require('@opentelemetry/
 // ✅ INSTRUCTION 2: Import structured logger (Gap 13, 15)
 const { createLogger } = require('../middleware/structuredLogging');
 
+// ✅ Consumer-friendly error messages
+const { mapError } = require('../utils/consumerErrorMessages');
+
 // ✅ FIX: Global execution registry for tracking running executions across instances
 const executionRegistry = new Map();
 
@@ -1063,9 +1066,20 @@ class WorkflowExecutor {
                 trace_id: span.spanContext().traceId
               });
               
+              // ✅ Map to consumer-friendly error message
+              const errorMapping = mapError(
+                errorMsg, 
+                'NO_STEPS_EXECUTED',
+                {
+                  executionId: execution.id,
+                  workflowId: execution.workflow_id,
+                  userId: execution.user_id
+                }
+              );
+              
               span.setStatus({ 
                 code: SpanStatusCode.ERROR, 
-                message: errorMsg 
+                message: errorMapping.consumer.message 
               });
               span.setAttributes({
                 'workflow.completed': false,
@@ -1074,11 +1088,17 @@ class WorkflowExecutor {
                 'workflow.steps_total': totalSteps,
                 'error': true,
                 'error.type': 'NO_STEPS_EXECUTED',
-                'error.message': errorMsg,
+                'error.message': errorMapping.consumer.message,
                 'workflow.duration_ms': Date.now() - startTime
               });
               
-              await this.failExecution(execution.id, errorMsg, null, 'NO_STEPS_EXECUTED');
+              // Store consumer-friendly message in database
+              await this.failExecution(
+                execution.id, 
+                errorMapping.consumer.message, 
+                null, 
+                'NO_STEPS_EXECUTED'
+              );
               return;
             }
             

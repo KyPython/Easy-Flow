@@ -1,5 +1,7 @@
 # 🚀 Easy-Flow Quick Reference
 
+> **📊 Observability & Debugging:** See [OBSERVABILITY.md](./OBSERVABILITY.md) for complete monitoring, logging, and tracing guide
+
 ## Start/Stop Servers
 
 ```bash

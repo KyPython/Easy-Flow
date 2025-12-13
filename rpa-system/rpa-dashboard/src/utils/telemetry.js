@@ -321,12 +321,22 @@ async function initializeFrontendTelemetry() {
 let _realTracker = null;
 
 const noopTracker = (() => {
-  const noopSpan = () => ({ addMetric: () => {}, end: () => {} });
+  const noopSpan = () => ({ 
+    addMetric: () => {}, 
+    addAttribute: () => {},
+    end: () => {} 
+  });
+  const noopApiCall = () => ({ 
+    addAttribute: () => {}, 
+    setResponseData: () => {}, 
+    setError: () => {}, 
+    end: () => {} 
+  });
   return {
     startComponentRender: () => null,
     endComponentRender: () => {},
     trackUserInteraction: () => ({ addAttribute: () => {}, recordError: () => {}, end: () => {} }),
-    trackApiCall: () => ({ addAttribute: () => {}, setResponseData: () => {}, setError: () => {}, end: () => {} }),
+    trackApiCall: () => noopApiCall(),
     trackPageLoad: () => noopSpan()
   };
 })();
