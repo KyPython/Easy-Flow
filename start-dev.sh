@@ -32,6 +32,8 @@ sleep 5
 # Start Observability Stack (Prometheus, Grafana, Tempo, OTEL Collector)
 echo -e "${YELLOW}Starting Observability Stack...${NC}"
 cd rpa-system/monitoring
+# Clean up any existing containers first
+docker-compose -f docker-compose.monitoring.yml down 2>/dev/null || true
 docker-compose -f docker-compose.monitoring.yml up -d
 cd ../..
 sleep 3
