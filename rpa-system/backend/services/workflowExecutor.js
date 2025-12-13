@@ -716,8 +716,18 @@ class WorkflowExecutor {
       // ✅ FIX: Also register in shared registry so cancel endpoint can find it
       executionRegistry.set(execution.id, { cancelled: false, executor: this, timer: executionTimer });
 
+      // ✅ CRITICAL: Log before calling executeWorkflow
+      this.logger.info('About to call executeWorkflow', {
+        execution_id: execution.id,
+        workflow_id: workflow.id,
+        workflow_name: workflow.name,
+        has_steps: !!workflow.workflow_steps,
+        steps_count: workflow.workflow_steps?.length || 0
+      });
+
       // Start execution asynchronously
       this.executeWorkflow(execution, workflow).then(() => {
+        this.logger.info('executeWorkflow promise resolved', { execution_id: execution.id });
         // ✅ FIX: Clear timeout timer when execution completes successfully
         if (executionTimer) {
           clearTimeout(executionTimer);
@@ -727,6 +737,12 @@ class WorkflowExecutor {
           clearTimeout(registryEntry.timer);
         }
       }).catch(error => {
+        this.logger.error('executeWorkflow promise rejected', {
+          execution_id: execution.id,
+          error_message: error.message,
+          error_stack: error.stack
+        });
+        
         // ✅ FIX: Clear timeout timer on error too
         if (executionTimer) {
           clearTimeout(executionTimer);
@@ -753,6 +769,15 @@ class WorkflowExecutor {
   }
 
   async executeWorkflow(execution, workflow) {
+    // ✅ CRITICAL: Log immediately to verify method is called
+    this.logger.info('executeWorkflow called', {
+      execution_id: execution.id,
+      workflow_id: workflow.id,
+      workflow_name: workflow.name,
+      has_steps: !!workflow.workflow_steps,
+      steps_count: workflow.workflow_steps?.length || 0
+    });
+    
     const startTime = Date.now();
     let currentData = execution.input_data || {};
     let stepsExecuted = 0;

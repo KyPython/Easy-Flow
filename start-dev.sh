@@ -29,6 +29,17 @@ echo -e "${YELLOW}Starting Kafka and Zookeeper...${NC}"
 docker-compose up -d kafka zookeeper
 sleep 5
 
+# Start Observability Stack (Prometheus, Grafana, Tempo, OTEL Collector)
+echo -e "${YELLOW}Starting Observability Stack...${NC}"
+cd rpa-system/monitoring
+docker-compose -f docker-compose.monitoring.yml up -d
+cd ../..
+sleep 3
+echo -e "${GREEN}✓ Observability stack started${NC}"
+echo "  Grafana:        http://localhost:3001 (admin/admin)"
+echo "  Prometheus:     http://localhost:9090"
+echo "  OTEL Collector: http://localhost:4318 (HTTP) / 4317 (gRPC)"
+
 # Export environment for backend
 export NODE_ENV=development
 # ✅ TELEMETRY ENABLED - Remove DISABLE_TELEMETRY to allow traces to flow
@@ -82,11 +93,19 @@ echo ""
 echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}Servers started successfully!${NC}"
 echo ""
-echo "Frontend:         http://localhost:3000"
-echo "Backend:          http://localhost:3030"
-echo "Automation:       http://localhost:7001"
-echo "Health Check:     http://localhost:3030/health"
-echo "Kafka:            localhost:9092"
+echo "Application:"
+echo "  Frontend:       http://localhost:3000"
+echo "  Backend:        http://localhost:3030"
+echo "  Automation:     http://localhost:7001"
+echo "  Health Check:   http://localhost:3030/health"
+echo ""
+echo "Infrastructure:"
+echo "  Kafka:          localhost:9092"
+echo ""
+echo "Observability:"
+echo "  Grafana:        http://localhost:3001 (admin/admin)"
+echo "  Prometheus:     http://localhost:9090"
+echo "  Backend Metrics:http://localhost:9091/metrics"
 echo ""
 echo "Logs:"
 echo "  Backend:        tail -f logs/backend.log"

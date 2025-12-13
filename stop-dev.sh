@@ -77,6 +77,16 @@ else
     echo -e "${YELLOW}⚠ Could not stop Kafka/Zookeeper via docker-compose${NC}"
 fi
 
+# Stop Observability Stack
+echo -e "${YELLOW}Stopping Observability Stack...${NC}"
+cd rpa-system/monitoring 2>/dev/null || cd ../rpa-system/monitoring 2>/dev/null || true
+if docker-compose -f docker-compose.monitoring.yml down 2>/dev/null; then
+    echo -e "${GREEN}✓ Observability stack stopped${NC}"
+else
+    echo -e "${YELLOW}⚠ Could not stop observability stack${NC}"
+fi
+cd - > /dev/null 2>&1 || true
+
 sleep 1
 
 # Verify ports are free
