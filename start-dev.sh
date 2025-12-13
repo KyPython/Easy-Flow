@@ -12,11 +12,15 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Kill any existing processes
-echo -e "${YELLOW}Killing existing processes...${NC}"
-pkill -f "node server.js" 2>/dev/null || true
-pkill -f "react-app-rewired" 2>/dev/null || true
-pkill -f "production_automation_service.py" 2>/dev/null || true
+# Check if PM2 is installed
+if ! command -v pm2 &> /dev/null; then
+    echo -e "${RED}✗ PM2 is not installed. Installing...${NC}"
+    npm install -g pm2
+fi
+
+# Stop any existing PM2 processes
+echo -e "${YELLOW}Stopping existing PM2 processes...${NC}"
+pm2 delete all 2>/dev/null || true
 
 # Stop Docker frontend container if running (it uses port 3000)
 echo -e "${YELLOW}Stopping Docker frontend container...${NC}"
@@ -24,104 +28,97 @@ docker stop easy-flow-rpa-dashboard-1 2>/dev/null || true
 
 sleep 2
 
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
 # Start Kafka and Zookeeper via Docker Compose
 echo -e "${YELLOW}Starting Kafka and Zookeeper...${NC}"
 docker-compose up -d kafka zookeeper
 sleep 5
 
-# Start Observability Stack (Prometheus, Grafana, Tempo, OTEL Collector)
+# Start Observability Stack (Prometheus, Grafana, Loki, Promtail, Tempo, OTEL Collector)
 echo -e "${YELLOW}Starting Observability Stack...${NC}"
 cd rpa-system/monitoring
-# Clean up any existing containers first
+# Clean up any existing monitoring containers
 docker-compose -f docker-compose.monitoring.yml down 2>/dev/null || true
+# Remove stale containers that may conflict
+docker rm -f easyflow-alertmanager 2>/dev/null || true
 docker-compose -f docker-compose.monitoring.yml up -d
 cd ../..
-sleep 3
+sleep 5
 echo -e "${GREEN}✓ Observability stack started${NC}"
 echo "  Grafana:        http://localhost:3001 (admin/admin)"
 echo "  Prometheus:     http://localhost:9090"
+echo "  Loki:           http://localhost:3100"
 echo "  OTEL Collector: http://localhost:4318 (HTTP) / 4317 (gRPC)"
 
-# Export environment for backend
+# Export environment variables
 export NODE_ENV=development
-# ✅ TELEMETRY ENABLED - Remove DISABLE_TELEMETRY to allow traces to flow
-# export DISABLE_TELEMETRY=true  # REMOVED - We want telemetry enabled!
 export KAFKA_ENABLED=true
 export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 export KAFKA_BROKERS=localhost:9092
 
-# Start backend (with PORT=3030 only for backend)
-echo -e "${GREEN}Starting backend on port 3030...${NC}"
-cd rpa-system/backend
-PORT=3030 nohup node server.js > ../../logs/backend.log 2>&1 &
-BACKEND_PID=$!
-echo $BACKEND_PID > /tmp/backend.pid
-cd ../..
+# Start all services with PM2
+echo -e "${GREEN}Starting all services with PM2...${NC}"
+pm2 start ecosystem.config.js
 
-sleep 3
+sleep 5
 
-# Check backend health
+# Check services health
+echo ""
+echo -e "${YELLOW}Checking services health...${NC}"
+
 if curl -s http://localhost:3030/health > /dev/null; then
-    echo -e "${GREEN}✓ Backend started successfully (PID: $BACKEND_PID)${NC}"
+    echo -e "${GREEN}✓ Backend is healthy${NC}"
 else
     echo -e "${RED}✗ Backend failed to start${NC}"
-    exit 1
+    pm2 logs easyflow-backend --lines 20 --nostream
 fi
 
-# Start automation worker
-echo -e "${GREEN}Starting automation worker on port 7001...${NC}"
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092 nohup python rpa-system/automation/automation-service/production_automation_service.py > logs/automation-worker.log 2>&1 &
-AUTOMATION_PID=$!
-echo $AUTOMATION_PID > /tmp/automation.pid
-
-sleep 3
-
-# Check automation worker health
-if lsof -ti:7001 > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ Automation worker started successfully (PID: $AUTOMATION_PID)${NC}"
+if lsof -ti:7070 > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ Automation worker is running${NC}"
 else
     echo -e "${YELLOW}⚠ Automation worker may still be starting...${NC}"
 fi
 
-# Start frontend (explicitly set PORT=3000 to override any inherited PORT)
-echo -e "${GREEN}Starting frontend on port 3000...${NC}"
-cd rpa-system/rpa-dashboard
-PORT=3000 nohup npm start > ../../logs/frontend.log 2>&1 &
-FRONTEND_PID=$!
-echo $FRONTEND_PID > /tmp/frontend.pid
-cd ../..
-
 echo ""
 echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}Servers started successfully!${NC}"
+echo -e "${GREEN}All services started successfully!${NC}"
 echo ""
 echo "Application:"
-echo "  Frontend:       http://localhost:3000"
-echo "  Backend:        http://localhost:3030"
-echo "  Automation:     http://localhost:7001"
-echo "  Health Check:   http://localhost:3030/health"
+echo "  Frontend:         http://localhost:3000"
+echo "  Backend:          http://localhost:3030"
+echo "  Automation:       http://localhost:7070"
+echo "  Health Check:     http://localhost:3030/health"
 echo ""
 echo "Infrastructure:"
-echo "  Kafka:          localhost:9092"
+echo "  Kafka:            localhost:9092"
 echo ""
 echo "Observability:"
-echo "  Grafana:        http://localhost:3001 (admin/admin)"
-echo "  Prometheus:     http://localhost:9090"
-echo "  Backend Metrics:http://localhost:9091/metrics"
+echo "  Grafana:          http://localhost:3001 (admin/admin)"
+echo "  Prometheus:       http://localhost:9090"
+echo "  Loki:             http://localhost:3100"
+echo "  Backend Metrics:  http://localhost:9091/metrics"
 echo ""
-echo "Logs:"
-echo "  Backend:        tail -f logs/backend.log"
-echo "  Frontend:       tail -f logs/frontend.log"
-echo "  Automation:     tail -f logs/automation-worker.log"
+echo "Logs (PM2):"
+echo "  All services:     pm2 logs"
+echo "  Backend only:     pm2 logs easyflow-backend"
+echo "  Frontend only:    pm2 logs easyflow-frontend"
+echo "  Automation only:  pm2 logs easyflow-automation"
 echo ""
-echo "PIDs:"
-echo "  Backend:        $BACKEND_PID (saved to /tmp/backend.pid)"
-echo "  Frontend:       $FRONTEND_PID (saved to /tmp/frontend.pid)"
-echo "  Automation:     $AUTOMATION_PID (saved to /tmp/automation.pid)"
+echo "  Log files:"
+echo "    Backend:        logs/backend.log"
+echo "    Frontend:       logs/frontend.log"
+echo "    Automation:     logs/automation-worker.log"
 echo ""
-echo -e "${YELLOW}To stop servers: ./stop-dev.sh${NC}"
+echo "Process Management:"
+echo "  Status:           pm2 status"
+echo "  Restart service:  pm2 restart <service-name>"
+echo "  Stop services:    ./stop-dev.sh"
+echo ""
+echo -e "${YELLOW}To stop all services: ./stop-dev.sh${NC}"
 echo ""
 
 # Wait for user input
-read -p "Press Enter to view logs (Ctrl+C to exit)..."
-tail -f logs/backend.log
+read -p "Press Enter to view PM2 logs (Ctrl+C to exit)..."
+pm2 logs

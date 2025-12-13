@@ -10,50 +10,27 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Kill processes by PID if files exist
-if [ -f /tmp/backend.pid ]; then
-    BACKEND_PID=$(cat /tmp/backend.pid)
-    if kill $BACKEND_PID 2>/dev/null; then
-        echo -e "${GREEN}✓ Backend stopped (PID: $BACKEND_PID)${NC}"
-    else
-        echo -e "${YELLOW}⚠ Backend process not found (may have already stopped)${NC}"
-    fi
-    rm /tmp/backend.pid
+# Stop all PM2 processes
+echo -e "${YELLOW}Stopping PM2 processes...${NC}"
+if command -v pm2 &> /dev/null; then
+    pm2 delete all 2>/dev/null && echo -e "${GREEN}✓ All PM2 processes stopped${NC}" || echo -e "${YELLOW}⚠ No PM2 processes running${NC}"
+else
+    echo -e "${YELLOW}⚠ PM2 not installed, skipping PM2 cleanup${NC}"
 fi
 
-if [ -f /tmp/frontend.pid ]; then
-    FRONTEND_PID=$(cat /tmp/frontend.pid)
-    if kill $FRONTEND_PID 2>/dev/null; then
-        echo -e "${GREEN}✓ Frontend stopped (PID: $FRONTEND_PID)${NC}"
-    else
-        echo -e "${YELLOW}⚠ Frontend process not found (may have already stopped)${NC}"
-    fi
-    rm /tmp/frontend.pid
-fi
-
-if [ -f /tmp/automation.pid ]; then
-    AUTOMATION_PID=$(cat /tmp/automation.pid)
-    if kill $AUTOMATION_PID 2>/dev/null; then
-        echo -e "${GREEN}✓ Automation worker stopped (PID: $AUTOMATION_PID)${NC}"
-    else
-        echo -e "${YELLOW}⚠ Automation worker process not found (may have already stopped)${NC}"
-    fi
-    rm /tmp/automation.pid
-fi
-
-# Fallback: kill by process name (more aggressive)
-echo -e "${YELLOW}Killing any remaining processes...${NC}"
+# Fallback: kill by process name (for any orphaned processes)
+echo -e "${YELLOW}Cleaning up any orphaned processes...${NC}"
 pkill -f "node server.js" 2>/dev/null && echo -e "${GREEN}✓ Killed node server.js processes${NC}" || true
-pkill -f "react-app-rewired" 2>/dev/null && echo -e "${GREEN}✓ Killed react-app-rewired processes${NC}" || true
+pkill -f "react-scripts start" 2>/dev/null && echo -e "${GREEN}✓ Killed react-scripts processes${NC}" || true
 pkill -f "production_automation_service.py" 2>/dev/null && echo -e "${GREEN}✓ Killed automation service processes${NC}" || true
 
-# Kill processes on port 7001 (automation worker)
-echo -e "${YELLOW}Killing processes on port 7001...${NC}"
-if lsof -ti :7001 | xargs kill -9 2>/dev/null; then
-    echo -e "${GREEN}✓ Killed processes on port 7001${NC}"
-else
-    echo -e "${YELLOW}⚠ No processes found on port 7001${NC}"
-fi
+# Kill processes on specific ports
+for port in 3000 3030 7070 7001; do
+    if lsof -ti :$port > /dev/null 2>&1; then
+        echo -e "${YELLOW}Killing processes on port $port...${NC}"
+        lsof -ti :$port | xargs kill -9 2>/dev/null && echo -e "${GREEN}✓ Killed processes on port $port${NC}"
+    fi
+done
 
 # Stop Docker containers
 echo -e "${YELLOW}Stopping Docker containers...${NC}"
@@ -79,36 +56,36 @@ fi
 
 # Stop Observability Stack
 echo -e "${YELLOW}Stopping Observability Stack...${NC}"
+ORIG_DIR=$(pwd)
 cd rpa-system/monitoring 2>/dev/null || cd ../rpa-system/monitoring 2>/dev/null || true
-if docker-compose -f docker-compose.monitoring.yml down 2>/dev/null; then
-    echo -e "${GREEN}✓ Observability stack stopped${NC}"
+if [ -f docker-compose.monitoring.yml ]; then
+    docker-compose -f docker-compose.monitoring.yml down 2>/dev/null && echo -e "${GREEN}✓ Observability stack stopped${NC}" || echo -e "${YELLOW}⚠ Could not stop observability stack${NC}"
+    # Also remove any stale containers
+    docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager easyflow-node-exporter easyflow-cadvisor 2>/dev/null || true
 else
-    echo -e "${YELLOW}⚠ Could not stop observability stack${NC}"
+    echo -e "${YELLOW}⚠ Monitoring compose file not found${NC}"
 fi
-cd - > /dev/null 2>&1 || true
+cd "$ORIG_DIR" > /dev/null 2>&1 || true
 
 sleep 1
 
-# Verify ports are free
+# Verify critical ports are free
 echo ""
-echo -e "${YELLOW}Verifying ports are free...${NC}"
-if lsof -i :3030 | grep LISTEN > /dev/null 2>&1; then
-    echo -e "${RED}⚠ Port 3030 still in use${NC}"
-else
-    echo -e "${GREEN}✓ Port 3030 is free${NC}"
-fi
+echo -e "${YELLOW}Verifying critical ports are free...${NC}"
 
-if lsof -i :3000 | grep LISTEN > /dev/null 2>&1; then
-    echo -e "${RED}⚠ Port 3000 still in use${NC}"
-else
-    echo -e "${GREEN}✓ Port 3000 is free${NC}"
-fi
-
-if lsof -i :7001 | grep LISTEN > /dev/null 2>&1; then
-    echo -e "${RED}⚠ Port 7001 still in use${NC}"
-else
-    echo -e "${GREEN}✓ Port 7001 is free${NC}"
-fi
+PORTS_OK=true
+for port in 3000 3030 7070 9090 3001 3100; do
+    if lsof -i :$port | grep LISTEN > /dev/null 2>&1; then
+        echo -e "${RED}✗ Port $port still in use${NC}"
+        PORTS_OK=false
+    else
+        echo -e "${GREEN}✓ Port $port is free${NC}"
+    fi
+done
 
 echo ""
-echo -e "${GREEN}✓ All servers stopped${NC}"
+if [ "$PORTS_OK" = true ]; then
+    echo -e "${GREEN}✓ All servers and infrastructure stopped successfully${NC}"
+else
+    echo -e "${YELLOW}⚠ Some ports are still in use. You may need to manually kill processes.${NC}"
+fi
