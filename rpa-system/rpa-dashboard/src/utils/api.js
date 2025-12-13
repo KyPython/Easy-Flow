@@ -427,30 +427,53 @@ api.interceptors.response.use(
       if (!isRefreshing && (now - lastRefreshAttempt) > throttleWindowMs) {
         isRefreshing = true;
         lastRefreshAttempt = now;
-        // Force a refresh (Supabase v2 automatically refreshes, but we request explicitly)
+        
+        // Force a refresh and get the new session
         try {
           const client = await initSupabase();
-          await client.auth.refreshSession();
-        } catch (e) {
-          console.warn('Token refresh failed', e?.message || e);
-        } finally {
+          const { data: refreshData, error: refreshError } = await client.auth.refreshSession();
+          
+          if (refreshError || !refreshData?.session) {
+            console.warn('Token refresh failed:', refreshError?.message || 'No session returned');
+            isRefreshing = false;
+            queued.forEach(fn => fn());
+            queued = [];
+            throw new Error('Token refresh failed');
+          }
+          
+          // Successfully refreshed - resolve all queued requests
           isRefreshing = false;
-          queued.forEach(fn => fn());
+          queued.forEach(fn => fn(refreshData.session));
           queued = [];
+          
+          // Update the failed request with new token and retry
+          error.config.headers['Authorization'] = `Bearer ${refreshData.session.access_token}`;
+          error.config.__isRetry = true;
+          return api.request(error.config);
+          
+        } catch (e) {
+          console.error('Token refresh error:', e?.message || e);
+          isRefreshing = false;
+          queued.forEach(fn => fn(null)); // Resolve queued with null to fail them
+          queued = [];
+          throw e;
         }
       } else {
-        await new Promise(res => queued.push(res));
-      }
-
-      const client = await initSupabase();
-      const { data: { session } } = await client.auth.getSession();
-      if (session?.access_token) {
-        error.config.headers['Authorization'] = `Bearer ${session.access_token}`;
-        error.config.__isRetry = true;
-        return api.request(error.config);
+        // Wait for the in-progress refresh
+        const session = await new Promise((resolve) => {
+          queued.push(resolve);
+        });
+        
+        if (session?.access_token) {
+          error.config.headers['Authorization'] = `Bearer ${session.access_token}`;
+          error.config.__isRetry = true;
+          return api.request(error.config);
+        } else {
+          throw new Error('No session after refresh');
+        }
       }
     } catch (e) {
-      // fall through
+      // fall through to logout logic below
     }
     // Unrecoverable 401: clear local tokens and redirect to login (browser only, skip during tests)
     try {
