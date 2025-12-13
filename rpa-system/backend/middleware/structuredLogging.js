@@ -11,35 +11,22 @@ const { getCurrentTraceContext } = require('./traceContext');
 const loggerConfig = {
   level: process.env.LOG_LEVEL || 'info',
   
-  // Production JSON format, development pretty format
-  ...(process.env.NODE_ENV === 'production' 
-    ? {
-        formatters: {
-          level(label) {
-            return { level: label };
-          },
-          log(object) {
-            // Automatically inject trace context into every log entry
-            const traceContext = getCurrentTraceContext();
-            return {
-              ...object,
-              trace: traceContext || {},
-              timestamp: new Date().toISOString()
-            };
-          }
-        }
-      }
-    : {
-        transport: {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'SYS:standard',
-            ignore: 'pid,hostname'
-          }
-        }
-      }
-  ),
+  // Always use JSON format for reliable log capture
+  // pino-pretty causes issues with nohup/file redirection
+  formatters: {
+    level(label) {
+      return { level: label };
+    },
+    log(object) {
+      // Automatically inject trace context into every log entry
+      const traceContext = getCurrentTraceContext();
+      return {
+        ...object,
+        trace: traceContext || {},
+        timestamp: new Date().toISOString()
+      };
+    }
+  },
 
   // Base fields for all log entries
   base: {

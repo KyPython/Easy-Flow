@@ -761,6 +761,11 @@ class WorkflowExecutor {
     // ✅ OBSERVABILITY: Create OpenTelemetry span for workflow execution
     const tracer = trace.getTracer('workflow.executor');
     
+    this.logger.info('executeWorkflow: About to create span', {
+      execution_id: execution.id,
+      workflow_id: workflow.id
+    });
+    
     return await tracer.startActiveSpan(
       `workflow.execute.${workflow.name || workflow.id}`,
       {
