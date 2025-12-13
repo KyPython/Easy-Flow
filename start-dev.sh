@@ -12,6 +12,13 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Check for timeout command (for Kafka init script)
+# On macOS, 'timeout' is 'gtimeout' from 'coreutils'
+if ! command -v timeout &> /dev/null && ! command -v gtimeout &> /dev/null; then
+    echo -e "${YELLOW}⚠ 'timeout' command not found. This may cause a non-critical error during Kafka topic initialization.${NC}"
+    echo -e "${YELLOW}  On macOS, you can install it via Homebrew: 'brew install coreutils'${NC}"
+fi
+
 # Check if PM2 is installed
 if ! command -v pm2 &> /dev/null; then
     echo -e "${RED}✗ PM2 is not installed. Installing...${NC}"
@@ -21,6 +28,11 @@ fi
 # Stop any existing PM2 processes
 echo -e "${YELLOW}Stopping existing PM2 processes...${NC}"
 pm2 delete all 2>/dev/null || true
+
+# Ensure critical ports are free (prevent address in use errors)
+lsof -ti:7070 | xargs kill -9 2>/dev/null || true
+lsof -ti:3030 | xargs kill -9 2>/dev/null || true
+sleep 1
 
 # Stop Docker frontend container if running (it uses port 3000)
 echo -e "${YELLOW}Stopping Docker frontend container...${NC}"
@@ -62,31 +74,78 @@ echo "  OTEL Collector: http://localhost:4318 (HTTP) / 4317 (gRPC)"
 # Export environment variables
 export NODE_ENV=development
 export KAFKA_ENABLED=true
-export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-export KAFKA_BROKERS=localhost:9092
+export KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092
+export KAFKA_BROKERS=127.0.0.1:9092
+
+# Helper function to update .env without overwriting secrets
+update_env() {
+    local file=$1
+    local key=$2
+    local value=$3
+    mkdir -p "$(dirname "$file")"
+    if [ ! -f "$file" ]; then touch "$file"; fi
+    
+    if grep -q "^$key=" "$file"; then
+        # Update existing key (compatible with both GNU and BSD sed)
+        sed "s|^$key=.*|$key=$value|" "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+    else
+        # Append new key
+        echo "$key=$value" >> "$file"
+    fi
+}
+
+# Force configuration for Automation Service via .env
+# This ensures Python picks up 127.0.0.1 instead of defaulting to localhost (IPv6 issue)
+AUTO_ENV="rpa-system/automation/automation-service/.env"
+update_env "$AUTO_ENV" "KAFKA_BROKERS" "127.0.0.1:9092"
+update_env "$AUTO_ENV" "KAFKA_BOOTSTRAP_SERVERS" "127.0.0.1:9092"
+update_env "$AUTO_ENV" "PORT" "7070"
+update_env "$AUTO_ENV" "BACKEND_URL" "http://127.0.0.1:3030"
+update_env "$AUTO_ENV" "SUPABASE_URL" "https://syxzilyuysdoirnezgii.supabase.co"
+update_env "$AUTO_ENV" "SUPABASE_SERVICE_ROLE" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk"
+update_env "$AUTO_ENV" "SUPABASE_ANON_KEY" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
+
+# Force configuration for Backend via .env
+# This prevents port conflicts and stops the backend from spawning its own worker
+BACKEND_ENV="rpa-system/backend/.env"
+update_env "$BACKEND_ENV" "PORT" "3030"
+update_env "$BACKEND_ENV" "AUTOMATION_URL" "http://127.0.0.1:7070"
+update_env "$BACKEND_ENV" "KAFKA_BROKERS" "127.0.0.1:9092"
+update_env "$BACKEND_ENV" "SUPABASE_URL" "https://syxzilyuysdoirnezgii.supabase.co"
+update_env "$BACKEND_ENV" "SUPABASE_SERVICE_ROLE" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk"
+update_env "$BACKEND_ENV" "SUPABASE_ANON_KEY" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
 
 # Start all services with PM2
 echo -e "${GREEN}Starting all services with PM2...${NC}"
 pm2 start ecosystem.config.js
 
-sleep 5
-
 # Check services health
 echo ""
 echo -e "${YELLOW}Checking services health...${NC}"
 
-if curl -s http://localhost:3030/health > /dev/null; then
-    echo -e "${GREEN}✓ Backend is healthy${NC}"
-else
-    echo -e "${RED}✗ Backend failed to start${NC}"
-    pm2 logs easyflow-backend --lines 20 --nostream
-fi
+# Wait for Backend (up to 30s)
+BACKEND_OK=false
+for i in {1..30}; do
+    if curl -s http://localhost:3030/health > /dev/null; then
+        echo -e "${GREEN}✓ Backend is healthy${NC}"
+        BACKEND_OK=true
+        break
+    fi
+    sleep 1
+done
+[ "$BACKEND_OK" = false ] && { echo -e "${RED}✗ Backend failed to start${NC}"; pm2 logs easyflow-backend --lines 20 --nostream; }
 
-if lsof -ti:7070 > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ Automation worker is running${NC}"
-else
-    echo -e "${YELLOW}⚠ Automation worker may still be starting...${NC}"
-fi
+# Wait for Automation Worker (up to 30s)
+AUTO_OK=false
+for i in {1..30}; do
+    if curl -s http://localhost:7070/health > /dev/null; then
+        echo -e "${GREEN}✓ Automation worker is healthy${NC}"
+        AUTO_OK=true
+        break
+    fi
+    sleep 1
+done
+[ "$AUTO_OK" = false ] && { echo -e "${RED}✗ Automation worker failed to start${NC}"; echo -e "${YELLOW}Error logs:${NC}"; pm2 logs easyflow-automation --err --lines 20 --nostream; }
 
 echo ""
 echo -e "${GREEN}=========================================${NC}"

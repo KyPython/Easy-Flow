@@ -99,7 +99,7 @@ const CONSUMER_FRIENDLY_ERRORS = {
    * Consumer: Permission denied
    */
   'AUTHORIZATION_ERROR': {
-    message: 'You don't have permission to perform this action.',
+    message: "You don't have permission to perform this action.",
     userAction: 'Contact your team administrator if you need access.',
     statusCode: 403,
     retryable: false
@@ -111,7 +111,7 @@ const CONSUMER_FRIENDLY_ERRORS = {
    * Consumer: Rate limited
    */
   'RATE_LIMIT_EXCEEDED': {
-    message: 'You've exceeded the rate limit for workflow executions.',
+    message: "You've exceeded the rate limit for workflow executions.",
     userAction: 'Please wait a moment before trying again.',
     statusCode: 429,
     retryable: true

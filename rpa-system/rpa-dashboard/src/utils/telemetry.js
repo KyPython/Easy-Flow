@@ -332,10 +332,15 @@ const noopTracker = (() => {
     setError: () => {}, 
     end: () => {} 
   });
+  const noopInteraction = () => ({
+    addAttribute: () => {},
+    recordError: () => {},
+    end: () => {}
+  });
   return {
     startComponentRender: () => null,
     endComponentRender: () => {},
-    trackUserInteraction: () => ({ addAttribute: () => {}, recordError: () => {}, end: () => {} }),
+    trackUserInteraction: () => noopInteraction(),
     trackApiCall: () => noopApiCall(),
     trackPageLoad: () => noopSpan()
   };
@@ -349,17 +354,20 @@ export function initPerformanceTracker() {
     try {
       const tracker = await initializeFrontendTelemetry();
       _realTracker = tracker || noopTracker;
+      // Replace exported tracker reference so other importers see the real tracker
+      performanceTracker = _realTracker;
+      console.info('[Telemetry] Performance tracker initialized successfully');
     } catch (e) {
       // Fail-safe: if initialization fails, keep using noop tracker
       // and surface a console warning so developers can debug.
       // eslint-disable-next-line no-console
       console.warn('[Telemetry] initPerformanceTracker failed, using no-op tracker:', e && e.message ? e.message : e);
       _realTracker = noopTracker;
+      performanceTracker = noopTracker;
     }
-    // Replace exported tracker reference so other importers see the real tracker
-    try { performanceTracker = _realTracker; } catch (e) { /* ignore assignment errors */ }
   })();
 
+  // Always return a safe tracker immediately
   return noopTracker;
 }
 
@@ -371,23 +379,40 @@ export function usePerformanceTracking(componentName) {
   const [renderSpanId, setRenderSpanId] = useState(null);
 
   useEffect(() => {
-    const spanId = (performanceTracker && performanceTracker.startComponentRender) ? performanceTracker.startComponentRender(componentName) : null;
+    const tracker = performanceTracker || noopTracker;
+    const spanId = tracker.startComponentRender ? tracker.startComponentRender(componentName) : null;
     setRenderSpanId(spanId);
 
     return () => {
-      if (spanId && performanceTracker && performanceTracker.endComponentRender) {
-        performanceTracker.endComponentRender(spanId);
+      if (spanId && tracker.endComponentRender) {
+        tracker.endComponentRender(spanId);
       }
     };
   }, [componentName]);
 
+  const safeNoopInteraction = () => ({ addAttribute: () => {}, recordError: () => {}, end: () => {} });
+  const safeNoopApiCall = () => ({ addAttribute: () => {}, setResponseData: () => {}, setError: () => {}, end: () => {} });
+  const safeNoopPageLoad = () => ({ addMetric: () => {}, end: () => {} });
+
   return {
-    trackInteraction: (type, element, metadata) => 
-      (performanceTracker && performanceTracker.trackUserInteraction ? performanceTracker.trackUserInteraction(type, element, metadata) : { addAttribute: () => {}, recordError: () => {}, end: () => {} }),
-    trackApiCall: (method, url, context) => 
-      (performanceTracker && performanceTracker.trackApiCall ? performanceTracker.trackApiCall(method, url, context) : { addAttribute: () => {}, setResponseData: () => {}, setError: () => {}, end: () => {} }),
-    trackPageLoad: (pageName, params) => 
-      (performanceTracker && performanceTracker.trackPageLoad ? performanceTracker.trackPageLoad(pageName, params) : { addMetric: () => {}, end: () => {} })
+    trackInteraction: (type, element, metadata) => {
+      const tracker = performanceTracker || noopTracker;
+      return tracker && tracker.trackUserInteraction 
+        ? tracker.trackUserInteraction(type, element, metadata) 
+        : safeNoopInteraction();
+    },
+    trackApiCall: (method, url, context) => {
+      const tracker = performanceTracker || noopTracker;
+      return tracker && tracker.trackApiCall 
+        ? tracker.trackApiCall(method, url, context) 
+        : safeNoopApiCall();
+    },
+    trackPageLoad: (pageName, params) => {
+      const tracker = performanceTracker || noopTracker;
+      return tracker && tracker.trackPageLoad 
+        ? tracker.trackPageLoad(pageName, params) 
+        : safeNoopPageLoad();
+    }
   };
 }
 
