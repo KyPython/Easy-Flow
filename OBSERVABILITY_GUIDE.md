@@ -10,10 +10,7 @@ Your observability stack gives you **three superpowers** to understand your appl
 
 ---
 
-## 🚀 Quick Start: Finding Your Workflow Issue
-
-### **Your Problem:**
-Workflows show "NO_STEPS_EXECUTED" error. Here's how to diagnose it:
+## 🚀 Quick Start: Finding Issues
 
 ### **Step 1: Check if Backend is Healthy**
 Open: **http://localhost:9091/metrics**
@@ -147,7 +144,7 @@ workflow_executions_active
 
 ---
 
-## 🔍 How to Diagnose Your Current Issue
+## 🔍 How to Diagnose Issues
 
 ### **Workflow Execution Checklist:**
 
@@ -157,12 +154,10 @@ workflow_executions_active
 | **2. Telemetry initialized** | Check for logs: `✅ OpenTelemetry initialized` | ❌ Missing (Node.js) |
 | **3. Prometheus scraping** | `up{job="backend"}` in Prometheus = 1 | ❓ Unknown |
 | **4. Kafka connected** | Backend log: `✅ Kafka producer connected` | ✅ Working |
-| **5. Workflow has steps** | Query DB: `SELECT * FROM workflow_steps WHERE workflow_id='...'` | ❓ Unknown |
-| **6. executeWorkflow called** | Search logs for: `executeWorkflow: About to create span` | ❌ Not found |
 
 ---
 
-## 🐛 Debugging Workflow Execution
+## 🐛 Debugging Issues
 
 ### **The Three-Layer Approach:**
 
@@ -189,10 +184,8 @@ rate(http_requests_total{path="/execute",status="200"}[1m])
 ```
 
 **Look for:**
-- ✅ "Received workflow execution request"
-- ✅ "Workflow found in database"
 - ✅ "Kafka message published"
-- ❌ **MISSING:** "executeWorkflow: About to create span"
+- ❌ **MISSING:**
 
 ---
 
@@ -249,7 +242,7 @@ sum(rate(workflow_executions_total[5m]))
 
 ---
 
-## 🎯 Immediate Actions for Your Issue
+## 🎯 Immediate Actions for Issues
 
 ### **1. Verify Telemetry Initialization:**
 ```bash
@@ -274,24 +267,6 @@ curl http://localhost:9091/metrics | head -20
 # TYPE nodejs_version_info gauge
 nodejs_version_info{version="v20.19.5"} 1
 ```
-
-### **3. Verify Workflow Data:**
-```bash
-# Check if workflow has steps in Supabase
-# Go to Supabase Dashboard → SQL Editor
-SELECT 
-  w.id, 
-  w.name, 
-  COUNT(ws.id) as step_count,
-  json_array_length(w.canvas_config::json->'nodes') as canvas_nodes
-FROM workflows w
-LEFT JOIN workflow_steps ws ON ws.workflow_id = w.id
-WHERE w.id = '57b50ac6-81bf-415a-9816-34d170348e37'
-GROUP BY w.id, w.name, w.canvas_config;
-```
-
-**Expected:** `step_count` or `canvas_nodes` > 0
-
 ---
 
 ## 🚨 Common Issues & Solutions
@@ -340,13 +315,6 @@ GROUP BY w.id, w.name, w.canvas_config;
 - ✅ Python automation worker telemetry
 - ✅ Backend responding to requests
 
-**What's Broken:**
-- ❌ Node.js backend telemetry not initializing (port 9091 conflict)
-- ❌ Backend logs not appearing (Pino output issue)
-- ❌ `executeWorkflow` not being called (span never created)
-
 **Next Steps:**
 1. Free port 9091 → Restart backend → Verify metrics appear
 2. Run workflow → Get trace_id → Query Tempo
-3. Compare working trace (with spans) vs broken trace (without)
-4. Find where code path diverges before `executeWorkflow`

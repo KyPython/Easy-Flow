@@ -6,9 +6,14 @@ const { logger, getLogger } = require('./utils/logger');
 // All telemetry flows through OpenTelemetry -> OTEL Collector -> Prometheus/Tempo/Grafana
 if (process.env.DISABLE_TELEMETRY !== 'true') {
   try {
+    console.log('[server] Initializing OpenTelemetry...');
     require('./middleware/telemetryInit');
+    console.log('[server] ✅ OpenTelemetry initialized successfully');
     logger.info('[server] ✅ OpenTelemetry initialized - traces flowing to Tempo, metrics to Prometheus');
   } catch (e) {
+    console.error('[server] ❌ OpenTelemetry initialization FAILED:');
+    console.error('[server] Error:', e.message);
+    console.error('[server] Stack:', e.stack);
     logger.error('[server] ❌ OpenTelemetry initialization failed - observability disabled', {
       error: e?.message,
       stack: e?.stack,
@@ -16,6 +21,7 @@ if (process.env.DISABLE_TELEMETRY !== 'true') {
     });
   }
 } else {
+  console.log('[server] Telemetry disabled via DISABLE_TELEMETRY=true');
   logger.info('[server] Telemetry disabled via DISABLE_TELEMETRY=true');
 }
 

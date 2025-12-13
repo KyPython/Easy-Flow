@@ -78,7 +78,7 @@ jobs:
           # Clean up any orphaned volumes
           docker volume prune -f || true
           # Start test services
-          echo "🚀 Starting test services..."
+          echo "� Starting test services..."
           docker compose -f docker-compose.test.yml up -d
           sleep 15
 
