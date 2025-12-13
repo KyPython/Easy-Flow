@@ -1465,6 +1465,15 @@ class WorkflowExecutor {
     try {
       const { action_type, config } = step;
       
+      // ✅ OBSERVABILITY: Log action step execution
+      this.logger.info('Executing action step', {
+        step_id: step.id,
+        step_name: step.name,
+        action_type: action_type,
+        step_type: step.step_type,
+        execution_id: execution?.id
+      });
+      
       // Get action definition
       const { data: actionDef, error } = await this.supabase
         .from('action_definitions')
@@ -1473,6 +1482,13 @@ class WorkflowExecutor {
         .single();
         
       if (error || !actionDef) {
+        this.logger.error('Action definition not found', {
+          action_type: action_type,
+          step_id: step.id,
+          step_name: step.name,
+          execution_id: execution?.id,
+          error: error?.message
+        });
         throw new Error(`Action definition not found: ${action_type}`);
       }
       
@@ -1499,6 +1515,16 @@ class WorkflowExecutor {
       }
       
     } catch (error) {
+      // ✅ OBSERVABILITY: Log action step failure with full context
+      this.logger.error('Action step execution failed', {
+        error_message: error.message,
+        error_stack: error.stack,
+        step_id: step?.id,
+        step_name: step?.name,
+        action_type: step?.action_type,
+        step_type: step?.step_type,
+        execution_id: execution?.id
+      });
       return { success: false, error: error.message };
     }
   }
