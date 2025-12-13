@@ -32,6 +32,7 @@ pm2 delete all 2>/dev/null || true
 # Ensure critical ports are free (prevent address in use errors)
 lsof -ti:7070 | xargs kill -9 2>/dev/null || true
 lsof -ti:3030 | xargs kill -9 2>/dev/null || true
+lsof -ti:7001 | xargs kill -9 2>/dev/null || true
 sleep 1
 
 # Stop Docker frontend container if running (it uses port 3000)
@@ -42,6 +43,8 @@ sleep 2
 
 # Create logs directory if it doesn't exist
 mkdir -p logs
+# Clear existing logs to start fresh
+rm -f logs/*.log
 
 # Start Kafka and Zookeeper via Docker Compose
 echo -e "${YELLOW}Starting Kafka and Zookeeper...${NC}"
@@ -71,49 +74,75 @@ echo "  Prometheus:     http://localhost:9090"
 echo "  Loki:           http://localhost:3100"
 echo "  OTEL Collector: http://localhost:4318 (HTTP) / 4317 (gRPC)"
 
-# Export environment variables
-export NODE_ENV=development
-export KAFKA_ENABLED=true
-export KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092
-export KAFKA_BROKERS=127.0.0.1:9092
+# Get absolute path for logs to avoid PM2 cwd resolution issues
+ROOT_DIR=$(pwd)
 
-# Helper function to update .env without overwriting secrets
-update_env() {
-    local file=$1
-    local key=$2
-    local value=$3
-    mkdir -p "$(dirname "$file")"
-    if [ ! -f "$file" ]; then touch "$file"; fi
-    
-    if grep -q "^$key=" "$file"; then
-        # Update existing key (compatible with both GNU and BSD sed)
-        sed "s|^$key=.*|$key=$value|" "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
-    else
-        # Append new key
-        echo "$key=$value" >> "$file"
-    fi
-}
-
-# Force configuration for Automation Service via .env
-# This ensures Python picks up 127.0.0.1 instead of defaulting to localhost (IPv6 issue)
-AUTO_ENV="rpa-system/automation/automation-service/.env"
-update_env "$AUTO_ENV" "KAFKA_BROKERS" "127.0.0.1:9092"
-update_env "$AUTO_ENV" "KAFKA_BOOTSTRAP_SERVERS" "127.0.0.1:9092"
-update_env "$AUTO_ENV" "PORT" "7070"
-update_env "$AUTO_ENV" "BACKEND_URL" "http://127.0.0.1:3030"
-update_env "$AUTO_ENV" "SUPABASE_URL" "https://syxzilyuysdoirnezgii.supabase.co"
-update_env "$AUTO_ENV" "SUPABASE_SERVICE_ROLE" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk"
-update_env "$AUTO_ENV" "SUPABASE_ANON_KEY" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
-
-# Force configuration for Backend via .env
-# This prevents port conflicts and stops the backend from spawning its own worker
-BACKEND_ENV="rpa-system/backend/.env"
-update_env "$BACKEND_ENV" "PORT" "3030"
-update_env "$BACKEND_ENV" "AUTOMATION_URL" "http://127.0.0.1:7070"
-update_env "$BACKEND_ENV" "KAFKA_BROKERS" "127.0.0.1:9092"
-update_env "$BACKEND_ENV" "SUPABASE_URL" "https://syxzilyuysdoirnezgii.supabase.co"
-update_env "$BACKEND_ENV" "SUPABASE_SERVICE_ROLE" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk"
-update_env "$BACKEND_ENV" "SUPABASE_ANON_KEY" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
+# Generate a dynamic ecosystem file to ensure correct env vars
+echo -e "${YELLOW}Generating PM2 ecosystem config...${NC}"
+cat > ecosystem.config.js << EOL
+module.exports = {
+  apps: [
+    {
+      name: 'easyflow-backend',
+      script: 'server.js',
+      cwd: 'rpa-system/backend',
+      watch: ['rpa-system/backend'],
+      ignore_watch: ['node_modules', 'logs'],
+      error_file: '$ROOT_DIR/logs/backend-error.log',
+      out_file: '$ROOT_DIR/logs/backend.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      env: {
+        NODE_ENV: 'development',
+        PORT: 3030,
+        KAFKA_ENABLED: 'true',
+        AUTOMATION_URL: 'http://127.0.0.1:7070',
+        KAFKA_CLIENT_ID: 'easyflow-backend',
+        KAFKA_BOOTSTRAP_SERVERS: '127.0.0.1:9092',
+        KAFKA_BROKERS: '127.0.0.1:9092',
+        SUPABASE_URL: "https://syxzilyuysdoirnezgii.supabase.co",
+        SUPABASE_SERVICE_ROLE: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk",
+        SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
+      },
+    },
+    {
+      name: 'easyflow-frontend',
+      script: 'node_modules/.bin/react-scripts',
+      args: 'start',
+      cwd: 'rpa-system/rpa-dashboard',
+      error_file: '$ROOT_DIR/logs/frontend-error.log',
+      out_file: '$ROOT_DIR/logs/frontend.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      env: {
+        PORT: 3000,
+        BROWSER: 'none'
+      },
+    },
+    {
+      name: 'easyflow-automation',
+      script: 'production_automation_service.py',
+      interpreter: 'python3',
+      cwd: 'rpa-system/automation/automation-service',
+      error_file: '$ROOT_DIR/logs/automation-worker.log',
+      out_file: '$ROOT_DIR/logs/automation-worker.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      env: {
+        PYTHONUNBUFFERED: '1',
+        KAFKA_ENABLED: 'true',
+        PORT: 7070,
+        BACKEND_URL: 'http://127.0.0.1:3030',
+        KAFKA_BOOTSTRAP_SERVERS: '127.0.0.1:9092',
+        KAFKA_BROKERS: '127.0.0.1:9092',
+        SUPABASE_URL: "https://syxzilyuysdoirnezgii.supabase.co",
+        SUPABASE_SERVICE_ROLE: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk",
+        SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
+      },
+    },
+  ],
+};
+EOL
 
 # Start all services with PM2
 echo -e "${GREEN}Starting all services with PM2...${NC}"
@@ -121,7 +150,6 @@ pm2 start ecosystem.config.js
 
 # Check services health
 echo ""
-echo -e "${YELLOW}Checking services health...${NC}"
 
 # Wait for Backend (up to 30s)
 BACKEND_OK=false
