@@ -36,6 +36,32 @@
   animation: fadeIn 0.8s ease-out;
 }
 
+.topRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  gap: var(--spacing-lg);
+}
+
+.themeToggle {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-full);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-xl);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  color: var(--on-primary);
+}
+
+.themeToggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.1);
+}
+
 .title {
   font-family: var(--font-family-brand);
   font-size: var(--font-size-5xl);
@@ -164,6 +190,80 @@
 
 .ctaBig {
   margin-top: var(--spacing-2xl);
+}
+
+.activitySection {
+  padding: var(--spacing-2xl) var(--spacing-xl);
+  display: flex;
+  justify-content: center;
+  background: var(--color-primary-50);
+  transition: background-color 180ms ease;
+}
+
+.icpSection {
+  padding: var(--spacing-3xl) var(--spacing-xl);
+  text-align: center;
+  background: var(--surface);
+}
+
+.icpCard {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: left;
+  background: var(--card-bg);
+  padding: var(--spacing-2xl);
+  border-radius: var(--radius-xl);
+  border-left: 5px solid var(--color-primary-600);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-primary-100);
+  transition: all 0.3s ease;
+}
+
+.icpCard:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-primary-200);
+}
+
+.icpDescription {
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xl);
+  line-height: 1.6;
+  font-weight: var(--font-weight-medium);
+}
+
+.icpSubtitle {
+  font-family: var(--font-family-brand);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-top: 0;
+  margin-bottom: var(--spacing-lg);
+}
+
+.icpList {
+  font-size: var(--font-size-lg);
+  line-height: 2;
+  color: var(--text-muted);
+  margin: 0 0 var(--spacing-2xl) 0;
+  padding-left: var(--spacing-xl);
+}
+
+.icpList li {
+  margin-bottom: var(--spacing-sm);
+}
+
+.icpBenefit {
+  margin-top: var(--spacing-xl);
+  font-size: var(--font-size-base);
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.icpBenefit strong {
+  color: var(--text-primary);
+  font-style: normal;
 }
 
 .footer {
@@ -324,6 +424,16 @@
   background: var(--card-bg);
   border: 1px solid rgba(255,255,255,0.04);
   box-shadow: var(--shadow-md);
+}
+
+.page[data-theme="dark"] .activitySection {
+  background: color-mix(in oklab, var(--color-gray-100) 80%, transparent);
+}
+
+.page[data-theme="dark"] .icpCard {
+  background: var(--card-bg);
+  border-left-color: var(--color-primary-400);
+  border-color: rgba(255,255,255,0.08);
 }
 
 /* Footer uses theme variables so it follows the theme */

@@ -33,7 +33,9 @@ export default function LandingPage() {
             Turn any repetitive computer task into a simple one-click action. No coding required.
           </p>
           <div className={styles.ctaGroup}>
-            <Link to="/auth" className={styles.ctaPrimary}>{t('landing.get_started_today','Save 2+ Hours Every Day')}</Link>
+            <a href="https://calendly.com/kyjahn-smith/consultation" target="_blank" rel="noopener noreferrer" className={styles.ctaPrimary}>
+              {t('landing.book_consultation', 'Book a 20-min Workflow Setup Call')}
+            </a>
             <Link to="/pricing" className={styles.ctaSecondary}>{t('landing.view_pricing','View Pricing')}</Link>
           </div>
           
@@ -49,13 +51,28 @@ export default function LandingPage() {
       </div>
 
       {/* Activity Counter Section */}
-      <section style={{ 
-        padding: '40px 20px', 
-        backgroundColor: 'rgba(249, 250, 251, 0.5)',
-        display: 'flex',
-        justifyContent: 'center'
-      }}>
+      <section className={styles.activitySection}>
         <ActivityCounter />
+      </section>
+
+      {/* ICP / Who This Is For Section */}
+      <section className={styles.icpSection}>
+        <h2 className={styles.sectionTitle}>{t('landing.who_this_is_for', 'Who This Is For')}</h2>
+        <div className={styles.icpCard}>
+          <p className={styles.icpDescription}>
+            {t('landing.icp_description', 'Startup founders and small business owners who spend hours weekly on repetitive tasks like copying data between systems, sending the same emails, or manually updating spreadsheets.')}
+          </p>
+          <h3 className={styles.icpSubtitle}>{t('landing.icp_subtitle', 'This is for you if you:')}</h3>
+          <ul className={styles.icpList}>
+            <li>{t('landing.icp_bullet_1', 'Manually send the same type of email or message multiple times per week')}</li>
+            <li>{t('landing.icp_bullet_2', 'Copy data between systems (CRM, spreadsheets, email) as part of your routine')}</li>
+            <li>{t('landing.icp_bullet_3', 'Spend 30+ minutes weekly on a task you could describe in simple steps')}</li>
+          </ul>
+          <p className={styles.icpBenefit}>
+            <strong>{t('landing.early_users_get', 'Early users get:')}</strong>{' '}
+            {t('landing.early_users_benefits', 'Free done-with-you setup + priority support + direct line to the builder (me, KyJahn)')}
+          </p>
+        </div>
       </section>
 
       <section className={styles.featuresSection}>
@@ -88,7 +105,9 @@ export default function LandingPage() {
         </div>
 
         <div className={styles.ctaBig}>
-          <Link to="/pricing" className={styles.ctaPrimary}>{t('landing.start_free_trial','Start Saving Time Today')}</Link>
+          <a href="https://calendly.com/kyjahn-smith/consultation" target="_blank" rel="noopener noreferrer" className={styles.ctaPrimary}>
+            {t('landing.book_consultation', 'Book a 20-min Workflow Setup Call')}
+          </a>
         </div>
       </section>
 
