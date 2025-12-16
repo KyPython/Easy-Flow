@@ -68,6 +68,58 @@ ORDER BY updated_at DESC;
 - Monitor database query duration metrics in Grafana
 - Watch for timeout errors in Loki logs
 
+### Problem: Slow UI Rendering Due to Data Over-Fetching
+
+**Symptom:** API calls are fast (25ms backend time), but UI feels sluggish, especially on slower networks. Browser dev tools show large response payloads.
+
+**Root Cause:** Fetching large JSON fields (`input_data`, `output_data`) for list views when they're not immediately displayed.
+
+**Solution: Split List and Detail Queries**
+
+**Optimized Approach:**
+1. **List Query** - Fetch only fields needed for the list view (exclude `input_data`, `output_data`)
+2. **Detail Query** - Fetch full data only when user clicks to view details
+
+**Example Optimization:**
+
+**Before (Inefficient):**
+```javascript
+// Fetching 100 executions with large JSON fields
+.select(`
+  id, status, started_at, input_data, output_data, ...
+`)
+```
+
+**After (Optimized):**
+```javascript
+// List query - exclude large fields
+.select(`
+  id, status, started_at, error_message, steps_executed, ...
+  // input_data and output_data excluded
+`)
+
+// Detail query - fetch full data on-demand
+const getExecutionDetails = async (executionId) => {
+  return await client
+    .from('workflow_executions')
+    .select('*, step_executions(*)')
+    .eq('id', executionId)
+    .single();
+}
+```
+
+**Benefits:**
+- **Reduced bandwidth:** Transfer only what's needed
+- **Faster UI rendering:** Smaller JSON payloads parse faster
+- **Lower memory usage:** Frontend stores less data
+- **Better UX:** List loads instantly, details load on-demand
+
+**How to Verify:**
+1. Check Network tab in browser dev tools
+2. Compare response sizes before/after optimization
+3. Monitor UI rendering time (Performance tab)
+4. Check backend query duration in Grafana traces
+
 ---
 
 ### Problem: Save Operation Hanging

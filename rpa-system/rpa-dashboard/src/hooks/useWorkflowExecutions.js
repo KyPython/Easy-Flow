@@ -29,6 +29,9 @@ export const useWorkflowExecutions = (workflowId) => {
       setError(null);
       // Ensure the real Supabase client is initialized before calling DB methods
       const client = await initSupabase();
+      // ✅ PERFORMANCE: Exclude input_data and output_data from list query
+      // These fields can be large JSON payloads - fetch them only when viewing details
+      // This reduces bandwidth, improves UI rendering speed, and reduces memory usage
       const { data, error: fetchError } = await client
         .from('workflow_executions')
         .select(`
@@ -38,8 +41,6 @@ export const useWorkflowExecutions = (workflowId) => {
           started_at,
           completed_at,
           duration_seconds,
-          input_data,
-          output_data,
           error_message,
           error_step_id,
           triggered_by,
@@ -222,14 +223,15 @@ export const useWorkflowExecutions = (workflowId) => {
   // Retry a failed execution
   const retryExecution = async (executionId) => {
     try {
-      // Get the original execution details
-      const originalExecution = executions.find(e => e.id === executionId);
+      // ✅ PERFORMANCE: Fetch full execution details to get input_data
+      // List view no longer includes input_data, so we fetch it on-demand for retry
+      const originalExecution = await getExecutionDetails(executionId);
       if (!originalExecution) {
         throw new Error('Execution not found');
       }
 
       // Start a new execution with the same input data
-      return await startExecution(originalExecution.input_data);
+      return await startExecution(originalExecution.input_data || {});
     } catch (err) {
       console.error('Error retrying execution:', err);
       throw err;
