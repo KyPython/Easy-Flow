@@ -306,10 +306,9 @@ function parseHeaders(headerString) {
 // Use a different port to avoid conflict with Prometheus (9090)
 // Prometheus will scrape from host.docker.internal:9091
 const PROMETHEUS_METRICS_PORT = process.env.PROMETHEUS_METRICS_PORT || 9091;
-const prometheusExporter = new PrometheusExporter({
-  port: PROMETHEUS_METRICS_PORT,
-  endpoint: '/metrics'
-});
+// Note: PrometheusExporter will be started after SDK initialization
+// to ensure it uses the SDK's MeterProvider
+let prometheusExporter;
 
 // ✅ OBSERVABILITY: Configure trace sampler with smart defaults
 // Uses ParentBasedSampler: preserves all traces initiated by sampled requests
@@ -643,6 +642,21 @@ try {
   
   sdk.start();
   
+  // Initialize Prometheus exporter AFTER SDK.start() to ensure it uses the SDK's MeterProvider
+  // The PrometheusExporter automatically uses the global MeterProvider from metrics.getMeterProvider()
+  try {
+    prometheusExporter = new PrometheusExporter({
+      port: PROMETHEUS_METRICS_PORT,
+      endpoint: '/metrics'
+    });
+    // The PrometheusExporter automatically starts a server when created
+    // It uses the global MeterProvider which is now set by the SDK
+    logger.info(`✅ [Telemetry] Prometheus metrics server started on port ${PROMETHEUS_METRICS_PORT}`);
+    logger.info(`✅ [Telemetry] Prometheus metrics endpoint: http://localhost:${PROMETHEUS_METRICS_PORT}/metrics`);
+  } catch (promError) {
+    logger.warn(`⚠️ [Telemetry] Prometheus exporter initialization failed: ${promError.message}`);
+  }
+  
   // ✅ PART 2.3: Verification - Print success message indicating OTEL Exporters are active
   logger.info('✅ [Telemetry] OpenTelemetry backend instrumentation initialized successfully');
   logger.info(`✅ [Telemetry] Service Name: ${serviceName}`);
@@ -652,6 +666,7 @@ try {
   logger.info(`✅ [Telemetry] OTLP Headers: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? 'CONFIGURED ✓' : '❌ MISSING - Traces will NOT reach Grafana!'}`);
   logger.info(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with ${(samplingRatio * 100).toFixed(0)}% sampling ratio`);
   logger.info(`✅ [Telemetry] Data Redaction: Active (Gap 14 - sensitive data removed)`);
+  logger.info(`✅ [Telemetry] Prometheus Metrics: http://localhost:${PROMETHEUS_METRICS_PORT}/metrics`);
   logger.info('✅ [Telemetry] OTEL Exporters: ACTIVE - Ready to stream to Grafana Cloud');
   
   // Create global SLO metrics provider
