@@ -122,36 +122,26 @@ const getExecutionDetails = async (executionId) => {
 
 **How to Trace These Queries in Tempo:**
 
-**1. Trace execution list queries (should be fast <500ms):**
+**1. Trace execution detail queries (GET /api/executions/:id):**
 ```
-{resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"} && !{http.target=~".*executions/[^/]+$"}
-```
-
-**What to look for:**
-- List query duration should be <500ms (optimized, excludes large JSON fields)
-- Database query spans should show fast index scans
-- No spans fetching `input_data` or `output_data` fields
-
-**2. Trace execution detail queries (may be slower, includes full data):**
-```
-{resource.service.name="rpa-system-backend"} && {http.target=~".*executions/[^/]+$"} && {http.method="GET"}
+{resource.service.name="rpa-system-backend"} && {http.target=~"/api/executions/[0-9a-f-]+$"} && {http.method="GET"}
 ```
 
 **What to look for:**
 - Detail query duration may be 500ms-2s (includes large JSON fields)
 - Should see spans fetching `input_data`, `output_data`, and `step_executions`
 - Database query spans will show fetching complete execution data
+- If very slow (>2s), check for N+1 queries or missing indexes on `step_executions`
 
-**3. Compare performance:**
+**2. Find slow execution detail queries (>1s):**
 ```
-{resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"}
+{resource.service.name="rpa-system-backend"} && {http.target=~"/api/executions/[0-9a-f-]+$"} && {http.method="GET"} && {duration>1s}
 ```
 
-**Expected results:**
-- List queries: Fast (<500ms), small payload
-- Detail queries: Slower (500ms-2s), complete data
-- If list queries are slow, check database indexes
-- If detail queries are very slow (>2s), check for N+1 queries or missing indexes on `step_executions`
+**Note:** List queries are fetched directly from Supabase by the frontend (not through backend API), so they won't appear in Tempo traces. To monitor list query performance:
+- Check browser Network tab for Supabase query duration
+- Monitor database query performance in Prometheus/Grafana
+- Check Loki logs for slow query warnings
 
 ---
 
@@ -346,30 +336,22 @@ Once you've identified the slow span, search logs for that operation:
 {resource.service.name="rpa-system-backend"} && {duration>5s}
 ```
 
-**6. Trace execution list queries (optimized list view):**
+**6. Trace execution detail queries (full detail view - GET /api/executions/:id):**
 ```
-{resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"} && !{http.target=~".*executions/[^/]+$"}
-```
-
-**7. Trace execution detail queries (full detail view):**
-```
-{resource.service.name="rpa-system-backend"} && {http.target=~".*executions/[^/]+$"} && {http.method="GET"}
+{resource.service.name="rpa-system-backend"} && {http.target=~"/api/executions/[0-9a-f-]+$"} && {http.method="GET"}
 ```
 
-**8. Compare list vs detail query performance:**
+**7. Find all execution-related API calls:**
 ```
 {resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"}
 ```
 
-**9. Find slow execution list queries (>500ms):**
+**8. Find slow execution detail queries (>1s):**
 ```
-{resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"} && !{http.target=~".*executions/[^/]+$"} && {duration>500ms}
+{resource.service.name="rpa-system-backend"} && {http.target=~"/api/executions/[0-9a-f-]+$"} && {http.method="GET"} && {duration>1s}
 ```
 
-**10. Find slow execution detail queries (>1s):**
-```
-{resource.service.name="rpa-system-backend"} && {http.target=~".*executions/[^/]+$"} && {http.method="GET"} && {duration>1s}
-```
+**Note:** List queries are fetched directly from Supabase by the frontend (not through backend API), so they won't appear in Tempo traces. Only detail queries (`GET /api/executions/:id`) will show up here.
 
 **6. Find workflow execution traces:**
 ```
