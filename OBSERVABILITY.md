@@ -313,6 +313,31 @@ Once you've identified the slow span, search logs for that operation:
 {resource.service.name="rpa-system-backend"} && {duration>5s}
 ```
 
+**6. Trace execution list queries (optimized list view):**
+```
+{resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"} && !{http.target=~".*executions/[^/]+$"}
+```
+
+**7. Trace execution detail queries (full detail view):**
+```
+{resource.service.name="rpa-system-backend"} && {http.target=~".*executions/[^/]+$"} && {http.method="GET"}
+```
+
+**8. Compare list vs detail query performance:**
+```
+{resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"}
+```
+
+**9. Find slow execution list queries (>500ms):**
+```
+{resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"} && !{http.target=~".*executions/[^/]+$"} && {duration>500ms}
+```
+
+**10. Find slow execution detail queries (>1s):**
+```
+{resource.service.name="rpa-system-backend"} && {http.target=~".*executions/[^/]+$"} && {http.method="GET"} && {duration>1s}
+```
+
 **6. Find workflow execution traces:**
 ```
 {resource.service.name="rpa-system-backend"} && {name=~".*workflow.*execute.*"}
