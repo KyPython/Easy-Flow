@@ -144,7 +144,129 @@ Then search automation worker logs for that `traceId`:
 {job="easyflow-automation"} |= "bb1a1d6a689ba82b693ec04794a0c102"
 ```
 
-If **no results**, the trace context isn't propagating to the worker → Kafka headers issue.
+**If no results found** → Trace context isn't propagating to the worker. This means the trace ID isn't being passed through Kafka headers.
+
+### Troubleshooting: Trace ID Not Found in Automation Logs
+
+**Problem:** You found a trace ID in backend logs but it doesn't appear in automation worker logs.
+
+**What this means:**
+- Backend created a trace ✅
+- Backend published message to Kafka ✅
+- **But**: Trace context (trace ID, span ID) wasn't included in Kafka message headers ❌
+- Worker can't correlate its logs with the backend trace ❌
+
+**Step-by-Step Fix:**
+
+#### 1. Verify Kafka Message Headers
+Check if trace context is in Kafka headers:
+```bash
+# Check Kafka topic for recent messages
+docker exec -it easy-flow-kafka-1 kafka-console-consumer \
+  --bootstrap-server localhost:9092 \
+  --topic automation-tasks \
+  --from-beginning \
+  --max-messages 1 \
+  --property print.headers=true
+```
+
+**Look for headers like:**
+```
+__headers__: traceparent=00-<trace-id>-<span-id>-01
+```
+
+**If headers are missing:**
+- Backend isn't injecting trace context into Kafka messages
+- Check: `rpa-system/backend/utils/kafkaService.js` - should use OpenTelemetry propagation
+
+#### 2. Check Backend Kafka Producer Code
+Verify backend is using OpenTelemetry context propagation:
+
+```javascript
+// ✅ CORRECT - Uses OpenTelemetry propagation
+const { propagation, context } = require('@opentelemetry/api');
+const headers = {};
+propagation.inject(context.active(), headers);
+await producer.send({
+  topic: 'automation-tasks',
+  messages: [{
+    value: JSON.stringify(message),
+    headers: headers  // ← Trace context in headers
+  }]
+});
+
+// ❌ WRONG - No trace context
+await producer.send({
+  topic: 'automation-tasks',
+  messages: [{ value: JSON.stringify(message) }]  // ← Missing headers
+});
+```
+
+#### 3. Check Automation Worker Consumer Code
+Verify worker extracts trace context from Kafka headers:
+
+```python
+# ✅ CORRECT - Extracts trace context
+from opentelemetry import trace, propagation
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+propagator = TraceContextTextMapPropagator()
+headers = {k: v for k, v in message.headers}  # Convert Kafka headers to dict
+ctx = propagator.extract(headers)  # Extract trace context
+
+with trace.use_span(trace.get_tracer(__name__).start_span("workflow.execute", context=ctx)):
+    # Worker code here - will inherit trace context
+    logger.info("Processing workflow", extra={"trace_id": trace.get_current_span().get_span_context().trace_id})
+```
+
+#### 4. Verify Trace Context Propagation
+After fixing code, test end-to-end:
+
+1. **Execute a workflow** via frontend
+2. **Get trace ID from backend logs:**
+   ```logql
+   {job="easyflow-backend"} |= "execution_id" |= "<your-execution-id>"
+   ```
+   Copy the `traceId` from the log
+
+3. **Search automation logs for same trace ID:**
+   ```logql
+   {job="easyflow-automation"} |= "<trace-id>"
+   ```
+
+4. **If still not found:**
+   - Check Kafka message headers (step 1)
+   - Verify backend producer code (step 2)
+   - Verify worker consumer code (step 3)
+   - Check worker logs for Kafka connection errors
+
+#### 5. Check Tempo for Complete Trace
+Even if logs don't show trace ID, check Tempo for the trace:
+
+In Grafana Explore → Tempo datasource:
+```
+{service.name="rpa-system-backend"} && name=~"workflow.execute.*"
+```
+
+**If trace shows backend span but no worker span:**
+- Worker isn't creating spans
+- Worker isn't extracting trace context from Kafka
+- Worker spans aren't being exported to Tempo
+
+**If trace shows both backend and worker spans:**
+- Trace context IS propagating ✅
+- Issue is only in logging (worker not logging trace ID)
+- Check worker logging code to include trace context
+
+#### 6. Common Issues and Fixes
+
+| Issue | Symptom | Fix |
+|-------|---------|-----|
+| **No Kafka headers** | Backend trace exists, worker trace doesn't | Add `propagation.inject()` in backend Kafka producer |
+| **Worker not extracting** | Headers exist but worker doesn't use them | Add `propagation.extract()` in worker Kafka consumer |
+| **Worker not logging trace ID** | Trace exists in Tempo but not in logs | Update worker logger to include trace context |
+| **Kafka connection issues** | Worker can't connect to Kafka | Check Kafka is running, worker can reach Kafka |
+| **Different trace IDs** | Backend and worker have different trace IDs | Ensure worker extracts context from Kafka headers, doesn't create new trace |
 
 ---
 

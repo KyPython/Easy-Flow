@@ -508,7 +508,12 @@ def kafka_consumer_loop():
                             # Extract remote trace context from headers
                             remote_context = propagate.extract(carrier=header_dict)
                             
-                            logger.debug(f"📨 Extracted trace context from Kafka headers for task: {task_id}")
+                            # Log trace ID for correlation (INFO level so it's searchable in Loki)
+                            if header_dict.get('traceparent') or header_dict.get('x-trace-id'):
+                                trace_id_from_header = header_dict.get('x-trace-id') or (header_dict.get('traceparent', '').split('-')[1] if len(header_dict.get('traceparent', '').split('-')) > 1 else 'unknown')
+                                logger.info(f"📨 Extracted trace context from Kafka headers for task: {task_id}, trace_id: {trace_id_from_header}")
+                            else:
+                                logger.warning(f"⚠️ No trace context found in Kafka headers for task: {task_id}")
                         
                         # ✅ INSTRUCTION 2: Start consumer span with extracted context as parent
                         if OTEL_AVAILABLE and tracer is not None:
