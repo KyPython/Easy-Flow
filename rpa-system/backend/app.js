@@ -127,7 +127,7 @@ if (process.env.NODE_ENV !== 'production') {
     parsed_allowed_origins: ALLOWED_ORIGINS,
     NODE_ENV: process.env.NODE_ENV,
   });
-  console.log('🔧 CORS Configuration:', {
+  logger.debug('🔧 CORS Configuration:', {
     ALLOWED_ORIGINS,
     DEFAULT_DEV_ORIGINS,
     NODE_ENV: process.env.NODE_ENV
@@ -155,9 +155,11 @@ const corsOptions = {
     
     // Debug: Log why origin was rejected
     if (process.env.NODE_ENV !== 'production') {
-      console.log('🔍 CORS: Checking origin:', origin);
-      console.log('🔍 CORS: Allowed origins:', ALLOWED_ORIGINS);
-      console.log('🔍 CORS: Origin in list?', ALLOWED_ORIGINS.includes(origin));
+      logger.debug('🔍 CORS: Checking origin', { 
+        origin, 
+        allowed_origins: ALLOWED_ORIGINS,
+        origin_allowed: ALLOWED_ORIGINS.includes(origin)
+      });
     }
 
     // Suffix-based allow (e.g., preview deployments like *.vercel.app)

@@ -6,14 +6,10 @@ const { logger, getLogger } = require('./utils/logger');
 // All telemetry flows through OpenTelemetry -> OTEL Collector -> Prometheus/Tempo/Grafana
 if (process.env.DISABLE_TELEMETRY !== 'true') {
   try {
-    console.log('[server] Initializing OpenTelemetry...');
+    logger.info('[server] Initializing OpenTelemetry...');
     require('./middleware/telemetryInit');
-    console.log('[server] ✅ OpenTelemetry initialized successfully');
     logger.info('[server] ✅ OpenTelemetry initialized - traces flowing to Tempo, metrics to Prometheus');
   } catch (e) {
-    console.error('[server] ❌ OpenTelemetry initialization FAILED:');
-    console.error('[server] Error:', e.message);
-    console.error('[server] Stack:', e.stack);
     logger.error('[server] ❌ OpenTelemetry initialization failed - observability disabled', {
       error: e?.message,
       stack: e?.stack,
@@ -21,7 +17,6 @@ if (process.env.DISABLE_TELEMETRY !== 'true') {
     });
   }
 } else {
-  console.log('[server] Telemetry disabled via DISABLE_TELEMETRY=true');
   logger.info('[server] Telemetry disabled via DISABLE_TELEMETRY=true');
 }
 
@@ -46,14 +41,12 @@ if (require.main === module) {
   // timeout errors for the first user request.
   (async () => {
     try {
-      console.log('[server] Starting database warm-up process...');
       logger.info('[server] Starting database warm-up process...');
       
       const { getSupabase } = require('./utils/supabaseClient');
       const supabase = getSupabase();
       
       if (supabase) {
-        console.log('[server] Warming up database connection before accepting requests...');
         logger.info('[server] Warming up database connection before accepting requests...');
         
         // Simple, fast query to wake up the database connection
@@ -64,33 +57,35 @@ if (require.main === module) {
           .limit(1);
         
         if (error) {
-          console.error('[server] ❌ Database warm-up failed - server will not start');
-          console.error('[server] Database error:', error.message);
-          logger.error('[server] ❌ Database warm-up failed - server will not start');
-          logger.error('[server] Database error:', error.message);
+          logger.error('[server] ❌ Database warm-up failed - server will not start', {
+            error: error.message,
+            code: error.code,
+            details: error.details
+          });
           process.exit(1); // Fail loudly - don't start in broken state
         }
         
-        console.log('[server] ✅ Database warm-up completed - connection ready');
         logger.info('[server] ✅ Database warm-up completed - connection ready');
       } else {
-        console.warn('[server] ⚠️ Supabase not configured - skipping database warm-up');
         logger.warn('[server] ⚠️ Supabase not configured - skipping database warm-up');
       }
       
       // Start server only after database is ready (or confirmed not needed)
       app.listen(PORT, HOST, () => {
-        console.log(`[server] EasyFlow backend listening on http://${HOST}:${PORT}`);
-        console.log(`[server] Ready to accept requests - database connection established`);
-        logger.info(`[server] EasyFlow backend listening on http://${HOST}:${PORT}`);
+        logger.info(`[server] EasyFlow backend listening on http://${HOST}:${PORT}`, {
+          port: PORT,
+          host: HOST,
+          environment: process.env.NODE_ENV || 'development'
+        });
         logger.info(`[server] Ready to accept requests - database connection established`);
       });
       
     } catch (error) {
-      console.error('[server] ❌ Failed to start server:', error);
-      console.error('[server] Database connection failed - server will not start');
-      logger.fatal('[server] ❌ Failed to start server:', error);
-      logger.fatal('[server] Database connection failed - server will not start');
+      logger.fatal('[server] ❌ Failed to start server', {
+        error: error?.message || String(error),
+        stack: error?.stack,
+        code: error?.code
+      });
       process.exit(1); // Fail loudly - don't start in broken state
     }
   })();

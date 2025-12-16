@@ -1049,6 +1049,37 @@ docker logs -f easy-flow-kafka-1
 
 **Note:** Infrastructure logs are typically less critical for application debugging. Focus on application logs (backend, frontend, automation worker) which are fully integrated.
 
+### ✅ Complete Log Integration Status
+
+**All application logs are integrated into Loki via Promtail:**
+
+| Log Source | File Pattern | Promtail Job | Status | Format |
+|------------|--------------|--------------|--------|--------|
+| Backend (stdout) | `backend.log` | `easyflow-backend` | ✅ Integrated | JSON (structured) |
+| Backend (stderr) | `backend-error.log` | `easyflow-backend-errors` | ✅ Integrated | JSON (structured) |
+| Frontend (stdout) | `frontend.log` | `easyflow-frontend` | ✅ Integrated | Text |
+| Frontend (stderr) | `frontend-error.log` | `easyflow-frontend-errors` | ✅ Integrated | Text |
+| Automation Worker | `automation-worker.log` | `easyflow-automation` | ✅ Integrated | Text (timestamped) |
+
+**Structured Logging:**
+- ✅ Backend uses Pino logger (JSON output)
+- ✅ All `console.log` statements replaced with structured logger
+- ✅ Automatic trace context injection
+- ✅ Log sampling configured (reduces noise)
+- ✅ Error logs always captured (100% sampling)
+
+**Log Flow:**
+```
+Application → PM2 → Log Files → Promtail → Loki → Grafana Explore
+```
+
+**Verification:**
+- All logs written to `/Users/ky/Easy-Flow/logs/`
+- Promtail mounts logs directory at `/app/logs/`
+- Promtail scrapes all log patterns configured
+- Loki receives logs from Promtail
+- Grafana Explore can query all logs
+
 ### Verifying Log Integration
 
 **Check if logs are flowing to Loki:**
