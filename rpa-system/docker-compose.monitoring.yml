@@ -136,6 +136,26 @@ services:
       timeout: 10s
       retries: 3
 
+  # Promtail - Log shipper to Loki
+  promtail:
+    image: grafana/promtail:latest
+    container_name: easyflow-promtail
+    volumes:
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ../../logs:/app/logs:ro  # Mount logs directory from project root
+      - promtail-positions:/tmp
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - easyflow-monitoring
+    restart: unless-stopped
+    depends_on:
+      - loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9080/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Alertmanager - SLO alert routing and notification
   alertmanager:
     image: prom/alertmanager:v0.26.0
@@ -169,4 +189,6 @@ volumes:
   tempo-data:
     driver: local
   loki-data:
+    driver: local
+  promtail-positions:
     driver: local

@@ -68,14 +68,15 @@ cd rpa-system/monitoring
 # Clean up any existing monitoring containers
 docker-compose -f docker-compose.monitoring.yml down 2>/dev/null || true
 # Remove stale containers that may conflict
-docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
+docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
 docker-compose -f docker-compose.monitoring.yml up -d
 cd ../..
 sleep 5
 echo -e "${GREEN}✓ Observability stack started${NC}"
 echo "  Grafana:        http://localhost:3001 (admin/admin123)"
 echo "  Prometheus:     http://localhost:9090"
-echo "  Loki:           http://localhost:3100"
+echo "  Loki:           http://localhost:3100 (logs)"
+echo "  Promtail:       http://localhost:9080 (log shipper)"
 echo "  Tempo:          http://localhost:3200"
 echo "  OTEL Collector: http://localhost:4318 (HTTP) / 4317 (gRPC)"
 
@@ -194,10 +195,13 @@ echo "Infrastructure:"
 echo "  Kafka:            localhost:9092"
 echo ""
 echo "Observability:"
-echo "  Grafana:          http://localhost:3001 (admin/admin)"
+echo "  Grafana:          http://localhost:3001 (admin/admin123)"
 echo "  Prometheus:       http://localhost:9090"
-echo "  Loki:             http://localhost:3100"
+echo "  Loki:             http://localhost:3100 (logs)"
+echo "  Promtail:         http://localhost:9080 (log shipper)"
 echo "  Backend Metrics:  http://localhost:9091/metrics"
+echo ""
+echo "  All logs are automatically shipped to Loki and visible in Grafana"
 echo ""
 echo "Logs (PM2):"
 echo "  All services:     pm2 logs"

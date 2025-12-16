@@ -61,7 +61,7 @@ cd rpa-system/monitoring 2>/dev/null || cd ../rpa-system/monitoring 2>/dev/null 
 if [ -f docker-compose.monitoring.yml ]; then
     docker-compose -f docker-compose.monitoring.yml down 2>/dev/null && echo -e "${GREEN}✓ Observability stack stopped${NC}" || echo -e "${YELLOW}⚠ Could not stop observability stack${NC}"
     # Also remove any stale containers (all monitoring services)
-    docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
+    docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
 else
     echo -e "${YELLOW}⚠ Monitoring compose file not found${NC}"
 fi

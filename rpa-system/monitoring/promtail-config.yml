@@ -19,7 +19,7 @@ scrape_configs:
       job: easyflow-backend
       service: rpa-system-backend
       environment: development
-      __path__: /app/logs/backend.log
+      __path__: /app/logs/backend*.log
   
   pipeline_stages:
   # Parse JSON logs from backend
@@ -56,7 +56,7 @@ scrape_configs:
       job: easyflow-frontend
       service: rpa-system-frontend
       environment: development
-      __path__: /app/logs/frontend.log
+      __path__: /app/logs/frontend*.log
 
 # Automation worker logs (Python with prefixes)
 - job_name: easyflow-automation
@@ -67,7 +67,50 @@ scrape_configs:
       job: easyflow-automation
       service: automation-worker
       environment: development
-      __path__: /app/logs/automation-worker.log
+      __path__: /app/logs/automation-worker*.log
+
+# Backend error logs
+- job_name: easyflow-backend-errors
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      job: easyflow-backend-errors
+      service: rpa-system-backend
+      environment: development
+      log_level: error
+      __path__: /app/logs/backend-error*.log
+  
+  pipeline_stages:
+  # Parse JSON error logs
+  - json:
+      expressions:
+        level: level
+        msg: msg
+        time: time
+        service: service
+        error: error
+        stack: stack
+  - labels:
+      level:
+      service:
+  - timestamp:
+      source: time
+      format: Unix
+  - output:
+      source: msg
+
+# Frontend error logs
+- job_name: easyflow-frontend-errors
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      job: easyflow-frontend-errors
+      service: rpa-system-frontend
+      environment: development
+      log_level: error
+      __path__: /app/logs/frontend-error*.log
   
   pipeline_stages:
   # Match lines with [automation] or [automation:err] prefix
