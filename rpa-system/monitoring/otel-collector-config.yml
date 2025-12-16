@@ -143,6 +143,13 @@ exporters:
     endpoint: "0.0.0.0:8890"
     namespace: "traces"
 
+  # Tempo exporter for distributed tracing
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+    # Send traces to Tempo via gRPC (Tempo's OTLP gRPC endpoint on port 4317)
+
   # Debug exporter for development
   debug:
     verbosity: basic
@@ -164,7 +171,7 @@ service:
       receivers: [otlp]
       processors:
         [memory_limiter, resourcedetection, transform, spanmetrics, batch]
-      exporters: [debug]
+      exporters: [otlp/tempo, debug]
 
     # Metrics pipeline for SLO data
     metrics:

@@ -101,7 +101,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, resourcedetection, spanmetrics, batch]
-      exporters: [debug]
+      exporters: [otlp/tempo, debug]
 
     # Metrics pipeline for SLO data
     metrics:
