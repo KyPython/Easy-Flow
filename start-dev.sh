@@ -30,9 +30,13 @@ echo -e "${YELLOW}Stopping existing PM2 processes...${NC}"
 pm2 delete all 2>/dev/null || true
 
 # Ensure critical ports are free (prevent address in use errors)
-lsof -ti:7070 | xargs kill -9 2>/dev/null || true
-lsof -ti:3030 | xargs kill -9 2>/dev/null || true
-lsof -ti:7001 | xargs kill -9 2>/dev/null || true
+echo -e "${YELLOW}Freeing up critical ports...${NC}"
+for port in 3000 3030 7070 7001 9091; do
+    if lsof -ti:$port > /dev/null 2>&1; then
+        lsof -ti:$port | xargs kill -9 2>/dev/null || true
+        echo -e "${GREEN}✓ Freed port $port${NC}"
+    fi
+done
 sleep 1
 
 # Stop Docker frontend container if running (it uses port 3000)
@@ -58,20 +62,21 @@ echo -e "${YELLOW}Initializing Kafka topics...${NC}"
   echo -e "${YELLOW}  Topics will be auto-created on first use${NC}"
 }
 
-# Start Observability Stack (Prometheus, Grafana, Loki, Promtail, Tempo, OTEL Collector)
+# Start Observability Stack (Prometheus, Grafana, Loki, Tempo, OTEL Collector, Alertmanager)
 echo -e "${YELLOW}Starting Observability Stack...${NC}"
 cd rpa-system/monitoring
 # Clean up any existing monitoring containers
 docker-compose -f docker-compose.monitoring.yml down 2>/dev/null || true
 # Remove stale containers that may conflict
-docker rm -f easyflow-alertmanager 2>/dev/null || true
+docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
 docker-compose -f docker-compose.monitoring.yml up -d
 cd ../..
 sleep 5
 echo -e "${GREEN}✓ Observability stack started${NC}"
-echo "  Grafana:        http://localhost:3001 (admin/admin)"
+echo "  Grafana:        http://localhost:3001 (admin/admin123)"
 echo "  Prometheus:     http://localhost:9090"
 echo "  Loki:           http://localhost:3100"
+echo "  Tempo:          http://localhost:3200"
 echo "  OTEL Collector: http://localhost:4318 (HTTP) / 4317 (gRPC)"
 
 # Get absolute path for logs to avoid PM2 cwd resolution issues

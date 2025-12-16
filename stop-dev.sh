@@ -60,8 +60,8 @@ ORIG_DIR=$(pwd)
 cd rpa-system/monitoring 2>/dev/null || cd ../rpa-system/monitoring 2>/dev/null || true
 if [ -f docker-compose.monitoring.yml ]; then
     docker-compose -f docker-compose.monitoring.yml down 2>/dev/null && echo -e "${GREEN}✓ Observability stack stopped${NC}" || echo -e "${YELLOW}⚠ Could not stop observability stack${NC}"
-    # Also remove any stale containers
-    docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager easyflow-node-exporter easyflow-cadvisor 2>/dev/null || true
+    # Also remove any stale containers (all monitoring services)
+    docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
 else
     echo -e "${YELLOW}⚠ Monitoring compose file not found${NC}"
 fi
@@ -74,7 +74,7 @@ echo ""
 echo -e "${YELLOW}Verifying critical ports are free...${NC}"
 
 PORTS_OK=true
-for port in 3000 3030 7070 9090 3001 3100; do
+for port in 3000 3030 7070 9090 3001 3100 3200 4317 4318 9091; do
     if lsof -i :$port | grep LISTEN > /dev/null 2>&1; then
         echo -e "${RED}✗ Port $port still in use${NC}"
         PORTS_OK=false
