@@ -1,6 +1,6 @@
 # EasyFlow Observability Debugging Guide
 
-**📌 Your guide to debugging the app using observability tools**
+**📌 Your step-by-step guide to debugging the app using observability tools**
 
 ---
 
@@ -19,814 +19,129 @@ Your observability stack gives you **three superpowers** to debug your applicati
 
 ---
 
-## ⚡ Performance Troubleshooting
+## Step 1: Start the Observability Stack
 
-### Problem: "Query timeout" Errors
+**Before you can debug, you need the observability stack running:**
 
-**Symptom:** Frontend shows "Query timeout" when loading workflows, especially on first load. Refresh fixes it.
-
-**Root Causes:**
-1. **Missing database indexes** - Slow queries without proper indexes
-2. **Database cold start** - Supabase serverless instances pause when inactive
-
-**Solution 1: Add Database Indexes**
-
-Run the migration: `rpa-system/backend/migrations/add_performance_indexes.sql`
-
-**Verify indexes were created:**
-```sql
-SELECT indexname, indexdef 
-FROM pg_indexes 
-WHERE tablename = 'workflows' 
-ORDER BY indexname;
-```
-
-**Test query performance:**
-```sql
-EXPLAIN ANALYZE
-SELECT * FROM workflows 
-WHERE user_id = '<test-user-id>'
-ORDER BY updated_at DESC;
-```
-
-**Before indexes:** Should show "Seq Scan" (slow)  
-**After indexes:** Should show "Index Scan" (fast)
-
-**Solution 2: Database Warm-Up (Cold Start Fix)**
-
-**Problem:** Supabase free tier pauses inactive databases. First request after inactivity times out while database wakes up (5-15 seconds).
-
-**Solution:** Database warm-up blocks server startup until database is ready.
-
-**How to verify it's working:**
-- Check backend logs for `[DatabaseWarmup]` messages
-- Monitor database query duration metrics in Grafana
-- Watch for timeout errors in Loki logs
-
-**Monitoring:**
-- Check backend logs for `[DatabaseWarmup]` messages
-- Monitor database query duration metrics in Grafana
-- Watch for timeout errors in Loki logs
-
-### Problem: Slow UI Rendering Due to Data Over-Fetching
-
-**Symptom:** API calls are fast (25ms backend time), but UI feels sluggish, especially on slower networks. Browser dev tools show large response payloads.
-
-**Root Cause:** Fetching large JSON fields (`input_data`, `output_data`) for list views when they're not immediately displayed.
-
-**Solution: Split List and Detail Queries**
-
-**Optimized Approach:**
-1. **List Query** - Fetch only fields needed for the list view (exclude `input_data`, `output_data`)
-2. **Detail Query** - Fetch full data only when user clicks to view details
-
-**Example Optimization:**
-
-**Before (Inefficient):**
-```javascript
-// Fetching 100 executions with large JSON fields
-.select(`
-  id, status, started_at, input_data, output_data, ...
-`)
-```
-
-**After (Optimized):**
-```javascript
-// List query - exclude large fields
-.select(`
-  id, status, started_at, error_message, steps_executed, ...
-  // input_data and output_data excluded
-`)
-
-// Detail query - fetch full data on-demand
-const getExecutionDetails = async (executionId) => {
-  return await client
-    .from('workflow_executions')
-    .select('*, step_executions(*)')
-    .eq('id', executionId)
-    .single();
-}
-```
-
-**Benefits:**
-- **Reduced bandwidth:** Transfer only what's needed
-- **Faster UI rendering:** Smaller JSON payloads parse faster
-- **Lower memory usage:** Frontend stores less data
-- **Better UX:** List loads instantly, details load on-demand
-
-**How to Verify:**
-1. Check Network tab in browser dev tools
-2. Compare response sizes before/after optimization
-3. Monitor UI rendering time (Performance tab)
-4. Check backend query duration in Grafana traces
-
-**How to Trace These Queries in Tempo:**
-
-**1. Trace execution detail queries (GET /api/executions/:id):**
-```
-{resource.service.name="rpa-system-backend"} && {name=~"GET /api/executions/.*"}
-```
-
-**What to look for:**
-- Detail query duration may be 500ms-2s (includes large JSON fields)
-- Should see spans fetching `input_data`, `output_data`, and `step_executions`
-- Database query spans will show fetching complete execution data
-- If very slow (>2s), check for N+1 queries or missing indexes on `step_executions`
-
-**2. Find slow execution detail queries (>1s):**
-```
-{resource.service.name="rpa-system-backend"} && {name=~"GET /api/executions/.*"} && {duration>1s}
-```
-
-**Note:** List queries are fetched directly from Supabase by the frontend (not through backend API), so they won't appear in Tempo traces. To monitor list query performance:
-- Check browser Network tab for Supabase query duration
-- Monitor database query performance in Prometheus/Grafana
-- Check Loki logs for slow query warnings
-
----
-
-### Problem: Save Operation Hanging
-
-**Symptom:** Workflow save operations (PATCH/PUT `/api/workflows/:id`) hang or take very long to complete, even after cold start is fixed.
-
-**Root Cause:** The bottleneck is likely in one of these areas:
-1. **Database queries** - Slow UPDATE/INSERT operations
-2. **Synchronous validation** - Complex validation logic blocking the request
-3. **Nested operations** - Multiple sequential database calls
-
-**Solution: Use Distributed Tracing to Find the Bottleneck**
-
-#### Step 1: Trigger the Slow Save
-
-1. **Open browser developer tools:**
-   - Press `F12` or right-click → Inspect
-   - Go to the **Network** tab
-   - Filter by "XHR" or "Fetch"
-
-2. **Save your workflow:**
-   - Make a change in the Workflow Builder
-   - Click "Save"
-   - Watch for the PATCH/PUT request to `/api/workflows/:id`
-
-3. **Note the request details:**
-   - Request URL (contains workflow ID)
-   - Request start time
-   - Duration (if it completes)
-
-#### Step 2: Find the Trace in Grafana
-
-**Option A: Via Tempo Explore (Recommended)**
-
-1. **Open Grafana:** http://localhost:3001
-2. **Go to Explore** → Select **Tempo** datasource
-3. **Use the visual query builder or TraceQL:**
-
-   **Visual Query Builder:**
-   - **Resource Service Name:** `rpa-system-backend`
-   - **Span Name:** Leave empty or use `*workflows*` pattern
-   - **Duration:** Set `> 1s` to find slow requests
-   - Click **Run query**
-
-   **Or use TraceQL directly:**
-   ```
-   {resource.service.name="rpa-system-backend"} && {name=~".*workflows.*"}
-   ```
-   
-   **For slow saves specifically:**
-   ```
-   {resource.service.name="rpa-system-backend"} && {name=~".*workflows.*"} && {duration>2s}
-   ```
-   
-   **For PATCH/PUT requests:**
-   ```
-   {resource.service.name="rpa-system-backend"} && {name=~"(PATCH|PUT) /api/workflows/.*"}
-   ```
-
-4. **Filter by time range:**
-   - Set time range to include when you clicked "Save"
-   - Look for traces with long duration
-
-5. **Click on a trace** to see the span breakdown
-
-**Option B: Via Backend Metrics Dashboard**
-
-1. **Open Grafana:** http://localhost:3001
-2. **Navigate to:** Dashboards → Backend Metrics Dashboard
-3. **Look at "Latency Heatmap"** panel
-4. **Find the slow request** around the time you saved
-5. **Click on the request** to view its trace (if linked)
-
-#### Step 3: Analyze the Trace
-
-**What to Look For:**
-
-The trace will show a parent span like `PATCH /api/workflows/:id` with child spans underneath. Look for the **longest span**:
-
-**If the longest span is:**
-- **`db.query` or `db.update`** → Database is the bottleneck
-  - **Solution:** Check database indexes, query optimization
-  - **Check:** Are you updating multiple tables sequentially?
-  - **Check:** Are you doing complex JOINs or subqueries?
-
-- **`workflow.validate` or custom validation span** → Validation logic is slow
-  - **Solution:** Optimize validation, make it async if possible
-  - **Check:** Are you validating against external services?
-  - **Check:** Are you doing expensive computations?
-
-- **`workflow.save` or `workflow.update`** → The save operation itself
-  - **Solution:** Check what's inside this span - look at its child spans
-  - **Check:** Are you saving steps/connections individually?
-  - **Check:** Are you doing versioning or audit logging synchronously?
-
-**Example Trace Analysis:**
-
-```
-PATCH /api/workflows/:id (total: 5.2s)
-├── authMiddleware (0.01s) ✅ Fast
-├── workflow.validate (0.05s) ✅ Fast
-├── db.update workflows (0.1s) ✅ Fast
-├── db.update workflow_steps (4.8s) ❌ SLOW!
-│   ├── db.delete old steps (2.1s)
-│   └── db.insert new steps (2.7s)
-└── db.update workflow_connections (0.2s) ✅ Fast
-```
-
-**In this example:** The bottleneck is updating `workflow_steps` - likely doing individual DELETE/INSERT operations instead of batch operations.
-
-#### Step 4: Check Logs for More Context
-
-Once you've identified the slow span, search logs for that operation:
-
-```logql
-# Find logs for the workflow save operation
-{job="easyflow-backend"} |= "workflow" |= "save" |= "<workflow-id>"
-
-# Or search by trace ID (from the trace you found)
-{job="easyflow-backend"} |= "<trace-id>"
-```
-
-**Look for:**
-- Database query logs showing slow queries
-- Validation errors or warnings
-- Any error messages that might indicate the problem
-
-#### Step 5: Common Fixes
-
-**If Database is Slow:**
-1. **Check indexes:**
-   ```sql
-   -- Check if workflow_steps has indexes on workflow_id
-   SELECT indexname, indexdef 
-   FROM pg_indexes 
-   WHERE tablename = 'workflow_steps';
-   ```
-
-2. **Use batch operations:**
-   - Instead of individual DELETE/INSERT, use `upsert` or batch operations
-   - Example: Use Supabase's `.upsert()` instead of `.delete().insert()`
-
-3. **Optimize queries:**
-   - Use transactions to batch multiple operations
-   - Avoid N+1 queries (querying inside loops)
-
-**If Validation is Slow:**
-1. **Make validation async:**
-   - Move expensive validation to background jobs
-   - Return success immediately, validate later
-
-2. **Cache validation results:**
-   - Cache expensive validation checks
-   - Only re-validate when data changes
-
-**If Save Operation is Slow:**
-1. **Batch database operations:**
-   - Save all steps in one transaction
-   - Use bulk INSERT/UPDATE operations
-
-2. **Move non-critical work to background:**
-   - Versioning, audit logging, notifications
-   - Don't block the save response
-
-#### Quick Query Reference
-
-**Copy these queries directly into Grafana Explore → Tempo query box:**
-
-**1. Find ALL traces from backend (start here if you see "No data"):**
-```
-{resource.service.name="rpa-system-backend"}
-```
-
-**2. Find slow workflow saves (>2 seconds):**
-```
-{resource.service.name="rpa-system-backend"} && {name=~".*workflows.*"} && {duration>2s}
-```
-
-**3. Find PATCH/PUT requests to workflows:**
-```
-{resource.service.name="rpa-system-backend"} && {name=~"(PATCH|PUT) /api/workflows/.*"}
-```
-
-**4. Find slow database operations:**
-```
-{resource.service.name="rpa-system-backend"} && {name=~"db\\.(query|update|insert|delete)"} && {duration>1s}
-```
-
-**5. Find all slow requests (>5s):**
-```
-{resource.service.name="rpa-system-backend"} && {duration>5s}
-```
-
-**6. Trace execution detail queries (full detail view - GET /api/executions/:id):**
-```
-{resource.service.name="rpa-system-backend"} && {name=~".*executions.*"}
-```
-
-**Alternative (if above doesn't work, try these):**
-```
-{resource.service.name="rpa-system-backend"} && {name=~"GET.*executions"}
-```
-```
-{resource.service.name="rpa-system-backend"} && {name=~"/api/executions"}
-```
-
-**7. Find all execution-related API calls:**
-```
-{resource.service.name="rpa-system-backend"} && {name=~".*executions.*"}
-```
-
-**8. Find slow execution detail queries (>1s):**
-```
-{resource.service.name="rpa-system-backend"} && {name=~".*executions.*"} && {duration>1s}
-```
-
-**Troubleshooting "0 series returned":**
-1. **First, verify traces exist at all:**
-   ```
-   {resource.service.name="rpa-system-backend"}
-   ```
-   If this returns nothing, traces aren't reaching Tempo.
-
-2. **Check if you made a request recently:**
-   - Open your app and click "View Details" on an execution
-   - Wait 5-10 seconds for traces to be exported
-   - Set time range to "Last 15 minutes" in Grafana
-
-3. **See all available span names:**
-   ```
-   {resource.service.name="rpa-system-backend"}
-   ```
-   Then click on a trace to see the actual span names being created.
-
-4. **Check backend logs for trace generation:**
+**Start everything (recommended):**
 ```bash
-   tail -f logs/backend.log | grep -i "execution\|trace"
-   ```
-
-**Note:** List queries are fetched directly from Supabase by the frontend (not through backend API), so they won't appear in Tempo traces. Only detail queries (`GET /api/executions/:id`) will show up here.
-
-**6. Find workflow execution traces:**
-```
-{resource.service.name="rpa-system-backend"} && {name=~".*workflow.*execute.*"}
-```
-
-**7. Find errors (HTTP 5xx):**
-```
-{resource.service.name="rpa-system-backend"} && {http.status_code>=500}
-```
-
-**8. Find recent traces (last hour):**
-```
-{resource.service.name="rpa-system-backend"} && {duration>0s}
-```
-
-**Using Visual Query Builder (Recommended - No Query Language Needed):**
-
-The visual query builder automatically populates dropdowns with available values:
-
-1. **Resource Service Name:** 
-   - Click the dropdown - it should show `rpa-system-backend` (and any other services)
-   - Select `rpa-system-backend` from the list
-   - If dropdown is empty, make sure traces are being sent to Tempo first
-
-2. **Span Name:** 
-   - Leave empty to see all spans
-   - OR click dropdown to see available span names
-   - OR type `*workflows*` to filter
-
-3. **Duration:** 
-   - Set `> 2s` to find slow operations
-   - Set `> 5s` for very slow operations
-
-4. **Tags (Optional):**
-   - Click "Add tag" → Select `http.method` → Set value to `PATCH` or `PUT`
-   - OR select `http.status_code` → Set value to `>= 500` for errors
-
-5. **Click "Run query"**
-
-**Note:** Dropdowns populate automatically once traces are ingested. If you see empty dropdowns:
-- Make sure traces are being sent (trigger a workflow save or API call)
-- Wait a few seconds for Tempo to index the traces
-- Refresh the page or click the refresh icon
-
-**Troubleshooting "No data" or "0 series returned":**
-
-If you see "No data" or "0 series returned" in Tempo:
-
-**Step 1: Verify traces are being generated**
-```bash
-# Check backend logs for telemetry initialization
-tail -50 logs/backend.log | grep -i "telemetry\|otel\|trace"
-
-# Look for messages like:
-# "[server] ✅ OpenTelemetry initialized successfully"
-# "[TelemetryInit] OpenTelemetry SDK started"
-```
-
-**Step 2: Check OTEL Collector is running and receiving traces**
-```bash
-# Check if OTEL Collector container is running
-docker ps | grep otel-collector
-
-# Check OTEL Collector logs for trace reception
-docker logs easyflow-otel-collector --tail 50 | grep -i "trace\|span\|export"
-
-# Look for messages like:
-# "TracesExporter" or "Exporting spans"
-```
-
-**Step 3: Check Tempo is running and receiving traces**
-```bash
-# Check if Tempo container is running
-docker ps | grep tempo
-
-# Check Tempo logs
-docker logs easyflow-tempo --tail 50 | grep -i "trace\|span"
-
-# Try querying Tempo API directly
-curl http://localhost:3200/api/search?limit=10
-```
-
-**Step 4: Verify service name matches**
-```bash
-# Check what service name is configured
-grep -r "SERVICE_NAME\|service.name" rpa-system/backend/middleware/telemetryInit.js
-
-# Default should be: rpa-system-backend
-# But check if it's overridden by environment variable
-```
-
-**Step 5: Try the simplest query (no filters)**
-```
-{resource.service.name="rpa-system-backend"}
-```
-
-**If still no results, try without service name filter:**
-```
-{}
-```
-
-**Step 6: Trigger a request and check immediately**
-1. Make a request to your backend (e.g., load workflows page)
-2. Wait 10-15 seconds
-3. Set Grafana time range to "Last 5 minutes"
-4. Try query again
-
-**Step 7: Check if traces are being exported**
-```bash
-# Check backend metrics endpoint for trace export metrics
-curl http://localhost:9091/metrics | grep -i "trace\|span\|otel"
-
-# Should see metrics like:
-# otel_traces_exported_total
-# otel_spans_exported_total
-```
-
-**Common Issues:**
-- **Observability stack not running:** Start with `./start-dev.sh` (starts all services including observability) or manually: `docker-compose -f rpa-system/docker-compose.monitoring.yml up -d`
-- **OTEL Collector not running:** Start with `docker-compose -f rpa-system/docker-compose.monitoring.yml up -d otel-collector`
-- **Service name mismatch:** Check environment variables `OTEL_SERVICE_NAME` or `OTEL_RESOURCE_ATTRIBUTES`
-- **Time range too narrow:** Expand to "Last 1 hour" or "Last 6 hours"
-- **Traces disabled:** Check if `DISABLE_TELEMETRY=true` is set in backend environment
-
-**Quick Start/Stop Commands:**
-```bash
-# Start everything (app + observability stack)
 ./start-dev.sh
+```
+This starts your app (backend, frontend, automation worker) AND the observability stack (Grafana, Prometheus, Loki, Tempo, OTEL Collector).
 
-# Stop everything (app + observability stack)
+**Stop everything:**
+```bash
 ./stop-dev.sh
+```
 
-# Start only observability stack
+**Start only observability stack (if app is already running):**
+```bash
 docker-compose -f rpa-system/docker-compose.monitoring.yml up -d
+```
 
-# Stop only observability stack
+**Stop only observability stack:**
+```bash
 docker-compose -f rpa-system/docker-compose.monitoring.yml down
 ```
 
----
-
-## 🔍 Troubleshooting Workflows
-
-### Problem: "Workflow completed but no steps executed"
-
-**What's happening:**
-1. Frontend sends workflow execution request
-2. Backend receives it and publishes task to Kafka
-3. Automation worker should consume the task
-4. **But**: Worker isn't getting the tasks from Kafka
-
-### Step-by-Step Debugging
-
-#### 1. Check Backend Metrics
-Open: http://localhost:9091/metrics
-
-**Look for:**
-```
-# Backend is exporting metrics
-up 1
-
-# Workflows are being attempted
-workflow_execution_total 75
-
-# But steps aren't executing
-workflow_step_execution_total 0  # <-- This should be > 0!
-```
-
-#### 2. Check Prometheus Targets
-Open: http://localhost:9090/targets
-
-**Verify all targets are "UP":**
-- ✅ easyflow-backend (host.docker.internal:9091)
-- ✅ prometheus (127.0.0.1:9090)
-
-If backend shows "DOWN", check:
-- Backend is running: `pm2 list`
-- Metrics endpoint accessible: `curl http://localhost:9091/metrics`
-
-#### 3. Query Workflow Traces in Grafana
-Open: http://localhost:3001 (login: admin/admin123)
-
-**Navigate to:** Dashboards → Workflow Execution Observability
-
-**What you should see:**
-- Execution traces with parent-child spans
-- Each trace should show: `backend.execute` → `kafka.produce` → `worker.consume` → `workflow.step.execute`
-
-**If traces are missing spans:**
-- Missing `kafka.produce` = Backend isn't publishing to Kafka
-- Missing `worker.consume` = Worker isn't connected to Kafka
-- Missing `workflow.step.execute` = Worker connected but not processing
-
-#### 4. Check Logs in Loki
-In Grafana, go to: **Explore** → Select "Loki" datasource
-
-**Query examples:**
-```logql
-# All backend errors
-{job="easyflow-backend"} |= "ERROR"
-
-# Workflow execution errors
-{job="easyflow-backend"} |= "Workflow marked as completed but no steps executed"
-
-# Kafka connection errors
-{job="easyflow-automation"} |= "kafka" |= "error"
-
-# Trace a specific execution
-{job="easyflow-backend"} |= "execution_id" |= "318b436c-51dd-40da-ab23-e7af7ab75438"
-```
-
-**What to look for:**
-```json
-{
-  "msg": "❌ Workflow marked as completed but no steps executed",
-  "trace": {
-    "traceId": "bb1a1d6a689ba82b693ec04794a0c102",
-    "userId": "1196aa93-a166-43f7-8d21-16676a82436e"
-  },
-  "error": {
-    "workflow_id": "57b50ac6-81bf-415a-9816-34d170348e37",
-    "steps_total": 2,
-    "steps_executed": 0
-  }
-}
-```
-
-Then search automation worker logs for that `traceId`:
-```logql
-{job="easyflow-automation"} |= "bb1a1d6a689ba82b693ec04794a0c102"
-```
-
-**If no results found** → Trace context isn't propagating to the worker.
-
-### Troubleshooting: Trace ID Not Found in Automation Logs
-
-**Problem:** You found a trace ID in backend logs but it doesn't appear in automation worker logs.
-
-**⚠️ IMPORTANT: Two Possible Causes**
-
-#### Cause 1: Backend Never Dispatched a Job (Most Common)
-**What's happening:**
-- Backend receives workflow execution request ✅
-- Backend evaluates workflow steps ✅
-- **Backend decides there are NO steps to run** ❌
-- Backend marks workflow as `NO_STEPS_EXECUTED` ❌
-- **Backend NEVER sends anything to Kafka** ❌
-- Worker is never contacted, so no trace ID in worker logs ✅ (This is expected!)
-
-**This is NOT a trace propagation issue** - it's a workflow logic issue.
-
-**How to Debug This:**
-1. **Check backend logs** for why steps weren't executed:
-   ```logql
-   {job="easyflow-backend"} |= "NO_STEPS_EXECUTED" |= "steps_total"
-   ```
-
-2. **Add a debug/logging step** to force the backend to dispatch at least one job:
-   - Create a simple "logger" step that does nothing but print its input
-   - Add it as the first step in your workflow
-   - This forces the orchestrator to dispatch at least one job to Kafka
-   - You'll then see the trace ID in worker logs
-
-#### Cause 2: Trace Context Not Propagating (Less Common)
-**What's happening:**
-- Backend created a trace ✅
-- Backend published message to Kafka ✅
-- **But**: Trace context (trace ID, span ID) wasn't included in Kafka message headers ❌
-
-**How to verify:**
+**Verify observability stack is running:**
 ```bash
-# Check Kafka topic for recent messages
-docker exec -it easy-flow-kafka-1 kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic automation-tasks \
-  --from-beginning \
-  --max-messages 1 \
-  --property print.headers=true
+docker ps | grep -E "grafana|prometheus|loki|tempo|otel"
 ```
 
-**Look for headers like:**
-```
-__headers__: traceparent=00-<trace-id>-<span-id>-01
-```
-
-**If headers are missing:**
-- Backend isn't injecting trace context into Kafka messages
-- Check: `rpa-system/backend/utils/kafkaService.js`
-
-### Debugging: Force a Step to Execute
-
-**If the backend never dispatches jobs**, add a debug/logging step to force execution:
-
-**Example Debug Step Configuration:**
-```json
-{
-  "step_type": "action",
-  "action_type": "delay",
-  "name": "Debug: Force Execution",
-  "config": {
-    "duration_ms": 100
-  }
-}
-```
-
-This simple delay step will:
-- Force backend to dispatch a job to Kafka ✅
-- Include trace context in Kafka headers ✅
-- Worker receives job and logs trace ID ✅
-- You can now see the full execution flow ✅
-
-**Action Plan: Debugging NO_STEPS_EXECUTED**
-
-#### Step 1: Add Debug Step
-Add a logging step to the very beginning of your workflow (immediately after the "Start" step).
-
-**Via UI:**
-1. Open workflow in Workflow Builder: http://localhost:3000/workflows/:id
-2. Add a Delay step as the first action
-3. Set name: "Debug: Log Workflow Input"
-4. Set duration: 100ms (minimal)
-5. Connect: Start → Debug: Log Workflow Input → Your original first step
-6. Save the workflow
-
-#### Step 2: Trigger the Workflow
-Execute the workflow and note the `execution_id` from the response.
-
-#### Step 3: Check the Worker Logs
-1. **Get trace ID from backend logs:**
-   ```logql
-   {job="easyflow-backend"} |= "execution_id" |= "<your-execution-id>"
-   ```
-   Copy the `traceId` from the log
-
-2. **Search automation worker logs for the same trace ID:**
-   ```logql
-   {job="easyflow-automation"} |= "<trace-id>"
-   ```
-
-3. **You should now see logs like:**
-   ```
-   📨 Received Kafka task: <task-id> (type: delay, trace_id: <trace-id>)
-   Processing task <task-id> of type delay
-   ```
-
-#### Step 4: Analyze the Logged Output
-Check the task payload in worker logs:
-```logql
-{job="easyflow-automation"} |= "task_id" |= "<task-id>"
-```
-
-**Look for:**
-- `input_data` - What data was passed to the workflow
-- `workflow_id` - Confirms correct workflow
-- `execution_id` - Links to backend execution
-- `user_id` - User context
-
-**Common Issues:**
-- **Missing parameters:** A parameter used in a condition (`when:` clause) is missing
-- **Unexpected values:** Parameter exists but has wrong type or value
-- **Empty input_data:** `input_data: {}` when workflow expects specific fields
-- **Condition evaluation:** Check if conditions are filtering out steps
-
-#### Step 5: Check Tempo for Complete Trace
-In Grafana Explore → Tempo datasource:
-```
-{service.name="rpa-system-backend"} && name=~"workflow.execute.*"
-```
-
-**If trace shows backend span but no worker span:**
-- Worker isn't creating spans
-- Worker isn't extracting trace context from Kafka
-- Worker spans aren't being exported to Tempo
-
-**If trace shows both backend and worker spans:**
-- Trace context IS propagating ✅
-- Issue is only in logging (worker not logging trace ID)
+**Access URLs (after starting):**
+- **Grafana:** http://localhost:3001 (admin/admin123)
+- **Prometheus:** http://localhost:9090
+- **Loki:** http://localhost:3100
+- **Tempo:** http://localhost:3200
+- **OTEL Collector:** http://localhost:4318 (HTTP) / 4317 (gRPC)
 
 ---
 
-## 📊 Key Dashboards
+## Step 2: Verify Everything Is Running
 
-### 1. Workflow Execution Observability
-**URL:** http://localhost:3001/d/workflow-execution
+**Quick Health Check:**
 
-**Panels:**
-- **Execution Rate** - Workflows per minute
-- **P95 Duration** - 95th percentile execution time
-- **Execution Duration Over Time** - Scatter plot of all executions
-- **Trace View** - Parent-child span relationships
+```bash
+# Check all containers are running
+docker ps | grep -E "grafana|prometheus|loki|promtail|tempo|otel"
 
-**Use this when:** You want to see why workflows are failing or slow.
+# Check backend metrics are available
+curl http://localhost:9091/metrics | head -5
 
-### 2. Backend Metrics Dashboard
-**URL:** http://localhost:3001/d/backend-metrics
+# Check Grafana is ready
+curl http://localhost:3001/api/health
 
-**Panels:**
-- **HTTP Request Rate** - Requests per second
-- **Error Rate** - % of failed requests
-- **Latency Heatmap** - Distribution of response times
-- **Memory Usage** - Node.js heap size
-- **CPU Usage** - Process CPU percentage
+# Check Loki is ready
+curl http://localhost:3100/ready
 
-**Use this when:** Backend seems slow or unresponsive.
+# Check Promtail is ready
+curl http://localhost:9080/ready
+```
+
+**In Grafana:**
+1. Open http://localhost:3001 (login: admin/admin123)
+2. Go to **Explore** → Select **Prometheus**
+3. Query: `up` - Should show all services as `1` (UP)
+4. Go to **Explore** → Select **Loki**
+5. Query: `{job=~".+"}` - Should show recent logs
+6. Go to **Explore** → Select **Tempo**
+7. Query: `{resource.service.name="rpa-system-backend"}` - Should show traces (if you've made requests)
 
 ---
 
-## 🔧 Common Queries
+## Step 3: Understanding What You're Looking At
 
-### Prometheus (http://localhost:9090)
+### Metrics (Prometheus)
+**Where:** Grafana Explore → Prometheus datasource
 
+**What they tell you:**
+- How many requests per second
+- How fast requests are (latency)
+- Error rates
+- Resource usage (CPU, memory)
+
+**Example queries:**
 ```promql
 # Service availability (should all be 1)
 up
 
-# Workflow success rate
-rate(workflow_execution_total{status="success"}[5m]) / 
-rate(workflow_execution_total[5m])
+# HTTP request rate
+rate(http_requests_total[5m])
 
-# P95 workflow duration
-histogram_quantile(0.95, 
-  rate(workflow_execution_duration_seconds_bucket[5m]))
-
-# HTTP request latency by endpoint
-http_request_duration_seconds{path="/execute"}
-
-# Memory leak detection (should be stable, not growing)
-nodejs_heap_size_used_bytes
+# Error rate
+rate(http_requests_total{status=~"5.."}[5m])
 ```
 
-### Loki (Grafana Explore)
+### Traces (Tempo)
+**Where:** Grafana Explore → Tempo datasource
 
-**⚠️ Important:** Loki queries require at least one label matcher.
+**What they tell you:**
+- The complete path of a request through your system
+- Which service/function is slow
+- How services communicate (HTTP, Kafka, etc.)
 
-**Available Labels:**
-- `job` - easyflow-backend, easyflow-frontend, easyflow-automation, easyflow-backend-errors, easyflow-frontend-errors
-- `service` - rpa-system-backend, rpa-system-frontend, automation-worker
-- `level` - info, error, warn, debug (extracted from JSON logs)
-- `logger` - logger name (extracted from JSON logs)
-- `environment` - development
+**Example queries:**
+```traceql
+# All backend traces
+{resource.service.name="rpa-system-backend"}
 
-**Common Queries:**
+# Slow requests (>2 seconds)
+{resource.service.name="rpa-system-backend"} && {duration>2s}
 
+# Workflow execution traces
+{resource.service.name="rpa-system-backend"} && {name=~".*workflow.*execute.*"}
+```
+
+### Logs (Loki)
+**Where:** Grafana Explore → Loki datasource
+
+**What they tell you:**
+- Detailed error messages
+- What data was processed
+- Trace IDs for correlation
+
+**Example queries:**
 ```logql
 # All backend logs
 {job="easyflow-backend"}
@@ -834,88 +149,312 @@ nodejs_heap_size_used_bytes
 # Backend errors only
 {job="easyflow-backend", level="error"}
 
-# Search for specific text in backend logs
+# Search for specific text
 {job="easyflow-backend"} |= "workflow"
-
-# All errors across all services
-{level="error"}
-
-# Workflow execution flow for a specific user
-{job=~"easyflow-.*"} 
-  |= "userId" 
-  |= "1196aa93-a166-43f7-8d21-16676a82436e"
-
-# Kafka connection issues
-{job="easyflow-automation"} 
-  |= "kafka" 
-  |~ "error|failed|timeout"
-
-# Search for execution IDs
-{job="easyflow-backend"} |= "execution_id"
-
-# Search for trace IDs
-{job="easyflow-backend"} |= "trace_id"
-
-# Frontend logs
-{job="easyflow-frontend"}
-
-# Automation worker logs
-{job="easyflow-automation"}
 ```
-
-**LogQL Operators:**
-- `|= "text"` - Contains text (case-sensitive)
-- `!= "text"` - Does not contain text
-- `|~ "regex"` - Matches regex
-- `!~ "regex"` - Does not match regex
-
-**Using in Grafana Explore:**
-1. Select **Loki** datasource
-2. Add a label filter: `{job="easyflow-backend"}`
-3. Add text search (optional): `|= "your search term"`
-4. Click **Run query** or press Shift+Enter
-
-**Quick Start Queries:**
-- See all backend logs: `{job="easyflow-backend"}`
-- See all errors: `{level="error"}`
-- Search for workflow executions: `{job="easyflow-backend"} |= "workflow"`
-- See recent errors with trace context: `{level="error"} |= "trace_id"`
 
 ---
 
-## 📝 Integrated Logs
+## Step 4: Debugging Common Problems
+
+### Problem 1: "No data" or "0 series returned" in Tempo
+
+**Step-by-step debugging:**
+
+**1. Verify traces are being generated:**
+```bash
+tail -50 logs/backend.log | grep -i "telemetry\|otel\|trace"
+```
+Look for: `[server] ✅ OpenTelemetry initialized successfully`
+
+**2. Check OTEL Collector is running:**
+```bash
+docker ps | grep otel-collector
+docker logs easyflow-otel-collector --tail 50 | grep -i "trace\|span\|export"
+```
+
+**3. Check Tempo is running:**
+```bash
+docker ps | grep tempo
+curl http://localhost:3200/api/search?limit=10
+```
+
+**4. Try the simplest query:**
+```
+{resource.service.name="rpa-system-backend"}
+```
+
+**5. Trigger a request and check immediately:**
+- Make a request to your backend (e.g., load workflows page)
+- Wait 10-15 seconds
+- Set Grafana time range to "Last 5 minutes"
+- Try query again
+
+**Common fixes:**
+- **Observability stack not running:** `./start-dev.sh`
+- **Time range too narrow:** Expand to "Last 1 hour"
+- **No requests made:** Make a request first, then query
+
+---
+
+### Problem 2: "Query timeout" Errors
+
+**Symptom:** Frontend shows "Query timeout" when loading workflows, especially on first load. Refresh fixes it.
+
+**Step-by-step debugging:**
+
+**1. Check if it's a cold start issue:**
+```bash
+# Check backend logs for warm-up messages
+tail -50 logs/backend.log | grep -i "DatabaseWarmup\|warm-up"
+```
+Should see: `[DatabaseWarmup] ✅ Database warm-up completed`
+
+**2. Check database indexes:**
+```sql
+-- Run in Supabase SQL editor
+SELECT indexname, indexdef 
+FROM pg_indexes 
+WHERE tablename = 'workflows' 
+ORDER BY indexname;
+```
+Should see indexes on `user_id`, `updated_at`, `status`.
+
+**3. If indexes are missing, add them:**
+Run migration: `rpa-system/backend/migrations/add_performance_indexes.sql`
+
+**4. Verify query performance:**
+```sql
+EXPLAIN ANALYZE
+SELECT * FROM workflows 
+WHERE user_id = '<test-user-id>'
+ORDER BY updated_at DESC;
+```
+Should show "Index Scan" (not "Seq Scan").
+
+---
+
+### Problem 3: Slow Save Operations
+
+**Symptom:** Workflow save operations hang or take very long.
+
+**Step-by-step debugging:**
+
+**1. Trigger the slow save:**
+- Open browser dev tools (F12) → Network tab
+- Make a change in Workflow Builder
+- Click "Save"
+- Note the request time
+
+**2. Find the trace in Grafana:**
+- Open Grafana: http://localhost:3001
+- Go to **Explore** → **Tempo**
+- Query: `{resource.service.name="rpa-system-backend"} && {name=~".*workflows.*"} && {duration>2s}`
+- Set time range to when you clicked "Save"
+- Click on the trace
+
+**3. Analyze the trace:**
+Look for the **longest span**:
+- **`db.query` or `db.update`** → Database is slow (check indexes)
+- **`workflow.validate`** → Validation is slow (optimize or make async)
+- **`workflow.save`** → Check child spans inside
+
+**4. Check logs for context:**
+In Grafana Explore → Loki:
+```logql
+{job="easyflow-backend"} |= "<trace-id-from-step-2>"
+```
+
+**5. Apply fixes:**
+- **If database slow:** Add indexes, use batch operations
+- **If validation slow:** Make async or cache results
+- **If save logic slow:** Batch operations, move non-critical work to background
+
+---
+
+### Problem 4: "Workflow completed but no steps executed"
+
+**Step-by-step debugging:**
+
+**1. Check backend metrics:**
+Open: http://localhost:9091/metrics
+Look for: `workflow_step_execution_total` - Should be > 0
+
+**2. Check Prometheus targets:**
+Open: http://localhost:9090/targets
+Verify: `easyflow-backend` shows "UP"
+
+**3. Find the trace:**
+In Grafana Explore → Tempo:
+```
+{resource.service.name="rpa-system-backend"} && {name=~".*workflow.*execute.*"}
+```
+
+**4. Check logs:**
+In Grafana Explore → Loki:
+```logql
+# Find the execution error
+{job="easyflow-backend"} |= "NO_STEPS_EXECUTED"
+
+# Get the trace ID
+{job="easyflow-backend"} |= "execution_id" |= "<your-execution-id>"
+
+# Search worker logs for that trace ID
+{job="easyflow-automation"} |= "<trace-id>"
+```
+
+**5. If trace ID not in worker logs:**
+- **Most likely:** Backend never dispatched a job (workflow logic issue)
+- **Less likely:** Trace context not propagating (check Kafka headers)
+
+**6. Force a step to execute:**
+Add a debug step (Delay 100ms) as the first step in your workflow to force backend to dispatch a job.
+
+---
+
+### Problem 5: Slow UI Rendering (Data Over-Fetching)
+
+**Symptom:** API calls are fast (25ms), but UI feels sluggish. Browser dev tools show large response payloads.
+
+**Step-by-step debugging:**
+
+**1. Check Network tab:**
+- Open browser dev tools → Network tab
+- Load workflows/executions list
+- Check response size - should be small (<100KB for list)
+
+**2. Trace the query in Tempo:**
+```
+{resource.service.name="rpa-system-backend"} && {name=~".*executions.*"}
+```
+
+**3. Check what fields are being fetched:**
+- Look at the trace spans
+- Check if `input_data` and `output_data` are being fetched for list views
+- These should only be fetched for detail views
+
+**4. Verify optimization:**
+- List queries should exclude large JSON fields
+- Detail queries should fetch full data on-demand
+
+---
+
+## Step 5: Using the Tools Effectively
+
+### Grafana Dashboards
+
+**Workflow Execution Observability:**
+- **URL:** http://localhost:3001/d/workflow-execution
+- **Use when:** You want to see why workflows are failing or slow
+- **Shows:** Execution rate, P95 duration, traces
+
+**Backend Metrics Dashboard:**
+- **URL:** http://localhost:3001/d/backend-metrics
+- **Use when:** Backend seems slow or unresponsive
+- **Shows:** HTTP request rate, error rate, latency heatmap, memory/CPU
+
+### Common Queries Reference
+
+**Tempo (Traces):**
+```
+# All backend traces
+{resource.service.name="rpa-system-backend"}
+
+# Slow requests (>2 seconds)
+{resource.service.name="rpa-system-backend"} && {duration>2s}
+
+# Workflow saves
+{resource.service.name="rpa-system-backend"} && {name=~".*workflows.*"}
+
+# Execution detail queries
+{resource.service.name="rpa-system-backend"} && {name=~".*executions.*"}
+```
+
+**Loki (Logs):**
+```logql
+# All backend logs
+{job="easyflow-backend"}
+
+# Backend errors only
+{job="easyflow-backend", level="error"}
+
+# Search for specific text
+{job="easyflow-backend"} |= "workflow"
+
+# Search by trace ID
+{job="easyflow-backend"} |= "<trace-id>"
+
+# Search by execution ID
+{job="easyflow-backend"} |= "execution_id" |= "<execution-id>"
+```
+
+**Prometheus (Metrics):**
+```promql
+# Service availability
+up
+
+# HTTP request rate
+rate(http_requests_total[5m])
+
+# Error rate
+rate(http_requests_total{status=~"5.."}[5m])
+```
+
+---
+
+## Step 6: System Health Checklist
+
+Use this to verify everything is working:
+
+### Infrastructure
+- [ ] `docker ps` shows all containers running (prometheus, grafana, loki, promtail, tempo, otel-collector)
+- [ ] `http://localhost:9090/targets` - all targets UP
+- [ ] `http://localhost:3001` - Grafana loads (login: admin/admin123)
+- [ ] `http://localhost:9091/metrics` - Backend metrics available
+- [ ] `http://localhost:3100/ready` - Loki is ready
+
+### Application
+- [ ] `http://localhost:3000` - Frontend loads
+- [ ] `http://localhost:3030/health` - Backend healthy
+- [ ] `http://localhost:7070/health` - Worker healthy
+
+### Observability
+- [ ] Metrics flowing: Query `up` in Prometheus
+- [ ] Logs flowing: Query `{job=~".+"}` in Grafana Explore → Loki
+- [ ] Traces flowing: Query `{resource.service.name="rpa-system-backend"}` in Grafana Explore → Tempo
+
+---
+
+## Quick Access Links
+
+### Observability Services
+- **Grafana Dashboards:** http://localhost:3001 (admin/admin123)
+- **Prometheus UI:** http://localhost:9090
+- **Loki API:** http://localhost:3100
+- **Tempo API:** http://localhost:3200
+- **Backend Metrics:** http://localhost:9091/metrics
+
+### Application Services
+- **Frontend:** http://localhost:3000
+- **Backend API:** http://localhost:3030
+- **Backend Health:** http://localhost:3030/health
+- **Automation Worker:** http://localhost:7070
+
+---
+
+## Integrated Logs
 
 All application logs are automatically collected and shipped to Loki via Promtail.
 
-### Application Logs (via Promtail)
+| Log Source | File Path | Job Name | Status |
+|------------|-----------|----------|--------|
+| **Backend** | `logs/backend.log` | `easyflow-backend` | ✅ Integrated |
+| **Backend Errors** | `logs/backend-error.log` | `easyflow-backend-errors` | ✅ Integrated |
+| **Frontend** | `logs/frontend.log` | `easyflow-frontend` | ✅ Integrated |
+| **Frontend Errors** | `logs/frontend-error.log` | `easyflow-frontend-errors` | ✅ Integrated |
+| **Automation Worker** | `logs/automation-worker.log` | `easyflow-automation` | ✅ Integrated |
 
-| Log Source | File Path | Job Name | Labels | Status |
-|------------|-----------|----------|--------|--------|
-| **Backend** | `logs/backend.log` | `easyflow-backend` | `service=rpa-system-backend`, `level`, `logger` | ✅ Integrated |
-| **Backend Errors** | `logs/backend-error.log` | `easyflow-backend-errors` | `service=rpa-system-backend`, `log_level=error` | ✅ Integrated |
-| **Frontend** | `logs/frontend.log` | `easyflow-frontend` | `service=rpa-system-frontend` | ✅ Integrated |
-| **Frontend Errors** | `logs/frontend-error.log` | `easyflow-frontend-errors` | `service=rpa-system-frontend`, `log_level=error` | ✅ Integrated |
-| **Automation Worker** | `logs/automation-worker.log` | `easyflow-automation` | `service=automation-worker` | ✅ Integrated |
-
-### Log Collection Details
-
-**Backend Logs:**
-- Format: JSON (structured logging via Pino)
-- Fields extracted: `level`, `msg`, `time`, `service`, `logger`, `trace_id`, `span_id`, `user_id`, `method`, `path`, `execution_id`, `workflow_id`
-- Labels: `level`, `service`, `logger` (for filtering)
-
-**Frontend Logs:**
-- Format: Plain text (React app console output)
-- Captured via PM2 stdout/stderr redirection
-
-**Automation Worker Logs:**
-- Format: Plain text with timestamp prefix
-- Pattern: `YYYY-MM-DD HH:mm:ss: <message>`
-- Extracts timestamp and content
-
-### Verifying Log Integration
-
-**Check if logs are flowing to Loki:**
+**Verify logs are flowing:**
 ```bash
 # List all available jobs
 curl http://localhost:3100/loki/api/v1/label/job/values
@@ -924,89 +463,7 @@ curl http://localhost:3100/loki/api/v1/label/job/values
 curl "http://localhost:3100/loki/api/v1/query_range?query={job=\"easyflow-backend\"}&limit=10&start=$(date -u -v-1H +%s)000000000&end=$(date -u +%s)000000000"
 ```
 
-**In Grafana Explore:**
-1. Select "Loki" datasource
-2. Use label browser to see available jobs
-3. Query: `{job="easyflow-backend"}`
-
-**Check Promtail is shipping logs:**
-```bash
-# Check Promtail logs
-docker logs easyflow-promtail --tail 50
-
-# Look for "Adding target" messages
-docker logs easyflow-promtail | grep "Adding target"
-```
-
-**Expected output:**
-```
-level=info msg="Adding target" key="/app/logs/backend*.log:{...}"
-level=info msg="Adding target" key="/app/logs/frontend*.log:{...}"
-level=info msg="Adding target" key="/app/logs/automation-worker*.log:{...}"
-```
-
----
-
-## ✅ System Health Checklist
-
-Use this to verify everything is working:
-
-### 1. Infrastructure
-- [ ] `docker ps` shows all containers running (prometheus, grafana, loki, promtail, tempo, otel-collector, alertmanager)
-- [ ] `http://localhost:9090/targets` - all targets UP
-- [ ] `http://localhost:3001` - Grafana loads (login: admin/admin123)
-- [ ] `http://localhost:9091/metrics` - Backend metrics available
-- [ ] `http://localhost:3100/ready` - Loki is ready
-- [ ] `http://localhost:9080/ready` - Promtail is ready
-
-### 2. Application
-- [ ] `http://localhost:3000` - Frontend loads
-- [ ] `http://localhost:3030/health` - Backend healthy
-- [ ] `http://localhost:7070/health` - Worker healthy
-
-### 3. Messaging
-- [ ] Kafka topic exists: `docker exec easy-flow-kafka-1 kafka-topics --list`
-- [ ] Worker has partition assigned: Check `logs/automation-worker.log`
-
-### 4. Observability
-- [ ] Metrics flowing: Query `up` in Prometheus (http://localhost:9090)
-- [ ] Logs flowing: Query `{job=~".+"}` in Grafana Explore → Loki datasource
-- [ ] Traces flowing: Check "Workflow Execution Observability" dashboard in Grafana
-- [ ] Promtail shipping logs: Check `docker logs easyflow-promtail` for "Adding target" messages
-
-### 5. End-to-End
-- [ ] Create workflow in UI
-- [ ] Execute workflow
-- [ ] Check execution appears in dashboard
-- [ ] Check trace shows all spans (backend → kafka → worker → steps)
-- [ ] Check logs show execution lifecycle
-
----
-
-## 🔗 Quick Access Links
-
-### Observability Services
-- **Grafana Dashboards:** http://localhost:3001 (admin/admin123)
-- **Prometheus UI:** http://localhost:9090
-- **Loki API:** http://localhost:3100
-- **Promtail Status:** http://localhost:9080/ready
-- **Tempo API:** http://localhost:3200
-- **OTEL Collector Health:** http://localhost:13133
-- **Alertmanager UI:** http://localhost:9093
-- **Backend Metrics:** http://localhost:9091/metrics
-
-### Application Services
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:3030
-- **Backend Health:** http://localhost:3030/health
-- **Automation Worker:** http://localhost:7070
-- **Worker Health:** http://localhost:7070/health
-
-### Infrastructure
-- **Kafka:** localhost:9092
-- **Zookeeper:** localhost:2181
-
 ---
 
 **Last Updated:** 2025-12-16  
-**Version:** 1.3.0
+**Version:** 2.0.0
