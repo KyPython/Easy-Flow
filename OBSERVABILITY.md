@@ -70,6 +70,173 @@ ORDER BY updated_at DESC;
 
 ---
 
+### Problem: Save Operation Hanging
+
+**Symptom:** Workflow save operations (PATCH/PUT `/api/workflows/:id`) hang or take very long to complete, even after cold start is fixed.
+
+**Root Cause:** The bottleneck is likely in one of these areas:
+1. **Database queries** - Slow UPDATE/INSERT operations
+2. **Synchronous validation** - Complex validation logic blocking the request
+3. **Nested operations** - Multiple sequential database calls
+
+**Solution: Use Distributed Tracing to Find the Bottleneck**
+
+#### Step 1: Trigger the Slow Save
+
+1. **Open browser developer tools:**
+   - Press `F12` or right-click → Inspect
+   - Go to the **Network** tab
+   - Filter by "XHR" or "Fetch"
+
+2. **Save your workflow:**
+   - Make a change in the Workflow Builder
+   - Click "Save"
+   - Watch for the PATCH/PUT request to `/api/workflows/:id`
+
+3. **Note the request details:**
+   - Request URL (contains workflow ID)
+   - Request start time
+   - Duration (if it completes)
+
+#### Step 2: Find the Trace in Grafana
+
+**Option A: Via Tempo Explore (Recommended)**
+
+1. **Open Grafana:** http://localhost:3001
+2. **Go to Explore** → Select **Tempo** datasource
+3. **Search for the trace:**
+   ```
+   {service.name="rpa-system-backend"} && name=~".*workflows.*"
+   ```
+   Or more specifically:
+   ```
+   {service.name="rpa-system-backend"} && name=~"PATCH.*workflows|PUT.*workflows"
+   ```
+
+4. **Filter by time range:**
+   - Set time range to include when you clicked "Save"
+   - Look for traces with long duration
+
+5. **Click on a trace** to see the span breakdown
+
+**Option B: Via Backend Metrics Dashboard**
+
+1. **Open Grafana:** http://localhost:3001
+2. **Navigate to:** Dashboards → Backend Metrics Dashboard
+3. **Look at "Latency Heatmap"** panel
+4. **Find the slow request** around the time you saved
+5. **Click on the request** to view its trace (if linked)
+
+#### Step 3: Analyze the Trace
+
+**What to Look For:**
+
+The trace will show a parent span like `PATCH /api/workflows/:id` with child spans underneath. Look for the **longest span**:
+
+**If the longest span is:**
+- **`db.query` or `db.update`** → Database is the bottleneck
+  - **Solution:** Check database indexes, query optimization
+  - **Check:** Are you updating multiple tables sequentially?
+  - **Check:** Are you doing complex JOINs or subqueries?
+
+- **`workflow.validate` or custom validation span** → Validation logic is slow
+  - **Solution:** Optimize validation, make it async if possible
+  - **Check:** Are you validating against external services?
+  - **Check:** Are you doing expensive computations?
+
+- **`workflow.save` or `workflow.update`** → The save operation itself
+  - **Solution:** Check what's inside this span - look at its child spans
+  - **Check:** Are you saving steps/connections individually?
+  - **Check:** Are you doing versioning or audit logging synchronously?
+
+**Example Trace Analysis:**
+
+```
+PATCH /api/workflows/:id (total: 5.2s)
+├── authMiddleware (0.01s) ✅ Fast
+├── workflow.validate (0.05s) ✅ Fast
+├── db.update workflows (0.1s) ✅ Fast
+├── db.update workflow_steps (4.8s) ❌ SLOW!
+│   ├── db.delete old steps (2.1s)
+│   └── db.insert new steps (2.7s)
+└── db.update workflow_connections (0.2s) ✅ Fast
+```
+
+**In this example:** The bottleneck is updating `workflow_steps` - likely doing individual DELETE/INSERT operations instead of batch operations.
+
+#### Step 4: Check Logs for More Context
+
+Once you've identified the slow span, search logs for that operation:
+
+```logql
+# Find logs for the workflow save operation
+{job="easyflow-backend"} |= "workflow" |= "save" |= "<workflow-id>"
+
+# Or search by trace ID (from the trace you found)
+{job="easyflow-backend"} |= "<trace-id>"
+```
+
+**Look for:**
+- Database query logs showing slow queries
+- Validation errors or warnings
+- Any error messages that might indicate the problem
+
+#### Step 5: Common Fixes
+
+**If Database is Slow:**
+1. **Check indexes:**
+   ```sql
+   -- Check if workflow_steps has indexes on workflow_id
+   SELECT indexname, indexdef 
+   FROM pg_indexes 
+   WHERE tablename = 'workflow_steps';
+   ```
+
+2. **Use batch operations:**
+   - Instead of individual DELETE/INSERT, use `upsert` or batch operations
+   - Example: Use Supabase's `.upsert()` instead of `.delete().insert()`
+
+3. **Optimize queries:**
+   - Use transactions to batch multiple operations
+   - Avoid N+1 queries (querying inside loops)
+
+**If Validation is Slow:**
+1. **Make validation async:**
+   - Move expensive validation to background jobs
+   - Return success immediately, validate later
+
+2. **Cache validation results:**
+   - Cache expensive validation checks
+   - Only re-validate when data changes
+
+**If Save Operation is Slow:**
+1. **Batch database operations:**
+   - Save all steps in one transaction
+   - Use bulk INSERT/UPDATE operations
+
+2. **Move non-critical work to background:**
+   - Versioning, audit logging, notifications
+   - Don't block the save response
+
+#### Quick Query Reference
+
+**Find slow workflow saves in Tempo:**
+```
+{service.name="rpa-system-backend"} && name=~".*workflows.*" && duration>2s
+```
+
+**Find slow database operations:**
+```
+{service.name="rpa-system-backend"} && name=~"db\\.(query|update|insert)" && duration>1s
+```
+
+**Find all slow requests (>5s):**
+```
+{service.name="rpa-system-backend"} && duration>5s
+```
+
+---
+
 ## 🔍 Troubleshooting Workflows
 
 ### Problem: "Workflow completed but no steps executed"
