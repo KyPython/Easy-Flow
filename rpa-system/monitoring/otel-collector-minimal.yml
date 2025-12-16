@@ -37,7 +37,7 @@ exporters:
     endpoint: tempo:4317
     tls:
       insecure: true
-    # Send traces to Tempo via gRPC
+    # Send traces to Tempo via gRPC (Tempo's OTLP gRPC endpoint on port 4317)
 
   debug:
     verbosity: basic

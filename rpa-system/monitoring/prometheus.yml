@@ -28,13 +28,12 @@ scrape_configs:
     metrics_path: "/metrics"
     scrape_timeout: 10s
 
-  # OpenTelemetry Collector metrics (if running)
-  # Uncomment when otel-collector is started
-  # - job_name: "otel-collector"
-  #   static_configs:
-  #     - targets: ["easyflow-otel-collector:8889"]
-  #   scrape_interval: 15s
-  #   metrics_path: "/metrics"
+  # OpenTelemetry Collector metrics (span metrics from spanmetrics processor)
+  - job_name: "otel-collector"
+    static_configs:
+      - targets: ["otel-collector:8889"]
+    scrape_interval: 15s
+    metrics_path: "/metrics"
 
   # OpenTelemetry Collector span metrics (if running)
   # - job_name: "otel-span-metrics"
