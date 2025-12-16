@@ -588,6 +588,23 @@ app.use(traceContextMiddleware);
 // This should come immediately after trace context to capture all requests
 app.use(requestLoggingMiddleware());
 
+// ✅ Mount Prometheus metrics endpoint (if PrometheusExporter is available)
+// This must be done after telemetryInit.js has initialized the SDK
+// Note: PrometheusExporter also starts its own server on port 9091 (configured in telemetryInit.js)
+// This Express route provides an alternative endpoint, but Prometheus scrapes from port 9091
+try {
+  const { prometheusExporter } = require('./middleware/telemetryInit');
+  if (prometheusExporter && typeof prometheusExporter.getMetricsRequestHandler === 'function') {
+    // Mount the Prometheus metrics endpoint on the Express app as well
+    // This reads from the global MeterProvider set by the SDK
+    app.get('/metrics', prometheusExporter.getMetricsRequestHandler());
+    logger.info('✅ [Telemetry] Prometheus metrics endpoint mounted at /metrics (also available on port 9091)');
+  }
+} catch (e) {
+  // PrometheusExporter might not be available - that's okay, metrics still work via OTLP
+  logger.debug('ℹ️ [Telemetry] PrometheusExporter not available for Express mounting:', e.message);
+}
+
 // The Polar webhook needs a raw body, so we conditionally skip the JSON parser for it.
 // For all other routes, this middleware will parse the JSON body.
 // It must be registered before any routes that need to access `req.body`.
