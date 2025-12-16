@@ -214,9 +214,36 @@ nodejs_heap_size_used_bytes
 
 ### Loki (Grafana Explore)
 
+**⚠️ Important:** Loki queries require at least one label matcher. You cannot use empty queries or wildcards like `.*` without a label.
+
+**Available Labels:**
+- `job` - easyflow-backend, easyflow-frontend, easyflow-automation, easyflow-backend-errors, easyflow-frontend-errors
+- `service` - rpa-system-backend, rpa-system-frontend, automation-worker
+- `level` - info, error, warn, debug (extracted from JSON logs)
+- `logger` - logger name (extracted from JSON logs)
+- `environment` - development
+
+**Basic Query Structure:**
+```
+{label="value"}
+```
+
+**Common Queries:**
+
 ```logql
+# All backend logs
+{job="easyflow-backend"}
+
+# Backend errors only
+{job="easyflow-backend", level="error"}
+# or
+{job="easyflow-backend-errors"}
+
+# Search for specific text in backend logs
+{job="easyflow-backend"} |= "workflow"
+
 # All errors across all services
-{job=~".+"} |= "ERROR"
+{level="error"}
 
 # Workflow execution flow for a specific user
 {job=~"easyflow-.*"} 
@@ -238,7 +265,52 @@ nodejs_heap_size_used_bytes
 {job=~"easyflow-.*"} 
   | json 
   | traceId != ""
+
+# Search for execution IDs
+{job="easyflow-backend"} |= "execution_id"
+
+# Search for trace IDs
+{job="easyflow-backend"} |= "trace_id"
+
+# Frontend logs
+{job="easyflow-frontend"}
+
+# Automation worker logs
+{job="easyflow-automation"}
+
+# Filter by service
+{service="rpa-system-backend"}
 ```
+
+**LogQL Operators:**
+- `|= "text"` - Contains text (case-sensitive)
+- `!= "text"` - Does not contain text
+- `|~ "regex"` - Matches regex
+- `!~ "regex"` - Does not match regex
+
+**Examples with Text Search:**
+```logql
+# Multiple text filters
+{job="easyflow-backend"} |= "workflow" |= "execution"
+
+# Regex search
+{job="easyflow-backend"} |~ "error|exception|failed"
+
+# Exclude certain text
+{level="error"} != "timeout"
+```
+
+**Using in Grafana Explore:**
+1. Select **Loki** datasource
+2. Add a label filter: `{job="easyflow-backend"}`
+3. Add text search (optional): `|= "your search term"`
+4. Click **Run query** or press Shift+Enter
+
+**Quick Start Queries:**
+- See all backend logs: `{job="easyflow-backend"}`
+- See all errors: `{level="error"}`
+- Search for workflow executions: `{job="easyflow-backend"} |= "workflow"`
+- See recent errors with trace context: `{level="error"} |= "trace_id"`
 
 ---
 
