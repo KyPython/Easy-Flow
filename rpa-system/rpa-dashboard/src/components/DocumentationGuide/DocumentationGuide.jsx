@@ -88,7 +88,7 @@ export default function DocumentationGuide() {
         ))}
       </div>
       <div className={styles.footer}>
-        <span>Still stuck? Email <a href="mailto:kyjahntsmith@gmail.com">kyjahntsmith@gmail.com</a> for help!</span>
+        <span>Still stuck? Email <a href="mailto:support@useeasyflow.com">support@useeasyflow.com</a> for help!</span>
       </div>
     </div>
   );

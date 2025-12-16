@@ -20,7 +20,7 @@ export default function ContactModal({ open, onClose }) {
           {t('contact.phone_label','Phone:')} <a href="tel:+12034494970">+1 (203) 449-4970</a>
         </p>
         <p>
-          {t('contact.email_label','Email:')} <a href="mailto:kyjahntsmith@gmail.com">kyjahntsmith@gmail.com</a>
+          {t('contact.email_label','Email:')} <a href="mailto:support@useeasyflow.com">support@useeasyflow.com</a>
         </p>
         <div className={styles.actions}>
           <button onClick={onClose}>{t('action.close','Close')}</button>
