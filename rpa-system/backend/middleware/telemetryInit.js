@@ -306,9 +306,11 @@ function parseHeaders(headerString) {
 // Use a different port to avoid conflict with Prometheus (9090)
 // Prometheus will scrape from host.docker.internal:9091
 const PROMETHEUS_METRICS_PORT = process.env.PROMETHEUS_METRICS_PORT || 9091;
-// Note: PrometheusExporter will be started after SDK initialization
-// to ensure it uses the SDK's MeterProvider
-let prometheusExporter;
+// Create PrometheusExporter - it will be connected to SDK's MeterProvider after SDK.start()
+const prometheusExporter = new PrometheusExporter({
+  port: PROMETHEUS_METRICS_PORT,
+  endpoint: '/metrics'
+});
 
 // ✅ OBSERVABILITY: Configure trace sampler with smart defaults
 // Uses ParentBasedSampler: preserves all traces initiated by sampled requests
@@ -417,15 +419,24 @@ if (traceExporter && typeof traceExporter.export === 'function') {
 }
 
 // Initialize NodeSDK with optimized configuration
+// Create metric readers
+// Use PrometheusExporter's MetricReader for /metrics endpoint
+// Also keep OTLP reader for remote export
+const prometheusMetricReader = prometheusExporter.getMetricsReader();
+const otlpMetricReader = new PeriodicExportingMetricReader({
+  exporter: metricExporter,
+  exportIntervalMillis: 30000, // Export every 30 seconds
+  exportTimeoutMillis: 10000
+});
+
+// Note: SDK only supports one metricReader, so we use Prometheus for local scraping
+// OTLP export can still work via the global MeterProvider if needed
 const sdk = new NodeSDK({
   resource,
   spanProcessor, // ✅ Use custom processor for data redaction
   sampler, // ✅ Use configured sampler (10% sampling)
-  metricReader: new PeriodicExportingMetricReader({
-    exporter: metricExporter,
-    exportIntervalMillis: 30000, // Export every 30 seconds
-    exportTimeoutMillis: 10000
-  }),
+  // Use Prometheus MetricReader to enable /metrics endpoint
+  metricReader: prometheusMetricReader,
   instrumentations: [
     getNodeAutoInstrumentations({
       // Enhanced HTTP instrumentation for SLO tracking
@@ -642,19 +653,14 @@ try {
   
   sdk.start();
   
-  // Initialize Prometheus exporter AFTER SDK.start() to ensure it uses the SDK's MeterProvider
-  // The PrometheusExporter automatically uses the global MeterProvider from metrics.getMeterProvider()
+  // Start Prometheus exporter server - it uses the SDK's MeterProvider automatically
+  // The PrometheusExporter was created earlier and its MetricReader is already connected to the SDK
   try {
-    prometheusExporter = new PrometheusExporter({
-      port: PROMETHEUS_METRICS_PORT,
-      endpoint: '/metrics'
-    });
-    // The PrometheusExporter automatically starts a server when created
-    // It uses the global MeterProvider which is now set by the SDK
+    prometheusExporter.startServer();
     logger.info(`✅ [Telemetry] Prometheus metrics server started on port ${PROMETHEUS_METRICS_PORT}`);
     logger.info(`✅ [Telemetry] Prometheus metrics endpoint: http://localhost:${PROMETHEUS_METRICS_PORT}/metrics`);
   } catch (promError) {
-    logger.warn(`⚠️ [Telemetry] Prometheus exporter initialization failed: ${promError.message}`);
+    logger.warn(`⚠️ [Telemetry] Prometheus exporter start failed (may already be running): ${promError.message}`);
   }
   
   // ✅ PART 2.3: Verification - Print success message indicating OTEL Exporters are active

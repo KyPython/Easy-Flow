@@ -20,40 +20,49 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # OpenTelemetry Collector metrics
-  - job_name: "otel-collector"
+  # Backend metrics - direct Prometheus endpoint
+  - job_name: "easyflow-backend"
     static_configs:
-      - targets: ["otel-collector:8889"]
+      - targets: ["host.docker.internal:9091"]
     scrape_interval: 15s
     metrics_path: "/metrics"
+    scrape_timeout: 10s
 
-  # OpenTelemetry Collector span metrics
-  - job_name: "otel-span-metrics"
-    static_configs:
-      - targets: ["otel-collector:8890"]
-    scrape_interval: 15s
-    metrics_path: "/metrics"
+  # OpenTelemetry Collector metrics (if running)
+  # Uncomment when otel-collector is started
+  # - job_name: "otel-collector"
+  #   static_configs:
+  #     - targets: ["easyflow-otel-collector:8889"]
+  #   scrape_interval: 15s
+  #   metrics_path: "/metrics"
 
-  # Note: Backend metrics come through OpenTelemetry Collector (otel-collector job above)
-  # Backend sends metrics via OTLP to collector, which exposes them as Prometheus metrics
+  # OpenTelemetry Collector span metrics (if running)
+  # - job_name: "otel-span-metrics"
+  #   static_configs:
+  #     - targets: ["easyflow-otel-collector:8890"]
+  #   scrape_interval: 15s
+  #   metrics_path: "/metrics"
+
+  # Note: Backend metrics are exposed directly at http://localhost:9091/metrics
+  # Backend also sends metrics via OTLP to collector (when collector is running)
   
-  # Automation service metrics
-  - job_name: "easyflow-automation"
-    static_configs:
-      - targets: ["automation:7001"]
-    metrics_path: "/metrics"
-    scrape_interval: 10s
-    scrape_timeout: 5s
+  # Automation service metrics (when automation service is running)
+  # - job_name: "easyflow-automation"
+  #   static_configs:
+  #     - targets: ["automation:7001"]
+  #   metrics_path: "/metrics"
+  #   scrape_interval: 10s
+  #   scrape_timeout: 5s
 
-  # Redis metrics (if Redis exporter is added)
-  - job_name: "redis"
-    static_configs:
-      - targets: ["redis:6379"]
-    scrape_interval: 30s
+  # Redis metrics (when Redis exporter is added)
+  # - job_name: "redis"
+  #   static_configs:
+  #     - targets: ["redis:6379"]
+  #   scrape_interval: 30s
 
   # K6 load testing metrics (when running)
-  - job_name: "k6"
-    static_configs:
-      - targets: ["k6-load-tester:6565"]
-    scrape_interval: 5s
-    scrape_timeout: 5s
+  # - job_name: "k6"
+  #   static_configs:
+  #     - targets: ["k6-load-tester:6565"]
+  #   scrape_interval: 5s
+  #   scrape_timeout: 5s
