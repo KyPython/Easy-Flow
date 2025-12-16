@@ -906,6 +906,101 @@ nodejs_heap_size_used_bytes
 
 ---
 
+## 📝 Integrated Logs
+
+All application logs are automatically collected and shipped to Loki via Promtail. Here's what's integrated:
+
+### Application Logs (via Promtail)
+
+| Log Source | File Path | Job Name | Labels | Status |
+|------------|-----------|----------|--------|--------|
+| **Backend** | `logs/backend.log` | `easyflow-backend` | `service=rpa-system-backend`, `level`, `logger` | ✅ Integrated |
+| **Backend Errors** | `logs/backend-error.log` | `easyflow-backend-errors` | `service=rpa-system-backend`, `log_level=error` | ✅ Integrated |
+| **Frontend** | `logs/frontend.log` | `easyflow-frontend` | `service=rpa-system-frontend` | ✅ Integrated |
+| **Frontend Errors** | `logs/frontend-error.log` | `easyflow-frontend-errors` | `service=rpa-system-frontend`, `log_level=error` | ✅ Integrated |
+| **Automation Worker** | `logs/automation-worker.log` | `easyflow-automation` | `service=automation-worker` | ✅ Integrated |
+
+### Log Collection Details
+
+**Backend Logs:**
+- Format: JSON (structured logging via Pino)
+- Fields extracted: `level`, `msg`, `time`, `service`, `logger`, `trace_id`, `span_id`, `user_id`, `method`, `path`, `execution_id`, `workflow_id`
+- Labels: `level`, `service`, `logger` (for filtering)
+
+**Frontend Logs:**
+- Format: Plain text (React app console output)
+- Captured via PM2 stdout/stderr redirection
+
+**Automation Worker Logs:**
+- Format: Plain text with timestamp prefix
+- Pattern: `YYYY-MM-DD HH:mm:ss: <message>`
+- Extracts timestamp and content
+
+**Error Logs:**
+- Separate jobs for error-only logs
+- Useful for filtering: `{log_level="error"}`
+
+### Infrastructure Logs (Docker Containers)
+
+Infrastructure services (Kafka, Zookeeper, Prometheus, Grafana, Loki, Tempo, OTEL Collector) log to Docker's default logging driver. These logs are **not** currently integrated into Loki, but can be accessed via:
+
+```bash
+# View container logs
+docker logs easy-flow-kafka-1 --tail 100
+docker logs easyflow-prometheus --tail 100
+docker logs easyflow-grafana --tail 100
+
+# Follow logs
+docker logs -f easy-flow-kafka-1
+```
+
+**Note:** Infrastructure logs are typically less critical for application debugging. Focus on application logs (backend, frontend, automation worker) which are fully integrated.
+
+### Verifying Log Integration
+
+**Check if logs are flowing to Loki:**
+```bash
+# List all available jobs
+curl http://localhost:3100/loki/api/v1/label/job/values
+
+# Query recent logs
+curl "http://localhost:3100/loki/api/v1/query_range?query={job=\"easyflow-backend\"}&limit=10&start=$(date -u -v-1H +%s)000000000&end=$(date -u +%s)000000000"
+```
+
+**In Grafana Explore:**
+1. Select "Loki" datasource
+2. Use label browser to see available jobs
+3. Query: `{job="easyflow-backend"}`
+
+**Check Promtail is shipping logs:**
+```bash
+# Check Promtail logs
+docker logs easyflow-promtail --tail 50
+
+# Look for "Adding target" messages
+docker logs easyflow-promtail | grep "Adding target"
+```
+
+**Expected output:**
+```
+level=info msg="Adding target" key="/app/logs/backend*.log:{...}"
+level=info msg="Adding target" key="/app/logs/frontend*.log:{...}"
+level=info msg="Adding target" key="/app/logs/automation-worker*.log:{...}"
+```
+
+### Log File Locations
+
+All application logs are written to `/Users/ky/Easy-Flow/logs/` (project root) and mounted into Promtail container at `/app/logs/`.
+
+**PM2 Configuration** (`ecosystem.config.js`):
+- Backend: `logs/backend.log` (stdout), `logs/backend-error.log` (stderr)
+- Frontend: `logs/frontend.log` (stdout), `logs/frontend-error.log` (stderr)
+- Automation: `logs/automation-worker.log` (stdout/stderr merged)
+
+**Promtail Volume Mount** (`docker-compose.monitoring.yml`):
+- Host: `../logs` (relative to docker-compose file)
+- Container: `/app/logs` (read-only)
+
 ## 📝 Logging Best Practices
 
 ### All logs MUST follow this structure:
