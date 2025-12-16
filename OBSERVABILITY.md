@@ -120,6 +120,39 @@ const getExecutionDetails = async (executionId) => {
 3. Monitor UI rendering time (Performance tab)
 4. Check backend query duration in Grafana traces
 
+**How to Trace These Queries in Tempo:**
+
+**1. Trace execution list queries (should be fast <500ms):**
+```
+{resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"} && !{http.target=~".*executions/[^/]+$"}
+```
+
+**What to look for:**
+- List query duration should be <500ms (optimized, excludes large JSON fields)
+- Database query spans should show fast index scans
+- No spans fetching `input_data` or `output_data` fields
+
+**2. Trace execution detail queries (may be slower, includes full data):**
+```
+{resource.service.name="rpa-system-backend"} && {http.target=~".*executions/[^/]+$"} && {http.method="GET"}
+```
+
+**What to look for:**
+- Detail query duration may be 500ms-2s (includes large JSON fields)
+- Should see spans fetching `input_data`, `output_data`, and `step_executions`
+- Database query spans will show fetching complete execution data
+
+**3. Compare performance:**
+```
+{resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"}
+```
+
+**Expected results:**
+- List queries: Fast (<500ms), small payload
+- Detail queries: Slower (500ms-2s), complete data
+- If list queries are slow, check database indexes
+- If detail queries are very slow (>2s), check for N+1 queries or missing indexes on `step_executions`
+
 ---
 
 ### Problem: Save Operation Hanging
