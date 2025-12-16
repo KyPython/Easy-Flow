@@ -124,7 +124,7 @@ const getExecutionDetails = async (executionId) => {
 
 **1. Trace execution detail queries (GET /api/executions/:id):**
 ```
-{resource.service.name="rpa-system-backend"} && {http.target=~"/api/executions/[0-9a-f-]+$"} && {http.method="GET"}
+{resource.service.name="rpa-system-backend"} && {name=~"GET /api/executions/.*"}
 ```
 
 **What to look for:**
@@ -135,7 +135,7 @@ const getExecutionDetails = async (executionId) => {
 
 **2. Find slow execution detail queries (>1s):**
 ```
-{resource.service.name="rpa-system-backend"} && {http.target=~"/api/executions/[0-9a-f-]+$"} && {http.method="GET"} && {duration>1s}
+{resource.service.name="rpa-system-backend"} && {name=~"GET /api/executions/.*"} && {duration>1s}
 ```
 
 **Note:** List queries are fetched directly from Supabase by the frontend (not through backend API), so they won't appear in Tempo traces. To monitor list query performance:
@@ -338,17 +338,17 @@ Once you've identified the slow span, search logs for that operation:
 
 **6. Trace execution detail queries (full detail view - GET /api/executions/:id):**
 ```
-{resource.service.name="rpa-system-backend"} && {http.target=~"/api/executions/[0-9a-f-]+$"} && {http.method="GET"}
+{resource.service.name="rpa-system-backend"} && {name=~"GET /api/executions/.*"}
 ```
 
 **7. Find all execution-related API calls:**
 ```
-{resource.service.name="rpa-system-backend"} && {http.target=~".*executions.*"} && {http.method="GET"}
+{resource.service.name="rpa-system-backend"} && {name=~".*executions.*"}
 ```
 
 **8. Find slow execution detail queries (>1s):**
 ```
-{resource.service.name="rpa-system-backend"} && {http.target=~"/api/executions/[0-9a-f-]+$"} && {http.method="GET"} && {duration>1s}
+{resource.service.name="rpa-system-backend"} && {name=~"GET /api/executions/.*"} && {duration>1s}
 ```
 
 **Note:** List queries are fetched directly from Supabase by the frontend (not through backend API), so they won't appear in Tempo traces. Only detail queries (`GET /api/executions/:id`) will show up here.
