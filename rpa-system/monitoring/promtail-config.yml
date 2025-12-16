@@ -95,17 +95,6 @@ scrape_configs:
   - output:
       source: content
 
-# Automation worker logs (Python with prefixes)
-- job_name: easyflow-automation
-  static_configs:
-  - targets:
-      - localhost
-    labels:
-      job: easyflow-automation
-      service: automation-worker
-      environment: development
-      __path__: /app/logs/automation-worker*.log
-
 # Backend error logs
 - job_name: easyflow-backend-errors
   static_configs:
