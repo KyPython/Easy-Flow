@@ -338,7 +338,15 @@ Once you've identified the slow span, search logs for that operation:
 
 **6. Trace execution detail queries (full detail view - GET /api/executions/:id):**
 ```
-{resource.service.name="rpa-system-backend"} && {name=~"GET /api/executions/.*"}
+{resource.service.name="rpa-system-backend"} && {name=~".*executions.*"}
+```
+
+**Alternative (if above doesn't work, try these):**
+```
+{resource.service.name="rpa-system-backend"} && {name=~"GET.*executions"}
+```
+```
+{resource.service.name="rpa-system-backend"} && {name=~"/api/executions"}
 ```
 
 **7. Find all execution-related API calls:**
@@ -348,8 +356,31 @@ Once you've identified the slow span, search logs for that operation:
 
 **8. Find slow execution detail queries (>1s):**
 ```
-{resource.service.name="rpa-system-backend"} && {name=~"GET /api/executions/.*"} && {duration>1s}
+{resource.service.name="rpa-system-backend"} && {name=~".*executions.*"} && {duration>1s}
 ```
+
+**Troubleshooting "0 series returned":**
+1. **First, verify traces exist at all:**
+   ```
+   {resource.service.name="rpa-system-backend"}
+   ```
+   If this returns nothing, traces aren't reaching Tempo.
+
+2. **Check if you made a request recently:**
+   - Open your app and click "View Details" on an execution
+   - Wait 5-10 seconds for traces to be exported
+   - Set time range to "Last 15 minutes" in Grafana
+
+3. **See all available span names:**
+   ```
+   {resource.service.name="rpa-system-backend"}
+   ```
+   Then click on a trace to see the actual span names being created.
+
+4. **Check backend logs for trace generation:**
+```bash
+   tail -f logs/backend.log | grep -i "execution\|trace"
+   ```
 
 **Note:** List queries are fetched directly from Supabase by the frontend (not through backend API), so they won't appear in Tempo traces. Only detail queries (`GET /api/executions/:id`) will show up here.
 
