@@ -197,19 +197,32 @@ curl http://localhost:3200/api/search?limit=10
 - **Observability stack not running:** `./start-dev.sh`
 - **Time range too narrow:** Expand to "Last 1 hour"
 - **No requests made:** Make a request first, then query
-- **OTEL Collector not exporting to Tempo:** Check config file has `otlp/tempo` exporter and traces pipeline includes it:
+- **OTEL Collector not exporting to Tempo:** 
+  
+  **The Problem:** If traces pipeline only exports to `debug`, traces are printed to console but never sent to Tempo.
+  
+  **The Fix:** Ensure config has `otlp/tempo` exporter and traces pipeline includes it:
   ```yaml
   exporters:
     otlp/tempo:
-      endpoint: tempo:4317
+      endpoint: tempo:4317  # Docker resolves 'tempo' hostname to container IP
       tls:
-        insecure: true
+        insecure: true       # Required for local development (no TLS)
   
   pipelines:
     traces:
+      receivers: [otlp]
+      processors: [memory_limiter, spanmetrics, batch]
       exporters: [otlp/tempo, debug]  # Must include otlp/tempo!
   ```
-  Then restart: `docker restart easyflow-otel-collector`
+  
+  **Why this works:**
+  - `otlp/tempo` exporter sends traces to Tempo via gRPC (port 4317)
+  - Docker's internal networking resolves `tempo` hostname to the Tempo container
+  - `insecure: true` allows HTTP communication without TLS (local dev only)
+  - Traces flow: Backend → OTEL Collector → Tempo → Grafana
+  
+  **Apply fix:** Restart OTEL Collector: `docker restart easyflow-otel-collector` or restart stack: `./start-dev.sh`
 
 ---
 
