@@ -32,10 +32,17 @@ const ExecutionCard = ({
 
   // Helper to detect false "completed" status (0 steps executed = actually failed)
   const getActualStatus = (execution) => {
+    // ✅ DYNAMIC: Calculate steps_total from multiple sources with fallbacks
+    const stepsTotal = execution.steps_total || 
+                     (execution.step_executions?.length) ||
+                     0;
+    const stepsExecuted = execution.steps_executed || 
+                        (execution.step_executions?.filter(s => s.status === 'completed').length) ||
+                        0;
     // If marked completed but no steps executed, treat as failed
     if (execution.status === 'completed' && 
-        execution.steps_total > 0 && 
-        (execution.steps_executed === 0 || !execution.steps_executed)) {
+        stepsTotal > 0 && 
+        (stepsExecuted === 0 || !stepsExecuted)) {
       return 'failed';
     }
     return execution.status;
@@ -66,8 +73,15 @@ const ExecutionCard = ({
   };
 
   const getProgress = () => {
-    if (!execution.steps_total) return 0;
-    return Math.round((execution.steps_executed / execution.steps_total) * 100);
+    // ✅ DYNAMIC: Calculate steps_total from multiple sources with fallbacks
+    const stepsTotal = execution.steps_total || 
+                     (execution.step_executions?.length) ||
+                     0;
+    const stepsExecuted = execution.steps_executed || 
+                        (execution.step_executions?.filter(s => s.status === 'completed').length) ||
+                        0;
+    if (!stepsTotal) return 0;
+    return Math.round((stepsExecuted / stepsTotal) * 100);
   };
 
   // Get actual status (detect false "completed")
@@ -171,7 +185,19 @@ const ExecutionCard = ({
             <div className={styles.detailItem}>
               <span className={styles.detailLabel}>Progress:</span>
               <span className={styles.detailValue}>
-                {execution.steps_executed || 0}/{execution.steps_total || 0} steps
+                {(() => {
+                  // ✅ DYNAMIC: Calculate steps_total from multiple sources with fallbacks
+                  // 1. Use execution.steps_total (set at execution creation time)
+                  // 2. Fallback to step_executions.length (actual steps that were created)
+                  // 3. Fallback to 0 if neither available
+                  const stepsTotal = execution.steps_total || 
+                                   (execution.step_executions?.length) ||
+                                   0;
+                  const stepsExecuted = execution.steps_executed || 
+                                      (execution.step_executions?.filter(s => s.status === 'completed').length) ||
+                                      0;
+                  return `${stepsExecuted}/${stepsTotal} steps`;
+                })()}
               </span>
             </div>
           </div>

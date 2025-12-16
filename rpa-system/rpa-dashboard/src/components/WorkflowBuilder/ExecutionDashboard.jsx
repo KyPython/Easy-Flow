@@ -370,7 +370,21 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
                 </div>
                 <div className={styles.overviewItem}>
                   <label>Steps:</label>
-                  <span>{execution.steps_executed}/{execution.steps_total}</span>
+                  <span>
+                    {(() => {
+                      // ✅ DYNAMIC: Calculate steps_total from multiple sources with fallbacks
+                      // 1. Use execution.steps_total (set at execution creation time)
+                      // 2. Fallback to step_executions.length (actual steps that were created)
+                      // 3. Fallback to 0 if neither available
+                      const stepsTotal = execution.steps_total || 
+                                       (execution.step_executions?.length) ||
+                                       0;
+                      const stepsExecuted = execution.steps_executed || 
+                                          (execution.step_executions?.filter(s => s.status === 'completed').length) ||
+                                          0;
+                      return `${stepsExecuted}/${stepsTotal}`;
+                    })()}
+                  </span>
                 </div>
               </div>
 
