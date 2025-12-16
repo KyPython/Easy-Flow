@@ -40,7 +40,23 @@ const HOST = process.env.HOST || '0.0.0.0';
 // Only start the server when this file is run directly. This avoids binding the
 // port during test runs when the app is required by Jest.
 if (require.main === module) {
+  // ✅ DATABASE WARM-UP: Wake up database connection before accepting requests
+  // This prevents "cold start" query timeout issues with serverless databases
+  const { warmupDatabaseWithRetry } = require('./utils/databaseWarmup');
+  
+  // Warm up database asynchronously - don't block server startup
+  // If warm-up fails, server still starts (first request may be slower)
+  warmupDatabaseWithRetry({
+    maxRetries: 2,
+    retryDelay: 2000,
+    timeout: 30000
+  }).catch(err => {
+    // Already logged in warmupDatabaseWithRetry, just ensure we don't crash
+    logger.warn('[server] Database warm-up completed with warnings - server continuing');
+  });
+
   app.listen(PORT, HOST, () => {
     logger.info(`[server] EasyFlow backend listening on http://${HOST}:${PORT}`);
+    logger.info(`[server] Database warm-up initiated - connection will be ready for first request`);
   });
 }
