@@ -131,6 +131,9 @@ rate(http_requests_total{status=~"5.."}[5m])
 
 # Workflow execution traces
 {resource.service.name="rpa-system-backend"} && {name=~".*workflow.*execute.*"}
+
+# Find a specific trace by its ID (paste the ID directly)
+244cab272c869a88c72f6c3c5fa75c79
 ```
 
 ### Logs (Loki)
@@ -194,6 +197,19 @@ curl http://localhost:3200/api/search?limit=10
 - **Observability stack not running:** `./start-dev.sh`
 - **Time range too narrow:** Expand to "Last 1 hour"
 - **No requests made:** Make a request first, then query
+- **OTEL Collector not exporting to Tempo:** Check config file has `otlp/tempo` exporter and traces pipeline includes it:
+  ```yaml
+  exporters:
+    otlp/tempo:
+      endpoint: tempo:4317
+      tls:
+        insecure: true
+  
+  pipelines:
+    traces:
+      exporters: [otlp/tempo, debug]  # Must include otlp/tempo!
+  ```
+  Then restart: `docker restart easyflow-otel-collector`
 
 ---
 
