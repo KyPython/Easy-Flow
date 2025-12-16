@@ -1,12 +1,12 @@
-# EasyFlow Observability System - Complete Guide
+# EasyFlow Observability Debugging Guide
 
-**📌 Single Source of Truth for Monitoring & Debugging**
+**📌 Your guide to debugging the app using observability tools**
 
 ---
 
 ## 🎯 What Is This System For?
 
-Your observability stack gives you **three superpowers** to understand your application in real-time:
+Your observability stack gives you **three superpowers** to debug your application:
 
 1. **📊 Metrics** - Numbers that change (performance, counts, rates)
 2. **🔍 Traces** - Request paths through services (distributed tracing)
@@ -16,36 +16,6 @@ Your observability stack gives you **three superpowers** to understand your appl
 - **Metrics** tell you there's a problem
 - **Logs** tell you what the problem is
 - **Traces** tell you where the problem is happening
-
----
-
-## 🚀 Quick Start
-
-### Starting the System
-```bash
-./start-dev.sh
-```
-
-This **ONE COMMAND** starts everything:
-- ✅ Kafka & Zookeeper (message broker)
-- ✅ Backend API (Node.js on port 3030)
-- ✅ Frontend (React on port 3000)
-- ✅ Automation Worker (Python on port 7070)
-- ✅ **Prometheus** (metrics - port 9090)
-- ✅ **Grafana** (dashboards - port 3001, login: admin/admin123)
-- ✅ **Loki** (log aggregation - port 3100)
-- ✅ **Promtail** (log collector - port 9080, ships logs to Loki)
-- ✅ **Tempo** (distributed tracing - port 3200)
-- ✅ **OTEL Collector** (telemetry ingestion - ports 4317/4318)
-- ✅ **Alertmanager** (alerts - port 9093)
-- ✅ **Backend Metrics** (Prometheus endpoint - port 9091)
-
-### Stopping the System
-```bash
-./stop-dev.sh
-```
-
-Stops **everything** including observability stack, verifies ports are free.
 
 ---
 
@@ -61,88 +31,46 @@ Stops **everything** including observability stack, verifies ports are free.
 
 **Solution 1: Add Database Indexes**
 
-Add database indexes on frequently queried columns:
-- `user_id` (for RLS filtering and user-scoped queries)
-- `updated_at` / `created_at` (for ordering)
-- `status` (for filtering)
-- Composite indexes for common query patterns
+Run the migration: `rpa-system/backend/migrations/add_performance_indexes.sql`
 
-**Quick Fix:**
+**Verify indexes were created:**
+```sql
+SELECT indexname, indexdef 
+FROM pg_indexes 
+WHERE tablename = 'workflows' 
+ORDER BY indexname;
+```
 
-1. **Run the migration:**
-   ```bash
-   # Connect to your Supabase database
-   psql <your-connection-string>
-   
-   # Or via Supabase Dashboard SQL Editor
-   # Copy and paste the contents of:
-   # rpa-system/backend/migrations/add_performance_indexes.sql
-   ```
+**Test query performance:**
+```sql
+EXPLAIN ANALYZE
+SELECT * FROM workflows 
+WHERE user_id = '<test-user-id>'
+ORDER BY updated_at DESC;
+```
 
-2. **Verify indexes were created:**
-   ```sql
-   SELECT indexname, indexdef 
-   FROM pg_indexes 
-   WHERE tablename = 'workflows' 
-   ORDER BY indexname;
-   ```
-
-3. **Test query performance:**
-   ```sql
-   EXPLAIN ANALYZE
-   SELECT * FROM workflows 
-   WHERE user_id = '<test-user-id>'
-   ORDER BY updated_at DESC;
-   ```
-   
-   **Before indexes:** Should show "Seq Scan" (slow)
-   **After indexes:** Should show "Index Scan" (fast)
+**Before indexes:** Should show "Seq Scan" (slow)  
+**After indexes:** Should show "Index Scan" (fast)
 
 **Solution 2: Database Warm-Up (Cold Start Fix)**
 
 **Problem:** Supabase free tier pauses inactive databases. First request after inactivity times out while database wakes up (5-15 seconds).
 
-**Solution:** Database warm-up blocks server startup until database is ready:
-- ✅ Warm-up runs before `app.listen()` - server won't start until DB is ready
-- ✅ Blocks startup - ensures database is awake before accepting requests
-- ✅ Fails loudly - if database is down, server won't start (better than broken state)
-- ✅ Simple query - lightweight `SELECT id LIMIT 1` on indexed table
+**Solution:** Database warm-up blocks server startup until database is ready.
 
-**How It Works:**
-1. Server starts → Warm-up query runs (blocks startup)
-2. Database wakes up → Connection established (5-15 seconds during startup)
-3. Server accepts requests → Database already awake → First request succeeds immediately
-
-**Why This Works:**
-- **Blocks Startup:** Server won't accept requests until database is ready
-- **Simple Query:** Lightweight query just establishes connection
-- **Handles Failure:** If database is down, server fails to start (better than broken state)
-- **Moves Penalty:** Wake-up delay happens during startup (no users waiting) instead of first request
-
-**Configuration:**
-- Warm-up runs automatically (no config needed)
-- Blocks server startup until complete
-- Logs: Check backend logs for `[server]` warm-up messages
-
-**Expected Performance Improvement:**
-- **Before:** First request timeout (10+ seconds), refresh works
-- **After:** First request succeeds immediately (<100ms)
-- **Indexes:** Query time: 10+ seconds → <100ms
-- **Warm-up:** Eliminates cold start delays
+**How to verify it's working:**
+- Check backend logs for `[DatabaseWarmup]` messages
+- Monitor database query duration metrics in Grafana
+- Watch for timeout errors in Loki logs
 
 **Monitoring:**
 - Check backend logs for `[DatabaseWarmup]` messages
 - Monitor database query duration metrics in Grafana
 - Watch for timeout errors in Loki logs
-- Check `/api/health` endpoint for database status
-
-**See:** 
-- `rpa-system/backend/migrations/add_performance_indexes.sql` for index definitions
-- `rpa-system/backend/utils/databaseWarmup.js` for warm-up implementation
 
 ---
 
-## 🔍 Troubleshooting Workflows (Your Current Issue)
+## 🔍 Troubleshooting Workflows
 
 ### Problem: "Workflow completed but no steps executed"
 
@@ -176,16 +104,12 @@ Open: http://localhost:9090/targets
 - ✅ easyflow-backend (host.docker.internal:9091)
 - ✅ prometheus (127.0.0.1:9090)
 
-**Note:** OTEL Collector metrics endpoint (localhost:8889) may not be available if the collector is not running or configured.
-
-If backend shows "DOWN", metrics aren't being exported properly. Check:
+If backend shows "DOWN", check:
 - Backend is running: `pm2 list`
 - Metrics endpoint accessible: `curl http://localhost:9091/metrics`
-- Prometheus can reach backend: Check network connectivity
 
 #### 3. Query Workflow Traces in Grafana
-Open: http://localhost:3001
-- **Login:** admin / admin123
+Open: http://localhost:3001 (login: admin/admin123)
 
 **Navigate to:** Dashboards → Workflow Execution Observability
 
@@ -216,7 +140,7 @@ In Grafana, go to: **Explore** → Select "Loki" datasource
 {job="easyflow-backend"} |= "execution_id" |= "318b436c-51dd-40da-ab23-e7af7ab75438"
 ```
 
-**What to look for in your case:**
+**What to look for:**
 ```json
 {
   "msg": "❌ Workflow marked as completed but no steps executed",
@@ -237,7 +161,7 @@ Then search automation worker logs for that `traceId`:
 {job="easyflow-automation"} |= "bb1a1d6a689ba82b693ec04794a0c102"
 ```
 
-**If no results found** → Trace context isn't propagating to the worker. This means the trace ID isn't being passed through Kafka headers.
+**If no results found** → Trace context isn't propagating to the worker.
 
 ### Troubleshooting: Trace ID Not Found in Automation Logs
 
@@ -254,14 +178,13 @@ Then search automation worker logs for that `traceId`:
 - **Backend NEVER sends anything to Kafka** ❌
 - Worker is never contacted, so no trace ID in worker logs ✅ (This is expected!)
 
-**This is NOT a trace propagation issue** - it's a workflow logic issue. The backend orchestrator (`rpa-system-backend`) decides there are no steps to execute BEFORE dispatching any jobs to the automation worker.
+**This is NOT a trace propagation issue** - it's a workflow logic issue.
 
 **How to Debug This:**
 1. **Check backend logs** for why steps weren't executed:
    ```logql
    {job="easyflow-backend"} |= "NO_STEPS_EXECUTED" |= "steps_total"
    ```
-   Look for logs showing `steps_total: 2, steps_executed: 0`
 
 2. **Add a debug/logging step** to force the backend to dispatch at least one job:
    - Create a simple "logger" step that does nothing but print its input
@@ -269,22 +192,13 @@ Then search automation worker logs for that `traceId`:
    - This forces the orchestrator to dispatch at least one job to Kafka
    - You'll then see the trace ID in worker logs
 
-3. **Check workflow configuration**:
-   - Are workflow steps properly defined?
-   - Are step conditions preventing execution?
-   - Is the workflow in a valid state?
-
 #### Cause 2: Trace Context Not Propagating (Less Common)
 **What's happening:**
 - Backend created a trace ✅
 - Backend published message to Kafka ✅
 - **But**: Trace context (trace ID, span ID) wasn't included in Kafka message headers ❌
-- Worker can't correlate its logs with the backend trace ❌
 
-**Step-by-Step Fix:**
-
-#### 1. Verify Kafka Message Headers
-Check if trace context is in Kafka headers:
+**How to verify:**
 ```bash
 # Check Kafka topic for recent messages
 docker exec -it easy-flow-kafka-1 kafka-console-consumer \
@@ -302,79 +216,11 @@ __headers__: traceparent=00-<trace-id>-<span-id>-01
 
 **If headers are missing:**
 - Backend isn't injecting trace context into Kafka messages
-- Check: `rpa-system/backend/utils/kafkaService.js` - should use OpenTelemetry propagation
+- Check: `rpa-system/backend/utils/kafkaService.js`
 
-#### 2. Check Backend Kafka Producer Code
-Verify backend is using OpenTelemetry context propagation:
-
-```javascript
-// ✅ CORRECT - Uses OpenTelemetry propagation
-const { propagation, context } = require('@opentelemetry/api');
-const headers = {};
-propagation.inject(context.active(), headers);
-await producer.send({
-  topic: 'automation-tasks',
-  messages: [{
-    value: JSON.stringify(message),
-    headers: headers  // ← Trace context in headers
-  }]
-});
-
-// ❌ WRONG - No trace context
-await producer.send({
-  topic: 'automation-tasks',
-  messages: [{ value: JSON.stringify(message) }]  // ← Missing headers
-});
-```
-
-#### 3. Check Automation Worker Consumer Code
-Verify worker extracts trace context from Kafka headers:
-
-```python
-# ✅ CORRECT - Extracts trace context
-from opentelemetry import trace, propagation
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-
-propagator = TraceContextTextMapPropagator()
-headers = {k: v for k, v in message.headers}  # Convert Kafka headers to dict
-ctx = propagator.extract(headers)  # Extract trace context
-
-with trace.use_span(trace.get_tracer(__name__).start_span("workflow.execute", context=ctx)):
-    # Worker code here - will inherit trace context
-    logger.info("Processing workflow", extra={"trace_id": trace.get_current_span().get_span_context().trace_id})
-```
-
-#### 4. Debugging: Force a Step to Execute
+### Debugging: Force a Step to Execute
 
 **If the backend never dispatches jobs**, add a debug/logging step to force execution:
-
-**Why This Happens:**
-The backend orchestrator (`rpa-system-backend`) evaluates workflow steps BEFORE dispatching any jobs to Kafka. If it decides there are no valid steps to execute (e.g., no "start" step, all steps filtered out by conditions, or workflow configuration issues), it marks the workflow as `NO_STEPS_EXECUTED` and **never sends anything to Kafka**. This is why you won't see trace IDs in automation worker logs - the worker was never contacted.
-
-**Create a Simple Logger Step:**
-
-1. **Check your workflow configuration:**
-   ```logql
-   {job="easyflow-backend"} |= "No start step found" |= "workflow_id"
-   ```
-   Or:
-   ```logql
-   {job="easyflow-backend"} |= "steps_total" |= "steps_executed: 0"
-   ```
-
-2. **Add a debug step as the first action step:**
-   - In your workflow editor, add a new step
-   - Set step type to `action`
-   - Set action type to something simple like `log` or `delay`
-   - This forces the backend to dispatch at least one job to Kafka
-   - You'll then see the trace ID in worker logs
-
-3. **Or check workflow structure:**
-   ```bash
-   # Check if workflow has a start step
-   # Check if workflow has action steps
-   # Check if step conditions are preventing execution
-   ```
 
 **Example Debug Step Configuration:**
 ```json
@@ -394,349 +240,59 @@ This simple delay step will:
 - Worker receives job and logs trace ID ✅
 - You can now see the full execution flow ✅
 
-### 2. Modify Your Workflow to Run the Logger First
+**Action Plan: Debugging NO_STEPS_EXECUTED**
 
-**Option A: Using the UI (Recommended)**
-
-1. **Open your workflow** in the Workflow Builder (http://localhost:3000/workflows/:id)
-2. **Add a new step:**
-   - Click the "+" button or drag an action from the toolbar
-   - Select "Delay" action (or any simple action)
-3. **Configure the debug step:**
-   - Set name: "Debug: Log Workflow Input"
-   - For delay: Set duration to 100ms (minimal delay)
-   - For other actions: Use minimal configuration
-4. **Connect it as the first step:**
-   - Connect the "Start" step → "Debug: Log Workflow Input" step
-   - Connect "Debug: Log Workflow Input" → your original first step
-5. **Save the workflow**
-6. **Execute the workflow** - the debug step will force backend to dispatch to Kafka
-
-**Option B: Direct Database Modification (Advanced)**
-
-If you need to modify the workflow directly in the database:
-
-1. **Find your workflow ID:**
-   ```sql
-   SELECT id, name FROM workflows WHERE name LIKE '%your-workflow-name%';
-   ```
-
-2. **Check current workflow structure:**
-   ```sql
-   SELECT id, step_type, action_type, name, config 
-   FROM workflow_steps 
-   WHERE workflow_id = '<your-workflow-id>'
-   ORDER BY position_y, position_x;
-   ```
-
-3. **Insert a debug step:**
-   ```sql
-   INSERT INTO workflow_steps (
-     workflow_id,
-     step_type,
-     action_type,
-     name,
-     step_key,
-     config,
-     position_x,
-     position_y
-   ) VALUES (
-     '<your-workflow-id>',
-     'action',
-     'delay',
-     'Debug: Log Workflow Input',
-     'debug-logger-' || gen_random_uuid()::text,
-     '{"duration_ms": 100}'::jsonb,
-     200,  -- Position after Start step
-     100
-   ) RETURNING id;
-   ```
-
-4. **Update workflow connections:**
-   ```sql
-   -- Get the Start step ID
-   SELECT id INTO start_step_id FROM workflow_steps 
-   WHERE workflow_id = '<your-workflow-id>' AND step_type = 'start';
-   
-   -- Get the debug step ID (from INSERT above)
-   -- Get the original first action step ID
-   SELECT id INTO first_action_id FROM workflow_steps 
-   WHERE workflow_id = '<your-workflow-id>' 
-     AND step_type = 'action' 
-     AND name != 'Debug: Log Workflow Input'
-   ORDER BY position_y, position_x LIMIT 1;
-   
-   -- Connect Start → Debug step
-   INSERT INTO workflow_connections (
-     workflow_id,
-     source_step_id,
-     target_step_id,
-     connection_type
-   ) VALUES (
-     '<your-workflow-id>',
-     start_step_id,
-     '<debug-step-id>',
-     'next'
-   );
-   
-   -- Connect Debug → Original first step
-   INSERT INTO workflow_connections (
-     workflow_id,
-     source_step_id,
-     target_step_id,
-     connection_type
-   ) VALUES (
-     '<your-workflow-id>',
-     '<debug-step-id>',
-     first_action_id,
-     'next'
-   );
-   
-   -- Remove old Start → Original first step connection
-   DELETE FROM workflow_connections
-   WHERE workflow_id = '<your-workflow-id>'
-     AND source_step_id = start_step_id
-     AND target_step_id = first_action_id;
-   ```
-
-5. **Update canvas_config** (if workflow uses canvas):
-   ```sql
-   -- Get current canvas_config
-   SELECT canvas_config FROM workflows WHERE id = '<your-workflow-id>';
-   
-   -- Add debug node to canvas_config.nodes array
-   -- Add edges to canvas_config.edges array
-   -- Update workflows table
-   UPDATE workflows 
-   SET canvas_config = '<updated-canvas-config>'::jsonb
-   WHERE id = '<your-workflow-id>';
-   ```
-
-**Option C: Using API (Programmatic)**
-
-```bash
-# Get workflow details
-curl http://localhost:3030/api/workflows/<workflow-id>
-
-# Add debug step via API (if endpoint exists)
-# Or use Supabase client directly in your code
-```
-
-**After Adding Debug Step:**
-
-1. **Execute the workflow** via UI or API
-2. **Check backend logs** for trace ID:
-   ```logql
-   {job="easyflow-backend"} |= "execution_id" |= "<your-execution-id>"
-   ```
-3. **Check automation worker logs** - you should now see the trace ID:
-   ```logql
-   {job="easyflow-automation"} |= "<trace-id>"
-   ```
-4. **Verify in Kafka** that message was sent:
-   ```bash
-   docker exec -it easy-flow-kafka-1 kafka-console-consumer \
-     --bootstrap-server localhost:9092 \
-     --topic automation-tasks \
-     --from-beginning \
-     --max-messages 1 \
-     --property print.headers=true
-   ```
-
-### 3. Action Plan: Debugging NO_STEPS_EXECUTED
-
-**Use this step-by-step plan to debug a specific workflow:**
-
-#### Step 1: Implement the Debug Step
-
+#### Step 1: Add Debug Step
 Add a logging step to the very beginning of your workflow (immediately after the "Start" step).
 
-**For workflow_id: `57b50ac6-81bf-415a-9816-34d170348e37` (or any workflow):**
+**Via UI:**
+1. Open workflow in Workflow Builder: http://localhost:3000/workflows/:id
+2. Add a Delay step as the first action
+3. Set name: "Debug: Log Workflow Input"
+4. Set duration: 100ms (minimal)
+5. Connect: Start → Debug: Log Workflow Input → Your original first step
+6. Save the workflow
 
-1. **Open the workflow** in the UI: http://localhost:3000/workflows/57b50ac6-81bf-415a-9816-34d170348e37
-2. **Add a Delay step** as the first action:
-   - Click "+" or drag "Delay" from toolbar
-   - Set name: "Debug: Log Workflow Input"
-   - Set duration: 100ms (minimal)
-   - Connect: Start → Debug: Log Workflow Input → Your original first step
-3. **Save the workflow**
-
-**Or via SQL:**
-```sql
--- Insert debug step
-INSERT INTO workflow_steps (
-  workflow_id,
-  step_type,
-  action_type,
-  name,
-  step_key,
-  config,
-  position_x,
-  position_y
-) VALUES (
-  '57b50ac6-81bf-415a-9816-34d170348e37',
-  'action',
-  'delay',
-  'Debug: Log Workflow Input',
-  'debug-logger-' || gen_random_uuid()::text,
-  '{"duration_ms": 100}'::jsonb,
-  200,
-  100
-) RETURNING id;
-
--- Update connections (see Option B above for full SQL)
-```
-
-#### Step 2: Trigger the Workflow Again
-
-Execute the workflow exactly as you did before:
-
-1. **Via UI:** Click "🎬 Start" button in Workflow Builder
-2. **Via API:**
-   ```bash
-   curl -X POST http://localhost:3030/api/workflows/57b50ac6-81bf-415a-9816-34d170348e37/execute \
-     -H "Content-Type: application/json" \
-     -H "Authorization: Bearer <your-token>" \
-     -d '{"inputData": {}}'
-   ```
-
-**Note the execution_id** from the response - you'll need it for Step 3.
+#### Step 2: Trigger the Workflow
+Execute the workflow and note the `execution_id` from the response.
 
 #### Step 3: Check the Worker Logs
-
-This time, the debug step will be dispatched to a worker. Find the trace ID:
-
 1. **Get trace ID from backend logs:**
-   ```logql
-   {job="easyflow-backend"} |= "execution_id" |= "<your-execution-id>"
-   ```
-   Copy the `traceId` from the log (e.g., `ca3b8a5c2e4cd0720bcaaaa47018c581`)
-
-2. **Search automation worker logs for the same trace ID:**
-   ```logql
-   {job="easyflow-automation"} |= "ca3b8a5c2e4cd0720bcaaaa47018c581"
-   ```
-
-3. **You should now see logs like:**
-   ```
-   📨 Received Kafka task: <task-id> (type: delay, trace_id: ca3b8a5c2e4cd0720bcaaaa47018c581)
-   Processing task <task-id> of type delay
-   ```
-
-**If you still don't see the trace ID:**
-- Check Kafka message headers (Step 1, Option B)
-- Verify backend is sending trace context (check `kafkaService.js`)
-- Check worker is extracting trace context (check `production_automation_service.py`)
-
-#### Step 4: Analyze the Logged Output
-
-The worker logs will show you the exact parameters the workflow received:
-
-1. **Check the task payload in worker logs:**
-   ```logql
-   {job="easyflow-automation"} |= "task_id" |= "<task-id-from-step-3>"
-   ```
-
-2. **Look for:**
-   - `input_data` - What data was passed to the workflow
-   - `workflow_id` - Confirms correct workflow
-   - `execution_id` - Links to backend execution
-   - `user_id` - User context
-   - Any step-specific configuration
-
-3. **Common Issues to Look For:**
-   - **Missing parameters:** A parameter used in a condition (`when:` clause) is missing
-   - **Unexpected values:** Parameter exists but has wrong type or value
-   - **Empty input_data:** `input_data: {}` when workflow expects specific fields
-   - **Condition evaluation:** Check if conditions are filtering out steps
-
-4. **Example Analysis:**
-   ```json
-   {
-     "task_id": "abc123",
-     "workflow_id": "57b50ac6-81bf-415a-9816-34d170348e37",
-     "input_data": {},  // ← Empty! This might be the problem
-     "user_id": "1196aa93-a166-43f7-8d21-16676a82436e"
-   }
-   ```
-   
-   **If `input_data` is empty but your workflow has conditions checking for specific fields:**
-   - Conditions will fail
-   - Steps will be skipped
-   - Result: `NO_STEPS_EXECUTED`
-
-5. **Check workflow step conditions:**
-   ```sql
-   SELECT 
-     id,
-     name,
-     step_type,
-     config->'conditions' as conditions,
-     config->'when' as when_clause
-   FROM workflow_steps
-   WHERE workflow_id = '57b50ac6-81bf-415a-9816-34d170348e37'
-     AND (config->'conditions' IS NOT NULL OR config->'when' IS NOT NULL);
-   ```
-
-6. **Compare conditions with logged input_data:**
-   - If condition checks for `input_data.email` but input_data is `{}` → condition fails
-   - If condition checks for `input_data.status === 'active'` but value is `'pending'` → condition fails
-   - If condition checks for nested field `input_data.user.role` but structure is different → condition fails
-
-#### Step 5: Fix the Root Cause
-
-Based on your analysis:
-
-1. **If input_data is missing required fields:**
-   - Update workflow execution to include required input
-   - Or modify workflow conditions to handle missing fields gracefully
-
-2. **If input_data has wrong values:**
-   - Check where workflow is being triggered from
-   - Verify input data format matches workflow expectations
-
-3. **If conditions are too strict:**
-   - Review condition logic in workflow steps
-   - Consider making conditions more permissive or adding fallbacks
-
-4. **If workflow structure is wrong:**
-   - Verify workflow has a valid "Start" step
-   - Check workflow connections are correct
-   - Ensure steps are properly configured
-
-#### Expected Outcome
-
-After completing this action plan:
-- ✅ Debug step executes and logs trace ID in worker
-- ✅ You can correlate backend and worker logs using trace ID
-- ✅ You see the exact input_data the workflow received
-- ✅ You identify why conditions are failing or steps are being skipped
-- ✅ You fix the root cause of `NO_STEPS_EXECUTED`
-
-#### 5. Verify Trace Context Propagation
-After fixing code or adding debug step, test end-to-end:
-
-1. **Execute a workflow** via frontend
-2. **Get trace ID from backend logs:**
    ```logql
    {job="easyflow-backend"} |= "execution_id" |= "<your-execution-id>"
    ```
    Copy the `traceId` from the log
 
-3. **Search automation logs for same trace ID:**
+2. **Search automation worker logs for the same trace ID:**
    ```logql
    {job="easyflow-automation"} |= "<trace-id>"
    ```
 
-4. **If still not found:**
-   - Check Kafka message headers (step 1)
-   - Verify backend producer code (step 2)
-   - Verify worker consumer code (step 3)
-   - Check worker logs for Kafka connection errors
+3. **You should now see logs like:**
+   ```
+   📨 Received Kafka task: <task-id> (type: delay, trace_id: <trace-id>)
+   Processing task <task-id> of type delay
+   ```
 
-#### 5. Check Tempo for Complete Trace
-Even if logs don't show trace ID, check Tempo for the trace:
+#### Step 4: Analyze the Logged Output
+Check the task payload in worker logs:
+```logql
+{job="easyflow-automation"} |= "task_id" |= "<task-id>"
+```
 
+**Look for:**
+- `input_data` - What data was passed to the workflow
+- `workflow_id` - Confirms correct workflow
+- `execution_id` - Links to backend execution
+- `user_id` - User context
+
+**Common Issues:**
+- **Missing parameters:** A parameter used in a condition (`when:` clause) is missing
+- **Unexpected values:** Parameter exists but has wrong type or value
+- **Empty input_data:** `input_data: {}` when workflow expects specific fields
+- **Condition evaluation:** Check if conditions are filtering out steps
+
+#### Step 5: Check Tempo for Complete Trace
 In Grafana Explore → Tempo datasource:
 ```
 {service.name="rpa-system-backend"} && name=~"workflow.execute.*"
@@ -750,17 +306,6 @@ In Grafana Explore → Tempo datasource:
 **If trace shows both backend and worker spans:**
 - Trace context IS propagating ✅
 - Issue is only in logging (worker not logging trace ID)
-- Check worker logging code to include trace context
-
-#### 7. Common Issues and Fixes
-
-| Issue | Symptom | Fix |
-|-------|---------|-----|
-| **No Kafka headers** | Backend trace exists, worker trace doesn't | Add `propagation.inject()` in backend Kafka producer |
-| **Worker not extracting** | Headers exist but worker doesn't use them | Add `propagation.extract()` in worker Kafka consumer |
-| **Worker not logging trace ID** | Trace exists in Tempo but not in logs | Update worker logger to include trace context |
-| **Kafka connection issues** | Worker can't connect to Kafka | Check Kafka is running, worker can reach Kafka |
-| **Different trace IDs** | Backend and worker have different trace IDs | Ensure worker extracts context from Kafka headers, doesn't create new trace |
 
 ---
 
@@ -789,17 +334,6 @@ In Grafana Explore → Tempo datasource:
 
 **Use this when:** Backend seems slow or unresponsive.
 
-### 3. System Overview
-**URL:** http://localhost:3001/d/system-overview
-
-**Panels:**
-- **Container CPU** - Docker container resource usage
-- **Container Memory** - RAM usage per container
-- **Network I/O** - Traffic in/out
-- **Disk I/O** - Read/write operations
-
-**Use this when:** Checking if infrastructure is the bottleneck.
-
 ---
 
 ## 🔧 Common Queries
@@ -821,16 +355,13 @@ histogram_quantile(0.95,
 # HTTP request latency by endpoint
 http_request_duration_seconds{path="/execute"}
 
-# Kafka consumer lag
-kafka_consumer_group_lag
-
 # Memory leak detection (should be stable, not growing)
 nodejs_heap_size_used_bytes
 ```
 
 ### Loki (Grafana Explore)
 
-**⚠️ Important:** Loki queries require at least one label matcher. You cannot use empty queries or wildcards like `.*` without a label.
+**⚠️ Important:** Loki queries require at least one label matcher.
 
 **Available Labels:**
 - `job` - easyflow-backend, easyflow-frontend, easyflow-automation, easyflow-backend-errors, easyflow-frontend-errors
@@ -838,11 +369,6 @@ nodejs_heap_size_used_bytes
 - `level` - info, error, warn, debug (extracted from JSON logs)
 - `logger` - logger name (extracted from JSON logs)
 - `environment` - development
-
-**Basic Query Structure:**
-```
-{label="value"}
-```
 
 **Common Queries:**
 
@@ -852,8 +378,6 @@ nodejs_heap_size_used_bytes
 
 # Backend errors only
 {job="easyflow-backend", level="error"}
-# or
-{job="easyflow-backend-errors"}
 
 # Search for specific text in backend logs
 {job="easyflow-backend"} |= "workflow"
@@ -871,17 +395,6 @@ nodejs_heap_size_used_bytes
   |= "kafka" 
   |~ "error|failed|timeout"
 
-# Backend database query performance
-{job="easyflow-backend"} 
-  |= "query_duration_ms" 
-  | json 
-  | query_duration_ms > 1000
-
-# Trace context propagation check
-{job=~"easyflow-.*"} 
-  | json 
-  | traceId != ""
-
 # Search for execution IDs
 {job="easyflow-backend"} |= "execution_id"
 
@@ -893,9 +406,6 @@ nodejs_heap_size_used_bytes
 
 # Automation worker logs
 {job="easyflow-automation"}
-
-# Filter by service
-{service="rpa-system-backend"}
 ```
 
 **LogQL Operators:**
@@ -903,18 +413,6 @@ nodejs_heap_size_used_bytes
 - `!= "text"` - Does not contain text
 - `|~ "regex"` - Matches regex
 - `!~ "regex"` - Does not match regex
-
-**Examples with Text Search:**
-```logql
-# Multiple text filters
-{job="easyflow-backend"} |= "workflow" |= "execution"
-
-# Regex search
-{job="easyflow-backend"} |~ "error|exception|failed"
-
-# Exclude certain text
-{level="error"} != "timeout"
-```
 
 **Using in Grafana Explore:**
 1. Select **Loki** datasource
@@ -930,78 +428,9 @@ nodejs_heap_size_used_bytes
 
 ---
 
-## 🏗️ Architecture
-
-### Data Flow
-
-```
-┌─────────────┐
-│  Frontend   │ (React)
-│  Port 3000  │
-└──────┬──────┘
-       │ HTTP Requests
-       ↓
-┌──────────────┐      ┌──────────────┐
-│   Backend    │─────→│    Kafka     │
-│  Port 3030   │      │  Port 9092   │
-│              │←─────│              │
-│ /metrics     │      └──────┬───────┘
-│  Port 9091   │             │
-└──────┬───────┘             │ automation-tasks topic
-       │                     ↓
-       │              ┌──────────────┐
-       │              │  Automation  │
-       │              │   Worker     │
-       │              │  Port 7070   │
-       │              └──────────────┘
-       │
-       │ Telemetry Data (OpenTelemetry Protocol)
-       ↓
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│ OTEL         │─────→│  Prometheus  │      │    Tempo     │
-│ Collector    │      │  Port 9090   │      │  Port 3200   │
-│ 4317/4318    │      │              │      │   (traces)   │
-└──────┬───────┘      └──────┬───────┘      └──────────────┘
-       │                     │
-       │ Logs                │ Metrics
-       ↓                     ↓
-┌──────────────┐      ┌──────────────┐
-│    Loki      │←─────│  Promtail    │
-│  Port 3100   │      │  Port 9080   │
-└──────┬───────┘      └──────────────┘
-       │                     ↑
-       │                     │ Reads logs from
-       │                     │ /Users/ky/Easy-Flow/logs/
-       │                     │ (mounted as /app/logs in container)
-       │
-       └─────────────┬───────┘
-                     │
-                     ↓
-              ┌──────────────┐
-              │   Grafana    │
-              │  Port 3001   │
-              │  (Dashboards)│
-              └──────────────┘
-```
-
-### What Each Component Does
-
-| Component | Port | Purpose | When You Need It |
-|-----------|------|---------|------------------|
-| **Prometheus** | 9090 | Stores time-series metrics | Check performance trends |
-| **Grafana** | 3001 | Visualizes everything | See dashboards, query logs/traces (login: admin/admin123) |
-| **Loki** | 3100 | Stores logs | Debug errors, search events |
-| **Promtail** | 9080 | Collects logs from files | Automatic (always running, ships logs to Loki) |
-| **Tempo** | 3200 | Stores distributed traces | See request flow through services |
-| **OTEL Collector** | 4317/4318 | Receives telemetry data | Automatic (middleware between app & storage) |
-| **Alertmanager** | 9093 | Routes alerts | Get notified of issues (future use) |
-| **Backend Metrics** | 9091 | Prometheus metrics endpoint | Direct metrics access (scraped by Prometheus) |
-
----
-
 ## 📝 Integrated Logs
 
-All application logs are automatically collected and shipped to Loki via Promtail. Here's what's integrated:
+All application logs are automatically collected and shipped to Loki via Promtail.
 
 ### Application Logs (via Promtail)
 
@@ -1028,57 +457,6 @@ All application logs are automatically collected and shipped to Loki via Promtai
 - Format: Plain text with timestamp prefix
 - Pattern: `YYYY-MM-DD HH:mm:ss: <message>`
 - Extracts timestamp and content
-
-**Error Logs:**
-- Separate jobs for error-only logs
-- Useful for filtering: `{log_level="error"}`
-
-### Infrastructure Logs (Docker Containers)
-
-Infrastructure services (Kafka, Zookeeper, Prometheus, Grafana, Loki, Tempo, OTEL Collector) log to Docker's default logging driver. These logs are **not** currently integrated into Loki, but can be accessed via:
-
-```bash
-# View container logs
-docker logs easy-flow-kafka-1 --tail 100
-docker logs easyflow-prometheus --tail 100
-docker logs easyflow-grafana --tail 100
-
-# Follow logs
-docker logs -f easy-flow-kafka-1
-```
-
-**Note:** Infrastructure logs are typically less critical for application debugging. Focus on application logs (backend, frontend, automation worker) which are fully integrated.
-
-### ✅ Complete Log Integration Status
-
-**All application logs are integrated into Loki via Promtail:**
-
-| Log Source | File Pattern | Promtail Job | Status | Format |
-|------------|--------------|--------------|--------|--------|
-| Backend (stdout) | `backend.log` | `easyflow-backend` | ✅ Integrated | JSON (structured) |
-| Backend (stderr) | `backend-error.log` | `easyflow-backend-errors` | ✅ Integrated | JSON (structured) |
-| Frontend (stdout) | `frontend.log` | `easyflow-frontend` | ✅ Integrated | Text |
-| Frontend (stderr) | `frontend-error.log` | `easyflow-frontend-errors` | ✅ Integrated | Text |
-| Automation Worker | `automation-worker.log` | `easyflow-automation` | ✅ Integrated | Text (timestamped) |
-
-**Structured Logging:**
-- ✅ Backend uses Pino logger (JSON output)
-- ✅ All `console.log` statements replaced with structured logger
-- ✅ Automatic trace context injection
-- ✅ Log sampling configured (reduces noise)
-- ✅ Error logs always captured (100% sampling)
-
-**Log Flow:**
-```
-Application → PM2 → Log Files → Promtail → Loki → Grafana Explore
-```
-
-**Verification:**
-- All logs written to `/Users/ky/Easy-Flow/logs/`
-- Promtail mounts logs directory at `/app/logs/`
-- Promtail scrapes all log patterns configured
-- Loki receives logs from Promtail
-- Grafana Explore can query all logs
 
 ### Verifying Log Integration
 
@@ -1110,221 +488,6 @@ docker logs easyflow-promtail | grep "Adding target"
 level=info msg="Adding target" key="/app/logs/backend*.log:{...}"
 level=info msg="Adding target" key="/app/logs/frontend*.log:{...}"
 level=info msg="Adding target" key="/app/logs/automation-worker*.log:{...}"
-```
-
-### Log File Locations
-
-All application logs are written to `/Users/ky/Easy-Flow/logs/` (project root) and mounted into Promtail container at `/app/logs/`.
-
-**PM2 Configuration** (`ecosystem.config.js`):
-- Backend: `logs/backend.log` (stdout), `logs/backend-error.log` (stderr)
-- Frontend: `logs/frontend.log` (stdout), `logs/frontend-error.log` (stderr)
-- Automation: `logs/automation-worker.log` (stdout/stderr merged)
-
-**Promtail Volume Mount** (`docker-compose.monitoring.yml`):
-- Host: `../logs` (relative to docker-compose file)
-- Container: `/app/logs` (read-only)
-
-## 📝 Logging Best Practices
-
-### All logs MUST follow this structure:
-
-```javascript
-// ✅ GOOD - Structured logging with trace context
-logger.error('Workflow execution failed', {
-  error: {
-    execution_id: executionId,
-    workflow_id: workflowId,
-    error_category: 'NO_STEPS_EXECUTED',
-    steps_total: workflow.steps.length,
-    steps_executed: 0
-  },
-  trace: {
-    traceId: req.traceId,
-    spanId: req.spanId,
-    userId: req.user.id
-  },
-  business: {
-    workflow_name: workflow.name,
-    user_email: req.user.email
-  }
-});
-
-// ❌ BAD - Console.log with no context
-console.log('Workflow failed');
-
-// ❌ BAD - Missing trace context
-logger.error('Workflow failed', { workflowId });
-```
-
-### Why This Matters
-
-**With proper logging:**
-1. User sees: "Workflow execution failed. Please try again."
-2. You search Loki for `execution_id` → find the error log
-3. Copy the `traceId` → search Tempo for that trace
-4. See the entire request flow and which step failed
-
-**Without proper logging:**
-1. User sees: "Workflow execution failed."
-2. You search logs → 100 generic "Workflow failed" messages
-3. No way to find the specific failure
-4. Hours of debugging
-
----
-
-## 🎓 Understanding the "No Steps Executed" Issue
-
-### The Problem
-
-Your logs show:
-```json
-{
-  "msg": "❌ Workflow marked as completed but no steps executed",
-  "error": {
-    "steps_total": 2,
-    "steps_executed": 0
-  }
-}
-```
-
-### The Flow (What SHOULD Happen)
-
-1. **Frontend** sends POST `/execute` with `workflow_id`
-2. **Backend** receives request, creates `execution_id` in database
-3. **Backend** publishes Kafka message to `automation-tasks` topic:
-   ```json
-   {
-     "execution_id": "318b436c-51dd-40da-ab23-e7af7ab75438",
-     "workflow_id": "57b50ac6-81bf-415a-9816-34d170348e37",
-     "user_id": "1196aa93-a166-43f7-8d21-16676a82436e",
-     "steps": [...]
-   }
-   ```
-4. **Automation Worker** (Python) consumes message from Kafka
-5. **Worker** processes each step, updates execution status in database
-6. **Backend** polls database, sees steps completed, returns success
-
-### What's Happening (The Bug)
-
-Based on your logs:
-1. ✅ Frontend sends request
-2. ✅ Backend receives request, creates execution record
-3. ✅ Backend publishes to Kafka (you'd see Kafka errors otherwise)
-4. ❌ **Worker isn't consuming the message**
-5. ⏱️ Backend timeout (5 seconds), marks execution as failed
-6. ❌ Frontend shows "Workflow execution failed"
-
-### Why Worker Isn't Consuming
-
-From your logs:
-```
-[automation:err] kafka.coordinator - INFO - Successfully joined group automation-workers
-[automation:err] kafka.consumer.subscription_state - INFO - Updated partition assignment: []
-```
-
-**The partition assignment is empty!** This means:
-- Worker connected to Kafka ✅
-- Worker joined consumer group ✅
-- **But**: No partitions were assigned to this consumer ❌
-
-**Root cause:** Kafka topic `automation-tasks` either:
-1. Doesn't exist yet
-2. Exists but has no partitions
-3. Has partitions but they're assigned to a different consumer group member
-
-### How to Fix It
-
-```bash
-# 1. Check if topic exists
-docker exec -it easy-flow-kafka-1 kafka-topics --bootstrap-server localhost:9092 --list
-
-# 2. Describe the topic
-docker exec -it easy-flow-kafka-1 kafka-topics --bootstrap-server localhost:9092 --describe --topic automation-tasks
-
-# Expected output:
-# Topic: automation-tasks    PartitionCount: 1    ReplicationFactor: 1
-
-# 3. If topic doesn't exist, create it
-docker exec -it easy-flow-kafka-1 kafka-topics --bootstrap-server localhost:9092 --create --topic automation-tasks --partitions 1 --replication-factor 1
-
-# 4. Check consumer group
-docker exec -it easy-flow-kafka-1 kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group automation-workers
-
-# Expected output shows partitions assigned to consumers
-```
-
-### Verifying the Fix
-
-After creating the topic, check worker logs:
-```bash
-tail -f logs/automation-worker.log
-```
-
-You should see:
-```
-Updated partition assignment: [TopicPartition(topic='automation-tasks', partition=0)]
-Setting newly assigned partitions {TopicPartition...} for group automation-workers
-```
-
-Then run a workflow and check Loki:
-```logql
-{job="easyflow-automation"} |= "Processing workflow execution"
-```
-
----
-
-## 🚨 Consumer-Friendly Error Messages
-
-### Current vs. Improved
-
-| Current (Developer Message) | Improved (Consumer Message) | When to Show Details |
-|-----------------------------|------------------------------|----------------------|
-| "Workflow completed but no steps executed. Check if Kafka and the automation worker are running." | "Workflow failed to start. Our system is having trouble processing automations right now. Please try again in a few minutes." | Never show to consumers |
-| "apiTracker.addAttribute is not a function" | "Something went wrong loading your workflows. Please refresh the page." | Never show to consumers |
-| "Query timeout" | "Taking longer than expected. Please refresh the page." | Never show to consumers |
-
-### Implementation
-
-In `/rpa-system/backend/src/middleware/errorHandler.js`:
-
-```javascript
-// Consumer-friendly error messages
-const CONSUMER_FRIENDLY_ERRORS = {
-  'NO_STEPS_EXECUTED': {
-    message: 'Your workflow failed to start. Please try again.',
-    userAction: 'If this persists, contact support.',
-    statusCode: 500
-  },
-  'KAFKA_CONNECTION_ERROR': {
-    message: 'Service temporarily unavailable. Please try again in a moment.',
-    userAction: 'Check our status page for updates.',
-    statusCode: 503
-  },
-  'DATABASE_TIMEOUT': {
-    message: 'Request timed out. Please try again.',
-    userAction: null,
-    statusCode: 504
-  }
-};
-
-// Return consumer message in API response
-res.status(error.statusCode).json({
-  error: CONSUMER_FRIENDLY_ERRORS[error.category].message,
-  action: CONSUMER_FRIENDLY_ERRORS[error.category].userAction,
-  executionId: error.execution_id // For support tickets
-});
-
-// But log full technical details
-logger.error('Workflow execution failed', {
-  error: {
-    category: 'NO_STEPS_EXECUTED',
-    execution_id: executionId,
-    kafka_status: 'disconnected',
-    worker_status: 'no_partitions_assigned',
-    // ... all technical details
-  }
-});
 ```
 
 ---
@@ -1365,50 +528,6 @@ Use this to verify everything is working:
 
 ---
 
-## 🆘 Getting Help
-
-### Debug Checklist
-
-When asking for help, include:
-
-1. **Observability links:**
-   - Grafana dashboard screenshot
-   - Prometheus query results
-   - Loki log snippet
-
-2. **Identifiers:**
-   - `execution_id` (from failed workflow)
-   - `traceId` (from logs)
-   - `workflow_id`
-
-3. **Logs:**
-   ```bash
-   # Last 50 lines of each service
-   tail -50 logs/backend.log
-   tail -50 logs/automation-worker.log
-   tail -50 logs/frontend.log
-   ```
-
-4. **System state:**
-   ```bash
-   docker ps
-   docker exec easy-flow-kafka-1 kafka-topics --list
-   docker exec easy-flow-kafka-1 kafka-consumer-groups --list
-   ```
-
----
-
-## 📚 Additional Resources
-
-- **OpenTelemetry Docs:** https://opentelemetry.io/docs/
-- **Prometheus Query Language:** https://prometheus.io/docs/prometheus/latest/querying/basics/
-- **LogQL (Loki Queries):** https://grafana.com/docs/loki/latest/logql/
-- **TraceQL (Tempo Queries):** https://grafana.com/docs/tempo/latest/traceql/
-
----
-
----
-
 ## 🔗 Quick Access Links
 
 ### Observability Services
@@ -1435,4 +554,4 @@ When asking for help, include:
 ---
 
 **Last Updated:** 2025-12-16  
-**Version:** 1.2.0
+**Version:** 1.3.0
