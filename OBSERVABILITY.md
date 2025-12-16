@@ -450,6 +450,176 @@ curl http://localhost:3030/api/workflows/<workflow-id>
      --property print.headers=true
    ```
 
+### 3. Action Plan: Debugging NO_STEPS_EXECUTED
+
+**Use this step-by-step plan to debug a specific workflow:**
+
+#### Step 1: Implement the Debug Step
+
+Add a logging step to the very beginning of your workflow (immediately after the "Start" step).
+
+**For workflow_id: `57b50ac6-81bf-415a-9816-34d170348e37` (or any workflow):**
+
+1. **Open the workflow** in the UI: http://localhost:3000/workflows/57b50ac6-81bf-415a-9816-34d170348e37
+2. **Add a Delay step** as the first action:
+   - Click "+" or drag "Delay" from toolbar
+   - Set name: "Debug: Log Workflow Input"
+   - Set duration: 100ms (minimal)
+   - Connect: Start → Debug: Log Workflow Input → Your original first step
+3. **Save the workflow**
+
+**Or via SQL:**
+```sql
+-- Insert debug step
+INSERT INTO workflow_steps (
+  workflow_id,
+  step_type,
+  action_type,
+  name,
+  step_key,
+  config,
+  position_x,
+  position_y
+) VALUES (
+  '57b50ac6-81bf-415a-9816-34d170348e37',
+  'action',
+  'delay',
+  'Debug: Log Workflow Input',
+  'debug-logger-' || gen_random_uuid()::text,
+  '{"duration_ms": 100}'::jsonb,
+  200,
+  100
+) RETURNING id;
+
+-- Update connections (see Option B above for full SQL)
+```
+
+#### Step 2: Trigger the Workflow Again
+
+Execute the workflow exactly as you did before:
+
+1. **Via UI:** Click "🎬 Start" button in Workflow Builder
+2. **Via API:**
+   ```bash
+   curl -X POST http://localhost:3030/api/workflows/57b50ac6-81bf-415a-9816-34d170348e37/execute \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <your-token>" \
+     -d '{"inputData": {}}'
+   ```
+
+**Note the execution_id** from the response - you'll need it for Step 3.
+
+#### Step 3: Check the Worker Logs
+
+This time, the debug step will be dispatched to a worker. Find the trace ID:
+
+1. **Get trace ID from backend logs:**
+   ```logql
+   {job="easyflow-backend"} |= "execution_id" |= "<your-execution-id>"
+   ```
+   Copy the `traceId` from the log (e.g., `ca3b8a5c2e4cd0720bcaaaa47018c581`)
+
+2. **Search automation worker logs for the same trace ID:**
+   ```logql
+   {job="easyflow-automation"} |= "ca3b8a5c2e4cd0720bcaaaa47018c581"
+   ```
+
+3. **You should now see logs like:**
+   ```
+   📨 Received Kafka task: <task-id> (type: delay, trace_id: ca3b8a5c2e4cd0720bcaaaa47018c581)
+   Processing task <task-id> of type delay
+   ```
+
+**If you still don't see the trace ID:**
+- Check Kafka message headers (Step 1, Option B)
+- Verify backend is sending trace context (check `kafkaService.js`)
+- Check worker is extracting trace context (check `production_automation_service.py`)
+
+#### Step 4: Analyze the Logged Output
+
+The worker logs will show you the exact parameters the workflow received:
+
+1. **Check the task payload in worker logs:**
+   ```logql
+   {job="easyflow-automation"} |= "task_id" |= "<task-id-from-step-3>"
+   ```
+
+2. **Look for:**
+   - `input_data` - What data was passed to the workflow
+   - `workflow_id` - Confirms correct workflow
+   - `execution_id` - Links to backend execution
+   - `user_id` - User context
+   - Any step-specific configuration
+
+3. **Common Issues to Look For:**
+   - **Missing parameters:** A parameter used in a condition (`when:` clause) is missing
+   - **Unexpected values:** Parameter exists but has wrong type or value
+   - **Empty input_data:** `input_data: {}` when workflow expects specific fields
+   - **Condition evaluation:** Check if conditions are filtering out steps
+
+4. **Example Analysis:**
+   ```json
+   {
+     "task_id": "abc123",
+     "workflow_id": "57b50ac6-81bf-415a-9816-34d170348e37",
+     "input_data": {},  // ← Empty! This might be the problem
+     "user_id": "1196aa93-a166-43f7-8d21-16676a82436e"
+   }
+   ```
+   
+   **If `input_data` is empty but your workflow has conditions checking for specific fields:**
+   - Conditions will fail
+   - Steps will be skipped
+   - Result: `NO_STEPS_EXECUTED`
+
+5. **Check workflow step conditions:**
+   ```sql
+   SELECT 
+     id,
+     name,
+     step_type,
+     config->'conditions' as conditions,
+     config->'when' as when_clause
+   FROM workflow_steps
+   WHERE workflow_id = '57b50ac6-81bf-415a-9816-34d170348e37'
+     AND (config->'conditions' IS NOT NULL OR config->'when' IS NOT NULL);
+   ```
+
+6. **Compare conditions with logged input_data:**
+   - If condition checks for `input_data.email` but input_data is `{}` → condition fails
+   - If condition checks for `input_data.status === 'active'` but value is `'pending'` → condition fails
+   - If condition checks for nested field `input_data.user.role` but structure is different → condition fails
+
+#### Step 5: Fix the Root Cause
+
+Based on your analysis:
+
+1. **If input_data is missing required fields:**
+   - Update workflow execution to include required input
+   - Or modify workflow conditions to handle missing fields gracefully
+
+2. **If input_data has wrong values:**
+   - Check where workflow is being triggered from
+   - Verify input data format matches workflow expectations
+
+3. **If conditions are too strict:**
+   - Review condition logic in workflow steps
+   - Consider making conditions more permissive or adding fallbacks
+
+4. **If workflow structure is wrong:**
+   - Verify workflow has a valid "Start" step
+   - Check workflow connections are correct
+   - Ensure steps are properly configured
+
+#### Expected Outcome
+
+After completing this action plan:
+- ✅ Debug step executes and logs trace ID in worker
+- ✅ You can correlate backend and worker logs using trace ID
+- ✅ You see the exact input_data the workflow received
+- ✅ You identify why conditions are failing or steps are being skipped
+- ✅ You fix the root cause of `NO_STEPS_EXECUTED`
+
 #### 5. Verify Trace Context Propagation
 After fixing code or adding debug step, test end-to-end:
 
