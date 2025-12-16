@@ -57,6 +57,43 @@ scrape_configs:
       service: rpa-system-frontend
       environment: development
       __path__: /app/logs/frontend*.log
+  
+  pipeline_stages:
+  - timestamp:
+      source: time
+      format: RFC3339
+  - output:
+      source: msg
+
+# Automation worker logs (Python with timestamp prefix)
+- job_name: easyflow-automation
+  static_configs:
+  - targets:
+      - localhost
+    labels:
+      job: easyflow-automation
+      service: automation-worker
+      environment: development
+      __path__: /app/logs/automation-worker*.log
+  
+  pipeline_stages:
+  # Extract timestamp and content from Python logs
+  - regex:
+      expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}): (?P<content>.*)'
+  - labels:
+      log_level: info
+  - match:
+      selector: '{job="easyflow-automation"}'
+      stages:
+      - regex:
+          expression: '.*(?i)(error|exception|failed|traceback).*'
+      - labels:
+          log_level: error
+  - timestamp:
+      source: timestamp
+      format: '2006-01-02 15:04:05'
+  - output:
+      source: content
 
 # Automation worker logs (Python with prefixes)
 - job_name: easyflow-automation
@@ -118,34 +155,4 @@ scrape_configs:
       format: RFC3339
   - output:
       source: msg
-
-# Automation worker logs (Python with prefixes)
-- job_name: easyflow-automation
-  static_configs:
-  - targets:
-      - localhost
-    labels:
-      job: easyflow-automation
-      service: automation-worker
-      environment: development
-      __path__: /app/logs/automation-worker*.log
-  
-  pipeline_stages:
-  # Match lines with [automation] or [automation:err] prefix
-  - regex:
-      expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}): (?P<content>.*)'
-  - labels:
-      log_level: info
-  - match:
-      selector: '{job="easyflow-automation"}'
-      stages:
-      - regex:
-          expression: '.*(?i)(error|exception|failed|traceback).*'
-      - labels:
-          log_level: error
-  - timestamp:
-      source: timestamp
-      format: '2006-01-02 15:04:05'
-  - output:
-      source: content
 
