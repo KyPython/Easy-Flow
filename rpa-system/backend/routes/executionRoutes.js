@@ -33,9 +33,18 @@ router.get('/:executionId', requireFeature('workflow_executions'), async (req, r
     const supabase = getSupabase();
     if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
+    // ✅ PERFORMANCE: Detail view query - explicitly select all fields needed
+    // This is a separate optimized query called only when viewing execution details
+    // Includes large JSON fields (input_data, output_data) that are excluded from list queries
     const { data: execution, error } = await supabase
       .from('workflow_executions')
-      .select(`*, step_executions(*, workflow_steps(*))`)
+      .select(`
+        *,
+        step_executions(
+          *,
+          workflow_steps(*)
+        )
+      `)
       .eq('id', executionId)
       .single();
 

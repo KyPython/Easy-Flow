@@ -93,25 +93,67 @@ export const useWorkflowExecutions = (workflowId) => {
     }
   }, [workflowId]);
 
-  // Get detailed execution information including step executions
+  // ✅ PERFORMANCE: Separate optimized query for detail view
+  // This fetches complete execution data including large JSON fields (input_data, output_data)
+  // and all step execution details. Only called when user clicks to view execution details.
+  // 
+  // Why separate from list query?
+  // - List query excludes large fields (input_data, output_data) for faster rendering
+  // - Detail query fetches everything needed for the detail modal
+  // - Reduces initial load time while ensuring detail view has all data
   const getExecutionDetails = async (executionId) => {
     try {
       const client = await initSupabase();
       const { data: session } = await client.auth.getSession();
       const token = session?.session?.access_token;
+      
+      // Try API endpoint first (includes authentication and authorization checks)
       if (token) {
-  const { data: executionData } = await api.get(buildApiUrl(`/api/executions/${executionId}`));
-        if (executionData) return executionData.execution || executionData;
+        try {
+          const { data: executionData } = await api.get(buildApiUrl(`/api/executions/${executionId}`));
+          if (executionData?.execution) {
+            return executionData.execution;
+          }
+          if (executionData) {
+            return executionData;
+          }
+        } catch (apiError) {
+          // If API fails, fall back to direct Supabase query
+          console.warn('[getExecutionDetails] API call failed, falling back to direct query:', apiError?.message);
+        }
       }
-      // Fallback to direct Supabase if REST fails - prefer concrete client
+      
+      // Fallback to direct Supabase query if API fails or no token
+      // ✅ DETAIL VIEW: Explicitly select all fields needed for detail modal
+      // Includes large JSON fields (input_data, output_data) and complete step execution data
       const fallbackClient = await initSupabase();
       const { data: execution, error: execError } = await fallbackClient
         .from('workflow_executions')
         .select(`
-          *,
+          id,
+          execution_number,
+          workflow_id,
+          user_id,
+          status,
+          started_at,
+          completed_at,
+          duration_seconds,
+          error_message,
+          error_step_id,
+          error_category,
+          triggered_by,
+          trigger_data,
+          input_data,
+          output_data,
+          steps_executed,
+          steps_total,
+          created_at,
+          updated_at,
+          metadata,
           step_executions(
             id,
             step_id,
+            workflow_execution_id,
             execution_order,
             status,
             started_at,
@@ -123,19 +165,22 @@ export const useWorkflowExecutions = (workflowId) => {
             error_message,
             retry_count,
             workflow_steps(
+              id,
               step_key,
               name,
               step_type,
-              action_type
+              action_type,
+              workflow_id
             )
           )
         `)
         .eq('id', executionId)
         .single();
+        
       if (execError) throw execError;
       return execution;
     } catch (err) {
-      console.error('Error loading execution details:', err);
+      console.error('[getExecutionDetails] Error loading execution details:', err);
       throw err;
     }
   };
