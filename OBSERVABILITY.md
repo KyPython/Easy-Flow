@@ -104,13 +104,27 @@ ORDER BY updated_at DESC;
 
 1. **Open Grafana:** http://localhost:3001
 2. **Go to Explore** → Select **Tempo** datasource
-3. **Search for the trace:**
+3. **Use the visual query builder or TraceQL:**
+
+   **Visual Query Builder:**
+   - **Resource Service Name:** `rpa-system-backend`
+   - **Span Name:** Leave empty or use `*workflows*` pattern
+   - **Duration:** Set `> 1s` to find slow requests
+   - Click **Run query**
+
+   **Or use TraceQL directly:**
    ```
-   {service.name="rpa-system-backend"} && name=~".*workflows.*"
+   {resource.service.name="rpa-system-backend"} && {name=~".*workflows.*"}
    ```
-   Or more specifically:
+   
+   **For slow saves specifically:**
    ```
-   {service.name="rpa-system-backend"} && name=~"PATCH.*workflows|PUT.*workflows"
+   {resource.service.name="rpa-system-backend"} && {name=~".*workflows.*"} && {duration>2s}
+   ```
+   
+   **For PATCH/PUT requests:**
+   ```
+   {resource.service.name="rpa-system-backend"} && {name=~"PATCH|PUT"} && {http.target=~".*workflows.*"}
    ```
 
 4. **Filter by time range:**
@@ -220,20 +234,44 @@ Once you've identified the slow span, search logs for that operation:
 
 #### Quick Query Reference
 
-**Find slow workflow saves in Tempo:**
+**Copy these queries into Grafana Explore → Tempo:**
+
+**Find slow workflow saves:**
 ```
-{service.name="rpa-system-backend"} && name=~".*workflows.*" && duration>2s
+{resource.service.name="rpa-system-backend"} && {name=~".*workflows.*"} && {duration>2s}
+```
+
+**Find PATCH/PUT requests to workflows:**
+```
+{resource.service.name="rpa-system-backend"} && {http.method="PATCH" || http.method="PUT"} && {http.target=~".*workflows.*"}
 ```
 
 **Find slow database operations:**
 ```
-{service.name="rpa-system-backend"} && name=~"db\\.(query|update|insert)" && duration>1s
+{resource.service.name="rpa-system-backend"} && {name=~"db\\.(query|update|insert|delete)"} && {duration>1s}
 ```
 
 **Find all slow requests (>5s):**
 ```
-{service.name="rpa-system-backend"} && duration>5s
+{resource.service.name="rpa-system-backend"} && {duration>5s}
 ```
+
+**Find workflow execution traces:**
+```
+{resource.service.name="rpa-system-backend"} && {name=~".*workflow.*execute.*"}
+```
+
+**Find traces by HTTP status code:**
+```
+{resource.service.name="rpa-system-backend"} && {http.status_code>=500}
+```
+
+**Visual Query Builder Alternative:**
+If TraceQL doesn't work, use the visual builder:
+- **Resource Service Name:** `rpa-system-backend`
+- **Span Name:** `*workflows*` (or leave empty)
+- **Duration:** `> 2s` (for slow operations)
+- **Tags:** Add `http.method` = `PATCH` or `PUT` if needed
 
 ---
 
