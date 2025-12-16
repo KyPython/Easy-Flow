@@ -7,6 +7,9 @@
  * 
  * Problem: First request after inactivity times out while database wakes up
  * Solution: Run a lightweight query on startup to establish connection
+ * 
+ * NOTE: The main warm-up is now handled directly in server.js with blocking behavior.
+ * This utility is kept for health check endpoint warm-up (non-blocking).
  */
 
 const { getSupabase } = require('./supabaseClient');

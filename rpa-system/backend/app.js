@@ -3883,14 +3883,9 @@ app.post('/api/trigger-campaign', async (req, res) => {
 const kafkaService = getKafkaService();
 
 // Health check endpoint for the backend
-// ✅ DATABASE WARM-UP: Also warm up database on health check (backup warm-up)
-app.get('/health', async (req, res) => {
-  // Warm up database if not already warmed up (non-blocking)
-  const { warmupDatabase } = require('./utils/databaseWarmup');
-  warmupDatabase({ timeout: 5000, failSilently: true }).catch(() => {
-    // Silently fail - health check should still return healthy
-  });
-
+// Note: Database warm-up happens at server startup (blocking), so this endpoint
+// should always have a ready database connection. This is just a status check.
+app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),

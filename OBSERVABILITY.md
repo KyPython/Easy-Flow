@@ -102,22 +102,27 @@ Add database indexes on frequently queried columns:
 
 **Problem:** Supabase free tier pauses inactive databases. First request after inactivity times out while database wakes up (5-15 seconds).
 
-**Solution:** Database warm-up runs automatically on server startup:
-- ✅ Warm-up runs on backend server start (non-blocking)
-- ✅ Retry logic handles slow wake-ups (2 retries, 2s delay)
-- ✅ Health check endpoint also warms up database (backup)
-- ✅ Fails silently to avoid blocking server startup
+**Solution:** Database warm-up blocks server startup until database is ready:
+- ✅ Warm-up runs before `app.listen()` - server won't start until DB is ready
+- ✅ Blocks startup - ensures database is awake before accepting requests
+- ✅ Fails loudly - if database is down, server won't start (better than broken state)
+- ✅ Simple query - lightweight `SELECT id LIMIT 1` on indexed table
 
 **How It Works:**
-1. Server starts → Warm-up query runs immediately
-2. Database wakes up → Connection established
-3. First request arrives → Database already awake → Fast response
+1. Server starts → Warm-up query runs (blocks startup)
+2. Database wakes up → Connection established (5-15 seconds during startup)
+3. Server accepts requests → Database already awake → First request succeeds immediately
+
+**Why This Works:**
+- **Blocks Startup:** Server won't accept requests until database is ready
+- **Simple Query:** Lightweight query just establishes connection
+- **Handles Failure:** If database is down, server fails to start (better than broken state)
+- **Moves Penalty:** Wake-up delay happens during startup (no users waiting) instead of first request
 
 **Configuration:**
 - Warm-up runs automatically (no config needed)
-- Timeout: 30 seconds per attempt
-- Retries: 2 attempts with 2-second delay
-- Logs: Check backend logs for `[DatabaseWarmup]` messages
+- Blocks server startup until complete
+- Logs: Check backend logs for `[server]` warm-up messages
 
 **Expected Performance Improvement:**
 - **Before:** First request timeout (10+ seconds), refresh works
