@@ -306,18 +306,21 @@ function parseHeaders(headerString) {
 // Use a different port to avoid conflict with Prometheus (9090)
 // Prometheus will scrape from host.docker.internal:9091
 const PROMETHEUS_METRICS_PORT = process.env.PROMETHEUS_METRICS_PORT || 9091;
-// Create PrometheusExporter BEFORE SDK.start() so we can use its MetricReader
-// This ensures metrics are properly registered and exposed
+// Create PrometheusExporter - it will read from the global MeterProvider after SDK.start()
+// PrometheusExporter exposes metrics via HTTP endpoint, it doesn't use a MetricReader
 let prometheusExporter;
-let prometheusMetricReader;
 try {
+  // Create PrometheusExporter with preventServerStart to avoid port conflicts
+  // We'll start the server after SDK.start() so it uses the SDK's MeterProvider
   prometheusExporter = new PrometheusExporter({
     port: PROMETHEUS_METRICS_PORT,
-    endpoint: '/metrics'
+    endpoint: '/metrics',
+    preventServerStart: true  // Don't start server yet - wait for SDK initialization
   });
-  prometheusMetricReader = prometheusExporter.getMetricsReader();
+  console.log(`[Telemetry] PrometheusExporter created (will start after SDK initialization)`);
   logger.info(`✅ [Telemetry] PrometheusExporter created (will start after SDK initialization)`);
 } catch (promError) {
+  console.error(`[Telemetry] PrometheusExporter creation error:`, promError);
   if (promError.code === 'EADDRINUSE') {
     logger.warn(`⚠️ [Telemetry] Port ${PROMETHEUS_METRICS_PORT} already in use - Prometheus metrics may not be available`);
   } else {
@@ -325,7 +328,6 @@ try {
   }
   // Continue without PrometheusExporter - metrics will still work via OTLP
   prometheusExporter = null;
-  prometheusMetricReader = null;
 }
 
 // ✅ OBSERVABILITY: Configure trace sampler with smart defaults
@@ -443,9 +445,9 @@ const otlpMetricReader = new PeriodicExportingMetricReader({
   exportTimeoutMillis: 10000
 });
 
-// Use PrometheusExporter's MetricReader if available, otherwise fall back to OTLP
-// PrometheusExporter's MetricReader enables /metrics endpoint for local scraping
-const primaryMetricReader = prometheusMetricReader || otlpMetricReader;
+// Use OTLP MetricReader in SDK
+// PrometheusExporter will read from the global MeterProvider after SDK.start()
+const primaryMetricReader = otlpMetricReader;
 
 // Initialize SDK with metric reader
 const sdk = new NodeSDK({
@@ -673,15 +675,24 @@ try {
   
   // Start Prometheus exporter server if it was created successfully
   // The PrometheusExporter was created before SDK.start() and its MetricReader is used by the SDK
+  // After SDK.start(), the PrometheusExporter will automatically use the global MeterProvider
   if (prometheusExporter) {
     try {
+      // The PrometheusExporter's startServer() will use the global MeterProvider from metrics.getMeterProvider()
+      // which is set by the SDK after sdk.start()
+      const meterProvider = metrics.getMeterProvider();
+      console.log(`[Telemetry] Starting PrometheusExporter server, MeterProvider: ${meterProvider ? 'SET' : 'NOT SET'}`);
       prometheusExporter.startServer();
+      console.log(`[Telemetry] Prometheus metrics server started on port ${PROMETHEUS_METRICS_PORT}`);
       logger.info(`✅ [Telemetry] Prometheus metrics server started on port ${PROMETHEUS_METRICS_PORT}`);
       logger.info(`✅ [Telemetry] Prometheus metrics endpoint: http://localhost:${PROMETHEUS_METRICS_PORT}/metrics`);
+      logger.info(`✅ [Telemetry] Global MeterProvider is set: ${meterProvider ? 'YES' : 'NO'}`);
     } catch (promError) {
+      console.error(`[Telemetry] Prometheus exporter server start failed:`, promError.message);
       logger.warn(`⚠️ [Telemetry] Prometheus exporter server start failed: ${promError.message}`);
     }
   } else {
+    console.log(`[Telemetry] PrometheusExporter not available - metrics exported via OTLP only`);
     logger.info(`ℹ️ [Telemetry] PrometheusExporter not available - metrics exported via OTLP only`);
   }
   
