@@ -142,7 +142,7 @@ services:
     container_name: easyflow-promtail
     volumes:
       - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
-      - ../../logs:/app/logs:ro  # Mount logs directory from project root
+      - ../logs:/app/logs:ro  # Mount logs directory from project root (relative to docker-compose file location)
       - promtail-positions:/tmp
     command: -config.file=/etc/promtail/config.yml
     networks:
