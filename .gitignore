@@ -293,6 +293,65 @@ Refactor_Summary.md
 DEPLOYMENT_VERIFICATION_CHECKLIST.md
 *DEPLOYMENT_GUIDE.md
 
+# Non-public markdown files (personal notes, private docs, drafts)
+*_PRIVATE.md
+*_PRIVATE*.md
+*_PERSONAL.md
+*_PERSONAL*.md
+*_NOTES.md
+*_NOTES*.md
+*_TODO.md
+*_TODO*.md
+*_DRAFT.md
+*_DRAFT*.md
+*_INTERNAL.md
+*_INTERNAL*.md
+*_SECRET.md
+*_SECRET*.md
+*_CONFIDENTIAL.md
+*_CONFIDENTIAL*.md
+*_LOCAL.md
+*_LOCAL*.md
+*_DEV.md
+*_DEV*.md
+*_TESTING.md
+*_TESTING*.md
+*_TEMP.md
+*_TEMP*.md
+*_SCRATCH.md
+*_SCRATCH*.md
+*.private.md
+*.personal.md
+*.local.md
+*.draft.md
+*.notes.md
+*.todo.md
+
+# Non-public files (any extension)
+**/*.private
+**/*.personal
+**/*.local
+**/*.draft
+**/*.secret
+**/*.confidential
+**/*_PRIVATE*
+**/*_PERSONAL*
+**/*_SECRET*
+**/*_CONFIDENTIAL*
+**/*_LOCAL*
+**/*_DRAFT*
+
+# Personal/private directories
+**/private/
+**/personal/
+**/local/
+**/drafts/
+**/notes/
+**/scratch/
+**/temp-notes/
+**/my-notes/
+**/personal-notes/
+
 # Duplicate/temporary client files
 ccloud-nodejs-client*/
 *ccloud-nodejs-client*.zip
