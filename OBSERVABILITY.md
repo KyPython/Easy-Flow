@@ -234,44 +234,80 @@ Once you've identified the slow span, search logs for that operation:
 
 #### Quick Query Reference
 
-**Copy these queries into Grafana Explore → Tempo:**
+**Copy these queries directly into Grafana Explore → Tempo query box:**
 
-**Find slow workflow saves:**
+**1. Find ALL traces from backend (start here if you see "No data"):**
+```
+{resource.service.name="rpa-system-backend"}
+```
+
+**2. Find slow workflow saves (>2 seconds):**
 ```
 {resource.service.name="rpa-system-backend"} && {name=~".*workflows.*"} && {duration>2s}
 ```
 
-**Find PATCH/PUT requests to workflows:**
+**3. Find PATCH/PUT requests to workflows:**
 ```
-{resource.service.name="rpa-system-backend"} && {http.method="PATCH" || http.method="PUT"} && {http.target=~".*workflows.*"}
+{resource.service.name="rpa-system-backend"} && ({http.method="PATCH" || http.method="PUT"}) && {http.target=~".*workflows.*"}
 ```
 
-**Find slow database operations:**
+**4. Find slow database operations:**
 ```
 {resource.service.name="rpa-system-backend"} && {name=~"db\\.(query|update|insert|delete)"} && {duration>1s}
 ```
 
-**Find all slow requests (>5s):**
+**5. Find all slow requests (>5s):**
 ```
 {resource.service.name="rpa-system-backend"} && {duration>5s}
 ```
 
-**Find workflow execution traces:**
+**6. Find workflow execution traces:**
 ```
 {resource.service.name="rpa-system-backend"} && {name=~".*workflow.*execute.*"}
 ```
 
-**Find traces by HTTP status code:**
+**7. Find errors (HTTP 5xx):**
 ```
 {resource.service.name="rpa-system-backend"} && {http.status_code>=500}
 ```
 
-**Visual Query Builder Alternative:**
+**8. Find recent traces (last hour):**
+```
+{resource.service.name="rpa-system-backend"} && {duration>0s}
+```
+
+**Using Visual Query Builder (Alternative):**
+
 If TraceQL doesn't work, use the visual builder:
-- **Resource Service Name:** `rpa-system-backend`
-- **Span Name:** `*workflows*` (or leave empty)
-- **Duration:** `> 2s` (for slow operations)
-- **Tags:** Add `http.method` = `PATCH` or `PUT` if needed
+1. **Resource Service Name:** Select `rpa-system-backend` from dropdown
+2. **Span Name:** Leave empty OR type `*workflows*` 
+3. **Duration:** Set `> 2s` (for slow operations)
+4. **Tags:** Click "Add tag" → Select `http.method` → Set value to `PATCH` or `PUT`
+5. Click **Run query**
+
+**Troubleshooting "No data":**
+
+If you see "No data" in Tempo:
+1. **Check if traces are being generated:**
+   ```bash
+   # Check backend logs for trace generation
+   tail -f logs/backend.log | grep -i "trace\|telemetry"
+   ```
+
+2. **Verify service name matches:**
+   - Service name should be: `rpa-system-backend`
+   - Check: `rpa-system/backend/middleware/telemetryInit.js`
+
+3. **Check OTEL Collector is receiving traces:**
+   ```bash
+   docker logs easyflow-otel-collector --tail 50 | grep -i "trace\|span"
+   ```
+
+4. **Try the simplest query first:**
+   ```
+   {resource.service.name="rpa-system-backend"}
+   ```
+   If this returns nothing, traces aren't reaching Tempo. Check OTEL Collector configuration.
 
 ---
 
