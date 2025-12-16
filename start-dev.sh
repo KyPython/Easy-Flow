@@ -92,6 +92,7 @@ echo "  Loki:           http://localhost:3100 (logs)"
 echo "  Promtail:       http://localhost:9080 (log shipper)"
 echo "  Tempo:          http://localhost:3200"
 echo "  OTEL Collector: http://localhost:4318 (HTTP) / 4317 (gRPC)"
+echo "  Alertmanager:   http://localhost:9093"
 
 # Get absolute path for logs to avoid PM2 cwd resolution issues
 ROOT_DIR=$(pwd)
@@ -212,6 +213,9 @@ echo "  Grafana:          http://localhost:3001 (admin/admin123)"
 echo "  Prometheus:       http://localhost:9090"
 echo "  Loki:             http://localhost:3100 (logs)"
 echo "  Promtail:         http://localhost:9080 (log shipper)"
+echo "  Tempo:            http://localhost:3200"
+echo "  OTEL Collector:   http://localhost:4318 (HTTP) / 4317 (gRPC)"
+echo "  Alertmanager:     http://localhost:9093"
 echo "  Backend Metrics:  http://localhost:9091/metrics"
 echo ""
 echo "  All logs are automatically shipped to Loki and visible in Grafana"
