@@ -32,12 +32,13 @@ This **ONE COMMAND** starts everything:
 - ✅ Frontend (React on port 3000)
 - ✅ Automation Worker (Python on port 7070)
 - ✅ **Prometheus** (metrics - port 9090)
-- ✅ **Grafana** (dashboards - port 3001)
+- ✅ **Grafana** (dashboards - port 3001, login: admin/admin123)
 - ✅ **Loki** (log aggregation - port 3100)
-- ✅ **Promtail** (log collector)
+- ✅ **Promtail** (log collector - port 9080, ships logs to Loki)
 - ✅ **Tempo** (distributed tracing - port 3200)
 - ✅ **OTEL Collector** (telemetry ingestion - ports 4317/4318)
 - ✅ **Alertmanager** (alerts - port 9093)
+- ✅ **Backend Metrics** (Prometheus endpoint - port 9091)
 
 ### Stopping the System
 ```bash
@@ -79,15 +80,19 @@ workflow_step_execution_total 0  # <-- This should be > 0!
 Open: http://localhost:9090/targets
 
 **Verify all targets are "UP":**
-- ✅ easyflow-backend (localhost:9091)
-- ✅ otel-collector (localhost:8889)
-- ✅ node-exporter
-- ✅ cadvisor
+- ✅ easyflow-backend (host.docker.internal:9091)
+- ✅ prometheus (127.0.0.1:9090)
 
-If backend shows "DOWN", metrics aren't being exported properly.
+**Note:** OTEL Collector metrics endpoint (localhost:8889) may not be available if the collector is not running or configured.
+
+If backend shows "DOWN", metrics aren't being exported properly. Check:
+- Backend is running: `pm2 list`
+- Metrics endpoint accessible: `curl http://localhost:9091/metrics`
+- Prometheus can reach backend: Check network connectivity
 
 #### 3. Query Workflow Traces in Grafana
 Open: http://localhost:3001
+- **Login:** admin / admin123
 
 **Navigate to:** Dashboards → Workflow Execution Observability
 
@@ -274,11 +279,12 @@ nodejs_heap_size_used_bytes
        ↓                     ↓
 ┌──────────────┐      ┌──────────────┐
 │    Loki      │←─────│  Promtail    │
-│  Port 3100   │      │              │
+│  Port 3100   │      │  Port 9080   │
 └──────┬───────┘      └──────────────┘
        │                     ↑
        │                     │ Reads logs from
        │                     │ /Users/ky/Easy-Flow/logs/
+       │                     │ (mounted as /app/logs in container)
        │
        └─────────────┬───────┘
                      │
@@ -292,15 +298,16 @@ nodejs_heap_size_used_bytes
 
 ### What Each Component Does
 
-| Component | Purpose | When You Need It |
-|-----------|---------|------------------|
-| **Prometheus** | Stores time-series metrics | Check performance trends |
-| **Grafana** | Visualizes everything | See dashboards, query logs/traces |
-| **Loki** | Stores logs | Debug errors, search events |
-| **Promtail** | Collects logs from files | Automatic (always running) |
-| **Tempo** | Stores distributed traces | See request flow through services |
-| **OTEL Collector** | Receives telemetry data | Automatic (middleware between app & storage) |
-| **Alertmanager** | Routes alerts | Get notified of issues (future use) |
+| Component | Port | Purpose | When You Need It |
+|-----------|------|---------|------------------|
+| **Prometheus** | 9090 | Stores time-series metrics | Check performance trends |
+| **Grafana** | 3001 | Visualizes everything | See dashboards, query logs/traces (login: admin/admin123) |
+| **Loki** | 3100 | Stores logs | Debug errors, search events |
+| **Promtail** | 9080 | Collects logs from files | Automatic (always running, ships logs to Loki) |
+| **Tempo** | 3200 | Stores distributed traces | See request flow through services |
+| **OTEL Collector** | 4317/4318 | Receives telemetry data | Automatic (middleware between app & storage) |
+| **Alertmanager** | 9093 | Routes alerts | Get notified of issues (future use) |
+| **Backend Metrics** | 9091 | Prometheus metrics endpoint | Direct metrics access (scraped by Prometheus) |
 
 ---
 
@@ -513,10 +520,12 @@ logger.error('Workflow execution failed', {
 Use this to verify everything is working:
 
 ### 1. Infrastructure
-- [ ] `docker ps` shows all containers running
+- [ ] `docker ps` shows all containers running (prometheus, grafana, loki, promtail, tempo, otel-collector, alertmanager)
 - [ ] `http://localhost:9090/targets` - all targets UP
-- [ ] `http://localhost:3001` - Grafana loads
+- [ ] `http://localhost:3001` - Grafana loads (login: admin/admin123)
 - [ ] `http://localhost:9091/metrics` - Backend metrics available
+- [ ] `http://localhost:3100/ready` - Loki is ready
+- [ ] `http://localhost:9080/ready` - Promtail is ready
 
 ### 2. Application
 - [ ] `http://localhost:3000` - Frontend loads
@@ -528,9 +537,10 @@ Use this to verify everything is working:
 - [ ] Worker has partition assigned: Check `logs/automation-worker.log`
 
 ### 4. Observability
-- [ ] Metrics flowing: Query `up` in Prometheus
-- [ ] Logs flowing: Query `{job=~".+"}` in Grafana Explore (Loki)
-- [ ] Traces flowing: Check "Workflow Execution Observability" dashboard
+- [ ] Metrics flowing: Query `up` in Prometheus (http://localhost:9090)
+- [ ] Logs flowing: Query `{job=~".+"}` in Grafana Explore → Loki datasource
+- [ ] Traces flowing: Check "Workflow Execution Observability" dashboard in Grafana
+- [ ] Promtail shipping logs: Check `docker logs easyflow-promtail` for "Adding target" messages
 
 ### 5. End-to-End
 - [ ] Create workflow in UI
@@ -583,5 +593,32 @@ When asking for help, include:
 
 ---
 
-**Last Updated:** 2025-12-13  
-**Version:** 1.0.0
+---
+
+## 🔗 Quick Access Links
+
+### Observability Services
+- **Grafana Dashboards:** http://localhost:3001 (admin/admin123)
+- **Prometheus UI:** http://localhost:9090
+- **Loki API:** http://localhost:3100
+- **Promtail Status:** http://localhost:9080/ready
+- **Tempo API:** http://localhost:3200
+- **OTEL Collector Health:** http://localhost:13133
+- **Alertmanager UI:** http://localhost:9093
+- **Backend Metrics:** http://localhost:9091/metrics
+
+### Application Services
+- **Frontend:** http://localhost:3000
+- **Backend API:** http://localhost:3030
+- **Backend Health:** http://localhost:3030/health
+- **Automation Worker:** http://localhost:7070
+- **Worker Health:** http://localhost:7070/health
+
+### Infrastructure
+- **Kafka:** localhost:9092
+- **Zookeeper:** localhost:2181
+
+---
+
+**Last Updated:** 2025-12-16  
+**Version:** 1.1.0
