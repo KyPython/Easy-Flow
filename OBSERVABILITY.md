@@ -53,11 +53,15 @@ Stops **everything** including observability stack, verifies ports are free.
 
 ### Problem: "Query timeout" Errors
 
-**Symptom:** Frontend shows "Query timeout" when loading workflows, with retry attempts failing.
+**Symptom:** Frontend shows "Query timeout" when loading workflows, especially on first load. Refresh fixes it.
 
-**Root Cause:** Missing database indexes on frequently queried columns. Without indexes, PostgreSQL performs full table scans which are extremely slow on large tables.
+**Root Causes:**
+1. **Missing database indexes** - Slow queries without proper indexes
+2. **Database cold start** - Supabase serverless instances pause when inactive
 
-**Solution:** Add database indexes on:
+**Solution 1: Add Database Indexes**
+
+Add database indexes on frequently queried columns:
 - `user_id` (for RLS filtering and user-scoped queries)
 - `updated_at` / `created_at` (for ordering)
 - `status` (for filtering)
@@ -94,17 +98,42 @@ Stops **everything** including observability stack, verifies ports are free.
    **Before indexes:** Should show "Seq Scan" (slow)
    **After indexes:** Should show "Index Scan" (fast)
 
+**Solution 2: Database Warm-Up (Cold Start Fix)**
+
+**Problem:** Supabase free tier pauses inactive databases. First request after inactivity times out while database wakes up (5-15 seconds).
+
+**Solution:** Database warm-up runs automatically on server startup:
+- ✅ Warm-up runs on backend server start (non-blocking)
+- ✅ Retry logic handles slow wake-ups (2 retries, 2s delay)
+- ✅ Health check endpoint also warms up database (backup)
+- ✅ Fails silently to avoid blocking server startup
+
+**How It Works:**
+1. Server starts → Warm-up query runs immediately
+2. Database wakes up → Connection established
+3. First request arrives → Database already awake → Fast response
+
+**Configuration:**
+- Warm-up runs automatically (no config needed)
+- Timeout: 30 seconds per attempt
+- Retries: 2 attempts with 2-second delay
+- Logs: Check backend logs for `[DatabaseWarmup]` messages
+
 **Expected Performance Improvement:**
-- Query time: 10+ seconds → <100ms
-- Full table scan → Index scan
-- Timeout errors → Instant results
+- **Before:** First request timeout (10+ seconds), refresh works
+- **After:** First request succeeds immediately (<100ms)
+- **Indexes:** Query time: 10+ seconds → <100ms
+- **Warm-up:** Eliminates cold start delays
 
 **Monitoring:**
-- Check slow queries in Grafana/Prometheus
-- Monitor database query duration metrics
+- Check backend logs for `[DatabaseWarmup]` messages
+- Monitor database query duration metrics in Grafana
 - Watch for timeout errors in Loki logs
+- Check `/api/health` endpoint for database status
 
-**See:** `rpa-system/backend/migrations/add_performance_indexes.sql` for complete index definitions.
+**See:** 
+- `rpa-system/backend/migrations/add_performance_indexes.sql` for index definitions
+- `rpa-system/backend/utils/databaseWarmup.js` for warm-up implementation
 
 ---
 
