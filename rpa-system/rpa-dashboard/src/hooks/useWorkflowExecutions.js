@@ -29,8 +29,13 @@ export const useWorkflowExecutions = (workflowId) => {
       setError(null);
       // Ensure the real Supabase client is initialized before calling DB methods
       const client = await initSupabase();
-      // ✅ PERFORMANCE: Exclude input_data and output_data from list query
-      // These fields can be large JSON payloads - fetch them only when viewing details
+      // ✅ PERFORMANCE: Optimized list query - only fetch fields needed for list display
+      // Excluded fields:
+      // - input_data, output_data: Large JSON payloads, fetched on-demand via getExecutionDetails()
+      // - error_step_id: Not displayed in list view (only in detail modal)
+      // - trigger_data: Not displayed in list view (only triggered_by is shown)
+      // - created_at: Not displayed in list view (started_at is used instead)
+      // 
       // This reduces bandwidth, improves UI rendering speed, and reduces memory usage
       const { data, error: fetchError } = await client
         .from('workflow_executions')
@@ -42,12 +47,9 @@ export const useWorkflowExecutions = (workflowId) => {
           completed_at,
           duration_seconds,
           error_message,
-          error_step_id,
           triggered_by,
-          trigger_data,
           steps_executed,
-          steps_total,
-          created_at
+          steps_total
         `)
         .eq('workflow_id', workflowId)
         .order('started_at', { ascending: false })
