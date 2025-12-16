@@ -72,8 +72,22 @@ docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtai
 docker-compose -f docker-compose.monitoring.yml up -d
 cd ../..
 sleep 5
+
+# Wait for Grafana to be ready (it may restart due to datasource provisioning)
+echo -e "${YELLOW}Waiting for Grafana to be ready...${NC}"
+GRAFANA_READY=false
+for i in {1..30}; do
+    if curl -s http://localhost:3003/api/health > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Grafana is ready${NC}"
+        GRAFANA_READY=true
+        break
+    fi
+    sleep 2
+done
+[ "$GRAFANA_READY" = false ] && echo -e "${YELLOW}⚠ Grafana may still be starting (check http://localhost:3003)${NC}"
+
 echo -e "${GREEN}✓ Observability stack started${NC}"
-echo "  Grafana:        http://localhost:3001 (admin/admin123)"
+echo "  Grafana:        http://localhost:3003 (admin/admin123)"
 echo "  Prometheus:     http://localhost:9090"
 echo "  Loki:           http://localhost:3100 (logs)"
 echo "  Promtail:       http://localhost:9080 (log shipper)"
@@ -195,7 +209,7 @@ echo "Infrastructure:"
 echo "  Kafka:            localhost:9092"
 echo ""
 echo "Observability:"
-echo "  Grafana:          http://localhost:3001 (admin/admin123)"
+echo "  Grafana:          http://localhost:3003 (admin/admin123)"
 echo "  Prometheus:       http://localhost:9090"
 echo "  Loki:             http://localhost:3100 (logs)"
 echo "  Promtail:         http://localhost:9080 (log shipper)"

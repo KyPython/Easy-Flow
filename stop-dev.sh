@@ -74,7 +74,7 @@ echo ""
 echo -e "${YELLOW}Verifying critical ports are free...${NC}"
 
 PORTS_OK=true
-for port in 3000 3030 7070 9090 3001 3100 3200 4317 4318 9091; do
+for port in 3000 3030 7070 9090 3003 3100 3200 4317 4318 9091 9080; do
     if lsof -i :$port | grep LISTEN > /dev/null 2>&1; then
         echo -e "${RED}✗ Port $port still in use${NC}"
         PORTS_OK=false
