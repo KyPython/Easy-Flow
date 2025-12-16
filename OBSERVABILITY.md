@@ -150,7 +150,39 @@ Then search automation worker logs for that `traceId`:
 
 **Problem:** You found a trace ID in backend logs but it doesn't appear in automation worker logs.
 
-**What this means:**
+**⚠️ IMPORTANT: Two Possible Causes**
+
+#### Cause 1: Backend Never Dispatched a Job (Most Common)
+**What's happening:**
+- Backend receives workflow execution request ✅
+- Backend evaluates workflow steps ✅
+- **Backend decides there are NO steps to run** ❌
+- Backend marks workflow as `NO_STEPS_EXECUTED` ❌
+- **Backend NEVER sends anything to Kafka** ❌
+- Worker is never contacted, so no trace ID in worker logs ✅ (This is expected!)
+
+**This is NOT a trace propagation issue** - it's a workflow logic issue. The backend orchestrator (`rpa-system-backend`) decides there are no steps to execute BEFORE dispatching any jobs to the automation worker.
+
+**How to Debug This:**
+1. **Check backend logs** for why steps weren't executed:
+   ```logql
+   {job="easyflow-backend"} |= "NO_STEPS_EXECUTED" |= "steps_total"
+   ```
+   Look for logs showing `steps_total: 2, steps_executed: 0`
+
+2. **Add a debug/logging step** to force the backend to dispatch at least one job:
+   - Create a simple "logger" step that does nothing but print its input
+   - Add it as the first step in your workflow
+   - This forces the orchestrator to dispatch at least one job to Kafka
+   - You'll then see the trace ID in worker logs
+
+3. **Check workflow configuration**:
+   - Are workflow steps properly defined?
+   - Are step conditions preventing execution?
+   - Is the workflow in a valid state?
+
+#### Cause 2: Trace Context Not Propagating (Less Common)
+**What's happening:**
 - Backend created a trace ✅
 - Backend published message to Kafka ✅
 - **But**: Trace context (trace ID, span ID) wasn't included in Kafka message headers ❌
@@ -219,8 +251,58 @@ with trace.use_span(trace.get_tracer(__name__).start_span("workflow.execute", co
     logger.info("Processing workflow", extra={"trace_id": trace.get_current_span().get_span_context().trace_id})
 ```
 
-#### 4. Verify Trace Context Propagation
-After fixing code, test end-to-end:
+#### 4. Debugging: Force a Step to Execute
+
+**If the backend never dispatches jobs**, add a debug/logging step to force execution:
+
+**Why This Happens:**
+The backend orchestrator (`rpa-system-backend`) evaluates workflow steps BEFORE dispatching any jobs to Kafka. If it decides there are no valid steps to execute (e.g., no "start" step, all steps filtered out by conditions, or workflow configuration issues), it marks the workflow as `NO_STEPS_EXECUTED` and **never sends anything to Kafka**. This is why you won't see trace IDs in automation worker logs - the worker was never contacted.
+
+**Create a Simple Logger Step:**
+
+1. **Check your workflow configuration:**
+   ```logql
+   {job="easyflow-backend"} |= "No start step found" |= "workflow_id"
+   ```
+   Or:
+   ```logql
+   {job="easyflow-backend"} |= "steps_total" |= "steps_executed: 0"
+   ```
+
+2. **Add a debug step as the first action step:**
+   - In your workflow editor, add a new step
+   - Set step type to `action`
+   - Set action type to something simple like `log` or `delay`
+   - This forces the backend to dispatch at least one job to Kafka
+   - You'll then see the trace ID in worker logs
+
+3. **Or check workflow structure:**
+   ```bash
+   # Check if workflow has a start step
+   # Check if workflow has action steps
+   # Check if step conditions are preventing execution
+   ```
+
+**Example Debug Step Configuration:**
+```json
+{
+  "step_type": "action",
+  "action_type": "delay",
+  "name": "Debug: Force Execution",
+  "config": {
+    "duration_ms": 100
+  }
+}
+```
+
+This simple delay step will:
+- Force backend to dispatch a job to Kafka ✅
+- Include trace context in Kafka headers ✅
+- Worker receives job and logs trace ID ✅
+- You can now see the full execution flow ✅
+
+#### 5. Verify Trace Context Propagation
+After fixing code or adding debug step, test end-to-end:
 
 1. **Execute a workflow** via frontend
 2. **Get trace ID from backend logs:**
@@ -258,7 +340,7 @@ In Grafana Explore → Tempo datasource:
 - Issue is only in logging (worker not logging trace ID)
 - Check worker logging code to include trace context
 
-#### 6. Common Issues and Fixes
+#### 7. Common Issues and Fixes
 
 | Issue | Symptom | Fix |
 |-------|---------|-----|
