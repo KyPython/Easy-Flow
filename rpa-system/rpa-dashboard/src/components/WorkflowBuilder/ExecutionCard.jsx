@@ -203,7 +203,12 @@ const ExecutionCard = ({
           </div>
 
           {/* Progress Bar */}
-          {execution.steps_total > 0 && (
+          {(() => {
+            const stepsTotal = execution.steps_total || 
+                             (execution.step_executions?.length) ||
+                             0;
+            return stepsTotal > 0;
+          })() && (
             <div className={styles.progressSection}>
               <ProgressBar 
                 value={getProgress()} 
