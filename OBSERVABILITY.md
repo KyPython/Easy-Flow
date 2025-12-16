@@ -199,7 +199,7 @@ const getExecutionDetails = async (executionId) => {
    
    **For PATCH/PUT requests:**
    ```
-   {resource.service.name="rpa-system-backend"} && {name=~"PATCH|PUT"} && {http.target=~".*workflows.*"}
+   {resource.service.name="rpa-system-backend"} && {name=~"(PATCH|PUT) /api/workflows/.*"}
    ```
 
 4. **Filter by time range:**
@@ -323,7 +323,7 @@ Once you've identified the slow span, search logs for that operation:
 
 **3. Find PATCH/PUT requests to workflows:**
 ```
-{resource.service.name="rpa-system-backend"} && ({http.method="PATCH" || http.method="PUT"}) && {http.target=~".*workflows.*"}
+{resource.service.name="rpa-system-backend"} && {name=~"(PATCH|PUT) /api/workflows/.*"}
 ```
 
 **4. Find slow database operations:**
