@@ -471,7 +471,7 @@ const sdk = new NodeSDK({
   sampler, // ✅ Use configured sampler (10% sampling)
   // Use both OTLP and Prometheus metric readers
   // PrometheusExporter receives metrics via PeriodicExportingMetricReader
-  metricReader: Array.isArray(primaryMetricReader) ? primaryMetricReader : [primaryMetricReader],
+  metricReader: primaryMetricReader,
   instrumentations: [
     getNodeAutoInstrumentations({
       // Enhanced HTTP instrumentation for SLO tracking
