@@ -30,9 +30,11 @@ datasources:
         enabled: true
       search:
         hide: false
+      serviceMap:
+        datasourceUid: prometheus
       tracesToLogs:
         datasourceUid: loki
-        tags: ['job', 'instance', 'pod', 'namespace']
+        tags: ['job', 'instance', 'pod', 'namespace', 'service.name']
         mappedTags: [{ key: 'service.name', value: 'service' }]
         mapTagNamesEnabled: false
         spanStartTimeShift: '1h'
@@ -45,6 +47,8 @@ datasources:
         queries:
           - name: 'Sample query'
             query: 'sum(rate(tempo_spanmetrics_latency_bucket{$$__tags}[5m]))'
+      serviceMap:
+        datasourceUid: prometheus
 
   - name: Loki
     uid: loki

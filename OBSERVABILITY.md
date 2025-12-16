@@ -276,14 +276,34 @@ Once you've identified the slow span, search logs for that operation:
 {resource.service.name="rpa-system-backend"} && {duration>0s}
 ```
 
-**Using Visual Query Builder (Alternative):**
+**Using Visual Query Builder (Recommended - No Query Language Needed):**
 
-If TraceQL doesn't work, use the visual builder:
-1. **Resource Service Name:** Select `rpa-system-backend` from dropdown
-2. **Span Name:** Leave empty OR type `*workflows*` 
-3. **Duration:** Set `> 2s` (for slow operations)
-4. **Tags:** Click "Add tag" → Select `http.method` → Set value to `PATCH` or `PUT`
-5. Click **Run query**
+The visual query builder automatically populates dropdowns with available values:
+
+1. **Resource Service Name:** 
+   - Click the dropdown - it should show `rpa-system-backend` (and any other services)
+   - Select `rpa-system-backend` from the list
+   - If dropdown is empty, make sure traces are being sent to Tempo first
+
+2. **Span Name:** 
+   - Leave empty to see all spans
+   - OR click dropdown to see available span names
+   - OR type `*workflows*` to filter
+
+3. **Duration:** 
+   - Set `> 2s` to find slow operations
+   - Set `> 5s` for very slow operations
+
+4. **Tags (Optional):**
+   - Click "Add tag" → Select `http.method` → Set value to `PATCH` or `PUT`
+   - OR select `http.status_code` → Set value to `>= 500` for errors
+
+5. **Click "Run query"**
+
+**Note:** Dropdowns populate automatically once traces are ingested. If you see empty dropdowns:
+- Make sure traces are being sent (trigger a workflow save or API call)
+- Wait a few seconds for Tempo to index the traces
+- Refresh the page or click the refresh icon
 
 **Troubleshooting "No data":**
 
