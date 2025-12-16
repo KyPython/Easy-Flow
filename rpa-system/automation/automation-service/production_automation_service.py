@@ -536,7 +536,14 @@ def kafka_consumer_loop():
                                 ):
                                     # ✅ INSTRUCTION 2: Reduced Kafka receive logging (Gap 19)
                                     # Log at INFO level so we can see task processing
-                                    logger.info(f"📨 Received Kafka task: {task_id} (type: {task_data.get('task_type', 'unknown')})")
+                                    # Include trace ID for correlation with backend logs
+                                    span = trace.get_current_span()
+                                    trace_id_str = 'unknown'
+                                    if span:
+                                        span_ctx = span.get_span_context()
+                                        if span_ctx and span_ctx.is_valid:
+                                            trace_id_str = format(span_ctx.trace_id, '032x')
+                                    logger.info(f"📨 Received Kafka task: {task_id} (type: {task_data.get('task_type', 'unknown')}, trace_id: {trace_id_str})")
                                     
                                     # ✅ INSTRUCTION 2: REMOVED kafka_messages metric (Gap 8, 18)
                                     # Kafka message counts available from broker metrics
