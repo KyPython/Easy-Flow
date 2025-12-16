@@ -56,16 +56,15 @@ fi
 
 # Stop Observability Stack
 echo -e "${YELLOW}Stopping Observability Stack...${NC}"
-ORIG_DIR=$(pwd)
-cd rpa-system/monitoring 2>/dev/null || cd ../rpa-system/monitoring 2>/dev/null || true
-if [ -f docker-compose.monitoring.yml ]; then
-    docker-compose -f docker-compose.monitoring.yml down 2>/dev/null && echo -e "${GREEN}✓ Observability stack stopped${NC}" || echo -e "${YELLOW}⚠ Could not stop observability stack${NC}"
-    # Also remove any stale containers (all monitoring services)
+if [ -f rpa-system/docker-compose.monitoring.yml ]; then
+    docker-compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null && echo -e "${GREEN}✓ Observability stack stopped${NC}" || echo -e "${YELLOW}⚠ Could not stop observability stack${NC}"
+    # Also remove any stale containers (all monitoring services, including manually started ones)
     docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
 else
-    echo -e "${YELLOW}⚠ Monitoring compose file not found${NC}"
+    echo -e "${YELLOW}⚠ Monitoring compose file not found at rpa-system/docker-compose.monitoring.yml${NC}"
+    # Fallback: try to remove containers directly
+    docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
 fi
-cd "$ORIG_DIR" > /dev/null 2>&1 || true
 
 sleep 1
 

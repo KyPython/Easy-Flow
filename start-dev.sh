@@ -64,13 +64,12 @@ echo -e "${YELLOW}Initializing Kafka topics...${NC}"
 
 # Start Observability Stack (Prometheus, Grafana, Loki, Tempo, OTEL Collector, Alertmanager)
 echo -e "${YELLOW}Starting Observability Stack...${NC}"
-cd rpa-system/monitoring
-# Clean up any existing monitoring containers
-docker-compose -f docker-compose.monitoring.yml down 2>/dev/null || true
-# Remove stale containers that may conflict
+# Clean up any existing monitoring containers first
+docker-compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null || true
+# Remove stale containers that may conflict (including manually started ones)
 docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
-docker-compose -f docker-compose.monitoring.yml up -d
-cd ../..
+# Start all monitoring services
+docker-compose -f rpa-system/docker-compose.monitoring.yml up -d
 sleep 5
 
 # Wait for Grafana to be ready (it may restart due to datasource provisioning)
