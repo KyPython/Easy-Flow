@@ -1,8 +1,8 @@
 # Alertmanager configuration for EasyFlow notifications
 global:
   smtp_smarthost: 'localhost:587'
-  smtp_from: 'alerts@easyflow.com'
-  smtp_auth_username: 'alerts@easyflow.com'
+  smtp_from: 'alerts@useeasyflow.com'
+  smtp_auth_username: 'alerts@useeasyflow.com'
   smtp_auth_password: 'your_email_password'
 
 route:
@@ -26,7 +26,7 @@ receivers:
 
 - name: 'critical-alerts'
   email_configs:
-  - to: 'admin@easyflow.com'
+  - to: 'admin@useeasyflow.com'
     subject: '[CRITICAL] EasyFlow Alert: {{ .GroupLabels.alertname }}'
     body: |
       {{ range .Alerts }}
@@ -42,7 +42,7 @@ receivers:
 
 - name: 'warning-alerts'
   email_configs:
-  - to: 'ops@easyflow.com'
+  - to: 'ops@useeasyflow.com'
     subject: '[WARNING] EasyFlow Alert: {{ .GroupLabels.alertname }}'
     body: |
       {{ range .Alerts }}

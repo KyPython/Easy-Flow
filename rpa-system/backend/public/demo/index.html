@@ -79,11 +79,11 @@
         <div class="login-form" id="loginForm">
             <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
                 <strong>Demo Credentials:</strong><br>
-                Username: <code>demo@easyflow.com</code><br>
+                Username: <code>demo@useeasyflow.com</code><br>
                 Password: <code>demo123</code>
             </div>
             
-            <input type="email" id="username" placeholder="Username / Email" value="demo@easyflow.com">
+            <input type="email" id="username" placeholder="Username / Email" value="demo@useeasyflow.com">
             <input type="password" id="password" placeholder="Password" value="demo123">
             <button onclick="login()">Login to View Invoices</button>
         </div>
@@ -121,11 +121,11 @@
             const password = document.getElementById('password').value;
             
             // Simple demo validation
-            if (username === 'demo@easyflow.com' && password === 'demo123') {
+            if (username === 'demo@useeasyflow.com' && password === 'demo123') {
                 document.getElementById('loginForm').style.display = 'none';
                 document.getElementById('invoiceList').style.display = 'block';
             } else {
-                alert('Invalid credentials. Please use demo@easyflow.com / demo123');
+                alert('Invalid credentials. Please use demo@useeasyflow.com / demo123');
             }
         }
         

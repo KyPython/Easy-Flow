@@ -19,7 +19,7 @@ const demoSites = [
   { 
     name: '🎯 Try Demo Portal', 
     url: `${getApiBaseUrl()}/demo`,
-    username: 'demo@easyflow.com',
+    username: 'demo@useeasyflow.com',
     password: 'demo123',
     description: 'EasyFlow demo invoice portal - always available, always works!'
   },

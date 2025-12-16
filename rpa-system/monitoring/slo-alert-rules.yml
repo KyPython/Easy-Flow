@@ -44,8 +44,8 @@ groups:
             3. Examine external dependency failures (OpenAI, OCR services)
             4. Validate Kafka message processing pipeline
 
-            Dashboard: http://grafana.easyflow.com/d/slo-executive
-          runbook_url: "https://wiki.easyflow.com/runbooks/slo1-process-success"
+            Dashboard: http://grafana.useeasyflow.com/d/slo-executive
+          runbook_url: "https://wiki.useeasyflow.com/runbooks/slo1-process-success"
 
       # Ticket-level alert: Slow burn (50% of budget consumed in 6 hours)
       - alert: EasyFlow_SLO1_ProcessSuccess_SlowBurn
@@ -80,7 +80,7 @@ groups:
             - Database connection pool exhaustion
             - Message queue backlog accumulation
 
-            Dashboard: http://grafana.easyflow.com/d/slo-executive
+            Dashboard: http://grafana.useeasyflow.com/d/slo-executive
 
       # Error budget depletion warning
       - alert: EasyFlow_SLO1_ErrorBudgetLow
@@ -216,7 +216,7 @@ groups:
             3. Consider compensation/credits
             4. Escalate to engineering leadership
 
-            **Premium User Dashboard**: http://grafana.easyflow.com/d/premium-users
+            **Premium User Dashboard**: http://grafana.useeasyflow.com/d/premium-users
 
       # =============================================================================
       # Cross-SLO Health and Incident Coordination
@@ -252,7 +252,7 @@ groups:
             4. Prepare customer communication
             5. Engage vendor escalation if needed
 
-            **Incident Response**: https://wiki.easyflow.com/incident-response
+            **Incident Response**: https://wiki.useeasyflow.com/incident-response
 
       # SLO recovery detection
       - alert: EasyFlow_SLO_Recovery

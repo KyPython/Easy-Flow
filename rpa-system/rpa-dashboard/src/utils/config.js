@@ -58,9 +58,9 @@ const getApiBaseUrl = () => {
     const hostname = window.location.hostname;
 
     // Production environments
-    if (hostname === 'app.easyflow.com') {
+    if (hostname === 'app.useeasyflow.com') {
       // Custom domain setup
-      return 'https://api.easyflow.com';
+      return 'https://api.useeasyflow.com';
     }
 
     // Development environments

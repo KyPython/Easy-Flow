@@ -42,8 +42,8 @@ function getApiBaseUrl() {
     }
     
     // Production environments
-    if (hostname === 'app.easyflow.com') {
-      return 'https://api.easyflow.com';
+    if (hostname === 'app.useeasyflow.com') {
+      return 'https://api.useeasyflow.com';
     }
     
     // Vercel frontend (fallback only)
