@@ -301,6 +301,155 @@ This simple delay step will:
 - Worker receives job and logs trace ID ✅
 - You can now see the full execution flow ✅
 
+### 2. Modify Your Workflow to Run the Logger First
+
+**Option A: Using the UI (Recommended)**
+
+1. **Open your workflow** in the Workflow Builder (http://localhost:3000/workflows/:id)
+2. **Add a new step:**
+   - Click the "+" button or drag an action from the toolbar
+   - Select "Delay" action (or any simple action)
+3. **Configure the debug step:**
+   - Set name: "Debug: Log Workflow Input"
+   - For delay: Set duration to 100ms (minimal delay)
+   - For other actions: Use minimal configuration
+4. **Connect it as the first step:**
+   - Connect the "Start" step → "Debug: Log Workflow Input" step
+   - Connect "Debug: Log Workflow Input" → your original first step
+5. **Save the workflow**
+6. **Execute the workflow** - the debug step will force backend to dispatch to Kafka
+
+**Option B: Direct Database Modification (Advanced)**
+
+If you need to modify the workflow directly in the database:
+
+1. **Find your workflow ID:**
+   ```sql
+   SELECT id, name FROM workflows WHERE name LIKE '%your-workflow-name%';
+   ```
+
+2. **Check current workflow structure:**
+   ```sql
+   SELECT id, step_type, action_type, name, config 
+   FROM workflow_steps 
+   WHERE workflow_id = '<your-workflow-id>'
+   ORDER BY position_y, position_x;
+   ```
+
+3. **Insert a debug step:**
+   ```sql
+   INSERT INTO workflow_steps (
+     workflow_id,
+     step_type,
+     action_type,
+     name,
+     step_key,
+     config,
+     position_x,
+     position_y
+   ) VALUES (
+     '<your-workflow-id>',
+     'action',
+     'delay',
+     'Debug: Log Workflow Input',
+     'debug-logger-' || gen_random_uuid()::text,
+     '{"duration_ms": 100}'::jsonb,
+     200,  -- Position after Start step
+     100
+   ) RETURNING id;
+   ```
+
+4. **Update workflow connections:**
+   ```sql
+   -- Get the Start step ID
+   SELECT id INTO start_step_id FROM workflow_steps 
+   WHERE workflow_id = '<your-workflow-id>' AND step_type = 'start';
+   
+   -- Get the debug step ID (from INSERT above)
+   -- Get the original first action step ID
+   SELECT id INTO first_action_id FROM workflow_steps 
+   WHERE workflow_id = '<your-workflow-id>' 
+     AND step_type = 'action' 
+     AND name != 'Debug: Log Workflow Input'
+   ORDER BY position_y, position_x LIMIT 1;
+   
+   -- Connect Start → Debug step
+   INSERT INTO workflow_connections (
+     workflow_id,
+     source_step_id,
+     target_step_id,
+     connection_type
+   ) VALUES (
+     '<your-workflow-id>',
+     start_step_id,
+     '<debug-step-id>',
+     'next'
+   );
+   
+   -- Connect Debug → Original first step
+   INSERT INTO workflow_connections (
+     workflow_id,
+     source_step_id,
+     target_step_id,
+     connection_type
+   ) VALUES (
+     '<your-workflow-id>',
+     '<debug-step-id>',
+     first_action_id,
+     'next'
+   );
+   
+   -- Remove old Start → Original first step connection
+   DELETE FROM workflow_connections
+   WHERE workflow_id = '<your-workflow-id>'
+     AND source_step_id = start_step_id
+     AND target_step_id = first_action_id;
+   ```
+
+5. **Update canvas_config** (if workflow uses canvas):
+   ```sql
+   -- Get current canvas_config
+   SELECT canvas_config FROM workflows WHERE id = '<your-workflow-id>';
+   
+   -- Add debug node to canvas_config.nodes array
+   -- Add edges to canvas_config.edges array
+   -- Update workflows table
+   UPDATE workflows 
+   SET canvas_config = '<updated-canvas-config>'::jsonb
+   WHERE id = '<your-workflow-id>';
+   ```
+
+**Option C: Using API (Programmatic)**
+
+```bash
+# Get workflow details
+curl http://localhost:3030/api/workflows/<workflow-id>
+
+# Add debug step via API (if endpoint exists)
+# Or use Supabase client directly in your code
+```
+
+**After Adding Debug Step:**
+
+1. **Execute the workflow** via UI or API
+2. **Check backend logs** for trace ID:
+   ```logql
+   {job="easyflow-backend"} |= "execution_id" |= "<your-execution-id>"
+   ```
+3. **Check automation worker logs** - you should now see the trace ID:
+   ```logql
+   {job="easyflow-automation"} |= "<trace-id>"
+   ```
+4. **Verify in Kafka** that message was sent:
+   ```bash
+   docker exec -it easy-flow-kafka-1 kafka-console-consumer \
+     --bootstrap-server localhost:9092 \
+     --topic automation-tasks \
+     --from-beginning \
+     --max-messages 1 \
+     --property print.headers=true
+   ```
+
 #### 5. Verify Trace Context Propagation
 After fixing code or adding debug step, test end-to-end:
 
