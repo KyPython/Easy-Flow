@@ -428,29 +428,84 @@ The visual query builder automatically populates dropdowns with available values
 - Wait a few seconds for Tempo to index the traces
 - Refresh the page or click the refresh icon
 
-**Troubleshooting "No data":**
+**Troubleshooting "No data" or "0 series returned":**
 
-If you see "No data" in Tempo:
-1. **Check if traces are being generated:**
-   ```bash
-   # Check backend logs for trace generation
-   tail -f logs/backend.log | grep -i "trace\|telemetry"
-   ```
+If you see "No data" or "0 series returned" in Tempo:
 
-2. **Verify service name matches:**
-   - Service name should be: `rpa-system-backend`
-   - Check: `rpa-system/backend/middleware/telemetryInit.js`
+**Step 1: Verify traces are being generated**
+```bash
+# Check backend logs for telemetry initialization
+tail -50 logs/backend.log | grep -i "telemetry\|otel\|trace"
 
-3. **Check OTEL Collector is receiving traces:**
-   ```bash
-   docker logs easyflow-otel-collector --tail 50 | grep -i "trace\|span"
-   ```
+# Look for messages like:
+# "[server] ✅ OpenTelemetry initialized successfully"
+# "[TelemetryInit] OpenTelemetry SDK started"
+```
 
-4. **Try the simplest query first:**
-   ```
-   {resource.service.name="rpa-system-backend"}
-   ```
-   If this returns nothing, traces aren't reaching Tempo. Check OTEL Collector configuration.
+**Step 2: Check OTEL Collector is running and receiving traces**
+```bash
+# Check if OTEL Collector container is running
+docker ps | grep otel-collector
+
+# Check OTEL Collector logs for trace reception
+docker logs easyflow-otel-collector --tail 50 | grep -i "trace\|span\|export"
+
+# Look for messages like:
+# "TracesExporter" or "Exporting spans"
+```
+
+**Step 3: Check Tempo is running and receiving traces**
+```bash
+# Check if Tempo container is running
+docker ps | grep tempo
+
+# Check Tempo logs
+docker logs easyflow-tempo --tail 50 | grep -i "trace\|span"
+
+# Try querying Tempo API directly
+curl http://localhost:3200/api/search?limit=10
+```
+
+**Step 4: Verify service name matches**
+```bash
+# Check what service name is configured
+grep -r "SERVICE_NAME\|service.name" rpa-system/backend/middleware/telemetryInit.js
+
+# Default should be: rpa-system-backend
+# But check if it's overridden by environment variable
+```
+
+**Step 5: Try the simplest query (no filters)**
+```
+{resource.service.name="rpa-system-backend"}
+```
+
+**If still no results, try without service name filter:**
+```
+{}
+```
+
+**Step 6: Trigger a request and check immediately**
+1. Make a request to your backend (e.g., load workflows page)
+2. Wait 10-15 seconds
+3. Set Grafana time range to "Last 5 minutes"
+4. Try query again
+
+**Step 7: Check if traces are being exported**
+```bash
+# Check backend metrics endpoint for trace export metrics
+curl http://localhost:9091/metrics | grep -i "trace\|span\|otel"
+
+# Should see metrics like:
+# otel_traces_exported_total
+# otel_spans_exported_total
+```
+
+**Common Issues:**
+- **OTEL Collector not running:** Start with `docker-compose up -d otel-collector`
+- **Service name mismatch:** Check environment variables `OTEL_SERVICE_NAME` or `OTEL_RESOURCE_ATTRIBUTES`
+- **Time range too narrow:** Expand to "Last 1 hour" or "Last 6 hours"
+- **Traces disabled:** Check if `DISABLE_TELEMETRY=true` is set in backend environment
 
 ---
 
