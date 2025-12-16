@@ -455,6 +455,9 @@ class KafkaService {
     }
     
     async sendAutomationTask(taskData) {
+        // ✅ Get trace context BEFORE creating logger (must be in AsyncLocalStorage context)
+        const currentTraceContext = traceContext ? traceContext.getCurrentTraceContext() : null;
+        
         // ✅ Create context-aware logger with business attributes
         const logger = traceContext ? traceContext.createContextLogger({
             operation: 'kafka_send_task',
@@ -489,14 +492,27 @@ class KafkaService {
         
         try {
             // ✅ Get trace headers for correlation propagation
-            const kafkaTraceHeaders = traceContext ? traceContext.getKafkaTraceHeaders() : {};
+            // Use the trace context we captured at the start of the function
+            let kafkaTraceHeaders = {};
+            if (traceContext && currentTraceContext) {
+                // Build headers from the captured trace context
+                kafkaTraceHeaders = {
+                    'traceparent': currentTraceContext.traceparent,
+                    'x-trace-id': currentTraceContext.traceId,
+                    'x-request-id': currentTraceContext.requestId,
+                    'x-span-id': currentTraceContext.spanId,
+                    'x-user-id': currentTraceContext.userId || '',
+                    'x-user-tier': currentTraceContext.userTier || 'unknown'
+                };
+            }
             
             if (logger) {
                 logger.info('Sending automation task to Kafka', {
                     taskId,
                     taskType: taskData.task_type,
                     topic: this.taskTopic,
-                    useUpstash: this.useUpstash
+                    useUpstash: this.useUpstash,
+                    traceHeaders: Object.keys(kafkaTraceHeaders).length > 0 ? 'present' : 'missing'
                 });
             } else {
                 logger.info(`[KafkaService] Sending automation task ${taskId}:`, taskWithId);
