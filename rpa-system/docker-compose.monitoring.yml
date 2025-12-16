@@ -136,13 +136,14 @@ services:
       timeout: 10s
       retries: 3
 
-  # Promtail - Log shipper to Loki
+  # Promtail - Log shipper to Loki using Docker logging driver
   promtail:
     image: grafana/promtail:latest
     container_name: easyflow-promtail
     volumes:
       - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
-      - ../logs:/app/logs:ro  # Mount logs directory from project root (relative to docker-compose file location)
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Access Docker socket for service discovery
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro  # Read Docker container JSON logs
       - promtail-positions:/tmp
     command: -config.file=/etc/promtail/config.yml
     networks:

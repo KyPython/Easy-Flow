@@ -41,9 +41,14 @@ except ImportError:
     logging.warning("⚠️ OpenTelemetry not available - trace propagation disabled")
 
 # Configure logging first (before using logger anywhere)
+# ✅ DOCKER LOGGING: Python logging writes to stderr/stdout by default (no handlers specified)
+# Combined with PYTHONUNBUFFERED=1 in Dockerfile, logs are immediately flushed to stdout
+# This allows Docker to capture logs via its logging driver, which Promtail then collects
+# Logs are automatically shipped to Loki for observability and trace discovery
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    # No handlers specified = writes to stderr/stdout (Docker captures this)
 )
 logger = logging.getLogger(__name__)
 

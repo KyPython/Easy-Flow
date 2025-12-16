@@ -13,6 +13,10 @@ const loggerConfig = {
   
   // Always use JSON format for reliable log capture
   // pino-pretty causes issues with nohup/file redirection
+  // 
+  // ✅ DOCKER LOGGING: Pino writes to stdout/stderr by default (no destination specified)
+  // This allows Docker to capture logs via its logging driver, which Promtail then collects
+  // Logs are automatically shipped to Loki for observability and trace discovery
   formatters: {
     level(label) {
       return { level: label };
