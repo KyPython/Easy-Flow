@@ -1370,4 +1370,4 @@ When asking for help, include:
 ---
 
 **Last Updated:** 2025-12-16  
-**Version:** 1.1.0
+**Version:** 1.2.0
