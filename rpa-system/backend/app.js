@@ -148,7 +148,7 @@ const corsOptions = {
     if (ALLOWED_ORIGINS.includes(origin)) {
       // Return the origin string explicitly to avoid wildcard issues with credentials
       if (process.env.NODE_ENV !== 'production') {
-        console.log('✅ CORS: Allowing origin:', origin);
+        logger.debug('✅ CORS: Allowing origin', { origin });
       }
       return cb(null, origin);
     }
