@@ -502,10 +502,26 @@ curl http://localhost:9091/metrics | grep -i "trace\|span\|otel"
 ```
 
 **Common Issues:**
-- **OTEL Collector not running:** Start with `docker-compose up -d otel-collector`
+- **Observability stack not running:** Start with `./start-dev.sh` (starts all services including observability) or manually: `docker-compose -f rpa-system/docker-compose.monitoring.yml up -d`
+- **OTEL Collector not running:** Start with `docker-compose -f rpa-system/docker-compose.monitoring.yml up -d otel-collector`
 - **Service name mismatch:** Check environment variables `OTEL_SERVICE_NAME` or `OTEL_RESOURCE_ATTRIBUTES`
 - **Time range too narrow:** Expand to "Last 1 hour" or "Last 6 hours"
 - **Traces disabled:** Check if `DISABLE_TELEMETRY=true` is set in backend environment
+
+**Quick Start/Stop Commands:**
+```bash
+# Start everything (app + observability stack)
+./start-dev.sh
+
+# Stop everything (app + observability stack)
+./stop-dev.sh
+
+# Start only observability stack
+docker-compose -f rpa-system/docker-compose.monitoring.yml up -d
+
+# Stop only observability stack
+docker-compose -f rpa-system/docker-compose.monitoring.yml down
+```
 
 ---
 
