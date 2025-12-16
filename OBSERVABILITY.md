@@ -49,6 +49,65 @@ Stops **everything** including observability stack, verifies ports are free.
 
 ---
 
+## ⚡ Performance Troubleshooting
+
+### Problem: "Query timeout" Errors
+
+**Symptom:** Frontend shows "Query timeout" when loading workflows, with retry attempts failing.
+
+**Root Cause:** Missing database indexes on frequently queried columns. Without indexes, PostgreSQL performs full table scans which are extremely slow on large tables.
+
+**Solution:** Add database indexes on:
+- `user_id` (for RLS filtering and user-scoped queries)
+- `updated_at` / `created_at` (for ordering)
+- `status` (for filtering)
+- Composite indexes for common query patterns
+
+**Quick Fix:**
+
+1. **Run the migration:**
+   ```bash
+   # Connect to your Supabase database
+   psql <your-connection-string>
+   
+   # Or via Supabase Dashboard SQL Editor
+   # Copy and paste the contents of:
+   # rpa-system/backend/migrations/add_performance_indexes.sql
+   ```
+
+2. **Verify indexes were created:**
+   ```sql
+   SELECT indexname, indexdef 
+   FROM pg_indexes 
+   WHERE tablename = 'workflows' 
+   ORDER BY indexname;
+   ```
+
+3. **Test query performance:**
+   ```sql
+   EXPLAIN ANALYZE
+   SELECT * FROM workflows 
+   WHERE user_id = '<test-user-id>'
+   ORDER BY updated_at DESC;
+   ```
+   
+   **Before indexes:** Should show "Seq Scan" (slow)
+   **After indexes:** Should show "Index Scan" (fast)
+
+**Expected Performance Improvement:**
+- Query time: 10+ seconds → <100ms
+- Full table scan → Index scan
+- Timeout errors → Instant results
+
+**Monitoring:**
+- Check slow queries in Grafana/Prometheus
+- Monitor database query duration metrics
+- Watch for timeout errors in Loki logs
+
+**See:** `rpa-system/backend/migrations/add_performance_indexes.sql` for complete index definitions.
+
+---
+
 ## 🔍 Troubleshooting Workflows (Your Current Issue)
 
 ### Problem: "Workflow completed but no steps executed"
