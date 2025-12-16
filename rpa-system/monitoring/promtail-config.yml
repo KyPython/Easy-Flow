@@ -22,30 +22,58 @@ scrape_configs:
       __path__: /app/logs/backend*.log
   
   pipeline_stages:
-  # Parse JSON logs from backend
+  # Stage 1: JSON parsing - Most efficient method for structured logs
+  # Try to parse log as JSON and extract traceId from trace.traceId field
   - json:
       expressions:
         level: level
         msg: msg
         time: time
+        timestamp: timestamp
         service: service
         logger: logger
-        trace_id: trace.traceId
+        trace_id: trace.traceId  # Primary extraction: from JSON structure
         span_id: trace.spanId
         user_id: trace.userId
         method: trace.method
         path: trace.path
         execution_id: error.execution_id
         workflow_id: error.workflow_id
+  # Stage 2: Regex fallback - Extract trace ID if JSON parsing didn't find it
+  # This handles non-JSON logs or logs where traceId is in a different format
+  # Looks for any 32-character hexadecimal string (standard trace ID format)
+  # Only extract if trace_id wasn't already set by JSON stage
+  - regex:
+      expression: '(?P<trace_id_fallback>[0-9a-fA-F]{32})'
+      source: msg
+  # Merge: Use JSON-extracted trace_id if available, otherwise use regex fallback
+  - template:
+      source: trace_id
+      template: '{{ if .trace_id }}{{ .trace_id }}{{ else if .trace_id_fallback }}{{ .trace_id_fallback }}{{ end }}'
+  # Stage 3: Trace stage - Extract trace_id as internal field (label) for Loki
+  # This tells Loki to treat trace_id as a trace identifier, making it discoverable by Grafana
+  # The label enables fast filtering: {trace_id="75ae2874a1cf402204aa76b473332b6f"}
   - labels:
       level:
       service:
       logger:
+      trace_id: # Index trace_id as a label - enables fast filtering and trace discovery
+  # Stage 4: Timestamp handling - Ensure logs have correct timestamps
+  # Try ISO format first (from timestamp field), fallback to Unix (from time field)
+  - timestamp:
+      source: timestamp
+      format: RFC3339
   - timestamp:
       source: time
       format: Unix
+  # Stage 5: Output formatting - Add traceId to log content for Grafana derived fields
+  # This ensures trace IDs are present in log content for Tempo trace discovery
+  # Grafana's derived fields will extract this and link to Tempo
+  - template:
+      source: output
+      template: '{{ .msg }}{{ if .trace_id }} traceId="{{ .trace_id }}"{{ end }}'
   - output:
-      source: msg
+      source: output
 
 # Frontend logs
 - job_name: easyflow-frontend

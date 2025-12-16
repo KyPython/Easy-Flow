@@ -39,7 +39,7 @@ datasources:
         mapTagNamesEnabled: false
         spanStartTimeShift: '1h'
         spanEndTimeShift: '1h'
-        filterByTraceID: false
+        filterByTraceID: true
         filterBySpanID: false
       tracesToMetrics:
         datasourceUid: prometheus
@@ -58,4 +58,18 @@ datasources:
     jsonData:
       httpMethod: POST
       maxLines: 1000
+      derivedFields:
+        # Extract trace IDs from logs and link to Tempo
+        # Primary: Matches traceId="<32-char-hex>" (appended by Promtail template)
+        - datasourceUid: tempo
+          matcherRegex: 'traceId="([0-9a-fA-F]{32})"'
+          name: TraceID
+          url: '$${__value.raw}'
+          internalLink: true
+        # Fallback: Matches JSON format "traceId":"<32-char-hex>" (original log format)
+        - datasourceUid: tempo
+          matcherRegex: '"traceId"\s*:\s*"([0-9a-fA-F]{32})"'
+          name: TraceID_JSON
+          url: '$${__value.raw}'
+          internalLink: true
 
