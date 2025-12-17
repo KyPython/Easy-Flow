@@ -161,3 +161,84 @@ scrape_configs:
 
       - output:
           source: output
+
+  # PM2 log file collection - collects logs from PM2-managed services
+  # These services run outside Docker, so we need to tail their log files
+  - job_name: easyflow-pm2-logs
+    static_configs:
+      # Backend logs
+      - targets:
+          - localhost
+        labels:
+          job: easyflow-backend
+          service: rpa-system-backend
+          environment: development
+          __path__: /app/logs/backend.log
+          __path_exclude__: /app/logs/backend-error.log
+
+      # Frontend logs
+      - targets:
+          - localhost
+        labels:
+          job: easyflow-frontend
+          service: rpa-dashboard
+          environment: development
+          __path__: /app/logs/frontend.log
+          __path_exclude__: /app/logs/frontend-error.log
+
+      # Automation worker logs
+      - targets:
+          - localhost
+        labels:
+          job: easyflow-automation
+          service: automation-service
+          environment: development
+          __path__: /app/logs/automation-worker.log
+
+    pipeline_stages:
+      # Parse JSON logs from PM2 (Pino logger format)
+      - json:
+          expressions:
+            level: level
+            msg: msg
+            time: time
+            timestamp: timestamp
+            service: service
+            logger: logger
+            trace_id: trace.traceId
+            span_id: trace.spanId
+            user_id: trace.userId
+            method: trace.method
+            path: trace.path
+            execution_id: error.execution_id
+            workflow_id: error.workflow_id
+
+      # Extract trace ID via regex fallback if JSON parsing didn't find it
+      - regex:
+          expression: '(?P<trace_id_fallback>[0-9a-fA-F]{32})'
+          source: msg
+
+      # Merge: Use JSON-extracted trace_id if available, otherwise use regex fallback
+      - template:
+          source: trace_id
+          template: '{{ if .trace_id }}{{ .trace_id }}{{ else if .trace_id_fallback }}{{ .trace_id_fallback }}{{ end }}'
+
+      # Extract labels for filtering
+      - labels:
+          level:
+          logger:
+          trace_id:
+
+      # Parse timestamps (Pino uses UnixMs format)
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+          action_on_failure: skip
+      - timestamp:
+          source: time
+          format: UnixMs
+          action_on_failure: skip
+
+      # Output the log line
+      - output:
+          source: msg
