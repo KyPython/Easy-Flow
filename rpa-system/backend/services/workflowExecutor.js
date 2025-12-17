@@ -809,11 +809,33 @@ class WorkflowExecutor {
       
       // Find the start step - check workflow_steps first, then canvas_config
       let steps = workflow.workflow_steps || [];
-      let connections = workflow.workflow_connections || [];
+      // CRITICAL: Handle null/undefined from Supabase - convert to empty array
+      let connections = Array.isArray(workflow.workflow_connections) 
+        ? workflow.workflow_connections 
+        : [];
+      
+      this.logger.info('[WorkflowExecutor] Workflow loaded state', {
+        workflow_id: workflow.id,
+        steps_count: steps.length,
+        connections_count: connections.length,
+        connections_type: typeof workflow.workflow_connections,
+        connections_is_array: Array.isArray(workflow.workflow_connections),
+        has_canvas_config: !!workflow.canvas_config,
+        execution_id: execution.id
+      });
       
       // ✅ FIX: Parse canvas_config if steps OR connections are missing
       // This handles cases where steps exist but connections don't (e.g., after UI save)
       const needsCanvasParse = (steps.length === 0 || connections.length === 0) && workflow.canvas_config;
+      
+      this.logger.info('[WorkflowExecutor] Canvas parse decision', {
+        workflow_id: workflow.id,
+        needsCanvasParse,
+        steps_length: steps.length,
+        connections_length: connections.length,
+        has_canvas_config: !!workflow.canvas_config,
+        execution_id: execution.id
+      });
       
       if (needsCanvasParse) {
         this.logger.info('[WorkflowExecutor] Parsing canvas_config (missing steps or connections)', {
