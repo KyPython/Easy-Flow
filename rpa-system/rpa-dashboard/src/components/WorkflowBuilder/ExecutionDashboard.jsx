@@ -484,15 +484,18 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
                           <span className={styles.stepName}>
                             {step.step_name || `Step ${stepNumber}`}
                           </span>
-                          {stepDetails && (
+                          {/* ✅ ENVIRONMENT-AWARE: Only show technical details in development */}
+                          {isDevelopment && stepDetails && (
                             <span className={styles.stepDetails}>
                               {stepDetails}
                             </span>
                           )}
+                          {/* ✅ ENVIRONMENT-AWARE: Show duration in user-friendly format */}
                           <span className={styles.stepDuration}>
-                            ({durationDisplay})
+                            {isDevelopment ? `(${durationDisplay})` : durationDisplay}
                           </span>
-                          {typeof step.retry_count === 'number' && step.retry_count > 0 && (
+                          {/* ✅ ENVIRONMENT-AWARE: Only show retry count in development */}
+                          {isDevelopment && typeof step.retry_count === 'number' && step.retry_count > 0 && (
                             <span className={styles.stepRetry} title="Retry attempts">
                               {step.retry_count} retry{step.retry_count !== 1 ? 'ies' : ''}
                             </span>
@@ -505,17 +508,18 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
                             <div className={styles.errorHeader}>
                               <strong>Error:</strong> {step.error_message.split('\n')[0]}
                             </div>
-                            {step.error_reason && (
+                            {/* ✅ ENVIRONMENT-AWARE: Only show detailed error info in development */}
+                            {isDevelopment && step.error_reason && (
                               <div className={styles.errorReason}>
                                 <strong>Reason:</strong> {step.error_reason}
                               </div>
                             )}
-                            {step.error_fix && (
+                            {isDevelopment && step.error_fix && (
                               <div className={styles.errorFix}>
                                 <strong>Fix:</strong> {step.error_fix}
                               </div>
                             )}
-                            {step.error_timestamp && (
+                            {isDevelopment && step.error_timestamp && (
                               <div className={styles.errorTimestamp}>
                                 <strong>Time:</strong> {step.error_timestamp}
                               </div>
@@ -532,8 +536,8 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
                           </div>
                         )}
                         
-                        {/* Retry status for running steps */}
-                        {isRunning && step.result?.meta?.retry_scheduled && (
+                        {/* ✅ ENVIRONMENT-AWARE: Only show retry status in development */}
+                        {isDevelopment && isRunning && step.result?.meta?.retry_scheduled && (
                           <div className={styles.retryStatus}>
                             <span className={styles.retryIndicator}>⏳</span>
                             Retrying in 5 seconds...
