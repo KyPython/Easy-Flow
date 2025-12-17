@@ -516,7 +516,15 @@ const WorkflowBuilder = () => {
                 }, 2000);
               }
             } else {
-              showSuccess('Workflow execution completed successfully!');
+              // ✅ ENHANCEMENT: Check for email result even if no metadata
+              const emailResult = execution.output_data?.email_result;
+              if (emailResult) {
+                const emailAddress = emailResult.to_email || emailResult.to || 'your email';
+                showSuccess(`📧 Email queued successfully! Check ${emailAddress} - your email should arrive shortly.`);
+              } else {
+                showSuccess('✅ Workflow execution completed successfully!');
+              }
+              
               // Default: switch to executions tab
               const workflowPath = workflowId || currentWorkflow?.id;
               const executionsPath = workflowPath
@@ -526,6 +534,7 @@ const WorkflowBuilder = () => {
               setTimeout(() => {
                 navigate(executionsPath);
               }, 2000);
+            }
             }
           }
           // Refresh executions list
