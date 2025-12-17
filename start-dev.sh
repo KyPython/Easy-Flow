@@ -211,22 +211,46 @@ if [ "$PROMETHEUS_READY" = true ] && [ "$BACKEND_OK" = true ]; then
     echo -e "${YELLOW}Reloading Prometheus configuration to discover backend metrics...${NC}"
     if curl -s -X POST http://localhost:9090/-/reload > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Prometheus configuration reloaded${NC}"
-        # Wait a bit for Prometheus to scrape targets
-        echo -e "${YELLOW}Waiting for Prometheus to scrape targets...${NC}"
-        sleep 10
-        # Check if targets are healthy
-        TARGETS_HEALTHY=false
-        for i in {1..6}; do
+        # Wait for Prometheus to scrape targets
+        # Business metrics has 60s scrape_interval, so we need to wait longer
+        echo -e "${YELLOW}Waiting for Prometheus to scrape targets (business metrics scrape every 60s)...${NC}"
+        sleep 5
+        
+        # Check critical targets first (backend, prometheus, otel-collector - these scrape every 15-30s)
+        CRITICAL_TARGETS_UP=false
+        for i in {1..8}; do
             TARGETS_JSON=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null)
-            if echo "$TARGETS_JSON" | grep -q '"health":"up"' 2>/dev/null; then
-                UP_COUNT=$(echo "$TARGETS_JSON" | grep -o '"health":"up"' | wc -l | tr -d ' ')
-                echo -e "${GREEN}✓ Prometheus targets healthy ($UP_COUNT targets UP)${NC}"
-                TARGETS_HEALTHY=true
+            # Check if critical targets are up (backend, prometheus, otel-collector)
+            CRITICAL_UP=$(echo "$TARGETS_JSON" | grep -o '"health":"up"' | wc -l | tr -d ' ')
+            if [ "$CRITICAL_UP" -ge 3 ]; then
+                echo -e "${GREEN}✓ Critical Prometheus targets healthy ($CRITICAL_UP targets UP)${NC}"
+                CRITICAL_TARGETS_UP=true
                 break
             fi
             sleep 5
         done
-        [ "$TARGETS_HEALTHY" = false ] && echo -e "${YELLOW}⚠ Prometheus targets may still be initializing (check http://localhost:9090/targets)${NC}"
+        
+        # Wait a bit more for business metrics (scrapes every 60s)
+        if [ "$CRITICAL_TARGETS_UP" = true ]; then
+            echo -e "${YELLOW}Waiting for business metrics scrape (may take up to 60s)...${NC}"
+            sleep 10
+            # Final check - count all UP targets
+            TARGETS_JSON=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null)
+            TOTAL_UP=$(echo "$TARGETS_JSON" | grep -o '"health":"up"' | wc -l | tr -d ' ')
+            UNKNOWN_COUNT=$(echo "$TARGETS_JSON" | grep -o '"health":"unknown"' | wc -l | tr -d ' ')
+            if [ "$TOTAL_UP" -ge 3 ]; then
+                echo -e "${GREEN}✓ Prometheus targets healthy ($TOTAL_UP targets UP"
+                if [ "$UNKNOWN_COUNT" -gt 0 ]; then
+                    echo -e "${YELLOW}  ($UNKNOWN_COUNT targets still initializing - will scrape within 60s)${NC}"
+                else
+                    echo -e "${GREEN})${NC}"
+                fi
+            else
+                echo -e "${YELLOW}⚠ Some Prometheus targets still initializing (check http://localhost:9090/targets)${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠ Prometheus targets may still be initializing (check http://localhost:9090/targets)${NC}"
+        fi
     else
         echo -e "${YELLOW}⚠ Could not reload Prometheus (may need manual reload at http://localhost:9090/-/reload)${NC}"
     fi
