@@ -436,12 +436,13 @@ def process_automation_task(task_data):
                     
                     task_logger.info(f"📥 Starting invoice download from: {pdf_url}")
                     download_result = web_automation.download_pdf(pdf_url, task_data)
-                if download_result.get('success'):
-                    result = {'success': True, 'data': download_result, 'message': f'Invoice downloaded from {pdf_url}'}
-                    task_logger.info(f"✅ Invoice download completed successfully")
-                else:
-                    result = {'success': False, 'error': download_result.get('error', 'Download failed'), 'details': download_result}
-                    task_logger.error(f"❌ Invoice download failed: {result.get('error')}")
+                    # ✅ SECURITY: download_pdf also validates the path internally to prevent path traversal
+                    if download_result.get('success'):
+                        result = {'success': True, 'data': download_result, 'message': f'Invoice downloaded from {pdf_url}'}
+                        task_logger.info(f"✅ Invoice download completed successfully")
+                    else:
+                        result = {'success': False, 'error': download_result.get('error', 'Download failed'), 'details': download_result}
+                        task_logger.error(f"❌ Invoice download failed: {result.get('error')}")
         else:
             result = {'success': False, 'error': f'Unknown task type: {task_type}'}
 

@@ -18,15 +18,21 @@ try {
   console.warn('[firebase-messaging-sw.js] Could not load firebase-config.js, using fallback');
   // Fallback: Use environment variables if available (for development)
   // In production, firebase-config.js should always be generated at build time
+  // ✅ SECURITY: Fallback values removed - must use environment variables or generated config file
   firebaseConfig = {
-    apiKey: self.FIREBASE_API_KEY || "AIzaSyB9J-5pMepaV9_pmNn7EFIEF6kjI0KHIus",
-    authDomain: self.FIREBASE_AUTH_DOMAIN || "easyflow-77db9.firebaseapp.com",
-    databaseURL: self.FIREBASE_DATABASE_URL || "https://easyflow-77db9-default-rtdb.firebaseio.com",
-    projectId: self.FIREBASE_PROJECT_ID || "easyflow-77db9",
-    storageBucket: self.FIREBASE_STORAGE_BUCKET || "easyflow-77db9.firebasestorage.app",
-    messagingSenderId: self.FIREBASE_MESSAGING_SENDER_ID || "499973200328",
-    appId: self.FIREBASE_APP_ID || "1:499973200328:web:c4126fca5106e6b2e808fd"
+    apiKey: self.FIREBASE_API_KEY || '',
+    authDomain: self.FIREBASE_AUTH_DOMAIN || '',
+    databaseURL: self.FIREBASE_DATABASE_URL || '',
+    projectId: self.FIREBASE_PROJECT_ID || '',
+    storageBucket: self.FIREBASE_STORAGE_BUCKET || '',
+    messagingSenderId: self.FIREBASE_MESSAGING_SENDER_ID || '',
+    appId: self.FIREBASE_APP_ID || ''
   };
+  
+  // Validate that config is not empty
+  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    console.error('[firebase-messaging-sw.js] Firebase config is missing required values. Please ensure firebase-config.js is generated at build time or environment variables are set.');
+  }
 }
 
 firebase.initializeApp(firebaseConfig);
