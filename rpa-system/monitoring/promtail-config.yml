@@ -32,7 +32,17 @@ scrape_configs:
         target_label: container_name
         replacement: '${1}'
       
+      # Default job name (use container name) - MUST come first
+      # This sets a default job label for all containers, which can then be overwritten
+      # by more specific rules below. This ensures consistent labeling.
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(.*)'
+        target_label: job
+        replacement: '${1}'
+      
       # Map container names to job names for better organization
+      # These specific rules run AFTER the default rule, so they can overwrite it
+      # This ensures containers like rpa-system-backend get mapped to easyflow-backend
       - source_labels: [__meta_docker_container_name]
         regex: '.*(easyflow-backend|rpa-system-backend).*'
         target_label: job
@@ -48,12 +58,6 @@ scrape_configs:
         target_label: job
         replacement: 'easyflow-automation'
       
-      # Default job name if no match (use container name)
-      - source_labels: [__meta_docker_container_name]
-        regex: '/(.*)'
-        target_label: job
-        replacement: '${1}'
-      
       # Set service label based on job
       - source_labels: [job]
         target_label: service
@@ -67,12 +71,12 @@ scrape_configs:
       # By omitting __path__, Promtail uses Docker's API directly to stream logs
       # This eliminates filesystem buffering delays and provides real-time log capture
       # The docker_sd_configs automatically provides the correct target for Docker API log streaming
-    
-    pipeline_stages:
+  
+  pipeline_stages:
       # Stage 0: Parse Docker's JSON log format
       # Docker wraps each log line in JSON: {"log":"<application log>","stream":"stdout","time":"<timestamp>"}
       # Extract Docker wrapper fields AND preserve them for timestamp parsing
-      - json:
+  - json:
           expressions:
             docker_log: log
             docker_stream: stream
@@ -84,28 +88,28 @@ scrape_configs:
       # Rename application timestamps to app_time and app_timestamp to avoid conflicts
       - json:
           source: docker_log
-          expressions:
-            level: level
-            msg: msg
+      expressions:
+        level: level
+        msg: msg
             app_time: time  # Renamed to avoid conflict with docker_time
             app_timestamp: timestamp  # Renamed to avoid conflict with docker_time
-            service: service
-            logger: logger
+        service: service
+        logger: logger
             trace_id: trace.traceId  # Primary extraction: from JSON structure
-            span_id: trace.spanId
-            user_id: trace.userId
-            method: trace.method
-            path: trace.path
-            execution_id: error.execution_id
-            workflow_id: error.workflow_id
+        span_id: trace.spanId
+        user_id: trace.userId
+        method: trace.method
+        path: trace.path
+        execution_id: error.execution_id
+        workflow_id: error.workflow_id
       
       # Stage 2: Regex fallback - Extract trace ID if JSON parsing didn't find it
       # This handles non-JSON logs or logs where traceId is in a different format
       # Looks for any 32-character hexadecimal string (standard trace ID format)
       - regex:
           expression: '(?P<trace_id_fallback>[0-9a-fA-F]{32})'
-          source: msg
-      
+      source: msg
+
       # Merge: Use JSON-extracted trace_id if available, otherwise use regex fallback
       - template:
           source: trace_id
@@ -133,13 +137,13 @@ scrape_configs:
       # 
       # action_on_failure: fallback tells Promtail to only proceed to the next stage if the current
       # one fails. This ensures docker_time is used when available, providing the most accurate timestamp.
-      - timestamp:
+  - timestamp:
           source: docker_time
           format: RFC3339Nano
           action_on_failure: fallback
-      - timestamp:
+  - timestamp:
           source: app_timestamp
-          format: RFC3339
+      format: RFC3339
           action_on_failure: fallback
       - timestamp:
           source: app_time
