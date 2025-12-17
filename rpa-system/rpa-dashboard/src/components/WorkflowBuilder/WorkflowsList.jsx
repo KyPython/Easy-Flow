@@ -98,8 +98,16 @@ const WorkflowsList = () => {
         throw new Error('Supabase client not properly initialized');
       }
 
-      // Query workflows with timeout
+      // Query workflows with timeout and user filtering
+      // CRITICAL: Filter by user_id to ensure RLS policies work correctly and improve performance
       const queryStartTime = performance.now();
+      
+      // Get current user ID from auth session
+      const { data: { user } } = await client.auth.getUser();
+      if (!user || !user.id) {
+        throw new Error('User not authenticated');
+      }
+      
       const { data, error: queryError } = await Promise.race([
         client
           .from('workflows')
@@ -114,7 +122,9 @@ const WorkflowsList = () => {
             successful_executions,
             failed_executions
           `)
-          .order('updated_at', { ascending: false }),
+          .eq('user_id', user.id) // CRITICAL: Filter by user_id for RLS and performance
+          .order('updated_at', { ascending: false })
+          .limit(100), // Add limit to prevent large result sets
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Query timeout')), 10000)
         )
