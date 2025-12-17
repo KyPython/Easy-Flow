@@ -13,15 +13,17 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  # Docker container discovery - automatically discovers and collects logs from all containers
-  - job_name: docker-containers
+  # Docker container discovery - automatically discovers and collects logs via Docker API
+  # CRITICAL: Using Docker API directly (not file tailing) eliminates filesystem buffering delays
+  # This ensures logs are captured in real-time without the 5-10 second delay from file I/O buffering
+  # By NOT setting __path__ to a file path, Promtail uses Docker's API to stream logs directly
+  # 
+  # Note: No name filters - relabel_configs below handle categorization more robustly
+  # This ensures we don't accidentally miss logs from new services
+  - job_name: easyflow-services
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
         refresh_interval: 5s
-        filters:
-          # Only collect logs from containers matching these name patterns
-          - name: name
-            values: ['.*easyflow.*', '.*rpa-system.*', '.*automation.*']
     
     relabel_configs:
       # Extract container name (remove leading slash)
@@ -61,10 +63,10 @@ scrape_configs:
       - target_label: environment
         replacement: 'development'
       
-      # Set the log path to Docker container JSON log file (stdout/stderr)
-      - source_labels: [__meta_docker_container_id]
-        target_label: __path__
-        replacement: '/var/lib/docker/containers/${1}/${1}-json.log'
+      # CRITICAL: Do NOT set __path__ to a file path
+      # By omitting __path__, Promtail uses Docker's API directly to stream logs
+      # This eliminates filesystem buffering delays and provides real-time log capture
+      # The docker_sd_configs automatically provides the correct target for Docker API log streaming
     
     pipeline_stages:
       # Stage 0: Parse Docker's JSON log format
