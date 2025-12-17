@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import styles from './TaskResultModal.module.css';
-
 import { useNavigate } from 'react-router-dom';
+import { validateUrl, sanitizeFilename, safeWindowOpen } from '../../utils/security';
 
 const TaskResultModal = ({ task, onClose }) => {
   const navigate = useNavigate();
@@ -45,15 +45,21 @@ const TaskResultModal = ({ task, onClose }) => {
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       
+      // ✅ SECURITY: Validate URL and sanitize filename to prevent XSS
+      const urlValidation = validateUrl(artifactUrl);
+      if (!urlValidation.valid) {
+        throw new Error(`Invalid artifact URL: ${urlValidation.error}`);
+      }
+      
       // Get filename from parameter or URL
-      const downloadFilename = filename || (() => {
+      const downloadFilename = sanitizeFilename(filename || (() => {
         try {
           const urlPath = new URL(artifactUrl).pathname;
           return urlPath.split('/').pop() || `task-${task.id}-result.pdf`;
         } catch {
           return `task-${task.id}-result.pdf`;
         }
-      })();
+      })());
       
       // Create download link and trigger download
       const link = document.createElement('a');
@@ -71,8 +77,8 @@ const TaskResultModal = ({ task, onClose }) => {
       
     } catch (error) {
       console.error('[TaskResultModal] Download failed, trying fallback', error);
-      // Fallback to direct link opening in new tab
-      window.open(artifactUrl, '_blank', 'noopener,noreferrer');
+      // ✅ SECURITY: Use safe window.open with URL validation
+      safeWindowOpen(artifactUrl);
     } finally {
       setDownloading(false);
     }

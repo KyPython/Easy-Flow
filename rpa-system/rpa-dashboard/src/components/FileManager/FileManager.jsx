@@ -18,6 +18,7 @@ import styles from './FileManager.module.css';
 import PropTypes from 'prop-types';
 import { FaCloud, FaCog, FaSync, FaDownload, FaUpload } from 'react-icons/fa';
 import { createLogger } from '../../utils/logger';
+import { validateUrl, sanitizeFilename } from '../../utils/security';
 
 const fileLogger = createLogger('FileManager');
 
@@ -169,10 +170,17 @@ const FileManager = ({
         hasUrl: !!result?.download_url
       });
       
+      // ✅ SECURITY: Validate URL and sanitize filename to prevent XSS
+      const urlValidation = validateUrl(result.download_url);
+      if (!urlValidation.valid) {
+        throw new Error(`Invalid download URL: ${urlValidation.error}`);
+      }
+      const safeFilename = sanitizeFilename(result.filename || file.original_name);
+      
       // Create a temporary link to trigger download
       const link = document.createElement('a');
-      link.href = result.download_url;
-      link.download = result.filename;
+      link.href = urlValidation.url;
+      link.download = safeFilename;
       link.target = '_blank';
       document.body.appendChild(link);
       link.click();

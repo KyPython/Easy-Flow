@@ -197,7 +197,12 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 // Explicit OPTIONS handler for all routes to ensure CORS preflight works
 app.options('/*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  // ✅ SECURITY: Restrict CORS origin instead of using wildcard '*'
+  // Only allow specific origins or the requesting origin
+  const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+  const origin = req.headers.origin;
+  const corsOrigin = (origin && allowedOrigins.includes(origin)) ? origin : (allowedOrigins.length > 0 ? allowedOrigins[0] : '*');
+  res.header('Access-Control-Allow-Origin', corsOrigin);
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -2433,6 +2438,28 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
 
   if (!url) {
     return res.status(400).json({ error: 'url is required' });
+  }
+
+  // ✅ SECURITY: Validate URL to prevent SSRF before processing
+  if (url) {
+    const urlValidation = isValidUrl(url);
+    if (!urlValidation.valid) {
+      logger.warn(`[POST /api/run-task] Invalid URL rejected: ${url} (reason: ${urlValidation.reason})`);
+      return res.status(400).json({ 
+        error: urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format' 
+      });
+    }
+  }
+
+  // ✅ SECURITY: Validate PDF URL if provided
+  if (pdf_url) {
+    const pdfUrlValidation = isValidUrl(pdf_url);
+    if (!pdfUrlValidation.valid) {
+      logger.warn(`[POST /api/run-task] Invalid PDF URL rejected: ${pdf_url} (reason: ${pdfUrlValidation.reason})`);
+      return res.status(400).json({ 
+        error: pdfUrlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid PDF URL format' 
+      });
+    }
   }
 
   try {

@@ -677,7 +677,11 @@ def trigger_automation():
         return jsonify({'error': f'Failed to queue task on Kafka: {e}'}), 500
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        return jsonify({'error': str(e)}), 500
+        # ✅ SECURITY: Don't expose full stack trace to prevent information disclosure
+        # Log full details server-side, but return generic error to client
+        import traceback
+        logger.error(f"Full error details: {traceback.format_exc()}")
+        return jsonify({'error': 'An internal error occurred. Please try again later.'}), 500
 
 @app.route('/automate', methods=['POST'])
 @app.route('/automate/<task_type>', methods=['POST'])

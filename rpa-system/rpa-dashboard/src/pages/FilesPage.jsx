@@ -14,6 +14,7 @@ import { useEffect, useRef } from 'react';
 import { useTheme } from '../utils/ThemeContext';
 import { getFileShares, api, getShareUrl } from '../utils/api';
 import { createLogger } from '../utils/logger';
+import { validateUrl } from '../utils/security';
 
 const FilesPage = () => {
   const { user } = useAuth();
@@ -244,13 +245,17 @@ const FilesPage = () => {
                     shareUrl = `${window.location.origin}/shared/${share.id}`;
                   }
                   
+                  // ✅ SECURITY: Validate URL before rendering to prevent XSS
+                  const urlValidation = shareUrl ? validateUrl(shareUrl) : { valid: false, url: null };
+                  const safeShareUrl = urlValidation.valid ? urlValidation.url : null;
+                  
                   return (
                     <tr key={share.id || share.shareUrl}>
                       <td>{share.fileName || share.original_name || share.name || 'Unnamed file'}</td>
                       <td>
-                        {shareUrl ? (
-                          <a href={shareUrl} target="_blank" rel="noopener noreferrer" className={styles.shareLink}>
-                            {shareUrl}
+                        {safeShareUrl ? (
+                          <a href={safeShareUrl} target="_blank" rel="noopener noreferrer" className={styles.shareLink}>
+                            {safeShareUrl}
                           </a>
                         ) : (
                           <span className={styles.shareLink}>No share URL available</span>

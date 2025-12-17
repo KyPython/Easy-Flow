@@ -9,6 +9,8 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
+// ✅ SECURITY: Disable X-Powered-By header
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 3030;
 
 // Enable CORS

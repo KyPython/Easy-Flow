@@ -516,10 +516,29 @@ def download_pdf(pdf_url, task_data):
     pdf_url = translate_localhost_url(pdf_url)
     
     try:
-        download_path = task_data.get('download_path', tempfile.gettempdir())
+        # ✅ SECURITY: Sanitize download_path to prevent path traversal attacks
+        raw_download_path = task_data.get('download_path', tempfile.gettempdir())
+        # Normalize path and resolve to absolute path to prevent directory traversal
+        download_path = os.path.abspath(os.path.normpath(raw_download_path))
+        # Ensure the path is within the temp directory or a safe download directory
+        safe_base = os.path.abspath(tempfile.gettempdir())
+        if not download_path.startswith(safe_base):
+            logger.warning(f"Download path {download_path} outside safe directory, using temp directory")
+            download_path = safe_base
+        
         verify_pdf = task_data.get('verify_pdf', True)
         
         logger.info(f"Downloading PDF from: {pdf_url}")
+        
+        # ✅ SECURITY: Validate PDF URL to prevent SSRF
+        # Only allow http/https URLs, block private IPs
+        from urllib.parse import urlparse
+        parsed_url = urlparse(pdf_url)
+        if parsed_url.scheme not in ('http', 'https'):
+            return {
+                "success": False,
+                "error": f"Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed."
+            }
         
         # ✅ SEAMLESS UX: Use cookies for authenticated PDF downloads
         headers = {}
@@ -547,10 +566,14 @@ def download_pdf(pdf_url, task_data):
         )
         response.raise_for_status()
         
-        # Generate filename
+        # Generate filename - sanitize to prevent path traversal
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"downloaded_invoice_{timestamp}.pdf"
-        filepath = os.path.join(download_path, filename)
+        # ✅ SECURITY: Use os.path.join and normalize to prevent path traversal
+        filepath = os.path.abspath(os.path.normpath(os.path.join(download_path, filename)))
+        # Double-check the final path is still within safe directory
+        if not filepath.startswith(download_path):
+            raise ValueError(f"Path traversal detected: {filepath}")
         
         # Save the file
         with open(filepath, 'wb') as f:

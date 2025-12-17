@@ -18,6 +18,7 @@ import {
   FiGlobe,
   FiMail
 } from 'react-icons/fi';
+import { safeWindowOpen } from '../../utils/security';
 import { 
   createFileShare, 
   updateFileShare, 
@@ -356,7 +357,10 @@ const FileSharing = ({
                   </button>
                   <button
                     className={`${styles.actionButton} ${styles.open}`}
-                    onClick={() => window.open(newlyCreatedShare.shareUrl, '_blank')}
+                    onClick={() => {
+                      // ✅ SECURITY: Use safe window.open with URL validation
+                      safeWindowOpen(newlyCreatedShare.shareUrl);
+                    }}
                     title={t('sharing.open_link', 'Open link in new tab')}
                   >
                     <FiGlobe />

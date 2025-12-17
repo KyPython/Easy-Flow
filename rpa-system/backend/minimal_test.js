@@ -7,6 +7,8 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
+// ✅ SECURITY: Disable X-Powered-By header
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 3030;
 
 // Basic middleware

@@ -10,6 +10,7 @@ import { useLanguage } from '../utils/LanguageContext';
 import { useI18n } from '../i18n';
 import { usePlan } from '../hooks/usePlan';
 import { createLogger } from '../utils/logger';
+import { safeWindowOpen } from '../utils/security';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -332,7 +333,11 @@ export default function SettingsPage() {
         return;
       }
 
-      window.open(selected.polar_url, '_blank');
+      // ✅ SECURITY: Use safe window.open with URL validation
+      const opened = safeWindowOpen(selected.polar_url);
+      if (!opened) {
+        setPlanError('Invalid checkout URL');
+      }
     } catch (err) {
       logger.error('Error opening checkout', {
         error: err.message || err,

@@ -5,6 +5,7 @@ import StatusBadge from '../StatusBadge/StatusBadge';
 import { FiDownload, FiExternalLink } from 'react-icons/fi';
 import { formatDateTime, formatTaskType } from '../../utils/formatters';
 import { fetchWithAuth } from '../../utils/devNetLogger';
+import { validateUrl, sanitizeFilename, safeWindowOpen } from '../../utils/security';
 
 // Queue Status Badge Component
 const QueueStatusBadge = ({ taskId, queuedAt, timeSinceStart }) => {
@@ -104,9 +105,15 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       
+      // ✅ SECURITY: Validate URL and sanitize filename to prevent XSS
+      const urlValidation = validateUrl(task.artifact_url);
+      if (!urlValidation.valid) {
+        throw new Error(`Invalid artifact URL: ${urlValidation.error}`);
+      }
+      
       // Get filename from URL or create a default one
       const urlPath = new URL(task.artifact_url).pathname;
-      const filename = urlPath.split('/').pop() || `task-${task.id}-result.pdf`;
+      const filename = sanitizeFilename(urlPath.split('/').pop() || `task-${task.id}-result.pdf`);
       
       // Create download link and trigger download
       const link = document.createElement('a');
@@ -122,8 +129,8 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
       
     } catch (error) {
       console.error('Download failed:', error);
-      // Fallback to direct link opening in new tab
-      window.open(task.artifact_url, '_blank', 'noopener,noreferrer');
+      // ✅ SECURITY: Use safe window.open with URL validation
+      safeWindowOpen(task.artifact_url);
     } finally {
       setDownloadingFiles(prev => {
         const newSet = new Set(prev);
@@ -355,9 +362,19 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                   {formatTaskType(getTaskType(task))}
                 </td>
                 <td className={styles.url}>
-                  <a href={getTaskUrl(task)} target="_blank" rel="noopener noreferrer">
-                    {getTaskUrl(task)}
-                  </a>
+                  {(() => {
+                    // ✅ SECURITY: Validate URL before using in href to prevent XSS
+                    const taskUrl = getTaskUrl(task);
+                    const urlValidation = validateUrl(taskUrl);
+                    if (!urlValidation.valid) {
+                      return <span className={styles.invalidUrl}>Invalid URL</span>;
+                    }
+                    return (
+                      <a href={urlValidation.url} target="_blank" rel="noopener noreferrer">
+                        {urlValidation.url}
+                      </a>
+                    );
+                  })()}
                 </td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

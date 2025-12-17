@@ -18,9 +18,10 @@ module.exports = {
         KAFKA_CLIENT_ID: 'easyflow-backend',
         KAFKA_BOOTSTRAP_SERVERS: '127.0.0.1:9092',
         KAFKA_BROKERS: '127.0.0.1:9092',
-        SUPABASE_URL: "https://syxzilyuysdoirnezgii.supabase.co",
-        SUPABASE_SERVICE_ROLE: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk",
-        SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
+        // ✅ SECURITY: Use environment variables instead of hardcoded secrets
+        SUPABASE_URL: process.env.SUPABASE_URL || "https://syxzilyuysdoirnezgii.supabase.co",
+        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE || "",
+        SUPABASE_KEY: process.env.SUPABASE_KEY || ""
       },
     },
     {
@@ -53,9 +54,10 @@ module.exports = {
         BACKEND_URL: 'http://127.0.0.1:3030',
         KAFKA_BOOTSTRAP_SERVERS: '127.0.0.1:9092',
         KAFKA_BROKERS: '127.0.0.1:9092',
-        SUPABASE_URL: "https://syxzilyuysdoirnezgii.supabase.co",
-        SUPABASE_SERVICE_ROLE: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk",
-        SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
+        // ✅ SECURITY: Use environment variables instead of hardcoded secrets
+        SUPABASE_URL: process.env.SUPABASE_URL || "https://syxzilyuysdoirnezgii.supabase.co",
+        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE || "",
+        SUPABASE_KEY: process.env.SUPABASE_KEY || ""
       },
     },
   ],

@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fi';
 import { getSharedFile } from '../utils/api';
 import styles from './SharedFilePage.module.css';
+import { validateUrl, sanitizeFilename } from '../utils/security';
 
 const SharedFilePage = () => {
   const { shareToken } = useParams();
@@ -70,9 +71,17 @@ const SharedFilePage = () => {
 
   const handleDownload = () => {
     if (downloadUrl) {
+      // ✅ SECURITY: Validate URL and sanitize filename to prevent XSS
+      const urlValidation = validateUrl(downloadUrl);
+      if (!urlValidation.valid) {
+        console.error('[SharedFilePage] Invalid download URL:', urlValidation.error);
+        return;
+      }
+      const safeFilename = sanitizeFilename(file.name);
+      
       const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = file.name;
+      link.href = urlValidation.url;
+      link.download = safeFilename;
       link.target = '_blank';
       document.body.appendChild(link);
       link.click();
@@ -256,18 +265,25 @@ const SharedFilePage = () => {
           </div>
 
           {/* File Preview (if applicable) */}
-          {file.mimeType?.startsWith('image/') && downloadUrl && (
-            <div className={styles.filePreview}>
-              <img 
-                src={downloadUrl} 
-                alt={file.name}
-                className={styles.imagePreview}
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                }}
-              />
-            </div>
-          )}
+          {file.mimeType?.startsWith('image/') && downloadUrl && (() => {
+            // ✅ SECURITY: Validate URL before using in img src to prevent XSS
+            const urlValidation = validateUrl(downloadUrl);
+            if (!urlValidation.valid) {
+              return null; // Don't render image if URL is invalid
+            }
+            return (
+              <div className={styles.filePreview}>
+                <img 
+                  src={urlValidation.url} 
+                  alt={file.name}
+                  className={styles.imagePreview}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+            );
+          })()}
 
           {file.mimeType?.startsWith('video/') && downloadUrl && (
             <div className={styles.filePreview}>
