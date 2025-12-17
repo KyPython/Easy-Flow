@@ -463,31 +463,19 @@ const otlpMetricReader = new PeriodicExportingMetricReader({
   exportTimeoutMillis: 10000
 });
 
-// PrometheusExporter needs to receive metric records via its export() method
-// Wrap it in a PeriodicExportingMetricReader so it gets called by the SDK
-let prometheusMetricReader = null;
-if (prometheusExporter) {
-  prometheusMetricReader = new PeriodicExportingMetricReader({
-    exporter: prometheusExporter,
-    exportIntervalMillis: 5000, // Export every 5 seconds for Prometheus scraping
-    exportTimeoutMillis: 5000
-  });
-}
-
-// Use both metric readers if PrometheusExporter is available
+// PrometheusExporter is NOT a MetricReader - it's a standalone HTTP server
+// It reads directly from the global MeterProvider after SDK.start() sets it
+// So we don't add it to metricReaders - we just start its server after SDK initialization
 const metricReaders = [otlpMetricReader];
-if (prometheusMetricReader) {
-  metricReaders.push(prometheusMetricReader);
-}
-const primaryMetricReader = metricReaders.length === 1 ? metricReaders[0] : metricReaders;
+const primaryMetricReader = metricReaders[0];
 
-// Initialize SDK with metric reader
+  // Initialize SDK with metric reader
 const sdk = new NodeSDK({
   resource,
   spanProcessor, // ✅ Use custom processor for data redaction
   sampler, // ✅ Use configured sampler (10% sampling)
-  // Use both OTLP and Prometheus metric readers
-  // PrometheusExporter receives metrics via PeriodicExportingMetricReader
+  // Use OTLP metric reader for exporting to OTEL Collector
+  // PrometheusExporter reads directly from global MeterProvider (started separately)
   metricReader: primaryMetricReader,
   instrumentations: [
     getNodeAutoInstrumentations({
