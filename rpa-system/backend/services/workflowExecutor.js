@@ -1271,6 +1271,33 @@ class WorkflowExecutor {
             connections_count: workflow.workflow_connections?.length || 0,
             execution_id: execution.id
           });
+          
+          // ✅ FIX: Update execution.steps_total after canvas parsing completes
+          // Reload steps to get accurate count after parsing (steps may have been added/updated)
+          const { data: updatedSteps } = await this.supabase
+            .from('workflow_steps')
+            .select('id')
+            .eq('workflow_id', workflow.id);
+          
+          if (updatedSteps && updatedSteps.length > 0) {
+            const actualStepsTotal = updatedSteps.length;
+            // Update execution record with correct steps_total
+            await this.supabase
+              .from('workflow_executions')
+              .update({ steps_total: actualStepsTotal })
+              .eq('id', execution.id);
+            
+            // Update workflow object
+            workflow.workflow_steps = updatedSteps.map(s => ({ id: s.id }));
+            
+            this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Updated execution steps_total after canvas parsing', {
+              workflow_id: workflow.id,
+              execution_id: execution.id,
+              old_steps_total: execution.steps_total,
+              new_steps_total: actualStepsTotal,
+              steps_count: actualStepsTotal
+            });
+          }
         } catch (parseError) {
           this.logger.error('[WorkflowExecutor] Failed to parse canvas_config', {
             workflow_id: workflow.id,
