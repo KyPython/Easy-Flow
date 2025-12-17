@@ -340,7 +340,7 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
             className={`${styles.tab} ${activeTab === 'data' ? styles.active : ''}`}
             onClick={() => setActiveTab('data')}
           >
-            Input/Output
+            {isDevelopment ? 'Input/Output' : 'Results'}
           </button>
         </div>
 
