@@ -2631,9 +2631,16 @@ class WorkflowExecutor {
     try {
       // ✅ PRIORITY 3: Default to allowFailure=true if scraping data exists (decouple email from scraping)
       const hasScrapedData = inputData?.scraped_data || inputData?._partial_results?.some(r => r.data?.scraped_data);
-      const { to, template, variables = {}, scheduled_at, allowFailure = hasScrapedData } = config || {};
       
-      if (!to || !template) {
+      // ✅ FIX: Handle nested config structure from canvas (node.data.config) vs direct config
+      // Canvas nodes store config as node.data.config, but we store entire node.data as step.config
+      const emailConfig = config?.config || config || {};
+      const { to, template, variables = {}, scheduled_at, allowFailure = hasScrapedData } = emailConfig;
+      
+      // ✅ FIX: Handle to as array (from canvas) - take first non-empty value
+      const toEmail = Array.isArray(to) ? to.find(email => email && email.trim()) : to;
+      
+      if (!toEmail || !template) {
         const error = 'Email step requires `to` and `template`';
         if (allowFailure) {
           this.logger.warn('Email step skipped due to missing config', {
@@ -2668,7 +2675,7 @@ class WorkflowExecutor {
       }
       
       // ✅ OBSERVABILITY: Log email action with context
-      logger.info(`[WorkflowExecutor] Enqueue email to: ${to}`, {
+      logger.info(`[WorkflowExecutor] Enqueue email to: ${toEmail}`, {
         execution_id: execution?.id,
         has_scraped_data: hasScrapedData,
         allow_failure: allowFailure,
@@ -2683,7 +2690,7 @@ class WorkflowExecutor {
 
       // Insert into email_queue (processed by email_worker)
       const insert = {
-        to_email: to,
+        to_email: toEmail,
         template,
         data: variables || {},
         status: 'pending',
