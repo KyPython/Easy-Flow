@@ -615,13 +615,23 @@ try {
     app.get('/metrics', prometheusExporter.getMetricsRequestHandler());
     logger.info('✅ [Telemetry] Prometheus metrics endpoint mounted at /metrics (also available on port 9091)');
   } else {
-    // Fallback: Return empty metrics if PrometheusExporter is not available
+    // Fallback: Return basic metrics if PrometheusExporter is not available
+    // Include 'up' metric so Prometheus shows the target as UP
     app.get('/metrics', (req, res) => {
       res.set('Content-Type', 'text/plain; version=0.0.4');
-      res.send('# Prometheus metrics endpoint\n# OpenTelemetry PrometheusExporter not available\n');
+      const timestamp = Date.now();
+      res.send(`# Prometheus metrics endpoint
+# OpenTelemetry PrometheusExporter not available
+# HELP up Whether the backend service is up
+# TYPE up gauge
+up{service="easyflow-backend"} 1
+# HELP easyflow_backend_info Backend service information
+# TYPE easyflow_backend_info gauge
+easyflow_backend_info{version="0.0.0",environment="development"} 1
+`);
       logger.debug('ℹ️ [Telemetry] /metrics endpoint accessed but PrometheusExporter not available');
     });
-    logger.warn('⚠️ [Telemetry] PrometheusExporter not available - /metrics endpoint returns empty metrics');
+    logger.warn('⚠️ [Telemetry] PrometheusExporter not available - /metrics endpoint returns basic metrics');
   }
 } catch (e) {
   // Fallback: Return empty metrics if there's an error loading PrometheusExporter
