@@ -1165,25 +1165,35 @@ if (process.env.NODE_ENV !== 'production' && (process.env.DEV_ALLOW_EXECUTE || '
   }
 }
 
-// Use morgan for HTTP request logging (sampled to reduce volume)
-// Only log 1 in N requests based on REQUEST_LOG_SAMPLE_RATE
-// Default: 1% (1 in 100) - reduced from previous to minimize log noise
-const REQUEST_LOG_SAMPLE_RATE = parseInt(process.env.REQUEST_LOG_SAMPLE_RATE || '100', 10);
-let requestCounter = 0;
-
-if (process.env.NODE_ENV === 'development') {
-  // In development, sample requests to avoid log flooding
-  app.use((req, res, next) => {
-    requestCounter++;
-    if (requestCounter % REQUEST_LOG_SAMPLE_RATE === 0) {
-      morgan('dev')(req, res, () => {});
-    }
-    next();
-  });
-} else {
-  // In production, use combined format (less verbose)
-  app.use(morgan('combined'));
-}
+// ✅ DISABLED: morgan middleware conflicts with structured logging
+// The requestLoggingMiddleware (mounted at line 604) already provides:
+// - Structured JSON logs compatible with Loki/Promtail
+// - Trace context injection for observability
+// - Proper sampling and filtering
+// - Better integration with Grafana/Tempo
+//
+// morgan produces simple string logs that:
+// - Don't parse correctly in Loki (causes <no value> display)
+// - Don't include trace context
+// - Flood logs with non-structured data
+// - Interfere with structured JSON log parsing
+//
+// If you need morgan-style logs, use the structured logger instead:
+// logger.info('HTTP request', { method: req.method, path: req.path, ... })
+//
+// const REQUEST_LOG_SAMPLE_RATE = parseInt(process.env.REQUEST_LOG_SAMPLE_RATE || '100', 10);
+// let requestCounter = 0;
+// if (process.env.NODE_ENV === 'development') {
+//   app.use((req, res, next) => {
+//     requestCounter++;
+//     if (requestCounter % REQUEST_LOG_SAMPLE_RATE === 0) {
+//       morgan('dev')(req, res, () => {});
+//     }
+//     next();
+//   });
+// } else {
+//   app.use(morgan('combined'));
+// }
 
 // Serve static files from React build (if it exists)
 const reactBuildPath = path.join(__dirname, '../rpa-dashboard/build');
