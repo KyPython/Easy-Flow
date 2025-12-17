@@ -209,6 +209,11 @@ export const AuthProvider = ({ children }) => {
           if (session?.access_token) {
             localStorage.setItem('dev_token', session.access_token);
           }
+          // Convert pending signup flag to active signup flag for conversion tracking
+          if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('just_signed_up_pending') === 'true') {
+            sessionStorage.setItem('just_signed_up', 'true');
+            sessionStorage.removeItem('just_signed_up_pending');
+          }
           // Return consistent format: { data: { user, session } } to match Supabase format
           return { data: { user, session }, error: null };
         } else {
@@ -260,6 +265,11 @@ export const AuthProvider = ({ children }) => {
           setSession(data.session);
           if (data.session?.access_token) {
             localStorage.setItem('dev_token', data.session.access_token);
+          }
+          // Convert pending signup flag to active signup flag for conversion tracking
+          if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('just_signed_up_pending') === 'true') {
+            sessionStorage.setItem('just_signed_up', 'true');
+            sessionStorage.removeItem('just_signed_up_pending');
           }
         }
         return { data, error: null };

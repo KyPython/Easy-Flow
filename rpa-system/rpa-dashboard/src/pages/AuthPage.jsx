@@ -158,6 +158,15 @@ export default function AuthPage() {
           
           // Successful login - redirect to dashboard
           setSuccess('Login successful! Redirecting to dashboard...');
+          
+          // Convert pending signup flag to active signup flag for conversion tracking
+          if (sessionStorage.getItem('just_signed_up_pending') === 'true') {
+            sessionStorage.setItem('just_signed_up', 'true');
+            sessionStorage.removeItem('just_signed_up_pending');
+            // Track conversion event
+            try { trackEvent({ user_id: user.id, event_name: 'user_signup_converted', properties: { source: 'login' } }); } catch (e) { console.debug('trackEvent failed', e); }
+          }
+          
           // Track login event and trigger any first-login campaigns
           try { trackEvent({ user_id: user.id, event_name: 'user_login' }); } catch (e) { console.debug('trackEvent failed', e); }
           try { triggerCampaign({ user_id: user.id, reason: 'first_login' }); } catch (e) { console.debug('triggerCampaign failed', e); }

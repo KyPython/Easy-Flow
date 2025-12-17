@@ -7,6 +7,7 @@ global:
 
 rule_files:
   - "slo-recording-rules-simple.yml"
+  - "business-metrics-alerts.yml"
 
 alerting:
   alertmanagers:
@@ -28,6 +29,14 @@ scrape_configs:
       - targets: ["host.docker.internal:9091"]
     scrape_interval: 15s
     metrics_path: "/metrics"
+    scrape_timeout: 10s
+
+  # Business metrics - business KPIs for EasyFlow
+  - job_name: "easyflow-business-metrics"
+    static_configs:
+      - targets: ["host.docker.internal:3030"]
+    scrape_interval: 60s
+    metrics_path: "/metrics/business"
     scrape_timeout: 10s
 
   # OpenTelemetry Collector metrics (span metrics from spanmetrics processor)

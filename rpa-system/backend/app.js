@@ -85,6 +85,14 @@ try {
   logger.warn('⚠️ Social proof routes disabled:', e.message);
 }
 
+let businessMetricsRoutes = null;
+try {
+  businessMetricsRoutes = require('./routes/businessMetrics');
+  rootLogger.info('✓ Business metrics routes loaded');
+} catch (e) {
+  logger.warn('⚠️ Business metrics routes disabled:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3030;
 
@@ -607,6 +615,27 @@ try {
   logger.debug('ℹ️ [Telemetry] PrometheusExporter not available for Express mounting:', e.message);
 }
 
+// Mount business metrics endpoint in Prometheus format
+try {
+  const { prometheusMetricsExporter } = require('./utils/prometheusMetrics');
+  // Start periodic updates
+  prometheusMetricsExporter.start();
+  
+  // Expose business metrics in Prometheus format
+  app.get('/metrics/business', async (req, res) => {
+    try {
+      res.set('Content-Type', 'text/plain; version=0.0.4');
+      res.send(prometheusMetricsExporter.getPrometheusFormat());
+    } catch (error) {
+      logger.error('[GET /metrics/business] Error:', error);
+      res.status(500).send('# Error generating business metrics\n');
+    }
+  });
+  logger.info('✅ [BusinessMetrics] Business metrics endpoint mounted at /metrics/business');
+} catch (e) {
+  logger.warn('⚠️ [BusinessMetrics] Business metrics exporter not available:', e.message);
+}
+
 // The Polar webhook needs a raw body, so we conditionally skip the JSON parser for it.
 // For all other routes, this middleware will parse the JSON body.
 // It must be registered before any routes that need to access `req.body`.
@@ -751,6 +780,10 @@ if (polarRoutes) {
 // Mount social proof routes (public endpoint, no auth required)
 if (socialProofRoutes) {
   app.use('/api', socialProofRoutes);
+}
+
+if (businessMetricsRoutes) {
+  app.use('/api/business-metrics', businessMetricsRoutes);
 }
 
 // Mount email capture routes (public endpoint, no auth required)

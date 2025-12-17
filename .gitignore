@@ -357,3 +357,4 @@ ccloud-nodejs-client*/
 *ccloud-nodejs-client*.zip
 # Snyk Security Extension - AI Rules (auto-generated)
 .cursor/rules/snyk_rules.mdc
+rpa-system/monitoring/alertmanager.yml

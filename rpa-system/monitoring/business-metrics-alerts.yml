@@ -1,0 +1,141 @@
+groups:
+  - name: easyflow_business_metrics
+    interval: 60s
+    rules:
+      # Alert: MRR Drop
+      - alert: MRRDrop
+        expr: |
+          (
+            easyflow_mrr < (easyflow_mrr offset 24h * 0.9)
+            OR
+            easyflow_mrr < (easyflow_mrr offset 7d * 0.85)
+          )
+          AND
+          easyflow_mrr > 0
+        for: 1h
+        labels:
+          severity: critical
+          category: revenue
+        annotations:
+          summary: "MRR dropped significantly"
+          description: "MRR is {{ $value | humanize }} ({{ $value | humanizePercentage }} lower than 24h ago). Current: ${{ $value | printf \"%.2f\" }}"
+
+      # Alert: Zero Signups
+      - alert: ZeroSignups
+        expr: easyflow_new_signups == 0
+        for: 6h
+        labels:
+          severity: warning
+          category: growth
+        annotations:
+          summary: "No new signups in 6+ hours"
+          description: "No new signups detected in the last 6 hours. This may indicate an issue with the signup flow or marketing."
+
+      # Alert: Signup Drop
+      - alert: SignupDrop
+        expr: |
+          easyflow_new_signups < (easyflow_new_signups offset 24h * 0.5)
+          AND
+          easyflow_new_signups offset 24h > 0
+        for: 2h
+        labels:
+          severity: warning
+          category: growth
+        annotations:
+          summary: "Signups dropped significantly"
+          description: "Only {{ $value }} signups in last 30d ({{ $value | humanizePercentage }} lower than 24h ago). Check marketing and signup flow."
+
+      # Alert: Low Activation Rate
+      - alert: LowActivationRate
+        expr: easyflow_conversion_rate < 20
+        for: 24h
+        labels:
+          severity: warning
+          category: product
+        annotations:
+          summary: "Activation rate below 20%"
+          description: "Activation rate is {{ $value | printf \"%.1f\" }}% (target: 20%+). Users are signing up but not creating workflows."
+
+      # Alert: Very Low Activation Rate
+      - alert: VeryLowActivationRate
+        expr: easyflow_conversion_rate < 10
+        for: 12h
+        labels:
+          severity: critical
+          category: product
+        annotations:
+          summary: "Activation rate critically low"
+          description: "Activation rate is only {{ $value | printf \"%.1f\" }}% (target: 20%+). Urgent: Users are not finding value after signup."
+
+      # Alert: Low Visit to Signup Conversion
+      - alert: LowVisitToSignupConversion
+        expr: easyflow_visit_to_signup_rate < 1
+        for: 24h
+        labels:
+          severity: warning
+          category: marketing
+        annotations:
+          summary: "Visit → Signup conversion below 1%"
+          description: "Visit to signup conversion is {{ $value | printf \"%.2f\" }}% (target: 1%+). Landing page or signup flow may need optimization."
+
+      # Alert: Zero Visit to Signup Conversion
+      - alert: ZeroVisitToSignupConversion
+        expr: easyflow_visit_to_signup_rate == 0
+        for: 6h
+        labels:
+          severity: critical
+          category: marketing
+        annotations:
+          summary: "0% Visit → Signup conversion"
+          description: "Visit to signup conversion is 0% for 6+ hours. Signup tracking may be broken or landing page has issues."
+
+      # Alert: No Workflows Created
+      - alert: NoWorkflowsCreated
+        expr: easyflow_workflows_created == 0
+        for: 24h
+        labels:
+          severity: warning
+          category: product
+        annotations:
+          summary: "No workflows created in 24 hours"
+          description: "No new workflows created in the last 24 hours. Users may be stuck in onboarding."
+
+      # Alert: MRR Target Not Met
+      - alert: MRRTargetNotMet
+        expr: easyflow_mrr < 500
+        for: 7d
+        labels:
+          severity: info
+          category: revenue
+        annotations:
+          summary: "MRR below $500 target"
+          description: "Current MRR is ${{ $value | printf \"%.2f\" }}. Target: $500 MRR for Q1 2026. Gap: ${{ 500 - $value | printf \"%.2f\" }}"
+
+      # Alert: Active Users Drop
+      - alert: ActiveUsersDrop
+        expr: |
+          easyflow_active_users < (easyflow_active_users offset 7d * 0.8)
+          AND
+          easyflow_active_users offset 7d > 10
+        for: 3d
+        labels:
+          severity: warning
+          category: retention
+        annotations:
+          summary: "Active users dropped"
+          description: "Active users (30d) dropped to {{ $value }} ({{ $value | humanizePercentage }} lower than 7 days ago). Check user engagement."
+
+      # Alert: High Churn Risk (Low Active/Total Ratio)
+      - alert: HighChurnRisk
+        expr: |
+          (easyflow_active_users / easyflow_total_users) < 0.3
+          AND
+          easyflow_total_users > 20
+        for: 7d
+        labels:
+          severity: warning
+          category: retention
+        annotations:
+          summary: "High churn risk detected"
+          description: "Only {{ $value | printf \"%.1f\" }}% of users are active (30d). This indicates potential churn issues."
+

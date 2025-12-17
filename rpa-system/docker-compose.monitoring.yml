@@ -48,6 +48,7 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/slo-recording-rules-simple.yml:/etc/prometheus/slo-recording-rules-simple.yml:ro
+      - ./monitoring/business-metrics-alerts.yml:/etc/prometheus/business-metrics-alerts.yml:ro
       - prometheus-data:/prometheus
     environment:
       - TZ=UTC
@@ -166,6 +167,7 @@ services:
     ports:
       - "9093:9093"
     volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager-data:/alertmanager
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
@@ -177,6 +179,8 @@ services:
     networks:
       - easyflow-monitoring
     restart: unless-stopped
+    depends_on:
+      - prometheus
 
 networks:
   easyflow-monitoring:

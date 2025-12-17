@@ -21,6 +21,7 @@ const DashboardPage = () => {
     documentsProcessed: 0
   });
   const [recentTasks, setRecentTasks] = useState([]);
+  const [workflowsCount, setWorkflowsCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -133,6 +134,18 @@ const DashboardPage = () => {
         created_at: run.started_at || new Date().toISOString(),
         result: run.result || null
       })));
+
+      // Fetch workflows count for workflow creation prompt
+      try {
+        const workflowsResponse = await fetchWithAuth('/api/workflows?limit=1');
+        if (workflowsResponse.ok) {
+          const workflowsData = await workflowsResponse.json();
+          setWorkflowsCount(Array.isArray(workflowsData) ? workflowsData.length : 0);
+        }
+      } catch (e) {
+        // Silently fail - workflows count is optional
+        console.debug('Failed to fetch workflows count:', e);
+      }
 
     } catch (err) {
       const queryDuration = Date.now() - queryStartTime;
@@ -296,7 +309,7 @@ const DashboardPage = () => {
   return (
     <>
       <ErrorMessage message={error} />
-      <Dashboard metrics={metrics} recentTasks={recentTasks} user={user} />
+      <Dashboard metrics={metrics} recentTasks={recentTasks} workflowsCount={workflowsCount} user={user} />
       <Suspense fallback={null}>
         <Chatbot />
       </Suspense>

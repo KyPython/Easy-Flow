@@ -1,42 +1,85 @@
-# EasyFlow Observability Stack
+# EasyFlow Monitoring Stack
+
+Complete observability infrastructure for EasyFlow including metrics, logs, traces, and alerts.
 
 ## Quick Start
 
-### Start the Stack
 ```bash
-cd rpa-system
-./monitoring/start-observability.sh
+# Start monitoring stack
+docker-compose -f docker-compose.monitoring.yml up -d
+
+# Access Grafana
+open http://localhost:3001
+# Default: admin/admin123
+
+# Access Prometheus
+open http://localhost:9090
+
+# Access Alertmanager
+open http://localhost:9093
 ```
 
-### Access Services
-- **Grafana**: http://localhost:3003 (admin/admin123)
-- **Prometheus**: http://localhost:9090
-- **Tempo**: http://localhost:3200
-- **Alertmanager**: http://localhost:9093
+## Setup Alerts (Email + SMS)
 
-## Architecture
+**Configured for:** kyjahntsmith@gmail.com, Phone: 203-449-4970
 
-```
-Backend → OTLP Collector → Tempo (traces)
-                    ↓
-              Prometheus (metrics)
-                    ↓
-              Grafana (visualization)
-```
+1. **Get Gmail App Password:**
+   - Go to https://myaccount.google.com/apppasswords
+   - Generate app password for "Mail"
+   - Copy the 16-character password
 
-## Viewing Workflow Traces
+2. **Update alertmanager.yml:**
+   - Edit `smtp_auth_password` with your Gmail app password
+   - SMS is already configured via email-to-SMS gateways (Verizon, T-Mobile, AT&T, Sprint)
 
-1. Open Grafana: http://localhost:3003
-2. Go to **Explore** → Select **Tempo**
-3. Query: `{service.name="rpa-system-backend" && name=~"workflow.execute.*"}`
-4. Click on a trace to see full execution details
-
-## Stopping
-
+3. **Restart Alertmanager:**
 ```bash
-docker compose -f docker-compose.monitoring.yml down
+docker-compose -f docker-compose.monitoring.yml restart alertmanager
 ```
 
-## Documentation
+## Components
 
-- **Production**: Grafana Cloud is configured - add env vars to Render (see code comments in `telemetryInit.js`)
+- **Prometheus** - Metrics collection and alerting
+- **Grafana** - Dashboards and visualization
+- **Loki** - Log aggregation
+- **Tempo** - Distributed tracing
+- **Promtail** - Log shipper
+- **Alertmanager** - Alert routing and notifications
+- **OTEL Collector** - Telemetry processing
+
+## Business Metrics
+
+Business KPIs are automatically tracked and exposed at:
+- API: `http://localhost:3030/api/business-metrics/overview`
+- Prometheus: `http://localhost:3030/metrics/business`
+- Grafana Dashboard: Dashboards → EasyFlow → Business Metrics
+
+## Alert Rules
+
+10 business metric alerts configured:
+- MRR drops
+- Zero signups
+- Low activation rates
+- Conversion issues
+- User engagement drops
+
+View active alerts: http://localhost:9090/alerts
+
+## Files
+
+**Configuration Files (All Used):**
+- `prometheus.yml` - Prometheus scrape config + alert rules
+- `alertmanager.yml` - Alert routing and notifications
+- `promtail-config.yml` - Log collection config
+- `loki-config.yml` - Log storage config
+- `tempo-config.yml` - Trace storage config
+- `otel-collector-minimal.yml` - Telemetry processing
+- `business-metrics-alerts.yml` - Business KPI alert rules
+- `docker-compose.monitoring.yml` - Stack orchestration
+
+**Scripts:**
+- `setup-alerts.sh` - Generate alertmanager config from env vars
+- `start-observability.sh` - Startup script
+
+**Templates:**
+- `alertmanager.yml.template` - Template for alert setup script

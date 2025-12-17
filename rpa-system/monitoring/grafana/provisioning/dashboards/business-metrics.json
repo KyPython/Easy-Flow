@@ -1,0 +1,301 @@
+{
+  "dashboard": {
+    "title": "EasyFlow Business Metrics",
+    "tags": ["business", "kpi", "revenue", "growth"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "MRR (Monthly Recurring Revenue)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "easyflow_mrr",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "blue"},
+                {"value": 100, "color": "green"},
+                {"value": 500, "color": "yellow"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Total Users",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "easyflow_total_users",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Active Users (30d)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 9, "y": 0},
+        "targets": [
+          {
+            "expr": "easyflow_active_users",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "New Signups (30d)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "easyflow_new_signups",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Activated Users",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 15, "y": 0},
+        "targets": [
+          {
+            "expr": "easyflow_activated_users",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Activation Rate",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "easyflow_conversion_rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 20, "color": "yellow"},
+                {"value": 30, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Visit → Signup Conversion Rate",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "easyflow_visit_to_signup_rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Workflows Created (30d)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 6, "y": 4},
+        "targets": [
+          {
+            "expr": "easyflow_workflows_created",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Workflows Run (30d)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 9, "y": 4},
+        "targets": [
+          {
+            "expr": "easyflow_workflows_run",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Signups Over Time",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "easyflow_new_signups",
+            "refId": "A",
+            "legendFormat": "New Signups"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "MRR Trend",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "easyflow_mrr",
+            "refId": "A",
+            "legendFormat": "MRR"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 2
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Conversion Funnel",
+        "type": "bargauge",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "easyflow_new_signups",
+            "refId": "A",
+            "legendFormat": "Signups"
+          },
+          {
+            "expr": "easyflow_activated_users",
+            "refId": "B",
+            "legendFormat": "Activated"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "Activation Rate Trend",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "easyflow_conversion_rate",
+            "refId": "A",
+            "legendFormat": "Activation Rate %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 1
+          }
+        }
+      }
+    ],
+    "time": {
+      "from": "now-30d",
+      "to": "now"
+    },
+    "timepicker": {},
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": []
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "links": [],
+    "liveNow": false,
+    "weekStart": ""
+  }
+}
+

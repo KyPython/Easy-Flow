@@ -7,11 +7,12 @@ import MetricCard from '../MetricCard/MetricCard';
 const DocumentationGuide = lazy(() => import('../DocumentationGuide/DocumentationGuide'));
 const OnboardingModal = lazy(() => import('../OnboardingModal/OnboardingModal'));
 const UsageTracker = lazy(() => import('../UsageTracker/UsageTracker'));
+const WorkflowCreationPrompt = lazy(() => import('../WorkflowCreationPrompt/WorkflowCreationPrompt'));
 import { useNotifications } from '../../hooks/useNotifications';
 import PropTypes from 'prop-types';
 
 
-const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
+const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = null }) => {
   const navigate = useNavigate();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
@@ -122,6 +123,11 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
           ))}
         </div>
       </DeferredMount>
+
+      {/* Workflow Creation Prompt - Show for users with no workflows */}
+      <Suspense fallback={null}>
+        <WorkflowCreationPrompt workflowsCount={workflowsCount} />
+      </Suspense>
 
       {/* Recent activity */}
       <div className={styles.recentActivity}>
@@ -257,6 +263,7 @@ const Dashboard = ({ metrics = {}, recentTasks = [], user = null }) => {
 Dashboard.propTypes = {
   metrics: PropTypes.object,
   recentTasks: PropTypes.arrayOf(PropTypes.object),
+  workflowsCount: PropTypes.number,
   user: PropTypes.shape({
     email: PropTypes.string,
     name: PropTypes.string,
@@ -266,6 +273,7 @@ Dashboard.propTypes = {
 Dashboard.defaultProps = {
   metrics: {},
   recentTasks: [],
+  workflowsCount: 0,
   user: null,
 };
 
