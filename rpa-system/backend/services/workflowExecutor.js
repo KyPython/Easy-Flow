@@ -814,12 +814,14 @@ class WorkflowExecutor {
         ? workflow.workflow_connections 
         : [];
       
-      this.logger.info('[WorkflowExecutor] Workflow loaded state', {
+      // CRITICAL DEBUG: Use error level to bypass log sampling (info logs are sampled at 2%)
+      this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Workflow loaded state', {
         workflow_id: workflow.id,
         steps_count: steps.length,
         connections_count: connections.length,
         connections_type: typeof workflow.workflow_connections,
         connections_is_array: Array.isArray(workflow.workflow_connections),
+        connections_value: workflow.workflow_connections,
         has_canvas_config: !!workflow.canvas_config,
         execution_id: execution.id
       });
@@ -828,17 +830,22 @@ class WorkflowExecutor {
       // This handles cases where steps exist but connections don't (e.g., after UI save)
       const needsCanvasParse = (steps.length === 0 || connections.length === 0) && workflow.canvas_config;
       
-      this.logger.info('[WorkflowExecutor] Canvas parse decision', {
+      // CRITICAL DEBUG: Use error level to bypass log sampling
+      this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Canvas parse decision', {
         workflow_id: workflow.id,
         needsCanvasParse,
         steps_length: steps.length,
         connections_length: connections.length,
         has_canvas_config: !!workflow.canvas_config,
+        condition_steps_empty: steps.length === 0,
+        condition_connections_empty: connections.length === 0,
+        condition_has_canvas: !!workflow.canvas_config,
         execution_id: execution.id
       });
       
       if (needsCanvasParse) {
-        this.logger.info('[WorkflowExecutor] Parsing canvas_config (missing steps or connections)', {
+        // CRITICAL DEBUG: Use error level to bypass log sampling
+        this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Parsing canvas_config (missing steps or connections)', {
           workflow_id: workflow.id,
           has_canvas_config: !!workflow.canvas_config,
           existing_steps_count: steps.length,
@@ -1013,7 +1020,8 @@ class WorkflowExecutor {
               ? new Map([...stepKeyToUuidMap, ...nodeIdToUuidMap]) // Merge both maps
               : stepKeyToUuidMap; // Use existing steps only
             
-            this.logger.info('[WorkflowExecutor] Mapping canvas edges to step UUIDs', {
+            // CRITICAL DEBUG: Use error level to bypass log sampling
+            this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Mapping canvas edges to step UUIDs', {
               workflow_id: workflow.id,
               edges_count: canvasConfig.edges.length,
               id_map_size: idMap.size,
