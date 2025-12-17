@@ -5340,8 +5340,14 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
       }
     }
 
-    logger.info(`🔥 Successfully generated Firebase token for user: ${userId}`);
+    logger.info(`🔥 Successfully generated Firebase token for user: ${userId}`, {
+      traceId: firebaseTokenTraceId,
+      userId: userId,
+      tokenGenerated: !!result.token
+    });
 
+    // ✅ DEFENSIVE: Ensure response doesn't trigger any workflow execution
+    // This endpoint should ONLY return Firebase token data
     res.json({
       success: true,
       token: result.token,
@@ -5350,14 +5356,22 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
       user: {
         uid: userId,
         email: profile?.email || null
-      }
+      },
+      // Include trace ID for debugging (helps identify if frontend makes incorrect follow-up requests)
+      trace_id: firebaseTokenTraceId
     });
 
   } catch (error) {
-    logger.error('[POST /api/firebase/token] error:', error);
+    logger.error('[POST /api/firebase/token] error:', {
+      error: error?.message || error,
+      stack: error?.stack,
+      traceId: firebaseTokenTraceId,
+      userId: req.user?.id
+    });
     res.status(500).json({
       error: 'Internal server error',
-      details: error.message
+      details: error.message,
+      trace_id: firebaseTokenTraceId
     });
   }
 });
