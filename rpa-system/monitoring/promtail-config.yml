@@ -166,7 +166,7 @@ scrape_configs:
   # These services run outside Docker, so we need to tail their log files
   - job_name: easyflow-pm2-logs
     static_configs:
-      # Backend logs
+      # Backend logs (includes all log levels)
       - targets:
           - localhost
         labels:
@@ -174,9 +174,18 @@ scrape_configs:
           service: rpa-system-backend
           environment: development
           __path__: /app/logs/backend.log
-          __path_exclude__: /app/logs/backend-error.log
 
-      # Frontend logs
+      # Backend error logs (separate stream for error-only logs)
+      - targets:
+          - localhost
+        labels:
+          job: easyflow-backend
+          service: rpa-system-backend
+          environment: development
+          log_type: error
+          __path__: /app/logs/backend-error.log
+
+      # Frontend logs (includes all log levels)
       - targets:
           - localhost
         labels:
@@ -184,7 +193,16 @@ scrape_configs:
           service: rpa-dashboard
           environment: development
           __path__: /app/logs/frontend.log
-          __path_exclude__: /app/logs/frontend-error.log
+
+      # Frontend error logs (separate stream for error-only logs)
+      - targets:
+          - localhost
+        labels:
+          job: easyflow-frontend
+          service: rpa-dashboard
+          environment: development
+          log_type: error
+          __path__: /app/logs/frontend-error.log
 
       # Automation worker logs
       - targets:
