@@ -251,6 +251,10 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
   
+  // ✅ ENVIRONMENT-AWARE: Detect development vs production
+  const isDevelopment = process.env.NODE_ENV === 'development' || 
+                        (typeof window !== 'undefined' && window.location.hostname === 'localhost');
+  
   const handleRetry = async () => {
     if (retrying) return;
     setRetrying(true);
@@ -545,12 +549,16 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
 
           {activeTab === 'data' && (
             <div className={styles.dataTab}>
-              <div className={styles.dataSection}>
-                <h4>Input Data</h4>
-                <pre className={styles.jsonData}>
-                  {formatJSON(execution.input_data)}
-                </pre>
-              </div>
+              {/* ✅ ENVIRONMENT-AWARE: Only show Input Data in development */}
+              {isDevelopment && (
+                <div className={styles.dataSection}>
+                  <h4>Input Data</h4>
+                  <pre className={styles.jsonData}>
+                    {formatJSON(execution.input_data)}
+                  </pre>
+                </div>
+              )}
+              
               <div className={styles.dataSection}>
                 <h4>Output Data</h4>
                 {/* ✅ ENHANCEMENT: Show email-specific information prominently */}
@@ -558,10 +566,17 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
                   <div className={styles.emailResultBox}>
                     <h5>📧 Email Result</h5>
                     <div className={styles.emailInfo}>
-                      <p><strong>Status:</strong> <span className={styles.statusQueued}>{execution.output_data.email_result.status}</span></p>
+                      <p><strong>Status:</strong> <span className={styles.statusQueued}>
+                        {execution.output_data.email_result.status === 'queued' ? 'Queued' : 
+                         execution.output_data.email_result.status === 'sent' ? 'Sent' : 
+                         execution.output_data.email_result.status}
+                      </span></p>
                       <p><strong>Recipient:</strong> {execution.output_data.email_result.to_email || execution.output_data.email_result.to || 'N/A'}</p>
-                      <p><strong>Template:</strong> {execution.output_data.email_result.template || 'notification'}</p>
-                      {execution.output_data.email_result.queue_id && (
+                      {isDevelopment && (
+                        <p><strong>Template:</strong> {execution.output_data.email_result.template || 'notification'}</p>
+                      )}
+                      {/* ✅ ENVIRONMENT-AWARE: Only show Queue ID in development */}
+                      {isDevelopment && execution.output_data.email_result.queue_id && (
                         <p><strong>Queue ID:</strong> <code>{execution.output_data.email_result.queue_id}</code></p>
                       )}
                       {execution.output_data.email_result.status === 'queued' && (
@@ -572,9 +587,47 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
                     </div>
                   </div>
                 )}
-                <pre className={styles.jsonData}>
-                  {formatJSON(execution.output_data)}
-                </pre>
+                
+                {/* ✅ ENVIRONMENT-AWARE: Show simplified output in production, full JSON in development */}
+                {isDevelopment ? (
+                  <pre className={styles.jsonData}>
+                    {formatJSON(execution.output_data)}
+                  </pre>
+                ) : (
+                  /* Production: Show user-friendly summary */
+                  <div className={styles.userFriendlyOutput}>
+                    {execution.output_data?.email_result ? (
+                      <div className={styles.successSummary}>
+                        <p className={styles.summaryText}>
+                          ✅ Your workflow completed successfully! 
+                          {execution.output_data.email_result.to_email && (
+                            <> An email has been sent to <strong>{execution.output_data.email_result.to_email}</strong>.</>
+                          )}
+                        </p>
+                        {execution.output_data.email_result.message && (
+                          <p className={styles.summarySubtext}>
+                            {execution.output_data.email_result.message}
+                          </p>
+                        )}
+                      </div>
+                    ) : Object.keys(execution.output_data || {}).length > 0 ? (
+                      <div className={styles.successSummary}>
+                        <p className={styles.summaryText}>
+                          ✅ Your workflow completed successfully!
+                        </p>
+                        <p className={styles.summarySubtext}>
+                          All steps executed as expected.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className={styles.successSummary}>
+                        <p className={styles.summaryText}>
+                          ✅ Your workflow completed successfully!
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
