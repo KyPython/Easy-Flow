@@ -280,17 +280,13 @@ scrape_configs:
           drop_counter_reason: "empty_message_after_timestamp_strip"
       
       # Output the log line - use msg if available (from JSON), otherwise use original message
-      # CRITICAL: Create log_line from msg (JSON parsed) or message (original after timestamp strip)
+      # CRITICAL: The output stage will use the message field by default, but we want to use
+      # the parsed msg field if JSON parsing succeeded, otherwise fall back to the original message
+      # We create a new field 'output_line' that contains the final log content
       - template:
-          source: log_line
+          source: output_line
           template: '{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}'
       
-      # Final drop: Remove any log lines that are still empty after template processing
-      - drop:
-          expression: '^\s*$'
-          source: log_line
-          drop_counter_reason: "empty_log_line_after_template"
-      
-      # Output the final log line
+      # Output the final log line using output_line field
       - output:
-          source: log_line
+          source: output_line
