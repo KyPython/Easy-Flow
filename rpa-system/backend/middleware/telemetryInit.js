@@ -457,17 +457,46 @@ if (traceExporter && typeof traceExporter.export === 'function') {
 // Initialize NodeSDK with optimized configuration
 // Create metric readers
 // Create OTLP metric reader for remote export
-const otlpMetricReader = new PeriodicExportingMetricReader({
-  exporter: metricExporter,
+// Wrap exporter to handle errors gracefully
+const safeMetricExporter = metricExporter ? {
+  ...metricExporter,
+  export: function(metrics, resultCallback) {
+    try {
+      if (!metricExporter || typeof metricExporter.export !== 'function') {
+        return resultCallback({ code: 0 }); // Success (no-op)
+      }
+      return metricExporter.export(metrics, (result) => {
+        if (result && result.error) {
+          // Suppress "MetricReader is not bound" errors during initialization
+          if (result.error.message && result.error.message.includes('MetricReader is not bound')) {
+            // This is expected during startup - MetricReader will be bound after SDK.start()
+            return resultCallback({ code: 0 }); // Success (suppress error)
+          }
+        }
+        resultCallback(result);
+      });
+    } catch (error) {
+      // Suppress initialization errors
+      if (error.message && error.message.includes('MetricReader is not bound')) {
+        return resultCallback({ code: 0 }); // Success (suppress error)
+      }
+      logger.error('[Telemetry] Metric export error:', error.message);
+      return resultCallback({ code: 1, error });
+    }
+  }
+} : null;
+
+const otlpMetricReader = safeMetricExporter ? new PeriodicExportingMetricReader({
+  exporter: safeMetricExporter,
   exportIntervalMillis: 30000, // Export every 30 seconds
   exportTimeoutMillis: 10000
-});
+}) : null;
 
 // PrometheusExporter is NOT a MetricReader - it's a standalone HTTP server
 // It reads directly from the global MeterProvider after SDK.start() sets it
 // So we don't add it to metricReaders - we just start its server after SDK initialization
-const metricReaders = [otlpMetricReader];
-const primaryMetricReader = metricReaders[0];
+const metricReaders = otlpMetricReader ? [otlpMetricReader] : [];
+const primaryMetricReader = metricReaders[0] || null;
 
   // Initialize SDK with metric reader
 const sdk = new NodeSDK({
@@ -476,7 +505,8 @@ const sdk = new NodeSDK({
   sampler, // ✅ Use configured sampler (10% sampling)
   // Use OTLP metric reader for exporting to OTEL Collector
   // PrometheusExporter reads directly from global MeterProvider (started separately)
-  metricReader: primaryMetricReader,
+  // Only add metricReader if we have a valid one (may be null if OTLP exporter not configured)
+  ...(primaryMetricReader && { metricReader: primaryMetricReader }),
   instrumentations: [
     getNodeAutoInstrumentations({
       // Enhanced HTTP instrumentation for SLO tracking
