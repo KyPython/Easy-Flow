@@ -816,8 +816,8 @@ class WorkflowExecutor {
         ? workflow.workflow_connections 
         : [];
       
-      // CRITICAL DEBUG: Use error level to bypass log sampling (info logs are sampled at 2%)
-      this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Workflow loaded state', {
+      // ✅ DIAGNOSTIC: Use warn level for diagnostic info (warn logs sampled at 10%, but more appropriate than error)
+      this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Workflow loaded state', {
         workflow_id: workflow.id,
         steps_count: steps.length,
         connections_count: connections.length,
@@ -832,8 +832,8 @@ class WorkflowExecutor {
       // This handles cases where steps exist but connections don't (e.g., after UI save)
       const needsCanvasParse = (steps.length === 0 || connections.length === 0) && workflow.canvas_config;
       
-      // CRITICAL DEBUG: Use error level to bypass log sampling
-      this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Canvas parse decision', {
+      // ✅ DIAGNOSTIC: Use warn level for diagnostic info
+      this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Canvas parse decision', {
         workflow_id: workflow.id,
         needsCanvasParse,
         steps_length: steps.length,
@@ -846,8 +846,8 @@ class WorkflowExecutor {
       });
       
       if (needsCanvasParse) {
-        // CRITICAL DEBUG: Use error level to bypass log sampling
-        this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Parsing canvas_config (missing steps or connections)', {
+        // ✅ DIAGNOSTIC: Use warn level for diagnostic info
+        this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Parsing canvas_config (missing steps or connections)', {
           workflow_id: workflow.id,
           has_canvas_config: !!workflow.canvas_config,
           existing_steps_count: steps.length,
@@ -1103,7 +1103,7 @@ class WorkflowExecutor {
                     execution_id: execution.id
                   });
                 } else {
-                  this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Created missing steps from canvas', {
+                  this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Created missing steps from canvas', {
                     workflow_id: workflow.id,
                     created_count: stepsToCreate.length,
                     updated_count: stepsToUpdate.length,
@@ -1113,7 +1113,7 @@ class WorkflowExecutor {
               }
             }
             
-            this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Synced steps with canvas_config', {
+            this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Synced steps with canvas_config', {
               workflow_id: workflow.id,
               steps_count: steps.length,
               mapped_keys: Array.from(nodeIdToUuidMap.keys()),
@@ -1152,8 +1152,8 @@ class WorkflowExecutor {
               ? new Map([...stepKeyToUuidMap, ...nodeIdToUuidMap]) // Merge both maps
               : stepKeyToUuidMap; // Use existing steps only
             
-            // CRITICAL DEBUG: Use error level to bypass log sampling
-            this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Mapping canvas edges to step UUIDs', {
+            // ✅ DIAGNOSTIC: Use warn level for diagnostic info
+            this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Mapping canvas edges to step UUIDs', {
               workflow_id: workflow.id,
               edges_count: canvasConfig.edges.length,
               id_map_size: idMap.size,
@@ -1290,7 +1290,7 @@ class WorkflowExecutor {
             // Update workflow object
             workflow.workflow_steps = updatedSteps.map(s => ({ id: s.id }));
             
-            this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Updated execution steps_total after canvas parsing', {
+            this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Updated execution steps_total after canvas parsing', {
               workflow_id: workflow.id,
               execution_id: execution.id,
               old_steps_total: execution.steps_total,
