@@ -535,8 +535,8 @@ const WorkflowBuilder = () => {
                 navigate(executionsPath);
               }, 2000);
             }
-            }
           }
+        }
           // Refresh executions list
           if (refreshExecutions) refreshExecutions();
           if (pollInterval) clearInterval(pollInterval);
