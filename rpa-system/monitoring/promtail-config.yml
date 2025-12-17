@@ -216,15 +216,23 @@ scrape_configs:
     pipeline_stages:
       # CRITICAL: Strip PM2 timestamp prefix before JSON parsing
       # PM2 adds timestamp prefix like "2025-12-16 22:10:24: " before JSON logs
-      # This regex extracts just the JSON part after the timestamp
+      # Some logs may not have this prefix (e.g., direct JSON output)
+      # This regex extracts just the JSON part after the timestamp if present
       - regex:
           expression: '^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}:\s+(?P<json_line>.*)$'
           source: message
       
-      # Use extracted JSON line if available, otherwise use original message
+      # Use extracted JSON line if regex matched, otherwise use original message
+      # This handles both PM2-prefixed logs and direct JSON logs
       - template:
           source: message
           template: '{{ if .json_line }}{{ .json_line }}{{ else }}{{ .message }}{{ end }}'
+      
+      # CRITICAL: Drop empty lines to prevent <no value> in Loki
+      # If after processing we have an empty message, drop it entirely
+      - drop:
+          expression: '^\s*$'
+          drop_counter_reason: "empty_line"
       
       # Parse JSON logs from PM2 (Pino logger format)
       # Only parse if we have valid JSON (after timestamp stripping)
