@@ -834,11 +834,21 @@ class WorkflowExecutor {
             workflow_id: workflow.id,
             has_nodes: !!canvasConfig.nodes,
             nodes_count: canvasConfig.nodes?.length || 0,
+            has_edges: !!canvasConfig.edges,
+            edges_count: canvasConfig.edges?.length || 0,
             sample_node: canvasConfig.nodes?.[0] ? {
               id: canvasConfig.nodes[0].id,
               type: canvasConfig.nodes[0].type,
               data: canvasConfig.nodes[0].data
             } : null,
+            sample_edge: canvasConfig.edges?.[0] ? {
+              source: canvasConfig.edges[0].source,
+              target: canvasConfig.edges[0].target,
+              type: canvasConfig.edges[0].type
+            } : null,
+            all_node_ids: canvasConfig.nodes?.map(n => n.id) || [],
+            all_edge_sources: canvasConfig.edges?.map(e => e.source) || [],
+            all_edge_targets: canvasConfig.edges?.map(e => e.target) || [],
             execution_id: execution.id
           });
           
@@ -946,6 +956,7 @@ class WorkflowExecutor {
               workflow_id: workflow.id,
               steps_count: steps.length,
               mapped_keys: Array.from(nodeIdToUuidMap.keys()),
+              step_details: steps.map(s => ({ step_key: s.step_key, id: s.id, step_type: s.step_type, name: s.name })),
               execution_id: execution.id
             });
           }
@@ -1047,6 +1058,14 @@ class WorkflowExecutor {
               this.logger.warn('[WorkflowExecutor] No valid connections found in canvas_config edges', {
                 workflow_id: workflow.id,
                 edges_count: canvasConfig.edges.length,
+                id_map_size: idMap.size,
+                id_map_keys: Array.from(idMap.keys()),
+                edge_details: canvasConfig.edges.map(e => ({
+                  source: e.source,
+                  target: e.target,
+                  source_mapped: idMap.get(e.source) || 'NOT_FOUND',
+                  target_mapped: idMap.get(e.target) || 'NOT_FOUND'
+                })),
                 execution_id: execution.id
               });
               workflow.workflow_connections = [];
@@ -1138,7 +1157,12 @@ class WorkflowExecutor {
           workflow_id: workflow.id,
           execution_id: execution.id,
           total_steps: workflow.workflow_steps.length,
-          start_step_id: startStep.id
+          start_step_id: startStep.id,
+          start_step_key: startStep.step_key,
+          has_canvas_config: !!workflow.canvas_config,
+          canvas_config_edges_count: workflow.canvas_config ? (typeof workflow.canvas_config === 'string' ? JSON.parse(workflow.canvas_config).edges?.length : workflow.canvas_config.edges?.length) : 0,
+          all_step_keys: workflow.workflow_steps.map(s => s.step_key),
+          all_step_ids: workflow.workflow_steps.map(s => s.id)
         });
       }
       
