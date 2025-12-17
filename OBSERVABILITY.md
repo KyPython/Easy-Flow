@@ -389,14 +389,20 @@ Add a debug step (Delay 100ms) as the first step in your workflow to force backe
 # All backend traces
 {resource.service.name="rpa-system-backend"}
 
-# Slow requests (>2 seconds)
-{resource.service.name="rpa-system-backend"} && {duration>2s}
+# Workflow execution traces (most important for debugging workflows)
+{resource.service.name="rpa-system-backend"} && {name=~"workflow.execute.*"}
 
-# Workflow saves
+# Slow workflow executions (>2 seconds)
+{resource.service.name="rpa-system-backend"} && {name=~"workflow.execute.*"} && {duration>2s}
+
+# Workflow saves/updates
 {resource.service.name="rpa-system-backend"} && {name=~".*workflows.*"}
 
 # Execution detail queries
 {resource.service.name="rpa-system-backend"} && {name=~".*executions.*"}
+
+# Slow requests (>2 seconds) - general API calls
+{resource.service.name="rpa-system-backend"} && {duration>2s}
 ```
 
 **Loki (Logs):**
@@ -407,14 +413,21 @@ Add a debug step (Delay 100ms) as the first step in your workflow to force backe
 # Backend errors only
 {job="easyflow-backend", level="error"}
 
-# Search for specific text
-{job="easyflow-backend"} |= "workflow"
+# IMPORTANT: Filter out background tasks - only show logs with trace IDs
+# Background tasks have empty trace: {} and won't have trace_id labels
+{job="easyflow-backend"} | json | trace_id != ""
 
-# Search by trace ID
-{job="easyflow-backend"} |= "<trace-id>"
+# Workflow-related logs (with trace IDs)
+{job="easyflow-backend"} | json | trace_id != "" |= "workflow"
+
+# Search by trace ID (from Tempo trace)
+{job="easyflow-backend"} | json | trace_id = "<trace-id-from-tempo>"
 
 # Search by execution ID
-{job="easyflow-backend"} |= "execution_id" |= "<execution-id>"
+{job="easyflow-backend"} | json | execution_id = "<execution-id>"
+
+# Find workflow execution logs (exclude background cleanup)
+{job="easyflow-backend"} | json | trace_id != "" | json | workflow_id != ""
 ```
 
 **Prometheus (Metrics):**
