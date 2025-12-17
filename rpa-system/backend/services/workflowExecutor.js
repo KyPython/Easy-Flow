@@ -996,12 +996,31 @@ class WorkflowExecutor {
               edges_count: canvasConfig.edges.length,
               id_map_size: idMap.size,
               id_map_keys: Array.from(idMap.keys()),
+              id_map_entries: Array.from(idMap.entries()).map(([k, v]) => ({ key: k, uuid: v })),
+              edges_detail: canvasConfig.edges.map(e => ({
+                source: e.source,
+                target: e.target,
+                type: e.type,
+                id: e.id
+              })),
               execution_id: execution.id
             });
             
             const parsedConnections = canvasConfig.edges.map(edge => {
               const sourceUuid = idMap.get(edge.source);
               const targetUuid = idMap.get(edge.target);
+              
+              this.logger.debug('[WorkflowExecutor] Mapping edge', {
+                workflow_id: workflow.id,
+                edge_source: edge.source,
+                edge_target: edge.target,
+                source_uuid: sourceUuid || 'NOT_FOUND',
+                target_uuid: targetUuid || 'NOT_FOUND',
+                id_map_has_source: idMap.has(edge.source),
+                id_map_has_target: idMap.has(edge.target),
+                available_keys: Array.from(idMap.keys()),
+                execution_id: execution.id
+              });
               
               if (!sourceUuid || !targetUuid) {
                 this.logger.warn('[WorkflowExecutor] Could not map edge to step UUIDs', {
@@ -1011,6 +1030,7 @@ class WorkflowExecutor {
                   source_uuid: sourceUuid || 'NOT_FOUND',
                   target_uuid: targetUuid || 'NOT_FOUND',
                   available_keys: Array.from(idMap.keys()),
+                  id_map_entries: Array.from(idMap.entries()),
                   execution_id: execution.id
                 });
               }
