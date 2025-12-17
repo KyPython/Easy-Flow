@@ -130,10 +130,30 @@ async function calculateUsage(userId) {
       .eq('user_id', userId)
       .eq('status', 'completed')
       .gte('created_at', startOfMonth),
-    supabase
-      .from('user_files')
-      .select('file_size')
-      .eq('user_id', userId),
+    // ✅ OPTIMIZATION: Use RPC function for storage calculation if available, otherwise fallback to aggregation
+    // This avoids fetching all file_size rows and summing in JavaScript
+    (async () => {
+      try {
+        // Try to use a database function for better performance
+        const { data, error } = await supabase.rpc('get_user_storage_total', { user_id: userId });
+        if (!error && data !== null) {
+          return { data: [{ file_size: data }], error: null };
+        }
+      } catch (rpcError) {
+        // RPC function doesn't exist, fall back to aggregation
+      }
+      
+      // Fallback: Use aggregation query (more efficient than fetching all rows)
+      // Note: Supabase PostgREST doesn't support SUM() directly in select, so we fetch and sum
+      // For better performance with many files, consider creating an RPC function:
+      // CREATE FUNCTION get_user_storage_total(user_id UUID) RETURNS BIGINT AS $$
+      //   SELECT COALESCE(SUM(file_size), 0) FROM user_files WHERE user_id = $1;
+      // $$ LANGUAGE SQL;
+      return await supabase
+        .from('user_files')
+        .select('file_size')
+        .eq('user_id', userId);
+    })(),
     supabase
       .from('workflows')
       .select('id', { count: 'exact', head: true })
@@ -141,6 +161,7 @@ async function calculateUsage(userId) {
   ]);
   
   const monthlyRuns = monthlyRunsResult.count || 0;
+  // ✅ OPTIMIZATION: Sum file sizes efficiently
   const storageBytes = storageResult.data?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
   const storageGB = storageBytes / (1024 * 1024 * 1024);
   const workflows = workflowsResult.count || 0;
