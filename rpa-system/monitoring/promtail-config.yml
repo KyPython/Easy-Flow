@@ -122,16 +122,32 @@ scrape_configs:
           trace_id: # Index trace_id as a label - enables fast filtering and trace discovery
       
       # Stage 4: Timestamp handling - Ensure logs have correct timestamps
-      # Try ISO format first (from timestamp field), fallback to Unix (from time field), then Docker time
-      - timestamp:
-          source: timestamp
-          format: RFC3339
-      - timestamp:
-          source: time
-          format: Unix
+      # CRITICAL FIX: Prevent timestamp overwriting and handle Unix milliseconds correctly
+      # 
+      # Problem: Pino's 'time' field is Unix milliseconds (e.g., 1765929045350), not seconds
+      # If parsed as Unix seconds, it's interpreted as a future date and overwrites correct timestamps
+      # 
+      # Solution: Use action_on_failure: fallback to chain timestamp parsing
+      # Priority order (stops at first successful parse):
+      # 1. Docker's timestamp (RFC3339Nano) - Most reliable, represents actual log capture time
+      # 2. Application timestamp field (RFC3339 ISO format from Pino) - Fallback if Docker time missing
+      # 3. Application time field (UnixMs - milliseconds) - Fallback if timestamp field missing
+      # 
+      # action_on_failure: fallback tells Promtail to only proceed to the next stage if the current
+      # one fails. This prevents the 'time' field from overwriting correct timestamps when parsed
+      # incorrectly as Unix seconds instead of milliseconds.
       - timestamp:
           source: docker_time
           format: RFC3339Nano
+          action_on_failure: fallback
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+          action_on_failure: fallback
+      - timestamp:
+          source: time
+          format: UnixMs  # Pino's time field is in milliseconds, not seconds
+          action_on_failure: skip
       
       # Stage 5: Output formatting - Add traceId to log content for Grafana derived fields
       # This ensures trace IDs are present in log content for Tempo trace discovery
