@@ -1349,15 +1349,24 @@ class WorkflowExecutor {
       }
       
           // ✅ FIX: Update status before executing steps with step count
+      // ✅ FIX: Use actual steps count (may have been updated after canvas parsing)
+      const actualStepsTotal = workflow.workflow_steps?.length || steps.length || 0;
+      
       await this._updateExecutionStatus(
         execution.id, 
         'running', 
-        `Executing ${workflow.workflow_steps.length} steps...`,
+        `Executing ${actualStepsTotal} steps...`,
         {
-          steps_total: workflow.workflow_steps.length,
+          steps_total: actualStepsTotal,
           steps_executed: 0
         }
       );
+      
+      // ✅ FIX: Also update execution record directly to ensure frontend gets correct count
+      await this.supabase
+        .from('workflow_executions')
+        .update({ steps_total: actualStepsTotal })
+        .eq('id', execution.id);
       
   // Execute workflow steps
   const result = await this.executeStep(execution, startStep, currentData, workflow, new Set(), partialResults);
