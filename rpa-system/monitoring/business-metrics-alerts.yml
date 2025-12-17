@@ -109,7 +109,7 @@ groups:
           category: revenue
         annotations:
           summary: "MRR below $500 target"
-          description: "Current MRR is ${{ $value | printf \"%.2f\" }}. Target: $500 MRR for Q1 2026. Gap: ${{ 500 - $value | printf \"%.2f\" }}"
+          description: "Current MRR is ${{ $value | printf \"%.2f\" }}. Target: $500 MRR for Q1 2026."
 
       # Alert: Active Users Drop
       - alert: ActiveUsersDrop
