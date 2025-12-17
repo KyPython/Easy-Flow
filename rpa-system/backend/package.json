@@ -16,6 +16,7 @@
     "@opentelemetry/sdk-node": "^0.52.0",
     "@opentelemetry/sdk-trace-base": "^1.30.0",
     "@opentelemetry/semantic-conventions": "^1.30.0",
+    "@sendgrid/mail": "^8.1.6",
     "@supabase/supabase-js": "^2.86.0",
     "axios": "^1.4.0",
     "bcrypt": "^5.1.0",
