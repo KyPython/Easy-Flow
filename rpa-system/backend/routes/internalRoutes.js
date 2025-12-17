@@ -83,7 +83,13 @@ router.post('/front-errors', async (req, res) => {
     logger.info('[internal/front-errors] saved frontend error payload', { file: filename });
     return res.status(204).send();
   } catch (err) {
-    try { logger.error('[internal/front-errors] failed to persist payload', err?.message || err); } catch (e) { console.error(e); }
+    try { 
+      logger.error('[internal/front-errors] failed to persist payload', err?.message || err); 
+    } catch (e) { 
+      // Fallback: if logger itself fails, use root logger directly
+      const { rootLogger } = require('../middleware/structuredLogging');
+      rootLogger.error({ error: e?.message || e }, '[internal/front-errors] logger failed');
+    }
     return res.status(500).json({ error: 'failed' });
   }
 });
