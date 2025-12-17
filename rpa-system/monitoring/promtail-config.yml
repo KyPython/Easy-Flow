@@ -68,28 +68,25 @@ scrape_configs:
     
     pipeline_stages:
       # Stage 0: Parse Docker's JSON log format
-      # Docker wraps each log line in JSON: {"log":"...","stream":"stdout","time":"..."}
-      # Extract the actual application log content from Docker's wrapper
+      # Docker wraps each log line in JSON: {"log":"<application log>","stream":"stdout","time":"<timestamp>"}
+      # Extract Docker wrapper fields AND preserve them for timestamp parsing
       - json:
           expressions:
             docker_log: log
             docker_stream: stream
             docker_time: time
       
-      # Replace the current line with the extracted application log for further processing
-      # This makes the application log the new line content
-      - replace:
-          expression: '.*'
-          replace: '${docker_log}'
-      
-      # Stage 1: JSON parsing - Most efficient method for structured logs
-      # Try to parse log as JSON and extract traceId from trace.traceId field
+      # Stage 1: Parse application log JSON without discarding Docker fields
+      # Parse the docker_log field as JSON to extract application log fields
+      # CRITICAL: Using source: docker_log preserves docker_time field from Stage 0
+      # Rename application timestamps to app_time and app_timestamp to avoid conflicts
       - json:
+          source: docker_log
           expressions:
             level: level
             msg: msg
-            time: time
-            timestamp: timestamp
+            app_time: time  # Renamed to avoid conflict with docker_time
+            app_timestamp: timestamp  # Renamed to avoid conflict with docker_time
             service: service
             logger: logger
             trace_id: trace.traceId  # Primary extraction: from JSON structure
@@ -122,30 +119,25 @@ scrape_configs:
           trace_id: # Index trace_id as a label - enables fast filtering and trace discovery
       
       # Stage 4: Timestamp handling - Ensure logs have correct timestamps
-      # CRITICAL FIX: Prevent timestamp overwriting and handle Unix milliseconds correctly
+      # CRITICAL FIX: Use Docker's timestamp as primary source (most accurate)
       # 
-      # Problem: Pino's 'time' field is Unix milliseconds (e.g., 1765929045350), not seconds
-      # If parsed as Unix seconds, it's interpreted as a future date and overwrites correct timestamps
-      # 
-      # Solution: Use action_on_failure: fallback to chain timestamp parsing
       # Priority order (stops at first successful parse):
       # 1. Docker's timestamp (RFC3339Nano) - Most reliable, represents actual log capture time
       # 2. Application timestamp field (RFC3339 ISO format from Pino) - Fallback if Docker time missing
       # 3. Application time field (UnixMs - milliseconds) - Fallback if timestamp field missing
       # 
       # action_on_failure: fallback tells Promtail to only proceed to the next stage if the current
-      # one fails. This prevents the 'time' field from overwriting correct timestamps when parsed
-      # incorrectly as Unix seconds instead of milliseconds.
+      # one fails. This ensures docker_time is used when available, providing the most accurate timestamp.
       - timestamp:
           source: docker_time
           format: RFC3339Nano
           action_on_failure: fallback
       - timestamp:
-          source: timestamp
+          source: app_timestamp
           format: RFC3339
           action_on_failure: fallback
       - timestamp:
-          source: time
+          source: app_time
           format: UnixMs  # Pino's time field is in milliseconds, not seconds
           action_on_failure: skip
       
