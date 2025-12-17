@@ -139,7 +139,107 @@ Unsubscribe: ${appUrl}/unsubscribe?email=${encodeURIComponent(email)}
   return { subject, html, text };
 }
 
+/**
+ * Get email template by name
+ * Supports: 'success', 'welcome', 'followup', 'automation_tips', 'custom'
+ */
+function getEmailTemplate(templateName, data = {}) {
+  switch (templateName) {
+    case 'success':
+      return getSuccessEmail(data);
+    case 'welcome':
+      return getWelcomeEmail(data);
+    case 'followup':
+      return getFollowupEmail(data);
+    case 'automation_tips':
+      return getAutomationTipsEmail(data);
+    case 'custom':
+    default:
+      return getCustomEmail(data);
+  }
+}
+
+/**
+ * Success notification email template
+ * Used for workflow completion notifications
+ */
+function getSuccessEmail(data = {}) {
+  const { message, workflow_name, execution_id } = data;
+  const subject = '✅ Your EasyFlow Workflow Completed Successfully';
+  
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflow Completed - EasyFlow</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center" style="padding: 20px 0;">
+        <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="padding: 40px; text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 20px;">✅</div>
+              <h1 style="margin: 0 0 10px; color: #1f2937; font-size: 24px; font-weight: 600;">Workflow Completed!</h1>
+              ${workflow_name ? `<p style="margin: 0 0 20px; color: #6b7280; font-size: 16px;">${workflow_name}</p>` : ''}
+              ${message ? `<p style="margin: 0 0 30px; color: #4b5563; font-size: 16px; line-height: 1.6;">${message}</p>` : ''}
+              <p style="margin: 0; color: #6b7280; font-size: 14px;">Your workflow has completed successfully. Check your EasyFlow dashboard for details.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+  
+  const text = `✅ Workflow Completed!\n\n${workflow_name ? `${workflow_name}\n\n` : ''}${message || 'Your workflow has completed successfully.'}\n\nCheck your EasyFlow dashboard for details.`;
+  
+  return { subject, html, text };
+}
+
+/**
+ * Welcome email template
+ */
+function getWelcomeEmail(data = {}) {
+  const { name } = data;
+  const subject = 'Welcome to EasyFlow!';
+  const html = `<p>Thanks for joining EasyFlow${name ? ', ' + name : ''}!</p>`;
+  const text = `Thanks for joining EasyFlow${name ? ', ' + name : ''}!`;
+  return { subject, html, text };
+}
+
+/**
+ * Followup email template
+ */
+function getFollowupEmail(data = {}) {
+  const subject = 'How is EasyFlow working for you?';
+  const html = '<p>Just checking in to see how your automations are going.</p>';
+  const text = 'Just checking in to see how your automations are going.';
+  return { subject, html, text };
+}
+
+/**
+ * Custom email template
+ */
+function getCustomEmail(data = {}) {
+  const { subject: customSubject, text: customText, html: customHtml } = data;
+  const subject = customSubject || 'EasyFlow Notification';
+  const html = customHtml || `<p>${customText || 'Hello from EasyFlow'}</p>`;
+  const text = customText || 'Hello from EasyFlow';
+  return { subject, html, text };
+}
+
 module.exports = {
-  getAutomationTipsEmail
+  getAutomationTipsEmail,
+  getEmailTemplate,
+  getSuccessEmail,
+  getWelcomeEmail,
+  getFollowupEmail,
+  getCustomEmail
 };
 

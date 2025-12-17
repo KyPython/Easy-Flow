@@ -38,8 +38,23 @@ async function callRpc(fnName, args) {
 }
 
 const SEND_EMAIL_WEBHOOK = process.env.SEND_EMAIL_WEBHOOK || ''; // optional: a webhook that accepts {to_email, template, data}
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
+const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || process.env.FROM_EMAIL || '';
 const POLL_INTERVAL_MS = parseInt(process.env.EMAIL_WORKER_POLL_MS || '5000', 10);
 const MAX_ATTEMPTS = 5;
+
+// Initialize SendGrid if configured
+let sgMail = null;
+if (SENDGRID_API_KEY && SENDGRID_FROM_EMAIL) {
+  try {
+    sgMail = require('@sendgrid/mail');
+    sgMail.setApiKey(SENDGRID_API_KEY);
+    logger.info('[email_worker] ✅ SendGrid configured for direct email sending');
+  } catch (e) {
+    logger.warn('[email_worker] ⚠️ SendGrid package not installed. Install with: npm install @sendgrid/mail');
+    logger.warn('[email_worker] ⚠️ Falling back to webhook or simulation mode');
+  }
+}
 
 async function processOne() {
   try {
@@ -102,7 +117,52 @@ async function handleItem(item) {
     let sent = false;
     let lastError = null;
     
-    if (SEND_EMAIL_WEBHOOK) {
+    // Priority 1: Use SendGrid directly if configured
+    if (sgMail && SENDGRID_FROM_EMAIL) {
+      try {
+        // Load email template
+        const { getEmailTemplate } = require('../utils/emailTemplates');
+        let emailTemplate;
+        try {
+          emailTemplate = getEmailTemplate(item.template, item.data || {});
+        } catch (templateError) {
+          // Fallback template if specific template doesn't exist
+          emailTemplate = {
+            subject: `EasyFlow Notification - ${item.template}`,
+            text: `Hello from EasyFlow!\n\nTemplate: ${item.template}\n\n${JSON.stringify(item.data || {}, null, 2)}`,
+            html: `<p>Hello from EasyFlow!</p><p>Template: ${item.template}</p><pre>${JSON.stringify(item.data || {}, null, 2)}</pre>`
+          };
+        }
+
+        const msg = {
+          to: item.to_email,
+          from: SENDGRID_FROM_EMAIL,
+          subject: emailTemplate.subject,
+          text: emailTemplate.text,
+          html: emailTemplate.html
+        };
+
+        const [result] = await sgMail.send(msg);
+        logger.info(`[email_worker] ✅ Email sent via SendGrid to ${item.to_email}`, {
+          message_id: result?.headers?.['x-message-id'],
+          template: item.template
+        });
+        sent = true;
+        lastError = null;
+      } catch (e) {
+        lastError = e;
+        const errorMsg = e?.response?.body?.errors?.map(err => err.message).join('; ') || e?.message || 'SendGrid send failed';
+        logger.error(`[email_worker] ❌ SendGrid send failed`, {
+          error: errorMsg,
+          to_email: item.to_email,
+          template: item.template,
+          status: e?.response?.status
+        });
+        sent = false;
+      }
+    }
+    // Priority 2: Use webhook if configured
+    else if (SEND_EMAIL_WEBHOOK) {
       // ✅ FIX: Add retry logic with exponential backoff
       const maxRetries = 3;
       const baseDelay = 1000; // 1 second
@@ -157,8 +217,14 @@ async function handleItem(item) {
       }
     } else {
       // Development fallback: write to logs (or integrate with nodemailer)
+      logger.warn('[email_worker] ⚠️ No email service configured - simulating send (emails will NOT be delivered)', {
+        to_email: item.to_email,
+        template: item.template,
+        data: item.data,
+        instruction: 'Configure SENDGRID_API_KEY + SENDGRID_FROM_EMAIL or SEND_EMAIL_WEBHOOK to send real emails'
+      });
       logger.info('[email_worker] simulate send to', item.to_email, 'template', item.template, 'data', JSON.stringify(item.data || {}));
-      sent = true;
+      sent = true; // Mark as sent so queue doesn't retry
     }
 
     if (sent) {
