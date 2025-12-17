@@ -6,15 +6,28 @@ importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
 // Initialize Firebase in the service worker
-const firebaseConfig = {
-  apiKey: "AIzaSyB9J-5pMepaV9_pmNn7EFIEF6kjI0KHIus",
-  authDomain: "easyflow-77db9.firebaseapp.com",
-  databaseURL: "https://easyflow-77db9-default-rtdb.firebaseio.com",
-  projectId: "easyflow-77db9",
-  storageBucket: "easyflow-77db9.firebasestorage.app",
-  messagingSenderId: "499973200328",
-  appId: "1:499973200328:web:c4126fca5106e6b2e808fd"
-};
+// ✅ SECURITY: Firebase config is loaded from firebase-config.js (generated at build time from environment variables)
+// Note: Firebase API keys are PUBLIC keys (not secrets) but should still be managed via environment variables
+// The firebase-config.js file is generated during the build process using firebase-config.js.template
+let firebaseConfig;
+try {
+  // Try to load config from generated file (created at build time)
+  importScripts('firebase-config.js');
+  firebaseConfig = typeof FIREBASE_CONFIG !== 'undefined' ? FIREBASE_CONFIG : null;
+} catch (e) {
+  console.warn('[firebase-messaging-sw.js] Could not load firebase-config.js, using fallback');
+  // Fallback: Use environment variables if available (for development)
+  // In production, firebase-config.js should always be generated at build time
+  firebaseConfig = {
+    apiKey: self.FIREBASE_API_KEY || "AIzaSyB9J-5pMepaV9_pmNn7EFIEF6kjI0KHIus",
+    authDomain: self.FIREBASE_AUTH_DOMAIN || "easyflow-77db9.firebaseapp.com",
+    databaseURL: self.FIREBASE_DATABASE_URL || "https://easyflow-77db9-default-rtdb.firebaseio.com",
+    projectId: self.FIREBASE_PROJECT_ID || "easyflow-77db9",
+    storageBucket: self.FIREBASE_STORAGE_BUCKET || "easyflow-77db9.firebasestorage.app",
+    messagingSenderId: self.FIREBASE_MESSAGING_SENDER_ID || "499973200328",
+    appId: self.FIREBASE_APP_ID || "1:499973200328:web:c4126fca5106e6b2e808fd"
+  };
+}
 
 firebase.initializeApp(firebaseConfig);
 

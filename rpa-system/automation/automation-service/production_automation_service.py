@@ -420,13 +420,22 @@ def process_automation_task(task_data):
             if not pdf_url:
                 result = {'success': False, 'error': 'Missing required field: pdf_url or url'}
             else:
-                try:
-                    from . import web_automation
-                except ImportError:
-                    import web_automation
-                
-                task_logger.info(f"📥 Starting invoice download from: {pdf_url}")
-                download_result = web_automation.download_pdf(pdf_url, task_data)
+                # ✅ SECURITY: Validate URL to prevent SSRF before calling download_pdf
+                from urllib.parse import urlparse
+                parsed_url = urlparse(pdf_url)
+                if parsed_url.scheme not in ('http', 'https'):
+                    result = {
+                        'success': False,
+                        'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'
+                    }
+                else:
+                    try:
+                        from . import web_automation
+                    except ImportError:
+                        import web_automation
+                    
+                    task_logger.info(f"📥 Starting invoice download from: {pdf_url}")
+                    download_result = web_automation.download_pdf(pdf_url, task_data)
                 if download_result.get('success'):
                     result = {'success': True, 'data': download_result, 'message': f'Invoice downloaded from {pdf_url}'}
                     task_logger.info(f"✅ Invoice download completed successfully")

@@ -1,0 +1,16 @@
+// Firebase configuration template
+// This file is used to generate firebase-config.js at build time
+// Replace these values with environment variables during the build process
+
+// Firebase Cloud Messaging Service Worker Configuration
+// These are PUBLIC API keys (not secrets) but should still be managed via environment variables
+const FIREBASE_CONFIG = {
+  apiKey: "${REACT_APP_FIREBASE_API_KEY}",
+  authDomain: "${REACT_APP_FIREBASE_AUTH_DOMAIN}",
+  databaseURL: "${REACT_APP_FIREBASE_DATABASE_URL}",
+  projectId: "${REACT_APP_FIREBASE_PROJECT_ID}",
+  storageBucket: "${REACT_APP_FIREBASE_STORAGE_BUCKET}",
+  messagingSenderId: "${REACT_APP_FIREBASE_MESSAGING_SENDER_ID}",
+  appId: "${REACT_APP_FIREBASE_APP_ID}"
+};
+

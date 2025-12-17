@@ -2100,17 +2100,19 @@ async function queueTaskRun(runId, taskData) {
     }
     
     // ✅ SECURITY: Validate URL to prevent SSRF
+    let validatedUrl = null;
     if (taskData.url) {
       const urlValidation = isValidUrl(taskData.url);
       if (!urlValidation.valid) {
         logger.warn(`[queueTaskRun] Invalid URL rejected: ${taskData.url} (reason: ${urlValidation.reason})`);
         throw new Error(`Invalid URL: ${urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format'}`);
       }
+      validatedUrl = urlValidation.url; // Use validated URL
     }
     
     // Prepare the payload for the automation worker
     const payload = { 
-      url: taskData.url,
+      url: validatedUrl, // Use validated URL instead of raw input
       title: taskData.title || 'Untitled Task',
       run_id: runId,
       task_id: taskData.task_id,
