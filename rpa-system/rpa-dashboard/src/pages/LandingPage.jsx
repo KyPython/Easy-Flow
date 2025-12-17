@@ -115,7 +115,7 @@ export default function LandingPage() {
         <p>&copy; 2025 {t('landing.footer_tagline','EasyFlow. Intelligent RPA Automation Platform.')}</p>
         <div className={styles.footerLinks}>
           <a href="tel:+12034494970" className={styles.footerLink}>{t('landing.call_support','Call Support: +1 (203) 449-4970')}</a>
-          <a href="mailto:kyjahntsmith@gmail.com" className={styles.footerLink}>{t('landing.email_support','Email: kyjahntsmith@gmail.com')}</a>
+          <a href="mailto:support@useeasyflow.com" className={styles.footerLink}>{t('landing.email_support','Email: support@useeasyflow.com')}</a>
         </div>
       </footer>
     </div>
