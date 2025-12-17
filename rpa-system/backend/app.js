@@ -4632,6 +4632,32 @@ app.post('/api/trigger-automation', authMiddleware, automationLimiter, async (re
 // Consolidated Session Endpoint - Returns plan, preferences, and notifications in one call
 // This reduces initial API calls from 3+ to 1, preventing rate limiting issues
 app.get('/api/user/session', authMiddleware, async (req, res) => {
+  // ✅ DEFENSIVE: Ensure this route never triggers workflow execution
+  // This is a read-only endpoint - any workflow execution here is a bug
+  const routeTraceId = req.headers['x-trace-id'] || 'unknown';
+  logger.info('[GET /api/user/session] Route handler called', {
+    userId: req.user?.id,
+    method: req.method,
+    path: req.path,
+    traceId: routeTraceId,
+    hasWorkflowId: !!req.body?.workflowId,
+    hasExecuteParam: !!req.query?.execute
+  });
+  
+  // ✅ DEFENSIVE: Reject any attempt to execute workflows from this route
+  if (req.body?.workflowId || req.query?.execute || req.body?.triggerExecution) {
+    logger.error('[GET /api/user/session] ⚠️ BLOCKED: Attempt to execute workflow from session endpoint', {
+      userId: req.user?.id,
+      workflowId: req.body?.workflowId || req.query?.workflowId,
+      body: Object.keys(req.body || {}),
+      query: Object.keys(req.query || {})
+    });
+    return res.status(400).json({ 
+      error: 'Workflow execution not allowed from session endpoint',
+      message: 'Use POST /api/workflows/execute to execute workflows'
+    });
+  }
+  
   try {
     const userId = req.user.id;
     
