@@ -1027,21 +1027,9 @@ try {
 // ✅ CRITICAL: Mount specific workflow execution route BEFORE generic /api/workflows routes
 // This ensures /api/workflows/execute matches correctly and doesn't get intercepted
 // by other /api/workflows routes that might have catch-all handlers
-// ✅ CRITICAL: Track recent Firebase token requests to prevent workflow execution from same trace
-// This prevents the frontend from accidentally triggering workflows after getting Firebase tokens
-// Set to 2 seconds - blocks immediate accidental triggers, short enough to not block legitimate executions
-const recentFirebaseTokenTraces = new Map(); // traceId -> timestamp
-const FIREBASE_TOKEN_TRACE_TTL = 500; // 500ms - only block truly simultaneous requests (same trace ID within 500ms), allows normal workflow execution
-
-// Cleanup old entries every minute
-setInterval(() => {
-  const now = Date.now();
-  for (const [traceId, timestamp] of recentFirebaseTokenTraces.entries()) {
-    if (now - timestamp > FIREBASE_TOKEN_TRACE_TTL) {
-      recentFirebaseTokenTraces.delete(traceId);
-    }
-  }
-}, 60000); // Run cleanup every minute
+// ✅ REMOVED: Trace-ID tracking removed for better UX
+// The Firebase token endpoint has defensive checks that prevent workflow execution
+// Workflows can now execute immediately without artificial delays
 
 try {
   const { WorkflowExecutor } = require('./services/workflowExecutor');
@@ -1070,42 +1058,10 @@ try {
       });
     }
     
-    // ✅ BLOCK METHOD 2: Check if this trace ID recently requested a Firebase token
-    // This catches cases where the frontend makes separate HTTP requests with the same trace ID
-    // CRITICAL: Only block if the time is WITHIN the TTL window, not if the trace ID exists at all
-    if (recentFirebaseTokenTraces.has(traceId)) {
-      const firebaseTokenTime = recentFirebaseTokenTraces.get(traceId);
-      const timeSinceFirebaseToken = Date.now() - firebaseTokenTime;
-      
-      // ✅ CRITICAL FIX: Only block if within the TTL window
-      // If time has exceeded TTL, allow the request and clean up the trace ID
-      if (timeSinceFirebaseToken <= FIREBASE_TOKEN_TRACE_TTL) {
-        logger.error('[POST /api/workflows/execute] ⚠️ BLOCKED: Workflow execution triggered shortly after Firebase token request (trace ID check)', {
-          userId: req.user?.id,
-          traceId,
-          workflowId: req.body?.workflowId,
-          timeSinceFirebaseToken: `${timeSinceFirebaseToken}ms`,
-          firebaseTokenRequestTime: new Date(firebaseTokenTime).toISOString(),
-          ttl: `${FIREBASE_TOKEN_TRACE_TTL}ms`,
-          stackTrace: new Error().stack?.split('\n').slice(0, 10).join('\n')
-        });
-        return res.status(400).json({
-          error: 'Workflow execution cannot be triggered immediately after Firebase token request',
-          code: 'INVALID_TRIGGER_SOURCE',
-          message: 'Please wait a moment before executing the workflow. The system is initializing.',
-          trace_id: traceId,
-          time_since_firebase_token_ms: timeSinceFirebaseToken
-        });
-      } else {
-        // Time has exceeded TTL - clean up the trace ID and allow the request
-        recentFirebaseTokenTraces.delete(traceId);
-        logger.info('[POST /api/workflows/execute] ✅ Allowing workflow execution - Firebase token TTL expired', {
-          traceId,
-          timeSinceFirebaseToken: `${timeSinceFirebaseToken}ms`,
-          ttl: `${FIREBASE_TOKEN_TRACE_TTL}ms`
-        });
-      }
-    }
+    // ✅ REMOVED: Trace-ID-based blocking removed for better UX
+    // The Firebase token endpoint already has defensive checks that prevent workflow execution
+    // The referer check above is sufficient to catch direct calls from the Firebase endpoint
+    // Removing trace-ID blocking allows workflows to execute immediately without artificial delays
     
     // ✅ DEFENSIVE: Log route entry with full context to diagnose incorrect calls
     logger.info('[POST /api/workflows/execute] Route handler called', {
@@ -5334,12 +5290,6 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
   
   // ✅ DEFENSIVE: Log entry to track this endpoint and prevent workflow execution
   const firebaseTokenTraceId = req.traceId || req.headers['x-trace-id'] || 'unknown';
-  
-  // ✅ CRITICAL: Record this trace ID to block workflow execution for the next 30 seconds
-  // This prevents the frontend from accidentally triggering workflows after getting Firebase tokens
-  if (firebaseTokenTraceId && firebaseTokenTraceId !== 'unknown') {
-    recentFirebaseTokenTraces.set(firebaseTokenTraceId, Date.now());
-  }
   
   logger.info('[POST /api/firebase/token] Route handler called - WORKFLOW EXECUTION BLOCKED', {
     userId: req.user?.id,
