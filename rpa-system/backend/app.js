@@ -1031,7 +1031,7 @@ try {
 // This prevents the frontend from accidentally triggering workflows after getting Firebase tokens
 // Set to 2 seconds - blocks immediate accidental triggers, short enough to not block legitimate executions
 const recentFirebaseTokenTraces = new Map(); // traceId -> timestamp
-const FIREBASE_TOKEN_TRACE_TTL = 2000; // 2 seconds - block workflow execution for 2s after Firebase token request (catches immediate accidental triggers, short enough to not block legitimate executions)
+const FIREBASE_TOKEN_TRACE_TTL = 500; // 500ms - only block truly simultaneous requests (same trace ID within 500ms), allows normal workflow execution
 
 // Cleanup old entries every minute
 setInterval(() => {
