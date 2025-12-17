@@ -5243,25 +5243,46 @@ const adminAuthMiddleware = (req, res, next) => {
 
 // Firebase custom token endpoint
 app.post('/api/firebase/token', authMiddleware, async (req, res) => {
+  // ✅ DEFENSIVE: Log entry to track this endpoint and prevent workflow execution
+  const firebaseTokenTraceId = req.traceId || req.headers['x-trace-id'] || 'unknown';
+  logger.info('[POST /api/firebase/token] Route handler called', {
+    userId: req.user?.id,
+    method: req.method,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    traceId: firebaseTokenTraceId,
+    hasWorkflowId: !!(req.body?.workflowId),
+    hasExecutionId: !!(req.body?.executionId),
+    bodyKeys: req.body ? Object.keys(req.body) : [],
+    caller_ip: req.ip,
+    user_agent: req.get('User-Agent')
+  });
+
   try {
     // ✅ DEFENSIVE: Block any attempt to execute workflows from this endpoint
-    if (req.body && (req.body.workflowId || req.body.executionId)) {
+    // This endpoint is ONLY for Firebase token generation - workflow execution is NOT allowed
+    if (req.body && (req.body.workflowId || req.body.executionId || req.body.triggerExecution)) {
       logger.error('[POST /api/firebase/token] ⚠️ BLOCKED: Attempt to execute workflow from Firebase token endpoint', {
         userId: req.user?.id,
         workflowId: req.body.workflowId,
         executionId: req.body.executionId,
-        trace_id: req.traceId,
+        triggerExecution: req.body.triggerExecution,
+        trace_id: firebaseTokenTraceId,
         span_id: req.spanId,
         caller_ip: req.ip,
-        user_agent: req.get('User-Agent')
+        user_agent: req.get('User-Agent'),
+        full_body: JSON.stringify(req.body)
       });
       return res.status(400).json({ 
         error: 'Workflow execution is not allowed via this endpoint.',
         code: 'INVALID_ENDPOINT',
-        message: 'Use POST /api/workflows/execute to execute workflows'
+        message: 'Use POST /api/workflows/execute to execute workflows',
+        trace_id: firebaseTokenTraceId
       });
     }
 
+    // ✅ DEFENSIVE: Ensure no workflow execution code is called from this handler
+    // This is a read-only endpoint for token generation - no side effects allowed
     const userId = req.user?.id;
     
     // Validate userId before proceeding
