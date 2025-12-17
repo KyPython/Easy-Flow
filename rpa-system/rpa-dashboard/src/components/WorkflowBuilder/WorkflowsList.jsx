@@ -143,6 +143,7 @@ const WorkflowsList = () => {
 
       setWorkflows(data || []);
       retryCountRef.current = 0; // Reset retry count on success
+      setLoading(false); // ✅ FIX: Explicitly set loading to false on success
       
       const totalDuration = performance.now() - loadStartTime;
       console.log(`[WorkflowsList] Successfully loaded ${data?.length || 0} workflows in ${totalDuration.toFixed(2)}ms`);
@@ -152,8 +153,8 @@ const WorkflowsList = () => {
       apiTracker.end();
       
     } catch (err) {
-      const errorMessage = err.message || 'Unknown error';
-      console.error(`[WorkflowsList] Error loading workflows (attempt ${retryAttempt + 1}):`, errorMessage);
+      const errorMessage = err?.message || err?.toString() || 'Unknown error';
+      console.error(`[WorkflowsList] Error loading workflows (attempt ${retryAttempt + 1}):`, errorMessage, err);
       
       apiTracker.addAttribute('error.message', errorMessage);
       apiTracker.addAttribute('error.retry_attempt', retryAttempt + 1);
@@ -163,7 +164,8 @@ const WorkflowsList = () => {
         errorMessage.includes('timeout') ||
         errorMessage.includes('network') ||
         errorMessage.includes('fetch') ||
-        errorMessage.includes('Supabase not configured')
+        errorMessage.includes('Supabase not configured') ||
+        errorMessage.includes('Supabase initialization timeout')
       )) {
         const delay = retryDelay * (retryAttempt + 1); // Exponential backoff
         console.log(`[WorkflowsList] Retrying in ${delay}ms...`);
@@ -171,6 +173,7 @@ const WorkflowsList = () => {
         apiTracker.addAttribute('retry.will_retry', true);
         apiTracker.end();
         
+        retryCountRef.current = retryAttempt + 1;
         setTimeout(() => {
           loadWorkflows(retryAttempt + 1);
         }, delay);
@@ -184,14 +187,10 @@ const WorkflowsList = () => {
       
       setError(errorMessage);
       setLoading(false);
+      retryCountRef.current = 0; // Reset retry count
       
       const totalDuration = performance.now() - loadStartTime;
       console.error(`[WorkflowsList] Failed to load workflows after ${retryAttempt + 1} attempts in ${totalDuration.toFixed(2)}ms`);
-    } finally {
-      // Only set loading to false if we're not retrying
-      if (retryCountRef.current >= maxRetries || !error) {
-        setLoading(false);
-      }
     }
   };
 
