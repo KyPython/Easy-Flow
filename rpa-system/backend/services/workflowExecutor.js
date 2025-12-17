@@ -624,6 +624,7 @@ class WorkflowExecutor {
           });
         }
         
+        // ✅ SECURITY: Filter by user_id to ensure users can only execute their own workflows
         const result = await this.supabase
           .from('workflows')
           .select(`
@@ -632,6 +633,7 @@ class WorkflowExecutor {
             workflow_connections(*)
           `)
           .eq('id', workflowId)
+          .eq('user_id', userId) // ✅ CRITICAL: Ensure user owns the workflow
           // ensure PostgREST returns at most one row to avoid coercion errors
           .limit(1)
           .maybeSingle();
