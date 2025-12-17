@@ -973,15 +973,145 @@ class WorkflowExecutor {
             // Update workflow object with persisted steps
             workflow.workflow_steps = steps;
           } else if (steps.length > 0) {
-            // Steps already exist - build nodeIdToUuidMap from existing steps
-            // This allows us to map canvas node IDs to existing step UUIDs for connections
+            // Steps already exist - sync with canvas_config nodes
+            // CRITICAL: Canvas node IDs may have changed, so we need to match by step_type/name
+            // and update step_key, or create missing steps
+            
+            // Build initial map from existing step_keys
             steps.forEach(step => {
               if (step.step_key) {
                 nodeIdToUuidMap.set(step.step_key, step.id);
               }
             });
             
-            this.logger.info('[WorkflowExecutor] Using existing steps, built nodeIdToUuidMap', {
+            // CRITICAL FIX: Sync canvas nodes with existing steps
+            // Match by step_type + name, update step_key if node ID changed, create missing steps
+            if (canvasConfig.nodes && Array.isArray(canvasConfig.nodes)) {
+              const stepsToUpdate = [];
+              const stepsToCreate = [];
+              
+              for (const node of canvasConfig.nodes) {
+                let stepType = node.data?.stepType || node.type || 'unknown';
+                let actionType = null;
+                
+                // Normalize action types
+                const actionTypes = ['email', 'api_call', 'web_scraping', 'web_scrape', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr'];
+                let normalizedActionType = stepType;
+                if (stepType === 'web_scraping') {
+                  normalizedActionType = 'web_scrape';
+                }
+                
+                if (actionTypes.includes(stepType) || actionTypes.includes(normalizedActionType)) {
+                  actionType = normalizedActionType;
+                  stepType = 'action';
+                }
+                
+                if (stepType !== 'action' && node.data?.action_type) {
+                  actionType = node.data.action_type;
+                  stepType = 'action';
+                }
+                
+                const nodeName = node.data?.label || node.data?.name || 'Unnamed Step';
+                
+                // Try to find existing step by step_key first
+                let existingStep = steps.find(s => s.step_key === node.id);
+                
+                // If not found, try to match by step_type + name (for cases where node ID changed)
+                if (!existingStep) {
+                  existingStep = steps.find(s => 
+                    s.step_type === stepType && 
+                    (s.name === nodeName || (stepType === 'start' && s.step_type === 'start'))
+                  );
+                }
+                
+                if (existingStep) {
+                  // Step exists - update step_key if it changed
+                  if (existingStep.step_key !== node.id) {
+                    stepsToUpdate.push({
+                      id: existingStep.id,
+                      step_key: node.id
+                    });
+                    // Update in-memory step object
+                    existingStep.step_key = node.id;
+                  }
+                  // Update id_map with new node ID
+                  nodeIdToUuidMap.set(node.id, existingStep.id);
+                } else {
+                  // New step - create it
+                  const uuid = crypto.randomUUID();
+                  stepsToCreate.push({
+                    id: uuid,
+                    workflow_id: workflow.id,
+                    step_key: node.id,
+                    name: nodeName,
+                    step_type: stepType,
+                    action_type: actionType || null,
+                    config: node.data || {},
+                    position_x: node.position?.x || 0,
+                    position_y: node.position?.y || 0
+                  });
+                  nodeIdToUuidMap.set(node.id, uuid);
+                  
+                  // Add to in-memory steps array
+                  steps.push({
+                    id: uuid,
+                    step_key: node.id,
+                    workflow_id: workflow.id,
+                    step_type: stepType,
+                    action_type: actionType,
+                    name: nodeName,
+                    config: node.data || {},
+                    position_x: node.position?.x || 0,
+                    position_y: node.position?.y || 0
+                  });
+                }
+              }
+              
+              // Update step_keys in database
+              if (stepsToUpdate.length > 0) {
+                for (const update of stepsToUpdate) {
+                  const { error } = await this.supabase
+                    .from('workflow_steps')
+                    .update({ step_key: update.step_key })
+                    .eq('id', update.id);
+                  
+                  if (error) {
+                    this.logger.error('[WorkflowExecutor] Failed to update step_key', {
+                      workflow_id: workflow.id,
+                      step_id: update.id,
+                      new_step_key: update.step_key,
+                      error: error.message,
+                      execution_id: execution.id
+                    });
+                  }
+                }
+              }
+              
+              // Create new steps
+              if (stepsToCreate.length > 0) {
+                const { error: createError } = await this.supabase
+                  .from('workflow_steps')
+                  .insert(stepsToCreate);
+                
+                if (createError) {
+                  this.logger.error('[WorkflowExecutor] Failed to create missing steps', {
+                    workflow_id: workflow.id,
+                    error: createError.message,
+                    steps_to_create: stepsToCreate.length,
+                    execution_id: execution.id
+                  });
+                } else {
+                  this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Created missing steps from canvas', {
+                    workflow_id: workflow.id,
+                    created_count: stepsToCreate.length,
+                    updated_count: stepsToUpdate.length,
+                    execution_id: execution.id
+                  });
+                }
+              }
+            }
+            
+            this.logger.error('[WorkflowExecutor] 🔍 DEBUG: Synced steps with canvas_config', {
               workflow_id: workflow.id,
               steps_count: steps.length,
               mapped_keys: Array.from(nodeIdToUuidMap.keys()),
