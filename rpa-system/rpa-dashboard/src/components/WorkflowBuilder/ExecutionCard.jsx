@@ -218,6 +218,29 @@ const ExecutionCard = ({
             </div>
           )}
 
+          {/* ✅ ENHANCEMENT: Show email-specific success message */}
+          {actualStatus === 'completed' && execution.output_data?.email_result && (
+            <div className={styles.successMessage}>
+              <strong>📧 Email Queued Successfully!</strong>
+              <div className={styles.emailDetails}>
+                <p>
+                  <strong>Recipient:</strong> {execution.output_data.email_result.to_email || execution.output_data.email_result.to || 'N/A'}
+                </p>
+                <p>
+                  <strong>Template:</strong> {execution.output_data.email_result.template || 'notification'}
+                </p>
+                <p>
+                  <strong>Status:</strong> {execution.output_data.email_result.status === 'queued' ? 'Queued - check your inbox shortly!' : execution.output_data.email_result.status}
+                </p>
+                {execution.metadata?.email_details && (
+                  <p className={styles.checkInbox}>
+                    💡 <strong>Check your inbox at {execution.metadata.email_details.email_address}</strong> - your email should arrive shortly!
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Error Message */}
           {(getFailureMessage() || execution.error_message) && (
             <div className={styles.errorMessage}>

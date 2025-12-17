@@ -2828,11 +2828,14 @@ class WorkflowExecutor {
           ...inputData,
           email_result: {
             queue_id: item?.id || null,
-            status: 'queued'
+            status: 'queued',
+            to_email: toEmail, // ✅ ENHANCEMENT: Include email address in result
+            template: template, // ✅ ENHANCEMENT: Include template in result
+            message: `Email queued successfully. Check ${toEmail} for your notification.`
           }
         },
         meta: {
-          stepDetails: 'Email queued',
+          stepDetails: `Email queued to ${toEmail}`,
           duration: '0.1s'
         }
       };
@@ -3626,6 +3629,64 @@ class WorkflowExecutor {
     const actions = [];
     let message = '✅ Workflow completed successfully!';
     
+    // ✅ ENHANCEMENT: Check for email results and provide specific guidance
+    const emailResult = outputData?.email_result;
+    if (emailResult) {
+      if (emailResult.status === 'queued' && emailResult.queue_id) {
+        // Extract email address from output data or step config
+        const emailAddress = emailResult.to_email || emailResult.to || 'your email';
+        const template = emailResult.template || 'notification';
+        
+        message = `✅ Workflow completed! Email queued successfully.`;
+        
+        // Add email-specific metadata
+        const emailMetadata = {
+          email_sent: true,
+          email_address: emailAddress,
+          email_template: template,
+          queue_id: emailResult.queue_id,
+          message: `📧 Check your inbox at ${emailAddress} - your email should arrive shortly!`
+        };
+        
+        return {
+          message: emailMetadata.message,
+          actions: [
+            {
+              label: 'Check Your Email',
+              path: null,
+              tab: null,
+              icon: '📧',
+              description: `An email was sent to ${emailAddress} using the "${template}" template`
+            }
+          ],
+          steps_completed: stepsExecuted,
+          email_details: emailMetadata
+        };
+      } else if (emailResult.status === 'sent') {
+        const emailAddress = emailResult.to_email || emailResult.to || 'your email';
+        message = `✅ Email sent successfully to ${emailAddress}!`;
+        
+        return {
+          message,
+          actions: [
+            {
+              label: 'Check Your Email',
+              path: null,
+              tab: null,
+              icon: '📧',
+              description: `Email was delivered to ${emailAddress}`
+            }
+          ],
+          steps_completed: stepsExecuted,
+          email_details: {
+            email_sent: true,
+            email_address: emailAddress,
+            email_template: emailResult.template || 'notification'
+          }
+        };
+      }
+    }
+    
     // ✅ FIX: If no steps completed, prioritize debugging
     if (stepsExecuted === 0) {
       actions.push({
@@ -3663,17 +3724,40 @@ class WorkflowExecutor {
       message = '✅ Data scraped successfully! Check the Files tab to view your results.';
     }
     
-    // Check for email sent
+    // ✅ ENHANCEMENT: Check for email sent/queued with detailed information
     if (outputData?.email_result || outputData?.email_sent) {
-      const emailStatus = outputData?.email_result?.status || 'sent';
-      if (emailStatus === 'sent' || emailStatus === 'pending') {
+      const emailResult = outputData?.email_result || {};
+      const emailStatus = emailResult.status || 'sent';
+      const emailAddress = emailResult.to_email || emailResult.to || 'your email';
+      const template = emailResult.template || 'notification';
+      
+      if (emailStatus === 'sent' || emailStatus === 'queued' || emailStatus === 'pending') {
         actions.push({
           label: 'Check Your Inbox',
           path: null,
           icon: '📧',
-          description: 'Email has been sent - check your inbox'
+          description: `Email ${emailStatus === 'queued' ? 'queued' : 'sent'} to ${emailAddress} using "${template}" template`
         });
-        message = '✅ Email sent successfully!';
+        
+        if (emailStatus === 'queued') {
+          message = `✅ Workflow completed! Email queued successfully. Check ${emailAddress} - your email should arrive shortly!`;
+        } else {
+          message = `✅ Email sent successfully to ${emailAddress}!`;
+        }
+        
+        // Return early with email-specific guidance
+        return {
+          message,
+          actions,
+          steps_completed: stepsExecuted,
+          email_details: {
+            email_sent: true,
+            email_address: emailAddress,
+            email_template: template,
+            email_status: emailStatus,
+            queue_id: emailResult.queue_id
+          }
+        };
       }
     }
     

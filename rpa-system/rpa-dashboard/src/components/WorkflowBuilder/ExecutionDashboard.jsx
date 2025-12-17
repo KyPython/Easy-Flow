@@ -553,6 +553,25 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
               </div>
               <div className={styles.dataSection}>
                 <h4>Output Data</h4>
+                {/* ✅ ENHANCEMENT: Show email-specific information prominently */}
+                {execution.output_data?.email_result && (
+                  <div className={styles.emailResultBox}>
+                    <h5>📧 Email Result</h5>
+                    <div className={styles.emailInfo}>
+                      <p><strong>Status:</strong> <span className={styles.statusQueued}>{execution.output_data.email_result.status}</span></p>
+                      <p><strong>Recipient:</strong> {execution.output_data.email_result.to_email || execution.output_data.email_result.to || 'N/A'}</p>
+                      <p><strong>Template:</strong> {execution.output_data.email_result.template || 'notification'}</p>
+                      {execution.output_data.email_result.queue_id && (
+                        <p><strong>Queue ID:</strong> <code>{execution.output_data.email_result.queue_id}</code></p>
+                      )}
+                      {execution.output_data.email_result.status === 'queued' && (
+                        <div className={styles.checkInboxNotice}>
+                          <p>💡 <strong>Check your inbox!</strong> The email was queued successfully and should arrive shortly.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <pre className={styles.jsonData}>
                   {formatJSON(execution.output_data)}
                 </pre>

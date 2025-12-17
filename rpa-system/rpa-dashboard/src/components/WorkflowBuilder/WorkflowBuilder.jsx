@@ -441,10 +441,23 @@ const WorkflowBuilder = () => {
               }
             }
           } else if (actualStatus === 'completed' && execution.status === 'completed') {
-            // ✅ FIX: Show actionable next steps from metadata
-            const nextSteps = execution.metadata?.next_steps;
-            if (nextSteps && nextSteps.message) {
-              showSuccess(nextSteps.message);
+            // ✅ ENHANCEMENT: Show email-specific success message with details
+            const emailResult = execution.output_data?.email_result;
+            if (emailResult) {
+              const emailAddress = emailResult.to_email || emailResult.to || 'your email';
+              const template = emailResult.template || 'notification';
+              const status = emailResult.status || 'queued';
+              
+              if (status === 'queued' || status === 'sent') {
+                showSuccess(`📧 Email ${status === 'queued' ? 'queued' : 'sent'} successfully to ${emailAddress}! Check your inbox - your email should arrive shortly.`);
+              } else {
+                showSuccess(`✅ Workflow completed successfully!`);
+              }
+            } else {
+              // ✅ FIX: Show actionable next steps from metadata
+              const nextSteps = execution.metadata?.next_steps;
+              if (nextSteps && nextSteps.message) {
+                showSuccess(nextSteps.message);
               
               // Display next step actions if available
               if (nextSteps.actions && nextSteps.actions.length > 0) {

@@ -259,6 +259,52 @@
   margin-top: var(--spacing-sm);
 }
 
+/* ✅ ENHANCEMENT: Success Message for Email Results */
+.successMessage {
+  padding: var(--spacing-md, 1rem);
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border: 2px solid var(--color-success-500, #4caf50);
+  border-radius: var(--radius-lg, 8px);
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--color-success-800, #2e7d32);
+  margin-top: var(--spacing-md, 1rem);
+  line-height: 1.5;
+  box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+}
+
+.successMessage strong {
+  font-weight: var(--font-weight-bold, 600);
+  display: block;
+  margin-bottom: var(--spacing-sm, 0.75rem);
+  color: var(--color-success-900, #1b5e20);
+  font-size: var(--font-size-base, 1rem);
+}
+
+.emailDetails {
+  margin-top: var(--spacing-sm, 0.75rem);
+  padding-top: var(--spacing-sm, 0.75rem);
+  border-top: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.emailDetails p {
+  margin: var(--spacing-xs, 0.5rem) 0;
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--color-success-800, #2e7d32);
+}
+
+.emailDetails .checkInbox {
+  margin-top: var(--spacing-md, 1rem);
+  padding: var(--spacing-sm, 0.75rem);
+  background: rgba(255, 255, 255, 0.7);
+  border-left: 4px solid var(--color-success-500, #4caf50);
+  border-radius: var(--radius-sm, 4px);
+  font-weight: var(--font-weight-medium, 500);
+}
+
+.emailDetails .checkInbox strong {
+  color: var(--color-success-900, #1b5e20);
+}
+
 /* Error Message - Matches app theme */
 .errorMessage {
   padding: var(--spacing-md, 1rem);
