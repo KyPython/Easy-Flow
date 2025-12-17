@@ -158,7 +158,39 @@ rate(http_requests_total{status=~"5.."}[5m])
 
 ---
 
-## Step 4: Debugging Common Problems
+## Step 4: Finding Your Workflow Execution
+
+**Key Distinction:** Background tasks vs. Workflow Executions
+
+- **Background tasks** (like cleanup jobs) have empty `trace: {}` fields - these are NOT workflow executions
+- **Workflow executions** have `trace.traceId` populated - these are actual user requests/workflow runs
+
+**To find your workflow execution:**
+
+**1. In Grafana Explore → Tempo:**
+```
+{resource.service.name="rpa-system-backend"} && {name=~"workflow.execute.*"}
+```
+This shows only workflow execution traces, not background tasks.
+
+**2. In Grafana Explore → Loki:**
+```
+{job="easyflow-backend"} | json | trace_id != ""
+```
+This filters out background tasks (which have empty trace_id) and shows only logs with trace IDs.
+
+**3. Find logs for a specific trace:**
+- Get trace ID from Tempo (click on a trace)
+- In Loki, query: `{job="easyflow-backend"} | json | trace_id = "<trace-id>"`
+
+**4. Find workflow by execution ID:**
+```
+{job="easyflow-backend"} | json | execution_id = "<your-execution-id>"
+```
+
+---
+
+## Step 5: Debugging Common Problems
 
 ### Problem 1: "No data" or "0 series returned" in Tempo
 
