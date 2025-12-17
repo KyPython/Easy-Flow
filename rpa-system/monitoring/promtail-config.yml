@@ -209,6 +209,7 @@ scrape_configs:
           template: '{{ if .json_line }}{{ .json_line }}{{ else }}{{ .message }}{{ end }}'
       
       # Parse JSON logs from PM2 (Pino logger format)
+      # Only parse if we have valid JSON (after timestamp stripping)
       - json:
           expressions:
             level: level
@@ -224,6 +225,7 @@ scrape_configs:
             path: trace.path
             execution_id: error.execution_id
             workflow_id: error.workflow_id
+          drop_malformed: false  # Keep lines even if JSON parsing fails
 
       # Extract trace ID via regex fallback if JSON parsing didn't find it
       - regex:
@@ -251,6 +253,10 @@ scrape_configs:
           format: UnixMs
           action_on_failure: skip
 
-      # Output the log line
+      # Output the log line - use msg if available (from JSON), otherwise use original message
+      # Create a fallback field that uses msg if available, otherwise message
+      - template:
+          source: log_line
+          template: '{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}'
       - output:
-          source: msg
+          source: log_line
