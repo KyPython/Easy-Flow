@@ -195,6 +195,43 @@ for i in {1..30}; do
 done
 [ "$AUTO_OK" = false ] && { echo -e "${RED}✗ Automation worker failed to start${NC}"; echo -e "${YELLOW}Error logs:${NC}"; pm2 logs easyflow-automation --err --lines 20 --nostream; }
 
+# Wait for Prometheus to be ready, then reload config to pick up backend metrics
+echo -e "${YELLOW}Waiting for Prometheus to be ready...${NC}"
+PROMETHEUS_READY=false
+for i in {1..30}; do
+    if curl -s http://localhost:9090/-/healthy > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Prometheus is ready${NC}"
+        PROMETHEUS_READY=true
+        break
+    fi
+    sleep 1
+done
+
+if [ "$PROMETHEUS_READY" = true ] && [ "$BACKEND_OK" = true ]; then
+    echo -e "${YELLOW}Reloading Prometheus configuration to discover backend metrics...${NC}"
+    if curl -s -X POST http://localhost:9090/-/reload > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Prometheus configuration reloaded${NC}"
+        # Wait a bit for Prometheus to scrape targets
+        echo -e "${YELLOW}Waiting for Prometheus to scrape targets...${NC}"
+        sleep 10
+        # Check if targets are healthy
+        TARGETS_HEALTHY=false
+        for i in {1..6}; do
+            TARGETS_JSON=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null)
+            if echo "$TARGETS_JSON" | grep -q '"health":"up"' 2>/dev/null; then
+                UP_COUNT=$(echo "$TARGETS_JSON" | grep -o '"health":"up"' | wc -l | tr -d ' ')
+                echo -e "${GREEN}✓ Prometheus targets healthy ($UP_COUNT targets UP)${NC}"
+                TARGETS_HEALTHY=true
+                break
+            fi
+            sleep 5
+        done
+        [ "$TARGETS_HEALTHY" = false ] && echo -e "${YELLOW}⚠ Prometheus targets may still be initializing (check http://localhost:9090/targets)${NC}"
+    else
+        echo -e "${YELLOW}⚠ Could not reload Prometheus (may need manual reload at http://localhost:9090/-/reload)${NC}"
+    fi
+fi
+
 echo ""
 echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}All services started successfully!${NC}"
