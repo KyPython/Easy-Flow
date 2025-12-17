@@ -46,18 +46,18 @@ else
     echo -e "${YELLOW}⚠ Docker automation worker not running${NC}"
 fi
 
-# Stop Kafka and Zookeeper using docker-compose
+# Stop Kafka and Zookeeper using docker compose
 echo -e "${YELLOW}Stopping Kafka and Zookeeper...${NC}"
-if docker-compose stop kafka zookeeper 2>/dev/null; then
+if docker compose stop kafka zookeeper 2>/dev/null; then
     echo -e "${GREEN}✓ Kafka and Zookeeper stopped${NC}"
 else
-    echo -e "${YELLOW}⚠ Could not stop Kafka/Zookeeper via docker-compose${NC}"
+    echo -e "${YELLOW}⚠ Could not stop Kafka/Zookeeper via docker compose${NC}"
 fi
 
 # Stop Observability Stack
 echo -e "${YELLOW}Stopping Observability Stack...${NC}"
 if [ -f rpa-system/docker-compose.monitoring.yml ]; then
-    docker-compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null && echo -e "${GREEN}✓ Observability stack stopped${NC}" || echo -e "${YELLOW}⚠ Could not stop observability stack${NC}"
+    docker compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null && echo -e "${GREEN}✓ Observability stack stopped${NC}" || echo -e "${YELLOW}⚠ Could not stop observability stack${NC}"
     # Also remove any stale containers (all monitoring services, including manually started ones)
     docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
 else

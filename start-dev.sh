@@ -52,7 +52,7 @@ rm -f logs/*.log
 
 # Start Kafka and Zookeeper via Docker Compose
 echo -e "${YELLOW}Starting Kafka and Zookeeper...${NC}"
-docker-compose up -d kafka zookeeper
+docker compose up -d kafka zookeeper
 sleep 5
 
 # Initialize Kafka topics
@@ -65,11 +65,11 @@ echo -e "${YELLOW}Initializing Kafka topics...${NC}"
 # Start Observability Stack (Prometheus, Grafana, Loki, Tempo, OTEL Collector, Alertmanager)
 echo -e "${YELLOW}Starting Observability Stack...${NC}"
 # Clean up any existing monitoring containers first
-docker-compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null || true
+docker compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null || true
 # Remove stale containers that may conflict (including manually started ones)
 docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
 # Start all monitoring services
-docker-compose -f rpa-system/docker-compose.monitoring.yml up -d
+docker compose -f rpa-system/docker-compose.monitoring.yml up -d
 sleep 5
 
 # Wait for Grafana to be ready (it may restart due to datasource provisioning)

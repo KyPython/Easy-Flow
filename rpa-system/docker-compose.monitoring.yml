@@ -1,8 +1,6 @@
 # EasyFlow SLO Monitoring Stack - Observability Infrastructure Only
 # Focuses on the core monitoring components: OpenTelemetry, Prometheus, Grafana
 
-version: '3.8'
-
 services:
   # OpenTelemetry Collector - Central telemetry processing
   otel-collector:
