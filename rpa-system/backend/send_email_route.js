@@ -17,6 +17,17 @@ try {
 // Configure SendGrid if available
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
 const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || process.env.FROM_EMAIL || '';
+const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || 'EasyFlow'; // Optional: Display name for sender
+
+// Build FROM address with optional name: "Name <email@domain.com>" or just "email@domain.com"
+const getFromAddress = () => {
+  if (!SENDGRID_FROM_EMAIL) return '';
+  if (SENDGRID_FROM_NAME && SENDGRID_FROM_NAME !== 'EasyFlow') {
+    return `${SENDGRID_FROM_NAME} <${SENDGRID_FROM_EMAIL}>`;
+  }
+  return SENDGRID_FROM_EMAIL;
+};
+
 if (SENDGRID_API_KEY) {
 	try { sgMail.setApiKey(SENDGRID_API_KEY); } catch (_) {}
 }
@@ -75,7 +86,7 @@ router.post('/send', async (req, res) => {
 
 		const msg = {
 			to: to_email,
-			from: SENDGRID_FROM_EMAIL,
+			from: getFromAddress(), // Supports "Name <email@domain.com>" format
 			subject: resolvedSubject,
 			text: resolvedText,
 			html: resolvedHtml
