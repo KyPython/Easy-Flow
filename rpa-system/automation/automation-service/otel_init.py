@@ -46,10 +46,11 @@ def initialize_telemetry():
         from opentelemetry.semconv.resource import ResourceAttributes
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
         
-        # ✅ PART 2.2: Configure 10% sampling for cost optimization
+        # ✅ PART 2.2: Configure sampling with environment awareness
         from opentelemetry.sdk.trace.sampling import (
             ParentBased,
-            TraceIdRatioBased
+            TraceIdRatioBased,
+            AlwaysOn
         )
         
         # Configure resource with service name
@@ -63,11 +64,28 @@ def initialize_telemetry():
             'business.component': 'automation-worker'
         })
         
-        # ✅ PART 2.2: Configure sampler - parent-based sampling
-        # TEMPORARY: Using 100% sampling for initial Grafana Cloud verification
-        # TODO: Set OTEL_TRACE_SAMPLING_RATIO=0.1 after traces confirmed
-        sampling_ratio = float(os.getenv('OTEL_TRACE_SAMPLING_RATIO', '1.0'))
-        sampler = ParentBased(TraceIdRatioBased(sampling_ratio))
+        # ✅ PART 2.2: Configure sampler - parent-based sampling with environment awareness
+        # Environment-aware sampling strategy:
+        # - Development: AlwaysOn sampler - ensures ALL traces captured for debugging (100% sampling)
+        # - Production: Ratio-based sampling (default 10% = 0.1) - balances observability with performance
+        # 
+        # Override via OTEL_TRACE_SAMPLING_RATIO env var (only applies in production):
+        #   - 0.1 = 10% (default production)
+        #   - 0.01 = 1% (high volume production)
+        #   - 1.0 = 100% (force always-on, overrides environment detection)
+        env = os.getenv('ENV', os.getenv('NODE_ENV', 'production')).lower()
+        is_development = env in ('development', 'dev', 'local')
+        sampling_ratio_override = os.getenv('OTEL_TRACE_SAMPLING_RATIO')
+        
+        # Use AlwaysOn sampler in development, or if explicitly set to 1.0
+        # Otherwise use ratio-based sampling (default 10% in production)
+        use_always_on = is_development or (sampling_ratio_override and float(sampling_ratio_override) == 1.0)
+        sampling_ratio = float(sampling_ratio_override) if sampling_ratio_override else 0.1  # Default 10% for production
+        
+        if use_always_on:
+            sampler = ParentBased(AlwaysOn())  # Always sample in development
+        else:
+            sampler = ParentBased(TraceIdRatioBased(sampling_ratio))  # Ratio-based in production
         
         # Configure tracer provider
         tracer_provider = TracerProvider(
@@ -100,7 +118,9 @@ def initialize_telemetry():
         logger.info("✅ [Telemetry] OpenTelemetry Python worker instrumentation initialized")
         logger.info(f"✅ [Telemetry] Service Name: {SERVICE_NAME}")
         logger.info(f"✅ [Telemetry] OTLP Endpoint: {OTEL_EXPORTER_OTLP_ENDPOINT}")
-        logger.info(f"✅ [Telemetry] Trace Sampler: ParentBasedTraceIdRatio with {int(sampling_ratio * 100)}% sampling ratio")
+        sampler_type = 'AlwaysOnSampler' if use_always_on else f'TraceIdRatioBasedSampler({int(sampling_ratio * 100)}%)'
+        env_label = ' (development - always sample)' if is_development else ' (production)'
+        logger.info(f"✅ [Telemetry] Trace Sampler: ParentBased with {sampler_type}{env_label}")
         logger.info("✅ [Telemetry] OTEL Exporters: ACTIVE - Ready to stream to Grafana Cloud")
         
         return True

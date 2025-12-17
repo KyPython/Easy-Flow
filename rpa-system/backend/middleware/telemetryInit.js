@@ -331,17 +331,35 @@ try {
   prometheusExporter = null;
 }
 
-// ✅ OBSERVABILITY: Configure trace sampler with smart defaults
+// ✅ OBSERVABILITY: Configure trace sampler with environment-aware defaults
 // Uses ParentBasedSampler: preserves all traces initiated by sampled requests
-// Default: 10% sampling (0.1) - balances observability with performance
-// Set OTEL_TRACE_SAMPLING_RATIO=1.0 for 100% (debugging) or 0.01 for 1% (high volume)
-const samplingRatio = process.env.OTEL_TRACE_SAMPLING_RATIO ? parseFloat(process.env.OTEL_TRACE_SAMPLING_RATIO) : 0.1;
+// 
+// Environment-aware sampling strategy:
+// - Development: AlwaysOnSampler - ensures ALL traces captured for debugging (100% sampling)
+// - Production: Ratio-based sampling (default 10% = 0.1) - balances observability with performance
+// 
+// Override via OTEL_TRACE_SAMPLING_RATIO env var (only applies in production):
+//   - 0.1 = 10% (default production)
+//   - 0.01 = 1% (high volume production)
+//   - 1.0 = 100% (force always-on, overrides environment detection)
+const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';
+const samplingRatioOverride = process.env.OTEL_TRACE_SAMPLING_RATIO ? parseFloat(process.env.OTEL_TRACE_SAMPLING_RATIO) : null;
+
+// Use AlwaysOnSampler in development, or if explicitly set to 1.0
+// Otherwise use ratio-based sampling (default 10% in production)
+const useAlwaysOn = isDevelopment || samplingRatioOverride === 1.0;
+const samplingRatio = samplingRatioOverride || 0.1; // Default 10% for production
+
 const sampler = new ParentBasedSampler({
-  root: new TraceIdRatioBasedSampler(samplingRatio), // Configurable sampling for root spans
+  root: useAlwaysOn 
+    ? new AlwaysOnSampler()  // Always sample in development
+    : new TraceIdRatioBasedSampler(samplingRatio), // Ratio-based in production
   remoteParentSampled: new AlwaysOnSampler(), // Always sample if parent was sampled
   remoteParentNotSampled: new AlwaysOnSampler(), // Sample even if parent wasn't (for flexibility)
   localParentSampled: new AlwaysOnSampler(), // Always sample if local parent was sampled
-  localParentNotSampled: new TraceIdRatioBasedSampler(samplingRatio) // Configurable sampling for local unsampled parents
+  localParentNotSampled: useAlwaysOn
+    ? new AlwaysOnSampler()  // Always sample in development
+    : new TraceIdRatioBasedSampler(samplingRatio) // Ratio-based in production
 });
 
 // ✅ INSTRUCTION 1: Create custom span processor for sensitive data redaction (Gap 14)
@@ -729,7 +747,9 @@ try {
   logger.info(`✅ [Telemetry] Deployment Environment: ${deploymentEnvironment}`);
   logger.info(`✅ [Telemetry] OTLP Endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4318'}`);
   logger.info(`✅ [Telemetry] OTLP Headers: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? 'CONFIGURED ✓' : '❌ MISSING - Traces will NOT reach Grafana!'}`);
-  logger.info(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with ${(samplingRatio * 100).toFixed(0)}% sampling ratio`);
+  const samplerType = useAlwaysOn ? 'AlwaysOnSampler' : `TraceIdRatioBasedSampler(${(samplingRatio * 100).toFixed(0)}%)`;
+  const envLabel = isDevelopment ? ' (development - always sample)' : ' (production)';
+  logger.info(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with ${samplerType}${envLabel}`);
   logger.info(`✅ [Telemetry] Data Redaction: Active (Gap 14 - sensitive data removed)`);
   logger.info(`✅ [Telemetry] Prometheus Metrics: http://localhost:${PROMETHEUS_METRICS_PORT}/metrics`);
   logger.info('✅ [Telemetry] OTEL Exporters: ACTIVE - Ready to stream to Grafana Cloud');
