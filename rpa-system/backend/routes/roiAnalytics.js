@@ -146,16 +146,24 @@ router.get('/time-savings', requireFeature('analytics'), async (req, res) => {
       const savedMinutes = exec.estimated_time_saved || getDefaultTimeSaving(exec.task_type);
       totalEstimatedSaved += savedMinutes;
 
-      // By task type
-      if (!taskTypeSavings[exec.task_type]) {
-        taskTypeSavings[exec.task_type] = { total: 0, count: 0 };
+      // ✅ SECURITY: Prevent prototype pollution by validating task_type
+      // Only allow alphanumeric, underscore, and hyphen characters
+      const taskType = exec.task_type;
+      const isValidTaskType = taskType && typeof taskType === 'string' && /^[a-zA-Z0-9_-]+$/.test(taskType);
+      if (isValidTaskType) {
+        // By task type - safe to use as object key after validation
+        if (!taskTypeSavings[taskType]) {
+          taskTypeSavings[taskType] = { total: 0, count: 0 };
+        }
+        taskTypeSavings[taskType].total += savedMinutes;
+        taskTypeSavings[taskType].count += 1;
       }
-      taskTypeSavings[exec.task_type].total += savedMinutes;
-      taskTypeSavings[exec.task_type].count += 1;
 
-      // By day
-      const day = exec.created_at.split('T')[0];
-      dailySavings[day] = (dailySavings[day] || 0) + savedMinutes;
+      // ✅ SECURITY: Validate day string to prevent prototype pollution
+      const day = exec.created_at ? exec.created_at.split('T')[0] : null;
+      if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        dailySavings[day] = (dailySavings[day] || 0) + savedMinutes;
+      }
     });
 
     timeSavingsAnalysis.total_time_saved_minutes = totalEstimatedSaved;

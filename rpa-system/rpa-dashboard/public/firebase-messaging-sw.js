@@ -199,6 +199,14 @@ self.addEventListener('install', (event) => {
 
 // Handle messages from the main thread
 self.addEventListener('message', (event) => {
+  // ✅ SECURITY: Validate message origin to prevent XSS attacks
+  // Only accept messages from the same origin
+  const allowedOrigin = self.location.origin;
+  if (event.origin && event.origin !== allowedOrigin) {
+    console.warn('[firebase-messaging-sw.js] Rejected message from unauthorized origin:', event.origin);
+    return;
+  }
+  
   console.log('[firebase-messaging-sw.js] Received message:', event.data);
   
   if (event.data && event.data.type === 'SKIP_WAITING') {

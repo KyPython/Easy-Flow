@@ -186,7 +186,7 @@ export const useWorkflowExecutions = (workflowId) => {
   };
 
   // Start a new workflow execution
-  const startExecution = async (inputData = {}) => {
+  const startExecution = async (inputData = {}, retryCount = 0) => {
     try {
       const client = await initSupabase();
       const { data: session } = await client.auth.getSession();
@@ -205,6 +205,24 @@ export const useWorkflowExecutions = (workflowId) => {
       // ✅ UX: Parse and enhance error messages for better user experience
       if (result.error) {
         const errorMessage = result.error;
+        const errorCode = result.code || '';
+        
+        // ✅ UX: Auto-retry for Firebase token blocking errors (backend safety check)
+        // This happens when workflow execution is triggered too soon after Firebase token request
+        // We automatically retry once after a short delay to improve UX
+        if ((errorMessage.includes('Firebase token request') || errorCode === 'INVALID_TRIGGER_SOURCE') && retryCount === 0) {
+          const timeSinceFirebaseToken = result.time_since_firebase_token_ms || 0;
+          // Backend blocks for 7 seconds, so wait until 8 seconds total have passed to ensure we're past the blocking window
+          // Add 500ms buffer to account for timing variations
+          const waitTime = Math.max(2000, 8500 - timeSinceFirebaseToken); // Wait at least 2s, or until 8.5s total has passed
+          
+          console.log(`⏳ Workflow execution blocked by Firebase token check (${timeSinceFirebaseToken}ms since token). Auto-retrying in ${waitTime}ms...`);
+          
+          // Wait and retry once
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          return startExecution(inputData, retryCount + 1);
+        }
+        
         let enhancedError = new Error(errorMessage);
         
         // Map common backend errors to user-friendly messages
@@ -216,6 +234,9 @@ export const useWorkflowExecutions = (workflowId) => {
           enhancedError = new Error('💡 Save your workflow first, then you can run it!');
         } else if (errorMessage.includes('not active') || errorMessage.includes('paused')) {
           enhancedError = new Error('⏸️ Activate your workflow before running it.');
+        } else if (errorMessage.includes('Firebase token request') || errorCode === 'INVALID_TRIGGER_SOURCE') {
+          // ✅ UX: If retry failed, show user-friendly message
+          enhancedError = new Error('⏳ System is initializing. Please try again in a moment.');
         }
         
         enhancedError.status = response.status || 500;
@@ -227,6 +248,20 @@ export const useWorkflowExecutions = (workflowId) => {
       
       return result;
     } catch (err) {
+      // ✅ UX: Check if this is the Firebase token blocking error from axios
+      if (err?.response?.data?.code === 'INVALID_TRIGGER_SOURCE' && retryCount === 0) {
+        const timeSinceFirebaseToken = err.response.data.time_since_firebase_token_ms || 0;
+        // Backend blocks for 7 seconds, so wait until 8 seconds total have passed to ensure we're past the blocking window
+        // Add 500ms buffer to account for timing variations
+        const waitTime = Math.max(2000, 8500 - timeSinceFirebaseToken); // Wait at least 2s, or until 8.5s total has passed
+        
+        console.log(`⏳ Workflow execution blocked by Firebase token check (${timeSinceFirebaseToken}ms since token). Auto-retrying in ${waitTime}ms...`);
+        
+        // Wait and retry once
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        return startExecution(inputData, retryCount + 1);
+      }
+      
       console.error('Error starting execution:', err);
       // ✅ UX: Preserve enhanced error messages
       throw err;

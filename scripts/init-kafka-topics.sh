@@ -10,11 +10,32 @@ echo "🔧 Initializing Kafka topics for Easy-Flow"
 echo "=========================================="
 
 # Wait for Kafka to be ready
+# Use kafka-broker-api-versions as it's faster and more reliable than kafka-topics --list
 echo "⏳ Waiting for Kafka to be ready..."
-timeout 60s bash -c "until docker exec $KAFKA_CONTAINER kafka-topics --bootstrap-server $KAFKA_BOOTSTRAP --list >/dev/null 2>&1; do echo '  Waiting for Kafka...'; sleep 2; done" || {
-  echo "❌ ERROR: Kafka did not become ready in time"
+MAX_WAIT=90  # Increased timeout to 90 seconds for slower systems
+WAIT_COUNT=0
+while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+  # Check if Kafka broker is responding using broker API versions (faster check)
+  if docker exec $KAFKA_CONTAINER kafka-broker-api-versions --bootstrap-server $KAFKA_BOOTSTRAP 2>&1 | grep -q "broker"; then
+    # Double-check with topics list to ensure full readiness
+    if docker exec $KAFKA_CONTAINER kafka-topics --bootstrap-server $KAFKA_BOOTSTRAP --list >/dev/null 2>&1; then
+      echo "✅ Kafka is ready"
+      break
+    fi
+  fi
+  echo "  Waiting for Kafka... ($((WAIT_COUNT + 1))s)"
+  sleep 2
+  WAIT_COUNT=$((WAIT_COUNT + 2))
+done
+
+if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+  echo "❌ ERROR: Kafka did not become ready in time (waited ${MAX_WAIT}s)"
+  echo "⚠️  Kafka container status:"
+  docker ps --filter "name=$KAFKA_CONTAINER" --format "table {{.Names}}\t{{.Status}}"
+  echo "⚠️  Kafka logs (last 10 lines):"
+  docker logs $KAFKA_CONTAINER --tail 10 2>&1 | sed 's/^/  /'
   exit 1
-}
+fi
 
 echo "✅ Kafka is ready"
 

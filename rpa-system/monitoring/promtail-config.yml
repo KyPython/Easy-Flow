@@ -228,12 +228,6 @@ scrape_configs:
           source: message
           template: '{{ if .json_line }}{{ .json_line }}{{ else }}{{ .message }}{{ end }}'
       
-      # CRITICAL: Drop empty lines to prevent <no value> in Loki
-      # If after processing we have an empty message, drop it entirely
-      - drop:
-          expression: '^\s*$'
-          drop_counter_reason: "empty_line"
-      
       # Parse JSON logs from PM2 (Pino logger format)
       # Only parse if we have valid JSON (after timestamp stripping)
       - json:
@@ -279,10 +273,19 @@ scrape_configs:
           format: UnixMs
           action_on_failure: skip
 
+      # CRITICAL: Drop empty lines AFTER timestamp stripping but BEFORE JSON parsing
+      # This prevents empty messages from being processed further
+      - drop:
+          expression: '^\s*$'
+          drop_counter_reason: "empty_message_after_timestamp_strip"
+      
       # Output the log line - use msg if available (from JSON), otherwise use original message
-      # Create a fallback field that uses msg if available, otherwise message
+      # CRITICAL: Only create log_line if we have content (msg or message)
+      # If both are empty, the drop stage above should have caught it
       - template:
           source: log_line
-          template: '{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}'
+          template: '{{ if .msg }}{{ .msg }}{{ else if .message }}{{ .message }}{{ end }}'
+      
+      # Output the final log line (only if log_line has content)
       - output:
           source: log_line

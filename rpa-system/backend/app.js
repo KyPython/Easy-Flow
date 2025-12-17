@@ -62,7 +62,8 @@ const contextLoggerMiddleware = traceContextMiddleware;
 const { requestLoggingMiddleware } = require('./middleware/structuredLogging');
  const { createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
- const morgan = require('morgan');
+ // ✅ REMOVED: morgan middleware - conflicts with structured logging (causes <no value> in Loki)
+ // const morgan = require('morgan');
  const path = require('path');
 const { startEmailWorker } = require('./workers/email_worker');
 const { spawn } = require('child_process');
@@ -199,10 +200,14 @@ app.options('*', cors(corsOptions));
 app.options('/*', (req, res) => {
   // ✅ SECURITY: Restrict CORS origin instead of using wildcard '*'
   // Only allow specific origins or the requesting origin
-  const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+  // ✅ SECURITY: Restrict CORS to specific origins only - never use wildcard '*'
+  const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) : ['http://localhost:3000'];
   const origin = req.headers.origin;
-  const corsOrigin = (origin && allowedOrigins.includes(origin)) ? origin : (allowedOrigins.length > 0 ? allowedOrigins[0] : '*');
-  res.header('Access-Control-Allow-Origin', corsOrigin);
+  // Only allow requests from whitelisted origins
+  const corsOrigin = (origin && allowedOrigins.includes(origin)) ? origin : (allowedOrigins.length > 0 ? allowedOrigins[0] : null);
+  if (corsOrigin) {
+    res.header('Access-Control-Allow-Origin', corsOrigin);
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -1022,18 +1027,97 @@ try {
 // ✅ CRITICAL: Mount specific workflow execution route BEFORE generic /api/workflows routes
 // This ensures /api/workflows/execute matches correctly and doesn't get intercepted
 // by other /api/workflows routes that might have catch-all handlers
+// ✅ CRITICAL: Track recent Firebase token requests to prevent workflow execution from same trace
+// This prevents the frontend from accidentally triggering workflows after getting Firebase tokens
+// Set to 7 seconds - blocks immediate accidental triggers, allows frontend auto-retry to succeed
+const recentFirebaseTokenTraces = new Map(); // traceId -> timestamp
+const FIREBASE_TOKEN_TRACE_TTL = 7000; // 7 seconds - block workflow execution for 7s after Firebase token request (catches accidental triggers, frontend auto-retries after this)
+
+// Cleanup old entries every minute
+setInterval(() => {
+  const now = Date.now();
+  for (const [traceId, timestamp] of recentFirebaseTokenTraces.entries()) {
+    if (now - timestamp > FIREBASE_TOKEN_TRACE_TTL) {
+      recentFirebaseTokenTraces.delete(traceId);
+    }
+  }
+}, 60000); // Run cleanup every minute
+
 try {
   const { WorkflowExecutor } = require('./services/workflowExecutor');
   app.post('/api/workflows/execute', authMiddleware, requireWorkflowRun, apiLimiter, async (req, res) => {
+    // ✅ CRITICAL DEFENSIVE: Block workflow execution if this request came from a non-execution endpoint
+    // Check multiple indicators to prevent accidental triggers from other endpoints
+    const referer = req.get('Referer') || '';
+    const originalUrl = req.originalUrl || req.url || '';
+    const traceId = req.traceId || req.headers['x-trace-id'] || 'unknown';
+    
+    // ✅ BLOCK METHOD 1: Check referer header
+    if (referer.includes('/api/firebase/token') || originalUrl.includes('/firebase/token')) {
+      logger.error('[POST /api/workflows/execute] ⚠️ BLOCKED: Workflow execution triggered from Firebase token endpoint (referer check)', {
+        userId: req.user?.id,
+        referer,
+        originalUrl,
+        traceId,
+        workflowId: req.body?.workflowId,
+        stackTrace: new Error().stack?.split('\n').slice(0, 10).join('\n')
+      });
+      return res.status(400).json({
+        error: 'Workflow execution cannot be triggered from Firebase token endpoint',
+        code: 'INVALID_TRIGGER_SOURCE',
+        message: 'Workflows must be executed directly via POST /api/workflows/execute',
+        trace_id: traceId
+      });
+    }
+    
+    // ✅ BLOCK METHOD 2: Check if this trace ID recently requested a Firebase token
+    // This catches cases where the frontend makes separate HTTP requests with the same trace ID
+    // CRITICAL: Only block if the time is WITHIN the TTL window, not if the trace ID exists at all
+    if (recentFirebaseTokenTraces.has(traceId)) {
+      const firebaseTokenTime = recentFirebaseTokenTraces.get(traceId);
+      const timeSinceFirebaseToken = Date.now() - firebaseTokenTime;
+      
+      // ✅ CRITICAL FIX: Only block if within the TTL window
+      // If time has exceeded TTL, allow the request and clean up the trace ID
+      if (timeSinceFirebaseToken <= FIREBASE_TOKEN_TRACE_TTL) {
+        logger.error('[POST /api/workflows/execute] ⚠️ BLOCKED: Workflow execution triggered shortly after Firebase token request (trace ID check)', {
+          userId: req.user?.id,
+          traceId,
+          workflowId: req.body?.workflowId,
+          timeSinceFirebaseToken: `${timeSinceFirebaseToken}ms`,
+          firebaseTokenRequestTime: new Date(firebaseTokenTime).toISOString(),
+          ttl: `${FIREBASE_TOKEN_TRACE_TTL}ms`,
+          stackTrace: new Error().stack?.split('\n').slice(0, 10).join('\n')
+        });
+        return res.status(400).json({
+          error: 'Workflow execution cannot be triggered immediately after Firebase token request',
+          code: 'INVALID_TRIGGER_SOURCE',
+          message: 'Workflows must be executed directly via POST /api/workflows/execute, not as a side effect of Firebase token generation',
+          trace_id: traceId,
+          time_since_firebase_token_ms: timeSinceFirebaseToken
+        });
+      } else {
+        // Time has exceeded TTL - clean up the trace ID and allow the request
+        recentFirebaseTokenTraces.delete(traceId);
+        logger.info('[POST /api/workflows/execute] ✅ Allowing workflow execution - Firebase token TTL expired', {
+          traceId,
+          timeSinceFirebaseToken: `${timeSinceFirebaseToken}ms`,
+          ttl: `${FIREBASE_TOKEN_TRACE_TTL}ms`
+        });
+      }
+    }
+    
     // ✅ DEFENSIVE: Log route entry with full context to diagnose incorrect calls
     logger.info('[POST /api/workflows/execute] Route handler called', {
       userId: req.user?.id,
       method: req.method,
       path: req.path,
       originalUrl: req.originalUrl,
+      referer: referer,
       workflowId: req.body?.workflowId,
       triggeredBy: req.body?.triggeredBy,
       hasInputData: !!req.body?.inputData,
+      traceId: traceId,
       stackTrace: new Error().stack?.split('\n').slice(0, 5).join('\n') // Capture call stack
     });
     
@@ -1044,7 +1128,7 @@ try {
       if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
 
       const executor = new WorkflowExecutor();
-      logger.info('[API] execute request', { userId, workflowId, triggeredBy });
+      logger.info('[API] execute request', { userId, workflowId, triggeredBy, traceId });
       let execution;
       try {
         execution = await executor.startExecution({
@@ -5243,9 +5327,21 @@ const adminAuthMiddleware = (req, res, next) => {
 
 // Firebase custom token endpoint
 app.post('/api/firebase/token', authMiddleware, async (req, res) => {
+  // ✅ CRITICAL DEFENSIVE: This endpoint MUST NEVER trigger workflow execution
+  // Set a flag on the request object to prevent any downstream code from triggering workflows
+  req._firebaseTokenEndpoint = true;
+  req._workflowExecutionBlocked = true; // Global flag to block workflow execution
+  
   // ✅ DEFENSIVE: Log entry to track this endpoint and prevent workflow execution
   const firebaseTokenTraceId = req.traceId || req.headers['x-trace-id'] || 'unknown';
-  logger.info('[POST /api/firebase/token] Route handler called', {
+  
+  // ✅ CRITICAL: Record this trace ID to block workflow execution for the next 30 seconds
+  // This prevents the frontend from accidentally triggering workflows after getting Firebase tokens
+  if (firebaseTokenTraceId && firebaseTokenTraceId !== 'unknown') {
+    recentFirebaseTokenTraces.set(firebaseTokenTraceId, Date.now());
+  }
+  
+  logger.info('[POST /api/firebase/token] Route handler called - WORKFLOW EXECUTION BLOCKED', {
     userId: req.user?.id,
     method: req.method,
     path: req.path,
@@ -5255,23 +5351,38 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
     hasExecutionId: !!(req.body?.executionId),
     bodyKeys: req.body ? Object.keys(req.body) : [],
     caller_ip: req.ip,
-    user_agent: req.get('User-Agent')
+    user_agent: req.get('User-Agent'),
+    workflowExecutionBlocked: true,
+    traceIdRecorded: firebaseTokenTraceId !== 'unknown'
   });
 
   try {
-    // ✅ DEFENSIVE: Block any attempt to execute workflows from this endpoint
+    // ✅ CRITICAL DEFENSIVE: Block any attempt to execute workflows from this endpoint
     // This endpoint is ONLY for Firebase token generation - workflow execution is NOT allowed
-    if (req.body && (req.body.workflowId || req.body.executionId || req.body.triggerExecution)) {
+    // Check multiple possible ways workflow execution might be triggered
+    const hasWorkflowParams = req.body && (
+      req.body.workflowId || 
+      req.body.executionId || 
+      req.body.triggerExecution ||
+      req.body.workflow_id ||
+      req.body.execute ||
+      req.query?.workflowId ||
+      req.query?.execute
+    );
+    
+    if (hasWorkflowParams) {
       logger.error('[POST /api/firebase/token] ⚠️ BLOCKED: Attempt to execute workflow from Firebase token endpoint', {
         userId: req.user?.id,
-        workflowId: req.body.workflowId,
-        executionId: req.body.executionId,
-        triggerExecution: req.body.triggerExecution,
+        workflowId: req.body?.workflowId || req.query?.workflowId,
+        executionId: req.body?.executionId,
+        triggerExecution: req.body?.triggerExecution,
         trace_id: firebaseTokenTraceId,
         span_id: req.spanId,
         caller_ip: req.ip,
         user_agent: req.get('User-Agent'),
-        full_body: JSON.stringify(req.body)
+        full_body: JSON.stringify(req.body),
+        query_params: JSON.stringify(req.query),
+        stackTrace: new Error().stack?.split('\n').slice(0, 10).join('\n')
       });
       return res.status(400).json({ 
         error: 'Workflow execution is not allowed via this endpoint.',
@@ -5597,8 +5708,8 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
     }
     logger.info(`[FILE UPLOAD] Storage upload successful: ${uploadData?.path}`);
     
-    // Calculate MD5 checksum
-    const checksum = crypto.createHash('md5').update(file.data).digest('hex');
+    // ✅ SECURITY: Use SHA-256 instead of MD5 for checksum (MD5 is cryptographically broken)
+    const checksum = crypto.createHash('sha256').update(file.data).digest('hex');
     
     // Save metadata to files table
     logger.info(`[FILE UPLOAD] Saving metadata to database for file: ${file.name}`);
@@ -5611,7 +5722,7 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
       file_size: file.size,
       mime_type: file.mimetype,
       file_extension: fileExt.slice(1),
-      checksum_md5: checksum,
+      checksum_sha256: checksum, // Changed from MD5 to SHA-256 for security
       folder_path: req.body.folder_path || '/',
       tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : req.body.tags.split(',')) : [],
       metadata: req.body.category ? { category: req.body.category } : {}

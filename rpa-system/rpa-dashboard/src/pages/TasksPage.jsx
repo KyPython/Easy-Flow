@@ -34,12 +34,9 @@ const TasksPage = () => {
       // Update immediately - no debounce needed here since UrlInput already handles it
       setTargetUrl(url.trim());
       
-      // Check if it's a known test site and auto-populate credentials
-      const testSites = [
-        { url: 'https://httpbin.org/forms/post', username: 'testuser', password: 'testpass123' },
-        { url: 'https://jsonplaceholder.typicode.com', username: 'demo@jsonplaceholder.com', password: 'demo123' },
-        { url: 'https://reqres.in', username: 'eve.holt@reqres.in', password: 'cityslicka' },
-      ];
+      // ✅ SECURITY: Removed hardcoded passwords - use environment variables or user input only
+      // Test sites can be configured via environment variables if needed
+      const testSites = process.env.REACT_APP_TEST_SITES ? JSON.parse(process.env.REACT_APP_TEST_SITES) : [];
       const matchedSite = testSites.find(site => url.trim().startsWith(site.url));
       if (matchedSite) {
         setTestSiteConfig({

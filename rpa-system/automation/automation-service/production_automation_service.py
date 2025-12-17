@@ -435,9 +435,27 @@ def process_automation_task(task_data):
                         import web_automation
                     
                     task_logger.info(f"📥 Starting invoice download from: {pdf_url}")
-                    # ✅ SECURITY: download_pdf() sanitizes task_data['download_path'] internally to prevent path traversal
-                    # (os.path.abspath + os.path.normpath + safe_base check in web_automation.py lines 519-527)
-                    # Snyk flags this as path traversal, but it's a false positive - the path is validated and sanitized
+                    # ✅ SECURITY: Explicitly validate and sanitize download_path before passing to download_pdf
+                    # This prevents path traversal attacks even if download_pdf is called incorrectly
+                    import os
+                    import tempfile
+                    raw_download_path = task_data.get('download_path', tempfile.gettempdir())
+                    # Normalize and validate path to prevent directory traversal
+                    if raw_download_path and isinstance(raw_download_path, str):
+                        # Remove any path traversal attempts
+                        normalized_path = os.path.normpath(raw_download_path).replace('..', '').replace('~', '')
+                        # Ensure path is absolute and within safe directory
+                        safe_base = os.path.abspath(tempfile.gettempdir())
+                        abs_path = os.path.abspath(normalized_path)
+                        if not abs_path.startswith(safe_base):
+                            task_logger.warning(f"Download path {abs_path} outside safe directory, using temp directory")
+                            task_data['download_path'] = safe_base
+                        else:
+                            task_data['download_path'] = abs_path
+                    else:
+                        task_data['download_path'] = tempfile.gettempdir()
+                    
+                    # download_pdf() also sanitizes internally as a defense-in-depth measure
                     download_result = web_automation.download_pdf(pdf_url, task_data)
                     # ✅ SECURITY: download_pdf also validates the path internally to prevent path traversal
                     if download_result.get('success'):
@@ -689,9 +707,12 @@ def trigger_automation():
         logger.error(f"Failed to queue task on Kafka: {e}")
         return jsonify({'error': f'Failed to queue task on Kafka: {e}'}), 500
     except Exception as e:
+        import traceback
+        # ✅ SECURITY: Log full error details server-side for debugging
         logger.error(f"Unexpected error: {e}")
+        logger.debug(f"Full traceback: {traceback.format_exc()}")
         # ✅ SECURITY: Don't expose full stack trace to prevent information disclosure
-        # Log full details server-side, but return generic error to client
+        # Return generic error message to client
         import traceback
         logger.error(f"Full error details: {traceback.format_exc()}")
         return jsonify({'error': 'An internal error occurred. Please try again later.'}), 500

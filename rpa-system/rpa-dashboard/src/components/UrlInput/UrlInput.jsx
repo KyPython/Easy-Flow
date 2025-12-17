@@ -20,7 +20,8 @@ const demoSites = [
     name: '🎯 Try Demo Portal', 
     url: `${getApiBaseUrl()}/demo`,
     username: 'demo@useeasyflow.com',
-    password: 'demo123',
+    // ✅ SECURITY: Removed hardcoded password - users should enter their own credentials
+    password: '',
     description: 'EasyFlow demo invoice portal - always available, always works!'
   },
 ];

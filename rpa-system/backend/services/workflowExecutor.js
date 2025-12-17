@@ -809,12 +809,18 @@ class WorkflowExecutor {
       
       // Find the start step - check workflow_steps first, then canvas_config
       let steps = workflow.workflow_steps || [];
+      let connections = workflow.workflow_connections || [];
       
-      // If no steps in workflow_steps table, try to parse from canvas_config
-      if (steps.length === 0 && workflow.canvas_config) {
-        this.logger.info('[WorkflowExecutor] No steps in workflow_steps, parsing from canvas_config', {
+      // ✅ FIX: Parse canvas_config if steps OR connections are missing
+      // This handles cases where steps exist but connections don't (e.g., after UI save)
+      const needsCanvasParse = (steps.length === 0 || connections.length === 0) && workflow.canvas_config;
+      
+      if (needsCanvasParse) {
+        this.logger.info('[WorkflowExecutor] Parsing canvas_config (missing steps or connections)', {
           workflow_id: workflow.id,
           has_canvas_config: !!workflow.canvas_config,
+          existing_steps_count: steps.length,
+          existing_connections_count: connections.length,
           execution_id: execution.id
         });
         
@@ -836,11 +842,13 @@ class WorkflowExecutor {
             execution_id: execution.id
           });
           
-          // Convert canvas nodes to step format
-          if (canvasConfig.nodes && Array.isArray(canvasConfig.nodes)) {
-            const crypto = require('crypto');
-            const nodeIdToUuidMap = new Map();
-            
+          const crypto = require('crypto');
+          const nodeIdToUuidMap = new Map();
+          
+          // ✅ CRITICAL FIX: Only create NEW steps if steps don't exist
+          // If steps exist, we need to build a map from their step_key to UUID
+          if (steps.length === 0 && canvasConfig.nodes && Array.isArray(canvasConfig.nodes)) {
+            // No steps exist - create them from canvas_config
             steps = canvasConfig.nodes.map(node => {
               // ✅ FIX: Check both node.data.stepType and node.type, with detailed logging
               let stepType = node.data?.stepType || node.type || 'unknown';
@@ -897,6 +905,7 @@ class WorkflowExecutor {
             });
             
             // ✅ FIX: Insert steps into database so foreign keys work
+            // Only insert if we created new steps (steps.length was 0 before)
             const stepsToInsert = steps.map(step => ({
               id: step.id,
               workflow_id: step.workflow_id,
@@ -922,53 +931,145 @@ class WorkflowExecutor {
               throw new Error(`Failed to persist workflow steps: ${insertError.message}`);
             }
             
-            // ✅ FIX: Parse edges and convert to workflow_connections
-            if (canvasConfig.edges && Array.isArray(canvasConfig.edges)) {
-              const connections = canvasConfig.edges.map(edge => {
-                const sourceUuid = nodeIdToUuidMap.get(edge.source);
-                const targetUuid = nodeIdToUuidMap.get(edge.target);
-                return {
-                  id: crypto.randomUUID(),
-                  workflow_id: workflow.id,
-                  source_step_id: sourceUuid,
-                  target_step_id: targetUuid,
-                  connection_type: edge.type || 'next',
-                  condition: edge.data?.condition || edge.data?.conditions || {}
-                };
-              }).filter(conn => conn.source_step_id && conn.target_step_id);
-              
-              // Insert connections into database
-              if (connections.length > 0) {
-                const { error: connError } = await this.supabase
-                  .from('workflow_connections')
-                  .insert(connections);
-                
-                if (connError) {
-                  this.logger.error('[WorkflowExecutor] Failed to insert connections', {
-                    workflow_id: workflow.id,
-                    error: connError.message,
-                    execution_id: execution.id
-                  });
-                }
+            // Update workflow object with persisted steps
+            workflow.workflow_steps = steps;
+          } else if (steps.length > 0) {
+            // Steps already exist - build nodeIdToUuidMap from existing steps
+            // This allows us to map canvas node IDs to existing step UUIDs for connections
+            steps.forEach(step => {
+              if (step.step_key) {
+                nodeIdToUuidMap.set(step.step_key, step.id);
               }
-              
-              workflow.workflow_connections = connections;
-            } else {
-              workflow.workflow_connections = [];
-            }
+            });
             
-            this.logger.info('[WorkflowExecutor] Parsed and persisted steps from canvas_config', {
+            this.logger.info('[WorkflowExecutor] Using existing steps, built nodeIdToUuidMap', {
               workflow_id: workflow.id,
               steps_count: steps.length,
-              step_types: steps.map(s => s.step_type),
-              all_steps: steps.map(s => ({ id: s.id, type: s.step_type, name: s.name })),
-              connections_count: workflow.workflow_connections.length,
+              mapped_keys: Array.from(nodeIdToUuidMap.keys()),
+              execution_id: execution.id
+            });
+          }
+          
+          // ✅ FIX: Parse edges and convert to workflow_connections
+          // Only parse if connections are missing (don't overwrite existing connections)
+          if (connections.length === 0 && canvasConfig.edges && Array.isArray(canvasConfig.edges)) {
+            // ✅ CRITICAL FIX: If steps already exist, we MUST use their existing UUIDs
+            // Build a map from step_key (canvas node ID) to step UUID from database
+            const stepKeyToUuidMap = new Map();
+            
+            // Always build the map from existing steps first
+            if (steps.length > 0) {
+              // Steps already exist - use their step_key to map to UUIDs
+              steps.forEach(step => {
+                if (step.step_key) {
+                  stepKeyToUuidMap.set(step.step_key, step.id);
+                }
+              });
+              
+              this.logger.info('[WorkflowExecutor] Built step_key to UUID map from existing steps', {
+                workflow_id: workflow.id,
+                steps_count: steps.length,
+                mapped_keys: Array.from(stepKeyToUuidMap.keys()),
+                execution_id: execution.id
+              });
+            }
+            
+            // If we just created new steps, merge nodeIdToUuidMap with stepKeyToUuidMap
+            // Otherwise, use only stepKeyToUuidMap (existing steps)
+            const idMap = nodeIdToUuidMap.size > 0 
+              ? new Map([...stepKeyToUuidMap, ...nodeIdToUuidMap]) // Merge both maps
+              : stepKeyToUuidMap; // Use existing steps only
+            
+            this.logger.info('[WorkflowExecutor] Mapping canvas edges to step UUIDs', {
+              workflow_id: workflow.id,
+              edges_count: canvasConfig.edges.length,
+              id_map_size: idMap.size,
+              id_map_keys: Array.from(idMap.keys()),
               execution_id: execution.id
             });
             
-            // ✅ FIX: Update workflow object with persisted steps
-            workflow.workflow_steps = steps;
+            const parsedConnections = canvasConfig.edges.map(edge => {
+              const sourceUuid = idMap.get(edge.source);
+              const targetUuid = idMap.get(edge.target);
+              
+              if (!sourceUuid || !targetUuid) {
+                this.logger.warn('[WorkflowExecutor] Could not map edge to step UUIDs', {
+                  workflow_id: workflow.id,
+                  edge_source: edge.source,
+                  edge_target: edge.target,
+                  source_uuid: sourceUuid || 'NOT_FOUND',
+                  target_uuid: targetUuid || 'NOT_FOUND',
+                  available_keys: Array.from(idMap.keys()),
+                  execution_id: execution.id
+                });
+              }
+              
+              return {
+                id: crypto.randomUUID(),
+                workflow_id: workflow.id,
+                source_step_id: sourceUuid,
+                target_step_id: targetUuid,
+                connection_type: edge.type || 'next',
+                condition: edge.data?.condition || edge.data?.conditions || {}
+              };
+            }).filter(conn => conn.source_step_id && conn.target_step_id);
+            
+            // Insert connections into database
+            if (parsedConnections.length > 0) {
+              const { error: connError } = await this.supabase
+                .from('workflow_connections')
+                .insert(parsedConnections);
+              
+              if (connError) {
+                this.logger.error('[WorkflowExecutor] Failed to insert connections', {
+                  workflow_id: workflow.id,
+                  error: connError.message,
+                  error_details: connError,
+                  execution_id: execution.id
+                });
+              } else {
+                this.logger.info('[WorkflowExecutor] Successfully parsed and inserted connections from canvas_config', {
+                  workflow_id: workflow.id,
+                  connections_count: parsedConnections.length,
+                  connections: parsedConnections.map(c => ({
+                    source: c.source_step_id,
+                    target: c.target_step_id,
+                    type: c.connection_type
+                  })),
+                  execution_id: execution.id
+                });
+              }
+              
+              // Update workflow object with parsed connections
+              workflow.workflow_connections = parsedConnections;
+              connections = parsedConnections;
+            } else {
+              this.logger.warn('[WorkflowExecutor] No valid connections found in canvas_config edges', {
+                workflow_id: workflow.id,
+                edges_count: canvasConfig.edges.length,
+                execution_id: execution.id
+              });
+              workflow.workflow_connections = [];
+            }
+          } else if (connections.length === 0) {
+            // No edges in canvas_config and no existing connections
+            this.logger.warn('[WorkflowExecutor] No connections found in canvas_config or database', {
+              workflow_id: workflow.id,
+              has_edges: !!(canvasConfig.edges && Array.isArray(canvasConfig.edges)),
+              edges_count: canvasConfig.edges?.length || 0,
+              execution_id: execution.id
+            });
+            workflow.workflow_connections = [];
           }
+          
+          this.logger.info('[WorkflowExecutor] Parsed canvas_config', {
+            workflow_id: workflow.id,
+            steps_count: steps.length,
+            step_types: steps.map(s => s.step_type),
+            all_steps: steps.map(s => ({ id: s.id, type: s.step_type, name: s.name })),
+            connections_count: workflow.workflow_connections?.length || 0,
+            execution_id: execution.id
+          });
         } catch (parseError) {
           this.logger.error('[WorkflowExecutor] Failed to parse canvas_config', {
             workflow_id: workflow.id,
@@ -2141,7 +2242,8 @@ class WorkflowExecutor {
 
         const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
         const baseMs = Number(config?.retries?.baseMs || 300);
-        const checksum = crypto.createHash('md5').update(buffer).digest('hex');
+        // ✅ SECURITY: Use SHA-256 instead of MD5 (MD5 is cryptographically broken)
+        const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
 
   const backoff = await this._withBackoff(async () => {
           // Upload to Supabase storage in the same bucket the Files UI uses
@@ -2166,7 +2268,7 @@ class WorkflowExecutor {
               file_size: buffer.length,
               mime_type: mimeType,
               file_extension: (ext || '').replace(/^\./, ''),
-              checksum_md5: checksum,
+              checksum_sha256: checksum, // Changed from MD5 to SHA-256 for security
               folder_path: destination || '/',
               category: config?.category || null,
               tags: Array.isArray(config?.tags) ? config.tags : (typeof config?.tags === 'string' ? config.tags.split(',').map(t => t.trim()).filter(Boolean) : [])

@@ -654,7 +654,8 @@ def download_pdf(pdf_url, task_data):
                             # ✅ Create file record in files table so it appears in Files page
                             try:
                                 import hashlib
-                                file_content_hash = hashlib.md5(file_content).hexdigest()
+                                # ✅ SECURITY: Use SHA-256 instead of MD5 (MD5 is cryptographically broken)
+                                file_content_hash = hashlib.sha256(file_content).hexdigest()
                                 
                                 file_record = {
                                     "user_id": str(user_id),  # Ensure string format
@@ -665,7 +666,7 @@ def download_pdf(pdf_url, task_data):
                                     "file_size": file_size,
                                     "mime_type": "application/pdf",
                                     "file_extension": "pdf",
-                                    "checksum_md5": file_content_hash,
+                                    "checksum_sha256": file_content_hash, # Changed from MD5 to SHA-256 for security
                                     "folder_path": "/invoices",
                                     "tags": ["automation", "invoice"],
                                     "metadata": {

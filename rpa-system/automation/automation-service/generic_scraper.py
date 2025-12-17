@@ -97,6 +97,25 @@ def scrape_web_page(url, task_data=None):
     # Handle API/JSON endpoints
     if task_data.get('extract_json') or task_data.get('method') == 'GET':
         try:
+            # ✅ SECURITY: Validate URL to prevent SSRF attacks
+            from urllib.parse import urlparse
+            parsed_url = urlparse(url)
+            if parsed_url.scheme not in ('http', 'https'):
+                return {
+                    'status': 'error',
+                    'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'
+                }
+            # Block private/internal IP addresses to prevent SSRF
+            hostname = parsed_url.hostname
+            if hostname:
+                # Block localhost and private IP ranges
+                blocked_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1']
+                if hostname.lower() in blocked_hosts or hostname.startswith('192.168.') or hostname.startswith('10.') or hostname.startswith('172.'):
+                    return {
+                        'status': 'error',
+                        'error': 'Access to private/internal IP addresses is not allowed for security reasons.'
+                    }
+            
             import requests
             response = requests.get(url, timeout=10)
             if response.headers.get('content-type', '').startswith('application/json'):
