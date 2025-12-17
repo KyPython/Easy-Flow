@@ -1405,31 +1405,41 @@ class WorkflowExecutor {
         return;
       }
 
-      // ✅ OBSERVABILITY: Get actual steps_executed from database to verify execution
+      // ✅ OBSERVABILITY: Get actual steps_executed by counting completed step_executions
+      // This is more reliable than reading steps_executed from execution record
+      const { data: stepExecutions } = await this.supabase
+        .from('step_executions')
+        .select('id, status')
+        .eq('workflow_execution_id', execution.id);
+      
+      const actualStepsExecuted = stepExecutions?.filter(se => se.status === 'completed').length || 0;
       const { data: executionStatus } = await this.supabase
         .from('workflow_executions')
-        .select('steps_executed, steps_total')
+        .select('steps_total')
         .eq('id', execution.id)
         .single();
       
-      const actualStepsExecuted = executionStatus?.steps_executed || 0;
       const totalSteps = executionStatus?.steps_total || workflow.workflow_steps?.length || 0;
       
       this.logger.info('Workflow execution result', {
         execution_id: execution.id,
         result_success: result.success,
         actual_steps_executed: actualStepsExecuted,
+        step_executions_total: stepExecutions?.length || 0,
+        step_executions_completed: actualStepsExecuted,
         total_steps: totalSteps,
         trace_id: span.spanContext().traceId
       });
       
       span.setAttributes({
         'workflow.actual_steps_executed': actualStepsExecuted,
-        'workflow.steps_total': totalSteps
+        'workflow.steps_total': totalSteps,
+        'workflow.step_executions_count': stepExecutions?.length || 0
       });
 
           if (result.success) {
             // ✅ CRITICAL FIX: If no steps executed but workflow has steps, mark as failed
+            // Use actual step_executions count instead of database field
             if (totalSteps > 0 && actualStepsExecuted === 0) {
               const errorMsg = 'Workflow execution failed. Please try running the workflow again.';
               
