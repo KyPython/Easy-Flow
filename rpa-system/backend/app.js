@@ -1019,6 +1019,65 @@ try {
   rootLogger.warn('executionRoutes not mounted', { error: e?.message || e });
 }
 
+// ✅ CRITICAL: Mount specific workflow execution route BEFORE generic /api/workflows routes
+// This ensures /api/workflows/execute matches correctly and doesn't get intercepted
+// by other /api/workflows routes that might have catch-all handlers
+try {
+  const { WorkflowExecutor } = require('./services/workflowExecutor');
+  app.post('/api/workflows/execute', authMiddleware, requireWorkflowRun, apiLimiter, async (req, res) => {
+    // ✅ DEFENSIVE: Log route entry with full context to diagnose incorrect calls
+    logger.info('[POST /api/workflows/execute] Route handler called', {
+      userId: req.user?.id,
+      method: req.method,
+      path: req.path,
+      originalUrl: req.originalUrl,
+      workflowId: req.body?.workflowId,
+      triggeredBy: req.body?.triggeredBy,
+      hasInputData: !!req.body?.inputData,
+      stackTrace: new Error().stack?.split('\n').slice(0, 5).join('\n') // Capture call stack
+    });
+    
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+      const { workflowId, inputData = {}, triggeredBy = 'manual', triggerData = {} } = req.body || {};
+      if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
+
+      const executor = new WorkflowExecutor();
+      logger.info('[API] execute request', { userId, workflowId, triggeredBy });
+      let execution;
+      try {
+        execution = await executor.startExecution({
+          workflowId,
+          userId,
+          triggeredBy,
+          triggerData,
+          inputData
+        });
+      } catch (e) {
+        const msg = e?.message || '';
+        // Map domain errors to explicit HTTP statuses for clearer client handling
+        if (msg.includes('Workflow not found')) {
+          logger.warn('[API] workflow not found:', { workflowId, userId, message: msg });
+          return res.status(404).json({ error: msg });
+        }
+        if (msg.includes('Workflow is not active')) {
+          logger.warn('[API] workflow not active:', { workflowId, userId, message: msg });
+          return res.status(409).json({ error: msg });
+        }
+        // For other well-known executor errors that might indicate bad input, map to 400
+        if (msg.includes('Invalid') || msg.includes('missing')) {
+          return res.status(400).json({ error: msg });
+        }
+        throw e;
+      }
+
+      return res.json({ execution });
+    } catch (err) {
+      logger.error('[API] /api/workflows/execute error:', err);
+      return res.status(500).json({ error: err?.message || 'Failed to start execution' });
+    }
+  });
 
   // ✅ SPRINT: One-click retry endpoint for failed workflows
   app.post('/api/workflows/:executionId/retry', authMiddleware, requireWorkflowRun, apiLimiter, async (req, res) => {
