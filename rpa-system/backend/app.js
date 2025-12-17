@@ -614,10 +614,22 @@ try {
     // This reads from the global MeterProvider set by the SDK
     app.get('/metrics', prometheusExporter.getMetricsRequestHandler());
     logger.info('✅ [Telemetry] Prometheus metrics endpoint mounted at /metrics (also available on port 9091)');
+  } else {
+    // Fallback: Return empty metrics if PrometheusExporter is not available
+    app.get('/metrics', (req, res) => {
+      res.set('Content-Type', 'text/plain; version=0.0.4');
+      res.send('# Prometheus metrics endpoint\n# OpenTelemetry PrometheusExporter not available\n');
+      logger.debug('ℹ️ [Telemetry] /metrics endpoint accessed but PrometheusExporter not available');
+    });
+    logger.warn('⚠️ [Telemetry] PrometheusExporter not available - /metrics endpoint returns empty metrics');
   }
 } catch (e) {
-  // PrometheusExporter might not be available - that's okay, metrics still work via OTLP
-  logger.debug('ℹ️ [Telemetry] PrometheusExporter not available for Express mounting:', e.message);
+  // Fallback: Return empty metrics if there's an error loading PrometheusExporter
+  app.get('/metrics', (req, res) => {
+    res.set('Content-Type', 'text/plain; version=0.0.4');
+    res.send('# Prometheus metrics endpoint\n# OpenTelemetry PrometheusExporter not available\n');
+  });
+  logger.warn('⚠️ [Telemetry] PrometheusExporter not available for Express mounting:', e.message);
 }
 
 // Mount business metrics endpoint in Prometheus format
