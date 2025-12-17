@@ -318,10 +318,9 @@ try {
     endpoint: '/metrics',
     preventServerStart: true  // Don't start server yet - wait for SDK.start() to set MeterProvider
   });
-  console.log(`[Telemetry] PrometheusExporter created (will start after SDK initialization)`);
   logger.info(`✅ [Telemetry] PrometheusExporter created (will start after SDK initialization)`);
 } catch (promError) {
-  console.error(`[Telemetry] PrometheusExporter creation error:`, promError);
+  logger.error(`[Telemetry] PrometheusExporter creation error:`, promError);
   if (promError.code === 'EADDRINUSE') {
     logger.warn(`⚠️ [Telemetry] Port ${PROMETHEUS_METRICS_PORT} already in use - Prometheus metrics may not be available`);
   } else {
@@ -712,7 +711,7 @@ try {
   if (prometheusExporter) {
     try {
       const meterProvider = metrics.getMeterProvider();
-      console.log(`[Telemetry] Starting PrometheusExporter server, MeterProvider: ${meterProvider ? 'SET' : 'NOT SET'}`);
+      logger.info(`[Telemetry] Starting PrometheusExporter server, MeterProvider: ${meterProvider ? 'SET' : 'NOT SET'}`);
       
       // Create and record a test metric BEFORE starting the server to ensure MeterProvider is working
       const testMeter = meterProvider.getMeter('easyflow-prometheus-test', '1.0.0');
@@ -720,23 +719,23 @@ try {
         description: 'Test counter to verify PrometheusExporter is reading metrics'
       });
       testCounter.add(1, { component: 'telemetry_init' });
-      console.log(`[Telemetry] Test metric created and recorded`);
+      logger.info(`[Telemetry] Test metric created and recorded`);
       
       // Start the PrometheusExporter server - it reads from global MeterProvider automatically
       // Use a small delay to ensure MeterProvider is fully initialized
       setTimeout(() => {
         prometheusExporter.startServer();
-        console.log(`[Telemetry] Prometheus metrics server started on port ${PROMETHEUS_METRICS_PORT}`);
+        logger.info(`[Telemetry] Prometheus metrics server started on port ${PROMETHEUS_METRICS_PORT}`);
         logger.info(`✅ [Telemetry] Prometheus metrics server started on port ${PROMETHEUS_METRICS_PORT}`);
         logger.info(`✅ [Telemetry] Prometheus metrics endpoint: http://localhost:${PROMETHEUS_METRICS_PORT}/metrics`);
         logger.info(`✅ [Telemetry] Global MeterProvider is set: ${meterProvider ? 'YES' : 'NO'}`);
       }, 100);
     } catch (promError) {
-      console.error(`[Telemetry] Prometheus exporter server start failed:`, promError.message);
+      logger.error(`[Telemetry] Prometheus exporter server start failed:`, promError.message);
       logger.warn(`⚠️ [Telemetry] Prometheus exporter server start failed: ${promError.message}`);
     }
   } else {
-    console.log(`[Telemetry] PrometheusExporter not available - metrics exported via OTLP only`);
+    logger.info(`[Telemetry] PrometheusExporter not available - metrics exported via OTLP only`);
     logger.info(`ℹ️ [Telemetry] PrometheusExporter not available - metrics exported via OTLP only`);
   }
   
