@@ -1073,6 +1073,18 @@ try {
 try {
   const { WorkflowExecutor } = require('./services/workflowExecutor');
   app.post('/api/workflows/execute', authMiddleware, requireWorkflowRun, apiLimiter, async (req, res) => {
+    // ✅ DEFENSIVE: Log route entry with full context to diagnose incorrect calls
+    logger.info('[POST /api/workflows/execute] Route handler called', {
+      userId: req.user?.id,
+      method: req.method,
+      path: req.path,
+      originalUrl: req.originalUrl,
+      workflowId: req.body?.workflowId,
+      triggeredBy: req.body?.triggeredBy,
+      hasInputData: !!req.body?.inputData,
+      stackTrace: new Error().stack?.split('\n').slice(0, 5).join('\n') // Capture call stack
+    });
+    
     try {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
