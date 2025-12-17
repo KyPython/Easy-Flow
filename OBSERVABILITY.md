@@ -36,12 +36,12 @@ This starts your app (backend, frontend, automation worker) AND the observabilit
 
 **Start only observability stack (if app is already running):**
 ```bash
-docker-compose -f rpa-system/docker-compose.monitoring.yml up -d
+docker compose -f rpa-system/docker-compose.monitoring.yml up -d
 ```
 
 **Stop only observability stack:**
 ```bash
-docker-compose -f rpa-system/docker-compose.monitoring.yml down
+docker compose -f rpa-system/docker-compose.monitoring.yml down
 ```
 
 **Verify observability stack is running:**
