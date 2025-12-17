@@ -196,6 +196,18 @@ scrape_configs:
           __path__: /app/logs/automation-worker.log
 
     pipeline_stages:
+      # CRITICAL: Strip PM2 timestamp prefix before JSON parsing
+      # PM2 adds timestamp prefix like "2025-12-16 22:10:24: " before JSON logs
+      # This regex extracts just the JSON part after the timestamp
+      - regex:
+          expression: '^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}:\s+(?P<json_line>.*)$'
+          source: message
+      
+      # Use extracted JSON line if available, otherwise use original message
+      - template:
+          source: message
+          template: '{{ if .json_line }}{{ .json_line }}{{ else }}{{ .message }}{{ end }}'
+      
       # Parse JSON logs from PM2 (Pino logger format)
       - json:
           expressions:
