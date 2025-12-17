@@ -5,11 +5,11 @@
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  padding: 2rem;
+  padding: var(--spacing-xl);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background-color: var(--color-error-50);
-  margin: 1rem 0;
+  margin: var(--spacing-md) 0;
 }
 
 .errorContent {
