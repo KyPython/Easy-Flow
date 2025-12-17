@@ -129,6 +129,15 @@
   --hover-bg: var(--color-primary-50);
   --active-bg: var(--color-primary-100);
   --focus-ring: 0 0 0 3px var(--color-primary-100);
+  
+  /* Overlay and backdrop */
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+  --overlay-bg-light: rgba(0, 0, 0, 0.4);
+  --overlay-bg-dark: rgba(0, 0, 0, 0.8);
+  
+  /* Success color variants */
+  --color-success-800: #166534;
+  --color-success-900: #14532d;
 }
 
 /* Dark theme overrides with enhanced blue branding */
@@ -184,6 +193,15 @@
   --hover-bg: var(--color-gray-200);
   --active-bg: var(--color-gray-300);
   --focus-ring: 0 0 0 3px var(--color-primary-200);
+  
+  /* Dark theme overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.75);
+  --overlay-bg-light: rgba(0, 0, 0, 0.5);
+  --overlay-bg-dark: rgba(0, 0, 0, 0.9);
+  
+  /* Success color variants for dark theme */
+  --color-success-800: #22c55e;
+  --color-success-900: #16a34a;
 }
 
 /* Brand-specific utility classes */
