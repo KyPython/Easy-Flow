@@ -136,14 +136,16 @@ services:
       timeout: 10s
       retries: 3
 
-  # Promtail - Log shipper to Loki using Docker logging driver
+  # Promtail - Log shipper to Loki using Docker API streaming
+  # CRITICAL: Only Docker socket is needed - Promtail streams logs directly from Docker API
+  # Removed /var/lib/docker/containers mount as we're not tailing files anymore
+  # This eliminates filesystem buffering delays and provides real-time log capture
   promtail:
     image: grafana/promtail:latest
     container_name: easyflow-promtail
     volumes:
       - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # Access Docker socket for service discovery
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro  # Read Docker container JSON logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Access Docker socket for API-based log streaming
       - promtail-positions:/tmp
     command: -config.file=/etc/promtail/config.yml
     networks:
