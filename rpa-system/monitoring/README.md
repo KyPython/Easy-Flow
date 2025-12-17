@@ -5,19 +5,28 @@ Complete observability infrastructure for EasyFlow including metrics, logs, trac
 ## Quick Start
 
 ```bash
-# Start monitoring stack
-docker-compose -f docker-compose.monitoring.yml up -d
+# Start monitoring stack (from project root or monitoring directory)
+./rpa-system/monitoring/start-observability.sh
 
-# Access Grafana
-open http://localhost:3001
-# Default: admin/admin123
+# Or manually:
+cd rpa-system
+docker compose -f docker-compose.monitoring.yml up -d
 
-# Access Prometheus
-open http://localhost:9090
+# Stop monitoring stack
+./rpa-system/monitoring/stop-observability.sh
 
-# Access Alertmanager
-open http://localhost:9093
+# Or manually:
+cd rpa-system
+docker compose -f docker-compose.monitoring.yml down
 ```
+
+**Access URLs:**
+- Grafana: http://localhost:3001 (admin/admin123)
+- Prometheus: http://localhost:9090
+- Alertmanager: http://localhost:9093
+- Tempo: http://localhost:3200
+- Loki: http://localhost:3100
+- OTEL Collector: http://localhost:4318
 
 ## Setup Alerts (Email + SMS)
 
@@ -79,7 +88,8 @@ View active alerts: http://localhost:9090/alerts
 
 **Scripts:**
 - `setup-alerts.sh` - Generate alertmanager config from env vars
-- `start-observability.sh` - Startup script
+- `start-observability.sh` - Start the monitoring stack
+- `stop-observability.sh` - Stop the monitoring stack
 
 **Templates:**
 - `alertmanager.yml.template` - Template for alert setup script
