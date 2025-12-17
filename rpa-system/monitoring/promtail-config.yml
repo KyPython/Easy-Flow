@@ -42,20 +42,20 @@ scrape_configs:
 
       # Map container names to job names for better organization
       # These specific rules run AFTER the default rule, so they can overwrite it
-      # This ensures containers like rpa-system-backend or just "backend" get mapped to easyflow-backend
+      # Matches various naming patterns: easy-flow-backend-1, easyflow-backend, rpa-system-backend, backend
       # Note: Docker container names include leading slash, so "backend" becomes "/backend"
       - source_labels: [__meta_docker_container_name]
-        regex: '.*(easyflow-backend|rpa-system-backend|/backend$).*'
+        regex: '.*(easy-flow-backend|easyflow-backend|rpa-system-backend|/backend$).*'
         target_label: job
         replacement: 'easyflow-backend'
 
       - source_labels: [__meta_docker_container_name]
-        regex: '.*(easyflow-frontend|rpa-dashboard).*'
+        regex: '.*(easy-flow-rpa-dashboard|easyflow-frontend|rpa-dashboard).*'
         target_label: job
         replacement: 'easyflow-frontend'
 
       - source_labels: [__meta_docker_container_name]
-        regex: '.*(automation-worker|automation-service).*'
+        regex: '.*(easy-flow-automation-worker|automation-worker|automation-service).*'
         target_label: job
         replacement: 'easyflow-automation'
 
