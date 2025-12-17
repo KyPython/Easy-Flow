@@ -188,6 +188,37 @@ This filters out background tasks (which have empty trace_id) and shows only log
 {job="easyflow-backend"} | json | execution_id = "<your-execution-id>"
 ```
 
+**5. Understanding the "No Steps Executed" Error:**
+
+If you see `❌ Workflow marked as completed but no steps executed` in logs:
+
+**Root Cause:** The workflow completes immediately after the start step because `getNextSteps()` returns an empty array. This happens when:
+- No `workflow_connections` exist linking the start step to action steps
+- Connections exist but target step IDs don't match any workflow steps
+- Connection conditions don't match (e.g., `success` connection when `data.success === false`)
+
+**Debugging Steps:**
+
+1. **Check workflow connections in Loki:**
+```
+{job="easyflow-backend"} | json | msg =~ "Workflow structure before execution"
+```
+Look for `connections_from_start: 0` - this means no connections from start step.
+
+2. **Check if connections exist but aren't matching:**
+```
+{job="easyflow-backend"} | json | msg =~ "No connections found from current step"
+```
+This shows which step has no outgoing connections.
+
+3. **Verify workflow structure:**
+```
+{job="easyflow-backend"} | json | msg =~ "Workflow structure before execution" | json | all_connections
+```
+This shows all connections in the workflow.
+
+**Fix:** Ensure your workflow canvas has edges connecting the start node to action nodes. The backend expects `workflow_connections` table entries with `source_step_id` and `target_step_id` matching the step UUIDs.
+
 ---
 
 ## Step 5: Debugging Common Problems

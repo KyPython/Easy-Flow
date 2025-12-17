@@ -1008,6 +1008,39 @@ class WorkflowExecutor {
       // Update workflow object to use parsed steps
       workflow.workflow_steps = steps;
       
+      // ✅ DEBUG: Log workflow connections to help diagnose "no steps executed" issues
+      this.logger.info('[WorkflowExecutor] Workflow structure before execution', {
+        workflow_id: workflow.id,
+        execution_id: execution.id,
+        total_steps: workflow.workflow_steps.length,
+        total_connections: workflow.workflow_connections?.length || 0,
+        start_step_id: startStep.id,
+        start_step_name: startStep.name,
+        connections_from_start: (workflow.workflow_connections || []).filter(
+          conn => conn.source_step_id === startStep.id
+        ).length,
+        all_connections: (workflow.workflow_connections || []).map(conn => ({
+          source: conn.source_step_id,
+          target: conn.target_step_id,
+          type: conn.connection_type
+        })),
+        step_types: workflow.workflow_steps.map(s => ({
+          id: s.id,
+          type: s.step_type,
+          name: s.name
+        }))
+      });
+      
+      // ✅ FIX: Warn if no connections exist (workflow will complete immediately)
+      if (!workflow.workflow_connections || workflow.workflow_connections.length === 0) {
+        this.logger.error('[WorkflowExecutor] ⚠️ No workflow connections found - workflow will complete without executing steps', {
+          workflow_id: workflow.id,
+          execution_id: execution.id,
+          total_steps: workflow.workflow_steps.length,
+          start_step_id: startStep.id
+        });
+      }
+      
           // ✅ FIX: Update status before executing steps with step count
       await this._updateExecutionStatus(
         execution.id, 
@@ -2775,6 +2808,22 @@ class WorkflowExecutor {
         conn => conn.source_step_id === currentStep.id
       );
       
+      // ✅ DEBUG: Log connection lookup to help diagnose "no steps executed" issues
+      if (connections.length === 0) {
+        this.logger.warn('[WorkflowExecutor] No connections found from current step', {
+          current_step_id: currentStep.id,
+          current_step_name: currentStep.name,
+          current_step_type: currentStep.step_type,
+          total_connections: workflow.workflow_connections?.length || 0,
+          available_connections: (workflow.workflow_connections || []).map(conn => ({
+            source: conn.source_step_id,
+            target: conn.target_step_id,
+            type: conn.connection_type
+          })),
+          workflow_id: workflow.id
+        });
+      }
+      
       const nextSteps = [];
       
       for (const connection of connections) {
@@ -2803,8 +2852,28 @@ class WorkflowExecutor {
           );
           if (nextStep) {
             nextSteps.push(nextStep);
+          } else {
+            // ✅ DEBUG: Log if connection target step not found
+            this.logger.warn('[WorkflowExecutor] Connection target step not found', {
+              connection_source: connection.source_step_id,
+              connection_target: connection.target_step_id,
+              connection_type: connection.connection_type,
+              available_step_ids: workflow.workflow_steps.map(s => s.id),
+              workflow_id: workflow.id
+            });
           }
         }
+      }
+      
+      // ✅ DEBUG: Log result
+      if (nextSteps.length === 0 && connections.length > 0) {
+        this.logger.warn('[WorkflowExecutor] Connections exist but none matched conditions', {
+          current_step_id: currentStep.id,
+          connections_count: connections.length,
+          data_success: data.success,
+          data_conditionResult: data.conditionResult,
+          workflow_id: workflow.id
+        });
       }
       
       return nextSteps;
