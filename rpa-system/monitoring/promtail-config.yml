@@ -114,9 +114,12 @@ scrape_configs:
       # Stage 3: Trace stage - Extract trace_id as internal field (label) for Loki
       # This tells Loki to treat trace_id as a trace identifier, making it discoverable by Grafana
       # The label enables fast filtering: {trace_id="75ae2874a1cf402204aa76b473332b6f"}
+      # 
+      # CRITICAL: Do NOT extract 'service' label here - it's already set in relabel_configs
+      # If application log doesn't contain service field, this would overwrite the correct
+      # service label with empty value, causing Loki indexing issues and "no logs found" errors
       - labels:
           level:
-          service:
           logger:
           trace_id: # Index trace_id as a label - enables fast filtering and trace discovery
       
@@ -143,12 +146,13 @@ scrape_configs:
           format: UnixMs  # Pino's time field is in milliseconds, not seconds
           action_on_failure: skip
       
-      # Stage 5: Output formatting - Add traceId to log content for Grafana derived fields
-      # This ensures trace IDs are present in log content for Tempo trace discovery
-      # Grafana's derived fields will extract this and link to Tempo
+      # Stage 5: Output formatting - Use original Docker log content with traceId appended
+      # CRITICAL: Use docker_log (original application log) instead of reconstructing from msg
+      # This preserves the original log structure while using the accurate Docker timestamp
+      # Append traceId to the log content for Grafana derived fields to extract
       - template:
           source: output
-          template: '{{ .msg }}{{ if .trace_id }} traceId="{{ .trace_id }}"{{ end }}'
+          template: '{{ .docker_log }}{{ if .trace_id }} traceId="{{ .trace_id }}"{{ end }}'
       
       - output:
           source: output
