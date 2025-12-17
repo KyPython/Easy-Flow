@@ -17,21 +17,21 @@ scrape_configs:
   # CRITICAL: Using Docker API directly (not file tailing) eliminates filesystem buffering delays
   # This ensures logs are captured in real-time without the 5-10 second delay from file I/O buffering
   # By NOT setting __path__ to a file path, Promtail uses Docker's API to stream logs directly
-  # 
+  #
   # Note: No name filters - relabel_configs below handle categorization more robustly
   # This ensures we don't accidentally miss logs from new services
   - job_name: easyflow-services
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
         refresh_interval: 5s
-    
+
     relabel_configs:
       # Extract container name (remove leading slash)
       - source_labels: [__meta_docker_container_name]
         regex: '/(.*)'
         target_label: container_name
         replacement: '${1}'
-      
+
       # Default job name (use container name) - MUST come first
       # This sets a default job label for all containers, which can then be overwritten
       # by more specific rules below. This ensures consistent labeling.
@@ -39,7 +39,7 @@ scrape_configs:
         regex: '/(.*)'
         target_label: job
         replacement: '${1}'
-      
+
       # Map container names to job names for better organization
       # These specific rules run AFTER the default rule, so they can overwrite it
       # This ensures containers like rpa-system-backend get mapped to easyflow-backend
@@ -47,31 +47,31 @@ scrape_configs:
         regex: '.*(easyflow-backend|rpa-system-backend).*'
         target_label: job
         replacement: 'easyflow-backend'
-      
+
       - source_labels: [__meta_docker_container_name]
         regex: '.*(easyflow-frontend|rpa-dashboard).*'
         target_label: job
         replacement: 'easyflow-frontend'
-      
+
       - source_labels: [__meta_docker_container_name]
         regex: '.*(automation-worker|automation-service).*'
         target_label: job
         replacement: 'easyflow-automation'
-      
+
       # Set service label based on job
       - source_labels: [job]
         target_label: service
         replacement: '${1}'
-      
+
       # Set environment label
       - target_label: environment
         replacement: 'development'
-      
+
       # CRITICAL: Do NOT set __path__ to a file path
       # By omitting __path__, Promtail uses Docker's API directly to stream logs
       # This eliminates filesystem buffering delays and provides real-time log capture
       # The docker_sd_configs automatically provides the correct target for Docker API log streaming
-    
+
     pipeline_stages:
       # Stage 0: Parse Docker's JSON log format
       # Docker wraps each log line in JSON: {"log":"<application log>","stream":"stdout","time":"<timestamp>"}
@@ -81,7 +81,7 @@ scrape_configs:
             docker_log: log
             docker_stream: stream
             docker_time: time
-      
+
       # Stage 1: Parse application log JSON without discarding Docker fields
       # Parse the docker_log field as JSON to extract application log fields
       # CRITICAL: Using source: docker_log preserves docker_time field from Stage 0
@@ -91,50 +91,50 @@ scrape_configs:
           expressions:
             level: level
             msg: msg
-            app_time: time  # Renamed to avoid conflict with docker_time
-            app_timestamp: timestamp  # Renamed to avoid conflict with docker_time
+            app_time: time
+            app_timestamp: timestamp
             service: service
             logger: logger
-            trace_id: trace.traceId  # Primary extraction: from JSON structure
+            trace_id: trace.traceId
             span_id: trace.spanId
             user_id: trace.userId
             method: trace.method
             path: trace.path
             execution_id: error.execution_id
             workflow_id: error.workflow_id
-      
+
       # Stage 2: Regex fallback - Extract trace ID if JSON parsing didn't find it
       # This handles non-JSON logs or logs where traceId is in a different format
       # Looks for any 32-character hexadecimal string (standard trace ID format)
       - regex:
           expression: '(?P<trace_id_fallback>[0-9a-fA-F]{32})'
           source: msg
-      
+
       # Merge: Use JSON-extracted trace_id if available, otherwise use regex fallback
       - template:
           source: trace_id
           template: '{{ if .trace_id }}{{ .trace_id }}{{ else if .trace_id_fallback }}{{ .trace_id_fallback }}{{ end }}'
-      
+
       # Stage 3: Trace stage - Extract trace_id as internal field (label) for Loki
       # This tells Loki to treat trace_id as a trace identifier, making it discoverable by Grafana
       # The label enables fast filtering: {trace_id="75ae2874a1cf402204aa76b473332b6f"}
-      # 
+      #
       # CRITICAL: Do NOT extract 'service' label here - it's already set in relabel_configs
       # If application log doesn't contain service field, this would overwrite the correct
       # service label with empty value, causing Loki indexing issues and "no logs found" errors
       - labels:
           level:
           logger:
-          trace_id: # Index trace_id as a label - enables fast filtering and trace discovery
-      
+          trace_id:
+
       # Stage 4: Timestamp handling - Ensure logs have correct timestamps
       # CRITICAL FIX: Use Docker's timestamp as primary source (most accurate)
-      # 
+      #
       # Priority order (stops at first successful parse):
       # 1. Docker's timestamp (RFC3339Nano) - Most reliable, represents actual log capture time
       # 2. Application timestamp field (RFC3339 ISO format from Pino) - Fallback if Docker time missing
       # 3. Application time field (UnixMs - milliseconds) - Fallback if timestamp field missing
-      # 
+      #
       # Note: Promtail processes timestamp stages sequentially. If a timestamp stage fails,
       # it continues to the next one. We use 'skip' to prevent overwriting a successfully parsed timestamp.
       - timestamp:
@@ -147,9 +147,9 @@ scrape_configs:
           action_on_failure: skip
       - timestamp:
           source: app_time
-          format: UnixMs  # Pino's time field is in milliseconds, not seconds
+          format: UnixMs
           action_on_failure: skip
-      
+
       # Stage 5: Output formatting - Use original Docker log content with traceId appended
       # CRITICAL: Use docker_log (original application log) instead of reconstructing from msg
       # This preserves the original log structure while using the accurate Docker timestamp
@@ -157,6 +157,6 @@ scrape_configs:
       - template:
           source: output
           template: '{{ .docker_log }}{{ if .trace_id }} traceId="{{ .trace_id }}"{{ end }}'
-      
+
       - output:
           source: output
