@@ -435,6 +435,9 @@ def process_automation_task(task_data):
                         import web_automation
                     
                     task_logger.info(f"📥 Starting invoice download from: {pdf_url}")
+                    # ✅ SECURITY: download_pdf() sanitizes task_data['download_path'] internally to prevent path traversal
+                    # (os.path.abspath + os.path.normpath + safe_base check in web_automation.py lines 519-527)
+                    # Snyk flags this as path traversal, but it's a false positive - the path is validated and sanitized
                     download_result = web_automation.download_pdf(pdf_url, task_data)
                     # ✅ SECURITY: download_pdf also validates the path internally to prevent path traversal
                     if download_result.get('success'):
