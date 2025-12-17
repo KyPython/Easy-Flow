@@ -212,9 +212,9 @@ export const useWorkflowExecutions = (workflowId) => {
         // We automatically retry once after a short delay to improve UX
         if ((errorMessage.includes('Firebase token request') || errorCode === 'INVALID_TRIGGER_SOURCE') && retryCount === 0) {
           const timeSinceFirebaseToken = result.time_since_firebase_token_ms || 0;
-          // Backend blocks for 7 seconds, so wait until 8 seconds total have passed to ensure we're past the blocking window
+          // Backend blocks for 2 seconds, so wait until 2.5 seconds total have passed to ensure we're past the blocking window
           // Add 500ms buffer to account for timing variations
-          const waitTime = Math.max(2000, 8500 - timeSinceFirebaseToken); // Wait at least 2s, or until 8.5s total has passed
+          const waitTime = Math.max(500, 2500 - timeSinceFirebaseToken); // Wait at least 500ms, or until 2.5s total has passed
           
           console.log(`⏳ Workflow execution blocked by Firebase token check (${timeSinceFirebaseToken}ms since token). Auto-retrying in ${waitTime}ms...`);
           

@@ -1029,9 +1029,9 @@ try {
 // by other /api/workflows routes that might have catch-all handlers
 // ✅ CRITICAL: Track recent Firebase token requests to prevent workflow execution from same trace
 // This prevents the frontend from accidentally triggering workflows after getting Firebase tokens
-// Set to 7 seconds - blocks immediate accidental triggers, allows frontend auto-retry to succeed
+// Set to 2 seconds - blocks immediate accidental triggers, short enough to not block legitimate executions
 const recentFirebaseTokenTraces = new Map(); // traceId -> timestamp
-const FIREBASE_TOKEN_TRACE_TTL = 7000; // 7 seconds - block workflow execution for 7s after Firebase token request (catches accidental triggers, frontend auto-retries after this)
+const FIREBASE_TOKEN_TRACE_TTL = 2000; // 2 seconds - block workflow execution for 2s after Firebase token request (catches immediate accidental triggers, short enough to not block legitimate executions)
 
 // Cleanup old entries every minute
 setInterval(() => {
@@ -1092,7 +1092,7 @@ try {
         return res.status(400).json({
           error: 'Workflow execution cannot be triggered immediately after Firebase token request',
           code: 'INVALID_TRIGGER_SOURCE',
-          message: 'Workflows must be executed directly via POST /api/workflows/execute, not as a side effect of Firebase token generation',
+          message: 'Please wait a moment before executing the workflow. The system is initializing.',
           trace_id: traceId,
           time_since_firebase_token_ms: timeSinceFirebaseToken
         });
