@@ -5234,6 +5234,24 @@ const adminAuthMiddleware = (req, res, next) => {
 // Firebase custom token endpoint
 app.post('/api/firebase/token', authMiddleware, async (req, res) => {
   try {
+    // ✅ DEFENSIVE: Block any attempt to execute workflows from this endpoint
+    if (req.body && (req.body.workflowId || req.body.executionId)) {
+      logger.error('[POST /api/firebase/token] ⚠️ BLOCKED: Attempt to execute workflow from Firebase token endpoint', {
+        userId: req.user?.id,
+        workflowId: req.body.workflowId,
+        executionId: req.body.executionId,
+        trace_id: req.traceId,
+        span_id: req.spanId,
+        caller_ip: req.ip,
+        user_agent: req.get('User-Agent')
+      });
+      return res.status(400).json({ 
+        error: 'Workflow execution is not allowed via this endpoint.',
+        code: 'INVALID_ENDPOINT',
+        message: 'Use POST /api/workflows/execute to execute workflows'
+      });
+    }
+
     const userId = req.user?.id;
     
     // Validate userId before proceeding
