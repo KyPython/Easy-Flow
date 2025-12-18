@@ -264,7 +264,6 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
       }
     };
     loadConversations();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Check AI health on mount
