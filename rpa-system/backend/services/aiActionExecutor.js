@@ -114,8 +114,16 @@ const AVAILABLE_ACTIONS = {
       properties: {
         name: { type: 'string', description: 'Name of the workflow' },
         description: { type: 'string', description: 'What the workflow does' },
-        nodes: { type: 'array', description: 'Workflow nodes configuration' },
-        edges: { type: 'array', description: 'Connections between nodes' }
+        nodes: { 
+          type: 'array', 
+          description: 'Workflow nodes configuration',
+          items: { type: 'object' }
+        },
+        edges: { 
+          type: 'array', 
+          description: 'Connections between nodes',
+          items: { type: 'object' }
+        }
       },
       required: ['name', 'nodes']
     },
