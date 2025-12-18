@@ -179,6 +179,33 @@ const AVAILABLE_ACTIONS = {
     execute: scheduleWorkflow
   },
 
+  create_automated_workflow: {
+    name: 'create_automated_workflow',
+    description: 'Create a complete automated workflow from description and optionally schedule it. Use this when user wants to set up a recurring automation like "monitor X daily", "check Y every hour", "send weekly reports".',
+    category: 'workflows',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Name for the workflow' },
+        description: { type: 'string', description: 'What the workflow should do' },
+        trigger_type: { 
+          type: 'string',
+          enum: ['manual', 'hourly', 'daily', 'weekly', 'monthly'],
+          description: 'How often to run: manual (one-time), hourly, daily, weekly, or monthly'
+        },
+        trigger_time: { type: 'string', description: 'When to run (e.g., "9:00 AM", "Monday 8:00 AM")' },
+        notification_email: { type: 'string', description: 'Email to notify when workflow completes' },
+        steps: { 
+          type: 'array', 
+          items: { type: 'object' },
+          description: 'Workflow steps (e.g., scrape, transform, notify)' 
+        }
+      },
+      required: ['name', 'description']
+    },
+    execute: createAutomatedWorkflow
+  },
+
   // ========== ONE-OFF AUTOMATION ACTIONS ==========
   scrape_website: {
     name: 'scrape_website',
@@ -616,6 +643,250 @@ async function scheduleWorkflow(params, context) {
     logger.error('[AI Executor] Schedule workflow failed:', error);
     return { success: false, error: error.message };
   }
+}
+
+/**
+ * Create a complete automated workflow - generates, saves, and schedules in one action
+ */
+async function createAutomatedWorkflow(params, context) {
+  const supabase = getSupabase();
+  const userId = context.userId;
+  const startTime = Date.now();
+
+  const actionLogger = logger.withOperation('ai.action.create_automated_workflow', { 
+    name: params.name,
+    trigger_type: params.trigger_type,
+    userId
+  });
+
+  try {
+    actionLogger.info('Creating automated workflow', { 
+      description: params.description,
+      trigger_type: params.trigger_type 
+    });
+
+    // Step 1: Generate workflow nodes from the description
+    const nodes = generateWorkflowNodes(params);
+    const edges = generateWorkflowEdges(nodes);
+
+    // Step 2: Create the workflow in database
+    const workflowData = {
+      user_id: userId,
+      name: params.name,
+      description: params.description || '',
+      canvas_config: {
+        nodes,
+        edges,
+        viewport: { x: 0, y: 0, zoom: 1 }
+      },
+      status: 'active',
+      created_at: new Date().toISOString()
+    };
+
+    const { data: workflow, error: workflowError } = await supabase
+      .from('workflows')
+      .insert(workflowData)
+      .select()
+      .single();
+
+    if (workflowError) {
+      throw new Error(`Failed to save workflow: ${workflowError.message}`);
+    }
+
+    actionLogger.info('Workflow saved', { workflowId: workflow.id });
+
+    // Step 3: Schedule if not manual
+    let scheduleInfo = null;
+    if (params.trigger_type && params.trigger_type !== 'manual') {
+      const scheduleData = {
+        workflow_id: workflow.id,
+        user_id: userId,
+        schedule_type: params.trigger_type,
+        schedule_config: {
+          time: params.trigger_time || '09:00',
+          timezone: context.timezone || 'UTC',
+          notification_email: params.notification_email || context.userEmail
+        },
+        status: 'active',
+        created_at: new Date().toISOString()
+      };
+
+      const { data: schedule, error: scheduleError } = await supabase
+        .from('workflow_schedules')
+        .insert(scheduleData)
+        .select()
+        .single();
+
+      if (scheduleError) {
+        actionLogger.warn('Failed to schedule workflow', { error: scheduleError.message });
+      } else {
+        scheduleInfo = {
+          schedule_id: schedule.id,
+          frequency: params.trigger_type,
+          time: params.trigger_time || '9:00 AM'
+        };
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    actionLogger.performance('ai.workflow.automated_creation', duration, {
+      category: 'workflow',
+      success: true,
+      hasSchedule: !!scheduleInfo
+    });
+
+    // Build friendly response
+    let message = `✅ Created your automation "${params.name}"!`;
+    if (scheduleInfo) {
+      const frequencyText = {
+        'hourly': 'every hour',
+        'daily': `every day at ${scheduleInfo.time}`,
+        'weekly': `every week on ${params.trigger_time || 'Monday at 9:00 AM'}`,
+        'monthly': `once a month on the ${params.trigger_time || '1st at 9:00 AM'}`
+      };
+      message += `\n\n⏰ It will run ${frequencyText[params.trigger_type] || params.trigger_type}.`;
+    }
+    message += `\n\n📋 You can find it in your Workflows tab.`;
+
+    return {
+      success: true,
+      message,
+      data: {
+        workflow_id: workflow.id,
+        workflow_name: workflow.name,
+        steps_count: nodes.length,
+        schedule: scheduleInfo
+      }
+    };
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    actionLogger.error('Failed to create automated workflow', error, { duration });
+    return { 
+      success: false, 
+      error: error.message,
+      message: `Sorry, I couldn't create that automation. ${error.message}`
+    };
+  }
+}
+
+/**
+ * Generate workflow nodes from parameters
+ */
+function generateWorkflowNodes(params) {
+  const nodes = [];
+  const description = (params.description || '').toLowerCase();
+  
+  // Start node
+  nodes.push({
+    id: 'start-1',
+    type: 'trigger',
+    position: { x: 100, y: 100 },
+    data: {
+      label: params.trigger_type === 'manual' ? 'Manual Start' : `${params.trigger_type} Trigger`,
+      stepType: 'trigger',
+      config: {
+        trigger_type: params.trigger_type || 'manual',
+        time: params.trigger_time
+      }
+    }
+  });
+
+  let yPos = 200;
+
+  // Detect what kind of workflow based on description
+  if (description.includes('scrape') || description.includes('monitor') || description.includes('check') || description.includes('website')) {
+    // Extract URL if mentioned
+    const urlMatch = description.match(/https?:\/\/[^\s]+|(?:www\.)?[a-zA-Z0-9-]+\.[a-z]{2,}/i);
+    const url = urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : 'https://example.com';
+    
+    nodes.push({
+      id: 'scrape-1',
+      type: 'action',
+      position: { x: 100, y: yPos },
+      data: {
+        label: 'Check Website',
+        stepType: 'web_scraper',
+        config: { url, extractText: true }
+      }
+    });
+    yPos += 100;
+  }
+
+  if (description.includes('api') || description.includes('data') || description.includes('fetch')) {
+    nodes.push({
+      id: 'api-1',
+      type: 'action',
+      position: { x: 100, y: yPos },
+      data: {
+        label: 'Fetch Data',
+        stepType: 'api_call',
+        config: { method: 'GET' }
+      }
+    });
+    yPos += 100;
+  }
+
+  if (description.includes('save') || description.includes('store') || description.includes('sheet')) {
+    nodes.push({
+      id: 'save-1',
+      type: 'action',
+      position: { x: 100, y: yPos },
+      data: {
+        label: 'Save Data',
+        stepType: 'data_storage',
+        config: {}
+      }
+    });
+    yPos += 100;
+  }
+
+  // Add notification step if mentioned
+  if (description.includes('alert') || description.includes('notify') || description.includes('email') || description.includes('tell me')) {
+    nodes.push({
+      id: 'notify-1',
+      type: 'action',
+      position: { x: 100, y: yPos },
+      data: {
+        label: 'Send Notification',
+        stepType: 'email',
+        config: {
+          to: params.notification_email || '{{user.email}}',
+          subject: `Update from ${params.name}`,
+          body: 'Your automation has completed. Here are the results: {{data}}'
+        }
+      }
+    });
+    yPos += 100;
+  }
+
+  // End node
+  nodes.push({
+    id: 'end-1',
+    type: 'end',
+    position: { x: 100, y: yPos },
+    data: {
+      label: 'Complete',
+      stepType: 'end'
+    }
+  });
+
+  return nodes;
+}
+
+/**
+ * Generate edges connecting workflow nodes
+ */
+function generateWorkflowEdges(nodes) {
+  const edges = [];
+  for (let i = 0; i < nodes.length - 1; i++) {
+    edges.push({
+      id: `edge-${i}`,
+      source: nodes[i].id,
+      target: nodes[i + 1].id,
+      type: 'smoothstep'
+    });
+  }
+  return edges;
 }
 
 async function scrapeWebsite(params, context) {
