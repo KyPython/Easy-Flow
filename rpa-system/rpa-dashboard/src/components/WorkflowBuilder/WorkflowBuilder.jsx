@@ -16,8 +16,10 @@ import {
   FaFlask,
   FaHistory,
   FaChevronDown,
-  FaBell
+  FaBell,
+  FaRobot
 } from 'react-icons/fa';
+import AIWorkflowAgent from '../AIWorkflowAgent';
 
 import WorkflowCanvas from './WorkflowCanvas';
 import TemplateGallery from './TemplateGallery';
@@ -56,6 +58,7 @@ const WorkflowBuilder = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const { error: showError, warning: showWarning, success: showSuccess, info: showInfo } = useToast();
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showAIAgent, setShowAIAgent] = useState(false);
   
   // Ref to access WorkflowCanvas methods
   const canvasRef = useRef(null);
@@ -607,6 +610,46 @@ const WorkflowBuilder = () => {
     }
   }, [navigate]);
 
+  // Handle AI-generated workflow
+  const handleAIWorkflowGenerated = useCallback(async (aiWorkflow) => {
+    try {
+      console.log('AI generated workflow:', aiWorkflow);
+      
+      // If we have an existing workflow, update its canvas config
+      if (currentWorkflow && workflowId) {
+        await updateWorkflow({
+          name: aiWorkflow.name || currentWorkflow.name,
+          description: aiWorkflow.description || currentWorkflow.description,
+          canvas_config: aiWorkflow.canvas_config
+        });
+        showSuccess('🤖 AI workflow applied! Review and customize as needed.');
+      } else {
+        // Create a new workflow with AI-generated config
+        const client = await initSupabase();
+        const { data: { user: authUser } } = await client.auth.getUser();
+        if (!authUser) throw new Error('User must be authenticated');
+
+        const newWorkflowData = {
+          user_id: authUser.id,
+          name: aiWorkflow.name || `AI Workflow - ${new Date().toLocaleString()}`,
+          description: aiWorkflow.description || 'Workflow created by AI assistant',
+          status: 'active',
+          canvas_config: aiWorkflow.canvas_config
+        };
+
+        const newWorkflow = await createWorkflow(newWorkflowData);
+        console.log('AI workflow created:', newWorkflow);
+        
+        incrementWorkflowCount();
+        showSuccess('🤖 AI workflow created! Review and customize as needed.');
+        navigate(`/app/workflows/builder/${newWorkflow.id}`);
+      }
+    } catch (error) {
+      console.error('Failed to apply AI workflow:', error);
+      showError('Failed to apply AI workflow: ' + error.message);
+    }
+  }, [currentWorkflow, workflowId, updateWorkflow, createWorkflow, navigate, showSuccess, showError, incrementWorkflowCount]);
+
   const getNavigationItems = (workflowId) => [
     {
       id: 'canvas',
@@ -756,6 +799,13 @@ const WorkflowBuilder = () => {
         
         {currentView === 'canvas' && (
           <div className={styles.workflowActions}>
+            <button
+              className={`${styles.actionButton} ${styles.aiButton}`}
+              onClick={() => setShowAIAgent(true)}
+              title="🤖 Use AI to create workflows from natural language"
+            >
+              <FaRobot /> AI Assistant
+            </button>
             <button
               className={styles.actionButton}
               onClick={() => navigate('/app/workflows')}
@@ -1612,6 +1662,13 @@ const WorkflowBuilder = () => {
           }}
         />
       )}
+
+      {/* AI Workflow Agent */}
+      <AIWorkflowAgent
+        isOpen={showAIAgent}
+        onClose={() => setShowAIAgent(false)}
+        onWorkflowGenerated={handleAIWorkflowGenerated}
+      />
     </div>
   );
 };

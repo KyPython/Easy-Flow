@@ -162,6 +162,51 @@
   border-color: var(--color-primary-700);
 }
 
+/* AI Assistant Button - Distinctive gradient styling */
+.aiButton {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  border-color: #6366f1;
+  position: relative;
+  overflow: hidden;
+}
+
+.aiButton::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  animation: aiButtonShimmer 3s ease-in-out infinite;
+}
+
+@keyframes aiButtonShimmer {
+  0% {
+    left: -100%;
+  }
+  50%, 100% {
+    left: 100%;
+  }
+}
+
+.aiButton:hover {
+  background: linear-gradient(135deg, #5855eb 0%, #7c4deb 100%);
+  border-color: #5855eb;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.35);
+}
+
+.aiButton:focus {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
 .stopButton {
   padding: var(--spacing-sm) var(--spacing-md);
   background: var(--color-error-600, var(--color-error));

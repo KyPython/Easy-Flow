@@ -56,7 +56,8 @@ const WorkflowPage = lazy(() => import('./components/WorkflowBuilder/WorkflowPag
 const BulkInvoiceProcessor = lazy(() => import('./components/BulkProcessor/BulkInvoiceProcessor'));
 
 // Global Components (loaded on-demand after initial render)
-const Chatbot = lazy(() => import('./components/Chatbot/Chatbot'));
+// Note: Replaced uChat Chatbot with our AI Workflow Agent for unified support + workflow creation
+const AIWorkflowAgent = lazy(() => import('./components/AIWorkflowAgent/AIWorkflowAgent'));
 const MilestonePrompt = lazy(() => import('./components/MilestonePrompt/MilestonePrompt'));
 const EmailCaptureModal = lazy(() => import('./components/EmailCaptureModal/EmailCaptureModal'));
 const SessionExpired = lazy(() => import('./components/SessionExpired/SessionExpired'));
@@ -203,6 +204,9 @@ function Shell() {
   // Email capture modal state
   const [showEmailCapture, setShowEmailCapture] = useState(false);
 
+  // AI Agent panel state - unified assistant for workflows + support
+  const [showAIAgent, setShowAIAgent] = useState(false);
+
   // Check if email capture should be shown
   useEffect(() => {
     if (user && sessionsCount >= 3) {
@@ -289,12 +293,58 @@ function Shell() {
       </main>
 
       {/*
-       * PERFORMANCE: Global components lazy-loaded after initial render
-       * These appear on all pages but aren't critical for initial paint
+       * PERFORMANCE: AI Agent - replaces uChat for unified support + workflow creation
+       * Lazy-loaded after initial render to not block critical path
        */}
       <Suspense fallback={null}>
-        <Chatbot />
+        <AIWorkflowAgent
+          isOpen={showAIAgent}
+          onClose={() => setShowAIAgent(false)}
+          onWorkflowGenerated={(workflow) => {
+            // Close agent and navigate to workflows if a workflow was generated
+            setShowAIAgent(false);
+            console.log('[AIAgent] Workflow generated:', workflow?.name);
+          }}
+        />
       </Suspense>
+      
+      {/* AI Agent Toggle Button - Always visible when panel is closed */}
+      {!showAIAgent && (
+        <button 
+          onClick={() => setShowAIAgent(true)}
+          aria-label="Open AI Assistant"
+          title="AI Assistant - Create workflows & get help"
+          style={{
+            position: 'fixed',
+            right: '24px',
+            bottom: '24px',
+            width: '60px',
+            height: '60px',
+            borderRadius: '50%',
+            border: 'none',
+            background: 'linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%)',
+            color: 'white',
+            fontSize: '28px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: 'var(--shadow-xl)',
+            transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            zIndex: 9998
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-2xl)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
+          }}
+        >
+          🤖
+        </button>
+      )}
 
       {/* Global session-expired UI */}
       <Suspense fallback={null}>

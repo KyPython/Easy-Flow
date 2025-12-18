@@ -7,7 +7,7 @@ import { supabase, initSupabase } from '../utils/supabaseClient';
 import { fetchWithAuth } from '../utils/devNetLogger';
 import styles from './HistoryPage.module.css';
 import ErrorMessage from '../components/ErrorMessage';
-import Chatbot from '../components/Chatbot/Chatbot';
+// Note: Chatbot removed - AI Agent is now available globally via toggle button
 import TaskResultModal from '../components/TaskResultModal/TaskResultModal';
 import { createLogger } from '../utils/logger';
 const HistoryPage = () => {
@@ -352,8 +352,6 @@ const HistoryPage = () => {
           onClose={() => setViewingTask(null)}
         />
       )}
-      
-      <Chatbot />
     </div>
   );
 };

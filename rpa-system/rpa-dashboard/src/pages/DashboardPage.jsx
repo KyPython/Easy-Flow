@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
 import Dashboard from '../components/Dashboard/Dashboard';
@@ -6,8 +6,7 @@ import { initSupabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
 import { createLogger } from '../utils/logger';
 
-// Lazy load Chatbot component for better performance
-const Chatbot = lazy(() => import('../components/Chatbot/Chatbot'));
+// Note: Chatbot removed - AI Agent is now available globally via toggle button
 
 
 const DashboardPage = () => {
@@ -310,9 +309,6 @@ const DashboardPage = () => {
     <>
       <ErrorMessage message={error} />
       <Dashboard metrics={metrics} recentTasks={recentTasks} workflowsCount={workflowsCount} user={user} />
-      <Suspense fallback={null}>
-        <Chatbot />
-      </Suspense>
     </>
   );
 };

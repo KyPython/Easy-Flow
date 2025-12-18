@@ -3,7 +3,7 @@ import React, { useState, useCallback } from 'react';
 // This reduces the main bundle by ~935 lines of code and improves page navigation speed
 import { TaskForm } from "../components/LazyLoader";
 import UrlInput from "../components/UrlInput/UrlInput";
-import Chatbot from "../components/Chatbot/Chatbot";
+// Note: Chatbot removed - AI Agent is now available globally via toggle button
 import { useI18n } from '../i18n';
 import { useTheme } from '../utils/ThemeContext';
 import styles from './TasksPage.module.css';
@@ -104,7 +104,6 @@ const TasksPage = () => {
           testSiteConfig={testSiteConfig}
         />
       </div>
-      <Chatbot />
     </div>
   );
 };
