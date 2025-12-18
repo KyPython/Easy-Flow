@@ -447,26 +447,25 @@
 
 /* Examples Section */
 .examplesSection {
-  padding: var(--spacing-lg);
-  margin: 0 var(--spacing-md) var(--spacing-md);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin: 0 var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: var(--surface);
   border: 1px solid var(--border-color);
 }
 
 .examplesLabel {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-muted);
+  margin-bottom: var(--spacing-xs);
   display: block;
-  text-align: center;
 }
 
 .examplesGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--spacing-md);
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-xs);
 }
 
 .exampleCard {
@@ -474,26 +473,24 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: var(--spacing-md) var(--spacing-sm);
-  background: linear-gradient(135deg, var(--surface) 0%, var(--bg) 100%);
-  border: 2px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  gap: 4px;
+  padding: var(--spacing-xs) 4px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   text-align: center;
-  min-height: 90px;
 }
 
 .exampleCard:hover {
-  background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-primary-100) 100%);
-  border-color: var(--color-primary-400);
-  transform: translateY(-3px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-300);
+  transform: translateY(-1px);
 }
 
 .exampleIcon {
-  font-size: 28px;
+  font-size: 18px;
   flex-shrink: 0;
   line-height: 1;
 }
@@ -501,20 +498,25 @@
 .exampleText {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
   min-width: 0;
 }
 
 .exampleTitle {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-bold);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
+  line-height: 1.2;
 }
 
 .exampleDescription {
-  font-size: 11px;
-  color: var(--text-secondary);
-  line-height: 1.3;
+  font-size: 9px;
+  color: var(--text-tertiary);
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Input Area */
@@ -670,31 +672,12 @@
     border-radius: var(--radius-lg);
   }
 
-  .examplesSection {
-    margin: 0 var(--spacing-sm) var(--spacing-sm);
-    padding: var(--spacing-md);
-  }
-
   .examplesGrid {
     grid-template-columns: repeat(2, 1fr);
-    gap: var(--spacing-sm);
-  }
-
-  .exampleCard {
-    padding: var(--spacing-sm);
-    min-height: 80px;
-  }
-
-  .exampleIcon {
-    font-size: 24px;
-  }
-
-  .exampleTitle {
-    font-size: var(--font-size-xs);
   }
 
   .exampleDescription {
-    font-size: 10px;
+    display: none;
   }
 
   .messageContent {
