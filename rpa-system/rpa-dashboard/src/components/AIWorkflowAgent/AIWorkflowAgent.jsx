@@ -9,9 +9,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext';
+import { config } from '../../utils/config';
 import styles from './AIWorkflowAgent.module.css';
 
-const API_BASE = process.env.REACT_APP_API_URL || '';
+const API_BASE = config.apiBaseUrl;
 const SUPPORT_EMAIL = process.env.REACT_APP_SUPPORT_EMAIL || 'support@easyflow.io';
 
 // Example prompts to inspire users
