@@ -369,6 +369,135 @@ router.get('/health', async (req, res) => {
   }
 });
 
+// ============================================
+// CONVERSATION PERSISTENCE
+// ============================================
+
+const { getSupabase } = require('../utils/supabaseClient');
+
+/**
+ * GET /api/ai-agent/conversations
+ * Get the user's recent conversation history
+ */
+router.get('/conversations', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      // Return empty if no database
+      return res.json({ success: true, messages: [] });
+    }
+
+    // Get recent messages for this user (last 50)
+    const { data, error } = await supabase
+      .from('ai_conversations')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(50);
+
+    if (error) {
+      logger.warn('Failed to fetch conversations', { error: error.message, userId });
+      return res.json({ success: true, messages: [] });
+    }
+
+    // Transform to frontend format
+    const messages = (data || []).map(row => ({
+      id: row.id,
+      content: row.content,
+      isUser: row.is_user,
+      timestamp: row.created_at,
+      workflow: row.workflow_data,
+      suggestions: row.suggestions
+    }));
+
+    res.json({ success: true, messages });
+  } catch (error) {
+    logger.error('Error fetching conversations', error);
+    res.json({ success: true, messages: [] });
+  }
+});
+
+/**
+ * POST /api/ai-agent/conversations
+ * Save a message to the conversation history
+ */
+router.post('/conversations', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const { content, isUser, workflow, suggestions } = req.body;
+
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ success: false, error: 'Content is required' });
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      // Silently succeed if no database
+      return res.json({ success: true });
+    }
+
+    const { error } = await supabase
+      .from('ai_conversations')
+      .insert({
+        user_id: userId,
+        content: content.slice(0, 10000), // Limit content size
+        is_user: !!isUser,
+        workflow_data: workflow || null,
+        suggestions: suggestions || null
+      });
+
+    if (error) {
+      logger.warn('Failed to save conversation', { error: error.message, userId });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error saving conversation', error);
+    res.json({ success: true }); // Don't fail the request
+  }
+});
+
+/**
+ * DELETE /api/ai-agent/conversations
+ * Clear the user's conversation history
+ */
+router.delete('/conversations', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.json({ success: true });
+    }
+
+    const { error } = await supabase
+      .from('ai_conversations')
+      .delete()
+      .eq('user_id', userId);
+
+    if (error) {
+      logger.warn('Failed to clear conversations', { error: error.message, userId });
+    }
+
+    res.json({ success: true, message: 'Conversation history cleared' });
+  } catch (error) {
+    logger.error('Error clearing conversations', error);
+    res.json({ success: true });
+  }
+});
+
 /**
  * POST /api/ai-agent/send-support-email
  * Send a support email on behalf of the user

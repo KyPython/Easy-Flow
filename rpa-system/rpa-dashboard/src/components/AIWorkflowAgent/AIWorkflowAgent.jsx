@@ -191,10 +191,18 @@ function getStepIcon(stepType) {
 
 const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
   const { theme } = useTheme() || { theme: 'light' };
-  const [messages, setMessages] = useState([
-    {
-      id: 'welcome',
-      content: `Hey! 👋 I'm your Easy-Flow AI Assistant.
+  const [messages, setMessages] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [conversationLoaded, setConversationLoaded] = useState(false);
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Welcome message template
+  const welcomeMessage = {
+    id: 'welcome',
+    content: `Hey! 👋 I'm your Easy-Flow AI Assistant.
 
 ⚡ QUICK ACTIONS — Tell me what to do:
 "Scrape example.com for prices"
@@ -208,15 +216,9 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
 ❓ GET HELP — Ask me anything!
 
 👇 Click an example below or just type!`,
-      isUser: false,
-      timestamp: new Date()
-    }
-  ]);
-  const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [aiEnabled, setAiEnabled] = useState(true);
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
+    isUser: false,
+    timestamp: new Date()
+  };
 
   // Auto-scroll to bottom of messages
   const scrollToBottom = useCallback(() => {
@@ -234,6 +236,37 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
     }
   }, [isOpen]);
 
+  // Load previous conversations on mount
+  useEffect(() => {
+    const loadConversations = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/ai-agent/conversations`, {
+          credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success && data.messages && data.messages.length > 0) {
+          // Add welcome message + previous conversations
+          setMessages([welcomeMessage, ...data.messages.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))]);
+        } else {
+          // No previous conversations, show welcome message
+          setMessages([welcomeMessage]);
+        }
+        setConversationLoaded(true);
+      } catch (error) {
+        console.error('Failed to load conversations:', error);
+        // Show welcome message on error
+        setMessages([welcomeMessage]);
+        setConversationLoaded(true);
+      }
+    };
+    loadConversations();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Check AI health on mount
   useEffect(() => {
     const checkHealth = async () => {
@@ -243,11 +276,42 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
         setAiEnabled(data.aiEnabled);
       } catch (error) {
         console.error('AI health check failed:', error);
-        // Fall back to local support-only mode
         setAiEnabled(false);
       }
     };
     checkHealth();
+  }, []);
+
+  // Save message to backend
+  const saveMessage = useCallback(async (message) => {
+    try {
+      await fetch(`${API_BASE}/api/ai-agent/conversations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          content: message.content,
+          isUser: message.isUser,
+          workflow: message.workflow,
+          suggestions: message.suggestions
+        })
+      });
+    } catch (error) {
+      console.error('Failed to save message:', error);
+    }
+  }, []);
+
+  // Clear conversation history
+  const clearConversation = useCallback(async () => {
+    try {
+      await fetch(`${API_BASE}/api/ai-agent/conversations`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      setMessages([welcomeMessage]);
+    } catch (error) {
+      console.error('Failed to clear conversation:', error);
+    }
   }, []);
 
   // Handle action button clicks
@@ -406,6 +470,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    saveMessage(userMessage); // Save user message
     setInputValue('');
     setIsLoading(true);
 
@@ -503,6 +568,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
           suggestions: data.suggestions
         };
         setMessages(prev => [...prev, aiMessage]);
+        saveMessage(aiMessage); // Save AI response
       }
 
     } catch (error) {
@@ -581,9 +647,19 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
             </span>
           </div>
         </div>
-        <button className={styles.closeButton} onClick={onClose} aria-label="Close">
-          ×
-        </button>
+        <div className={styles.headerButtons}>
+          <button 
+            className={styles.clearButton} 
+            onClick={clearConversation} 
+            aria-label="Clear conversation"
+            title="Start new conversation"
+          >
+            🗑️
+          </button>
+          <button className={styles.closeButton} onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
