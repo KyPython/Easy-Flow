@@ -15,31 +15,35 @@ import styles from './AIWorkflowAgent.module.css';
 const API_BASE = config.apiBaseUrl;
 const SUPPORT_EMAIL = process.env.REACT_APP_SUPPORT_EMAIL || 'support@easyflow.io';
 
-// Example prompts to inspire users
+// Example prompts to inspire users - organized by action type
 const EXAMPLE_PROMPTS = [
   {
-    icon: '🌐',
-    title: 'Web Scraping',
-    prompt: 'Scrape product prices from a website and email me when they drop below $50',
-    category: 'workflow'
+    icon: '⚡',
+    title: 'Quick Action',
+    prompt: 'Scrape the headlines from https://news.ycombinator.com',
+    category: 'action',
+    description: 'Do something right now'
   },
   {
-    icon: '📧',
-    title: 'Email Reports',
-    prompt: 'Send a daily email summary of all tasks completed yesterday',
-    category: 'workflow'
+    icon: '🔄',
+    title: 'Build Workflow',
+    prompt: 'Create a workflow that checks prices on amazon.com daily and emails me if they drop below $50',
+    category: 'workflow',
+    description: 'Automate a multi-step process'
   },
   {
-    icon: '🔗',
-    title: 'API Sync',
-    prompt: 'Get data from REST API and transform it before saving to storage',
-    category: 'workflow'
+    icon: '📋',
+    title: 'Manage Tasks',
+    prompt: 'Show me all my tasks',
+    category: 'action',
+    description: 'View or create tasks'
   },
   {
-    icon: '💬',
+    icon: '❓',
     title: 'Get Help',
-    prompt: 'How do I create my first workflow?',
-    category: 'support'
+    prompt: 'What can I automate with Easy-Flow?',
+    category: 'support',
+    description: 'Ask questions about the app'
   }
 ];
 
@@ -190,7 +194,22 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
-      content: "Hi! 👋 I'm your AI Assistant for Easy-Flow. I can help you:\n\n• 🔧 Create workflows from plain English\n• 💬 Answer questions about the app\n• 📧 Contact support if you need help\n\nJust describe what you want to do!",
+      content: `Hey! 👋 I'm your Easy-Flow AI Assistant. Here's what I can do:
+
+**⚡ Quick Actions** — Just tell me what to do:
+• "Scrape https://example.com for product prices"
+• "Send an email to john@example.com saying hello"
+• "Show me my tasks"
+
+**🔄 Build Workflows** — Describe what you want to automate:
+• "Create a workflow that monitors a website daily and alerts me of changes"
+• "Build an automation that pulls data from an API and saves it"
+
+**❓ Get Help** — Ask me anything:
+• "How do workflows work?"
+• "What can I automate?"
+
+👇 **Try clicking one of the examples below, or just type what you need!**`,
       isUser: false,
       timestamp: new Date()
     }
@@ -595,16 +614,20 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
       {/* Example prompts */}
       {messages.length <= 1 && (
         <div className={styles.examplesSection}>
-          <span className={styles.examplesLabel}>Try these:</span>
+          <span className={styles.examplesLabel}>Quick start examples:</span>
           <div className={styles.examplesGrid}>
             {EXAMPLE_PROMPTS.map((example, idx) => (
               <button
                 key={idx}
                 className={styles.exampleCard}
                 onClick={() => handleExampleClick(example.prompt)}
+                title={example.prompt}
               >
                 <span className={styles.exampleIcon}>{example.icon}</span>
-                <span className={styles.exampleTitle}>{example.title}</span>
+                <div className={styles.exampleText}>
+                  <span className={styles.exampleTitle}>{example.title}</span>
+                  <span className={styles.exampleDescription}>{example.description}</span>
+                </div>
               </button>
             ))}
           </div>
