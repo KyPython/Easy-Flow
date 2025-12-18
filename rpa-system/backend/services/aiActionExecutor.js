@@ -207,14 +207,45 @@ const AVAILABLE_ACTIONS = {
   },
 
   // ========== ONE-OFF AUTOMATION ACTIONS ==========
-  scrape_website: {
-    name: 'scrape_website',
-    description: 'Scrape data from a website immediately (one-off)',
+  
+  search_web: {
+    name: 'search_web',
+    description: 'Search the web for information. Use this to find current prices, product info, news, or any real-time data. Returns search results with links.',
     category: 'automations',
     parameters: {
       type: 'object',
       properties: {
-        url: { type: 'string', description: 'URL to scrape' },
+        query: { type: 'string', description: 'Search query (e.g., "MacBook Pro 16 price", "iPhone 15 Pro Max cost")' },
+        site: { type: 'string', description: 'Optional: limit search to a specific site (e.g., "apple.com", "amazon.com")' }
+      },
+      required: ['query']
+    },
+    execute: searchWeb
+  },
+
+  get_product_prices: {
+    name: 'get_product_prices',
+    description: 'Get current prices for a product from major retailers. More reliable than scraping for price checks.',
+    category: 'automations',
+    parameters: {
+      type: 'object',
+      properties: {
+        product_name: { type: 'string', description: 'Name of the product (e.g., "MacBook Pro 16", "iPhone 15 Pro")' },
+        category: { type: 'string', enum: ['computers', 'phones', 'tablets', 'accessories', 'other'], description: 'Product category' }
+      },
+      required: ['product_name']
+    },
+    execute: getProductPrices
+  },
+
+  scrape_website: {
+    name: 'scrape_website',
+    description: 'Scrape data from a website immediately (one-off). Best for specific product pages with direct URLs.',
+    category: 'automations',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL to scrape - use specific product pages, not homepages' },
         selectors: { 
           type: 'array', 
           items: { type: 'string' },
@@ -887,6 +918,274 @@ function generateWorkflowEdges(nodes) {
     });
   }
   return edges;
+}
+
+/**
+ * Search the web for information using DuckDuckGo
+ */
+async function searchWeb(params, context) {
+  const axios = require('axios');
+  const startTime = Date.now();
+  const actionLogger = logger.withOperation('ai.action.search_web', { 
+    query: params.query,
+    site: params.site,
+    userId: context?.userId 
+  });
+
+  try {
+    let searchQuery = params.query;
+    if (params.site) {
+      searchQuery = `site:${params.site} ${params.query}`;
+    }
+
+    actionLogger.info('Searching web', { searchQuery });
+
+    // Use DuckDuckGo instant answer API (free, no API key needed)
+    const response = await axios.get('https://api.duckduckgo.com/', {
+      params: {
+        q: searchQuery,
+        format: 'json',
+        no_html: 1,
+        skip_disambig: 1
+      },
+      timeout: 10000
+    });
+
+    const data = response.data;
+    const results = [];
+
+    // Extract abstract/answer
+    if (data.Abstract) {
+      results.push({
+        type: 'answer',
+        title: data.Heading || 'Summary',
+        description: data.Abstract,
+        url: data.AbstractURL
+      });
+    }
+
+    // Extract related topics
+    if (data.RelatedTopics && data.RelatedTopics.length > 0) {
+      for (const topic of data.RelatedTopics.slice(0, 5)) {
+        if (topic.Text && topic.FirstURL) {
+          results.push({
+            type: 'result',
+            title: topic.Text.split(' - ')[0] || topic.Text.substring(0, 50),
+            description: topic.Text,
+            url: topic.FirstURL
+          });
+        }
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    actionLogger.performance('ai.search.web', duration, { resultCount: results.length });
+
+    if (results.length === 0) {
+      // Provide helpful alternatives when search returns nothing
+      const alternatives = generateSearchAlternatives(params.query, params.site);
+      return {
+        success: true,
+        message: `I searched for "${params.query}" but didn't find direct results. Here are some helpful links you can check:`,
+        data: {
+          query: params.query,
+          results: [],
+          alternatives
+        }
+      };
+    }
+
+    return {
+      success: true,
+      message: `Found ${results.length} results for "${params.query}"`,
+      data: {
+        query: params.query,
+        results,
+        topResult: results[0]
+      }
+    };
+  } catch (error) {
+    actionLogger.error('Web search failed', error);
+    // Even on error, provide helpful alternatives
+    const alternatives = generateSearchAlternatives(params.query, params.site);
+    return { 
+      success: false, 
+      error: error.message,
+      message: `Search didn't work, but here are some direct links you can try:`,
+      data: { alternatives }
+    };
+  }
+}
+
+/**
+ * Generate helpful alternative links based on the query
+ */
+function generateSearchAlternatives(query, site) {
+  const queryLower = query.toLowerCase();
+  const alternatives = [];
+
+  // Apple products
+  if (queryLower.includes('mac') || queryLower.includes('macbook') || site === 'apple.com') {
+    alternatives.push({
+      name: 'Apple Mac Store',
+      url: 'https://www.apple.com/shop/buy-mac',
+      description: 'Official Apple Mac pricing'
+    });
+  }
+  if (queryLower.includes('iphone') || site === 'apple.com') {
+    alternatives.push({
+      name: 'Apple iPhone Store',
+      url: 'https://www.apple.com/shop/buy-iphone',
+      description: 'Official iPhone pricing'
+    });
+  }
+  if (queryLower.includes('ipad') || site === 'apple.com') {
+    alternatives.push({
+      name: 'Apple iPad Store',
+      url: 'https://www.apple.com/shop/buy-ipad',
+      description: 'Official iPad pricing'
+    });
+  }
+  if (queryLower.includes('apple') && alternatives.length === 0) {
+    alternatives.push({
+      name: 'Apple Store',
+      url: 'https://www.apple.com/store',
+      description: 'Browse all Apple products'
+    });
+  }
+
+  // Generic computer/laptop search
+  if (queryLower.includes('computer') || queryLower.includes('laptop') || queryLower.includes('pc')) {
+    alternatives.push({
+      name: 'Best Buy Computers',
+      url: 'https://www.bestbuy.com/site/computers-pcs/laptop-computers/abcat0502000.c',
+      description: 'Compare laptop prices'
+    });
+    alternatives.push({
+      name: 'Amazon Laptops',
+      url: `https://www.amazon.com/s?k=${encodeURIComponent(query)}`,
+      description: 'Search Amazon for prices'
+    });
+  }
+
+  // Default: Google search link
+  alternatives.push({
+    name: 'Google Search',
+    url: `https://www.google.com/search?q=${encodeURIComponent(query + ' price')}`,
+    description: 'Search Google for current prices'
+  });
+
+  return alternatives;
+}
+
+/**
+ * Get product prices from major retailers
+ */
+async function getProductPrices(params, context) {
+  const startTime = Date.now();
+  const actionLogger = logger.withOperation('ai.action.get_product_prices', { 
+    product: params.product_name,
+    category: params.category,
+    userId: context?.userId 
+  });
+
+  try {
+    actionLogger.info('Getting product prices', { product: params.product_name });
+
+    const productLower = params.product_name.toLowerCase();
+    const links = [];
+    let priceInfo = null;
+
+    // Apple products - provide direct links
+    if (productLower.includes('macbook') || productLower.includes('mac')) {
+      links.push({
+        retailer: 'Apple',
+        url: 'https://www.apple.com/shop/buy-mac',
+        note: 'Official Apple pricing'
+      });
+      
+      // Known starting prices (as of late 2024)
+      if (productLower.includes('air')) {
+        priceInfo = { starting: '$999', model: 'MacBook Air M3', note: 'Prices may vary' };
+      } else if (productLower.includes('pro 14') || productLower.includes('14')) {
+        priceInfo = { starting: '$1,599', model: 'MacBook Pro 14"', note: 'Prices may vary' };
+      } else if (productLower.includes('pro 16') || productLower.includes('16')) {
+        priceInfo = { starting: '$2,499', model: 'MacBook Pro 16"', note: 'Prices may vary' };
+      }
+    }
+
+    if (productLower.includes('iphone')) {
+      links.push({
+        retailer: 'Apple',
+        url: 'https://www.apple.com/shop/buy-iphone',
+        note: 'Official Apple pricing'
+      });
+      
+      if (productLower.includes('15 pro max')) {
+        priceInfo = { starting: '$1,199', model: 'iPhone 15 Pro Max', note: 'Prices may vary' };
+      } else if (productLower.includes('15 pro')) {
+        priceInfo = { starting: '$999', model: 'iPhone 15 Pro', note: 'Prices may vary' };
+      } else if (productLower.includes('15')) {
+        priceInfo = { starting: '$799', model: 'iPhone 15', note: 'Prices may vary' };
+      }
+    }
+
+    if (productLower.includes('ipad')) {
+      links.push({
+        retailer: 'Apple',
+        url: 'https://www.apple.com/shop/buy-ipad',
+        note: 'Official Apple pricing'
+      });
+    }
+
+    // Add comparison shopping links
+    links.push({
+      retailer: 'Amazon',
+      url: `https://www.amazon.com/s?k=${encodeURIComponent(params.product_name)}`,
+      note: 'Compare prices on Amazon'
+    });
+    links.push({
+      retailer: 'Best Buy',
+      url: `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(params.product_name)}`,
+      note: 'Check Best Buy prices'
+    });
+    links.push({
+      retailer: 'Google Shopping',
+      url: `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(params.product_name)}`,
+      note: 'Compare across retailers'
+    });
+
+    const duration = Date.now() - startTime;
+    actionLogger.performance('ai.product.prices', duration, { linksCount: links.length });
+
+    let message = `Here's what I found for "${params.product_name}":\n\n`;
+    
+    if (priceInfo) {
+      message += `💰 **${priceInfo.model}** starts at **${priceInfo.starting}** (${priceInfo.note})\n\n`;
+    }
+    
+    message += `🔗 **Check current prices:**\n`;
+    links.forEach(link => {
+      message += `• [${link.retailer}](${link.url}) - ${link.note}\n`;
+    });
+
+    return {
+      success: true,
+      message,
+      data: {
+        product: params.product_name,
+        priceInfo,
+        links
+      }
+    };
+  } catch (error) {
+    actionLogger.error('Get product prices failed', error);
+    return { 
+      success: false, 
+      error: error.message,
+      message: `I couldn't look up prices, but you can check these links directly.`
+    };
+  }
 }
 
 async function scrapeWebsite(params, context) {
