@@ -1897,9 +1897,26 @@ app.get('/api/logs', authMiddleware, requireFeature('audit_logs'), async (req, r
 // --- Auth Middleware (for all subsequent /api routes) ---
 // This middleware will protect all API routes defined below it.
 
+// Public endpoints that don't require authentication
+// Check both with and without /api prefix for compatibility
+const PUBLIC_ENDPOINTS = [
+  '/api/ai-agent/health',
+  '/ai-agent/health',
+  '/api/health',
+  '/health',
+  '/api/ai-agent/suggestions',
+  '/ai-agent/suggestions'
+];
+
 app.use('/api', authLimiter, async (req, res, next) => {
   const startTime = Date.now();
   const minDelay = 100; // Minimum delay in ms to prevent timing attacks
+  
+  // Skip auth for public endpoints (check both req.path and req.originalUrl)
+  const pathToCheck = req.path || req.originalUrl;
+  if (PUBLIC_ENDPOINTS.some(ep => pathToCheck === ep || req.originalUrl === ep)) {
+    return next();
+  }
   
   try {
     if (!supabase) {

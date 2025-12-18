@@ -18,7 +18,7 @@
  */
 
 const { createLogger } = require('../middleware/structuredLogging');
-const { getSupabase } = require('../utils/supabase');
+const { getSupabase } = require('../utils/supabaseClient');
 
 // Namespaced logger for AI Action Executor
 const logger = createLogger('ai.executor');

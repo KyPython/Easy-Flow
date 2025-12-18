@@ -23,10 +23,19 @@ const ragClient = require('./ragClient');
 // Namespaced logger for AI Workflow Agent
 const logger = createLogger('ai.agent');
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy-initialize OpenAI client (only when first needed, not at module load)
+let _openaiClient = null;
+function getOpenAI() {
+  if (!_openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      logger.warn('OpenAI API key not configured - AI features will be limited');
+      return null;
+    }
+    _openaiClient = new OpenAI({ apiKey });
+  }
+  return _openaiClient;
+}
 
 // Workflow step definitions for the AI to understand
 const WORKFLOW_STEPS = {
@@ -230,7 +239,7 @@ Use this knowledge to provide accurate, helpful responses about the Easy-Flow ap
 
     messages.push({ role: 'user', content: userMessage });
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
       messages,
       temperature: 0.7,
@@ -464,7 +473,7 @@ ALWAYS base your answers on the Easy-Flow knowledge provided above when relevant
 
     messages.push({ role: 'user', content: userMessage });
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
       messages,
       temperature: 0.8,
@@ -522,6 +531,18 @@ async function handleMessage(userMessage, context = {}) {
       messageLength: userMessage?.length || 0
     });
   
+  // Check if OpenAI is configured
+  const openai = getOpenAI();
+  if (!openai) {
+    msgLogger.warn('OpenAI not configured, returning fallback response');
+    return {
+      type: 'conversation',
+      success: true,
+      message: "I'm sorry, but the AI features are currently not available. Please contact support or try again later. You can still create workflows manually using the drag-and-drop interface!",
+      aiEnabled: false
+    };
+  }
+  
   try {
     msgLogger.info('Processing AI message', {
       messagePreview: userMessage?.slice(0, 50),
@@ -577,7 +598,7 @@ Available step types for workflows: ${Object.values(WORKFLOW_STEPS).map(s => `${
 
     // Call OpenAI with function calling
     const llmStartTime = Date.now();
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
       messages,
       tools,
@@ -658,7 +679,7 @@ Available step types for workflows: ${Object.values(WORKFLOW_STEPS).map(s => `${
         }
       ];
 
-      const followUp = await openai.chat.completions.create({
+      const followUp = await getOpenAI().chat.completions.create({
         model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
         messages: followUpMessages,
         temperature: 0.7,
@@ -748,7 +769,7 @@ async function refineWorkflow(existingWorkflow, refinementRequest, context = {})
       }
     ];
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
       messages,
       temperature: 0.7,
