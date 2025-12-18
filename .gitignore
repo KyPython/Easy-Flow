@@ -108,15 +108,59 @@ firebase-service-account.json
 **/*service-account*.json
 *.pem
 *.key
+*.p12
+*.pfx
+*.jks
+*.keystore
 **/secrets/
 config/secrets/
 ACTUAL_ENV_VALUES.txt
 **/ACTUAL_ENV_VALUES.txt
-# Grafana Cloud credentials
+
+# API Keys and Tokens (NEVER commit these)
+**/*api-key*
+**/*apikey*
+**/*api_key*
+**/*secret-key*
+**/*secretkey*
+**/*secret_key*
+**/*access-token*
+**/*accesstoken*
+**/*access_token*
+**/*auth-token*
+**/*authtoken*
+**/*auth_token*
+**/*private-key*
+**/*privatekey*
+**/*private_key*
+
+# Cloud provider credentials
+**/*credentials*.json
+!**/*credentials*.example.json
+**/*credentials*.yaml
+**/*credentials*.yml
 *GRAFANA_CLOUD_CREDENTIALS*
 *GRAFANA_CLOUD_CREDENTIALS*.md
 **/*credentials*.md
 **/*CREDENTIALS*.md
+
+# OAuth and JWT secrets
+**/*oauth*.json
+**/*jwt*.json
+**/*token*.json
+
+# SSH Keys
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+**/.ssh/
+
+# Backup files that might contain secrets
+*.backup
+*.bak
+*.old
+*.orig
 
 # Kafka templates with credentials
 .kafka-templates/
