@@ -58,6 +58,7 @@ const BulkInvoiceProcessor = lazy(() => import('./components/BulkProcessor/BulkI
 // Global Components (loaded on-demand after initial render)
 // Note: Replaced uChat Chatbot with our AI Workflow Agent for unified support + workflow creation
 const AIWorkflowAgent = lazy(() => import('./components/AIWorkflowAgent/AIWorkflowAgent'));
+const AIAgentToggleLazy = lazy(() => import('./components/AIWorkflowAgent/AIWorkflowAgent').then(mod => ({ default: mod.AIAgentToggle })));
 const MilestonePrompt = lazy(() => import('./components/MilestonePrompt/MilestonePrompt'));
 const EmailCaptureModal = lazy(() => import('./components/EmailCaptureModal/EmailCaptureModal'));
 const SessionExpired = lazy(() => import('./components/SessionExpired/SessionExpired'));
@@ -308,43 +309,13 @@ function Shell() {
         />
       </Suspense>
       
-      {/* AI Agent Toggle Button - Always visible when panel is closed */}
-      {!showAIAgent && (
-        <button 
-          onClick={() => setShowAIAgent(true)}
-          aria-label="Open AI Assistant"
-          title="AI Assistant - Create workflows & get help"
-          style={{
-            position: 'fixed',
-            right: '24px',
-            bottom: '24px',
-            width: '60px',
-            height: '60px',
-            borderRadius: '50%',
-            border: 'none',
-            background: 'linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%)',
-            color: 'white',
-            fontSize: '28px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: 'var(--shadow-xl)',
-            transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-            zIndex: 9998
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-2xl)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
-          }}
-        >
-          🤖
-        </button>
-      )}
+      {/* AI Agent Toggle Button - Theme-aware, always visible when panel is closed */}
+      <Suspense fallback={null}>
+        <AIAgentToggleLazy 
+          onClick={() => setShowAIAgent(true)} 
+          isOpen={showAIAgent} 
+        />
+      </Suspense>
 
       {/* Global session-expired UI */}
       <Suspense fallback={null}>

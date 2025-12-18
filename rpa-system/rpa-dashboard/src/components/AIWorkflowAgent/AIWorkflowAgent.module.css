@@ -667,6 +667,15 @@
   box-shadow: var(--shadow-2xl);
 }
 
+.toggleButton.dark {
+  background: linear-gradient(135deg, var(--color-primary-400) 0%, var(--color-primary-500) 100%);
+  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.4);
+}
+
+.toggleButton.dark:hover {
+  box-shadow: 0 12px 40px rgba(59, 130, 246, 0.5);
+}
+
 .toggleButton::after {
   content: '';
   position: absolute;
