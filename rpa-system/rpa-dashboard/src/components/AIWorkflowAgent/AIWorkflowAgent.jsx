@@ -194,22 +194,20 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
-      content: `Hey! 👋 I'm your Easy-Flow AI Assistant. Here's what I can do:
+      content: `Hey! 👋 I'm your Easy-Flow AI Assistant.
 
-**⚡ Quick Actions** — Just tell me what to do:
-• "Scrape https://example.com for product prices"
-• "Send an email to john@example.com saying hello"
-• "Show me my tasks"
+⚡ QUICK ACTIONS — Tell me what to do:
+"Scrape example.com for prices"
+"Send an email to john@example.com"
+"Show me my tasks"
 
-**🔄 Build Workflows** — Describe what you want to automate:
-• "Create a workflow that monitors a website daily and alerts me of changes"
-• "Build an automation that pulls data from an API and saves it"
+🔄 BUILD WORKFLOWS — Describe automations:
+"Monitor a website daily and alert me"
+"Pull data from an API and save it"
 
-**❓ Get Help** — Ask me anything:
-• "How do workflows work?"
-• "What can I automate?"
+❓ GET HELP — Ask me anything!
 
-👇 **Try clicking one of the examples below, or just type what you need!**`,
+👇 Click an example below or just type!`,
       isUser: false,
       timestamp: new Date()
     }
