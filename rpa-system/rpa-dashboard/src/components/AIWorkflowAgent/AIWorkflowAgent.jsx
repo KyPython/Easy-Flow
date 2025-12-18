@@ -442,12 +442,46 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
           suggestions: data.suggestions || supportResponse.suggestions
         }]);
       } else {
+        // Handle different response types from the AI agent
+        let content = '';
+        let workflow = null;
+        let actionResult = null;
+
+        switch (data.type) {
+          case 'conversation':
+            // Simple conversation response
+            content = data.message || "I'm here to help! What would you like to do?";
+            break;
+            
+          case 'workflow':
+            // AI generated a workflow
+            content = data.explanation || "I've created a workflow for you! Check it out below.";
+            workflow = data.workflow;
+            break;
+            
+          case 'action':
+            // AI executed an action (scrape, email, etc.)
+            content = data.message || `Action "${data.action}" completed.`;
+            actionResult = data.actionResult;
+            break;
+            
+          case 'error':
+            content = data.message || data.error || "Something went wrong. Please try again!";
+            break;
+            
+          default:
+            // Fallback for unknown response types
+            content = data.message || data.explanation || "I'm not sure how to respond to that. Can you try rephrasing?";
+            workflow = data.workflow;
+        }
+
         const aiMessage = {
           id: `ai-${Date.now()}`,
-          content: data.explanation || data.message || 'I generated a workflow for you!',
+          content,
           isUser: false,
           timestamp: new Date(),
-          workflow: data.workflow,
+          workflow,
+          actionResult,
           suggestions: data.suggestions
         };
         setMessages(prev => [...prev, aiMessage]);
