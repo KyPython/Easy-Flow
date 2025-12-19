@@ -423,11 +423,36 @@ async function runTask(params, context) {
 async function listTasks(params, context) {
   const supabase = getSupabase();
   const userId = context.userId;
+  const startTime = Date.now();
+  const actionLogger = logger.withOperation('ai.action.list_tasks', { 
+    userId,
+    status: params.status,
+    limit: params.limit
+  });
+
+  // Validate userId
+  if (!userId || userId === 'anonymous' || !userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    return {
+      success: false,
+      error: 'Authentication required',
+      message: 'You need to be logged in to view your tasks. Please sign in and try again! 😊'
+    };
+  }
+
+  if (!supabase) {
+    actionLogger.error('Supabase client not available');
+    return {
+      success: false,
+      error: 'Database connection not available',
+      message: 'Unable to connect to the database. Please try again in a moment.'
+    };
+  }
 
   try {
+    // Try automation_tasks first (main tasks table)
     let query = supabase
-      .from('tasks')
-      .select('id, name, task_type, status, created_at')
+      .from('automation_tasks')
+      .select('id, name, task_type, status, created_at, updated_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -435,26 +460,80 @@ async function listTasks(params, context) {
       query = query.eq('status', params.status);
     }
 
-    if (params.limit) {
-      query = query.limit(params.limit);
-    } else {
-      query = query.limit(10);
-    }
+    const limit = params.limit || 20;
+    query = query.limit(limit);
 
     const { data, error } = await query;
-    if (error) throw error;
+    
+    if (error) {
+      // If automation_tasks doesn't exist, try accessibleos_tasks as fallback
+      if (error.code === '42P01' || error.message.includes('does not exist')) {
+        actionLogger.info('automation_tasks table not found, trying accessibleos_tasks');
+        const fallbackQuery = supabase
+          .from('accessibleos_tasks')
+          .select('id, name, status, created_at, updated_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+        
+        if (fallbackError) throw fallbackError;
+        
+        const duration = Date.now() - startTime;
+        actionLogger.performance('ai.action.list_tasks', duration, {
+          category: 'tasks',
+          success: true,
+          count: fallbackData?.length || 0,
+          source: 'accessibleos_tasks'
+        });
+
+        return {
+          success: true,
+          message: fallbackData.length === 0 
+            ? "You don't have any tasks yet. Want me to help you create one? 😊"
+            : `Found ${fallbackData.length} task${fallbackData.length === 1 ? '' : 's'}`,
+          data: {
+            tasks: fallbackData || [],
+            count: fallbackData?.length || 0
+          }
+        };
+      }
+      throw error;
+    }
+
+    const duration = Date.now() - startTime;
+    actionLogger.performance('ai.action.list_tasks', duration, {
+      category: 'tasks',
+      success: true,
+      count: data?.length || 0,
+      source: 'automation_tasks'
+    });
+
+    actionLogger.metric('ai.action.list_tasks', 1, 'count', {
+      success: true,
+      taskCount: data?.length || 0
+    });
 
     return {
       success: true,
-      message: `Found ${data.length} tasks`,
+      message: data.length === 0 
+        ? "You don't have any tasks yet. Want me to help you create one? 😊"
+        : `Found ${data.length} task${data.length === 1 ? '' : 's'}`,
       data: {
-        tasks: data,
-        count: data.length
+        tasks: data || [],
+        count: data?.length || 0
       }
     };
   } catch (error) {
-    logger.error('[AI Executor] List tasks failed:', error);
-    return { success: false, error: error.message };
+    const duration = Date.now() - startTime;
+    actionLogger.error('List tasks failed', error, { duration });
+    
+    return { 
+      success: false, 
+      error: error.message,
+      message: `I couldn't fetch your tasks right now. ${error.message.includes('does not exist') ? 'The tasks feature might not be set up yet.' : 'Please try again in a moment.'}`
+    };
   }
 }
 
