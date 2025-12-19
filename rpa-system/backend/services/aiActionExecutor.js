@@ -209,7 +209,7 @@ const AVAILABLE_ACTIONS = {
   // ========== ONE-OFF AUTOMATION ACTIONS ==========
   scrape_website: {
     name: 'scrape_website',
-    description: 'Scrape data from a website. For best results, use specific product/category pages instead of homepages. Example: use "apple.com/shop/buy-mac" not just "apple.com".',
+    description: 'Scrape data from a website. Automatically detects common sites and uses appropriate selectors. For Hacker News: use selectors [".titleline > a"] for headlines. For best results, use specific product/category pages instead of homepages.',
     category: 'automations',
     parameters: {
       type: 'object',
@@ -218,7 +218,7 @@ const AVAILABLE_ACTIONS = {
         selectors: { 
           type: 'array', 
           items: { type: 'string' },
-          description: 'CSS selectors to extract (e.g., ".price", "#title")'
+          description: 'CSS selectors to extract. For Hacker News headlines: [".titleline > a"]. For Reddit: ["h3"] or [".title"]. For news sites: ["h1", "h2", ".headline"]. If not provided, will auto-detect based on URL.'
         },
         wait_for: { type: 'string', description: 'CSS selector to wait for before scraping' },
         timeout: { type: 'number', description: 'Timeout in seconds (default 30)' }
@@ -1165,14 +1165,35 @@ async function scrapeWebsite(params, context) {
   });
 
   try {
+    // Auto-detect selectors for common sites if not provided
+    let selectors = params.selectors || [];
+    const url = params.url.toLowerCase();
+    
+    if (selectors.length === 0) {
+      // Auto-detect selectors for common sites
+      if (url.includes('news.ycombinator.com') || url.includes('ycombinator.com')) {
+        selectors = ['.titleline > a']; // Hacker News headlines
+        actionLogger.info('Auto-detected Hacker News selectors', { selectors });
+      } else if (url.includes('reddit.com')) {
+        selectors = ['h3', '.title']; // Reddit post titles
+        actionLogger.info('Auto-detected Reddit selectors', { selectors });
+      } else if (url.includes('twitter.com') || url.includes('x.com')) {
+        selectors = ['article[data-testid="tweet"] span[lang]']; // Twitter tweets
+        actionLogger.info('Auto-detected Twitter selectors', { selectors });
+      } else if (url.includes('github.com')) {
+        selectors = ['.repo-list-item h3 a', '.repo-list-name a']; // GitHub repos
+        actionLogger.info('Auto-detected GitHub selectors', { selectors });
+      }
+    }
+    
     // Call the automation service
     const automationUrl = process.env.AUTOMATION_URL || 'http://127.0.0.1:7070';
     
-    actionLogger.debug('Calling automation service', { automationUrl });
+    actionLogger.debug('Calling automation service', { automationUrl, selectors });
     
     const response = await axios.post(`${automationUrl}/scrape`, {
       url: params.url,
-      selectors: params.selectors || [],
+      selectors: selectors,
       wait_for: params.wait_for,
       timeout: params.timeout || 30
     }, {
@@ -1186,10 +1207,24 @@ async function scrapeWebsite(params, context) {
       selectorsCount: params.selectors?.length || 0
     });
 
+    // Format the response data for better readability
+    let formattedData = response.data;
+    
+    // If we have extracted data with selectors, format it nicely
+    if (response.data && response.data.extracted && Array.isArray(response.data.extracted)) {
+      formattedData = {
+        ...response.data,
+        extracted: response.data.extracted,
+        count: response.data.extracted.length,
+        preview: response.data.extracted.slice(0, 10) // First 10 items for preview
+      };
+    }
+    
     return {
       success: true,
       message: `✅ Scraped ${params.url}`,
-      data: response.data
+      data: formattedData,
+      rawData: response.data // Keep raw data for detailed inspection if needed
     };
   } catch (error) {
     actionLogger.warn('Automation service unavailable, falling back to basic fetch', {
