@@ -483,6 +483,9 @@ Add a debug step (Delay 100ms) as the first step in your workflow to force backe
 # Workflow-related logs (with trace IDs)
 {job="easyflow-backend"} | json | trace_id != "" |= "workflow"
 
+# AI agent logs (all AI functionality uses backend logs)
+{job="easyflow-backend"} | json | trace_id != "" |= "ai."
+
 # Search by trace ID (from Tempo trace)
 {job="easyflow-backend"} | json | trace_id = "<trace-id-from-tempo>"
 
@@ -558,6 +561,8 @@ All application logs are automatically collected and shipped to Loki via Promtai
 | **Frontend** | `logs/frontend.log` | `easyflow-frontend` | ✅ Integrated |
 | **Frontend Errors** | `logs/frontend-error.log` | `easyflow-frontend-errors` | ✅ Integrated |
 | **Automation Worker** | `logs/automation-worker.log` | `easyflow-automation` | ✅ Integrated |
+
+**Note:** AI agent logs (AI workflow generation, actions, conversations) are part of the backend logs (`easyflow-backend`) and use structured logging with trace context. All AI functionality is automatically observable through the same backend log queries.
 
 **Verify logs are flowing:**
 ```bash
