@@ -10,7 +10,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext';
 import { config } from '../../utils/config';
-import api from '../../utils/api';
+import { api } from '../../utils/api';
 import styles from './AIWorkflowAgent.module.css';
 
 const API_BASE = config.apiBaseUrl;
