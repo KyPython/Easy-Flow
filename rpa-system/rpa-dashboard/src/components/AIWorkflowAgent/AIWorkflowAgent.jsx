@@ -530,24 +530,14 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
             actionResult = data.actionResult;
             
             // Handle email fallback (mailto link) if SendGrid isn't configured
+            let emailActions = [];
             if (data.action === 'send_email' && actionResult?.data?.fallback?.type === 'mailto') {
-              const mailtoLink = actionResult.data.fallback.link;
-              const aiMessage = {
-                id: `ai-${Date.now()}`,
-                content: content,
-                isUser: false,
-                timestamp: new Date(),
-                actions: [{
-                  type: 'mailto',
-                  href: mailtoLink,
-                  label: '📧 Open Email Client',
-                  variant: 'primary'
-                }]
-              };
-              setMessages(prev => [...prev, aiMessage]);
-              saveMessage(aiMessage);
-              setIsLoading(false);
-              return; // Early return to avoid duplicate message
+              emailActions = [{
+                type: 'mailto',
+                href: actionResult.data.fallback.link,
+                label: '📧 Open Email Client',
+                variant: 'primary'
+              }];
             }
             
             // If workflow was created, automatically navigate to workflows page
@@ -581,7 +571,14 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
           timestamp: new Date(),
           workflow,
           actionResult,
-          suggestions: data.suggestions
+          suggestions: data.suggestions,
+          // Add email actions if available (for mailto fallback)
+          actions: data.type === 'action' && actionResult?.data?.fallback?.type === 'mailto' ? [{
+            type: 'mailto',
+            href: actionResult.data.fallback.link,
+            label: '📧 Open Email Client',
+            variant: 'primary'
+          }] : undefined
         };
         setMessages(prev => [...prev, aiMessage]);
         saveMessage(aiMessage); // Save AI response
