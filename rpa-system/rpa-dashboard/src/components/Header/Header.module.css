@@ -299,11 +299,17 @@
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-size-sm);
     flex-shrink: 0;
+    min-height: var(--touch-target-min);
+    display: flex;
+    align-items: center;
+    -webkit-tap-highlight-color: rgba(37, 99, 235, 0.1);
   }
   
   .actionButton {
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-size-xs);
+    min-height: var(--touch-target-min);
+    -webkit-tap-highlight-color: rgba(37, 99, 235, 0.1);
   }
   
   .userActions {
@@ -324,6 +330,19 @@
   .actionButton {
     padding: var(--spacing-2xs) var(--spacing-xs);
     min-width: 60px;
+    min-height: var(--touch-target-min);
     justify-content: center;
+    -webkit-tap-highlight-color: rgba(37, 99, 235, 0.1);
+  }
+
+  /* Improve touch scrolling for nav on very small screens */
+  .nav {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
   }
 }
