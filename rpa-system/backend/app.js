@@ -826,15 +826,6 @@ app.use('/api', emailCaptureRoutes);
 const feedbackRoutes = require('./routes/feedbackRoutes');
 app.use('/api', feedbackRoutes);
 
-// Mount AI Workflow Agent routes
-try {
-  const aiAgentRoutes = require('./routes/aiAgentRoutes');
-  app.use('/api/ai-agent', aiAgentRoutes);
-  rootLogger.info('✓ AI Agent routes mounted at /api/ai-agent');
-} catch (e) {
-  rootLogger.warn('AI Agent routes not mounted (OpenAI API key may not be configured)', { error: e?.message || e });
-}
-
 // Internal (dev) routes - accept frontend telemetry and error reports
 try {
   const internalRoutes = require('./routes/internalRoutes');
@@ -1960,6 +1951,15 @@ app.use('/api', authLimiter, async (req, res, next) => {
 
 // --- Authenticated API Routes ---
 // All routes defined below this point will require a valid JWT.
+
+// Mount AI Workflow Agent routes (after global auth middleware so req.user is set)
+try {
+  const aiAgentRoutes = require('./routes/aiAgentRoutes');
+  app.use('/api/ai-agent', aiAgentRoutes);
+  rootLogger.info('✓ AI Agent routes mounted at /api/ai-agent (after auth middleware)');
+} catch (e) {
+  rootLogger.warn('AI Agent routes not mounted (OpenAI API key may not be configured)', { error: e?.message || e });
+}
 
 // --- Authenticated API Routes ---
 
