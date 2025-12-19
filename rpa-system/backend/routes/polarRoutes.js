@@ -267,7 +267,9 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    const payload = JSON.parse(req.body.toString());
+    // ✅ SECURITY: Validate type before using toString
+    const bodyString = typeof req.body === 'string' ? req.body : (req.body ? String(req.body) : '{}');
+    const payload = JSON.parse(bodyString);
     if (process.env.NODE_ENV !== 'production') {
       logger.info('Received Polar webhook:', {
       type: payload.type,

@@ -296,7 +296,8 @@ router.post('/custom-hourly-rate', requireFeature('analytics'), async (req, res)
       .upsert({
         user_id: userId,
         preference_key: 'custom_hourly_rate',
-        preference_value: hourly_rate.toString(),
+        // ✅ SECURITY: Validate type before using toString
+        preference_value: typeof hourly_rate === 'number' ? hourly_rate.toString() : String(hourly_rate || '0'),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,preference_key'

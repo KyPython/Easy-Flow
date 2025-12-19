@@ -1651,7 +1651,8 @@ app.post('/api/auth/login', async (req, res) => {
   
   // Log login attempt with observability
   logger.info('🔐 [Auth] Login attempt', {
-    email: email ? email.substring(0, 3) + '***' : 'missing',
+    // ✅ SECURITY: Validate type before using string methods
+    email: (email && typeof email === 'string') ? email.substring(0, 3) + '***' : 'missing',
     ip: req.ip || req.connection?.remoteAddress || 'unknown',
     user_agent: req.get('User-Agent') || 'unknown',
     request_id: requestId,
@@ -1663,7 +1664,8 @@ app.post('/api/auth/login', async (req, res) => {
     
     if (!email || !password) {
       logger.warn('🔐 [Auth] Login failed: missing credentials', {
-        email: email ? email.substring(0, 3) + '***' : 'missing',
+        // ✅ SECURITY: Validate type before using string methods
+    email: (email && typeof email === 'string') ? email.substring(0, 3) + '***' : 'missing',
         has_password: !!password,
         request_id: requestId
       });
@@ -1791,7 +1793,8 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (error) {
     const duration = Date.now() - startTime;
     logger.error('❌ [Auth] Login exception', {
-      email: email ? email.substring(0, 3) + '***' : 'missing',
+      // ✅ SECURITY: Validate type before using string methods
+    email: (email && typeof email === 'string') ? email.substring(0, 3) + '***' : 'missing',
       error: error.message,
       stack: error.stack,
       duration_ms: duration,
@@ -2530,8 +2533,11 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
     logger.info(`[run-task] Processing automation for user ${user.id}`);
     
     // First, create or find a task in automation_tasks
-  const taskName = title || (type && type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || (task && task.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'Automation Task';
-  const taskType = (type || task || 'general').toLowerCase();
+  // ✅ SECURITY: Validate type before using string methods
+  const safeType = typeof type === 'string' ? type : String(type || '');
+  const safeTask = typeof task === 'string' ? task : String(task || '');
+  const taskName = title || (safeType && safeType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || (safeTask && safeTask.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'Automation Task';
+  const taskType = (safeType || safeTask || 'general').toLowerCase();
     
     const { data: taskRecord, error: taskError } = await supabase
       .from('automation_tasks')
@@ -5776,7 +5782,8 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       query = query.or(`original_name.ilike.%${search}%,display_name.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
-    if (tags) {
+    // ✅ SECURITY: Validate type before using string methods
+    if (tags && typeof tags === 'string') {
       const tagArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
       if (tagArray.length > 0) {
         // Use overlaps operator to find files that have any of the specified tags
@@ -6389,8 +6396,11 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
     logger.info(`[run-task-with-ai] Processing AI-enhanced automation for user ${user.id}`);
     
     // Create automation task (reuse existing logic)
-    const taskName = title || (type && type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'AI-Enhanced Task';
-    const taskType = (type || task || 'general').toLowerCase();
+    // ✅ SECURITY: Validate type before using string methods
+    const safeType = typeof type === 'string' ? type : String(type || '');
+    const safeTask = typeof task === 'string' ? task : String(task || '');
+    const taskName = title || (safeType && safeType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'AI-Enhanced Task';
+    const taskType = (safeType || safeTask || 'general').toLowerCase();
     
     const { data: taskRecord, error: taskError } = await supabase
       .from('automation_tasks')
@@ -6525,7 +6535,8 @@ app.post('/api/bulk-process/invoices', authMiddleware, requirePlan('professional
     const { vendors, date_range, output_path, parallel_jobs, retry_attempts } = req.body;
     const userId = req.user.id;
 
-    if (!vendors || vendors.length === 0) {
+    // ✅ SECURITY: Validate type before accessing length property
+    if (!vendors || !Array.isArray(vendors) || vendors.length === 0) {
       return res.status(400).json({ error: 'At least one vendor configuration is required' });
     }
 
@@ -6565,7 +6576,8 @@ app.post('/api/extract-data-bulk', authMiddleware, requirePlan('professional'), 
     const { fileIds, extractionType } = req.body;
     const userId = req.user.id;
 
-    if (!fileIds || fileIds.length === 0) {
+    // ✅ SECURITY: Validate type before accessing length property
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
       return res.status(400).json({ error: 'File IDs are required' });
     }
 
@@ -6659,7 +6671,8 @@ app.post('/api/integrations/sync-files', authMiddleware, requireFeature('custom_
     const { service, files } = req.body;
     const userId = req.user.id;
 
-    if (!service || !files || files.length === 0) {
+    // ✅ SECURITY: Validate type before accessing length property
+    if (!service || !files || !Array.isArray(files) || files.length === 0) {
       return res.status(400).json({ error: 'Service name and files are required' });
     }
 

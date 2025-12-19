@@ -38,7 +38,8 @@ router.post('/capture-email', async (req, res) => {
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    // ✅ SECURITY: Validate type before using string methods
+    const normalizedEmail = typeof email === 'string' ? email.toLowerCase().trim() : String(email || '').toLowerCase().trim();
     logger.info('📧 Capturing email:', { email: normalizedEmail, source, sessionCount, userPlan });
 
     // 1. Save to Supabase if configured
@@ -333,7 +334,8 @@ router.get('/unsubscribe', async (req, res) => {
       `);
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    // ✅ SECURITY: Validate type before using string methods
+    const normalizedEmail = typeof email === 'string' ? email.toLowerCase().trim() : String(email || '').toLowerCase().trim();
     logger.info('📧 Unsubscribe request:', { email: normalizedEmail });
 
     // Mark email as unsubscribed in Supabase

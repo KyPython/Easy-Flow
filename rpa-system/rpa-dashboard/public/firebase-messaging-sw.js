@@ -203,6 +203,10 @@ self.addEventListener('message', (event) => {
   // Only accept messages from the same origin
   const allowedOrigin = self.location.origin;
   if (event.origin && event.origin !== allowedOrigin) {
+    console.warn('[firebase-messaging-sw] Rejected message from unauthorized origin:', event.origin);
+    return;
+  }
+  if (event.origin && event.origin !== allowedOrigin) {
     console.warn('[firebase-messaging-sw.js] Rejected message from unauthorized origin:', event.origin);
     return;
   }

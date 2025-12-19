@@ -440,18 +440,24 @@ def process_automation_task(task_data):
                     import os
                     import tempfile
                     raw_download_path = task_data.get('download_path', tempfile.gettempdir())
-                    # Normalize and validate path to prevent directory traversal
+                    # ✅ SECURITY: Normalize and validate path to prevent directory traversal
                     if raw_download_path and isinstance(raw_download_path, str):
-                        # Remove any path traversal attempts
-                        normalized_path = os.path.normpath(raw_download_path).replace('..', '').replace('~', '')
-                        # Ensure path is absolute and within safe directory
-                        safe_base = os.path.abspath(tempfile.gettempdir())
-                        abs_path = os.path.abspath(normalized_path)
-                        if not abs_path.startswith(safe_base):
-                            task_logger.warning(f"Download path {abs_path} outside safe directory, using temp directory")
-                            task_data['download_path'] = safe_base
+                        # Remove any path traversal attempts and normalize
+                        normalized_path = os.path.normpath(raw_download_path)
+                        # Remove any remaining path traversal attempts after normalization
+                        if '..' in normalized_path or normalized_path.startswith('/') or normalized_path.startswith('~'):
+                            task_logger.warning(f"Download path contains unsafe characters, using temp directory")
+                            task_data['download_path'] = tempfile.gettempdir()
                         else:
-                            task_data['download_path'] = abs_path
+                            # Ensure path is absolute and within safe directory
+                            safe_base = os.path.abspath(tempfile.gettempdir())
+                            abs_path = os.path.abspath(os.path.join(safe_base, normalized_path))
+                            # Double-check that resolved path is still within safe base
+                            if not abs_path.startswith(safe_base):
+                                task_logger.warning(f"Download path {abs_path} outside safe directory, using temp directory")
+                                task_data['download_path'] = safe_base
+                            else:
+                                task_data['download_path'] = abs_path
                     else:
                         task_data['download_path'] = tempfile.gettempdir()
                     
@@ -705,13 +711,16 @@ def trigger_automation():
 
     except KafkaError as e:
         logger.error(f"Failed to queue task on Kafka: {e}")
-        return jsonify({'error': f'Failed to queue task on Kafka: {e}'}), 500
+        # ✅ SECURITY: Don't expose internal error details
+        return jsonify({'error': 'Failed to queue task'}), 500
     except Exception as e:
         import traceback
         # ✅ SECURITY: Log full error details server-side for debugging
         logger.error(f"Unexpected error: {e}")
         logger.debug(f"Full traceback: {traceback.format_exc()}")
         # ✅ SECURITY: Don't expose full stack trace to prevent information disclosure
+        # Return generic error message to client
+        error_message = "An internal error occurred" if process.env.get('NODE_ENV') == 'production' else str(e)
         # Return generic error message to client
         import traceback
         logger.error(f"Full error details: {traceback.format_exc()}")

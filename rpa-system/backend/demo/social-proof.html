@@ -453,10 +453,19 @@
                 animateCounter(document.getElementById('activeWorkflows'), data.activeWorkflows);
                 animateCounter(document.getElementById('recentEvents'), data.recentEvents);
 
-                // Update component previews
-                document.getElementById('userCountPreview').innerHTML = renderUserCountBadge(data.totalUsers);
+                // ✅ SECURITY: Sanitize numeric values to prevent XSS
+                const safeTotalUsers = typeof data.totalUsers === 'number' ? data.totalUsers : 0;
+                const safeActiveWorkflows = typeof data.activeWorkflows === 'number' ? data.activeWorkflows : 0;
+                const safeRecentEvents = typeof data.recentEvents === 'number' ? data.recentEvents : 0;
+                
+                // Update component previews with sanitized data
+                document.getElementById('userCountPreview').innerHTML = renderUserCountBadge(safeTotalUsers);
                 document.getElementById('trustBadgesPreview').innerHTML = renderTrustBadges();
-                document.getElementById('activityCounterPreview').innerHTML = renderActivityCounter(data);
+                document.getElementById('activityCounterPreview').innerHTML = renderActivityCounter({
+                    totalUsers: safeTotalUsers,
+                    activeWorkflows: safeActiveWorkflows,
+                    recentEvents: safeRecentEvents
+                });
 
                 window.__efClientLogger = window.__efClientLogger || { info: (m, meta) => {}, error: (m, meta) => {} };
                 window.__efClientLogger.info('📊 Metrics loaded successfully', { data });

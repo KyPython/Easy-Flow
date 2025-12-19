@@ -63,7 +63,9 @@ export class TaskController {
       const { title, description, status, dueDate, altText, hasMedia, labels } = req.body;
 
       // Additional accessibility validation
-      if (hasMedia === true && (!altText || altText.trim() === '')) {
+      // ✅ SECURITY: Validate type before using string methods
+      const safeAltText = typeof altText === 'string' ? altText : String(altText || '');
+      if (hasMedia === true && (!altText || safeAltText.trim() === '')) {
         res.status(400).json({ 
           error: 'Accessibility violation',
           message: 'altText is required when hasMedia is true' 
@@ -118,7 +120,9 @@ export class TaskController {
       const updatedHasMedia = hasMedia !== undefined ? hasMedia : existingTask.hasMedia;
       const updatedAltText = altText !== undefined ? altText : existingTask.altText;
 
-      if (updatedHasMedia === true && (!updatedAltText || updatedAltText.trim() === '')) {
+      // ✅ SECURITY: Validate type before using string methods
+      const safeUpdatedAltText = typeof updatedAltText === 'string' ? updatedAltText : String(updatedAltText || '');
+      if (updatedHasMedia === true && (!updatedAltText || safeUpdatedAltText.trim() === '')) {
         res.status(400).json({ 
           error: 'Accessibility violation',
           message: 'altText is required when hasMedia is true' 

@@ -857,7 +857,9 @@ router.post('/email', authMiddleware, contextLoggerMiddleware, apiLimiter, async
       });
     }
 
-    logger.info('[AI Agent Route] Quick email', { userId, to, subject: subject.slice(0, 50) });
+    // ✅ SECURITY: Validate type before using string methods
+    const safeSubject = typeof subject === 'string' ? subject.slice(0, 50) : String(subject || '').slice(0, 50);
+    logger.info('[AI Agent Route] Quick email', { userId, to, subject: safeSubject });
 
     const result = await actionExecutor.executeAction('send_email', {
       to,
