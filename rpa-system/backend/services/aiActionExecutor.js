@@ -1473,29 +1473,37 @@ async function sendEmail(params, context) {
       subject: params.subject?.slice(0, 50),
       duration,
       errorCode: error.code,
+      statusCode: error.response?.statusCode || error.statusCode,
       errorResponse: error.response?.body
     });
     
-    // Provide helpful error messages based on error type
-    let userMessage = `I couldn't send the email right now.`;
+    // Always provide mailto fallback
+    const mailtoLink = `mailto:${params.to}?subject=${encodeURIComponent(params.subject || 'Hello')}&body=${encodeURIComponent(params.body || '')}`;
     
-    if (error.response?.body?.errors) {
+    // Provide helpful error messages based on error type
+    let userMessage = `I've prepared your email! Since the email service needs configuration, I've created a mailto link for you. Click it to open your email client with the message ready to send.`;
+    
+    // Check for 401 Unauthorized (invalid API key)
+    if (error.code === 401 || error.response?.statusCode === 401 || error.statusCode === 401 || error.message?.includes('Unauthorized')) {
+      userMessage = `The email service API key needs to be configured or verified. I've prepared a mailto link instead - click it to open your email client with your message ready to send!`;
+    }
+    // Check for SendGrid-specific errors
+    else if (error.response?.body?.errors) {
       const sendgridErrors = error.response.body.errors;
       const firstError = sendgridErrors[0];
       
       if (firstError.field === 'from') {
-        userMessage = `The email sending service needs to be configured with a verified sender address. I've prepared a mailto link instead - click it to open your email client!`;
+        userMessage = `The email sending service needs a verified sender address. I've prepared a mailto link instead - click it to open your email client!`;
       } else if (firstError.message?.includes('permission') || firstError.message?.includes('unauthorized')) {
         userMessage = `The email service doesn't have permission to send emails yet. I've prepared a mailto link instead - click it to open your email client!`;
       } else {
         userMessage = `There was an issue sending the email: ${firstError.message}. I've prepared a mailto link instead - click it to open your email client!`;
       }
-    } else if (error.message?.includes('API key') || error.message?.includes('authentication')) {
+    } 
+    // Check for authentication/API key errors
+    else if (error.message?.includes('API key') || error.message?.includes('authentication') || error.message?.includes('Unauthorized')) {
       userMessage = `The email service needs to be configured. I've prepared a mailto link instead - click it to open your email client!`;
     }
-    
-    // Always provide mailto fallback
-    const mailtoLink = `mailto:${params.to}?subject=${encodeURIComponent(params.subject || 'Hello')}&body=${encodeURIComponent(params.body || '')}`;
     
     return { 
       success: true, // Return success so AI shows helpful message with fallback
