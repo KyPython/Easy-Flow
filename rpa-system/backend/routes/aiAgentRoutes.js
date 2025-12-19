@@ -207,9 +207,17 @@ router.post('/message', authMiddleware, contextLoggerMiddleware, async (req, res
  * POST /api/ai-agent/generate-workflow
  * Dedicated endpoint for workflow generation
  */
-router.post('/generate-workflow', async (req, res) => {
+router.post('/generate-workflow', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
-    const userId = req.user?.id || 'anonymous';
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        message: 'Please sign in to generate workflows.'
+      });
+    }
     
     if (!checkRateLimit(userId)) {
       return res.status(429).json({
@@ -256,9 +264,17 @@ router.post('/generate-workflow', async (req, res) => {
  * POST /api/ai-agent/refine-workflow
  * Refine an existing workflow based on user feedback
  */
-router.post('/refine-workflow', async (req, res) => {
+router.post('/refine-workflow', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
-    const userId = req.user?.id || 'anonymous';
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        message: 'Please sign in to refine workflows.'
+      });
+    }
     
     if (!checkRateLimit(userId)) {
       return res.status(429).json({
@@ -501,10 +517,18 @@ router.delete('/conversations', authMiddleware, contextLoggerMiddleware, async (
  * POST /api/ai-agent/send-support-email
  * Send a support email on behalf of the user
  */
-router.post('/send-support-email', async (req, res) => {
+router.post('/send-support-email', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
     const userId = req.user?.id;
     const userEmail = req.user?.email;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        message: 'Please sign in to send support emails.'
+      });
+    }
     const { subject, body } = req.body;
 
     if (!subject || typeof subject !== 'string' || !body || typeof body !== 'string') {
