@@ -211,7 +211,7 @@ router.post('/test-link-discovery', requireFeature('workflow_executions'), async
     }
 
     logger.info(`[TestLinkDiscovery] Starting test for user ${userId}:`, {
-      url, username: username.substring(0, 3) + '***', discoveryMethod
+      url, username: (username && typeof username === 'string') ? username.substring(0, 3) + '***' : 'unknown', discoveryMethod
     });
 
     const linkDiscovery = new LinkDiscoveryService();

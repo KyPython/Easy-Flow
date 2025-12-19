@@ -5778,7 +5778,8 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       query = query.eq('category', category);
     }
 
-    if (search) {
+    // ✅ SECURITY: Validate type before using string methods
+    if (search && typeof search === 'string') {
       query = query.or(`original_name.ilike.%${search}%,display_name.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
