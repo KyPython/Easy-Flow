@@ -458,12 +458,13 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
   };
 
   // Send message to AI
-  const sendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+  const sendMessage = async (messageText = null) => {
+    const textToSend = messageText || inputValue.trim();
+    if (!textToSend || isLoading) return;
 
     const userMessage = {
       id: `user-${Date.now()}`,
-      content: inputValue.trim(),
+      content: textToSend,
       isUser: true,
       timestamp: new Date()
     };
@@ -617,10 +618,11 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
     }
   }, [onWorkflowGenerated]);
 
-  // Handle example prompt click
-  const handleExampleClick = (prompt) => {
-    setInputValue(prompt);
-    inputRef.current?.focus();
+  // Handle example prompt click - auto-send the message
+  const handleExampleClick = async (prompt) => {
+    if (isLoading) return; // Don't allow clicks while processing
+    setInputValue(''); // Clear input first
+    await sendMessage(prompt); // Send the example prompt directly
   };
 
   // Handle key press

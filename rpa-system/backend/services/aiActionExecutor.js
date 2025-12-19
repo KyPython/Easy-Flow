@@ -462,6 +462,15 @@ async function createWorkflow(params, context) {
   const supabase = getSupabase();
   const userId = context.userId;
 
+  // Validate userId is a real UUID (not "anonymous")
+  if (!userId || userId === 'anonymous' || !userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    return {
+      success: false,
+      error: 'Authentication required',
+      message: 'You need to be logged in to create workflows. Please sign in and try again! 😊'
+    };
+  }
+
   try {
     const workflowData = {
       user_id: userId,
@@ -658,6 +667,15 @@ async function createAutomatedWorkflow(params, context) {
     trigger_type: params.trigger_type,
     userId
   });
+
+  // Validate userId is a real UUID (not "anonymous")
+  if (!userId || userId === 'anonymous' || !userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    return {
+      success: false,
+      error: 'Authentication required',
+      message: 'You need to be logged in to create workflows. Please sign in and try again! 😊'
+    };
+  }
 
   try {
     actionLogger.info('Creating automated workflow', { 
