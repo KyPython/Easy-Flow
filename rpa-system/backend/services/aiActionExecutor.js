@@ -847,36 +847,60 @@ async function createAutomatedWorkflow(params, context) {
 
     actionLogger.info('Workflow saved', { workflowId: workflow.id });
 
-    // Step 3: Schedule if not manual
+    // Step 3: Schedule if not manual (but check plan restrictions first)
     let scheduleInfo = null;
+    let scheduleRestricted = false;
     if (params.trigger_type && params.trigger_type !== 'manual') {
-      const scheduleData = {
-        workflow_id: workflow.id,
-        user_id: userId,
-        schedule_type: params.trigger_type,
-        schedule_config: {
-          time: params.trigger_time || '09:00',
-          timezone: context.timezone || 'UTC',
-          notification_email: params.notification_email || context.userEmail
-        },
-        status: 'active',
-        created_at: new Date().toISOString()
-      };
+      // Check if user has access to schedules feature
+      try {
+        const { getUserPlan } = require('../services/planService');
+        const planData = await getUserPlan(userId);
+        
+        // Check for both 'schedules' and 'scheduled_automations' feature flags
+        const hasScheduleAccess = planData.limits?.schedules === true || 
+                                  planData.limits?.scheduled_automations === true;
+        
+        if (!hasScheduleAccess) {
+          actionLogger.info('User does not have schedule access, creating workflow without schedule', {
+            currentPlan: planData.plan?.name,
+            limits: planData.limits
+          });
+          scheduleRestricted = true;
+        } else {
+          // User has access, proceed with scheduling
+          const scheduleData = {
+            workflow_id: workflow.id,
+            user_id: userId,
+            schedule_type: params.trigger_type,
+            schedule_config: {
+              time: params.trigger_time || '09:00',
+              timezone: context.timezone || 'UTC',
+              notification_email: params.notification_email || context.userEmail
+            },
+            status: 'active',
+            created_at: new Date().toISOString()
+          };
 
-      const { data: schedule, error: scheduleError } = await supabase
-        .from('workflow_schedules')
-        .insert(scheduleData)
-        .select()
-        .single();
+          const { data: schedule, error: scheduleError } = await supabase
+            .from('workflow_schedules')
+            .insert(scheduleData)
+            .select()
+            .single();
 
-      if (scheduleError) {
-        actionLogger.warn('Failed to schedule workflow', { error: scheduleError.message });
-      } else {
-        scheduleInfo = {
-          schedule_id: schedule.id,
-          frequency: params.trigger_type,
-          time: params.trigger_time || '9:00 AM'
-        };
+          if (scheduleError) {
+            actionLogger.warn('Failed to schedule workflow', { error: scheduleError.message });
+            scheduleRestricted = true; // Treat as restriction if insert fails
+          } else {
+            scheduleInfo = {
+              schedule_id: schedule.id,
+              frequency: params.trigger_type,
+              time: params.trigger_time || '9:00 AM'
+            };
+          }
+        }
+      } catch (planError) {
+        actionLogger.error('Failed to check plan for schedule access', planError);
+        scheduleRestricted = true; // Default to restricted on error
       }
     }
 
@@ -897,6 +921,8 @@ async function createAutomatedWorkflow(params, context) {
         'monthly': `once a month on the ${params.trigger_time || '1st at 9:00 AM'}`
       };
       message += `\n\n⏰ It will run ${frequencyText[params.trigger_type] || params.trigger_type}.`;
+    } else if (scheduleRestricted && params.trigger_type && params.trigger_type !== 'manual') {
+      message += `\n\n⚠️ I created the workflow, but scheduled automations aren't available on your current plan. You can run it manually, or upgrade to schedule it automatically!`;
     }
     message += `\n\n🚀 Taking you to your workflows now...`;
 

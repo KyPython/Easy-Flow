@@ -620,6 +620,7 @@ WHEN TO USE create_automated_workflow:
 - User says "daily", "weekly", "hourly", "monthly", "every", "monitor", "recurring", "automate"
 - Examples: "Monitor example.com daily", "Send me weekly sales reports", "Check prices every hour"
 - This creates the workflow AND schedules it in one step - no extra clicks needed!
+- NOTE: If the user's plan doesn't support scheduled automations, the workflow will be created but not scheduled. Inform them they can upgrade to enable scheduling.
 
 Available automation types: ${Object.values(WORKFLOW_STEPS).map(s => `${s.icon} ${s.label}`).join(', ')}`;
 
