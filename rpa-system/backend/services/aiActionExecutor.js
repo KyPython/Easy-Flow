@@ -764,7 +764,7 @@ async function createAutomatedWorkflow(params, context) {
       };
       message += `\n\n⏰ It will run ${frequencyText[params.trigger_type] || params.trigger_type}.`;
     }
-    message += `\n\n📋 You can find it in your Workflows tab.`;
+    message += `\n\n🚀 Taking you to your workflows now...`;
 
     return {
       success: true,
