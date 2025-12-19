@@ -113,6 +113,10 @@
   --sidebar-width: 280px;
   --header-height: 64px;
 
+  /* Mobile touch targets - minimum 44px for accessibility (WCAG) */
+  --touch-target-min: 44px;
+  --touch-target-comfortable: 48px;
+
   /* Enhanced semantic tokens with strong blue branding */
   --bg: var(--color-gray-50);
   --surface: #ffffff;
