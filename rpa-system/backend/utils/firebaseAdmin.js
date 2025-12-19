@@ -213,12 +213,14 @@ class FirebaseNotificationService {
       }
 
       // Send push notification
+      // Note: Firebase Cloud Messaging notification object only supports 'title' and 'body'
+      // 'icon' is only valid in webpush.notification, not in the top-level notification object
       const message = {
         token: profile.fcm_token,
         notification: {
           title: notification.title,
-          body: notification.body,
-          icon: notification.icon || '/favicon.ico'
+          body: notification.body
+          // icon is NOT supported in top-level notification object
         },
         data: {
           type: notification.type || 'general',

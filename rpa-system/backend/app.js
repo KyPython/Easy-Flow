@@ -2348,28 +2348,56 @@ async function queueTaskRun(runId, taskData) {
         throw new Error('Automation service returned no result after all retries');
       }
       
+      // Check if the automation actually failed (even though HTTP request succeeded)
+      const isSuccess = automationResult.success !== false && 
+                       automationResult.status !== 'failed' &&
+                       !automationResult.error;
+      const finalStatus = isSuccess ? 'completed' : 'failed';
+      
       // Update the run with the result
+      // Ensure result is properly stringified for JSONB column
       const sb = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
-    await sb
+      const resultForStorage = typeof automationResult === 'string' 
+        ? automationResult 
+        : JSON.stringify(automationResult);
+      
+      await sb
         .from('automation_runs')
         .update({
-          status: 'completed',
+          status: finalStatus,
           ended_at: new Date().toISOString(),
-      result: automationResult
+          result: resultForStorage,
+          // Extract artifact_url if available (for invoice downloads)
+          artifact_url: automationResult?.data?.artifact_url || automationResult?.artifact_url || null
         })
         .eq('id', runId);
+      
+      logger.info(`[queueTaskRun] Task ${runId} ${finalStatus}`, {
+        runId,
+        status: finalStatus,
+        hasArtifact: !!(automationResult?.data?.artifact_url || automationResult?.artifact_url)
+      });
 
-      // Track the completed automation run
-  await usageTracker.trackAutomationRun(taskData.user_id, runId, 'completed');
+      // Track the automation run with correct status
+      await usageTracker.trackAutomationRun(taskData.user_id, runId, finalStatus);
 
-      // Send notification for task completion
-      try {
-        const taskName = taskData.title || 'Automation Task';
-        const notification = NotificationTemplates.taskCompleted(taskName);
-        await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
-        logger.info(`🔔 Task completion notification sent to user ${taskData.user_id}`);
-      } catch (notificationError) {
-        logger.error('🔔 Failed to send task completion notification:', notificationError.message);
+      // Send notification only for successful tasks
+      if (isSuccess) {
+        try {
+          const taskName = taskData.title || 'Automation Task';
+          const notification = NotificationTemplates.taskCompleted(taskName);
+          await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
+          logger.info(`🔔 Task completion notification sent to user ${taskData.user_id}`);
+        } catch (notificationError) {
+          logger.error('🔔 Failed to send task completion notification:', notificationError.message);
+        }
+      } else {
+        // Log failure details
+        logger.warn(`[queueTaskRun] Task ${runId} failed`, {
+          runId,
+          error: automationResult.error,
+          message: automationResult.message
+        });
       }
         
   return response?.data ?? automationResult;
@@ -6402,7 +6430,50 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
     // ✅ SECURITY: Validate type before using string methods
     const safeType = typeof type === 'string' ? type : String(type || '');
     const safeTask = typeof task === 'string' ? task : String(task || '');
-    const taskName = title || (safeType && safeType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'AI-Enhanced Task';
+    
+    // Generate a descriptive task name with better fallbacks
+    // Priority: title > formatted task type > formatted task value > URL-based > default
+    let taskName = title?.trim();
+    
+    if (!taskName && safeType) {
+      // Format task type: "invoice_download" -> "Invoice Download"
+      taskName = safeType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+    
+    if (!taskName && safeTask) {
+      // Format task value: "invoice_download" -> "Invoice Download"
+      taskName = safeTask.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+    
+    if (!taskName && url) {
+      // Extract domain from URL as fallback
+      try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname.replace('www.', '');
+        // Map common task types to better names
+        if (taskType === 'invoice_download') {
+          taskName = `Invoice Download from ${hostname}`;
+        } else if (taskType === 'web_scraping') {
+          taskName = `Web Scraping from ${hostname}`;
+        } else if (taskType === 'form_submission') {
+          taskName = `Form Submission to ${hostname}`;
+        } else {
+          taskName = `Automation for ${hostname}`;
+        }
+      } catch (e) {
+        taskName = 'Automation Task';
+      }
+    }
+    
+    if (!taskName) {
+      taskName = 'Automation Task';
+    }
+    
+    // Add AI indicator if AI is enabled (but don't duplicate if already in name)
+    if (enableAI && !taskName.toLowerCase().includes('ai') && !taskName.toLowerCase().includes('enhanced')) {
+      taskName = `${taskName} (AI-Enhanced)`;
+    }
+    
     const taskType = (safeType || safeTask || 'general').toLowerCase();
     
     const { data: taskRecord, error: taskError } = await supabase
@@ -6479,16 +6550,38 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           }
         }
 
+        // Format result for storage - ensure it's properly structured
+        // queueTaskRun already updates the database, but we need to add AI extraction results
+        // So we update again with the enhanced result
+        const resultToStore = {
+          success: automationResult.success !== false, // Default to true if not explicitly false
+          status: 'completed',
+          message: automationResult.message || 'Task completed successfully',
+          ...automationResult, // Include all original fields
+          // Ensure AI extraction data is included if available
+          ...(automationResult.extractedData && { 
+            extractedData: automationResult.extractedData,
+            aiConfidence: automationResult.aiConfidence 
+          })
+        };
+        
         // Update run with enhanced results
         await supabase
           .from('automation_runs')
           .update({
             status: 'completed',
             ended_at: new Date().toISOString(),
-            result: JSON.stringify(automationResult),
-            extracted_data: automationResult.extractedData || null
+            result: typeof resultToStore === 'string' ? resultToStore : JSON.stringify(resultToStore),
+            extracted_data: automationResult.extractedData ? JSON.stringify(automationResult.extractedData) : null
           })
           .eq('id', run.id);
+        
+        logger.info(`[run-task-with-ai] ✅ Task ${run.id} completed and results saved`, {
+          taskId: taskRecord.id,
+          runId: run.id,
+          hasExtractedData: !!automationResult.extractedData,
+          aiEnabled: enableAI
+        });
 
         await usageTracker.trackAutomationRun(user.id, run.id, 'completed');
 
@@ -6511,12 +6604,19 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
       }
     });
 
+    // Return response matching frontend expectations
     res.json({
       success: true,
       message: 'AI-enhanced automation task queued successfully',
       taskId: taskRecord.id,
       runId: run.id,
-      aiEnabled: enableAI
+      task_id: taskRecord.id, // Alias for consistency
+      run_id: run.id, // Alias for consistency
+      aiEnabled: enableAI,
+      status: 'queued',
+      // Database recording was successful since we have taskId and runId
+      db_recorded: true,
+      db_warning: null
     });
 
   } catch (error) {
