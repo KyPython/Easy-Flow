@@ -129,7 +129,8 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
 
     let result;
 
-    if (search) {
+    // ✅ SECURITY: Validate type before using string methods
+    if (search && typeof search === 'string') {
       // Use search functionality
       result = await auditLogger.searchAuditLogs(search, {
         userId,
@@ -185,7 +186,8 @@ router.get('/system', requireAdmin, requireFeature('audit_logs_admin'), async (r
 
     let result;
 
-    if (search) {
+    // ✅ SECURITY: Validate type before using string methods
+    if (search && typeof search === 'string') {
       // Use search functionality
       result = await auditLogger.searchAuditLogs(search, {
         userId,
