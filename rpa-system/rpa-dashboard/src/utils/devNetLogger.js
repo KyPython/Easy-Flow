@@ -42,8 +42,10 @@ function getApiBaseUrl() {
     }
     
     // Production environments
-    if (hostname === 'app.useeasyflow.com') {
-      return 'https://api.useeasyflow.com';
+    if (hostname === 'www.tryeasyflow.com' || hostname === 'tryeasyflow.com') {
+      // Use Render backend (env vars already checked above)
+      // To use api.tryeasyflow.com, set VITE_API_URL environment variable
+      return 'https://easyflow-backend-ad8e.onrender.com';
     }
     
     // Vercel frontend (fallback only)

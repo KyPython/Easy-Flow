@@ -113,7 +113,9 @@ const DEFAULT_DEV_ORIGINS = [
   'http://127.0.0.1:3030',
 ];
 const DEFAULT_PROD_ORIGINS = [
-  'https://easy-flow-lac.vercel.app',
+  'https://www.tryeasyflow.com',
+  'https://tryeasyflow.com',
+  'https://easy-flow-lac.vercel.app', // Legacy/fallback
 ];
 // In development, always include dev origins even if ALLOWED_ORIGINS env var is set
 // This ensures localhost works in dev mode

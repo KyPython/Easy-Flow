@@ -541,8 +541,8 @@ router.post('/send-support-email', authMiddleware, contextLoggerMiddleware, asyn
     // Get SendGrid if available
     const sgMail = require('@sendgrid/mail');
     const sendgridKey = process.env.SENDGRID_API_KEY;
-    const supportEmail = process.env.SUPPORT_EMAIL || 'support@easyflow.io';
-    const fromEmail = process.env.FROM_EMAIL || 'noreply@easyflow.io';
+    const supportEmail = process.env.SUPPORT_EMAIL || 'support@useeasyflow.com';
+    const fromEmail = process.env.FROM_EMAIL || 'noreply@useeasyflow.com';
 
     if (!sendgridKey) {
       logger.warn('[AI Agent Route] SendGrid not configured, support email not sent');

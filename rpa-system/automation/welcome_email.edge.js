@@ -3,7 +3,7 @@ const axios = require('axios');
 const SEND_EMAIL_WEBHOOK = process.env.SEND_EMAIL_WEBHOOK;
 const EMAIL_WORKER_ENDPOINT = process.env.EMAIL_WORKER_ENDPOINT;
 const HUBSPOT_API_KEY = process.env.HUBSPOT_API_KEY;
-const AUTOMATION_TASKS_URL = process.env.AUTOMATION_TASKS_URL || 'https://easy-flow-lac.vercel.app/app/automation/tasks';
+const AUTOMATION_TASKS_URL = process.env.AUTOMATION_TASKS_URL || 'https://www.tryeasyflow.com/app/automation/tasks';
 
 // Helper to extract name from email if not provided
 function getNameFromEmail(email) {

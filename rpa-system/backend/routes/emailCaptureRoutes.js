@@ -403,7 +403,7 @@ router.get('/unsubscribe', async (req, res) => {
     }
 
     // Return success page
-    const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || 'https://easy-flow-lac.vercel.app';
+    const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || 'https://www.tryeasyflow.com';
     
     res.status(200).send(`
       <!DOCTYPE html>

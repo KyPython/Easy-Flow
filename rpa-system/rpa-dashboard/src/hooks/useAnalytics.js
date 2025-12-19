@@ -8,8 +8,8 @@ import ReactGA from 'react-ga4';
 export const useAnalytics = () => {
   const isDevelopment = process.env.NODE_ENV === 'development';
   const isProduction = process.env.NODE_ENV === 'production';
-  const domain = isProduction ? 'easy-flow-lac.vercel.app' : 'localhost';
-  const baseUrl = isProduction ? 'https://easy-flow-lac.vercel.app' : 'http://localhost:3000';
+  const domain = isProduction ? 'www.tryeasyflow.com' : 'localhost';
+  const baseUrl = isProduction ? 'https://www.tryeasyflow.com' : 'http://localhost:3000';
 
   // Track page views with domain information
   const trackPageView = (path, search = '') => {

@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3030;
 
 // Enable CORS for frontend
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://easy-flow-lac.vercel.app'],
+  origin: ['http://localhost:3000', 'https://www.tryeasyflow.com', 'https://tryeasyflow.com', 'https://easy-flow-lac.vercel.app'],
   credentials: true
 }));
 

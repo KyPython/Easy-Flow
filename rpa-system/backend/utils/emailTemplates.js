@@ -14,7 +14,7 @@ function getAutomationTipsEmail(data = {}) {
   const appUrl = process.env.REACT_APP_PUBLIC_URL || 
                  process.env.PUBLIC_URL || 
                  process.env.VITE_PUBLIC_URL ||
-                 (process.env.NODE_ENV === 'production' ? 'https://easy-flow-lac.vercel.app' : 'http://localhost:3000');
+                 (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
   
   const subject = '🚀 Your Free Automation Tips - Get Started with EasyFlow';
   

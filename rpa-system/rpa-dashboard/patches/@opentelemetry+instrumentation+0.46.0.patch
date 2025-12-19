@@ -1,0 +1,51 @@
+diff --git a/node_modules/@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile.js b/node_modules/@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile.js
+index d36a5de..6af9c5a 100644
+--- a/node_modules/@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile.js
++++ b/node_modules/@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile.js
+@@ -13,7 +13,11 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+-import { normalize } from 'path';
++// import { normalize } from 'path'; // Commented out for browser builds - path module not available
++// Browser-compatible normalize function
++function normalize(path) {
++  return path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '') || '/';
++}
+ var InstrumentationNodeModuleFile = /** @class */ (function () {
+     function InstrumentationNodeModuleFile(name, supportedVersions, patch, unpatch) {
+         this.supportedVersions = supportedVersions;
+diff --git a/node_modules/@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile.js.backup b/node_modules/@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile.js.backup
+new file mode 100644
+index 0000000..d36a5de
+--- /dev/null
++++ b/node_modules/@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile.js.backup
+@@ -0,0 +1,27 @@
++/*
++ * Copyright The OpenTelemetry Authors
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      https://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++import { normalize } from 'path';
++var InstrumentationNodeModuleFile = /** @class */ (function () {
++    function InstrumentationNodeModuleFile(name, supportedVersions, patch, unpatch) {
++        this.supportedVersions = supportedVersions;
++        this.patch = patch;
++        this.unpatch = unpatch;
++        this.name = normalize(name);
++    }
++    return InstrumentationNodeModuleFile;
++}());
++export { InstrumentationNodeModuleFile };
++//# sourceMappingURL=instrumentationNodeModuleFile.js.map
+\ No newline at end of file

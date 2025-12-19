@@ -15,7 +15,7 @@ import { api } from '../../utils/api';
 import styles from './AIWorkflowAgent.module.css';
 
 const API_BASE = config.apiBaseUrl;
-const SUPPORT_EMAIL = process.env.REACT_APP_SUPPORT_EMAIL || 'support@easyflow.io';
+const SUPPORT_EMAIL = process.env.REACT_APP_SUPPORT_EMAIL || 'support@useeasyflow.com';
 
 // Example prompts to inspire users - organized by action type
 // Using reliable examples that actually automate (no manual work)

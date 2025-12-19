@@ -371,7 +371,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- **Documentation**: [https://docs.useeasyflow.com](https://docs.useeasyflow.com)
+- **Documentation**: [https://docs.tryeasyflow.com](https://docs.tryeasyflow.com)
 - **Discord Community**: [Join our Discord](https://discord.gg/easyflow)
 - **Email Support**: support@useeasyflow.com
 - **GitHub Issues**: [Report bugs or request features](https://github.com/your-org/easyflow/issues)

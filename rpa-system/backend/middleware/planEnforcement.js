@@ -87,6 +87,12 @@ const requireAutomationRun = async (req, res, next) => {
       return next(); // Dev bypass: skip plan enforcement, but do not inject static planData
     }
 
+    // Skip limits in development mode for demos
+    if (process.env.NODE_ENV === 'development') {
+      logger.info('[PlanEnforcement] Skipping automation limits in development mode for demo');
+      return next();
+    }
+
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });

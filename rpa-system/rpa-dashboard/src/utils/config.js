@@ -58,9 +58,10 @@ const getApiBaseUrl = () => {
     const hostname = window.location.hostname;
 
     // Production environments
-    if (hostname === 'app.useeasyflow.com') {
-      // Custom domain setup
-      return 'https://api.useeasyflow.com';
+    if (hostname === 'www.tryeasyflow.com' || hostname === 'tryeasyflow.com') {
+      // Use Render backend (can be overridden via VITE_API_URL env var)
+      // To use api.tryeasyflow.com, set VITE_API_URL environment variable
+      return 'https://easyflow-backend-ad8e.onrender.com';
     }
 
     // Development environments

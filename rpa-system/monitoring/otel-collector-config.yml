@@ -13,7 +13,8 @@ receivers:
           allowed_origins:
             - "http://localhost:3000" # React dev server
             - "http://localhost:3030" # Backend API
-            - "https://useeasyflow.com" # Production frontend
+            - "https://www.tryeasyflow.com" # Production frontend
+            - "https://tryeasyflow.com" # Production frontend (without www)
 
   # Prometheus receiver for scraping existing metrics
   prometheus:

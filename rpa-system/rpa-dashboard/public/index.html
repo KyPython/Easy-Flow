@@ -123,9 +123,9 @@
       // Configure gtag with proper domain settings
       gtag('config', 'G-QGYCGQFC6D', {
         // Set domain for production vs development
-        cookie_domain: window.location.hostname === 'easy-flow-lac.vercel.app' 
-          ? 'easy-flow-lac.vercel.app' 
-          : 'localhost',
+        cookie_domain: (window.location.hostname === 'www.tryeasyflow.com' || window.location.hostname === 'tryeasyflow.com')
+          ? window.location.hostname
+          : (window.location.hostname === 'easy-flow-lac.vercel.app' ? 'easy-flow-lac.vercel.app' : 'localhost'),
         send_page_view: false // Let React GA handle page views
       });
     </script>
