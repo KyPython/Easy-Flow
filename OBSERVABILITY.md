@@ -464,6 +464,9 @@ Add a debug step (Delay 100ms) as the first step in your workflow to force backe
 # Execution detail queries
 {resource.service.name="rpa-system-backend"} && {name=~".*executions.*"}
 
+# AI agent traces (AI workflow generation, actions, conversations)
+{resource.service.name="rpa-system-backend"} && {name=~".*ai.*"}
+
 # Slow requests (>2 seconds) - general API calls
 {resource.service.name="rpa-system-backend"} && {duration>2s}
 ```
