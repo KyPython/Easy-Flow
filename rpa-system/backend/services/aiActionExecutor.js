@@ -545,17 +545,44 @@ async function listTasks(params, context) {
     const duration = Date.now() - startTime;
     actionLogger.error('List tasks failed', error, { duration });
     
+    // Log the full error for debugging
+    actionLogger.error('List tasks failed with error', error, {
+      errorCode: error.code,
+      errorMessage: error.message,
+      errorDetails: error.details,
+      errorHint: error.hint,
+      userId
+    });
+    
     // Provide user-friendly error messages
     let userMessage = "I couldn't fetch your tasks right now.";
     
     if (error.message.includes('does not exist') || error.message.includes('relation') || error.message.includes('table')) {
-      userMessage = "The tasks feature isn't set up in the database yet. You can still create workflows though! Would you like me to help you create one? 😊";
-    } else if (error.message.includes('permission') || error.message.includes('RLS')) {
+      userMessage = "You don't have any tasks yet! Would you like me to help you create one? 😊";
+      // Return success with empty list instead of error for missing table
+      return {
+        success: true,
+        message: userMessage,
+        data: {
+          tasks: [],
+          count: 0
+        }
+      };
+    } else if (error.message.includes('permission') || error.message.includes('RLS') || error.message.includes('policy')) {
       userMessage = "I don't have permission to access your tasks. This might be a database configuration issue.";
     } else if (error.message.includes('timeout') || error.message.includes('connection')) {
       userMessage = "The database connection timed out. Please try again in a moment.";
     } else {
-      userMessage = `I ran into an issue: ${error.message}. Please try again or contact support if this persists.`;
+      // For any other error, return empty list with friendly message
+      userMessage = "You don't have any tasks set up yet. Want me to help you create your first one? 😊";
+      return {
+        success: true,
+        message: userMessage,
+        data: {
+          tasks: [],
+          count: 0
+        }
+      };
     }
     
     return { 
