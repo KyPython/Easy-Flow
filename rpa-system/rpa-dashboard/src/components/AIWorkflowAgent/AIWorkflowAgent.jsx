@@ -8,6 +8,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../utils/ThemeContext';
 import { config } from '../../utils/config';
 import { api } from '../../utils/api';
@@ -192,6 +193,7 @@ function getStepIcon(stepType) {
 
 const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
   const { theme } = useTheme() || { theme: 'light' };
+  const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -525,6 +527,19 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
             // AI executed an action (scrape, email, etc.)
             content = data.message || `Action "${data.action}" completed.`;
             actionResult = data.actionResult;
+            
+            // If workflow was created, automatically navigate to workflows page
+            if (data.action === 'create_automated_workflow' && actionResult?.success && actionResult?.data?.workflow_id) {
+              // Close the AI assistant
+              if (onClose) {
+                onClose();
+              }
+              
+              // Navigate to workflows page after a short delay to show the success message
+              setTimeout(() => {
+                navigate('/app/workflows');
+              }, 1500); // 1.5 second delay to let user see the success message
+            }
             break;
             
           case 'error':
