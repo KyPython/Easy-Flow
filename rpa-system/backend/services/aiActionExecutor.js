@@ -683,9 +683,8 @@ async function createAutomatedWorkflow(params, context) {
       trigger_type: params.trigger_type 
     });
 
-    // Step 1: Generate workflow nodes from the description
-    const nodes = generateWorkflowNodes(params);
-    const edges = generateWorkflowEdges(nodes);
+    // Step 1: Generate fully configured workflow nodes using AI
+    const { nodes, edges } = await generateFullyConfiguredWorkflow(params, context);
 
     // Step 2: Create the workflow in database
     const workflowData = {
@@ -788,7 +787,182 @@ async function createAutomatedWorkflow(params, context) {
 }
 
 /**
- * Generate workflow nodes from parameters
+ * Generate fully configured workflow using AI to extract all details
+ */
+async function generateFullyConfiguredWorkflow(params, context) {
+  const OpenAI = require('openai');
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  
+  const description = params.description || '';
+  const fullPrompt = `${description}
+
+Workflow name: ${params.name}
+Trigger: ${params.trigger_type || 'manual'}
+Notification email: ${params.notification_email || context.userEmail || 'user email'}
+
+Extract ALL configuration details from this description and create a complete workflow with fully configured steps. For each step, provide:
+- Complete configuration with all required fields
+- URLs, email addresses, price thresholds, selectors, etc. extracted from the description
+- All steps must be ready to run without additional configuration
+
+Return a JSON object with this structure:
+{
+  "nodes": [
+    {
+      "id": "start-1",
+      "stepType": "trigger",
+      "label": "Start",
+      "position": {"x": 100, "y": 100},
+      "config": {"trigger_type": "${params.trigger_type || 'manual'}"},
+      "isConfigured": true
+    },
+    {
+      "id": "scrape-1",
+      "stepType": "web_scrape",
+      "actionType": "web_scrape",
+      "label": "Scrape Website",
+      "position": {"x": 100, "y": 200},
+      "config": {
+        "url": "EXTRACTED_URL_FROM_DESCRIPTION",
+        "selectors": ["EXTRACT_SELECTORS_IF_MENTIONED"],
+        "timeout": 30,
+        "retries": {"maxAttempts": 3, "baseMs": 300}
+      },
+      "isConfigured": true
+    },
+    {
+      "id": "email-1",
+      "stepType": "email",
+      "actionType": "email",
+      "label": "Send Email",
+      "position": {"x": 100, "y": 300},
+      "config": {
+        "to": ["EXTRACTED_EMAIL_OR_USER_EMAIL"],
+        "subject": "EXTRACTED_OR_GENERATED_SUBJECT",
+        "template": "EXTRACTED_OR_GENERATED_BODY"
+      },
+      "isConfigured": true
+    }
+  ],
+  "edges": [
+    {"source": "start-1", "target": "scrape-1"},
+    {"source": "scrape-1", "target": "email-1"}
+  ]
+}
+
+IMPORTANT:
+- Extract URLs from the description (e.g., "amazon.com" → "https://amazon.com")
+- Extract price thresholds (e.g., "below $50" → use in condition step)
+- Extract email addresses or use notification_email
+- For price monitoring: add a condition step to check if price < threshold
+- For email: extract subject and body from description
+- ALL steps must have isConfigured: true
+- ALL action steps must have actionType set
+- ALL required config fields must be filled`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a workflow configuration expert. Extract all details from user descriptions and create complete, ready-to-run workflow configurations. Always set isConfigured: true for all steps and fill in all required configuration fields.'
+        },
+        {
+          role: 'user',
+          content: fullPrompt
+        }
+      ],
+      temperature: 0.3, // Lower temperature for more consistent configuration
+      response_format: { type: 'json_object' }
+    });
+
+    const response = JSON.parse(completion.choices[0].message.content);
+    
+    // Ensure all nodes have proper structure
+    const nodes = (response.nodes || []).map((node, index) => ({
+      id: node.id || `node-${index}-${Date.now()}`,
+      type: node.stepType === 'trigger' ? 'trigger' : node.stepType === 'end' ? 'end' : 'customStep',
+      position: node.position || { x: 100, y: 100 + (index * 150) },
+      data: {
+        label: node.label || 'Step',
+        stepType: node.stepType,
+        actionType: node.actionType || (node.stepType !== 'start' && node.stepType !== 'end' && node.stepType !== 'trigger' ? node.stepType : null),
+        config: node.config || {},
+        isConfigured: node.isConfigured !== false // Default to true if not specified
+      }
+    }));
+
+    // Ensure all edges have proper structure
+    const edges = (response.edges || []).map((edge, index) => ({
+      id: edge.id || `edge-${index}-${Date.now()}`,
+      source: edge.source,
+      target: edge.target,
+      type: 'smoothstep',
+      animated: true
+    }));
+
+    // Validate and fix configurations
+    nodes.forEach(node => {
+      const { stepType, config } = node.data;
+      
+      // Ensure required fields are present based on step type
+      if (stepType === 'web_scrape') {
+        if (!config.url) {
+          // Try to extract URL from description
+          const urlMatch = description.match(/https?:\/\/[^\s]+|(?:www\.)?[a-zA-Z0-9-]+\.[a-z]{2,}/i);
+          config.url = urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : '';
+        }
+        if (!config.selectors) config.selectors = [];
+        if (!config.timeout) config.timeout = 30;
+        if (!config.retries) config.retries = { maxAttempts: 3, baseMs: 300 };
+        node.data.isConfigured = !!(config.url && config.url.trim());
+      } else if (stepType === 'api_call') {
+        if (!config.url) config.url = '';
+        if (!config.method) config.method = 'GET';
+        if (!config.headers) config.headers = {};
+        if (!config.timeout) config.timeout = 30;
+        node.data.isConfigured = !!(config.url && config.url.trim() && config.method);
+      } else if (stepType === 'email') {
+        if (!config.to) {
+          config.to = params.notification_email ? [params.notification_email] : (context.userEmail ? [context.userEmail] : ['{{user.email}}']);
+        } else if (typeof config.to === 'string') {
+          config.to = [config.to];
+        }
+        if (!config.subject) {
+          // Generate subject from description
+          config.subject = `Update: ${params.name}`;
+        }
+        if (!config.template && !config.body) {
+          config.template = 'Your automation has completed. Results: {{data}}';
+        }
+        node.data.isConfigured = !!(config.to && config.to.length > 0 && config.subject && config.subject.trim());
+      } else if (stepType === 'condition') {
+        if (!config.conditions) config.conditions = [];
+        if (!config.operator) config.operator = 'AND';
+        node.data.isConfigured = !!(config.conditions && config.conditions.length > 0);
+      } else if (stepType === 'trigger' || stepType === 'start') {
+        node.data.isConfigured = true; // Start/trigger nodes are always configured
+      } else if (stepType === 'end') {
+        node.data.isConfigured = true; // End nodes are always configured
+      } else {
+        // For other step types, mark as configured if config has any keys
+        node.data.isConfigured = Object.keys(config || {}).length > 0;
+      }
+    });
+
+    return { nodes, edges };
+  } catch (error) {
+    logger.warn('AI workflow generation failed, falling back to simple generation', { error: error.message });
+    // Fallback to simple generation
+    const nodes = generateWorkflowNodes(params);
+    const edges = generateWorkflowEdges(nodes);
+    return { nodes, edges };
+  }
+}
+
+/**
+ * Generate workflow nodes from parameters (fallback method)
  */
 function generateWorkflowNodes(params) {
   const nodes = [];
@@ -805,76 +979,143 @@ function generateWorkflowNodes(params) {
       config: {
         trigger_type: params.trigger_type || 'manual',
         time: params.trigger_time
-      }
+      },
+      isConfigured: true
     }
   });
 
   let yPos = 200;
 
   // Detect what kind of workflow based on description
-  if (description.includes('scrape') || description.includes('monitor') || description.includes('check') || description.includes('website')) {
+  if (description.includes('scrape') || description.includes('monitor') || description.includes('check') || description.includes('website') || description.includes('price')) {
     // Extract URL if mentioned
-    const urlMatch = description.match(/https?:\/\/[^\s]+|(?:www\.)?[a-zA-Z0-9-]+\.[a-z]{2,}/i);
-    const url = urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : 'https://example.com';
+    const urlMatch = params.description.match(/https?:\/\/[^\s]+|(?:www\.)?[a-zA-Z0-9-]+\.[a-z]{2,}/i);
+    const url = urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : '';
+    
+    // Extract price threshold if mentioned
+    const priceMatch = params.description.match(/\$?(\d+)/);
+    const priceThreshold = priceMatch ? parseFloat(priceMatch[1]) : null;
     
     nodes.push({
       id: 'scrape-1',
-      type: 'action',
+      type: 'customStep',
       position: { x: 100, y: yPos },
       data: {
         label: 'Check Website',
-        stepType: 'web_scraper',
-        config: { url, extractText: true }
+        stepType: 'web_scrape',
+        actionType: 'web_scrape',
+        config: {
+          url: url || 'https://example.com',
+          selectors: [],
+          timeout: 30,
+          retries: { maxAttempts: 3, baseMs: 300 }
+        },
+        isConfigured: !!(url && url.trim())
       }
     });
-    yPos += 100;
+    yPos += 150;
+    
+    // Add condition step if price threshold is mentioned
+    if (priceThreshold) {
+      nodes.push({
+        id: 'condition-1',
+        type: 'customStep',
+        position: { x: 100, y: yPos },
+        data: {
+          label: 'Check Price',
+          stepType: 'condition',
+          config: {
+            conditions: [
+              {
+                field: 'price',
+                operator: '<',
+                value: priceThreshold
+              }
+            ],
+            operator: 'AND'
+          },
+          isConfigured: true
+        }
+      });
+      yPos += 150;
+    }
   }
 
   if (description.includes('api') || description.includes('data') || description.includes('fetch')) {
+    // Extract API URL if mentioned
+    const apiUrlMatch = params.description.match(/https?:\/\/[^\s]+/i);
+    const apiUrl = apiUrlMatch ? apiUrlMatch[0] : '';
+    
     nodes.push({
       id: 'api-1',
-      type: 'action',
+      type: 'customStep',
       position: { x: 100, y: yPos },
       data: {
         label: 'Fetch Data',
         stepType: 'api_call',
-        config: { method: 'GET' }
+        actionType: 'api_call',
+        config: {
+          method: 'GET',
+          url: apiUrl,
+          headers: {},
+          timeout: 30,
+          retries: { maxAttempts: 3, baseMs: 300 }
+        },
+        isConfigured: !!(apiUrl && apiUrl.trim())
       }
     });
-    yPos += 100;
+    yPos += 150;
   }
 
   if (description.includes('save') || description.includes('store') || description.includes('sheet')) {
     nodes.push({
       id: 'save-1',
-      type: 'action',
+      type: 'customStep',
       position: { x: 100, y: yPos },
       data: {
         label: 'Save Data',
         stepType: 'data_storage',
-        config: {}
+        actionType: 'data_storage',
+        config: {},
+        isConfigured: false
       }
     });
-    yPos += 100;
+    yPos += 150;
   }
 
   // Add notification step if mentioned
-  if (description.includes('alert') || description.includes('notify') || description.includes('email') || description.includes('tell me')) {
+  if (description.includes('alert') || description.includes('notify') || description.includes('email') || description.includes('tell me') || description.includes('emails me')) {
+    // Extract email from description or use notification_email
+    const emailMatch = params.description.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+    const email = emailMatch ? emailMatch[1] : (params.notification_email || '{{user.email}}');
+    
+    // Generate subject from description
+    let subject = `Update: ${params.name}`;
+    if (description.includes('price')) {
+      subject = 'Price Alert';
+    } else if (description.includes('drop') || description.includes('below')) {
+      subject = 'Price Drop Alert';
+    }
+    
     nodes.push({
       id: 'notify-1',
-      type: 'action',
+      type: 'customStep',
       position: { x: 100, y: yPos },
       data: {
         label: 'Send Notification',
         stepType: 'email',
+        actionType: 'email',
         config: {
-          to: params.notification_email || '{{user.email}}',
-          subject: `Update from ${params.name}`,
-          body: 'Your automation has completed. Here are the results: {{data}}'
-        }
+          to: typeof email === 'string' ? [email] : email,
+          subject: subject,
+          template: description.includes('price') 
+            ? 'The price has dropped below your threshold! Current price: {{price}}'
+            : 'Your automation has completed. Here are the results: {{data}}'
+        },
+        isConfigured: !!(email && subject && subject.trim())
       }
     });
-    yPos += 100;
+    yPos += 150;
   }
 
   // End node
@@ -884,7 +1125,8 @@ function generateWorkflowNodes(params) {
     position: { x: 100, y: yPos },
     data: {
       label: 'Complete',
-      stepType: 'end'
+      stepType: 'end',
+      isConfigured: true
     }
   });
 
