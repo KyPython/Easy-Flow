@@ -344,6 +344,20 @@ code {
   font-size: 18px;
 }
 
+.freeBadge {
+  display: inline-block;
+  margin-left: var(--spacing-xs, 4px);
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  font-size: 0.75em;
+  font-weight: var(--font-weight-semibold, 600);
+  border-radius: var(--border-radius-sm, 4px);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.3);
+}
+
 .aiConfig {
   margin-top: var(--spacing-md);
   padding-top: var(--spacing-md);

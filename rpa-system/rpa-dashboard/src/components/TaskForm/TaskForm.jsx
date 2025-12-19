@@ -13,7 +13,6 @@ import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { useToast } from '../WorkflowBuilder/Toast';
-import PlanGate from '../PlanGate/PlanGate';
 import { useFormPersistence, enableBrowserAutofill } from '../../utils/formPersistence';
 import { useAuth } from '../../utils/AuthContext';
 import useUsageTracking from '../../hooks/useUsageTracking';
@@ -988,105 +987,78 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
             </div>
           )}
 
-          {/* AI Section */}
-          <PlanGate
-            requiredPlan="starter"
-            upgradeMessage="AI-powered web scraping is available on Starter and higher plans."
-            fallback={
-              <div className={styles.aiSection}>
-                <div className={styles.upgradeBanner}>
-                  <span className={styles.aiIcon}>🤖</span>
-                  <div>
-                    <strong>
-                      AI-Powered Web Scraping (Starter+)
-                    </strong>
-                    <p>
-                      Upgrade to automatically extract structured data from
-                      web pages with AI intelligence.
-                    </p>
-                  </div>
-                  <button
-                    className={styles.upgradeButton}
-                    onClick={() =>
-                      (window.location.href = '/pricing')
-                    }
-                  >
-                    ⚡ Upgrade Now
-                  </button>
-                </div>
+          {/* AI Section - Now Free for Everyone! */}
+          <div className={styles.formGroup}>
+            <div className={styles.aiSection}>
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={form.enableAI}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      enableAI: e.target.checked,
+                    })
+                  }
+                  className={styles.checkbox}
+                />
+                <span className={styles.aiIcon}>🤖</span>
+                Enable AI-Powered Web Scraping
+                <span className={styles.freeBadge}>✨ Free</span>
+              </label>
+              <div className={styles.helperText}>
+                <b>What is this?</b> Use AI to intelligently extract
+                structured data from web pages (contacts, products, prices, etc.). 
+                <strong> Now available to everyone!</strong>
               </div>
-            }
-          >
-            <div className={styles.formGroup}>
-              <div className={styles.aiSection}>
-                <label className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={form.enableAI}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        enableAI: e.target.checked,
-                      })
-                    }
-                    className={styles.checkbox}
-                  />
-                  <span className={styles.aiIcon}>🤖</span>
-                  Enable AI-Powered Web Scraping
-                </label>
-                <div className={styles.helperText}>
-                  <b>What is this?</b> Use AI to intelligently extract
-                  structured data from web pages (contacts, products, prices, etc.)
-                </div>
-              </div>
-              {form.enableAI && (
-                <div className={styles.aiConfig}>
-                  <label
-                    htmlFor="extractionTargets"
-                    className={styles.label}
-                  >
-                    What data should we extract?{' '}
-                    <span className={styles.optional}>(Optional)</span>
-                  </label>
-                  <textarea
-                    id="extractionTargets"
-                    value={form.extractionTargets
-                      .map(
-                        (target) =>
-                          `${target.name}: ${target.description}`
-                      )
-                      .join('\n')}
-                    onChange={(e) => {
-                      const lines = e.target.value
-                        .split('\n')
-                        .filter((line) => line.trim());
-                      const targets = lines.map((line) => {
-                        const [name, ...descParts] = line.split(':');
-                        return {
-                          name: name.trim(),
-                          description:
-                            descParts.join(':').trim() ||
-                            name.trim(),
-                        };
-                      });
-                      setForm({
-                        ...form,
-                        extractionTargets: targets,
-                      });
-                    }}
-                    placeholder={`vendor_name: Company name\ninvoice_amount: Total amount due\ndue_date: Payment due date\ncontact_email: Email address`}
-                    className={styles.textarea}
-                    rows={4}
-                  />
-                  <div className={styles.helperText}>
-                    <b>Format:</b> One item per line as
-                    &quot;field_name: description&quot;. Leave blank for
-                    auto-detection.
-                  </div>
-                </div>
-              )}
             </div>
-          </PlanGate>
+            {form.enableAI && (
+              <div className={styles.aiConfig}>
+                <label
+                  htmlFor="extractionTargets"
+                  className={styles.label}
+                >
+                  What data should we extract?{' '}
+                  <span className={styles.optional}>(Optional)</span>
+                </label>
+                <textarea
+                  id="extractionTargets"
+                  value={form.extractionTargets
+                    .map(
+                      (target) =>
+                        `${target.name}: ${target.description}`
+                    )
+                    .join('\n')}
+                  onChange={(e) => {
+                    const lines = e.target.value
+                      .split('\n')
+                      .filter((line) => line.trim());
+                    const targets = lines.map((line) => {
+                      const [name, ...descParts] = line.split(':');
+                      return {
+                        name: name.trim(),
+                        description:
+                          descParts.join(':').trim() ||
+                          name.trim(),
+                      };
+                    });
+                    setForm({
+                      ...form,
+                      extractionTargets: targets,
+                    });
+                  }}
+                  placeholder={`vendor_name: Company name\ninvoice_amount: Total amount due\ndue_date: Payment due date\ncontact_email: Email address`}
+                  className={styles.textarea}
+                  rows={4}
+                />
+                <div className={styles.helperText}>
+                  <b>Format:</b> One item per line as
+                  &quot;field_name: description&quot;. Leave blank for
+                  auto-detection.
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className={styles.actions}>
