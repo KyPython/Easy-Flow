@@ -92,45 +92,36 @@ const renderMarkdown = (text) => {
   const elements = [];
   let inList = false;
   let listItems = [];
+  let listKey = 0;
   
   lines.forEach((line, index) => {
     const trimmed = line.trim();
     
-    // Handle numbered lists (1. item)
+    // Handle numbered lists (1. item, 2. item, etc.)
     if (/^\d+\.\s/.test(trimmed)) {
       if (!inList) {
         inList = true;
         listItems = [];
+        listKey = index;
       }
       const itemText = trimmed.replace(/^\d+\.\s/, '');
       listItems.push(renderInlineMarkdown(itemText));
     }
-    // Handle bullet lists (- or *)
-    else if (/^[-*]\s/.test(trimmed)) {
+    // Handle bullet lists (- or * but not **bold**)
+    else if (/^[-*]\s/.test(trimmed) && !trimmed.startsWith('**')) {
       if (!inList) {
         inList = true;
         listItems = [];
+        listKey = index;
       }
       const itemText = trimmed.replace(/^[-*]\s/, '');
       listItems.push(renderInlineMarkdown(itemText));
     }
-    // End of list
-    else if (inList && trimmed === '') {
-      elements.push(
-        <ul key={`list-${index}`} className={styles.markdownList}>
-          {listItems.map((item, idx) => (
-            <li key={idx}>{item}</li>
-          ))}
-        </ul>
-      );
-      inList = false;
-      listItems = [];
-    }
-    // Regular paragraph
-    else if (trimmed) {
-      if (inList) {
+    // End of list (empty line or non-list content)
+    else {
+      if (inList && listItems.length > 0) {
         elements.push(
-          <ul key={`list-${index}`} className={styles.markdownList}>
+          <ul key={`list-${listKey}`} className={styles.markdownList}>
             {listItems.map((item, idx) => (
               <li key={idx}>{item}</li>
             ))}
@@ -139,22 +130,27 @@ const renderMarkdown = (text) => {
         inList = false;
         listItems = [];
       }
-      elements.push(
-        <p key={`p-${index}`} className={styles.markdownParagraph}>
-          {renderInlineMarkdown(trimmed)}
-        </p>
-      );
-    }
-    // Empty line
-    else if (!inList) {
-      elements.push(<br key={`br-${index}`} />);
+      
+      // Regular paragraph (non-empty line)
+      if (trimmed) {
+        elements.push(
+          <p key={`p-${index}`} className={styles.markdownParagraph}>
+            {renderInlineMarkdown(trimmed)}
+          </p>
+        );
+      }
+      // Empty line - add spacing
+      else if (elements.length > 0) {
+        // Only add spacing if we have content before
+        elements.push(<br key={`br-${index}`} />);
+      }
     }
   });
   
   // Close any remaining list
   if (inList && listItems.length > 0) {
     elements.push(
-      <ul key="list-final" className={styles.markdownList}>
+      <ul key={`list-${listKey}-final`} className={styles.markdownList}>
         {listItems.map((item, idx) => (
           <li key={idx}>{item}</li>
         ))}
@@ -162,7 +158,7 @@ const renderMarkdown = (text) => {
     );
   }
   
-  return elements.length > 0 ? elements : renderInlineMarkdown(text);
+  return elements.length > 0 ? <>{elements}</> : <>{renderInlineMarkdown(text)}</>;
 };
 
 // Render inline markdown (bold, italic)
