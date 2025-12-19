@@ -296,26 +296,31 @@ function Shell() {
       {/*
        * PERFORMANCE: AI Agent - replaces uChat for unified support + workflow creation
        * Lazy-loaded after initial render to not block critical path
+       * Only show for authenticated users
        */}
-      <Suspense fallback={null}>
-        <AIWorkflowAgent
-          isOpen={showAIAgent}
-          onClose={() => setShowAIAgent(false)}
-          onWorkflowGenerated={(workflow) => {
-            // Close agent and navigate to workflows if a workflow was generated
-            setShowAIAgent(false);
-            console.log('[AIAgent] Workflow generated:', workflow?.name);
-          }}
-        />
-      </Suspense>
-      
-      {/* AI Agent Toggle Button - Theme-aware, always visible when panel is closed */}
-      <Suspense fallback={null}>
-        <AIAgentToggleLazy 
-          onClick={() => setShowAIAgent(true)} 
-          isOpen={showAIAgent} 
-        />
-      </Suspense>
+      {user && (
+        <>
+          <Suspense fallback={null}>
+            <AIWorkflowAgent
+              isOpen={showAIAgent}
+              onClose={() => setShowAIAgent(false)}
+              onWorkflowGenerated={(workflow) => {
+                // Close agent and navigate to workflows if a workflow was generated
+                setShowAIAgent(false);
+                console.log('[AIAgent] Workflow generated:', workflow?.name);
+              }}
+            />
+          </Suspense>
+          
+          {/* AI Agent Toggle Button - Theme-aware, always visible when panel is closed */}
+          <Suspense fallback={null}>
+            <AIAgentToggleLazy 
+              onClick={() => setShowAIAgent(true)} 
+              isOpen={showAIAgent} 
+            />
+          </Suspense>
+        </>
+      )}
 
       {/* Global session-expired UI */}
       <Suspense fallback={null}>

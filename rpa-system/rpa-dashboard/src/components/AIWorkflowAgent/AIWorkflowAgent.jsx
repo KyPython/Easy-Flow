@@ -10,6 +10,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext';
 import { config } from '../../utils/config';
+import api from '../../utils/api';
 import styles from './AIWorkflowAgent.module.css';
 
 const API_BASE = config.apiBaseUrl;
@@ -240,10 +241,8 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
   useEffect(() => {
     const loadConversations = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/ai-agent/conversations`, {
-          credentials: 'include'
-        });
-        const data = await response.json();
+        const response = await api.get('/api/ai-agent/conversations');
+        const data = response.data;
         
         if (data.success && data.messages && data.messages.length > 0) {
           // Add welcome message + previous conversations
@@ -270,8 +269,8 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/ai-agent/health`);
-        const data = await response.json();
+        const response = await api.get('/api/ai-agent/health');
+        const data = response.data;
         setAiEnabled(data.aiEnabled);
       } catch (error) {
         console.error('AI health check failed:', error);
@@ -284,16 +283,11 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
   // Save message to backend
   const saveMessage = useCallback(async (message) => {
     try {
-      await fetch(`${API_BASE}/api/ai-agent/conversations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          content: message.content,
-          isUser: message.isUser,
-          workflow: message.workflow,
-          suggestions: message.suggestions
-        })
+      await api.post('/api/ai-agent/conversations', {
+        content: message.content,
+        isUser: message.isUser,
+        workflow: message.workflow,
+        suggestions: message.suggestions
       });
     } catch (error) {
       console.error('Failed to save message:', error);
@@ -303,10 +297,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
   // Clear conversation history
   const clearConversation = useCallback(async () => {
     try {
-      await fetch(`${API_BASE}/api/ai-agent/conversations`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      await api.delete('/api/ai-agent/conversations');
       setMessages([welcomeMessage]);
     } catch (error) {
       console.error('Failed to clear conversation:', error);
@@ -334,12 +325,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
   // Send support email via backend
   const sendSupportEmail = async (subject, body) => {
     try {
-      const response = await fetch(`${API_BASE}/api/ai-agent/send-support-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ subject, body })
-      });
+      const response = await api.post('/api/ai-agent/send-support-email', { subject, body });
       
       if (response.ok) {
         setMessages(prev => [...prev, {
@@ -499,19 +485,12 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
         }))
       };
 
-      const response = await fetch(`${API_BASE}/api/ai-agent/message`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          message: userMessage.content,
-          context
-        })
+      const response = await api.post('/api/ai-agent/message', {
+        message: userMessage.content,
+        context
       });
 
-      const data = await response.json();
+      const data = response.data;
 
       // Check if the AI detected a support intent
       if (data.supportIntent) {
