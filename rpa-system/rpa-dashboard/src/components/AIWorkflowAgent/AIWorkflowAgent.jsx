@@ -18,14 +18,14 @@ const API_BASE = config.apiBaseUrl;
 const SUPPORT_EMAIL = process.env.REACT_APP_SUPPORT_EMAIL || 'support@easyflow.io';
 
 // Example prompts to inspire users - organized by action type
-// Using reliable examples that don't depend on external websites
+// Using reliable examples that actually automate (no manual work)
 const EXAMPLE_PROMPTS = [
   {
     icon: '📋',
     title: 'Quick Action',
     prompt: 'Show me all my tasks',
     category: 'action',
-    description: 'Do something right now'
+    description: 'View your automations'
   },
   {
     icon: '🔄',
@@ -33,13 +33,6 @@ const EXAMPLE_PROMPTS = [
     prompt: 'Create a workflow that checks prices on amazon.com daily and emails me if they drop below $50',
     category: 'workflow',
     description: 'Automate a multi-step process'
-  },
-  {
-    icon: '📧',
-    title: 'Send Email',
-    prompt: 'Send an email to support@example.com saying hello',
-    category: 'action',
-    description: 'Send a quick message'
   },
   {
     icon: '❓',
