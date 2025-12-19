@@ -387,12 +387,9 @@ const { getSupabase } = require('../utils/supabaseClient');
  * GET /api/ai-agent/conversations
  * Get the user's recent conversation history
  */
-router.get('/conversations', async (req, res) => {
+router.get('/conversations', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: 'Authentication required' });
-    }
 
     const supabase = getSupabase();
     if (!supabase) {
@@ -434,12 +431,9 @@ router.get('/conversations', async (req, res) => {
  * POST /api/ai-agent/conversations
  * Save a message to the conversation history
  */
-router.post('/conversations', async (req, res) => {
+router.post('/conversations', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: 'Authentication required' });
-    }
 
     const { content, isUser, workflow, suggestions } = req.body;
 
@@ -478,12 +472,9 @@ router.post('/conversations', async (req, res) => {
  * DELETE /api/ai-agent/conversations
  * Clear the user's conversation history
  */
-router.delete('/conversations', async (req, res) => {
+router.delete('/conversations', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: 'Authentication required' });
-    }
 
     const supabase = getSupabase();
     if (!supabase) {
