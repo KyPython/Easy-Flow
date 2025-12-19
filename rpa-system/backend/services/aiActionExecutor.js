@@ -924,10 +924,14 @@ IMPORTANT:
         if (!config.timeout) config.timeout = 30;
         node.data.isConfigured = !!(config.url && config.url.trim() && config.method);
       } else if (stepType === 'email') {
+        // Ensure to is always an array
         if (!config.to) {
           config.to = params.notification_email ? [params.notification_email] : (context.userEmail ? [context.userEmail] : ['{{user.email}}']);
         } else if (typeof config.to === 'string') {
           config.to = [config.to];
+        } else if (!Array.isArray(config.to)) {
+          // Handle any other non-array types
+          config.to = [String(config.to)];
         }
         if (!config.subject) {
           // Generate subject from description
@@ -1097,6 +1101,9 @@ function generateWorkflowNodes(params) {
       subject = 'Price Drop Alert';
     }
     
+    // Ensure email is always an array
+    const emailArray = Array.isArray(email) ? email : (email ? [email] : ['{{user.email}}']);
+    
     nodes.push({
       id: 'notify-1',
       type: 'customStep',
@@ -1106,13 +1113,13 @@ function generateWorkflowNodes(params) {
         stepType: 'email',
         actionType: 'email',
         config: {
-          to: typeof email === 'string' ? [email] : email,
+          to: emailArray,
           subject: subject,
           template: description.includes('price') 
             ? 'The price has dropped below your threshold! Current price: {{price}}'
             : 'Your automation has completed. Here are the results: {{data}}'
         },
-        isConfigured: !!(email && subject && subject.trim())
+        isConfigured: !!(emailArray.length > 0 && subject && subject.trim())
       }
     });
     yPos += 150;

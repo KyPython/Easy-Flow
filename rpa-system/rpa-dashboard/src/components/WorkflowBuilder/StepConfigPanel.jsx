@@ -351,15 +351,21 @@ const ApiCallConfig = ({ config, updateConfig, isReadOnly }) => (
 );
 
 // Email Configuration
-const EmailConfig = ({ config, updateConfig, isReadOnly }) => (
-  <div className={styles.formGroup}>
-    <label className={styles.label}>
-      Recipients *
-      <EmailList
-        emails={config.to || []}
-        onChange={(to) => updateConfig({ to })}
-        isReadOnly={isReadOnly}
-      />
+const EmailConfig = ({ config, updateConfig, isReadOnly }) => {
+  // Ensure emails is always an array (handle string or other types)
+  const emails = Array.isArray(config.to) 
+    ? config.to 
+    : (config.to ? [config.to] : []);
+  
+  return (
+    <div className={styles.formGroup}>
+      <label className={styles.label}>
+        Recipients *
+        <EmailList
+          emails={emails}
+          onChange={(to) => updateConfig({ to })}
+          isReadOnly={isReadOnly}
+        />
     </label>
 
     <label className={styles.label}>
@@ -401,7 +407,8 @@ const EmailConfig = ({ config, updateConfig, isReadOnly }) => (
       />
     </label>
   </div>
-);
+  );
+};
 
 // Condition Configuration
 const ConditionConfig = ({ config, updateConfig, isReadOnly }) => (
