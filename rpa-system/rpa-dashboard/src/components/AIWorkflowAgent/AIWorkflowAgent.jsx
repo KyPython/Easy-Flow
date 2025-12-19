@@ -83,6 +83,126 @@ function detectSupportIntent(message) {
   return null;
 }
 
+// Simple markdown renderer for AI messages
+const renderMarkdown = (text) => {
+  if (!text) return null;
+  
+  // Split by lines to handle lists and paragraphs
+  const lines = text.split('\n');
+  const elements = [];
+  let inList = false;
+  let listItems = [];
+  
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    
+    // Handle numbered lists (1. item)
+    if (/^\d+\.\s/.test(trimmed)) {
+      if (!inList) {
+        inList = true;
+        listItems = [];
+      }
+      const itemText = trimmed.replace(/^\d+\.\s/, '');
+      listItems.push(renderInlineMarkdown(itemText));
+    }
+    // Handle bullet lists (- or *)
+    else if (/^[-*]\s/.test(trimmed)) {
+      if (!inList) {
+        inList = true;
+        listItems = [];
+      }
+      const itemText = trimmed.replace(/^[-*]\s/, '');
+      listItems.push(renderInlineMarkdown(itemText));
+    }
+    // End of list
+    else if (inList && trimmed === '') {
+      elements.push(
+        <ul key={`list-${index}`} className={styles.markdownList}>
+          {listItems.map((item, idx) => (
+            <li key={idx}>{item}</li>
+          ))}
+        </ul>
+      );
+      inList = false;
+      listItems = [];
+    }
+    // Regular paragraph
+    else if (trimmed) {
+      if (inList) {
+        elements.push(
+          <ul key={`list-${index}`} className={styles.markdownList}>
+            {listItems.map((item, idx) => (
+              <li key={idx}>{item}</li>
+            ))}
+          </ul>
+        );
+        inList = false;
+        listItems = [];
+      }
+      elements.push(
+        <p key={`p-${index}`} className={styles.markdownParagraph}>
+          {renderInlineMarkdown(trimmed)}
+        </p>
+      );
+    }
+    // Empty line
+    else if (!inList) {
+      elements.push(<br key={`br-${index}`} />);
+    }
+  });
+  
+  // Close any remaining list
+  if (inList && listItems.length > 0) {
+    elements.push(
+      <ul key="list-final" className={styles.markdownList}>
+        {listItems.map((item, idx) => (
+          <li key={idx}>{item}</li>
+        ))}
+      </ul>
+    );
+  }
+  
+  return elements.length > 0 ? elements : renderInlineMarkdown(text);
+};
+
+// Render inline markdown (bold, italic)
+const renderInlineMarkdown = (text) => {
+  if (!text) return null;
+  
+  const parts = [];
+  let lastIndex = 0;
+  let key = 0;
+  
+  // Match **bold** and *italic*
+  const regex = /(\*\*([^*]+)\*\*|\*([^*]+)\*)/g;
+  let match;
+  
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before match
+    if (match.index > lastIndex) {
+      parts.push(<span key={key++}>{text.substring(lastIndex, match.index)}</span>);
+    }
+    
+    // Add formatted text
+    if (match[1].startsWith('**')) {
+      // Bold
+      parts.push(<strong key={key++}>{match[2]}</strong>);
+    } else {
+      // Italic
+      parts.push(<em key={key++}>{match[3]}</em>);
+    }
+    
+    lastIndex = regex.lastIndex;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(<span key={key++}>{text.substring(lastIndex)}</span>);
+  }
+  
+  return parts.length > 0 ? parts : text;
+};
+
 // Message component for chat bubbles
 const Message = ({ message, isUser, isTyping, onApplyWorkflow, onAction }) => {
   return (
@@ -101,7 +221,7 @@ const Message = ({ message, isUser, isTyping, onApplyWorkflow, onAction }) => {
           </div>
         ) : (
           <>
-            <div className={styles.messageText}>{message.content}</div>
+            <div className={styles.messageText}>{isUser ? message.content : renderMarkdown(message.content)}</div>
             
             {/* Show workflow preview if available */}
             {message.workflow && (

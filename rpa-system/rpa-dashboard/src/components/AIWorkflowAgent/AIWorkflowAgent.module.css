@@ -234,6 +234,37 @@
   font-family: var(--font-family-primary);
 }
 
+/* Markdown formatting styles */
+.messageText .markdownParagraph {
+  margin: 0 0 var(--spacing-sm) 0;
+  line-height: 1.6;
+}
+
+.messageText .markdownParagraph:last-child {
+  margin-bottom: 0;
+}
+
+.messageText .markdownList {
+  margin: var(--spacing-sm) 0;
+  padding-left: var(--spacing-lg);
+  list-style-type: disc;
+}
+
+.messageText .markdownList li {
+  margin: var(--spacing-xs) 0;
+  line-height: 1.6;
+}
+
+.messageText strong {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.messageText em {
+  font-style: italic;
+  color: var(--text-primary);
+}
+
 .aiMessage .messageText {
   background: var(--card-bg);
   color: var(--text-primary);
