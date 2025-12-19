@@ -450,9 +450,10 @@ async function listTasks(params, context) {
 
   try {
     // Try automation_tasks first (main tasks table)
+    // Use '*' to select all columns and avoid issues with missing columns
     let query = supabase
       .from('automation_tasks')
-      .select('id, name, task_type, status, created_at, updated_at')
+      .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
