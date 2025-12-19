@@ -92,13 +92,13 @@ const AVAILABLE_ACTIONS = {
 
   list_tasks: {
     name: 'list_tasks',
-    description: 'List all tasks for the user',
+    description: 'List all tasks for the user. Use this when user asks to "show my tasks", "list tasks", "what tasks do I have", "view my tasks", or similar requests about seeing their tasks.',
     category: 'tasks',
     parameters: {
       type: 'object',
       properties: {
-        status: { type: 'string', enum: ['active', 'completed', 'failed', 'all'] },
-        limit: { type: 'number', description: 'Maximum number of tasks to return' }
+        status: { type: 'string', enum: ['active', 'completed', 'failed', 'all'], description: 'Filter by status (optional)' },
+        limit: { type: 'number', description: 'Maximum number of tasks to return (optional, default 20)' }
       }
     },
     execute: listTasks
@@ -466,38 +466,53 @@ async function listTasks(params, context) {
     const { data, error } = await query;
     
     if (error) {
+      actionLogger.warn('Error querying automation_tasks', { 
+        error: error.message, 
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
+      
       // If automation_tasks doesn't exist, try accessibleos_tasks as fallback
-      if (error.code === '42P01' || error.message.includes('does not exist')) {
+      if (error.code === '42P01' || error.message.includes('does not exist') || error.message.includes('relation') || error.message.includes('table')) {
         actionLogger.info('automation_tasks table not found, trying accessibleos_tasks');
-        const fallbackQuery = supabase
-          .from('accessibleos_tasks')
-          .select('id, name, status, created_at, updated_at')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(limit);
-        
-        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
-        
-        if (fallbackError) throw fallbackError;
-        
-        const duration = Date.now() - startTime;
-        actionLogger.performance('ai.action.list_tasks', duration, {
-          category: 'tasks',
-          success: true,
-          count: fallbackData?.length || 0,
-          source: 'accessibleos_tasks'
-        });
-
-        return {
-          success: true,
-          message: fallbackData.length === 0 
-            ? "You don't have any tasks yet. Want me to help you create one? 😊"
-            : `Found ${fallbackData.length} task${fallbackData.length === 1 ? '' : 's'}`,
-          data: {
-            tasks: fallbackData || [],
-            count: fallbackData?.length || 0
+        try {
+          const fallbackQuery = supabase
+            .from('accessibleos_tasks')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+          
+          const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+          
+          if (fallbackError) {
+            actionLogger.error('Fallback query also failed', fallbackError);
+            throw fallbackError;
           }
-        };
+          
+          const duration = Date.now() - startTime;
+          actionLogger.performance('ai.action.list_tasks', duration, {
+            category: 'tasks',
+            success: true,
+            count: fallbackData?.length || 0,
+            source: 'accessibleos_tasks'
+          });
+
+          return {
+            success: true,
+            message: fallbackData.length === 0 
+              ? "You don't have any tasks yet. Want me to help you create one? 😊"
+              : `Found ${fallbackData.length} task${fallbackData.length === 1 ? '' : 's'}`,
+            data: {
+              tasks: fallbackData || [],
+              count: fallbackData?.length || 0
+            }
+          };
+        } catch (fallbackErr) {
+          actionLogger.error('Both table queries failed', fallbackErr);
+          throw error; // Throw original error
+        }
       }
       throw error;
     }
@@ -529,10 +544,23 @@ async function listTasks(params, context) {
     const duration = Date.now() - startTime;
     actionLogger.error('List tasks failed', error, { duration });
     
+    // Provide user-friendly error messages
+    let userMessage = "I couldn't fetch your tasks right now.";
+    
+    if (error.message.includes('does not exist') || error.message.includes('relation') || error.message.includes('table')) {
+      userMessage = "The tasks feature isn't set up in the database yet. You can still create workflows though! Would you like me to help you create one? 😊";
+    } else if (error.message.includes('permission') || error.message.includes('RLS')) {
+      userMessage = "I don't have permission to access your tasks. This might be a database configuration issue.";
+    } else if (error.message.includes('timeout') || error.message.includes('connection')) {
+      userMessage = "The database connection timed out. Please try again in a moment.";
+    } else {
+      userMessage = `I ran into an issue: ${error.message}. Please try again or contact support if this persists.`;
+    }
+    
     return { 
       success: false, 
       error: error.message,
-      message: `I couldn't fetch your tasks right now. ${error.message.includes('does not exist') ? 'The tasks feature might not be set up yet.' : 'Please try again in a moment.'}`
+      message: userMessage
     };
   }
 }
