@@ -104,9 +104,17 @@ function checkRateLimit(userId) {
  * 
  * OBSERVABILITY: Full request logging with performance tracking
  */
-router.post('/message', async (req, res) => {
+router.post('/message', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   const startTime = Date.now();
-  const userId = req.user?.id || 'anonymous';
+  const userId = req.user?.id;
+  
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      error: 'Authentication required',
+      message: 'Please sign in to use the AI assistant.'
+    });
+  }
   const userEmail = req.user?.email;
   
   // Create request-scoped logger
