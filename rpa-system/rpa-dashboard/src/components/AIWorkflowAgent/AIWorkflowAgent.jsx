@@ -21,13 +21,6 @@ const SUPPORT_EMAIL = process.env.REACT_APP_SUPPORT_EMAIL || 'support@easyflow.i
 // Using reliable examples that actually automate (no manual work)
 const EXAMPLE_PROMPTS = [
   {
-    icon: '📋',
-    title: 'Quick Action',
-    prompt: 'Show me all my tasks',
-    category: 'action',
-    description: 'View your automations'
-  },
-  {
     icon: '🔄',
     title: 'Build Workflow',
     prompt: 'Create a workflow that checks prices on amazon.com daily and emails me if they drop below $50',
