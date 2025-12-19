@@ -1412,12 +1412,18 @@ async function sendEmail(params, context) {
 
     if (!sendgridKey) {
       actionLogger.warn('SendGrid not configured, returning mailto fallback');
+      const mailtoLink = `mailto:${params.to}?subject=${encodeURIComponent(params.subject || 'Hello')}&body=${encodeURIComponent(params.body || '')}`;
       return { 
-        success: false, 
-        error: 'Email service not configured',
-        fallback: {
-          type: 'mailto',
-          link: `mailto:${params.to}?subject=${encodeURIComponent(params.subject)}&body=${encodeURIComponent(params.body)}`
+        success: true, // Return success so AI shows helpful message
+        message: `I've prepared your email! Since email sending isn't fully set up yet, I've created a mailto link for you. Click it to open your email client with the message ready to send.`,
+        data: {
+          to: params.to,
+          subject: params.subject,
+          body: params.body,
+          fallback: {
+            type: 'mailto',
+            link: mailtoLink
+          }
         }
       };
     }
@@ -1461,11 +1467,50 @@ async function sendEmail(params, context) {
       }
     };
   } catch (error) {
+    const duration = Date.now() - startTime;
     actionLogger.error('Send email failed', error, {
       recipient: params.to,
-      subject: params.subject?.slice(0, 50)
+      subject: params.subject?.slice(0, 50),
+      duration,
+      errorCode: error.code,
+      errorResponse: error.response?.body
     });
-    return { success: false, error: error.message };
+    
+    // Provide helpful error messages based on error type
+    let userMessage = `I couldn't send the email right now.`;
+    
+    if (error.response?.body?.errors) {
+      const sendgridErrors = error.response.body.errors;
+      const firstError = sendgridErrors[0];
+      
+      if (firstError.field === 'from') {
+        userMessage = `The email sending service needs to be configured with a verified sender address. I've prepared a mailto link instead - click it to open your email client!`;
+      } else if (firstError.message?.includes('permission') || firstError.message?.includes('unauthorized')) {
+        userMessage = `The email service doesn't have permission to send emails yet. I've prepared a mailto link instead - click it to open your email client!`;
+      } else {
+        userMessage = `There was an issue sending the email: ${firstError.message}. I've prepared a mailto link instead - click it to open your email client!`;
+      }
+    } else if (error.message?.includes('API key') || error.message?.includes('authentication')) {
+      userMessage = `The email service needs to be configured. I've prepared a mailto link instead - click it to open your email client!`;
+    }
+    
+    // Always provide mailto fallback
+    const mailtoLink = `mailto:${params.to}?subject=${encodeURIComponent(params.subject || 'Hello')}&body=${encodeURIComponent(params.body || '')}`;
+    
+    return { 
+      success: true, // Return success so AI shows helpful message with fallback
+      message: userMessage,
+      error: error.message,
+      data: {
+        to: params.to,
+        subject: params.subject,
+        body: params.body,
+        fallback: {
+          type: 'mailto',
+          link: mailtoLink
+        }
+      }
+    };
   }
 }
 

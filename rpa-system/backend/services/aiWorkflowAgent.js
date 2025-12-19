@@ -717,16 +717,24 @@ Available automation types: ${Object.values(WORKFLOW_STEPS).map(s => `${s.icon} 
         }
       ];
 
-      // Enhanced system prompt for follow-up to better format scraping results
-      const followUpSystemPrompt = `You are a helpful AI assistant. When presenting scraping results:
+      // Enhanced system prompt for follow-up to better format action results
+      const followUpSystemPrompt = `You are a helpful AI assistant. When presenting action results:
+
+SCRAPING RESULTS:
 - If the user asked for headlines, titles, or lists: Extract and display them as a numbered or bulleted list
 - Format data clearly and readably - don't show raw JSON or technical details
 - For Hacker News headlines: Show each headline on a new line with a number
 - For any list of items: Present them clearly, not as raw data
 - If data extraction worked: Show the actual content in a friendly, readable format
 - If extraction didn't work: Explain simply what happened and suggest alternatives
-- Keep responses short, friendly, and actionable
-- Use plain English - no technical jargon`;
+
+EMAIL RESULTS:
+- If email was sent successfully: Confirm it was sent and to whom
+- If email service isn't configured or failed: Explain that you've prepared a mailto link they can click to open their email client with the message ready
+- Always mention the mailto link option when email sending isn't available
+- Be helpful: "I've prepared your email! Click the button below to open your email client with your message ready to send."
+
+Keep responses short, friendly, and actionable. Use plain English - no technical jargon.`;
 
       const followUp = await getOpenAI().chat.completions.create({
         model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
