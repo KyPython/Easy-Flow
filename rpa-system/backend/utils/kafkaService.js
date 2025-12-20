@@ -532,11 +532,11 @@ class KafkaService {
                                                 }
                                                 
                                                 // Send notifications based on status
-                                                if (!NotificationTemplates) {
-                                                    NotificationTemplates = require('../utils/notificationTemplates');
-                                                }
-                                                if (!firebaseNotificationService) {
-                                                    firebaseNotificationService = require('../utils/firebaseAdmin');
+                                                // Lazy-load Firebase notification services from firebaseAdmin.js
+                                                if (!NotificationTemplates || !firebaseNotificationService) {
+                                                    const firebaseAdmin = require('../utils/firebaseAdmin');
+                                                    NotificationTemplates = firebaseAdmin.NotificationTemplates;
+                                                    firebaseNotificationService = firebaseAdmin.firebaseNotificationService;
                                                 }
                                                 
                                                 if (userId && NotificationTemplates && firebaseNotificationService) {
