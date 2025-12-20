@@ -2391,59 +2391,32 @@ async function queueTaskRun(runId, taskData) {
         throw new Error('Automation service returned no result after all retries');
       }
       
-      // Check if the automation actually failed (even though HTTP request succeeded)
-      const isSuccess = automationResult.success !== false && 
-                       automationResult.status !== 'failed' &&
-                       !automationResult.error;
-      const finalStatus = isSuccess ? 'completed' : 'failed';
+      // ✅ FIX: queueTaskRun should ONLY dispatch the task, NOT update final status
+      // The HTTP 200 response is just an acknowledgment that the task was queued/received
+      // The actual result (completed/failed) comes later via Kafka
+      // Kafka consumer (kafkaService.js) handles the final status update
       
-      // Update the run with the result
-      // Ensure result is properly stringified for JSONB column
-      const sb = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
-      const resultForStorage = typeof automationResult === 'string' 
-        ? automationResult 
-        : JSON.stringify(automationResult);
-      
-      await sb
-        .from('automation_runs')
-        .update({
-          status: finalStatus,
-          ended_at: new Date().toISOString(),
-          result: resultForStorage,
-          // Extract artifact_url if available (for invoice downloads)
-          artifact_url: automationResult?.data?.artifact_url || automationResult?.artifact_url || null
-        })
-        .eq('id', runId);
-      
-      logger.info(`[queueTaskRun] Task ${runId} ${finalStatus}`, {
+      logger.info(`[queueTaskRun] ✅ Task ${runId} successfully dispatched to automation worker`, {
         runId,
-        status: finalStatus,
-        hasArtifact: !!(automationResult?.data?.artifact_url || automationResult?.artifact_url)
+        worker_response_status: response?.status,
+        worker_response_received: true,
+        message: 'Task queued - final result will be delivered via Kafka'
       });
 
-      // Track the automation run with correct status
-      await usageTracker.trackAutomationRun(taskData.user_id, runId, finalStatus);
-
-      // Send notification only for successful tasks
-      if (isSuccess) {
-        try {
-          const taskName = taskData.title || 'Automation Task';
-          const notification = NotificationTemplates.taskCompleted(taskName);
-          await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
-          logger.info(`🔔 Task completion notification sent to user ${taskData.user_id}`);
-        } catch (notificationError) {
-          logger.error('🔔 Failed to send task completion notification:', notificationError.message);
-        }
-      } else {
-        // Log failure details
-        logger.warn(`[queueTaskRun] Task ${runId} failed`, {
-          runId,
-          error: automationResult.error,
-          message: automationResult.message
-        });
-      }
-        
-  return response?.data ?? automationResult;
+      // ✅ DO NOT update status here - Kafka consumer will handle it
+      // ✅ DO NOT track usage here - Kafka consumer will handle it
+      // ✅ DO NOT send notifications here - Kafka consumer will handle it
+      // ✅ Status remains 'running' until Kafka delivers the actual result
+      
+      // Return acknowledgment that task was dispatched
+      return { 
+        success: true, 
+        message: 'Task dispatched to automation worker',
+        run_id: runId,
+        queued: true,
+        // Include the worker's acknowledgment response for reference (but don't use it for status)
+        worker_response: automationResult
+      };
     } catch (error) {
       logger.error(`[queueTaskRun] Automation service error:`, error.message);
       
@@ -6681,9 +6654,11 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           aiEnabled: enableAI
         });
         
-        // Run standard automation first
-        // Use discovered pdf_url if available, otherwise use the provided one
-        const automationResult = await queueTaskRun(run.id, {
+        // ✅ FIX: queueTaskRun now only dispatches the task (returns acknowledgment, not result)
+        // The actual result (completed/failed) will come via Kafka
+        // Status remains 'running' until Kafka delivers the actual result
+        // Kafka consumer handles: status update, usage tracking, and notifications
+        const dispatchResult = await queueTaskRun(run.id, {
           url,
           title: taskName,
           task_id: taskRecord.id,
@@ -6697,83 +6672,17 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
             extractionTargets: extractionTargets || []
           }
         });
-
-        // Add AI extraction if enabled and service available
-        if (enableAI && aiDataExtractor && automationResult.success) {
-          try {
-            const extractionResult = await aiDataExtractor.extractWebPageData(
-              automationResult.pageContent || automationResult.extracted_text || '',
-              extractionTargets || []
-            );
-            
-            if (extractionResult.success) {
-              automationResult.extractedData = extractionResult.extractedData;
-              automationResult.aiConfidence = extractionResult.metadata?.confidence;
-            }
-          } catch (aiError) {
-            logger.error('[run-task-with-ai] AI extraction failed:', aiError);
-            automationResult.aiError = aiError.message;
-          }
-        }
-
-        // ✅ FIX: Determine actual task status from automationResult (don't hardcode 'completed')
-        // Check if the automation actually failed (even though HTTP request may have succeeded)
-        const isSuccess = automationResult.success !== false && 
-                         automationResult.status !== 'failed' &&
-                         !automationResult.error;
-        const actualStatus = isSuccess ? 'completed' : 'failed';
         
-        // Format result for storage - ensure it's properly structured
-        // queueTaskRun already updates the database, but we need to add AI extraction results
-        // So we update again with the enhanced result
-        const resultToStore = {
-          success: automationResult.success !== false, // Default to true if not explicitly false
-          status: actualStatus, // Use actual status instead of hardcoding 'completed'
-          message: automationResult.message || (isSuccess ? 'Task completed successfully' : 'Task failed'),
-          ...automationResult, // Include all original fields
-          // Ensure AI extraction data is included if available
-          ...(automationResult.extractedData && { 
-            extractedData: automationResult.extractedData,
-            aiConfidence: automationResult.aiConfidence 
-          })
-        };
-        
-        // Extract artifact_url from automationResult (queueTaskRun sets this)
-        const artifactUrl = automationResult?.data?.artifact_url || 
-                           automationResult?.artifact_url || 
-                           null;
-        
-        // Update run with enhanced results (preserve artifact_url from queueTaskRun)
-        // ✅ FIX: Use actual status instead of hardcoding 'completed'
-        const updateData = {
-          status: actualStatus,
-          ended_at: new Date().toISOString(),
-          result: typeof resultToStore === 'string' ? resultToStore : JSON.stringify(resultToStore),
-          extracted_data: automationResult.extractedData ? JSON.stringify(automationResult.extractedData) : null
-        };
-        
-        // Preserve artifact_url if it was set by queueTaskRun
-        if (artifactUrl) {
-          updateData.artifact_url = artifactUrl;
-        }
-        
-        await supabase
-          .from('automation_runs')
-          .update(updateData)
-          .eq('id', run.id);
-        
-        logger.info(`[run-task-with-ai] ✅ Task ${run.id} ${actualStatus} and results saved`, {
-          taskId: taskRecord.id,
+        logger.info(`[run-task-with-ai] ✅ Task ${run.id} dispatched to automation worker`, {
           runId: run.id,
-          status: actualStatus,
-          hasExtractedData: !!automationResult.extractedData,
-          hasArtifact: !!artifactUrl,
-          artifact_url: artifactUrl || null,
-          aiEnabled: enableAI
+          taskId: taskRecord.id,
+          dispatched: dispatchResult.queued === true,
+          message: 'Task queued - final result will be delivered via Kafka'
         });
-
-        // ✅ FIX: Track with actual status instead of hardcoding 'completed'
-        await usageTracker.trackAutomationRun(user.id, run.id, actualStatus);
+        
+        // ✅ NOTE: AI extraction and status updates are now handled by Kafka consumer
+        // when the actual result arrives. This ensures correct status (completed/failed)
+        // based on the actual automation execution, not just the HTTP acknowledgment.
 
       } catch (error) {
         logger.error('[run-task-with-ai] Enhanced automation failed:', {

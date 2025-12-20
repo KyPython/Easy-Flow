@@ -4,6 +4,11 @@ let Kafka;
 let ConfluentKafka;
 let uuidv4;
 let axios;
+
+// Lazy-load usage tracker and notification services
+let usageTracker = null;
+let NotificationTemplates = null;
+let firebaseNotificationService = null;
 try {
     // Try to use the new Confluent Kafka client first
     ConfluentKafka = require('@confluentinc/kafka-javascript').KafkaJS.Kafka;
@@ -433,7 +438,7 @@ class KafkaService {
                                                 database_error: updateError
                                             });
                                         } else {
-                                            // ✅ OBSERVABILITY: Log completion with artifact info (matching queueTaskRun format)
+                                            // ✅ OBSERVABILITY: Log completion with artifact info
                                             logger.info(`[KafkaService] Task ${runRecordId} ${dbStatus}`, {
                                                 runId: runRecordId,
                                                 status: dbStatus,
@@ -443,6 +448,66 @@ class KafkaService {
                                                 success: resultData?.success,
                                                 result_status: resultData?.status
                                             });
+                                            
+                                            // ✅ FIX: Track usage and send notifications (moved from queueTaskRun)
+                                            // Lazy-load services to avoid circular dependencies
+                                            try {
+                                                if (!usageTracker) {
+                                                    usageTracker = require('./usageTracker').default || require('./usageTracker');
+                                                }
+                                                
+                                                // Get user_id from automation_runs table (most reliable)
+                                                // Fallback to statusData or resultData if not available
+                                                let userId = null;
+                                                if (runRecordId) {
+                                                    const { data: runData } = await supabase
+                                                        .from('automation_runs')
+                                                        .select('user_id')
+                                                        .eq('id', runRecordId)
+                                                        .single();
+                                                    userId = runData?.user_id || statusData?.user_id || resultData?.user_id;
+                                                } else {
+                                                    userId = statusData?.user_id || resultData?.user_id;
+                                                }
+                                                
+                                                if (userId && usageTracker && usageTracker.trackAutomationRun) {
+                                                    // Only track completed runs (failed runs don't count)
+                                                    if (dbStatus === 'completed') {
+                                                        await usageTracker.trackAutomationRun(userId, runRecordId, 'completed');
+                                                        logger.info(`[KafkaService] Usage tracked for completed task ${runRecordId}`);
+                                                    }
+                                                }
+                                                
+                                                // Send notifications based on status
+                                                if (!NotificationTemplates) {
+                                                    NotificationTemplates = require('../utils/notificationTemplates');
+                                                }
+                                                if (!firebaseNotificationService) {
+                                                    firebaseNotificationService = require('../utils/firebaseAdmin');
+                                                }
+                                                
+                                                if (userId && NotificationTemplates && firebaseNotificationService) {
+                                                    const taskName = resultData?.title || resultData?.task_name || 'Automation Task';
+                                                    
+                                                    if (dbStatus === 'completed') {
+                                                        const notification = NotificationTemplates.taskCompleted(taskName);
+                                                        await firebaseNotificationService.sendAndStoreNotification(userId, notification);
+                                                        logger.info(`[KafkaService] 🔔 Completion notification sent for task ${runRecordId}`);
+                                                    } else if (dbStatus === 'failed') {
+                                                        const errorMessage = resultData?.error || resultData?.message || 'Task failed';
+                                                        const notification = NotificationTemplates.taskFailed(taskName, errorMessage);
+                                                        await firebaseNotificationService.sendAndStoreNotification(userId, notification);
+                                                        logger.info(`[KafkaService] 🔔 Failure notification sent for task ${runRecordId}`);
+                                                    }
+                                                }
+                                            } catch (trackingError) {
+                                                // Don't fail the whole Kafka processing if tracking/notifications fail
+                                                logger.error('[KafkaService] Error tracking usage or sending notifications:', {
+                                                    error: trackingError?.message || trackingError,
+                                                    runRecordId,
+                                                    dbStatus
+                                                });
+                                            }
                                         }
                                     } catch (dbError) {
                                         logger.error('[KafkaService] Could not update automation_runs:', dbError);
