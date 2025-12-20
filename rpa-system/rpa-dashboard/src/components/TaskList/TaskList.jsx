@@ -381,20 +381,25 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                     {(() => {
                       // ✅ FIX: Check result.status to show accurate status (handles cases where DB status is stale)
                       // This ensures consistency between list view and detail view
-                      let displayStatus = task.status;
+                      // Logic matches TaskResultModal for consistency
+                      let displayStatus = task.status; // Start with database status
                       let isQueued = false;
                       
                       try {
                         const result = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
                         
-                        // If we have a result with status, use that for display (more accurate than DB status)
+                        // Priority 1: If result has a status field, use that (most accurate - from Kafka)
                         // This handles cases where Kafka updated the result but DB status is still 'running'
                         if (result?.status && ['completed', 'failed', 'queued'].includes(result.status)) {
                           displayStatus = result.status;
                           isQueued = result.status === 'queued';
-                        } else if (task.status === 'running' && result) {
-                          // Fallback: If status is 'running' but result indicates it's queued, show 'queued' instead
-                          if (result.status === 'queued' || result.queue_status === 'pending') {
+                        } 
+                        // Priority 2: If task is 'running' but result indicates failure/success, check result.success
+                        else if (task.status === 'running' && result) {
+                          // Check if result has success flag indicating completion/failure
+                          if (result.success === false || result.error) {
+                            displayStatus = 'failed';
+                          } else if (result.success === true && (result.status === 'queued' || result.queue_status === 'pending')) {
                             displayStatus = 'queued';
                             isQueued = true;
                           }
