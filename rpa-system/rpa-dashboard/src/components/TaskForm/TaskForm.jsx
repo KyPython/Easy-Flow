@@ -576,6 +576,31 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         userMessage = 'Unable to reach the server. Is the backend running on :3030?';
       } else if (error.response?.status === 401) {
         userMessage = 'Authentication error. Please sign in again.';
+      } else if (error.response?.status === 403) {
+        // ✅ FIX: Handle plan limit errors with upgrade prompts
+        const errorData = error.response?.data || {};
+        if (errorData.upgrade_required) {
+          const usage = errorData.usage ?? 0;
+          const limit = errorData.limit ?? 0;
+          const planName = errorData.current_plan || 'your plan';
+          
+          userMessage = `🚫 ${errorData.message || `Monthly automation limit reached (${usage}/${limit} runs used).`} Please upgrade your plan to continue.`;
+          
+          // Show error with upgrade action
+          showError(userMessage);
+          
+          // Optionally show upgrade dialog/modal (if you have one)
+          // For now, just show the error message
+          setTimeout(() => {
+            if (window.confirm(`${errorData.message}\n\nWould you like to view pricing plans?`)) {
+              window.location.href = '/pricing';
+            }
+          }, 100);
+          
+          return; // Don't proceed with submission
+        } else {
+          userMessage = errorData.message || 'Access denied. Please check your permissions.';
+        }
       } else if (error.response?.status === 400 || error.response?.status === 200) {
         // Handle specific link discovery validation errors (200 = warning, not error)
         const errorData = error.response?.data || {};

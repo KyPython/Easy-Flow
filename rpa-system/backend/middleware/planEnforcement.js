@@ -82,18 +82,18 @@ const requireWorkflowRun = async (req, res, next) => {
 // Middleware: Check if user can run automation (with limits)
 const requireAutomationRun = async (req, res, next) => {
   try {
-    // Allow explicit dev bypass token to short-circuit plan checks
-    if (req.devBypass) {
-      logger.info('[PlanEnforcement] Dev bypass active, skipping automation limits');
-      return next(); // Dev bypass: skip plan enforcement, but do not inject static planData
-    }
-
-    // Skip limits in development mode for demos
+    // ✅ FIX: Check development mode FIRST to avoid unnecessary DB calls
     // Check multiple ways NODE_ENV might be set
-    const nodeEnv = process.env.NODE_ENV || process.env.node_env || 'development';
-    if (nodeEnv === 'development' || nodeEnv === 'dev') {
-      logger.info('[PlanEnforcement] Development mode detected, skipping automation limits for demo');
-      return next();
+    const nodeEnv = (process.env.NODE_ENV || process.env.node_env || 'development').toLowerCase();
+    const isDevelopment = nodeEnv === 'development' || nodeEnv === 'dev';
+    
+    // Allow explicit dev bypass token to short-circuit plan checks
+    if (req.devBypass || isDevelopment) {
+      logger.info('[PlanEnforcement] Development mode detected, skipping automation limits', {
+        devBypass: !!req.devBypass,
+        nodeEnv: process.env.NODE_ENV || process.env.node_env || 'development'
+      });
+      return next(); // Skip plan enforcement entirely in development
     }
 
     const userId = req.user?.id;
@@ -103,24 +103,21 @@ const requireAutomationRun = async (req, res, next) => {
 
     const planData = await getUserPlan(userId);
     
-    // If plan data is missing or invalid, allow in development mode as fallback
+    // If plan data is missing or invalid, block in production
     if (!planData || !planData.can_run_automation) {
-      // In development, allow even if plan check fails
-      if (nodeEnv === 'development' || nodeEnv === 'dev') {
-        logger.warn('[PlanEnforcement] Plan check failed but allowing in development mode', {
-          hasPlanData: !!planData,
-          canRunAutomation: planData?.can_run_automation
-        });
-        return next();
-      }
+      // ✅ FIX: Properly handle undefined values in error message
+      const usage = planData?.usage?.monthly_runs ?? 0;
+      const limit = planData?.limits?.monthly_runs ?? 0;
+      const planName = planData?.plan?.name || 'Unknown';
       
       return res.status(403).json({
         error: 'Monthly automation limit reached',
-        message: `You've used ${planData?.usage?.monthly_runs || 0}/${planData?.limits?.monthly_runs || 0} automation runs this month. Upgrade for higher limits.`,
-        current_plan: planData?.plan?.name || 'Unknown',
-        usage: planData?.usage?.monthly_runs,
-        limit: planData?.limits?.monthly_runs,
-        upgrade_required: true
+        message: `You've used ${usage}/${limit} automation runs this month. Upgrade for higher limits.`,
+        current_plan: planName,
+        usage: usage,
+        limit: limit,
+        upgrade_required: true,
+        upgrade_url: '/pricing'
       });
     }
 
@@ -128,8 +125,10 @@ const requireAutomationRun = async (req, res, next) => {
     next();
   } catch (error) {
     // In development mode, allow even if there's an error getting plan data
-    const nodeEnv = process.env.NODE_ENV || process.env.node_env || 'development';
-    if (nodeEnv === 'development' || nodeEnv === 'dev') {
+    const nodeEnv = (process.env.NODE_ENV || process.env.node_env || 'development').toLowerCase();
+    const isDevelopment = nodeEnv === 'development' || nodeEnv === 'dev';
+    
+    if (isDevelopment) {
       logger.warn('[PlanEnforcement] Error checking plan but allowing in development mode:', error.message);
       return next();
     }
