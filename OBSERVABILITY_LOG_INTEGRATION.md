@@ -42,14 +42,15 @@ All logs flow through the following pipeline:
 - **Fields**: `level`, `message`, `component`, `trace`, `timestamp`
 
 **Integration Method**:
-1. Frontend logger sends logs to backend endpoint
-2. Backend `/api/internal/front-logs` route uses structured logger
-3. Logs flow through backend logging pipeline
-4. Job label: `easyflow-frontend` (via backend logger with `source: 'frontend'`)
+1. Frontend logger sends logs to `/api/internal/front-logs` endpoint
+2. Backend `/api/internal/front-logs` route uses structured logger (`frontendLogger.child({ source: 'frontend' })`)
+3. Logs flow through backend Pino logger → stdout/stderr → Promtail → Loki
+4. Job label: `easyflow-backend` with `source: 'frontend'` label (via backend logger)
+5. Fallback: `/api/track-event` also routes `frontend_log` events through structured logger
 
-**Note**: Some `console.*` calls still exist but are non-critical (debug/dev only)
+**Note**: Some `console.*` calls still exist but are non-critical (debug/dev only). These are sampled to reduce volume.
 
-**Status**: ✅ Integrated (via backend endpoint)
+**Status**: ✅ Fully integrated (via `/api/internal/front-logs` endpoint)
 
 ### ✅ Automation Worker (Python)
 
