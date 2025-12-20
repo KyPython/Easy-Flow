@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # EasyFlow Git Workflow Helper
 # Adapted from git-workflows-sample: https://github.com/KyPython/git-workflows-sample
 # CLI tool to help developers follow Git workflow best practices
@@ -233,13 +233,17 @@ check_pr_readiness() {
     echo ""
     echo "${BLUE}Checking commit messages...${NC}"
     local invalid_commits=0
-    while IFS= read -r commit; do
-        local commit_msg=$(git log -1 --pretty=%B "$commit")
-        if ! validate_commit_message "$commit_msg" >/dev/null 2>&1; then
-            invalid_commits=$((invalid_commits + 1))
-            echo "  ${RED}✗ Invalid: $commit_msg${NC}"
-        fi
-    done < <(git rev-list "$base_branch".."$current_branch" 2>/dev/null || echo "")
+    local commits=$(git rev-list "$base_branch".."$current_branch" 2>/dev/null || echo "")
+    if [ -n "$commits" ]; then
+        while IFS= read -r commit; do
+            [ -z "$commit" ] && continue
+            local commit_msg=$(git log -1 --pretty=%B "$commit" 2>/dev/null)
+            if ! validate_commit_message "$commit_msg" >/dev/null 2>&1; then
+                invalid_commits=$((invalid_commits + 1))
+                echo "  ${RED}✗ Invalid: $commit_msg${NC}"
+            fi
+        done <<< "$commits"
+    fi
     
     if [ "$invalid_commits" -eq 0 ]; then
         echo "${GREEN}✓ All commit messages are valid${NC}"
