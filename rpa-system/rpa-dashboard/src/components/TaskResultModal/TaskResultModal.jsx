@@ -98,6 +98,46 @@ const TaskResultModal = ({ task, onClose }) => {
     resultData = { raw: task.result };
   }
 
+  // Convert technical error messages to user-friendly ones
+  const sanitizeErrorMessage = (error) => {
+    if (!error) return null;
+    
+    const errorStr = typeof error === 'string' ? error : String(error);
+    
+    // Map common technical errors to friendly messages
+    const errorMappings = {
+      'Unknown task type': 'We encountered an issue processing this task type. Please try again or contact support if the problem persists.',
+      'unknown task type': 'We encountered an issue processing this task type. Please try again or contact support if the problem persists.',
+      'task type not supported': 'This task type is not currently supported. Please try a different task type.',
+      'authentication failed': 'Authentication failed. Please check your credentials and try again.',
+      'connection timeout': 'The request took too long to complete. Please try again.',
+      'network error': 'A network error occurred. Please check your connection and try again.',
+      'invalid url': 'The provided URL is invalid. Please check the URL and try again.',
+      'permission denied': 'You do not have permission to perform this action. Please contact support if you believe this is an error.',
+    };
+    
+    // Check for specific error patterns
+    for (const [pattern, friendlyMessage] of Object.entries(errorMappings)) {
+      if (errorStr.toLowerCase().includes(pattern.toLowerCase())) {
+        return friendlyMessage;
+      }
+    }
+    
+    // For other errors, check if they look technical and provide a generic message
+    // Technical errors often contain technical terms or have specific formats
+    if (errorStr.includes(':') && (errorStr.includes('Error') || errorStr.includes('Exception') || errorStr.includes('TypeError'))) {
+      return 'An unexpected error occurred while processing your task. Please try again or contact support if the problem continues.';
+    }
+    
+    // If it's a short, readable message, return it as-is
+    if (errorStr.length < 100 && !errorStr.includes('stack') && !errorStr.includes('trace')) {
+      return errorStr;
+    }
+    
+    // Default fallback for technical errors
+    return 'An error occurred while processing your task. Please try again or contact support if the problem persists.';
+  };
+
   // Extract key information in a user-friendly way
   const formatResult = (data) => {
     if (!data) return null;
@@ -133,12 +173,14 @@ const TaskResultModal = ({ task, onClose }) => {
       };
     }
 
-    // Generic success/failure
+    // Generic success/failure - sanitize error messages
+    const sanitizedError = data.error ? sanitizeErrorMessage(data.error) : null;
+    
     return {
       type: 'generic',
       success: data.success,
       message: data.message || (data.success ? 'Task completed successfully' : 'Task failed'),
-      error: data.error,
+      error: sanitizedError,
       details: data
     };
   };
