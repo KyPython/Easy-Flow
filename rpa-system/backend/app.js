@@ -6549,16 +6549,20 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
     const { discoveryMethod, discoveryValue } = req.body;
     let finalPdfUrl = pdf_url;
     
-    if (taskType === 'invoice_download' && !pdf_url && discoveryMethod) {
+    // Only attempt link discovery if:
+    // 1. It's an invoice download task
+    // 2. No direct pdf_url was provided
+    // 3. Discovery method is set AND we have credentials
+    const shouldAttemptDiscovery = taskType === 'invoice_download' && 
+                                   !pdf_url && 
+                                   discoveryMethod && 
+                                   username && 
+                                   password;
+    
+    if (shouldAttemptDiscovery) {
       logger.info(`[run-task-with-ai] Processing invoice download with link discovery for user ${user.id}`);
       
       try {
-        // Validate required fields for discovery
-        if (!username || !password) {
-          return res.status(400).json({
-            error: 'Username and password are required for invoice download with link discovery'
-          });
-        }
 
         if (discoveryMethod === 'css-selector' && !discoveryValue) {
           return res.status(400).json({
@@ -6572,7 +6576,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           });
         }
 
-        logger.info(`[run-task-with-ai] Starting link discovery for ${url} with method: ${discoveryMethod}`);
+        logger.info(`[run-task-with-ai] Starting link discovery for ${url} with method: ${discoveryMethod || 'auto-detect'}`);
         
         // ✅ SEAMLESS UX: Run link discovery with automatic fallback
         const linkDiscovery = new LinkDiscoveryService();
@@ -6580,13 +6584,13 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           url,
           username,
           password,
-          discoveryMethod,
+          discoveryMethod: discoveryMethod || 'auto-detect',
           discoveryValue,
           testMode: false
         });
         
         // ✅ SEAMLESS UX: If primary method fails, automatically try auto-detect as fallback
-        if (!discoveryResult.success && discoveryMethod !== 'auto-detect') {
+        if (!discoveryResult.success && discoveryMethod && discoveryMethod !== 'auto-detect') {
           logger.info(`[run-task-with-ai] Primary discovery method failed, trying auto-detect fallback`);
           discoveryResult = await linkDiscovery.discoverPdfLinks({
             url,
