@@ -16,7 +16,11 @@
     "git:branch:status": "./scripts/git-workflow-helper.sh branch:status",
     "git:commit:check": "./scripts/git-workflow-helper.sh commit:check",
     "git:status": "./scripts/git-workflow-helper.sh status",
-    "git:rebase": "./scripts/git-workflow-helper.sh rebase"
+    "git:rebase": "./scripts/git-workflow-helper.sh rebase",
+    "gen:route": "./scripts/code-generator.sh route",
+    "gen:service": "./scripts/code-generator.sh service",
+    "gen:component": "./scripts/code-generator.sh component",
+    "gen:automation": "./scripts/code-generator.sh automation"
   },
   "keywords": [
     "automation",
