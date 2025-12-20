@@ -17,6 +17,7 @@ import { useFormPersistence, enableBrowserAutofill } from '../../utils/formPersi
 import { useAuth } from '../../utils/AuthContext';
 import useUsageTracking from '../../hooks/useUsageTracking';
 import SearchSuggestions from '../SearchSuggestions/SearchSuggestions';
+import PaywallModal from '../PaywallModal/PaywallModal';
 import styles from './TaskForm.module.css';
 
 const token = localStorage.getItem('sb-syxzilyuysdoirnezgii-auth-token');
@@ -75,6 +76,10 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
   const [isTestingDiscovery, setIsTestingDiscovery] = useState(false);
   const [discoveryResults, setDiscoveryResults] = useState([]);
   const [showDiscoveryResults, setShowDiscoveryResults] = useState(false);
+  
+  // ✅ NEW: Upgrade modal state
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeModalData, setUpgradeModalData] = useState(null);
 
   const taskTypes = [
     { value: 'invoice_download', label: 'Invoice Download' },
@@ -577,25 +582,20 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
       } else if (error.response?.status === 401) {
         userMessage = 'Authentication error. Please sign in again.';
       } else if (error.response?.status === 403) {
-        // ✅ FIX: Handle plan limit errors with upgrade prompts
+        // ✅ FIX: Handle plan limit errors with PaywallModal (styled upgrade prompt)
         const errorData = error.response?.data || {};
         if (errorData.upgrade_required) {
           const usage = errorData.usage ?? 0;
           const limit = errorData.limit ?? 0;
-          const planName = errorData.current_plan || 'your plan';
+          const planName = errorData.current_plan || 'Unknown';
           
-          userMessage = `🚫 ${errorData.message || `Monthly automation limit reached (${usage}/${limit} runs used).`} Please upgrade your plan to continue.`;
-          
-          // Show error with upgrade action
-          showError(userMessage);
-          
-          // Optionally show upgrade dialog/modal (if you have one)
-          // For now, just show the error message
-          setTimeout(() => {
-            if (window.confirm(`${errorData.message}\n\nWould you like to view pricing plans?`)) {
-              window.location.href = '/pricing';
-            }
-          }, 100);
+          // Show PaywallModal with proper styling and theme
+          setUpgradeModalData({
+            feature: 'automation_runs',
+            requiredPlan: 'Professional', // Default to Professional for higher limits
+            message: errorData.message || `You've used ${usage}/${limit} automation runs this month. Upgrade for higher limits.`
+          });
+          setShowUpgradeModal(true);
           
           return; // Don't proceed with submission
         } else {
@@ -1119,6 +1119,19 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           )}
         </div>
       </form>
+      
+      {/* ✅ Upgrade Modal - Styled with theme context */}
+      {showUpgradeModal && upgradeModalData && (
+        <PaywallModal
+          feature={upgradeModalData.feature}
+          requiredPlan={upgradeModalData.requiredPlan}
+          message={upgradeModalData.message}
+          onClose={() => {
+            setShowUpgradeModal(false);
+            setUpgradeModalData(null);
+          }}
+        />
+      )}
     </div>
   );
 };
