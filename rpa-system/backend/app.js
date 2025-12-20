@@ -829,10 +829,11 @@ const feedbackRoutes = require('./routes/feedbackRoutes');
 app.use('/api', feedbackRoutes);
 
 // Internal (dev) routes - accept frontend telemetry and error reports
+// ✅ FIX: Mount at /api/internal to match frontend logger endpoint
 try {
   const internalRoutes = require('./routes/internalRoutes');
-  app.use('/internal', internalRoutes);
-  rootLogger.info('✓ Internal routes mounted at /internal');
+  app.use('/api/internal', internalRoutes);
+  rootLogger.info('✓ Internal routes mounted at /api/internal');
 } catch (e) {
   rootLogger.warn('internalRoutes not mounted', { error: e?.message || e });
 }
