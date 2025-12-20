@@ -396,14 +396,17 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                         } 
                         // Priority 2: If task is 'running' but result indicates actual outcome, check for failure indicators
                         // This matches TaskResultModal logic - check error field (which formatResult uses to determine failure)
+                        // IMPORTANT: Check result structure that Kafka stores - it can be nested
                         else if (task.status === 'running' && result) {
-                          // Check if result has error field (matches TaskResultModal's formatResult logic)
-                          // Also check nested error structures (result.result.error, result.data.error)
+                          // Check for error indicators at multiple levels (matches TaskResultModal's formatResult)
+                          // Kafka stores: { ...resultData, status: result.status }
+                          // Where resultData can be result.result or result, and may have nested structures
                           const hasError = result.error || 
-                                          result.result?.error || 
+                                          (typeof result.error === 'string' && result.error.length > 0) ||
+                                          result.result?.error ||
                                           result.data?.error ||
                                           result.success === false ||
-                                          (result.success !== undefined && !result.success);
+                                          (result.success !== undefined && !result.success && result.error !== undefined);
                           
                           if (hasError) {
                             displayStatus = 'failed';
@@ -416,6 +419,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                         }
                       } catch (e) {
                         // If parsing fails, just use the original status from database
+                        console.warn('[TaskList] Error parsing result:', e);
                       }
                       
                       // Calculate time since task was created
