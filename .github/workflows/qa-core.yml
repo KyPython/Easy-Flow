@@ -28,6 +28,11 @@ jobs:
           chmod +x scripts/dev-env-check.sh
           ./scripts/dev-env-check.sh || echo "⚠️ Some optional tools missing (continuing anyway)"
 
+      - name: Run comprehensive test suite
+        run: |
+          chmod +x scripts/test-all.sh scripts/lint-and-test.sh
+          ./scripts/test-all.sh || echo "⚠️ Some tests failed (continuing with CI tests)"
+
       - name: Create backend .env file from secrets
         run: |
           mkdir -p rpa-system/backend

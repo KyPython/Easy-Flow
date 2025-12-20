@@ -33,6 +33,11 @@ jobs:
           chmod +x scripts/dev-env-check.sh
           ./scripts/dev-env-check.sh || echo "⚠️ Some optional tools/infrastructure missing (continuing anyway)"
 
+      - name: Run lint and test validation
+        run: |
+          chmod +x scripts/lint-and-test.sh
+          ./scripts/lint-and-test.sh || echo "⚠️ Some lint/test checks failed (continuing with integration tests)"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

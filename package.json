@@ -8,7 +8,10 @@
     "smoke-test": "echo 'Use GitHub Actions validation workflow for comprehensive testing'",
     "check-env": "./scripts/dev-env-check.sh",
     "deploy-sim": "./scripts/simple-deploy.sh",
-    "prestart": "npm run check-env"
+    "prestart": "npm run check-env",
+    "test:all": "./scripts/test-all.sh",
+    "lint:test": "./scripts/lint-and-test.sh",
+    "pre-commit": "./scripts/pre-commit.sh"
   },
   "keywords": [
     "automation",
