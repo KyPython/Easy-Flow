@@ -49,7 +49,14 @@ class LinkDiscoveryService {
       });
       
       // Step 2: Attempt login if credentials provided and login form detected
-      if (username && password) {
+      // ✅ DEMO PORTAL: Skip login for demo portal - it's a test site that doesn't require authentication
+      const isDemoPortal = url && (
+        url.includes('/demo') || 
+        url.includes('localhost:3030/demo') ||
+        url.includes('127.0.0.1:3030/demo')
+      );
+      
+      if (username && password && !isDemoPortal) {
         try {
           // ✅ INTELLIGENT ADAPTATION: Get adapted selectors for this site
           const adaptedSelectors = await this.siteAdaptationService.getAdaptedSelectors(url, 'login');

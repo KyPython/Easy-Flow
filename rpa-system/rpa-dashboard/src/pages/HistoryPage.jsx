@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { usePlan } from '../hooks/usePlan';
 import { useI18n } from '../i18n';
+import { useTheme } from '../utils/ThemeContext';
 import TaskList from '../components/TaskList/TaskList';
 import { useAuth } from '../utils/AuthContext';
 import { supabase, initSupabase } from '../utils/supabaseClient';
@@ -12,6 +13,7 @@ import TaskResultModal from '../components/TaskResultModal/TaskResultModal';
 import { createLogger } from '../utils/logger';
 const HistoryPage = () => {
   const { user } = useAuth();
+  const { theme } = useTheme() || { theme: 'light' };
   const logger = createLogger('HistoryPage');
   const loadingTimeoutRef = useRef(null);
   const [runs, setRuns] = useState([]);
@@ -235,11 +237,11 @@ const HistoryPage = () => {
 
   const { t } = useI18n();
 
-  if (loading) return <div className={styles.container}><p>{t('history.loading','Loading automation history...')}</p></div>;
+  if (loading) return <div className={styles.container} data-theme={theme}><p>{t('history.loading','Loading automation history...')}</p></div>;
 
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} data-theme={theme}>
       <ErrorMessage message={error} />
 
       {/* Step-by-step guidance banner */}

@@ -1,6 +1,7 @@
 import React, { useState, lazy, Suspense } from 'react';
 import { useI18n } from '../../i18n';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useTheme } from '../../utils/ThemeContext';
 import styles from './Header.module.css';
 import supabase, { initSupabase } from '../../utils/supabaseClient';
 import PropTypes from 'prop-types';
@@ -41,9 +42,10 @@ const Header = ({ user }) => {
 
   const { t } = useI18n();
   const { planData, trialDaysLeft } = usePlan();
+  const { theme } = useTheme() || { theme: 'light' };
 
   return (
-    <header className={styles.header}>
+    <header className={styles.header} data-theme={theme}>
       <div className={styles.container}>
         {/* Brand / Logo */}
         <div className={styles.brand}>

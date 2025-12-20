@@ -1,5 +1,6 @@
 
-const { logger, getLogger } = require('./logger');
+// ✅ OBSERVABILITY: Use structured logger for full observability integration
+const logger = require('../middleware/structuredLogging');
 let Kafka;
 let ConfluentKafka;
 let uuidv4;
@@ -267,17 +268,30 @@ class KafkaService {
                 groupId: this.consumerGroup,
                 sessionTimeout: 30000,
                 rebalanceTimeout: 60000,
-                heartbeatInterval: 3000
+                heartbeatInterval: 3000,
+                // ✅ FIX: Keep auto-commit enabled (default) - offsets are committed after processing
+                // The state-based check will skip already-processed messages to prevent duplicate processing
+                allowAutoTopicCreation: true
             });
             
             await this.producer.connect();
             await this.consumer.connect();
             
             // Subscribe to result topic
-            await this.consumer.subscribe({ topic: this.resultTopic, fromBeginning: false });
+            // ✅ FIX: Use fromBeginning: true to ensure we don't miss any messages
+            // The state-based check in eachMessage will skip already-processed runs (completed/failed)
+            // This ensures we process all messages, even if they were published while the consumer was down
+            await this.consumer.subscribe({ topic: this.resultTopic, fromBeginning: true });
             
             // Start consuming results
-            this.startConsumingResults();
+            // ✅ FIX: Don't await - consumer.run() runs indefinitely
+            // Start it asynchronously so we can continue initialization
+            this.startConsumingResults().catch(error => {
+                logger.error('[KafkaService] Failed to start consumer:', {
+                    error: error.message,
+                    stack: error.stack
+                });
+            });
             
             this.isConnected = true;
             logger.info('[KafkaService] Successfully connected to Kafka with auto-topic creation');
@@ -355,11 +369,63 @@ class KafkaService {
     
     async startConsumingResults() {
         try {
-            await this.consumer.run({
+            logger.info('[KafkaService] Starting consumer for results topic', {
+                topic: this.resultTopic,
+                consumerGroup: this.consumerGroup
+            });
+            
+            // ✅ FIX: Start consumer.run() without await - it runs indefinitely
+            // The consumer will process messages asynchronously
+            // We don't await this because it blocks forever, but we need to catch startup errors
+            this.consumer.run({
                 eachMessage: async ({ topic, partition, message }) => {
                     try {
+                        // ✅ OBSERVABILITY: Always log raw message receipt
+                        logger.info('[KafkaService] Raw message received', {
+                            topic,
+                            partition,
+                            offset: message.offset,
+                            key: message.key?.toString(),
+                            valueLength: message.value?.length,
+                            timestamp: message.timestamp
+                        });
+                        
                         const result = JSON.parse(message.value.toString());
                         const taskId = result.task_id;
+                        const runId = result.run_id;
+                        
+                        // ✅ FIX: Check if this run has already been processed to avoid duplicate processing
+                        // This is the proper way to handle message processing - check actual state, not hardcoded offsets
+                        if (runId) {
+                            try {
+                                const { getSupabase } = require('./supabaseClient');
+                                const supabase = getSupabase();
+                                if (supabase) {
+                                    const { data: existingRun } = await supabase
+                                        .from('automation_runs')
+                                        .select('id, status, updated_at')
+                                        .eq('id', runId)
+                                        .single();
+                                    
+                                    // If run exists and is already completed/failed (not running), skip processing
+                                    // This prevents reprocessing messages that were already handled
+                                    if (existingRun && existingRun.status !== 'running' && existingRun.status !== 'queued') {
+                                        logger.info('[KafkaService] Skipping already-processed run', {
+                                            runId,
+                                            currentStatus: existingRun.status,
+                                            offset: message.offset
+                                        });
+                                        return; // Skip - already processed
+                                    }
+                                }
+                            } catch (checkError) {
+                                // If check fails, continue processing (fail open)
+                                logger.warn('[KafkaService] Could not check run status, proceeding with processing', {
+                                    runId,
+                                    error: checkError?.message
+                                });
+                            }
+                        }
                         
                         // Extract result data for artifact URL checking
                         const resultData = result.result || result;
@@ -371,6 +437,8 @@ class KafkaService {
                             success: resultData?.success || 'N/A',
                             hasArtifact: !!artifactUrl,
                             artifact_url: artifactUrl || null,
+                            has_run_id: !!result.run_id,
+                            run_id: result.run_id || null,
                             result_structure: {
                                 has_result: !!result.result,
                                 has_data: !!(resultData?.data),
@@ -588,12 +656,31 @@ class KafkaService {
                         }
                         
                     } catch (error) {
-                        logger.error('[KafkaService] Error processing result message:', error);
+                        logger.error('[KafkaService] Error processing result message:', {
+                            error: error.message,
+                            stack: error.stack,
+                            topic,
+                            partition,
+                            offset: message?.offset
+                        });
                     }
                 }
+            }).catch(error => {
+                // ✅ FIX: Catch errors from consumer.run() - it runs asynchronously
+                logger.error('[KafkaService] Consumer run error:', {
+                    error: error.message,
+                    stack: error.stack,
+                    topic: this.resultTopic
+                });
             });
+            
+            logger.info('[KafkaService] Consumer started successfully and listening for messages');
         } catch (error) {
-            logger.error('[KafkaService] Error starting result consumer:', error);
+            logger.error('[KafkaService] Error starting result consumer:', {
+                error: error.message,
+                stack: error.stack,
+                topic: this.resultTopic
+            });
         }
     }
     

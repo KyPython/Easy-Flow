@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import headerStyles from '../Header/Header.module.css';
 import { useI18n } from '../../i18n';
+import { useTheme } from '../../utils/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import styles from './Dashboard.module.css';
 import MetricCard from '../MetricCard/MetricCard';
@@ -14,6 +15,7 @@ import PropTypes from 'prop-types';
 
 const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = null }) => {
   const navigate = useNavigate();
+  const { theme } = useTheme() || { theme: 'light' };
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
   const { sendTaskCompleted, sendTaskFailed } = useNotifications(user);
@@ -91,7 +93,7 @@ const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = 
   }, [recentTasks, sendTaskCompleted, sendTaskFailed]); // Safe to include functions since they're from useCallback
 
   return (
-    <div className={styles.dashboard}>
+    <div className={styles.dashboard} data-theme={theme}>
       {/* Header */}
       <div className={styles.header}>
         <h1 className={styles.title}>{t('dashboard.title','Your Time-Saving Dashboard')}</h1>

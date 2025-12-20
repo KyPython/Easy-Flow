@@ -769,47 +769,91 @@ class FirebaseNotificationService {
 // Create singleton instance
 const firebaseNotificationService = new FirebaseNotificationService();
 
+// ✅ OBSERVABILITY: Import environment-aware message utility
+const { getUserErrorMessage, getTaskStatusMessage, getSystemAlertMessage, IS_DEVELOPMENT } = require('./environmentAwareMessages');
+
 // Helper functions for common notification types
+// ✅ ENVIRONMENT-AWARE: All messages adapt based on environment (dev shows more detail, prod shows user-friendly)
 const NotificationTemplates = {
-  taskCompleted: (taskName) => ({
-    title: 'Task Completed ✅',
-    body: `Your task "${taskName}" has completed successfully`,
-    type: 'task_completed',
-    priority: 'normal',
-    icon: '/icons/task-completed.png'
-  }),
+  taskCompleted: (taskName) => {
+    const body = IS_DEVELOPMENT 
+      ? `Your task "${taskName}" has completed successfully`
+      : 'Task completed successfully';
+    
+    return {
+      title: 'Task Completed ✅',
+      body,
+      type: 'task_completed',
+      priority: 'normal',
+      icon: '/icons/task-completed.png'
+    };
+  },
 
-  taskFailed: (taskName, error) => ({
-    title: 'Task Failed ❌',
-    body: `Your task "${taskName}" failed: ${error}`,
-    type: 'task_failed',
-    priority: 'high',
-    icon: '/icons/task-failed.png'
-  }),
+  taskFailed: (taskName, error) => {
+    const errorMessage = getUserErrorMessage(error, { 
+      context: 'notification.taskFailed',
+      logError: true 
+    });
+    
+    const body = IS_DEVELOPMENT
+      ? `Your task "${taskName}" failed: ${errorMessage}`
+      : `Task failed. ${errorMessage}`;
+    
+    return {
+      title: 'Task Failed ❌',
+      body,
+      type: 'task_failed',
+      priority: 'high',
+      icon: '/icons/task-failed.png'
+    };
+  },
 
-  taskStarted: (taskName) => ({
-    title: 'Task Started 🚀',
-    body: `Your task "${taskName}" has started`,
-    type: 'task_started',
-    priority: 'low',
-    icon: '/icons/task-started.png'
-  }),
+  taskStarted: (taskName) => {
+    const body = IS_DEVELOPMENT
+      ? `Your task "${taskName}" has started`
+      : 'Task has started';
+    
+    return {
+      title: 'Task Started 🚀',
+      body,
+      type: 'task_started',
+      priority: 'low',
+      icon: '/icons/task-started.png'
+    };
+  },
 
-  emailSent: (emailType, recipient) => ({
-    title: 'Email Sent 📧',
-    body: `${emailType} email sent to ${recipient}`,
-    type: 'email_sent',
-    priority: 'low',
-    icon: '/icons/email-sent.png'
-  }),
+  emailSent: (emailType, recipient) => {
+    const body = IS_DEVELOPMENT
+      ? `${emailType} email sent to ${recipient}`
+      : 'Email sent successfully';
+    
+    return {
+      title: 'Email Sent 📧',
+      body,
+      type: 'email_sent',
+      priority: 'low',
+      icon: '/icons/email-sent.png'
+    };
+  },
 
-  emailFailed: (emailType, recipient, error) => ({
-    title: 'Email Failed 📧❌',
-    body: `Failed to send ${emailType} email to ${recipient}: ${error}`,
-    type: 'email_failed',
-    priority: 'high',
-    icon: '/icons/email-failed.png'
-  }),
+  emailFailed: (emailType, recipient, error) => {
+    const errorMessage = getUserErrorMessage(error, {
+      context: 'notification.emailFailed',
+      logError: true
+    });
+    
+    const body = IS_DEVELOPMENT
+      ? `Failed to send ${emailType} email to ${recipient}: ${errorMessage}`
+      : `Failed to send email. ${errorMessage}`;
+    
+    return {
+      title: 'Email Failed 📧❌',
+      body,
+      type: 'email_failed',
+      priority: 'high',
+      icon: '/icons/email-failed.png'
+    };
+  },
 
   welcome: (userName) => ({
     title: 'Welcome to EasyFlow! 🎉',
@@ -819,13 +863,16 @@ const NotificationTemplates = {
     icon: '/icons/welcome.png'
   }),
 
-  systemAlert: (message, severity = 'medium') => ({
-    title: 'System Alert ⚠️',
-    body: message,
-    type: 'system_alert',
-    priority: severity === 'critical' ? 'critical' : severity === 'high' ? 'high' : 'normal',
-    icon: '/icons/system-alert.png'
-  })
+  systemAlert: (message, severity = 'medium') => {
+    const alert = getSystemAlertMessage(message, severity);
+    return {
+      title: 'System Alert ⚠️',
+      body: alert.message,
+      type: 'system_alert',
+      priority: severity === 'critical' ? 'critical' : severity === 'high' ? 'high' : 'normal',
+      icon: '/icons/system-alert.png'
+    };
+  }
 };
 
 module.exports = {

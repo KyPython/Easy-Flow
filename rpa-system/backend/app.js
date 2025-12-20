@@ -2046,36 +2046,23 @@ function isPrivateIP(hostname) {
   return false;
 }
 
-// Error sanitization function to prevent information disclosure
+// ✅ OBSERVABILITY & ENVIRONMENT-AWARE: Error sanitization using structured logging and environment-aware messages
+const { getUserErrorMessage } = require('./utils/environmentAwareMessages');
+
 function sanitizeError(error, isDevelopment = false) {
   if (!error) return 'Unknown error occurred';
   
-  // In development, show more details (but still filtered)
-  if (isDevelopment && process.env.NODE_ENV !== 'production') {
-    const message = typeof error === 'string' ? error : (error.message || 'Unknown error');
-    // Remove sensitive patterns
-    return message
-      .replace(/password|secret|key|token/gi, '[REDACTED]')
-      .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[IP_REDACTED]')
-      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL_REDACTED]')
-      .substring(0, 200); // Limit length
-  }
+  // ✅ OBSERVABILITY: Log error through structured logging
+  logger.error('[sanitizeError] Sanitizing error for API response', error instanceof Error ? error : new Error(String(error)), {
+    is_development: isDevelopment,
+    environment: process.env.NODE_ENV
+  });
   
-  // In production, return generic messages
-  const errorType = typeof error === 'string' ? error : (error.name || 'Error');
-  const genericErrors = {
-    'ValidationError': 'Invalid input provided',
-    'CastError': 'Invalid data format',
-    'MongoError': 'Database operation failed',
-    'SequelizeError': 'Database operation failed',
-    'TypeError': 'Invalid operation',
-    'SyntaxError': 'Invalid request format',
-    'ReferenceError': 'Resource not found',
-    'NetworkError': 'Network operation failed',
-    'TimeoutError': 'Operation timed out'
-  };
-  
-  return genericErrors[errorType] || 'Internal server error';
+  // Use environment-aware error message utility
+  return getUserErrorMessage(error, {
+    context: 'api.error_response',
+    logError: false // Already logged above
+  });
 }
 
 // Add this function before the route handlers (around line 500)
@@ -4223,28 +4210,89 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
     }
 
     // ✅ SEAMLESS UX: Handle Invoice Download with Link Discovery (automatic fallback)
-    if (taskData.task_type === 'invoice_download' && taskData.discoveryMethod) {
-      logger.info(`[AutomationExecute] Processing invoice download with link discovery for user ${req.user.id}`);
+    // Only require credentials if discoveryMethod is actually set to a valid value
+    const discoveryMethod = taskData.discoveryMethod;
+    const hasValidDiscoveryMethod = discoveryMethod && 
+                                    typeof discoveryMethod === 'string' &&
+                                    discoveryMethod.trim() !== '' &&
+                                    discoveryMethod !== 'none' &&
+                                    ['auto-detect', 'css-selector', 'text-match'].includes(discoveryMethod);
+    
+    if (taskData.task_type === 'invoice_download' && hasValidDiscoveryMethod) {
+      logger.info(`[AutomationExecute] Processing invoice download with link discovery for user ${req.user.id}`, {
+        discoveryMethod,
+        has_username: !!taskData.username,
+        has_password: !!taskData.password
+      });
       
       try {
         // Validate required fields for discovery
-        const { url, username, password, discoveryMethod, discoveryValue } = taskData;
+        const { url, username, password, discoveryValue } = taskData;
         
-        if (!username || !password) {
+        // ✅ DEMO PORTAL: Make credentials optional for demo portal (it's a test site)
+        const isDemoPortal = url && (
+          url.includes('/demo') || 
+          url.includes('localhost:3030/demo') ||
+          url.includes('demo@useeasyflow.com') ||
+          url.includes('demo portal')
+        );
+        
+        // Only require credentials for non-demo sites (real-world invoice portals need login)
+        if (!isDemoPortal && (!username || !password)) {
+          // ✅ ENVIRONMENT-AWARE: Use environment-aware error messages
+          const { getUserErrorMessage } = require('./utils/environmentAwareMessages');
+          const errorMsg = getUserErrorMessage(
+            'Username and password are required for invoice download with link discovery',
+            {
+              context: 'api.automation.execute',
+              userMessage: 'Please provide your login credentials to use link discovery'
+            }
+          );
+          
+          logger.warn('[AutomationExecute] Missing credentials for link discovery', {
+            has_username: !!username,
+            has_password: !!password,
+            discoveryMethod
+          });
+          
+          // ✅ FIX: Return structured error response so frontend can prompt for credentials
+          // Use clean userMessage without dev details in the structured response
+          const { IS_PRODUCTION } = require('./utils/environmentAwareMessages');
+          const cleanMessage = 'Please provide your login credentials to use link discovery';
+          
           return res.status(400).json({
-            error: 'Username and password are required for invoice download with link discovery'
+            error: errorMsg, // Full error message for logging (includes dev details in dev mode)
+            requiresCredentials: true,
+            field: 'link_discovery_credentials',
+            message: cleanMessage // Clean message for user display (always user-friendly)
           });
         }
 
         if (discoveryMethod === 'css-selector' && !discoveryValue) {
+          const { getUserErrorMessage } = require('./utils/environmentAwareMessages');
+          const errorMsg = getUserErrorMessage(
+            'CSS Selector is required when using css-selector method',
+            {
+              context: 'api.automation.execute',
+              userMessage: 'Please provide a CSS selector to locate the PDF link'
+            }
+          );
           return res.status(400).json({
-            error: 'CSS Selector is required when using css-selector method'
+            error: errorMsg
           });
         }
 
         if (discoveryMethod === 'text-match' && !discoveryValue) {
+          const { getUserErrorMessage } = require('./utils/environmentAwareMessages');
+          const errorMsg = getUserErrorMessage(
+            'Link Text is required when using text-match method',
+            {
+              context: 'api.automation.execute',
+              userMessage: 'Please provide the link text to match for PDF discovery'
+            }
+          );
           return res.status(400).json({
-            error: 'Link Text is required when using text-match method'
+            error: errorMsg
           });
         }
 

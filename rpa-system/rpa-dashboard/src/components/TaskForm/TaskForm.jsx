@@ -15,6 +15,7 @@ import { api } from '../../utils/api';
 import { useToast } from '../WorkflowBuilder/Toast';
 import { useFormPersistence, enableBrowserAutofill } from '../../utils/formPersistence';
 import { useAuth } from '../../utils/AuthContext';
+import { useTheme } from '../../utils/ThemeContext';
 import useUsageTracking from '../../hooks/useUsageTracking';
 import SearchSuggestions from '../SearchSuggestions/SearchSuggestions';
 import PaywallModal from '../PaywallModal/PaywallModal';
@@ -35,6 +36,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
   const navigate = useNavigate();
   const { warning: showWarning, success: showSuccess } = useToast();
   const { user } = useAuth();
+  const { theme } = useTheme() || { theme: 'light' };
   const { incrementTaskCount } = useUsageTracking(user?.id);
 
   // Form persistence setup
@@ -619,18 +621,68 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           // Don't show as error - show as warning/info
           showWarning(userMessage);
           return; // Don't block submission
+        } else if (errorData.requiresCredentials) {
+          // ✅ FIX: Prompt user to enter credentials instead of just showing error
+          // Use clean message from structured response (no dev details)
+          userMessage = errorData.message || '🔐 Please provide your login credentials to use link discovery.';
+          showWarning(userMessage);
+          
+          // Focus on username field to prompt user to enter credentials
+          setTimeout(() => {
+            const usernameInput = document.querySelector('input[name="username"], input[type="text"][placeholder*="username" i], input[type="text"][placeholder*="Username" i]');
+            if (usernameInput) {
+              usernameInput.focus();
+              usernameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+          
+          return; // Don't show error, just prompt for credentials
         } else if (errorMessage.includes('No PDF download links found')) {
           userMessage = '🔍 No PDF links found. Try adjusting your discovery method or check your login credentials.';
         } else if (errorMessage.includes('CSS Selector is required')) {
           userMessage = '⚠️ Please provide a CSS selector for the link discovery method.';
         } else if (errorMessage.includes('Link Text is required')) {
           userMessage = '⚠️ Please provide link text for the text-match discovery method.';
-        } else if (errorMessage.includes('Username and password are required')) {
-          userMessage = '🔐 Username and password are required for invoice download with link discovery.';
+        } else if (errorMessage.includes('Username and password are required') || 
+                   errorMessage.includes('login credentials')) {
+          // ✅ FIX: Also handle legacy error messages - remove dev details
+          // Extract clean message (remove "(Dev: ...)" if present)
+          let cleanMsg = errorMessage;
+          if (cleanMsg.includes('(Dev:')) {
+            cleanMsg = cleanMsg.split('(Dev:')[0].trim();
+          }
+          userMessage = cleanMsg || '🔐 Please provide your login credentials to use link discovery.';
+          showWarning(userMessage);
+          
+          // Focus on username field
+          setTimeout(() => {
+            const usernameInput = document.querySelector('input[name="username"], input[type="text"][placeholder*="username" i], input[type="text"][placeholder*="Username" i]');
+            if (usernameInput) {
+              usernameInput.focus();
+              usernameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+          
+          return; // Don't show error, just prompt for credentials
         } else if (errorData.details) {
-          userMessage = `❌ ${sanitizeErrorMessage(errorMessage) || 'Validation error'}: ${sanitizeErrorMessage(errorData.details) || errorData.details}`;
+          // ✅ FIX: Sanitize error messages to remove dev details
+          let cleanErrorMsg = sanitizeErrorMessage(errorMessage);
+          let cleanDetails = sanitizeErrorMessage(errorData.details);
+          // Remove "(Dev: ...)" patterns if present
+          if (cleanErrorMsg && cleanErrorMsg.includes('(Dev:')) {
+            cleanErrorMsg = cleanErrorMsg.split('(Dev:')[0].trim();
+          }
+          if (cleanDetails && cleanDetails.includes('(Dev:')) {
+            cleanDetails = cleanDetails.split('(Dev:')[0].trim();
+          }
+          userMessage = `❌ ${cleanErrorMsg || 'Validation error'}: ${cleanDetails || errorData.details}`;
         } else {
-          userMessage = `❌ ${sanitizeErrorMessage(errorMessage) || 'Validation error'}`;
+          // ✅ FIX: Sanitize error messages to remove dev details
+          let cleanErrorMsg = sanitizeErrorMessage(errorMessage);
+          if (cleanErrorMsg && cleanErrorMsg.includes('(Dev:')) {
+            cleanErrorMsg = cleanErrorMsg.split('(Dev:')[0].trim();
+          }
+          userMessage = `❌ ${cleanErrorMsg || 'Validation error'}`;
         }
       } else if (error.response?.status >= 500) {
         if (errorMessage.includes('Link discovery failed')) {
@@ -667,7 +719,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
   // }
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} data-theme={theme}>
       <div className={styles.header}>
         <h2 className={styles.title}>Create New Automation Task</h2>
         <p className={styles.subtitle}>

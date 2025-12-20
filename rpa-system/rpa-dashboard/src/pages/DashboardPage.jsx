@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
+import { useTheme } from '../utils/ThemeContext';
 import Dashboard from '../components/Dashboard/Dashboard';
 import { initSupabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
@@ -11,6 +12,7 @@ import { createLogger } from '../utils/logger';
 
 const DashboardPage = () => {
   const { user, loading: authLoading } = useAuth();
+  const { theme } = useTheme() || { theme: 'light' };
   const logger = createLogger('DashboardPage');
   const loadingTimeoutRef = useRef(null);
   const [metrics, setMetrics] = useState({
@@ -306,10 +308,10 @@ const DashboardPage = () => {
   }
 
   return (
-    <>
+    <div data-theme={theme}>
       <ErrorMessage message={error} />
       <Dashboard metrics={metrics} recentTasks={recentTasks} workflowsCount={workflowsCount} user={user} />
-    </>
+    </div>
   );
 };
 

@@ -262,7 +262,7 @@ def get_kafka_consumer():
                     kafka_consumer = None
     return kafka_consumer
 
-def send_result_to_kafka(task_id, result, status='completed'):
+def send_result_to_kafka(task_id, result, status='completed', run_id=None):
     """Send task result back to Kafka with trace context propagation"""
     try:
         producer = get_kafka_producer()
@@ -287,6 +287,10 @@ def send_result_to_kafka(task_id, result, status='completed'):
             'timestamp': datetime.utcnow().isoformat(),
             'worker_id': os.getenv('HOSTNAME', 'unknown')
         }
+        
+        # ✅ FIX: Include run_id in message so Kafka consumer can update automation_runs table
+        if run_id:
+            message['run_id'] = run_id
         
         logger.info(f"📤 Sending result to Kafka for task {task_id}: status={status}, success={result.get('success') if isinstance(result, dict) else 'N/A'}")
 
@@ -340,6 +344,12 @@ def process_automation_task(task_data):
     """Placeholder for task processing logic."""
     task_id = task_data.get('task_id', 'unknown')
     task_type = task_data.get('task_type', 'unknown')
+    
+    # ✅ FIX: Normalize task_type to handle both hyphen and underscore formats
+    # Backend sends 'invoice-download' but worker expects 'invoice_download'
+    if task_type == 'invoice-download':
+        task_type = 'invoice_download'
+        task_data['task_type'] = 'invoice_download'  # Update in task_data for consistency
     
     # ✅ INSTRUCTION 3: Extract user_id and workflow_id from task payload (Gap 9, 17)
     user_id = task_data.get('user_id', 'unknown')
@@ -473,7 +483,9 @@ def process_automation_task(task_data):
         else:
             result = {'success': False, 'error': f'Unknown task type: {task_type}'}
 
-        send_result_to_kafka(task_id, result)
+        # ✅ FIX: Pass run_id from task_data so Kafka consumer can update automation_runs table
+        run_id = task_data.get('run_id')
+        send_result_to_kafka(task_id, result, run_id=run_id)
         
         # ✅ INSTRUCTION 3: Record successful task completion with high-cardinality labels (Gap 17)
         if METRICS_AVAILABLE:
@@ -491,7 +503,9 @@ def process_automation_task(task_data):
 
     except Exception as e:
         task_logger.error(f"❌ Task {task_id} processing failed: {e}")
-        send_result_to_kafka(task_id, {'error': str(e)}, status='failed')
+        # ✅ FIX: Pass run_id from task_data so Kafka consumer can update automation_runs table
+        run_id = task_data.get('run_id')
+        send_result_to_kafka(task_id, {'error': str(e)}, status='failed', run_id=run_id)
         
         # ✅ INSTRUCTION 3: Record failed task with high-cardinality labels (Gap 17)
         if METRICS_AVAILABLE:
