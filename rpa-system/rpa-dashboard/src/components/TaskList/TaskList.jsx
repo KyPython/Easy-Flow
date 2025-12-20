@@ -379,20 +379,28 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {(() => {
-                      // ✅ FIX: If status is 'running' but result indicates it's queued, show 'queued' instead
+                      // ✅ FIX: Check result.status to show accurate status (handles cases where DB status is stale)
+                      // This ensures consistency between list view and detail view
                       let displayStatus = task.status;
                       let isQueued = false;
                       
-                      if (task.status === 'running') {
-                        try {
-                          const result = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
-                          if (result?.status === 'queued' || result?.queue_status === 'pending') {
+                      try {
+                        const result = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
+                        
+                        // If we have a result with status, use that for display (more accurate than DB status)
+                        // This handles cases where Kafka updated the result but DB status is still 'running'
+                        if (result?.status && ['completed', 'failed', 'queued'].includes(result.status)) {
+                          displayStatus = result.status;
+                          isQueued = result.status === 'queued';
+                        } else if (task.status === 'running' && result) {
+                          // Fallback: If status is 'running' but result indicates it's queued, show 'queued' instead
+                          if (result.status === 'queued' || result.queue_status === 'pending') {
                             displayStatus = 'queued';
                             isQueued = true;
                           }
-                        } catch (e) {
-                          // If parsing fails, just use the original status
                         }
+                      } catch (e) {
+                        // If parsing fails, just use the original status from database
                       }
                       
                       // Calculate time since task was created
