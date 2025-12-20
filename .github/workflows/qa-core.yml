@@ -170,13 +170,14 @@ jobs:
       - name: Run backend unit tests
         if: steps.start_services.outputs.backend_ready == 'true'
         working-directory: rpa-system
-        run: npm run test:backend --silent -- --passWithNoTests
+        run: npm run test:backend -- --passWithNoTests
 
-      - name: Skip backend tests - services unavailable
+      - name: Run backend unit tests (without services)
         if: steps.start_services.outputs.backend_ready != 'true'
+        working-directory: rpa-system
         run: |
-          echo "⏭️ Skipping backend unit tests - services are not available"
-          echo "This is expected when Render services are suspended"
+          echo "⚠️ Services unavailable - running tests without service dependencies"
+          npm run test:backend -- --passWithNoTests || echo "⚠️ Some tests may require services"
 
       - name: Install dashboard deps
         working-directory: rpa-system/rpa-dashboard
@@ -198,7 +199,14 @@ jobs:
         working-directory: rpa-system/rpa-dashboard
         run: |
           # run tests once (CI mode)
-          CI=true npm test --silent -- --watchAll=false || true
+          CI=true npm test -- --watchAll=false --passWithNoTests
+
+      - name: Run dashboard tests (without services)
+        if: steps.start_services.outputs.backend_ready != 'true'
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          echo "⚠️ Services unavailable - running tests without service dependencies"
+          CI=true npm test -- --watchAll=false --passWithNoTests || echo "⚠️ Some tests may require services"
 
       - name: Skip dashboard tests - services unavailable
         if: steps.start_services.outputs.backend_ready != 'true'
@@ -225,17 +233,23 @@ jobs:
           # Install test dependencies
           pip install pytest selenium requests || true
           # Run tests if they exist
-          if [ -f "test_core_features.py" ]; then
-            pytest test_core_features.py -v || true
-          fi
-          if [ -f "test_automate.py" ]; then
-            pytest test_automate.py -v || true
+          if find . -name "test_*.py" -o -name "*_test.py" | grep -q .; then
+            pytest -v --tb=short || echo "⚠️ Some Python tests failed"
+          else
+            echo "⚠️ No Python test files found"
           fi
 
-      - name: Skip Python tests - services unavailable
+      - name: Run Python automation tests (without services)
         if: steps.start_services.outputs.backend_ready != 'true'
+        working-directory: rpa-system/automation
         run: |
-          echo "⏭️ Skipping Python automation tests - services are not available"
+          echo "⚠️ Services unavailable - running Python tests without service dependencies"
+          pip install pytest || true
+          if find . -name "test_*.py" -o -name "*_test.py" | grep -q .; then
+            pytest -v --tb=short || echo "⚠️ Some Python tests may require services"
+          else
+            echo "⚠️ No Python test files found"
+          fi
 
       - name: Test summary
         if: always()

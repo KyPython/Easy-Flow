@@ -11,5 +11,7 @@ module.exports = {
   },
   moduleFileExtensions: ['js', 'json', 'jsx', 'node'],
   // Allow tests to pass when no test files are found (useful during development)
-  passWithNoTests: true
+  passWithNoTests: true,
+  // Increase timeout for tests that may need more time (e.g., database queries, async operations)
+  testTimeout: 30000  // 30 seconds (default is 5 seconds)
 };

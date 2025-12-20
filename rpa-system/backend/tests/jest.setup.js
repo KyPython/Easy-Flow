@@ -88,6 +88,8 @@ const createStub = () => {
 // Attach a global.supabase for tests that expect it
 if (!global.supabase) {
   global.supabase = createStub();
+  // Make 'from' overridable in tests
+  global.supabase.from = jest.fn(global.supabase.from);
   global.supabase.rpc = jest.fn(() => ({
     single: jest.fn(() => Promise.resolve({ data: {}, error: null })),
     then: function (resolve) { return Promise.resolve({ data: {}, error: null }).then(resolve); },
@@ -100,31 +102,6 @@ jest.doMock('@supabase/supabase-js', () => ({
   createClient: (url, key) => global.supabase
 }));
 
-// Mock database instrumentation to return a thin client with chainable queries
-jest.doMock('../middleware/databaseInstrumentation', () => ({
-  createInstrumentedSupabaseClient: () => ({
-    from: (table) => ({
-      select: (...args) => chainableQuery({ data: [], error: null }),
-      insert: (...args) => ({
-        select: (...args) => ({
-          single: async () => ({ data: { id: 1 }, error: null }),
-          maybeSingle: async () => ({ data: { id: 1 }, error: null }),
-          ...chainableQuery({ data: { id: 1 }, error: null })
-        }),
-        ...chainableQuery({ data: { id: 1 }, error: null })
-      }),
-      update: (...args) => ({
-        eq: (...args) => ({
-          single: async () => ({ data: { id: 1 }, error: null }),
-          maybeSingle: async () => ({ data: { id: 1 }, error: null }),
-          ...chainableQuery({ data: { id: 1 }, error: null })
-        }),
-        ...chainableQuery({ data: { id: 1 }, error: null })
-      }),
-      delete: (...args) => chainableQuery({ data: [], error: null })
-    })
-  })
-}));
 
 // Mock axios to avoid network calls in unit tests
 jest.mock('axios', () => {

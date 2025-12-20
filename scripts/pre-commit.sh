@@ -58,11 +58,12 @@ echo "\n${BLUE}Step 3: Running tests...${NC}"
 # Backend tests
 if [ -f "rpa-system/backend/package.json" ]; then
     cd rpa-system/backend
-    if npm run test:backend 2>/dev/null || npm test 2>/dev/null; then
+    if npm run test:backend -- --passWithNoTests || npm test -- --passWithNoTests; then
         echo "  ${GREEN}✓ Backend tests passed${NC}"
     else
-        echo "  ${YELLOW}⚠ Backend tests failed or not configured${NC}"
-        # Don't fail pre-commit for missing tests
+        echo "  ${YELLOW}⚠ Backend tests failed (non-blocking in pre-commit)${NC}"
+        echo "  ${YELLOW}  Tests will block in pre-push and CI/CD${NC}"
+        # Don't fail pre-commit for test issues (they'll block in pre-push)
     fi
     cd ../..
 fi
@@ -70,11 +71,12 @@ fi
 # Frontend tests
 if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
     cd rpa-system/rpa-dashboard
-    if npm test -- --watchAll=false --passWithNoTests 2>/dev/null; then
+    if npm test -- --watchAll=false --passWithNoTests; then
         echo "  ${GREEN}✓ Frontend tests passed${NC}"
     else
-        echo "  ${YELLOW}⚠ Frontend tests failed or not configured${NC}"
-        # Don't fail pre-commit for missing tests
+        echo "  ${YELLOW}⚠ Frontend tests failed (non-blocking in pre-commit)${NC}"
+        echo "  ${YELLOW}  Tests will block in pre-push and CI/CD${NC}"
+        # Don't fail pre-commit for test issues (they'll block in pre-push)
     fi
     cd ../..
 fi

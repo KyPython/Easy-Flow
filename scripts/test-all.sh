@@ -103,12 +103,13 @@ echo "\n${BLUE}Step 4: Running test suites...${NC}"
 if [ -f "rpa-system/backend/package.json" ]; then
     CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
     cd rpa-system/backend
-    if npm run test:backend 2>/dev/null || npm test 2>/dev/null; then
+    if npm run test:backend -- --passWithNoTests || npm test -- --passWithNoTests; then
         echo "  ${GREEN}✓ Backend tests passed${NC}"
         TESTS_PASSED=$((TESTS_PASSED + 1))
     else
-        echo "  ${YELLOW}⚠ Backend tests failed or not configured${NC}"
+        echo "  ${RED}✗ Backend tests failed${NC}"
         TESTS_FAILED=$((TESTS_FAILED + 1))
+        TESTS_CRITICAL_FAILED=true
     fi
     cd ../..
 fi
@@ -117,29 +118,36 @@ fi
 if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
     CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
     cd rpa-system/rpa-dashboard
-    if npm test -- --watchAll=false --passWithNoTests 2>/dev/null; then
+    if npm test -- --watchAll=false --passWithNoTests; then
         echo "  ${GREEN}✓ Frontend tests passed${NC}"
         TESTS_PASSED=$((TESTS_PASSED + 1))
     else
-        echo "  ${YELLOW}⚠ Frontend tests failed or not configured${NC}"
+        echo "  ${RED}✗ Frontend tests failed${NC}"
         TESTS_FAILED=$((TESTS_FAILED + 1))
+        TESTS_CRITICAL_FAILED=true
     fi
     cd ../..
 fi
 
-# Python tests (if pytest is available)
+# Python tests (if pytest is available and test files exist)
 if [ -f "rpa-system/automation/automation-service/requirements.txt" ]; then
-    CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
     if command -v pytest >/dev/null 2>&1 || command -v python3 -m pytest >/dev/null 2>&1; then
-        cd rpa-system/automation/automation-service
-        if python3 -m pytest -v 2>/dev/null || pytest -v 2>/dev/null; then
-            echo "  ${GREEN}✓ Python tests passed${NC}"
-            TESTS_PASSED=$((TESTS_PASSED + 1))
+        # Check if test files exist
+        if find rpa-system/automation -name "test_*.py" -o -name "*_test.py" | grep -q .; then
+            CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
+            cd rpa-system/automation/automation-service
+            if python3 -m pytest -v --tb=short || pytest -v --tb=short; then
+                echo "  ${GREEN}✓ Python tests passed${NC}"
+                TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+                echo "  ${RED}✗ Python tests failed${NC}"
+                TESTS_FAILED=$((TESTS_FAILED + 1))
+                TESTS_CRITICAL_FAILED=true
+            fi
+            cd ../../..
         else
-            echo "  ${YELLOW}⚠ Python tests failed or not configured${NC}"
-            TESTS_FAILED=$((TESTS_FAILED + 1))
+            echo "  ${YELLOW}○ Python tests (no test files found)${NC}"
         fi
-        cd ../../..
     else
         echo "  ${YELLOW}○ Python tests (pytest not available)${NC}"
     fi
@@ -223,11 +231,17 @@ if [ "${SECURITY_BLOCKED:-false}" = "true" ]; then
     exit 1  # Block push on security failures
 fi
 
+if [ "${TESTS_CRITICAL_FAILED:-false}" = "true" ]; then
+    echo "\n${RED}❌ CRITICAL TEST FAILURES DETECTED${NC}"
+    echo "${RED}  Tests failed. Please fix before pushing.${NC}"
+    exit 1  # Block push on test failures
+fi
+
 if [ $TESTS_FAILED -eq 0 ]; then
     echo "${GREEN}✅ All tests passed!${NC}"
     exit 0
 else
-    echo "${YELLOW}⚠ Some tests failed or were skipped. Review output above.${NC}"
-    exit 0  # Don't fail - some tests may not be configured yet
+    echo "${YELLOW}⚠ Some non-critical checks failed or were skipped. Review output above.${NC}"
+    exit 0  # Don't fail for non-critical issues
 fi
 
