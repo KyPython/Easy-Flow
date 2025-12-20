@@ -60,62 +60,58 @@ router.get('/social-proof-metrics', async (req, res) => {
       workflowsResult,
       eventsResult
     ] = await Promise.allSettled([
-      // Total users from 'users' table
+      // ✅ FIX: Total users from 'profiles' table (correct table name)
       supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true }),
+        .from('profiles')
+        .select('id', { count: 'exact', head: true }),
       
-      // Active workflows from 'workflows' table
+      // ✅ FIX: Active workflows from 'automation_tasks' table (correct table name)
       supabase
-        .from('workflows')
-        .select('*', { count: 'exact', head: true })
-        .neq('status', 'deleted'),
+        .from('automation_tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true),
       
-      // Recent events from 'events' table (last 7 days)
+      // ✅ FIX: Recent events from 'automation_runs' table (last 7 days) - actual automation runs
       supabase
-        .from('events')
-        .select('*', { count: 'exact', head: true })
+        .from('automation_runs')
+        .select('id', { count: 'exact', head: true })
         .gte('created_at', oneWeekAgo.toISOString())
     ]);
 
-    // Extract counts safely with fallback to estimated values
-    let totalUsers = 127; // Default fallback
-    let activeWorkflows = 89;
-    let recentEvents = 342;
+    // ✅ FIX: Extract counts from actual database queries - use real values, no hardcoded fallbacks
+    let totalUsers = 0;
+    let activeWorkflows = 0;
+    let recentEvents = 0;
 
     if (usersResult.status === 'fulfilled' && usersResult.value.count !== null) {
-      totalUsers = Math.max(usersResult.value.count, 45); // Minimum viable social proof
+      totalUsers = usersResult.value.count; // Use actual count from database
+    } else if (usersResult.status === 'rejected') {
+      logger.warn('⚠️ Failed to fetch total users:', usersResult.reason);
     }
 
     if (workflowsResult.status === 'fulfilled' && workflowsResult.value.count !== null) {
-      activeWorkflows = workflowsResult.value.count;
-    } else {
-      // Estimate: ~70% of users have at least one workflow
-      activeWorkflows = Math.floor(totalUsers * 0.7);
+      activeWorkflows = workflowsResult.value.count; // Use actual count from database
+    } else if (workflowsResult.status === 'rejected') {
+      logger.warn('⚠️ Failed to fetch active workflows:', workflowsResult.reason);
     }
 
     if (eventsResult.status === 'fulfilled' && eventsResult.value.count !== null) {
-      recentEvents = eventsResult.value.count;
-    } else {
-      // Estimate: ~2.7 events per user per week
-      recentEvents = Math.floor(totalUsers * 2.7);
+      recentEvents = eventsResult.value.count; // Use actual count from database
+    } else if (eventsResult.status === 'rejected') {
+      logger.warn('⚠️ Failed to fetch recent events:', eventsResult.reason);
     }
 
+    // Only apply minimum floors for social proof if we have some data but it's very low
+    // This prevents showing "0 users" which looks broken, but uses real data when available
     const metrics = {
-      totalUsers: Math.max(totalUsers, 45),
-      activeWorkflows: Math.max(activeWorkflows, 1),
-      recentEvents: Math.max(recentEvents, 10),
+      totalUsers: totalUsers > 0 ? totalUsers : 0, // Show actual count, even if 0
+      activeWorkflows: activeWorkflows > 0 ? activeWorkflows : 0,
+      recentEvents: recentEvents > 0 ? recentEvents : 0,
       lastUpdated: new Date().toISOString()
     };
 
-    // Cache the results
-    metricsCache = metrics;
-    cacheTimestamp = now;
-
-    logger.info('📊 Social proof metrics updated:', metrics);
-    
-    // Return in the format expected by frontend: { metrics: { ... } }
-    res.json({
+    // ✅ FIX: Cache the response in the format expected by frontend
+    const responseData = {
       metrics: {
         totalUsers: metrics.totalUsers,
         activeToday: metrics.activeWorkflows,
@@ -123,7 +119,15 @@ router.get('/social-proof-metrics', async (req, res) => {
         conversionRate: '2.6%',
         lastUpdated: metrics.lastUpdated
       }
-    });
+    };
+    
+    metricsCache = responseData; // Cache the full response format
+    cacheTimestamp = now;
+
+    logger.info('📊 Social proof metrics updated (from database):', metrics);
+    
+    // Return in the format expected by frontend: { metrics: { ... } }
+    res.json(responseData);
 
   } catch (error) {
     logger.error('❌ Error fetching social proof metrics:', error);

@@ -4,9 +4,9 @@ import { getSocialProofMetrics } from '../utils/api';
 // Custom hook for social proof data with robust error handling and offline support
 export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes default
   const [data, setData] = useState({
-    totalUsers: 1250,
-    activeWorkflows: 89,
-    recentEvents: 342,
+    totalUsers: 0, // ✅ FIX: Start at 0, will be updated from API
+    activeWorkflows: 0,
+    recentEvents: 0,
     lastUpdated: new Date().toISOString(),
     source: 'fallback'
   });
@@ -50,12 +50,12 @@ export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes d
       const result = await getSocialProofMetrics();
       
       if (result && result.metrics) {
-        // Validate and normalize data structure
+        // ✅ FIX: Validate and normalize data structure - use actual values from API, no hardcoded fallbacks
         const validatedData = {
-          totalUsers: Number(result.metrics.totalUsers) || 1250,
-          activeWorkflows: Number(result.metrics.activeToday) || 89,
-          recentEvents: Number(result.metrics.conversions) || 342,
-          conversionRate: result.metrics.conversionRate || '2.6%',
+          totalUsers: Number(result.metrics.totalUsers) || 0,
+          activeWorkflows: Number(result.metrics.activeToday) || 0,
+          recentEvents: Number(result.metrics.conversions) || 0,
+          conversionRate: result.metrics.conversionRate || '0%',
           lastUpdated: result.metrics.lastUpdated || new Date().toISOString(),
           source: 'api'
         };
