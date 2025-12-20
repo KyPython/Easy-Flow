@@ -90,7 +90,12 @@ export const sanitizeErrorMessage = (error) => {
     // Simple string matching
     if (errorLower.includes(pattern.toLowerCase())) {
       // In development, include both friendly message and original error for debugging
-      return devMode ? `${friendlyMessage} (Original: ${errorStr})` : friendlyMessage;
+      // In production, show only the friendly message
+      if (devMode) {
+        return `${friendlyMessage} (Original: ${errorStr})`;
+      } else {
+        return friendlyMessage;
+      }
     }
   }
 
