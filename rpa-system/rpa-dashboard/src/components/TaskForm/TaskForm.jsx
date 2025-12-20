@@ -18,6 +18,7 @@ import { useAuth } from '../../utils/AuthContext';
 import useUsageTracking from '../../hooks/useUsageTracking';
 import SearchSuggestions from '../SearchSuggestions/SearchSuggestions';
 import PaywallModal from '../PaywallModal/PaywallModal';
+import { sanitizeErrorMessage } from '../../utils/errorMessages';
 import styles from './TaskForm.module.css';
 
 const token = localStorage.getItem('sb-syxzilyuysdoirnezgii-auth-token');
@@ -273,9 +274,9 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         } else if (errorMessage.includes('Username and password are required')) {
           userMessage = '🔐 Username and password are required for testing link discovery.';
         } else if (errorData.details) {
-          userMessage = `❌ Test failed: ${errorData.details}. You can still submit the task.`;
+          userMessage = `❌ Test failed: ${sanitizeErrorMessage(errorData.details) || 'Unknown error'}. You can still submit the task.`;
         } else {
-          userMessage = `❌ ${errorMessage}. You can still submit the task.`;
+          userMessage = `❌ ${sanitizeErrorMessage(errorMessage) || 'Test failed'}. You can still submit the task.`;
         }
       } else if (error.response?.status === 401) {
         userMessage = '🔐 Authentication failed. Please check your login credentials.';
@@ -627,9 +628,9 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         } else if (errorMessage.includes('Username and password are required')) {
           userMessage = '🔐 Username and password are required for invoice download with link discovery.';
         } else if (errorData.details) {
-          userMessage = `❌ ${errorMessage}: ${errorData.details}`;
+          userMessage = `❌ ${sanitizeErrorMessage(errorMessage) || 'Validation error'}: ${sanitizeErrorMessage(errorData.details) || errorData.details}`;
         } else {
-          userMessage = `❌ ${errorMessage}`;
+          userMessage = `❌ ${sanitizeErrorMessage(errorMessage) || 'Validation error'}`;
         }
       } else if (error.response?.status >= 500) {
         if (errorMessage.includes('Link discovery failed')) {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styles from './TaskResultModal.module.css';
 import { useNavigate } from 'react-router-dom';
 import { validateUrl, sanitizeFilename, safeWindowOpen } from '../../utils/security';
+import { sanitizeErrorMessage as sanitizeError } from '../../utils/errorMessages';
 
 const TaskResultModal = ({ task, onClose }) => {
   const navigate = useNavigate();
@@ -98,63 +99,8 @@ const TaskResultModal = ({ task, onClose }) => {
     resultData = { raw: task.result };
   }
 
-  // Convert technical error messages to user-friendly ones (environment-aware)
-  const sanitizeErrorMessage = (error) => {
-    if (!error) return null;
-    
-    const errorStr = typeof error === 'string' ? error : String(error);
-    
-    // Detect environment: development shows technical details, production shows user-friendly messages
-    const isDevelopment = process.env.NODE_ENV === 'development' || 
-                         process.env.NODE_ENV !== 'production' ||
-                         (typeof window !== 'undefined' && 
-                          (window.location.hostname === 'localhost' || 
-                           window.location.hostname === '127.0.0.1'));
-    
-    // In development: return the original error for debugging
-    if (isDevelopment) {
-      // Still clean up stack traces and very long errors, but keep technical details
-      if (errorStr.includes('stack') || errorStr.includes('trace') || errorStr.length > 500) {
-        // Truncate very long errors but keep technical info
-        const truncated = errorStr.length > 500 ? errorStr.substring(0, 500) + '...' : errorStr;
-        return truncated;
-      }
-      return errorStr; // Return original technical error in development
-    }
-    
-    // Production: Map technical errors to user-friendly messages
-    const errorMappings = {
-      'Unknown task type': 'We encountered an issue processing this task type. Please try again or contact support if the problem persists.',
-      'unknown task type': 'We encountered an issue processing this task type. Please try again or contact support if the problem persists.',
-      'task type not supported': 'This task type is not currently supported. Please try a different task type.',
-      'authentication failed': 'Authentication failed. Please check your credentials and try again.',
-      'connection timeout': 'The request took too long to complete. Please try again.',
-      'network error': 'A network error occurred. Please check your connection and try again.',
-      'invalid url': 'The provided URL is invalid. Please check the URL and try again.',
-      'permission denied': 'You do not have permission to perform this action. Please contact support if you believe this is an error.',
-    };
-    
-    // Check for specific error patterns
-    for (const [pattern, friendlyMessage] of Object.entries(errorMappings)) {
-      if (errorStr.toLowerCase().includes(pattern.toLowerCase())) {
-        return friendlyMessage;
-      }
-    }
-    
-    // For other errors, check if they look technical and provide a generic message
-    // Technical errors often contain technical terms or have specific formats
-    if (errorStr.includes(':') && (errorStr.includes('Error') || errorStr.includes('Exception') || errorStr.includes('TypeError'))) {
-      return 'An unexpected error occurred while processing your task. Please try again or contact support if the problem continues.';
-    }
-    
-    // If it's a short, readable message, return it as-is (might already be user-friendly)
-    if (errorStr.length < 100 && !errorStr.includes('stack') && !errorStr.includes('trace')) {
-      return errorStr;
-    }
-    
-    // Default fallback for technical errors in production
-    return 'An error occurred while processing your task. Please try again or contact support if the problem persists.';
-  };
+  // Use shared utility for environment-aware error message sanitization
+  const sanitizeErrorMessage = sanitizeError;
 
   // Extract key information in a user-friendly way
   const formatResult = (data) => {
