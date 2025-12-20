@@ -43,6 +43,11 @@ jobs:
         with:
           clean: true
 
+      - name: Check development environment
+        run: |
+          chmod +x scripts/dev-env-check.sh
+          ./scripts/dev-env-check.sh || echo "⚠️ Some optional tools/infrastructure missing (continuing anyway)"
+
       - name: Set up Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:

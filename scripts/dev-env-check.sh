@@ -3,7 +3,8 @@
 # Adapted from shell-games toolkit: https://github.com/KyPython/shell-games
 # Verifies that all required development tools are installed for EasyFlow
 
-set -e
+# Don't use set -e here - we want to continue checking even if some checks fail
+set +e
 
 # Colors for output
 RED='\033[0;31m'
@@ -140,6 +141,104 @@ fi
 
 echo ""
 
+# Infrastructure Checks (Optional but Recommended)
+echo "${BLUE}Infrastructure Connections:${NC}"
+
+INFRA_OK=0
+INFRA_WARN=0
+
+# Supabase Connection Check
+SUPABASE_URL="${SUPABASE_URL:-}"
+SUPABASE_KEY="${SUPABASE_KEY:-${SUPABASE_ANON_KEY:-}}"
+SUPABASE_SERVICE_ROLE="${SUPABASE_SERVICE_ROLE:-}"
+
+if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_KEY" ]; then
+    echo "  Checking Supabase connection..."
+    # Try to ping Supabase REST API
+    if command -v curl >/dev/null 2>&1; then
+        # Check if Supabase URL is accessible
+        if curl -s -f -o /dev/null --max-time 5 "${SUPABASE_URL}/rest/v1/" -H "apikey: ${SUPABASE_KEY}" 2>/dev/null; then
+            echo "  ${GREEN}✓ Supabase:${NC}         connected (${SUPABASE_URL})"
+            INFRA_OK=$((INFRA_OK + 1))
+        else
+            echo "  ${YELLOW}○ Supabase:${NC}         configured but connection failed (check URL/key)"
+            INFRA_WARN=$((INFRA_WARN + 1))
+        fi
+    else
+        echo "  ${YELLOW}○ Supabase:${NC}         configured (curl not available for connection test)"
+        INFRA_WARN=$((INFRA_WARN + 1))
+    fi
+else
+    echo "  ${YELLOW}○ Supabase:${NC}         not configured (set SUPABASE_URL and SUPABASE_KEY)"
+    INFRA_WARN=$((INFRA_WARN + 1))
+fi
+
+# Kafka Topics Check
+KAFKA_BOOTSTRAP="${KAFKA_BOOTSTRAP_SERVERS:-${KAFKA_BROKERS:-localhost:9092}}"
+KAFKA_CONTAINER=""
+
+# Check if Kafka is running in Docker
+if command -v docker >/dev/null 2>&1; then
+    KAFKA_CONTAINER=$(docker ps --format "{{.Names}}" 2>/dev/null | grep -i kafka | head -n1 || true)
+fi
+
+if [ -n "$KAFKA_CONTAINER" ]; then
+    echo "  Checking Kafka topics..."
+    # Check for required topics
+    REQUIRED_TOPICS="automation-tasks automation-results workflow-events step-results"
+    TOPICS_FOUND=0
+    TOPICS_TOTAL=0
+    
+    for topic in $REQUIRED_TOPICS; do
+        TOPICS_TOTAL=$((TOPICS_TOTAL + 1))
+        if docker exec "$KAFKA_CONTAINER" kafka-topics --bootstrap-server "$KAFKA_BOOTSTRAP" --list 2>/dev/null | grep -q "^${topic}$"; then
+            TOPICS_FOUND=$((TOPICS_FOUND + 1))
+        fi
+    done
+    
+    TOPICS_MISSING=$((TOPICS_TOTAL - TOPICS_FOUND))
+    
+    if [ $TOPICS_MISSING -eq 0 ]; then
+        echo "  ${GREEN}✓ Kafka Topics:${NC}     all required topics exist ($TOPICS_FOUND/$TOPICS_TOTAL)"
+        INFRA_OK=$((INFRA_OK + 1))
+    else
+        echo "  ${YELLOW}○ Kafka Topics:${NC}     $TOPICS_MISSING missing (found $TOPICS_FOUND/$TOPICS_TOTAL)"
+        echo "    Run: ./scripts/init-kafka-topics.sh"
+        INFRA_WARN=$((INFRA_WARN + 1))
+    fi
+elif command -v kafka-topics >/dev/null 2>&1; then
+    # Kafka installed locally (not Docker)
+    echo "  ${GREEN}✓ Kafka:${NC}             installed locally"
+    INFRA_OK=$((INFRA_OK + 1))
+else
+    echo "  ${YELLOW}○ Kafka:${NC}             not running (start with: docker compose up -d kafka)"
+    INFRA_WARN=$((INFRA_WARN + 1))
+fi
+
+# Backend Health Check (if running)
+if command -v curl >/dev/null 2>&1; then
+    if curl -s -f -o /dev/null --max-time 2 "http://localhost:3030/health" 2>/dev/null; then
+        echo "  ${GREEN}✓ Backend API:${NC}      running (http://localhost:3030)"
+        INFRA_OK=$((INFRA_OK + 1))
+    else
+        echo "  ${YELLOW}○ Backend API:${NC}      not running (start with: ./start-dev.sh)"
+        INFRA_WARN=$((INFRA_WARN + 1))
+    fi
+fi
+
+# Automation Worker Health Check (if running)
+if command -v curl >/dev/null 2>&1; then
+    if curl -s -f -o /dev/null --max-time 2 "http://localhost:7070/health" 2>/dev/null; then
+        echo "  ${GREEN}✓ Automation Worker:${NC} running (http://localhost:7070)"
+        INFRA_OK=$((INFRA_OK + 1))
+    else
+        echo "  ${YELLOW}○ Automation Worker:${NC} not running"
+        INFRA_WARN=$((INFRA_WARN + 1))
+    fi
+fi
+
+echo ""
+
 # Summary
 echo "${BLUE}=== Summary ===${NC}"
 echo "Core Tools Installed: ${GREEN}$INSTALLED${NC}"
@@ -150,6 +249,12 @@ echo "Optional Tools Installed: ${GREEN}$OPTIONAL_INSTALLED${NC}"
 if [ $OPTIONAL_MISSING -gt 0 ]; then
     echo "Optional Tools Missing: ${YELLOW}$OPTIONAL_MISSING${NC}"
 fi
+if [ $INFRA_OK -gt 0 ] || [ $INFRA_WARN -gt 0 ]; then
+    echo "Infrastructure Connected: ${GREEN}$INFRA_OK${NC}"
+    if [ $INFRA_WARN -gt 0 ]; then
+        echo "Infrastructure Warnings: ${YELLOW}$INFRA_WARN${NC}"
+    fi
+fi
 
 echo ""
 
@@ -159,8 +264,8 @@ if [ $MISSING -gt 0 ]; then
     exit 1
 else
     echo "${GREEN}✅ All required tools are installed!${NC}"
-    if [ $OPTIONAL_MISSING -gt 0 ]; then
-        echo "${YELLOW}ℹ️  Some optional tools are missing but not required.${NC}"
+    if [ $OPTIONAL_MISSING -gt 0 ] || [ $INFRA_WARN -gt 0 ]; then
+        echo "${YELLOW}ℹ️  Some optional tools/infrastructure are missing but not required.${NC}"
     fi
     exit 0
 fi
