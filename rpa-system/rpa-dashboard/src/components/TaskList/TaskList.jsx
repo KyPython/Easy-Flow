@@ -394,22 +394,24 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                           displayStatus = result.status;
                           isQueued = result.status === 'queued';
                         } 
-                        // Priority 2: If task is 'running' but result indicates actual outcome, check result.success/error
-                        // This matches TaskResultModal logic for consistency
+                        // Priority 2: If task is 'running' but result indicates actual outcome, check for failure indicators
+                        // This matches TaskResultModal logic - check error field (which formatResult uses to determine failure)
                         else if (task.status === 'running' && result) {
-                          // Check if result has error or success=false indicating failure
-                          if (result.error || result.success === false) {
+                          // Check if result has error field (matches TaskResultModal's formatResult logic)
+                          // Also check nested error structures (result.result.error, result.data.error)
+                          const hasError = result.error || 
+                                          result.result?.error || 
+                                          result.data?.error ||
+                                          result.success === false ||
+                                          (result.success !== undefined && !result.success);
+                          
+                          if (hasError) {
                             displayStatus = 'failed';
                           } 
                           // Check if result indicates queued state
                           else if (result.status === 'queued' || result.queue_status === 'pending') {
                             displayStatus = 'queued';
                             isQueued = true;
-                          }
-                          // Check if result.success indicates completion (but no status field)
-                          else if (result.success === true && !result.error) {
-                            // Don't override 'running' to 'completed' without explicit status
-                            // Let Kafka update it properly
                           }
                         }
                       } catch (e) {
