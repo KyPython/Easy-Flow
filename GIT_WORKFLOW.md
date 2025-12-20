@@ -341,10 +341,43 @@ GitHub Actions workflows automatically:
 
 See `.github/workflows/` for details.
 
+## 📋 Pull Request Process
+
+### PR Template
+
+EasyFlow uses a PR template (`.github/pull_request_template.md`) that includes:
+
+- Description of changes
+- Type of change (bug fix, feature, etc.)
+- Related issues
+- Testing information
+- Checklist for pre-submission and code quality
+
+### PR Review Guidelines
+
+See [CODE_REVIEW_GUIDELINES.md](.github/CODE_REVIEW_GUIDELINES.md) for:
+
+- Review checklist
+- Review process
+- Code style guidelines
+- What to look for
+- Review best practices
+
+### Automated PR Checks
+
+GitHub Actions automatically:
+
+- ✅ Run tests on PR
+- ✅ Check code quality (linting)
+- ✅ Verify builds
+- ✅ Run AI code review (Claude)
+- ✅ Validate commit messages
+
 ## 📚 References
 
 - [Conventional Commits](https://www.conventionalcommits.org/)
 - [Git Workflows Sample](https://github.com/KyPython/git-workflows-sample)
+- [Code Review Guidelines](.github/CODE_REVIEW_GUIDELINES.md)
 - [The Pragmatic Programmer](https://pragprog.com/titles/tpp20/the-pragmatic-programmer-20th-anniversary-edition/) - Chapter on Source Code Control
 
 ---
