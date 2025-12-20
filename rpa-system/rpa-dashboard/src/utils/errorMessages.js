@@ -49,17 +49,6 @@ export const sanitizeErrorMessage = (error) => {
 
   const devMode = isDevelopment();
 
-  // In development: return the original error for debugging
-  if (devMode) {
-    // Still clean up stack traces and very long errors, but keep technical details
-    if (errorStr.includes('stack') || errorStr.includes('trace') || errorStr.length > 500) {
-      // Truncate very long errors but keep technical info
-      const truncated = errorStr.length > 500 ? errorStr.substring(0, 500) + '...' : errorStr;
-      return truncated;
-    }
-    return errorStr; // Return original technical error in development
-  }
-
   // Production: Map technical errors to user-friendly messages
   const errorMappings = {
     'Unknown task type': 'We encountered an issue processing this task type. Please try again or contact support if the problem persists.',
@@ -83,7 +72,7 @@ export const sanitizeErrorMessage = (error) => {
     'referenceerror': 'An unexpected error occurred. Please refresh the page.',
   };
 
-  // Check for specific error patterns (case-insensitive)
+  // Check for specific error patterns (case-insensitive) - apply in both dev and prod
   const errorLower = errorStr.toLowerCase();
   for (const [pattern, friendlyMessage] of Object.entries(errorMappings)) {
     // Handle regex patterns (patterns that contain regex chars)
@@ -91,7 +80,8 @@ export const sanitizeErrorMessage = (error) => {
       try {
         const regex = new RegExp(pattern, 'i');
         if (regex.test(errorStr)) {
-          return friendlyMessage;
+          // In development, include both friendly message and original error for debugging
+          return devMode ? `${friendlyMessage} (Original: ${errorStr})` : friendlyMessage;
         }
       } catch (e) {
         // If regex is invalid, fall through to simple string matching
@@ -99,8 +89,20 @@ export const sanitizeErrorMessage = (error) => {
     }
     // Simple string matching
     if (errorLower.includes(pattern.toLowerCase())) {
-      return friendlyMessage;
+      // In development, include both friendly message and original error for debugging
+      return devMode ? `${friendlyMessage} (Original: ${errorStr})` : friendlyMessage;
     }
+  }
+
+  // In development: for errors that don't match known patterns, return original with cleanup
+  if (devMode) {
+    // Still clean up stack traces and very long errors, but keep technical details
+    if (errorStr.includes('stack') || errorStr.includes('trace') || errorStr.length > 500) {
+      // Truncate very long errors but keep technical info
+      const truncated = errorStr.length > 500 ? errorStr.substring(0, 500) + '...' : errorStr;
+      return truncated;
+    }
+    return errorStr; // Return original technical error in development
   }
 
   // Check for technical error patterns (TypeError, SyntaxError, etc.)
