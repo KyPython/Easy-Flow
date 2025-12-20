@@ -394,14 +394,22 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                           displayStatus = result.status;
                           isQueued = result.status === 'queued';
                         } 
-                        // Priority 2: If task is 'running' but result indicates failure/success, check result.success
+                        // Priority 2: If task is 'running' but result indicates actual outcome, check result.success/error
+                        // This matches TaskResultModal logic for consistency
                         else if (task.status === 'running' && result) {
-                          // Check if result has success flag indicating completion/failure
-                          if (result.success === false || result.error) {
+                          // Check if result has error or success=false indicating failure
+                          if (result.error || result.success === false) {
                             displayStatus = 'failed';
-                          } else if (result.success === true && (result.status === 'queued' || result.queue_status === 'pending')) {
+                          } 
+                          // Check if result indicates queued state
+                          else if (result.status === 'queued' || result.queue_status === 'pending') {
                             displayStatus = 'queued';
                             isQueued = true;
+                          }
+                          // Check if result.success indicates completion (but no status field)
+                          else if (result.success === true && !result.error) {
+                            // Don't override 'running' to 'completed' without explicit status
+                            // Let Kafka update it properly
                           }
                         }
                       } catch (e) {
