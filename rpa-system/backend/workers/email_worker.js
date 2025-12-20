@@ -88,7 +88,10 @@ async function processOne() {
         .order('created_at', { ascending: true })
         .limit(1);
       if (selectError) {
-        logger.error('[email_worker] fallback select error', selectError.message);
+        logger.error('[email_worker] fallback select error', {
+          error: selectError?.message || 'Unknown error',
+          error_code: selectError?.code
+        });
         return false;
       }
       if (!selectData || selectData.length === 0) return false;
@@ -103,7 +106,10 @@ async function processOne() {
         .select('*')
         .single();
       if (updateError) {
-        logger.warn('[email_worker] fallback update error', updateError.message || updateError);
+        logger.warn('[email_worker] fallback update error', {
+          error: updateError?.message || 'Unknown error',
+          error_code: updateError?.code
+        });
         return false;
       }
       if (!updatedData) {
@@ -119,14 +125,21 @@ async function processOne() {
     const item = items[0];
     return await handleItem(item);
   } catch (e) {
-    logger.error('[email_worker] processOne error', e?.message || e);
+    logger.error('[email_worker] processOne error', {
+      error: e?.message || 'Unknown error',
+      error_stack: e?.stack
+    });
     return false;
   }
 }
 
 async function handleItem(item) {
   try {
-    logger.info('[email_worker] processing', item.id, item.to_email, item.template);
+    logger.info('[email_worker] processing', {
+      item_id: item.id,
+      to_email: item.to_email,
+      template: item.template
+    });
     let sent = false;
     let lastError = null;
     
