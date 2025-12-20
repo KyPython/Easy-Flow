@@ -190,7 +190,8 @@ class FrontendLogger {
   }
 
   /**
-   * Send log entry to backend telemetry system with throttling
+   * Send log entry to backend observability system via /api/internal/front-logs
+   * This endpoint routes logs through the structured logger to Loki/Grafana
    */
   async _sendTelemetry(logEntry) {
     try {
@@ -220,20 +221,26 @@ class FrontendLogger {
         }
       }
       
-      // Don't await - fire and forget
-      trackEvent({
-        event: 'frontend_log',
-        category: 'observability',
-        level: logEntry.level,
-        namespace: logEntry.namespace,
+      // ✅ FIX: Send logs to /api/internal/front-logs endpoint which routes through structured logger
+      // This ensures logs are integrated into the observability system (Loki/Grafana)
+      const { api } = await import('./api');
+      
+      // Format log entry for front-logs endpoint
+      const frontLogEntry = {
+        level: logEntry.level.toLowerCase(),
+        component: logEntry.namespace,
         message: logEntry.message,
-        trace: logEntry.trace,
-        context: logEntry.context,
-        timestamp: logEntry.timestamp,
-        ...logEntry
-      }).catch(() => {
-        // Silently fail - never let telemetry break the app
-      });
+        data: logEntry.context || {},
+        trace: logEntry.trace || {},
+        user: logEntry.user || null,
+        timestamp: logEntry.timestamp
+      };
+      
+      // Don't await - fire and forget
+      api.post('/api/internal/front-logs', { logs: [frontLogEntry] })
+        .catch(() => {
+          // Silently fail - never let telemetry break the app
+        });
     } catch (e) {
       // Silently fail
     }

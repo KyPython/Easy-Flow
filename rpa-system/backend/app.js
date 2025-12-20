@@ -3669,6 +3669,37 @@ app.post('/api/track-event', async (req, res) => {
     const finalEventName = event_name || event;
     if (!finalEventName) return res.status(400).json({ error: 'event_name or event is required' });
 
+    // ✅ OBSERVABILITY: Also log frontend_log events to observability system
+    // If this is a frontend_log event, route it through the structured logger
+    if (finalEventName === 'frontend_log' && properties) {
+      const { level, namespace, message, trace, context } = properties;
+      if (level && namespace && message) {
+        const frontendLogger = logger.child({ source: 'frontend' });
+        const logData = {
+          frontend_component: namespace,
+          frontend_data: context || {},
+          frontend_trace: trace || {},
+          frontend_user: user_id || null,
+          frontend_timestamp: properties.timestamp
+        };
+        
+        // Route to appropriate log level
+        switch (level.toLowerCase()) {
+          case 'error':
+            frontendLogger.error(`[FE:${namespace}] ${message}`, logData);
+            break;
+          case 'warn':
+            frontendLogger.warn(`[FE:${namespace}] ${message}`, logData);
+            break;
+          case 'debug':
+            frontendLogger.debug(`[FE:${namespace}] ${message}`, logData);
+            break;
+          default:
+            frontendLogger.info(`[FE:${namespace}] ${message}`, logData);
+        }
+      }
+    }
+
     if (supabase) {
       await supabase.from('marketing_events').insert([{ user_id: user_id || null, event_name: finalEventName, properties: properties || {}, utm: utm || {}, created_at: new Date().toISOString() }]);
     }
