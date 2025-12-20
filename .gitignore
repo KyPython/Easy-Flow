@@ -371,6 +371,14 @@ DEPLOYMENT_VERIFICATION_CHECKLIST.md
 *.notes.md
 *.todo.md
 
+# Private documentation folders
+docs/private/
+docs/personal/
+docs/internal/
+docs/notes/
+docs/drafts/
+docs/scratch/
+
 # Non-public files (any extension)
 **/*.private
 **/*.personal

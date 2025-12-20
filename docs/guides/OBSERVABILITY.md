@@ -29,7 +29,7 @@ git push
 ./stop-dev.sh
 ```
 
-**See [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) for complete workflow details.**
+**See [Development Workflow](../development/DEVELOPMENT_WORKFLOW.md) for complete workflow details.**
 
 ---
 
@@ -616,7 +616,7 @@ Use this to verify everything is working:
    ./stop-dev.sh
    ```
 
-**See [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) for the complete workflow.**
+**See [Development Workflow](../development/DEVELOPMENT_WORKFLOW.md) for the complete workflow.**
 
 ---
 

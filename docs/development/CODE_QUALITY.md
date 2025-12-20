@@ -323,7 +323,7 @@ Edit this file to:
 ## 📚 References
 
 - [Software Entropy Tool](https://github.com/KyPython/software-entropy) - Original tool
-- [Code Quality Training](docs/CODE_QUALITY_TRAINING.md) - Training guide
+- [Code Quality Training](../training/CODE_QUALITY_TRAINING.md) - Training guide
 - [The Pragmatic Programmer](https://pragprog.com/titles/tpp20/the-pragmatic-programmer-20th-anniversary-edition/) - Software Entropy chapter
 - [Code Review Guidelines](.github/CODE_REVIEW_GUIDELINES.md) - Review standards
 
