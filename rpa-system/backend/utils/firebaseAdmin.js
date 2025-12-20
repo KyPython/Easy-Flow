@@ -57,13 +57,14 @@ const initializeFirebaseAdmin = () => {
     const databaseURL = process.env.FIREBASE_DATABASE_URL;
     
     // Debug output for troubleshooting
-    logger.info('🔍 [DEBUG] Firebase environment variables check:');
-    logger.info('  NODE_ENV:', process.env.NODE_ENV);
-    logger.info('  FIREBASE_PROJECT_ID:', projectId ? 'set' : 'missing');
-    logger.info('  FIREBASE_CLIENT_EMAIL:', clientEmail ? 'set' : 'missing'); 
-    logger.info('  FIREBASE_PRIVATE_KEY:', privateKey ? `set (${privateKey.length} chars)` : 'missing');
-    logger.info('  FIREBASE_DATABASE_URL:', databaseURL ? 'set' : 'missing');
-    logger.info('  Condition check (projectId && clientEmail && privateKey):', !!(projectId && clientEmail && privateKey));
+    logger.info('🔍 [DEBUG] Firebase environment variables check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      FIREBASE_PROJECT_ID: projectId ? 'set' : 'missing',
+      FIREBASE_CLIENT_EMAIL: clientEmail ? 'set' : 'missing',
+      FIREBASE_PRIVATE_KEY: privateKey ? `set (${privateKey.length} chars)` : 'missing',
+      FIREBASE_DATABASE_URL: databaseURL ? 'set' : 'missing',
+      allRequiredSet: !!(projectId && clientEmail && privateKey)
+    });
 
     // Check if service account key file exists
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 
@@ -82,11 +83,12 @@ const initializeFirebaseAdmin = () => {
       }
     } catch (fileError) {
       if (process.env.NODE_ENV === 'development') {
-        logger.info('🔍 Firebase environment variables check:');
-        logger.info('  FIREBASE_PROJECT_ID:', projectId ? 'set' : 'missing');
-        logger.info('  FIREBASE_CLIENT_EMAIL:', clientEmail ? 'set' : 'missing');
-        logger.info('  FIREBASE_PRIVATE_KEY:', privateKey ? `set (${privateKey.length} chars)` : 'missing');
-        logger.info('  FIREBASE_DATABASE_URL:', databaseURL ? 'set' : 'missing');
+        logger.info('🔍 Firebase environment variables check:', {
+          FIREBASE_PROJECT_ID: projectId ? 'set' : 'missing',
+          FIREBASE_CLIENT_EMAIL: clientEmail ? 'set' : 'missing',
+          FIREBASE_PRIVATE_KEY: privateKey ? `set (${privateKey.length} chars)` : 'missing',
+          FIREBASE_DATABASE_URL: databaseURL ? 'set' : 'missing'
+        });
       }
       
       if (projectId && clientEmail && privateKey) {
