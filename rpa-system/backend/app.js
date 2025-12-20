@@ -1866,8 +1866,6 @@ app.get('/app', (_req, res) => {
 // --- Public API Routes ---
 // Routes that do not require a user to be logged in.
 
-// --- Public API Routes ---
-
 // GET /api/plans - Fetch all available subscription plans
 app.get('/api/plans', async (_req, res) => {
   try {
@@ -1880,8 +1878,6 @@ app.get('/api/plans', async (_req, res) => {
     res.status(500).json({ error: 'Failed to fetch plans', details: err.message });
   }
 });
-
-// Moved to authenticated section
 
 // Fetch recent logs - requires audit logs feature  
 app.get('/api/logs', authMiddleware, requireFeature('audit_logs'), async (req, res) => {
