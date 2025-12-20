@@ -1,6 +1,35 @@
-# EasyFlow Observability Debugging Guide
+# EasyFlow Observability & Development Guide
 
-**📌 Your step-by-step guide to debugging the app using observability tools**
+**📌 Your complete guide to developing, debugging, and maintaining EasyFlow**
+
+---
+
+## 🚀 Quick Start: Development Workflow
+
+**Daily workflow:**
+```bash
+# 1. Start everything
+./start-dev.sh
+
+# 2. Make your changes, test manually
+
+# 3. Before committing: Quick validation
+npm run lint:test
+
+# 4. Commit
+git commit -m "feat(scope): what you did"
+
+# 5. Before pushing: Full check
+npm run test:all
+
+# 6. Push
+git push
+
+# 7. Stop when done
+./stop-dev.sh
+```
+
+**See [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) for complete workflow details.**
 
 ---
 
