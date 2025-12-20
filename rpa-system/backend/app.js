@@ -6535,6 +6535,79 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
       return res.status(500).json({ error: 'Failed to create automation task' });
     }
     
+    // ✅ SEAMLESS UX: Handle Invoice Download with Link Discovery (automatic fallback)
+    // For invoice downloads from demo portal or other sites, we need to discover PDF links first
+    const { discoveryMethod, discoveryValue } = req.body;
+    let finalPdfUrl = pdf_url;
+    
+    if (taskType === 'invoice_download' && !pdf_url && discoveryMethod) {
+      logger.info(`[run-task-with-ai] Processing invoice download with link discovery for user ${user.id}`);
+      
+      try {
+        // Validate required fields for discovery
+        if (!username || !password) {
+          return res.status(400).json({
+            error: 'Username and password are required for invoice download with link discovery'
+          });
+        }
+
+        if (discoveryMethod === 'css-selector' && !discoveryValue) {
+          return res.status(400).json({
+            error: 'CSS Selector is required when using css-selector method'
+          });
+        }
+
+        if (discoveryMethod === 'text-match' && !discoveryValue) {
+          return res.status(400).json({
+            error: 'Link Text is required when using text-match method'
+          });
+        }
+
+        logger.info(`[run-task-with-ai] Starting link discovery for ${url} with method: ${discoveryMethod}`);
+        
+        // ✅ SEAMLESS UX: Run link discovery with automatic fallback
+        const linkDiscovery = new LinkDiscoveryService();
+        let discoveryResult = await linkDiscovery.discoverPdfLinks({
+          url,
+          username,
+          password,
+          discoveryMethod,
+          discoveryValue,
+          testMode: false
+        });
+        
+        // ✅ SEAMLESS UX: If primary method fails, automatically try auto-detect as fallback
+        if (!discoveryResult.success && discoveryMethod !== 'auto-detect') {
+          logger.info(`[run-task-with-ai] Primary discovery method failed, trying auto-detect fallback`);
+          discoveryResult = await linkDiscovery.discoverPdfLinks({
+            url,
+            username,
+            password,
+            discoveryMethod: 'auto-detect',
+            discoveryValue: null,
+            testMode: false
+          });
+        }
+
+        if (discoveryResult.success && discoveryResult.pdfLinks && discoveryResult.pdfLinks.length > 0) {
+          // Use the first discovered PDF link
+          finalPdfUrl = discoveryResult.pdfLinks[0].url;
+          logger.info(`[run-task-with-ai] Discovered PDF URL: ${finalPdfUrl}`);
+          
+          // Store discovered URL and cookies for the download
+          if (discoveryResult.cookies) {
+            // Cookies will be included in the task data
+          }
+        } else {
+          logger.warn(`[run-task-with-ai] Link discovery failed or found no PDF links: ${discoveryResult.error || 'No links found'}`);
+          // Continue with the task - the automation worker will handle the error
+        }
+      } catch (discoveryError) {
+        logger.error(`[run-task-with-ai] Link discovery error: ${discoveryError.message}`);
+        // Continue with the task - the automation worker will handle the error
+      }
+    }
+    
     // Create automation run
     const { data: run, error: runError } = await supabase
       .from('automation_runs')
@@ -6557,13 +6630,20 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
     setImmediate(async () => {
       try {
         // Run standard automation first
+        // Use discovered pdf_url if available, otherwise use the provided one
         const automationResult = await queueTaskRun(run.id, {
           url,
           title: taskName,
           task_id: taskRecord.id,
           user_id: user.id,
           task_type: taskType,
-          parameters: { username, password, pdf_url }
+          parameters: { 
+            username, 
+            password, 
+            pdf_url: finalPdfUrl || pdf_url,
+            enableAI: enableAI || false,
+            extractionTargets: extractionTargets || []
+          }
         });
 
         // Add AI extraction if enabled and service available
