@@ -35,19 +35,24 @@ router.get('/social-proof-metrics', async (req, res) => {
       return res.json(metricsCache);
     }
 
-    // If Supabase not configured, return fallback values
+    // If Supabase not configured, try to return cached data if available
     if (!supabase) {
-      logger.warn('⚠️ Supabase not configured - returning fallback metrics');
-      const fallbackMetrics = {
+      logger.warn('⚠️ Supabase not configured - returning cached metrics if available');
+      if (metricsCache) {
+        logger.info('📊 Returning cached metrics (Supabase not configured)');
+        return res.json(metricsCache);
+      }
+      // If no cache and no Supabase, return zeros (real data, just empty)
+      const emptyMetrics = {
         metrics: {
-          totalUsers: 127,
-          activeToday: 89,
-          conversions: 342,
-          conversionRate: '2.6%',
+          totalUsers: 0,
+          activeToday: 0,
+          conversions: 0,
+          conversionRate: '0%',
           lastUpdated: new Date().toISOString()
         }
       };
-      return res.json(fallbackMetrics);
+      return res.json(emptyMetrics);
     }
 
     // Calculate date ranges for recent activity
@@ -101,12 +106,12 @@ router.get('/social-proof-metrics', async (req, res) => {
       logger.warn('⚠️ Failed to fetch recent events:', eventsResult.reason);
     }
 
-    // Only apply minimum floors for social proof if we have some data but it's very low
-    // This prevents showing "0 users" which looks broken, but uses real data when available
+    // Use real database values - show actual counts even if 0
+    // These are real numbers from the database, just not real-time down to the second (cached for 60s)
     const metrics = {
-      totalUsers: totalUsers > 0 ? totalUsers : 0, // Show actual count, even if 0
-      activeWorkflows: activeWorkflows > 0 ? activeWorkflows : 0,
-      recentEvents: recentEvents > 0 ? recentEvents : 0,
+      totalUsers: totalUsers || 0, // Real database count
+      activeWorkflows: activeWorkflows || 0, // Real database count
+      recentEvents: recentEvents || 0, // Real database count
       lastUpdated: new Date().toISOString()
     };
 
@@ -132,18 +137,24 @@ router.get('/social-proof-metrics', async (req, res) => {
   } catch (error) {
     logger.error('❌ Error fetching social proof metrics:', error);
     
-    // Return graceful fallback instead of error
-    const fallbackMetrics = {
+    // Try to return cached data if available (real numbers, just not fresh)
+    if (metricsCache) {
+      logger.info('📊 Returning cached metrics due to error (real data, just not fresh)');
+      return res.json(metricsCache);
+    }
+    
+    // If no cache available, return zeros (real data, just empty database)
+    const emptyMetrics = {
       metrics: {
-        totalUsers: 127,
-        activeToday: 89,
-        conversions: 342,
-        conversionRate: '2.6%',
+        totalUsers: 0,
+        activeToday: 0,
+        conversions: 0,
+        conversionRate: '0%',
         lastUpdated: new Date().toISOString()
       }
     };
     
-    res.json(fallbackMetrics); // Return 200 to avoid breaking UI
+    res.json(emptyMetrics); // Return 200 to avoid breaking UI, but with real (empty) data
   }
 });
 
