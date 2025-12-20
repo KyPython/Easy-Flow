@@ -98,13 +98,31 @@ const TaskResultModal = ({ task, onClose }) => {
     resultData = { raw: task.result };
   }
 
-  // Convert technical error messages to user-friendly ones
+  // Convert technical error messages to user-friendly ones (environment-aware)
   const sanitizeErrorMessage = (error) => {
     if (!error) return null;
     
     const errorStr = typeof error === 'string' ? error : String(error);
     
-    // Map common technical errors to friendly messages
+    // Detect environment: development shows technical details, production shows user-friendly messages
+    const isDevelopment = process.env.NODE_ENV === 'development' || 
+                         process.env.NODE_ENV !== 'production' ||
+                         (typeof window !== 'undefined' && 
+                          (window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1'));
+    
+    // In development: return the original error for debugging
+    if (isDevelopment) {
+      // Still clean up stack traces and very long errors, but keep technical details
+      if (errorStr.includes('stack') || errorStr.includes('trace') || errorStr.length > 500) {
+        // Truncate very long errors but keep technical info
+        const truncated = errorStr.length > 500 ? errorStr.substring(0, 500) + '...' : errorStr;
+        return truncated;
+      }
+      return errorStr; // Return original technical error in development
+    }
+    
+    // Production: Map technical errors to user-friendly messages
     const errorMappings = {
       'Unknown task type': 'We encountered an issue processing this task type. Please try again or contact support if the problem persists.',
       'unknown task type': 'We encountered an issue processing this task type. Please try again or contact support if the problem persists.',
@@ -129,12 +147,12 @@ const TaskResultModal = ({ task, onClose }) => {
       return 'An unexpected error occurred while processing your task. Please try again or contact support if the problem continues.';
     }
     
-    // If it's a short, readable message, return it as-is
+    // If it's a short, readable message, return it as-is (might already be user-friendly)
     if (errorStr.length < 100 && !errorStr.includes('stack') && !errorStr.includes('trace')) {
       return errorStr;
     }
     
-    // Default fallback for technical errors
+    // Default fallback for technical errors in production
     return 'An error occurred while processing your task. Please try again or contact support if the problem persists.';
   };
 
