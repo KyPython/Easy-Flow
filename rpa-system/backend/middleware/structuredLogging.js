@@ -77,22 +77,25 @@ const rootLogger = pino(loggerConfig);
  * Sampling rates (1 in N logs):
  * - trace: 0.1% (1 in 1000) - Very verbose tracing
  * - debug: 1% (1 in 100) - Detailed debugging
- * - info: 2% (1 in 50) - General information (reduced from 10% for less noise)
- * - warn: 10% (1 in 10) - Warnings (sampled to reduce noise, but still catch issues)
+ * - info: 100% (1 in 1) - General information (ALWAYS LOG - critical for observability)
+ * - warn: 100% (1 in 1) - Warnings (ALWAYS LOG - important for debugging)
  * - error/fatal: 100% (always logged) - Critical issues
+ * 
+ * ✅ OBSERVABILITY: Info and warn logs are now always logged to ensure complete visibility
+ * into automation task execution, completion, and artifact generation.
  * 
  * Override via environment variables:
  * - TRACE_LOG_SAMPLE_RATE (default: 1000)
  * - DEBUG_LOG_SAMPLE_RATE (default: 100)
- * - INFO_LOG_SAMPLE_RATE (default: 50)
- * - WARN_LOG_SAMPLE_RATE (default: 10)
+ * - INFO_LOG_SAMPLE_RATE (default: 1 - always log)
+ * - WARN_LOG_SAMPLE_RATE (default: 1 - always log)
  */
 const SAMPLING_CONFIG = {
   // Sample 1 in N logs for each level
   trace: parseInt(process.env.TRACE_LOG_SAMPLE_RATE || '1000', 10), // 0.1% of trace logs
   debug: parseInt(process.env.DEBUG_LOG_SAMPLE_RATE || '100', 10), // 1% of debug logs
-  info: parseInt(process.env.INFO_LOG_SAMPLE_RATE || '50', 10), // 2% of info logs (reduced from 10%)
-  warn: parseInt(process.env.WARN_LOG_SAMPLE_RATE || '10', 10), // 10% of warn logs (new - sampled to reduce noise)
+  info: parseInt(process.env.INFO_LOG_SAMPLE_RATE || '1', 10), // 100% of info logs (ALWAYS LOG for observability)
+  warn: parseInt(process.env.WARN_LOG_SAMPLE_RATE || '1', 10), // 100% of warn logs (ALWAYS LOG for debugging)
   // Never sample error/fatal - always log critical issues
   error: 1,
   fatal: 1
