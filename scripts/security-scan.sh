@@ -22,18 +22,30 @@ fi
 
 # Check if authenticated
 if ! snyk auth status >/dev/null 2>&1; then
-    echo "${YELLOW}⚠ Snyk not authenticated. Please run: snyk auth${NC}"
-    echo "${YELLOW}  Or set SNYK_TOKEN environment variable${NC}"
-    echo "${YELLOW}  For CI/CD, set SNYK_TOKEN as a GitHub secret${NC}"
-    
     # In CI/CD, try to use token from environment
     if [ -n "$SNYK_TOKEN" ]; then
         echo "${BLUE}Using SNYK_TOKEN from environment...${NC}"
         snyk config set api="$SNYK_TOKEN" >/dev/null 2>&1 || true
+        # Verify authentication worked
+        if ! snyk auth status >/dev/null 2>&1; then
+            echo "${RED}✗ Snyk authentication failed with SNYK_TOKEN${NC}"
+            echo "${YELLOW}  Check that SNYK_TOKEN is valid${NC}"
+            exit 1
+        fi
     else
-        echo "${RED}✗ Snyk authentication required${NC}"
-        echo "${YELLOW}  Run 'snyk auth' locally or set SNYK_TOKEN in CI/CD${NC}"
-        exit 1
+        echo "${YELLOW}⚠ Snyk not authenticated. Please run: snyk auth${NC}"
+        echo "${YELLOW}  Or set SNYK_TOKEN environment variable${NC}"
+        echo "${YELLOW}  For CI/CD, set SNYK_TOKEN as a GitHub secret${NC}"
+        echo "${YELLOW}  Skipping security scan (non-blocking in local dev)${NC}"
+        # In local dev, don't block if not authenticated (user can run manually)
+        # In CI/CD, this should fail (SNYK_TOKEN should be set)
+        if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
+            echo "${RED}✗ Snyk authentication required in CI/CD${NC}"
+            exit 1
+        else
+            echo "${YELLOW}  Run 'npm run security:scan' manually after authenticating${NC}"
+            exit 0  # Non-blocking in local dev
+        fi
     fi
 fi
 

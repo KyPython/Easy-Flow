@@ -30,6 +30,14 @@
 - **`export-quality-metrics.sh`** - Export quality metrics to Prometheus format (runs automatically when Prometheus scrapes `/metrics/code-quality` every 5 minutes - no manual run needed)
 - **`generate-quality-report.sh`** - Generate HTML quality reports - use `npm run quality:report`
 
+## 🔒 Security (Snyk)
+
+- **`security-scan.sh`** - Run Snyk security scan (runs automatically before push) - use `npm run security:scan`
+  - Scans dependencies (Node.js, Python)
+  - Scans code for security issues (SAST)
+  - **Blocks push if high+ vulnerabilities found**
+  - Requires Snyk authentication: `snyk auth` (local) or `SNYK_TOKEN` (CI/CD)
+
 ## 🚀 EasyFlow Infrastructure (Essential)
 
 - **`init-kafka-topics.sh`** - Initialize Kafka topics (runs automatically in start-dev.sh)
