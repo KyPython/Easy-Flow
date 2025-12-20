@@ -6685,13 +6685,20 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           }
         }
 
+        // ✅ FIX: Determine actual task status from automationResult (don't hardcode 'completed')
+        // Check if the automation actually failed (even though HTTP request may have succeeded)
+        const isSuccess = automationResult.success !== false && 
+                         automationResult.status !== 'failed' &&
+                         !automationResult.error;
+        const actualStatus = isSuccess ? 'completed' : 'failed';
+        
         // Format result for storage - ensure it's properly structured
         // queueTaskRun already updates the database, but we need to add AI extraction results
         // So we update again with the enhanced result
         const resultToStore = {
           success: automationResult.success !== false, // Default to true if not explicitly false
-          status: 'completed',
-          message: automationResult.message || 'Task completed successfully',
+          status: actualStatus, // Use actual status instead of hardcoding 'completed'
+          message: automationResult.message || (isSuccess ? 'Task completed successfully' : 'Task failed'),
           ...automationResult, // Include all original fields
           // Ensure AI extraction data is included if available
           ...(automationResult.extractedData && { 
@@ -6706,8 +6713,9 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
                            null;
         
         // Update run with enhanced results (preserve artifact_url from queueTaskRun)
+        // ✅ FIX: Use actual status instead of hardcoding 'completed'
         const updateData = {
-          status: 'completed',
+          status: actualStatus,
           ended_at: new Date().toISOString(),
           result: typeof resultToStore === 'string' ? resultToStore : JSON.stringify(resultToStore),
           extracted_data: automationResult.extractedData ? JSON.stringify(automationResult.extractedData) : null
@@ -6723,16 +6731,18 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           .update(updateData)
           .eq('id', run.id);
         
-        logger.info(`[run-task-with-ai] ✅ Task ${run.id} completed and results saved`, {
+        logger.info(`[run-task-with-ai] ✅ Task ${run.id} ${actualStatus} and results saved`, {
           taskId: taskRecord.id,
           runId: run.id,
+          status: actualStatus,
           hasExtractedData: !!automationResult.extractedData,
           hasArtifact: !!artifactUrl,
           artifact_url: artifactUrl || null,
           aiEnabled: enableAI
         });
 
-        await usageTracker.trackAutomationRun(user.id, run.id, 'completed');
+        // ✅ FIX: Track with actual status instead of hardcoding 'completed'
+        await usageTracker.trackAutomationRun(user.id, run.id, actualStatus);
 
       } catch (error) {
         logger.error('[run-task-with-ai] Enhanced automation failed:', {
