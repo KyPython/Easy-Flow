@@ -30,8 +30,13 @@ jobs:
 
       - name: Run comprehensive test suite
         run: |
-          chmod +x scripts/test-all.sh scripts/lint-and-test.sh
+          chmod +x scripts/test-all.sh scripts/lint-and-test.sh scripts/code-quality-check.sh
           ./scripts/test-all.sh || echo "⚠️ Some tests failed (continuing with CI tests)"
+
+      - name: Run code quality check
+        run: |
+          chmod +x scripts/code-quality-check.sh
+          ./scripts/code-quality-check.sh || echo "⚠️ Code quality issues found (non-blocking)"
 
       - name: Create backend .env file from secrets
         run: |

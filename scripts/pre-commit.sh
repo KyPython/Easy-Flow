@@ -118,6 +118,15 @@ else
     echo "  ${YELLOW}⚠ Environment check warnings (non-blocking)${NC}"
 fi
 
+# Step 6: Code Quality Check (non-blocking)
+echo "\n${BLUE}Step 6: Checking code quality...${NC}"
+if ./scripts/code-quality-check.sh >/dev/null 2>&1; then
+    echo "  ${GREEN}✓ Code quality check passed${NC}"
+else
+    echo "  ${YELLOW}⚠ Code quality issues found (non-blocking)${NC}"
+    echo "  Run 'npm run quality:check' for details"
+fi
+
 echo "\n${BLUE}=== Summary ===${NC}"
 
 if [ $FAILED -eq 0 ]; then

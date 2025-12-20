@@ -145,8 +145,19 @@ if [ -f "rpa-system/automation/automation-service/requirements.txt" ]; then
     fi
 fi
 
-# Step 5: Build Verification
-echo "\n${BLUE}Step 5: Verifying builds...${NC}"
+# Step 5: Code Quality Check
+echo "\n${BLUE}Step 5: Running code quality checks...${NC}"
+CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
+if ./scripts/code-quality-check.sh >/dev/null 2>&1; then
+    echo "  ${GREEN}✓ Code quality check passed${NC}"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+    echo "  ${YELLOW}⚠ Code quality issues found (review recommended)${NC}"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+fi
+
+# Step 6: Build Verification
+echo "\n${BLUE}Step 6: Verifying builds...${NC}"
 
 # Frontend build
 if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
