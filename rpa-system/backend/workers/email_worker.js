@@ -74,7 +74,10 @@ async function processOne() {
 
     if (fetchErr) {
       // Fallback: select then update (less safe)
-      logger.warn('[email_worker] rpc claim failed, falling back to simple select', fetchErr && (fetchErr.message || JSON.stringify(fetchErr)));
+      logger.warn('[email_worker] rpc claim failed, falling back to simple select', {
+        error: fetchErr?.message || 'Unknown error',
+        error_details: typeof fetchErr === 'string' ? fetchErr : (fetchErr?.message || JSON.stringify(fetchErr))
+      });
       const client = getSupabase();
       if (!client) return false;
       const { data: selectData, error: selectError } = await client
@@ -233,7 +236,11 @@ async function handleItem(item) {
         data: item.data,
         instruction: 'Configure SENDGRID_API_KEY + SENDGRID_FROM_EMAIL or SEND_EMAIL_WEBHOOK to send real emails'
       });
-      logger.info('[email_worker] simulate send to', item.to_email, 'template', item.template, 'data', JSON.stringify(item.data || {}));
+      logger.info('[email_worker] simulate send to', {
+        to_email: item.to_email,
+        template: item.template,
+        data: item.data || {}
+      });
       sent = true; // Mark as sent so queue doesn't retry
     }
 
