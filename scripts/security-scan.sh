@@ -109,17 +109,37 @@ if [ -f "rpa-system/automation/automation-service/requirements.txt" ]; then
 fi
 
 # Scan code for security issues (SAST - Static Application Security Testing)
-echo "\n${BLUE}Scanning code for security issues (SAST)...${NC}"
+# Scan the ENTIRE codebase - no loose ends!
+echo "\n${BLUE}Scanning entire codebase for security issues (SAST)...${NC}"
+echo "  Scanning: rpa-system/, scripts/, migrations/, .github/, root config files"
+
+# Scan from root to cover entire codebase
+# Snyk code test automatically scans all supported file types (JS, JSX, TS, TSX, Python, etc.)
+# and all directories by default when run from root
 if snyk code test --severity-threshold="$SEVERITY_THRESHOLD" --json >/tmp/snyk-code.json 2>&1 || true; then
-    ISSUES=$(cat /tmp/snyk-code.json 2>/dev/null | grep -o '"runs":\[[^]]*\]' | grep -o 'runs' | wc -l || echo "0")
-    if [ "$ISSUES" -gt 0 ]; then
-        echo "  ${YELLOW}⚠ Code: Found security issues (see details below)${NC}"
-        snyk code test --severity-threshold="$SEVERITY_THRESHOLD" || SCAN_FAILED=$((SCAN_FAILED + 1))
+    # Check for actual security issues in the JSON output
+    ISSUES_COUNT=$(cat /tmp/snyk-code.json 2>/dev/null | grep -o '"total":\s*[0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+    if [ -z "$ISSUES_COUNT" ] || [ "$ISSUES_COUNT" = "0" ]; then
+        # Also check for runs array with issues
+        HAS_ISSUES=$(cat /tmp/snyk-code.json 2>/dev/null | grep -o '"runs":\s*\[[^]]*\]' | grep -v '\[\]' | wc -l || echo "0")
+        if [ "$HAS_ISSUES" -gt 0 ]; then
+            echo "  ${YELLOW}⚠ Code: Found security issues (see details below)${NC}"
+            snyk code test --severity-threshold="$SEVERITY_THRESHOLD" || SCAN_FAILED=$((SCAN_FAILED + 1))
+        else
+            echo "  ${GREEN}✓ Code: No ${SEVERITY_THRESHOLD}+ security issues found in entire codebase${NC}"
+        fi
     else
-        echo "  ${GREEN}✓ Code: No ${SEVERITY_THRESHOLD}+ security issues found${NC}"
+        if [ "$ISSUES_COUNT" -gt 0 ]; then
+            echo "  ${YELLOW}⚠ Code: Found $ISSUES_COUNT security issue(s) (see details below)${NC}"
+            snyk code test --severity-threshold="$SEVERITY_THRESHOLD" || SCAN_FAILED=$((SCAN_FAILED + 1))
+        else
+            echo "  ${GREEN}✓ Code: No ${SEVERITY_THRESHOLD}+ security issues found in entire codebase${NC}"
+        fi
     fi
 else
     echo "  ${YELLOW}⚠ Code: Snyk code scan completed with warnings${NC}"
+    # Still try to run it to show output
+    snyk code test --severity-threshold="$SEVERITY_THRESHOLD" 2>&1 || true
 fi
 
 # Cleanup temp files
