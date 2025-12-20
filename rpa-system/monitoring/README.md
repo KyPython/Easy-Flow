@@ -63,6 +63,19 @@ Business KPIs are automatically tracked and exposed at:
 - Prometheus: `http://localhost:3030/metrics/business`
 - Grafana Dashboard: Dashboards → EasyFlow → Business Metrics
 
+## Code Quality Metrics
+
+Code quality metrics are automatically tracked and exposed at:
+- Prometheus: `http://localhost:3030/metrics/code-quality`
+- Grafana Dashboard: Dashboards → EasyFlow → Code Quality Dashboard
+- HTML Report: `npm run quality:report` (generates `reports/quality/latest.html`)
+
+**Metrics tracked:**
+- Total files scanned
+- Total issues (by severity: high, medium, low)
+- Last scan timestamp
+- Trends over time
+
 ## Alert Rules
 
 10 business metric alerts configured:

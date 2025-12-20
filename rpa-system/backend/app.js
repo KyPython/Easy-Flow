@@ -670,6 +670,15 @@ try {
   logger.warn('⚠️ [BusinessMetrics] Business metrics exporter not available:', e.message);
 }
 
+// Mount code quality metrics endpoint in Prometheus format
+try {
+  const codeQualityMetricsRoutes = require('./routes/codeQualityMetrics');
+  app.use('/metrics', codeQualityMetricsRoutes);
+  logger.info('✅ [CodeQuality] Code quality metrics endpoint mounted at /metrics/code-quality');
+} catch (e) {
+  logger.warn('⚠️ [CodeQuality] Code quality metrics routes not available:', e.message);
+}
+
 // The Polar webhook needs a raw body, so we conditionally skip the JSON parser for it.
 // For all other routes, this middleware will parse the JSON body.
 // It must be registered before any routes that need to access `req.body`.

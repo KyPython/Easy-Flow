@@ -39,6 +39,14 @@ scrape_configs:
     metrics_path: "/metrics/business"
     scrape_timeout: 30s  # Increased timeout for database queries
 
+  # Code quality metrics - code quality tracking for EasyFlow
+  - job_name: "easyflow-code-quality"
+    static_configs:
+      - targets: ["host.docker.internal:3030"]
+    scrape_interval: 300s  # Scrape every 5 minutes (code quality doesn't change frequently)
+    metrics_path: "/metrics/code-quality"
+    scrape_timeout: 60s  # Increased timeout for quality scan
+
   # OpenTelemetry Collector metrics (span metrics from spanmetrics processor)
   - job_name: "otel-collector"
     static_configs:
