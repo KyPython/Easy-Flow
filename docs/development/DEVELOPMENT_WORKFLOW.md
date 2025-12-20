@@ -154,7 +154,7 @@ This stops all services cleanly.
 
 2. **Check observability:**
    - Grafana: http://localhost:3001
-   - See [OBSERVABILITY.md](./OBSERVABILITY.md) for details
+   - See [Observability Guide](../guides/OBSERVABILITY.md) for details
 
 3. **Fix the issue**
 4. **Test locally** (manual testing)

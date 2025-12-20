@@ -261,7 +261,7 @@ Quality checks run automatically in:
 
 Comprehensive training guide available:
 
-- **[Code Quality Training Guide](docs/CODE_QUALITY_TRAINING.md)** - Complete training materials
+- **[Code Quality Training Guide](../training/CODE_QUALITY_TRAINING.md)** - Complete training materials
   - Understanding code quality principles
   - Identifying and fixing code smells
   - Refactoring techniques
