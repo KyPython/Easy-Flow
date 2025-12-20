@@ -6727,7 +6727,13 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
         await usageTracker.trackAutomationRun(user.id, run.id, 'completed');
 
       } catch (error) {
-        logger.error('[run-task-with-ai] Enhanced automation failed:', error);
+        logger.error('[run-task-with-ai] Enhanced automation failed:', {
+          error: error?.message || 'Unknown error',
+          error_stack: error?.stack,
+          runId: run.id,
+          taskId: taskRecord?.id,
+          userId: user.id
+        });
         
         await supabase
           .from('automation_runs')
@@ -6736,7 +6742,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
             ended_at: new Date().toISOString(),
             result: JSON.stringify({ 
               error: 'AI-enhanced automation execution failed',
-              message: error.message
+              message: error?.message || 'Unknown error'
             })
           })
           .eq('id', run.id);
