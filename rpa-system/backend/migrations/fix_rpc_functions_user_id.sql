@@ -101,8 +101,8 @@ BEGIN
      OR name = user_plan_id
   LIMIT 1;
   
-  -- If plan found, use its limits
-  IF FOUND AND plan_record.limits IS NOT NULL THEN
+  -- If plan found, use its limits (check if plan_record.id is not null to verify record was found)
+  IF plan_record.id IS NOT NULL AND plan_record.limits IS NOT NULL THEN
     -- Merge plan limits with defaults
     result := jsonb_build_object(
       'monthly_runs', COALESCE((plan_record.limits->>'monthly_runs')::INTEGER, 50),
