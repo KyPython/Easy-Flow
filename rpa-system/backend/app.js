@@ -1957,6 +1957,40 @@ app.use('/api', authLimiter, async (req, res, next) => {
 // --- Authenticated API Routes ---
 // All routes defined below this point will require a valid JWT.
 
+// GET /api/workflows - List workflows for authenticated user
+app.get('/api/workflows', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const limit = parseInt(req.query.limit || '100', 10);
+    const supabase = getSupabase();
+    
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    const { data: workflows, error } = await supabase
+      .from('workflows')
+      .select('id, name, description, status, created_at, updated_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(Math.min(limit, 100));
+
+    if (error) {
+      logger.error('[GET /api/workflows] Database error:', error);
+      return res.status(500).json({ error: 'Failed to fetch workflows' });
+    }
+
+    res.json(workflows || []);
+  } catch (error) {
+    logger.error('[GET /api/workflows] Error:', error);
+    res.status(500).json({ error: 'Failed to fetch workflows' });
+  }
+});
+
 // Mount AI Workflow Agent routes (after global auth middleware so req.user is set)
 try {
   const aiAgentRoutes = require('./routes/aiAgentRoutes');

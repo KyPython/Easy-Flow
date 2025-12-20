@@ -245,6 +245,15 @@ class FirebaseNotificationService {
       return { success: true, messageId: response };
 
     } catch (error) {
+      // Handle expected errors gracefully (user not registered for push notifications)
+      if (error.code === 'messaging/registration-token-not-registered' || 
+          error.code === 'messaging/invalid-registration-token') {
+        // This is expected - user hasn't registered for push notifications
+        // Don't log as error, just return quietly
+        return { success: false, error: error.message, expected: true };
+      }
+      
+      // Log unexpected errors
       logger.error('🔥 Error sending push notification:', error);
       return { success: false, error: error.message };
     }

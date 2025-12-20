@@ -801,11 +801,62 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// Helper function to sanitize objects and remove circular references
+function sanitizeForJSON(obj, seen = new WeakSet()) {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  
+  // Handle circular references
+  if (seen.has(obj)) {
+    return '[Circular]';
+  }
+  seen.add(obj);
+  
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForJSON(item, seen));
+  }
+  
+  // Handle objects - extract only safe properties
+  const sanitized = {};
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      const value = obj[key];
+      // Skip functions and complex objects that might have circular refs
+      if (typeof value === 'function') {
+        continue;
+      }
+      // Skip known problematic properties from Supabase RealtimeChannel
+      if (key === 'socket' || key === 'channels' || key === 'channel' || 
+          (typeof value === 'object' && value !== null && 
+           (value.constructor?.name === 'RealtimeChannel' || 
+            value.constructor?.name === 'RealtimeClient'))) {
+        sanitized[key] = `[${value.constructor?.name || 'Object'}]`;
+        continue;
+      }
+      try {
+        sanitized[key] = sanitizeForJSON(value, seen);
+      } catch (e) {
+        sanitized[key] = '[Error serializing]';
+      }
+    }
+  }
+  return sanitized;
+}
+
 // Enhanced tracking functions that never crash the app
 // Now uses batching to prevent API flooding
 export async function trackEvent(payload) {
-  // Add to batch queue instead of sending immediately
-  eventBatcher.add(payload);
+  try {
+    // Sanitize payload to remove circular references before adding to batch
+    const sanitizedPayload = sanitizeForJSON(payload);
+    // Add to batch queue instead of sending immediately
+    eventBatcher.add(sanitizedPayload);
+  } catch (e) {
+    // Silently fail - tracking should never break the app
+    console.debug('[trackEvent] Failed to sanitize payload:', e.message);
+  }
   
   // Return a resolved promise immediately (fire-and-forget pattern)
   return Promise.resolve();
