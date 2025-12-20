@@ -27,7 +27,7 @@
 ## 🔍 Software Entropy
 
 - **`code-quality-check.sh`** - Run code quality scans (runs automatically in pre-commit)
-- **`export-quality-metrics.sh`** - Export quality metrics to Prometheus format
+- **`export-quality-metrics.sh`** - Export quality metrics to Prometheus format (runs automatically when Prometheus scrapes `/metrics/code-quality` every 5 minutes - no manual run needed)
 - **`generate-quality-report.sh`** - Generate HTML quality reports - use `npm run quality:report`
 
 ## 🚀 EasyFlow Infrastructure (Essential)

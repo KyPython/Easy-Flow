@@ -4,10 +4,17 @@
 
 ## 🚀 Start Here
 
-**Read these two files - that's all you need:**
+**For developers working on this project:**
 
 1. **[docs/WORKFLOW.md](docs/WORKFLOW.md)** - Your daily workflow (start here!)
 2. **[docs/DEBUGGING.md](docs/DEBUGGING.md)** - When something breaks
+
+**Everything is automated:**
+- ✅ Pre-commit hooks run validation automatically
+- ✅ Pre-push hooks run tests automatically
+- ✅ Browser opens automatically on start
+- ✅ Code quality metrics update automatically (every 5 min)
+- ✅ Observability stack runs automatically
 
 ## 📁 Project Structure
 
@@ -27,11 +34,14 @@ Easy-Flow/
 ## 🛠️ Quick Commands
 
 ```bash
-./start-dev.sh      # Start everything
+./start-dev.sh      # Start everything (browser opens automatically)
 ./stop-dev.sh       # Stop everything
-npm run lint:test   # Quick validation (before commit)
-npm run test:all    # Full test suite (before push)
+npm run logs        # Watch all logs (color-coded)
+npm run lint:test   # Quick validation (runs automatically on commit)
+npm run test:all    # Full test suite (runs automatically on push)
 ```
+
+**Note:** Pre-commit and pre-push hooks run automatically - you don't need to manually run validation!
 
 ## 🔗 URLs
 

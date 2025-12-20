@@ -185,4 +185,6 @@ git push
 - **Use `./stop-dev.sh && ./start-dev.sh`** to restart cleanly
 - **Grafana is your friend** - use it to see what's happening in real-time
 - **Browser opens automatically** - no need to manually open http://localhost:3000
+- **Code quality metrics update automatically** - Prometheus scrapes every 5 minutes, no manual export needed
+- **All observability is automatic** - metrics, logs, and traces flow to Grafana automatically
 

@@ -65,16 +65,29 @@ Business KPIs are automatically tracked and exposed at:
 
 ## Code Quality Metrics
 
+**Fully Automated** - No manual steps required!
+
 Code quality metrics are automatically tracked and exposed at:
-- Prometheus: `http://localhost:3030/metrics/code-quality`
+- Prometheus: `http://localhost:3030/metrics/code-quality` (scraped every 5 minutes)
 - Grafana Dashboard: Dashboards → EasyFlow → Code Quality Dashboard
 - HTML Report: `npm run quality:report` (generates `reports/quality/latest.html`)
+
+**How it works:**
+1. Prometheus automatically scrapes `/metrics/code-quality` every 5 minutes
+2. Backend endpoint runs `export-quality-metrics.sh` automatically when scraped
+3. Metrics flow into Grafana dashboard automatically
+4. **You don't need to run any scripts manually** - it's all automated!
 
 **Metrics tracked:**
 - Total files scanned
 - Total issues (by severity: high, medium, low)
 - Last scan timestamp
 - Trends over time
+
+**Manual export (only for testing):**
+```bash
+./scripts/export-quality-metrics.sh  # Only needed for debugging
+```
 
 ## Alert Rules
 
