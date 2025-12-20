@@ -6642,6 +6642,14 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
     // Enhanced processing with AI extraction
     setImmediate(async () => {
       try {
+        logger.info(`[run-task-with-ai] Starting automation execution for run ${run.id}`, {
+          runId: run.id,
+          taskId: taskRecord.id,
+          taskType: taskType,
+          hasPdfUrl: !!(finalPdfUrl || pdf_url),
+          aiEnabled: enableAI
+        });
+        
         // Run standard automation first
         // Use discovered pdf_url if available, otherwise use the provided one
         const automationResult = await queueTaskRun(run.id, {
