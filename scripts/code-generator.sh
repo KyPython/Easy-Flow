@@ -82,13 +82,19 @@ replace_placeholders() {
     local name_plural=$(to_plural "$name_camel")
     local NAME_PLURAL=$(to_upper "$name_plural")
     
-    content=$(echo "$content" | sed "s/__NAME__/$NAME/g")
-    content=$(echo "$content" | sed "s/__Name__/$Name/g")
-    content=$(echo "$content" | sed "s/__name__/$name_camel/g")
-    content=$(echo "$content" | sed "s/__name-plural__/$name_plural/g")
-    content=$(echo "$content" | sed "s/__NAME_PLURAL__/$NAME_PLURAL/g")
+    # Use a temporary file to avoid sed newline issues
+    local tmp_file=$(mktemp)
+    echo "$content" > "$tmp_file"
     
-    echo "$content"
+    # Replace placeholders using sed with proper escaping
+    sed -i.bak "s|__NAME__|$NAME|g" "$tmp_file"
+    sed -i.bak "s|__Name__|$Name|g" "$tmp_file"
+    sed -i.bak "s|__name__|$name_camel|g" "$tmp_file"
+    sed -i.bak "s|__name-plural__|$name_plural|g" "$tmp_file"
+    sed -i.bak "s|__NAME_PLURAL__|$NAME_PLURAL|g" "$tmp_file"
+    
+    cat "$tmp_file"
+    rm -f "$tmp_file" "$tmp_file.bak"
 }
 
 # Generate route file
