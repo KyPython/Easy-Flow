@@ -443,6 +443,19 @@ class KafkaService {
                             }
                         }
                         
+                        // ✅ FIX: Log if runRecordId not found (for debugging)
+                        if (!runRecordId) {
+                            logger.warn('[KafkaService] Could not find run_record_id for task result', {
+                                taskId,
+                                hasRunIdInMessage: !!result.run_id,
+                                messageStructure: {
+                                    has_task_id: !!result.task_id,
+                                    has_run_id: !!result.run_id,
+                                    has_result: !!result.result
+                                }
+                            });
+                        }
+                        
                         // ✅ FIX: Update automation_runs database record if we have run_record_id
                         if (runRecordId) {
                                     try {
