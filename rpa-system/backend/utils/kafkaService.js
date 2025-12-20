@@ -415,10 +415,18 @@ class KafkaService {
                                         const resultData = result.result || result;
                                         const artifactUrl = resultData?.data?.artifact_url || resultData?.artifact_url;
                                         
+                                        // ✅ FIX: Ensure stored result includes status field for frontend consistency
+                                        // The Kafka message has status at the top level, but result.result might not
+                                        // Include status in the stored result so frontend can check result.status
+                                        const resultToStore = {
+                                            ...resultData,
+                                            status: result.status || dbStatus // Preserve status from Kafka message
+                                        };
+                                        
                                         const updateData = {
                                             status: dbStatus,
                                             ended_at: new Date().toISOString(),
-                                            result: JSON.stringify(resultData)
+                                            result: JSON.stringify(resultToStore)
                                         };
                                         
                                         // Set artifact_url if available

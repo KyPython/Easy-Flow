@@ -224,6 +224,24 @@ router.post('/capture-email', async (req, res) => {
           );
           
           logger.info(`✅ Successfully created contact ${normalizedEmail} in HubSpot. Contact ID: ${hubspotRes.data?.id}`);
+          try {
+            const hubspotRes = await axios.post(
+              'https://api.hubapi.com/crm/v3/objects/contacts',
+              hubspotPayload,
+              {
+                headers: {
+                  'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                timeout: 10000
+              }
+            );
+            logger.info(`✅ Successfully created contact ${normalizedEmail} in HubSpot. Contact ID: ${hubspotRes.data?.id}`);
+          } catch (postError) {
+            logger.error('❌ Initial HubSpot contact creation failed:', postError.message);
+            // Don't re-throw; allow the request to complete successfully for the user
+          }
+
         } catch (hubspotError) {
           // If contact already exists (409), update them instead
           if (hubspotError.response?.status === 409) {
