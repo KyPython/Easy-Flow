@@ -56,24 +56,18 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     cat > "$COMMIT_MSG_HOOK" <<'EOF'
 #!/bin/sh
 # EasyFlow Commit Message Hook
-# Validates commit message format (optional - can be customized)
+# Validates commit message format using git-workflow-helper
 
 commit_msg=$(cat "$1")
 
-# Check for conventional commit format (optional)
-if ! echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|perf)(\(.+\))?:"; then
-    echo "⚠️  Consider using conventional commit format:"
-    echo "   feat: description"
-    echo "   fix: description"
-    echo "   docs: description"
+# Use git-workflow-helper to validate
+if ! ./scripts/git-workflow-helper.sh commit:validate "$commit_msg" >/dev/null 2>&1; then
+    echo "❌ Commit message validation failed"
     echo ""
-    echo "   Current message: $commit_msg"
+    ./scripts/git-workflow-helper.sh commit:validate "$commit_msg"
     echo ""
-    read -p "Continue anyway? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
+    echo "Please fix your commit message or use --no-verify to bypass"
+    exit 1
 fi
 EOF
     chmod +x "$COMMIT_MSG_HOOK"

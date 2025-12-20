@@ -2,7 +2,9 @@
 
 > **"Automate Everything You Can"** - The Pragmatic Programmer
 
-This document outlines the ubiquitous automation patterns integrated into EasyFlow, adapted from [ubiquitous-automation](https://github.com/KyPython/ubiquitous-automation).
+This document outlines the ubiquitous automation patterns integrated into EasyFlow, adapted from:
+- [ubiquitous-automation](https://github.com/KyPython/ubiquitous-automation) - CI/CD and automation scripts
+- [git-workflows-sample](https://github.com/KyPython/git-workflows-sample) - Git workflow helper tools
 
 ## ✅ What We've Implemented
 
@@ -49,7 +51,58 @@ npm run test:all
 npm run lint:test
 ```
 
-### 2. **Pre-Commit Hooks Configuration** ✓ (Setup Script Ready)
+### 2. **Pre-Commit Hooks Configuration** ✓
+
+#### `scripts/setup-git-hooks.sh`
+- Automatically installs git hooks
+- Pre-commit hook: Runs validation before commits
+- Optional commit-msg hook: Validates conventional commit format using git-workflow-helper
+
+**To Install:**
+```bash
+./scripts/setup-git-hooks.sh
+```
+
+**Status:** Script is ready and hooks can be installed.
+
+### 3. **Git Workflow Helper** ✓
+
+#### `scripts/git-workflow-helper.sh`
+- Branch management: Create and validate feature branches
+- Commit validation: Ensure commit messages follow Conventional Commits
+- PR readiness check: Verify if branch is ready for Pull Request
+- Rebase assistance: Safely rebase branches
+
+**Usage:**
+```bash
+# Create feature branch
+./scripts/git-workflow-helper.sh branch:create feature/add-logging
+
+# Check branch status
+./scripts/git-workflow-helper.sh branch:status
+
+# Validate commit message
+./scripts/git-workflow-helper.sh commit:validate "feat(auth): add login"
+
+# Check PR readiness
+./scripts/git-workflow-helper.sh status
+
+# Rebase branch
+./scripts/git-workflow-helper.sh rebase
+```
+
+**NPM Scripts:**
+```bash
+npm run git:branch:create <name>
+npm run git:branch:status
+npm run git:commit:check
+npm run git:status
+npm run git:rebase
+```
+
+See [GIT_WORKFLOW.md](./GIT_WORKFLOW.md) for complete documentation.
+
+### 4. **Custom GitHub Actions Workflows** ✓ (Integrated)
 
 #### `scripts/setup-git-hooks.sh`
 - Automatically installs git hooks

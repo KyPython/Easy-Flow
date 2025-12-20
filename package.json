@@ -11,7 +11,12 @@
     "prestart": "npm run check-env",
     "test:all": "./scripts/test-all.sh",
     "lint:test": "./scripts/lint-and-test.sh",
-    "pre-commit": "./scripts/pre-commit.sh"
+    "pre-commit": "./scripts/pre-commit.sh",
+    "git:branch:create": "./scripts/git-workflow-helper.sh branch:create",
+    "git:branch:status": "./scripts/git-workflow-helper.sh branch:status",
+    "git:commit:check": "./scripts/git-workflow-helper.sh commit:check",
+    "git:status": "./scripts/git-workflow-helper.sh status",
+    "git:rebase": "./scripts/git-workflow-helper.sh rebase"
   },
   "keywords": [
     "automation",
