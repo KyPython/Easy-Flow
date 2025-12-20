@@ -22,7 +22,8 @@
     "gen:component": "./scripts/code-generator.sh component",
     "gen:automation": "./scripts/code-generator.sh automation",
     "quality:check": "./scripts/code-quality-check.sh",
-    "quality:scan": "npx -y software-entropy@latest . --max-function-lines 50 --max-file-lines 500 --max-todo-density 5"
+    "quality:scan": "npx -y software-entropy@latest . --max-function-lines 50 --max-file-lines 500 --max-todo-density 5",
+    "quality:report": "./scripts/generate-quality-report.sh"
   },
   "keywords": [
     "automation",

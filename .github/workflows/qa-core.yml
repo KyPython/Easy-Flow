@@ -35,8 +35,21 @@ jobs:
 
       - name: Run code quality check
         run: |
-          chmod +x scripts/code-quality-check.sh
+          chmod +x scripts/code-quality-check.sh scripts/generate-quality-report.sh
           ./scripts/code-quality-check.sh || echo "⚠️ Code quality issues found (non-blocking)"
+
+      - name: Generate quality report
+        run: |
+          ./scripts/generate-quality-report.sh || echo "⚠️ Report generation failed (non-blocking)"
+        continue-on-error: true
+
+      - name: Upload quality report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-report
+          path: reports/quality/*.html
+          retention-days: 30
 
       - name: Create backend .env file from secrets
         run: |

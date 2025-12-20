@@ -21,10 +21,17 @@ if ! command -v npx >/dev/null 2>&1; then
     exit 1
 fi
 
-# Default thresholds (can be overridden)
-MAX_FUNCTION_LINES=${MAX_FUNCTION_LINES:-50}
-MAX_FILE_LINES=${MAX_FILE_LINES:-500}
-MAX_TODO_DENSITY=${MAX_TODO_DENSITY:-5}
+# Load configuration from .code-quality-config.json if available
+if [ -f ".code-quality-config.json" ]; then
+    MAX_FUNCTION_LINES=${MAX_FUNCTION_LINES:-$(node -e "console.log(require('./.code-quality-config.json').rules.longFunction.threshold || 50)" 2>/dev/null || echo "50")}
+    MAX_FILE_LINES=${MAX_FILE_LINES:-$(node -e "console.log(require('./.code-quality-config.json').rules.largeFile.threshold || 500)" 2>/dev/null || echo "500")}
+    MAX_TODO_DENSITY=${MAX_TODO_DENSITY:-$(node -e "console.log(require('./.code-quality-config.json').rules.todoDensity.threshold || 5)" 2>/dev/null || echo "5")}
+else
+    # Default thresholds (can be overridden)
+    MAX_FUNCTION_LINES=${MAX_FUNCTION_LINES:-50}
+    MAX_FILE_LINES=${MAX_FILE_LINES:-500}
+    MAX_TODO_DENSITY=${MAX_TODO_DENSITY:-5}
+fi
 
 # Directories to scan
 SCAN_DIRS=(

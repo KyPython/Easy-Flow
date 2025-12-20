@@ -257,9 +257,73 @@ Quality checks run automatically in:
 - Test suite (`test-all.sh`)
 - GitHub Actions workflows
 
+## 🎓 Training Materials
+
+Comprehensive training guide available:
+
+- **[Code Quality Training Guide](docs/CODE_QUALITY_TRAINING.md)** - Complete training materials
+  - Understanding code quality principles
+  - Identifying and fixing code smells
+  - Refactoring techniques
+  - Hands-on exercises
+
+## 📊 Automated Reporting Dashboard
+
+### Generate HTML Report
+
+```bash
+# Generate HTML dashboard
+npm run quality:report
+
+# Open the report
+open reports/quality/latest.html
+```
+
+The dashboard shows:
+- Total files scanned
+- Issues by severity (high, medium, low)
+- Detailed issue list with file locations
+- Historical tracking
+
+### CI/CD Integration
+
+Quality reports are automatically:
+- Generated in CI/CD pipelines
+- Uploaded as artifacts
+- Available for 30 days
+
+## ⚙️ Custom Rules Configuration
+
+EasyFlow uses `.code-quality-config.json` for custom rules:
+
+```json
+{
+  "rules": {
+    "longFunction": {
+      "enabled": true,
+      "threshold": 50,
+      "severity": "medium"
+    },
+    "largeFile": {
+      "enabled": true,
+      "threshold": 500,
+      "severity": "high",
+      "exceptions": ["app.js"]
+    }
+  }
+}
+```
+
+Edit this file to:
+- Adjust thresholds per rule
+- Enable/disable specific rules
+- Add file exceptions
+- Configure reporting options
+
 ## 📚 References
 
 - [Software Entropy Tool](https://github.com/KyPython/software-entropy) - Original tool
+- [Code Quality Training](docs/CODE_QUALITY_TRAINING.md) - Training guide
 - [The Pragmatic Programmer](https://pragprog.com/titles/tpp20/the-pragmatic-programmer-20th-anniversary-edition/) - Software Entropy chapter
 - [Code Review Guidelines](.github/CODE_REVIEW_GUIDELINES.md) - Review standards
 
