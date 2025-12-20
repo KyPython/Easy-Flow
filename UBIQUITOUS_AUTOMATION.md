@@ -5,6 +5,8 @@
 This document outlines the ubiquitous automation patterns integrated into EasyFlow, adapted from:
 - [ubiquitous-automation](https://github.com/KyPython/ubiquitous-automation) - CI/CD and automation scripts
 - [git-workflows-sample](https://github.com/KyPython/git-workflows-sample) - Git workflow helper tools
+- [code-generator-tool](https://github.com/KyPython/code-generator-tool) - Code generation from templates
+- [software-entropy](https://github.com/KyPython/software-entropy) - Code-smell detection and quality scanning
 
 ## ✅ What We've Implemented
 
@@ -102,7 +104,34 @@ npm run git:rebase
 
 See [GIT_WORKFLOW.md](./GIT_WORKFLOW.md) for complete documentation.
 
-### 4. **Custom GitHub Actions Workflows** ✓ (Integrated)
+### 4. **Code Quality Scanner** ✓
+
+#### `scripts/code-quality-check.sh`
+- Scans codebase for code smells using software-entropy
+- Detects long functions (>50 lines)
+- Detects large files (>500 lines)
+- Detects high TODO/FIXME density (>5 per 100 lines)
+- Fallback checks if software-entropy unavailable
+- Non-blocking warnings (doesn't fail builds)
+
+**Usage:**
+```bash
+./scripts/code-quality-check.sh
+# or
+npm run quality:check
+
+# Full scan with software-entropy
+npm run quality:scan
+```
+
+**Integration:**
+- Runs in pre-commit hooks
+- Runs in test-all.sh
+- Runs in CI/CD workflows
+
+See [CODE_QUALITY.md](./CODE_QUALITY.md) for complete documentation.
+
+### 5. **Custom GitHub Actions Workflows** ✓ (Integrated)
 
 #### `scripts/setup-git-hooks.sh`
 - Automatically installs git hooks
