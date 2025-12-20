@@ -2222,6 +2222,15 @@ async function queueTaskRun(runId, taskData) {
       parameters: taskData.parameters || {}
     };
     
+    // ✅ For invoice downloads, extract pdf_url from parameters to top level for automation worker
+    // The automation worker expects pdf_url at top level: task_data.get('pdf_url') or task_data.get('url')
+    if (payload.type === 'invoice_download' || payload.type === 'invoice-download') {
+      const params = payload.parameters || {};
+      if (params.pdf_url) {
+        payload.pdf_url = params.pdf_url;
+      }
+    }
+    
     logger.info(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
     
     // ✅ PRIORITY 2: Call automation service with retry logic (3x: 0s, 5s, 15s)
