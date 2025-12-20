@@ -6692,21 +6692,35 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           })
         };
         
-        // Update run with enhanced results
+        // Extract artifact_url from automationResult (queueTaskRun sets this)
+        const artifactUrl = automationResult?.data?.artifact_url || 
+                           automationResult?.artifact_url || 
+                           null;
+        
+        // Update run with enhanced results (preserve artifact_url from queueTaskRun)
+        const updateData = {
+          status: 'completed',
+          ended_at: new Date().toISOString(),
+          result: typeof resultToStore === 'string' ? resultToStore : JSON.stringify(resultToStore),
+          extracted_data: automationResult.extractedData ? JSON.stringify(automationResult.extractedData) : null
+        };
+        
+        // Preserve artifact_url if it was set by queueTaskRun
+        if (artifactUrl) {
+          updateData.artifact_url = artifactUrl;
+        }
+        
         await supabase
           .from('automation_runs')
-          .update({
-            status: 'completed',
-            ended_at: new Date().toISOString(),
-            result: typeof resultToStore === 'string' ? resultToStore : JSON.stringify(resultToStore),
-            extracted_data: automationResult.extractedData ? JSON.stringify(automationResult.extractedData) : null
-          })
+          .update(updateData)
           .eq('id', run.id);
         
         logger.info(`[run-task-with-ai] ✅ Task ${run.id} completed and results saved`, {
           taskId: taskRecord.id,
           runId: run.id,
           hasExtractedData: !!automationResult.extractedData,
+          hasArtifact: !!artifactUrl,
+          artifact_url: artifactUrl || null,
           aiEnabled: enableAI
         });
 
