@@ -379,13 +379,15 @@ class KafkaService {
                         });
                         
 
-                        // Update taskStatusStore for status polling endpoint
+                        // ✅ FIX: Get run_record_id from multiple sources (taskStatusStore, Kafka message, or database lookup)
+                        let runRecordId = null;
+                        
+                        // Method 1: Try taskStatusStore first (for /api/automation/execute endpoint)
                         try {
                             const taskStatusStore = require('./taskStatusStore');
                             if (taskId) {
-                                // Get existing status data to preserve run_record_id
                                 const statusData = await taskStatusStore.get(taskId);
-                                const runRecordId = statusData?.run_record_id;
+                                runRecordId = statusData?.run_record_id;
                                 
                                 // Update taskStatusStore
                                 await taskStatusStore.set(taskId, {
@@ -397,9 +399,52 @@ class KafkaService {
                                     error: result.error,
                                     run_record_id: runRecordId // Preserve run_record_id
                                 });
-                                
-                                // ✅ FIX: Update automation_runs database record if we have run_record_id
-                                if (runRecordId) {
+                            }
+                        } catch (taskStoreError) {
+                            logger.warn('[KafkaService] Error accessing taskStatusStore, will try other methods', {
+                                error: taskStoreError?.message
+                            });
+                        }
+                        
+                        // Method 2: Try Kafka message run_id field (for /api/run-task-with-ai endpoint)
+                        if (!runRecordId && result.run_id) {
+                            runRecordId = result.run_id;
+                            logger.info('[KafkaService] Using run_id from Kafka message', { runRecordId });
+                        }
+                        
+                        // Method 3: Look up by task_id in database (fallback)
+                        if (!runRecordId && taskId) {
+                            try {
+                                const { getSupabase } = require('../utils/supabaseClient');
+                                const supabase = getSupabase();
+                                if (supabase) {
+                                    // Find the most recent running run for this task_id
+                                    const { data: runData, error: lookupError } = await supabase
+                                        .from('automation_runs')
+                                        .select('id')
+                                        .eq('task_id', taskId)
+                                        .in('status', ['running', 'queued'])
+                                        .order('created_at', { ascending: false })
+                                        .limit(1)
+                                        .single();
+                                    
+                                    if (!lookupError && runData?.id) {
+                                        runRecordId = runData.id;
+                                        logger.info('[KafkaService] Found run_record_id via database lookup', {
+                                            taskId,
+                                            runRecordId
+                                        });
+                                    }
+                                }
+                            } catch (dbLookupError) {
+                                logger.warn('[KafkaService] Database lookup for run_record_id failed', {
+                                    error: dbLookupError?.message
+                                });
+                            }
+                        }
+                        
+                        // ✅ FIX: Update automation_runs database record if we have run_record_id
+                        if (runRecordId) {
                                     try {
                                         const { getSupabase } = require('../utils/supabaseClient');
                                         const supabase = getSupabase();
