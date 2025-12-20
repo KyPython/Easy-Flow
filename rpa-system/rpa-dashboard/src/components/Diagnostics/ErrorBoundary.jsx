@@ -1,5 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { sanitizeErrorMessage } from '../../utils/errorMessages';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -216,6 +217,7 @@ export default class ErrorBoundary extends React.Component {
                 fontSize: 12,
                 border: '1px solid var(--color-border)'
               }}>
+                {/* Show raw error in details (for developers) */}
                 {String(this.state.error?.message || this.state.error)}
                 {this.state.info?.componentStack && (
                   `\n\nComponent Stack:${this.state.info.componentStack}`
