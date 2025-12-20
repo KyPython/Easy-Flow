@@ -356,11 +356,21 @@ class KafkaService {
                         const result = JSON.parse(message.value.toString());
                         const taskId = result.task_id;
                         
+                        // Extract result data for artifact URL checking
+                        const resultData = result.result || result;
+                        const artifactUrl = resultData?.data?.artifact_url || resultData?.artifact_url;
+                        
                         logger.info('[KafkaService] Received result for task', {
                             task_id: taskId,
                             status: result.status,
-                            success: result.result?.success || 'N/A',
-                            result_details: result
+                            success: resultData?.success || 'N/A',
+                            hasArtifact: !!artifactUrl,
+                            artifact_url: artifactUrl || null,
+                            result_structure: {
+                                has_result: !!result.result,
+                                has_data: !!(resultData?.data),
+                                result_keys: resultData ? Object.keys(resultData).slice(0, 10) : []
+                            }
                         });
                         
 
@@ -423,9 +433,15 @@ class KafkaService {
                                                 database_error: updateError
                                             });
                                         } else {
-                                            logger.info('[KafkaService] Updated automation_runs record', {
-                                                run_record_id: runRecordId,
-                                                status: dbStatus
+                                            // ✅ OBSERVABILITY: Log completion with artifact info (matching queueTaskRun format)
+                                            logger.info(`[KafkaService] Task ${runRecordId} ${dbStatus}`, {
+                                                runId: runRecordId,
+                                                status: dbStatus,
+                                                hasArtifact: !!artifactUrl,
+                                                artifact_url: artifactUrl || null,
+                                                task_id: taskId,
+                                                success: resultData?.success,
+                                                result_status: resultData?.status
                                             });
                                         }
                                     } catch (dbError) {
