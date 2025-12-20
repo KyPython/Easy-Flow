@@ -582,6 +582,44 @@ Use this to verify everything is working:
 
 ---
 
+## 🔄 Development Workflow Integration
+
+**Observability is part of your daily workflow:**
+
+1. **Start development:**
+   ```bash
+   ./start-dev.sh  # Starts app + observability
+   ```
+
+2. **While developing:**
+   - Make changes
+   - Test manually in browser/API
+   - Check Grafana if something seems off
+
+3. **Before committing:**
+   ```bash
+   npm run lint:test  # Quick validation
+   ```
+
+4. **Before pushing:**
+   ```bash
+   npm run test:all  # Full validation
+   ```
+
+5. **When debugging:**
+   - Check logs: `tail -f logs/backend.log`
+   - Check Grafana: http://localhost:3001
+   - Use the debugging steps above
+
+6. **Stop when done:**
+   ```bash
+   ./stop-dev.sh
+   ```
+
+**See [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) for the complete workflow.**
+
+---
+
 ## Integrated Logs
 
 All application logs are automatically collected and shipped to Loki via Promtail.
