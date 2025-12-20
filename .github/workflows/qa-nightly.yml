@@ -226,14 +226,25 @@ jobs:
         run: |
           echo "⏭️ Skipping performance tests - services are not available"
 
-      - name: Run security audit
+      - name: Run Snyk security scan - CRITICAL
+        if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'security' }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          chmod +x scripts/security-scan.sh
+          # Install Snyk CLI if not available
+          npm install -g snyk || true
+          # Run comprehensive security scan (blocks on high+ vulnerabilities)
+          ./scripts/security-scan.sh || (echo "❌ Security scan failed - high+ vulnerabilities found" && exit 1)
+
+      - name: Run npm security audit (fallback)
         if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'security' }}
         run: |
           npm audit --audit-level=moderate || true
           cd rpa-system && npm audit --audit-level=moderate || true
           cd rpa-system/rpa-dashboard && npm audit --audit-level=moderate || true
 
-      - name: Run dependency vulnerability check
+      - name: Run Python dependency vulnerability check
         if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'security' }}
         working-directory: rpa-system/automation
         run: |

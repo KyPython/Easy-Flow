@@ -24,6 +24,7 @@
     "quality:check": "./scripts/code-quality-check.sh",
     "quality:scan": "npx -y software-entropy@latest . --max-function-lines 50 --max-file-lines 500 --max-todo-density 5",
     "quality:report": "./scripts/generate-quality-report.sh",
+    "security:scan": "./scripts/security-scan.sh",
     "logs": "./scripts/watch-logs.sh"
   },
   "keywords": [

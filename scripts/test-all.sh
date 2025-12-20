@@ -156,8 +156,22 @@ else
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 
-# Step 6: Build Verification
-echo "\n${BLUE}Step 6: Verifying builds...${NC}"
+# Step 6: Security Scan (Snyk) - CRITICAL: Before code reaches public
+echo "\n${BLUE}Step 6: Running security scan (Snyk)...${NC}"
+CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
+if ./scripts/security-scan.sh >/dev/null 2>&1; then
+    echo "  ${GREEN}✓ Security scan passed${NC}"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+    echo "  ${RED}✗ Security scan failed - ${SEVERITY_THRESHOLD:-high}+ vulnerabilities found${NC}"
+    echo "  ${YELLOW}  Run './scripts/security-scan.sh' for details${NC}"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    # Security failures should block push
+    SECURITY_BLOCKED=true
+fi
+
+# Step 7: Build Verification
+echo "\n${BLUE}Step 7: Verifying builds...${NC}"
 
 # Frontend build
 if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
@@ -200,6 +214,14 @@ if [ $TESTS_FAILED -gt 0 ]; then
 fi
 
 echo ""
+
+# Check if security scan blocked the push
+if [ "${SECURITY_BLOCKED:-false}" = "true" ]; then
+    echo "\n${RED}❌ SECURITY SCAN BLOCKED PUSH${NC}"
+    echo "${RED}  High/Critical vulnerabilities found. Please fix before pushing to public.${NC}"
+    echo "${YELLOW}  Run './scripts/security-scan.sh' for details${NC}"
+    exit 1  # Block push on security failures
+fi
 
 if [ $TESTS_FAILED -eq 0 ]; then
     echo "${GREEN}✅ All tests passed!${NC}"

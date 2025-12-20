@@ -57,8 +57,15 @@ open http://localhost:3001  # admin/admin123
 
 **Pre-push hook failing:**
 - Check what failed in the hook output
-- Run manually: `npm run test:all` to see detailed errors
+- If security scan failed: Run `npm run security:scan` to see vulnerabilities
+- If tests failed: Run `npm run test:all` to see detailed errors
 - Fix issues, then push again
+
+**Security scan (Snyk) failing:**
+- Run manually: `npm run security:scan` to see detailed vulnerabilities
+- Authenticate Snyk: `snyk auth` (for local) or set `SNYK_TOKEN` (for CI/CD)
+- Fix high/critical vulnerabilities before pushing
+- Check: https://snyk.io for vulnerability details and fixes
 
 ## 4. Health Checks
 

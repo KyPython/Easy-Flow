@@ -1,9 +1,34 @@
 // Jest setup to mock external services for backend tests
 // This will provide a minimal supabase client stub and mock axios to avoid network calls.
 
+// Ensure tests run with safe, side-effect-free environment
+process.env.NODE_ENV = 'test';
+process.env.DISABLE_TELEMETRY = 'true';
+process.env.ENABLE_EMAIL_WORKER = 'false';
+
+// Mock telemetry initializer to avoid starting Prometheus server / SDK
+jest.doMock('../middleware/telemetryInit', () => ({
+  prometheusExporter: null
+}));
+
+// Mock audit logger to avoid periodic flush intervals
+jest.doMock('../utils/auditLogger', () => ({
+  auditLogger: {
+    generateRequestId: () => 'req_test',
+    logAuthEvent: async () => {}
+  }
+}));
+
+// Mock Prometheus business metrics exporter to avoid setInterval
+jest.doMock('../utils/prometheusMetrics', () => ({
+  prometheusMetricsExporter: {
+    start: jest.fn(),
+    getPrometheusFormat: jest.fn(() => '')
+  }
+}));
+
 // Minimal supabase-like stub with common methods used in tests
 const noop = () => ({ data: null, error: null });
-
 
 // Helper to create a fully chainable query builder mock
 function chainableQuery(result = { data: [], error: null }) {
@@ -15,6 +40,8 @@ function chainableQuery(result = { data: [], error: null }) {
     neq: (...args) => chain,
     gte: (...args) => chain,
     lte: (...args) => chain,
+    lt: (...args) => chain, // needed by services
+    or: (...args) => chain, // used by InstrumentedQuery
     single: async () => result,
     maybeSingle: async () => result,
     then: undefined, // so it's not treated as a Promise
@@ -73,6 +100,32 @@ jest.doMock('@supabase/supabase-js', () => ({
   createClient: (url, key) => global.supabase
 }));
 
+// Mock database instrumentation to return a thin client with chainable queries
+jest.doMock('../middleware/databaseInstrumentation', () => ({
+  createInstrumentedSupabaseClient: () => ({
+    from: (table) => ({
+      select: (...args) => chainableQuery({ data: [], error: null }),
+      insert: (...args) => ({
+        select: (...args) => ({
+          single: async () => ({ data: { id: 1 }, error: null }),
+          maybeSingle: async () => ({ data: { id: 1 }, error: null }),
+          ...chainableQuery({ data: { id: 1 }, error: null })
+        }),
+        ...chainableQuery({ data: { id: 1 }, error: null })
+      }),
+      update: (...args) => ({
+        eq: (...args) => ({
+          single: async () => ({ data: { id: 1 }, error: null }),
+          maybeSingle: async () => ({ data: { id: 1 }, error: null }),
+          ...chainableQuery({ data: { id: 1 }, error: null })
+        }),
+        ...chainableQuery({ data: { id: 1 }, error: null })
+      }),
+      delete: (...args) => chainableQuery({ data: [], error: null })
+    })
+  })
+}));
+
 // Mock axios to avoid network calls in unit tests
 jest.mock('axios', () => {
   const post = jest.fn(async (url, payload, config) => ({ status: 200, data: { ok: true, received: payload } }));
@@ -116,10 +169,25 @@ jest.mock('axios', () => {
 });
 const axios = require('axios');
 
+// Silence console logs in tests except warnings/errors
+// Route selected test logs to the structured logger instead of calling console.log
+const logger = require('../middleware/structuredLogging');
+console.log = (...args) => {
+  try {
+    const first = String(args[0] || '');
+    if (first.includes('CORS Debug Info') || process.env.VERBOSE_TEST_LOGS === 'true') {
+      logger.info(first, { args: args.slice(1) });
+    }
+  } catch (e) {
+    // swallow errors during test bootstrap
+  }
+};
+
 // Polyfills for Node environment used by some integrations
 try {
   global.FormData = global.FormData || require('form-data');
 } catch {}
+// minimal Blob polyfill
 global.Blob = global.Blob || class Blob {
   constructor(parts = [], opts = {}) { this._parts = parts; this.type = opts.type; }
 };
@@ -152,20 +220,6 @@ jest.doMock('../utils/kafkaService', () => ({
   })
 }));
 
-// Silence console logs in tests except warnings/errors
-// Route selected test logs to the structured logger instead of calling console.log
-const logger = require('../middleware/structuredLogging');
-console.log = (...args) => {
-  try {
-    const first = String(args[0] || '');
-    if (first.includes('CORS Debug Info') || process.env.VERBOSE_TEST_LOGS === 'true') {
-      logger.info(first, { args: args.slice(1) });
-    }
-  } catch (e) {
-    // swallow errors during test bootstrap
-  }
-};
-
 // Provide simple global functions expected by tests (sanitizeInput, isValidUrl, encryptCredentials)
 const crypto = require('crypto');
 global.sanitizeInput = (s) => (typeof s === 'string' ? s.replace(/<[^>]*>/g, '') : s);
@@ -175,4 +229,3 @@ global.encryptCredentials = (credentials, key) => ({ encrypted: JSON.stringify(c
 // Mock environment variables for testing
 if (!process.env.SUPABASE_URL) process.env.SUPABASE_URL = 'http://localhost:54321';
 if (!process.env.SUPABASE_SERVICE_ROLE) process.env.SUPABASE_SERVICE_ROLE = 'mock-service-role-key';
-

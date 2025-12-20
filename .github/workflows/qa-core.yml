@@ -28,6 +28,16 @@ jobs:
           chmod +x scripts/dev-env-check.sh
           ./scripts/dev-env-check.sh || echo "⚠️ Some optional tools missing (continuing anyway)"
 
+      - name: Run security scan (Snyk) - CRITICAL
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          chmod +x scripts/security-scan.sh
+          # Install Snyk CLI if not available
+          npm install -g snyk || true
+          # Run security scan (blocks on high+ vulnerabilities)
+          ./scripts/security-scan.sh || (echo "❌ Security scan failed - high+ vulnerabilities found" && exit 1)
+
       - name: Run comprehensive test suite
         run: |
           chmod +x scripts/test-all.sh scripts/lint-and-test.sh scripts/code-quality-check.sh

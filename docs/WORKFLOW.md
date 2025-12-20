@@ -81,6 +81,7 @@ git push
 ```
 
 **What runs automatically (pre-push hook):**
+- ✅ Security scan (Snyk) - **BLOCKS push if high+ vulnerabilities found**
 - ✅ Full test suite (`npm run test:all`)
 - ✅ Environment check
 - ✅ Full linting (frontend + backend)
@@ -88,6 +89,7 @@ git push
 - ✅ Build verification
 - ✅ Code quality check
 
+**If security scan fails:** The push is **BLOCKED**. Fix vulnerabilities, then push again.
 **If tests fail:** The push is blocked. Fix the issues, then push again.
 
 ---
