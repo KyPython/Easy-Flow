@@ -19,12 +19,14 @@ cd /Users/ky/Easy-Flow
 - ✅ Starts Backend API (port 3030)
 - ✅ Starts Frontend Dashboard (port 3000)
 - ✅ Starts Automation Worker (port 7070)
+- ✅ Opens browser automatically to http://localhost:3000
 
 **Wait for:** "✅ All services started" message
 
 **Verify it's working:**
-- Open http://localhost:3000 (frontend)
-- Open http://localhost:3030/health (backend health check)
+- Browser should open automatically to http://localhost:3000
+- Or manually open http://localhost:3000 (frontend)
+- Check http://localhost:3030/health (backend health check)
 
 ---
 
@@ -32,40 +34,25 @@ cd /Users/ky/Easy-Flow
 
 1. **Make your changes** in your editor
 2. **Test manually** in the browser (http://localhost:3000)
-3. **Check logs** if something breaks:
+3. **Watch logs** if something breaks:
    ```bash
+   npm run logs              # Watch all logs (color-coded, recommended)
+   # OR individually:
    tail -f logs/backend.log
    tail -f logs/automation-worker.log
    ```
 
 ---
 
-## ✅ Before Committing Changes
+## ✅ Committing Your Work
 
-**Run this before every commit:**
-
-```bash
-npm run lint:test
-```
-
-**What this checks:**
-- Frontend linting
-- Backend linting  
-- Quick tests
-
-**If it passes:** ✅ You're good to commit
-
-**If it fails:** Fix the issues, then commit
-
----
-
-## 📝 Committing Your Work
+**Just commit - validation runs automatically:**
 
 ```bash
 # Stage your changes
 git add .
 
-# Commit with descriptive message
+# Commit with descriptive message (pre-commit hook runs automatically)
 git commit -m "feat(scope): what you did"
 # Examples:
 #   feat(auth): add login functionality
@@ -73,26 +60,35 @@ git commit -m "feat(scope): what you did"
 #   refactor(backend): split app.js into modules
 ```
 
+**What runs automatically (pre-commit hook):**
+- ✅ Frontend linting
+- ✅ Backend linting
+- ✅ Quick tests
+- ✅ Build verification
+- ✅ Environment check
+- ✅ Code quality check
+
+**If validation fails:** The commit is blocked. Fix the issues, then commit again.
+
 ---
 
-## 🚀 Before Pushing to GitHub
+## 🚀 Pushing to GitHub
 
-**Run this before pushing:**
+**Just push - tests run automatically:**
 
 ```bash
-npm run test:all
+git push
 ```
 
-**What this checks:**
-- Environment check
-- Full linting (frontend + backend)
-- Full test suite (frontend + backend + Python)
-- Build verification
-- Code quality check
+**What runs automatically (pre-push hook):**
+- ✅ Full test suite (`npm run test:all`)
+- ✅ Environment check
+- ✅ Full linting (frontend + backend)
+- ✅ Full test suite (frontend + backend + Python)
+- ✅ Build verification
+- ✅ Code quality check
 
-**If it passes:** ✅ Push to GitHub
-
-**If it fails:** Fix issues, then push
+**If tests fail:** The push is blocked. Fix the issues, then push again.
 
 ---
 
@@ -148,8 +144,9 @@ npm run test:all
 
 ### Testing
 ```bash
-npm run lint:test    # Quick check (before commit)
-npm run test:all     # Full check (before push)
+npm run lint:test    # Quick check (runs automatically on commit)
+npm run test:all     # Full check (runs automatically on push)
+npm run logs         # Watch all logs (color-coded)
 ```
 
 ### Git
@@ -168,25 +165,24 @@ git push
 
 ## 🎯 The System You're Following
 
-**This is a simple, practical workflow:**
+**This is a fully automated workflow:**
 
-1. **Start** → `./start-dev.sh`
+1. **Start** → `./start-dev.sh` (browser opens automatically)
 2. **Work** → Make changes, test in browser
-3. **Validate** → `npm run lint:test` (before commit)
-4. **Commit** → `git commit -m "feat(scope): what you did"`
-5. **Test** → `npm run test:all` (before push)
-6. **Push** → `git push`
-7. **Stop** → `./stop-dev.sh`
+3. **Commit** → `git commit -m "feat(scope): what you did"` (validation runs automatically)
+4. **Push** → `git push` (tests run automatically)
+5. **Stop** → `./stop-dev.sh`
 
-**That's it.** No complex branching, no manual service management, no confusion.
+**That's it.** No manual validation, no manual testing, no confusion. Everything is automated.
 
 ---
 
 ## 💡 Pro Tips
 
-- **Always run `npm run lint:test` before committing** - catches issues early
-- **Always run `npm run test:all` before pushing** - ensures everything works
+- **Pre-commit hook runs automatically** - no need to manually run `npm run lint:test`
+- **Pre-push hook runs automatically** - no need to manually run `npm run test:all`
+- **Use `npm run logs`** to watch all logs at once (color-coded, easier to read)
 - **Use `./stop-dev.sh && ./start-dev.sh`** to restart cleanly
-- **Check logs first** when debugging - most issues show up there
 - **Grafana is your friend** - use it to see what's happening in real-time
+- **Browser opens automatically** - no need to manually open http://localhost:3000
 

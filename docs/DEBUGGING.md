@@ -5,13 +5,12 @@
 ## 1. Check Logs
 
 ```bash
-# Backend
+# Watch all logs (recommended - color-coded)
+npm run logs
+
+# OR individually:
 tail -f logs/backend.log
-
-# Automation Worker
 tail -f logs/automation-worker.log
-
-# All logs
 tail -f logs/*.log
 ```
 
@@ -29,17 +28,20 @@ open http://localhost:3001  # admin/admin123
 ## 3. Common Issues
 
 **Task stuck in "Running":**
-- Check `logs/automation-worker.log` - did it send result to Kafka?
-- Check `logs/backend.log` - did consumer receive the result?
+- Check logs: `npm run logs` or `tail -f logs/automation-worker.log`
+- Did worker send result to Kafka? (check automation-worker.log)
+- Did consumer receive the result? (check backend.log)
 - Restart: `./stop-dev.sh && ./start-dev.sh`
 
 **Kafka consumer not receiving:**
 - Check Kafka is running: `docker ps | grep kafka`
-- Check backend logs for consumer errors
+- Check backend logs: `npm run logs` or `tail -f logs/backend.log`
+- Look for consumer errors in backend logs
 - Restart backend: `pm2 restart backend` or restart all: `./stop-dev.sh && ./start-dev.sh`
 
 **400 Bad Request:**
-- Check backend logs for validation errors
+- Check backend logs: `npm run logs` or `tail -f logs/backend.log`
+- Look for validation errors
 - Check if credentials are required (for link discovery)
 - Check request payload in browser DevTools
 
@@ -47,6 +49,16 @@ open http://localhost:3001  # admin/admin123
 - Check ports: `lsof -i :3030` (backend), `lsof -i :3000` (frontend)
 - Kill processes: `lsof -ti :3030 | xargs kill -9`
 - Restart: `./stop-dev.sh && ./start-dev.sh`
+
+**Pre-commit hook failing:**
+- Check what failed in the hook output
+- Run manually: `npm run lint:test` to see detailed errors
+- Fix issues, then commit again
+
+**Pre-push hook failing:**
+- Check what failed in the hook output
+- Run manually: `npm run test:all` to see detailed errors
+- Fix issues, then push again
 
 ## 4. Health Checks
 
