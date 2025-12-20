@@ -6,7 +6,7 @@
 
 **Read these two files - that's all you need:**
 
-1. **[WORKFLOW.md](WORKFLOW.md)** - Your daily workflow (start here!)
+1. **[docs/WORKFLOW.md](docs/WORKFLOW.md)** - Your daily workflow (start here!)
 2. **[docs/DEBUGGING.md](docs/DEBUGGING.md)** - When something breaks
 
 ## 📁 Project Structure
@@ -41,4 +41,4 @@ npm run test:all    # Full test suite (before push)
 
 ---
 
-**That's it. Read WORKFLOW.md and start coding.**
+**That's it. Read docs/WORKFLOW.md and start coding.**
