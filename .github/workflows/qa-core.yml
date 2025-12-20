@@ -23,6 +23,11 @@ jobs:
         with:
           node-version: 20
 
+      - name: Check development environment
+        run: |
+          chmod +x scripts/dev-env-check.sh
+          ./scripts/dev-env-check.sh || echo "⚠️ Some optional tools missing (continuing anyway)"
+
       - name: Create backend .env file from secrets
         run: |
           mkdir -p rpa-system/backend

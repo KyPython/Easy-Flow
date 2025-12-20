@@ -6,6 +6,16 @@ set -e
 echo "🚀 Starting Easy-Flow Development Servers"
 echo "========================================="
 
+# ✅ INTEGRATION: Run environment check before starting
+echo ""
+echo "📋 Checking development environment..."
+if ./scripts/dev-env-check.sh; then
+    echo ""
+else
+    echo "⚠️  Environment check failed, but continuing anyway..."
+    echo ""
+fi
+
 # Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
