@@ -114,7 +114,9 @@ async function processOne() {
       }
       if (!updatedData) {
         // somebody else claimed it or the update didn't apply
-        logger.warn('[email_worker] fallback update affected no rows (claimed by another worker?) for item:', itemToClaim.id);
+        logger.warn('[email_worker] fallback update affected no rows (claimed by another worker?)', {
+          item_id: itemToClaim.id
+        });
         return false;
       }
       return await handleItem(updatedData);
