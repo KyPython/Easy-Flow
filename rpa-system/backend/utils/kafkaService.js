@@ -566,10 +566,6 @@ class KafkaService {
                                         logger.error('[KafkaService] Could not update automation_runs:', dbError);
                                     }
                                 }
-                            }
-                        } catch (e) {
-                            logger.error('[KafkaService] Could not update taskStatusStore:', e);
-                        }
 
                         // Check if we have a callback for this task
                         if (this.resultCallbacks.has(taskId)) {
