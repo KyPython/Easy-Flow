@@ -45,6 +45,7 @@ export const useWorkflowTemplates = (options = {}) => {
       const {
         search = '',
         category = 'all',
+        industry = 'all', // ✅ NEW: Industry filter
         sortBy = 'popularity',
         page: p = page,
         pageSize: ps = pageSize
@@ -63,6 +64,16 @@ export const useWorkflowTemplates = (options = {}) => {
 
       if (category && category !== 'all') {
         qry = qry.eq('category', category);
+      }
+      // ✅ NEW: Industry filter (if industry column exists in templates table)
+      if (industry && industry !== 'all') {
+        // Try to filter by industry - gracefully handle if column doesn't exist
+        try {
+          qry = qry.eq('industry', industry);
+        } catch (e) {
+          // Industry column may not exist yet - that's ok, just skip the filter
+          console.debug('[Templates] Industry filter skipped (column may not exist)');
+        }
       }
       if (search) {
         // name/description search (avoid tags.cs which can 400 if type mismatch)

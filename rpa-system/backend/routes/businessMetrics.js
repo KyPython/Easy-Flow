@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getSupabase } = require('../utils/supabaseClient');
 const { logger } = require('../utils/logger');
+const metricsCacheService = require('../services/metricsCacheService');
 
 /**
  * Business Metrics API Routes
@@ -12,9 +13,39 @@ const { logger } = require('../utils/logger');
 /**
  * GET /api/business-metrics/overview
  * Returns high-level business metrics overview
+ * Uses cached metrics from easyflow-metrics/latest_metrics.json when available
  */
 router.get('/overview', async (req, res) => {
   try {
+    // ✅ INTEGRATION: Try to get metrics from cache first (from easyflow-metrics)
+    const cachedMetrics = await metricsCacheService.getMetrics();
+    
+    if (cachedMetrics) {
+      // Use cached metrics (from daily batch collection)
+      logger.debug('Using cached metrics from easyflow-metrics');
+      return res.json({
+        source: 'cached',
+        timeframe: '7d', // Cached metrics are typically 7-day averages
+        metrics: {
+          totalUsers: cachedMetrics.active_users?.current || 0,
+          activeUsers: cachedMetrics.active_users?.current || 0,
+          newSignups: cachedMetrics.signups?.today || 0,
+          activatedUsers: cachedMetrics.funnel_rates?.activated_users_count || 0,
+          activationRate: cachedMetrics.activation_rate || 0,
+          workflowsCreated: cachedMetrics.engagement?.workflows_created_today || 0,
+          workflowsRun: cachedMetrics.workflows?.today || 0,
+          mrr: cachedMetrics.mrr || 0,
+          conversionRate: cachedMetrics.funnel_rates?.visit_to_signup || 0,
+          avgWorkflowsPerUser: 0, // Not in cached metrics
+          avgRunsPerUser: 0 // Not in cached metrics
+        },
+        timestamp: new Date().toISOString(),
+        cacheStatus: metricsCacheService.getCacheStatus()
+      });
+    }
+
+    // Fallback to real-time queries if cache not available
+    logger.debug('Cache not available, using real-time queries');
     const supabase = getSupabase();
     if (!supabase) {
       return res.status(503).json({ error: 'Database not available' });
@@ -150,6 +181,7 @@ router.get('/overview', async (req, res) => {
     }
 
     res.json({
+      source: 'realtime',
       timeframe: `${days}d`,
       metrics: {
         totalUsers,

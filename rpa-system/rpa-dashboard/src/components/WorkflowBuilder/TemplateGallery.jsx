@@ -92,6 +92,19 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
     { value: 'monitoring', label: 'Monitoring' }
   ];
 
+  // ✅ INDUSTRY-SPECIFIC TEMPLATES: Add industry filter
+  const industries = [
+    { value: 'all', label: 'All Industries' },
+    { value: 'freelancer', label: 'Freelancer' },
+    { value: 'agency', label: 'Agency' },
+    { value: 'home_services', label: 'Home Services' },
+    { value: 'ecommerce', label: 'E-commerce' },
+    { value: 'saas', label: 'SaaS' },
+    { value: 'consulting', label: 'Consulting' }
+  ];
+
+  const [selectedIndustry, setSelectedIndustry] = useState('all');
+
   const sortOptions = [
     { value: 'popularity', label: 'Most Popular' },
     { value: 'usage', label: 'Most Used' },
@@ -121,17 +134,18 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
   // Load from server whenever filters change
   useEffect(() => {
     setPage(1); // reset page when filters change
-  }, [searchQuery, selectedCategory, sortBy]);
+  }, [searchQuery, selectedCategory, selectedIndustry, sortBy]);
 
   useEffect(() => {
     loadTemplates({
       search: searchQuery,
       category: selectedCategory,
+      industry: selectedIndustry, // ✅ NEW: Pass industry filter
       sortBy,
       page,
       pageSize
     });
-  }, [searchQuery, selectedCategory, sortBy, page, pageSize, loadTemplates]);
+  }, [searchQuery, selectedCategory, selectedIndustry, sortBy, page, pageSize, loadTemplates]);
 
   const featuredTemplates = templates.filter(template => template.is_featured);
 
@@ -240,11 +254,27 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
                 ))}
               </select>
             </div>
+            
+            {/* ✅ NEW: Industry Filter */}
+            <div className={styles.filterGroup}>
+              <label className={styles.filterLabel}>Industry</label>
+              <select
+                value={selectedIndustry}
+                onChange={(e) => setSelectedIndustry(e.target.value)}
+                className={styles.filterSelect}
+              >
+                {industries.map(industry => (
+                  <option key={industry.value} value={industry.value}>
+                    {industry.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
 
         {/* Featured Templates */}
-        {featuredTemplates.length > 0 && searchQuery === '' && selectedCategory === 'all' && (
+        {featuredTemplates.length > 0 && searchQuery === '' && selectedCategory === 'all' && selectedIndustry === 'all' && (
           <div className={styles.featuredSection}>
             <h3 className={styles.sectionTitle}>
               <FaStar className={styles.sectionIcon} />

@@ -2,139 +2,167 @@
 
 **Last Updated:** 2025-12-22
 
-## ✅ Phase 1: Rule Library (MVP) - COMPLETE
-
-### Backend Implementation
-- ✅ **Database Schema** (`docs/database/business_rules_schema.sql`)
-  - `business_rules` table with RLS policies
-  - Stores rule name, description, condition (JSONB), action, category
-  - Tracks rule usage via `workflows.rules` array column
-
-- ✅ **Business Rules Service** (`rpa-system/backend/services/businessRulesService.js`)
-  - CRUD operations (create, read, update, delete)
-  - Rule evaluation engine (evaluates rules against data)
-  - Rule usage tracking (finds workflows using a rule)
-
-- ✅ **API Routes** (`rpa-system/backend/routes/businessRulesRoutes.js`)
-  - `GET /api/business-rules` - List all user's rules
-  - `GET /api/business-rules/:ruleId` - Get single rule with usage info
-  - `POST /api/business-rules` - Create new rule
-  - `PUT /api/business-rules/:ruleId` - Update rule
-  - `DELETE /api/business-rules/:ruleId` - Delete rule
-  - `GET /api/business-rules/:ruleId/usage` - Get workflows using rule
-  - `POST /api/business-rules/:ruleId/evaluate` - Test rule against data
-
-- ✅ **Route Integration** (`rpa-system/backend/app.js`)
-  - Business rules routes mounted at `/api/business-rules`
-
-### Frontend Implementation
-- ✅ **Rules Page** (`rpa-system/rpa-dashboard/src/pages/RulesPage.jsx`)
-  - Main page for viewing and managing rules
-  - Lists all user's rules with usage information
-  - Create/Edit/Delete functionality
-
-- ✅ **Rules List Component** (`rpa-system/rpa-dashboard/src/components/Rules/RulesList.jsx`)
-  - Displays rules in cards
-  - Shows rule name, description, category, usage count
-  - Edit/Delete actions
-
-- ✅ **Rule Form Component** (`rpa-system/rpa-dashboard/src/components/Rules/RuleForm.jsx`)
-  - Modal form for creating/editing rules
-  - Plain English description field
-  - Advanced condition builder (field, operator, value)
-  - Category selection
-  - Active/inactive toggle
-
-- ✅ **Navigation Integration**
-  - Route added: `/app/rules`
-  - Navigation link added to Header component
-
-### What's Next (Phase 1 Remaining)
-- [ ] **Workflow Builder Integration**
-  - Add rules dropdown in workflow builder
-  - Allow selecting rules when building workflows
-  - Store selected rules in `workflows.rules` array
-
-- [ ] **Rule Usage Display**
-  - Show which workflows use each rule in RulesList
-  - Click to navigate to workflow
-  - Update usage count in real-time
+This document tracks what's implemented vs. what's planned in the Product Thesis.
 
 ---
 
-## ⏳ Phase 2: Guided Templates - NOT STARTED
+## ✅ Fully Implemented
 
-- [ ] Industry-specific templates (freelancer, agency, home services)
-- [ ] Template wizard: "What's your business type?" → shows relevant templates
-- [ ] Each template includes sample data and step-by-step guide
-- [ ] "Test this template" button (runs with fake data)
+### 1. Reusable Rule Library (Phase 1) ✅
+- **Database**: `business_rules` table with schema
+- **Backend**: `businessRulesService.js` - Full CRUD operations
+- **API**: `/api/business-rules/*` endpoints
+- **Frontend**: `RulesPage.jsx` - UI for managing rules
+- **Features**:
+  - Create, read, update, delete rules
+  - Rule evaluation during workflow execution
+  - Rule usage tracking across workflows
+  - Plain English rule descriptions
 
-**Note:** Basic template system exists (`workflow_templates` table, `TemplateGallery.jsx`), but not organized by industry.
+### 2. Workflow Templates ✅
+- **Database**: `workflow_templates` table
+- **Backend**: Template CRUD operations
+- **Frontend**: `TemplateGallery.jsx` - Template browser
+- **Features**:
+  - Template gallery with search/filter
+  - Create workflow from template
+  - Template popularity tracking
+
+### 3. Test Mode ✅
+- **Backend**: `test_mode` flag in execution
+- **Frontend**: `useWorkflowTesting.js` hook
+- **Features**:
+  - Test workflows with fake data
+  - Test scenario management
+  - Execution results without affecting real data
+
+### 4. Versioning & Rollback ✅
+- **Backend**: `workflowVersioningService.js`
+- **API**: `/api/workflows/:id/versions/*`
+- **Features**:
+  - Version history tracking
+  - One-click rollback
+  - Version comparison
+
+### 5. Execution Logs ✅
+- **Database**: `step_executions` table
+- **Backend**: Step-by-step execution tracking
+- **Frontend**: Execution history view
+- **Features**:
+  - Detailed step execution logs
+  - Error tracking
+  - Execution timeline
 
 ---
 
-## ⏳ Phase 3: Safe Editing & Decision Logs - PARTIALLY COMPLETE
+## 🆕 Just Implemented (Today)
 
-- [x] "Test Mode" for workflows (exists: `useWorkflowTesting.js`, `test_mode: true`)
-- [x] Version history (exists: `workflowVersioningService.js`)
-- [x] One-click rollback (exists: `workflowVersioningService.rollbackToVersion()`)
-- [ ] Decision logs: "This happened because Rule X matched" - **NOT IMPLEMENTED**
+### 6. Decision Logs ✅ NEW
+- **Database**: `workflow_decision_logs` table (schema created)
+- **Backend**: `decisionLogService.js` - Logs "why" decisions were made
+- **API**: `/api/decision-logs/:executionId` and `/api/decision-logs/step/:stepId`
+- **Integration**: Automatically logs when business rules are evaluated
+- **Features**:
+  - Explains "why" something happened (e.g., "Routed to Sales team because: Contract value ($6,000) > VIP threshold ($5,000)")
+  - Links to rule evaluations
+  - Step-level and execution-level logs
 
-**Note:** Test mode, versioning, and rollback exist, but decision logs that explain "why" something happened based on rules are missing.
+### 7. Metrics Integration ✅ NEW
+- **Backend**: `metricsCacheService.js` - Reads from `/Users/ky/easyflow-metrics/latest_metrics.json`
+- **Integration**: `/api/business-metrics/overview` now uses cached metrics
+- **Features**:
+  - Reads from daily batch metrics (source of truth)
+  - Falls back to real-time queries if cache unavailable
+  - 1-minute cache for performance
+
+### 8. Industry-Specific Templates ✅ NEW
+- **Database**: `industry` column added to `workflow_templates` (migration script created)
+- **Frontend**: Industry filter in `TemplateGallery.jsx`
+- **Backend**: Industry filtering in `useWorkflowTemplates.js`
+- **Features**:
+  - Filter by industry (freelancer, agency, home services, ecommerce, saas, consulting)
+  - Industry dropdown in template gallery
+  - Templates can be tagged with industry
 
 ---
 
-## Database Migration Required
+## ⏳ Partially Implemented
 
-To use the Rule Library, run the SQL migration:
+### 9. Guided Wizards ⚠️ PARTIAL
+- **Status**: TaskForm exists but doesn't ask business questions
+- **Missing**: 
+  - "Where do clients come from?" wizard (instead of technical webhook setup)
+  - "When should this run?" natural language parser
+  - Business-question-first workflow builder
 
-```bash
-# Apply the schema to your Supabase database
-psql $DATABASE_URL < docs/database/business_rules_schema.sql
-```
-
-Or manually execute the SQL in `docs/database/business_rules_schema.sql` via Supabase SQL Editor.
+### 10. Plain English Scheduling ⚠️ PARTIAL
+- **Status**: Scheduling exists but uses cron expressions
+- **Missing**:
+  - Natural language parser ("1st of every month" → cron)
+  - "Every Monday at 9 AM" → cron conversion
+  - User-friendly scheduling UI
 
 ---
 
-## Testing the Rule Library
+## ❌ Not Yet Implemented
 
-1. **Create a rule:**
-   - Navigate to `/app/rules`
-   - Click "Create Rule"
-   - Fill in:
-     - Name: "VIP Client"
-     - Description: "VIP client = contract value > $5,000"
-     - Category: "client"
-     - Condition: field="contract_value", operator=">", value=5000
+### 11. Decision Logs in UI
+- **Status**: Backend API exists, but frontend doesn't display decision logs
+- **Needed**: 
+  - Show decision logs in execution details view
+  - Display "why" explanations in workflow history
 
-2. **Test rule evaluation:**
-   - Use `POST /api/business-rules/:ruleId/evaluate` with test data:
-     ```json
-     { "data": { "contract_value": 6000 } }
-     ```
-   - Should return: `{ "matches": true, "reason": "contract_value (6000) > 5000" }`
+### 12. Rule Integration in Workflow Builder
+- **Status**: Rules exist, but workflow builder doesn't show rule selection
+- **Needed**:
+  - Dropdown to select rules in workflow steps
+  - Visual rule application in workflow canvas
+  - Show rule usage across workflows
 
-3. **View rule usage:**
-   - After integrating with workflow builder, rules will show usage count
-   - Click "Usage" to see which workflows use the rule
+### 13. Industry-Specific Template Wizard
+- **Status**: Industry filter exists, but no "What's your business type?" wizard
+- **Needed**:
+  - Onboarding wizard: "What industry are you in?" → shows relevant templates
+  - Industry-specific template recommendations
+
+---
+
+## Implementation Roadmap
+
+### Phase 1: Core Features (DONE ✅)
+- [x] Reusable Rule Library
+- [x] Workflow Templates
+- [x] Test Mode
+- [x] Versioning & Rollback
+- [x] Decision Logs (backend)
+- [x] Metrics Integration
+
+### Phase 2: UX Improvements (IN PROGRESS)
+- [x] Industry-specific template filtering
+- [ ] Decision logs in UI
+- [ ] Rule selection in workflow builder
+- [ ] Industry onboarding wizard
+
+### Phase 3: Natural Language (TODO)
+- [ ] Plain English scheduling parser
+- [ ] Guided wizards with business questions
+- [ ] Natural language workflow builder
+
+---
+
+## Database Migrations Needed
+
+Run these SQL scripts to enable new features:
+
+1. **Decision Logs**: `docs/database/decision_logs_schema.sql`
+2. **Industry Templates**: `docs/database/workflow_templates_industry.sql`
 
 ---
 
 ## Next Steps
 
-1. **Complete Phase 1:**
-   - Integrate rules dropdown into workflow builder
-   - Add rule selection when creating/editing workflows
-   - Display rule usage in RulesList
-
-2. **Start Phase 2:**
-   - Add `industry` field to `workflow_templates` table
-   - Create industry-specific template categories
-   - Build template wizard UI
-
-3. **Complete Phase 3:**
-   - Add decision log storage to `workflow_execution_logs`
-   - Log rule evaluations during workflow execution
-   - Display decision logs in execution history
-
+1. **Run database migrations** to add decision logs and industry columns
+2. **Add decision logs to UI** - Show in execution details
+3. **Integrate rules in workflow builder** - Allow rule selection in steps
+4. **Build plain English scheduler** - Natural language → cron parser
+5. **Create guided wizards** - Business-question-first workflow setup

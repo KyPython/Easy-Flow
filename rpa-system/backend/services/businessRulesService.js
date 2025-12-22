@@ -1,5 +1,6 @@
 const { createLogger } = require('../middleware/structuredLogging');
 const { getSupabase } = require('../utils/supabaseClient');
+const decisionLogService = require('./decisionLogService');
 
 const logger = createLogger('service.businessRules');
 
@@ -230,8 +231,15 @@ class BusinessRulesService {
   /**
    * Evaluate a rule against data
    * This is used during workflow execution to check if a rule matches
+   * @param {string} ruleId - Rule ID to evaluate
+   * @param {Object} data - Data to evaluate against
+   * @param {string} userId - User ID
+   * @param {Object} options - Optional context for decision logging
+   * @param {string} options.executionId - Workflow execution ID (for decision logs)
+   * @param {string} options.stepId - Step execution ID (for decision logs)
+   * @param {Object} options.outputData - Output data after rule application (for decision logs)
    */
-  async evaluateRule(ruleId, data, userId) {
+  async evaluateRule(ruleId, data, userId, options = {}) {
     try {
       const rule = await this.getRuleById(ruleId, userId);
       if (!rule || !rule.is_active) {
@@ -290,7 +298,7 @@ class BusinessRulesService {
         reason = matches ? `Custom condition matched: ${condition.expression}` : 'Custom condition did not match';
       }
 
-      return {
+      const result = {
         matches,
         reason,
         rule: {
@@ -299,6 +307,20 @@ class BusinessRulesService {
           description: rule.description
         }
       };
+
+      // ✅ DECISION LOGS: Log rule evaluation if execution context provided
+      if (options.executionId && matches) {
+        // Only log when rule matches (to avoid log spam)
+        await decisionLogService.logRuleDecision(
+          options.executionId,
+          options.stepId || null,
+          result,
+          data,
+          options.outputData || null
+        );
+      }
+
+      return result;
     } catch (error) {
       logger.error('Failed to evaluate rule:', { error: error.message, ruleId, userId });
       return { matches: false, reason: `Error evaluating rule: ${error.message}` };

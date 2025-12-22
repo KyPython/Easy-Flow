@@ -841,6 +841,19 @@ if (businessRulesRoutes) {
   app.use('/api/business-rules', businessRulesRoutes);
 }
 
+// Mount decision logs routes
+let decisionLogsRoutes = null;
+try {
+  decisionLogsRoutes = require('./routes/decisionLogsRoutes');
+  rootLogger.info('✓ Decision logs routes loaded');
+} catch (e) {
+  logger.warn('⚠️ Decision logs routes disabled:', e.message);
+}
+
+if (decisionLogsRoutes) {
+  app.use('/api/decision-logs', decisionLogsRoutes);
+}
+
 // Mount email capture routes (public endpoint, no auth required)
 const emailCaptureRoutes = require('./routes/emailCaptureRoutes');
 app.use('/api', emailCaptureRoutes);
