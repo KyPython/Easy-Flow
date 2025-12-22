@@ -4,7 +4,36 @@ const { createLogger } = require('../middleware/structuredLogging');
 const { traceContextMiddleware } = require('../middleware/traceContext');
 const rateLimit = require('express-rate-limit');
 const businessRulesService = require('../services/businessRulesService');
-const { requireAuth } = require('../middleware/auth');
+const { getSupabase } = require('../utils/supabaseClient');
+
+// Auth middleware (similar to aiAgentRoutes.js)
+const authMiddleware = async (req, res, next) => {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    const authHeader = (req.get('authorization') || '').trim();
+    const parts = authHeader.split(' ');
+    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
+
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data || !data.user) {
+      return res.status(401).json({ error: 'Authentication failed' });
+    }
+
+    req.user = data.user;
+    next();
+  } catch (error) {
+    logger.error('Auth middleware error:', { error: error.message });
+    res.status(401).json({ error: 'Authentication failed' });
+  }
+};
 
 const logger = createLogger('routes.businessRules');
 const contextLoggerMiddleware = traceContextMiddleware;
@@ -22,7 +51,7 @@ const apiLimiter = rateLimit({
  * GET /api/business-rules
  * Get all rules for the authenticated user
  */
-router.get('/', requireAuth, apiLimiter, contextLoggerMiddleware, async (req, res) => {
+router.get('/', authMiddleware, apiLimiter, contextLoggerMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const rules = await businessRulesService.getUserRules(userId);
@@ -43,7 +72,7 @@ router.get('/', requireAuth, apiLimiter, contextLoggerMiddleware, async (req, re
  * GET /api/business-rules/:ruleId
  * Get a single rule by ID
  */
-router.get('/:ruleId', requireAuth, apiLimiter, contextLoggerMiddleware, async (req, res) => {
+router.get('/:ruleId', authMiddleware, apiLimiter, contextLoggerMiddleware, async (req, res) => {
   try {
     const { ruleId } = req.params;
     const userId = req.user.id;
@@ -84,7 +113,7 @@ router.get('/:ruleId', requireAuth, apiLimiter, contextLoggerMiddleware, async (
  * POST /api/business-rules
  * Create a new rule
  */
-router.post('/', requireAuth, apiLimiter, contextLoggerMiddleware, async (req, res) => {
+router.post('/', authMiddleware, apiLimiter, contextLoggerMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const ruleData = req.body;
@@ -115,7 +144,7 @@ router.post('/', requireAuth, apiLimiter, contextLoggerMiddleware, async (req, r
  * PUT /api/business-rules/:ruleId
  * Update an existing rule
  */
-router.put('/:ruleId', requireAuth, apiLimiter, contextLoggerMiddleware, async (req, res) => {
+router.put('/:ruleId', authMiddleware, apiLimiter, contextLoggerMiddleware, async (req, res) => {
   try {
     const { ruleId } = req.params;
     const userId = req.user.id;
@@ -146,7 +175,7 @@ router.put('/:ruleId', requireAuth, apiLimiter, contextLoggerMiddleware, async (
  * DELETE /api/business-rules/:ruleId
  * Delete a rule
  */
-router.delete('/:ruleId', requireAuth, apiLimiter, contextLoggerMiddleware, async (req, res) => {
+router.delete('/:ruleId', authMiddleware, apiLimiter, contextLoggerMiddleware, async (req, res) => {
   try {
     const { ruleId } = req.params;
     const userId = req.user.id;
@@ -176,7 +205,7 @@ router.delete('/:ruleId', requireAuth, apiLimiter, contextLoggerMiddleware, asyn
  * GET /api/business-rules/:ruleId/usage
  * Get workflows that use this rule
  */
-router.get('/:ruleId/usage', requireAuth, apiLimiter, contextLoggerMiddleware, async (req, res) => {
+router.get('/:ruleId/usage', authMiddleware, apiLimiter, contextLoggerMiddleware, async (req, res) => {
   try {
     const { ruleId } = req.params;
     const userId = req.user.id;
@@ -205,7 +234,7 @@ router.get('/:ruleId/usage', requireAuth, apiLimiter, contextLoggerMiddleware, a
  * POST /api/business-rules/:ruleId/evaluate
  * Evaluate a rule against provided data (for testing)
  */
-router.post('/:ruleId/evaluate', requireAuth, apiLimiter, contextLoggerMiddleware, async (req, res) => {
+router.post('/:ruleId/evaluate', authMiddleware, apiLimiter, contextLoggerMiddleware, async (req, res) => {
   try {
     const { ruleId } = req.params;
     const userId = req.user.id;
