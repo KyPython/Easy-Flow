@@ -110,11 +110,13 @@
 
 ## Implementation Roadmap
 
-### Phase 1: Rule Library (MVP)
-- [ ] Create "Rules" section in UI
-- [ ] Define rules in plain English ("VIP client = contract > $5k")
-- [ ] Use rules in workflow builder (dropdown selection)
-- [ ] Show rule usage across workflows
+### Phase 1: Rule Library (MVP) ✅ COMPLETE
+- [x] Create "Rules" section in UI
+- [x] Define rules in plain English ("VIP client = contract > $5k")
+- [x] Backend API for rules (CRUD operations)
+- [x] Database schema for business_rules table
+- [ ] Use rules in workflow builder (dropdown selection) - IN PROGRESS
+- [ ] Show rule usage across workflows - IN PROGRESS
 
 ### Phase 2: Guided Templates
 - [ ] Industry-specific templates (freelancer, agency, home services)

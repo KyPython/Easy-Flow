@@ -48,6 +48,7 @@ const TeamsPage = lazy(() => import('./pages/TeamsPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'));
 const WebhooksPage = lazy(() => import('./pages/WebhooksPage'));
+const RulesPage = lazy(() => import('./pages/RulesPage'));
 const AdminTemplates = lazy(() => import('./pages/AdminTemplates'));
 const UsageDebugPage = lazy(() => import('./pages/debug/UsageDebugPage'));
 
@@ -261,6 +262,7 @@ function Shell() {
             <Route path="/app/analytics" element={<Protected><AnalyticsPage /></Protected>} />
             <Route path="/app/integrations" element={<Protected><IntegrationsPage /></Protected>} />
             <Route path="/app/webhooks" element={<Protected><WebhooksPage /></Protected>} />
+            <Route path="/app/rules" element={<Protected><RulesPage /></Protected>} />
 
             {/* Workflow Routes - Lazy loaded (saves ~10,000+ lines from initial bundle) */}
             <Route path="/app/workflows" element={<Protected><WorkflowPage /></Protected>} />

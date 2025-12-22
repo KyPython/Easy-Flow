@@ -112,6 +112,16 @@ const Header = ({ user }) => {
               {t('nav.workflows','Workflows')}
             </Link>
 
+            {/* Business Rules - Reusable rules for workflows */}
+            <Link
+              to="/app/rules"
+              className={`${styles.navLink} ${
+                isActive('/app/rules') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.rules','Rules')}
+            </Link>
+
             {/* Bulk Processing - Professional+ feature with paywall protection */}
             <Link
               to="/app/bulk-processor"

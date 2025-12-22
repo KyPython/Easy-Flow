@@ -94,6 +94,14 @@ try {
   logger.warn('⚠️ Business metrics routes disabled:', e.message);
 }
 
+let businessRulesRoutes = null;
+try {
+  businessRulesRoutes = require('./routes/businessRulesRoutes');
+  rootLogger.info('✓ Business rules routes loaded');
+} catch (e) {
+  logger.warn('⚠️ Business rules routes disabled:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3030;
 
@@ -827,6 +835,10 @@ if (socialProofRoutes) {
 
 if (businessMetricsRoutes) {
   app.use('/api/business-metrics', businessMetricsRoutes);
+}
+
+if (businessRulesRoutes) {
+  app.use('/api/business-rules', businessRulesRoutes);
 }
 
 // Mount email capture routes (public endpoint, no auth required)
