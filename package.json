@@ -26,6 +26,7 @@
     "quality:report": "./scripts/generate-quality-report.sh",
     "security:scan": "./scripts/security-scan.sh",
     "logs": "./scripts/watch-logs.sh",
+    "ship": "./scripts/ship-to-production.sh",
     "prepare": "husky",
     "postinstall": "husky"
   },

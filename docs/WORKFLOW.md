@@ -110,26 +110,34 @@ git push origin dev
 git push origin dev
 ```
 
-**What runs automatically (pre-push hook):**
-- ✅ Security scan (Snyk) - **BLOCKS push if high+ vulnerabilities found**
-- ✅ Full test suite (`npm run test:all`)
-- ✅ Environment check
-- ✅ Full linting (frontend + backend)
-- ✅ Full test suite (frontend + backend + Python)
-- ✅ Build verification
-- ✅ Code quality check
-
-**If security scan fails:** The push is **BLOCKED**. Fix vulnerabilities, then push again.
-**If tests fail:** The push is blocked. Fix the issues, then push again.
+**What runs automatically (pre-push hook on `dev` branch):**
+- ✅ Light environment check only
+- ✅ **Full test suite SKIPPED** (for faster workflow)
+- ✅ **Security scan SKIPPED** (for faster workflow)
 
 **Benefits of pushing to `dev`:**
 - ✅ Your code is backed up on GitHub
 - ✅ NOT deployed to production (main branch stays clean)
 - ✅ Can experiment freely without breaking production
-- ✅ Can use `--no-verify` if needed to save work-in-progress (not recommended but available)
+- ✅ Fast push (no strict checks blocking you)
+- ✅ Full checks run automatically when you `npm run ship` to production
 
-### When ready for production (merge to `main`):
+### When ready for production (ship dev → main):
 
+**Easy way (recommended):**
+```bash
+# One command - runs all checks, merges, and deploys
+npm run ship
+```
+
+**What `npm run ship` does:**
+1. ✅ Runs full test suite on `dev` branch
+2. ✅ Runs security scan
+3. ✅ Merges `dev` into `main`
+4. ✅ Runs final checks on `main`
+5. ✅ Pushes to `main` (triggers production deployment)
+
+**Manual way (if needed):**
 ```bash
 # 1. Make sure dev branch is up to date and pushed
 git checkout dev
@@ -140,6 +148,7 @@ git checkout main
 git merge dev
 
 # 3. Push to main (this triggers production deployment)
+# ⚠️ NOTE: Pre-push hook will run strict checks before allowing push
 git push origin main
 ```
 
@@ -209,14 +218,16 @@ npm run logs         # Watch all logs (color-coded)
 git checkout dev              # Switch to dev branch (work-in-progress)
 git add .
 git commit -m "feat(scope): description"
-git push origin dev           # Push to dev (saves code, NOT deployed)
+git push origin dev           # Push to dev (saves code, NOT deployed, fast push)
 ```
 
 ### Git (When Ready for Production)
 ```bash
+npm run ship                  # One command: runs checks, merges, deploys
+# OR manually:
 git checkout main             # Switch to main branch
 git merge dev                 # Merge dev into main
-git push origin main          # Push to main (triggers production deployment)
+git push origin main          # Push to main (strict checks run automatically)
 ```
 
 ### URLs

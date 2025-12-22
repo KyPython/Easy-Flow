@@ -2,10 +2,25 @@
 . "$(dirname -- "$0")/_/husky.sh"
 
 # EasyFlow Pre-Push Hook
-# Runs comprehensive tests and security scans before pushing
-# This blocks push if critical issues are found
+# Runs different checks based on branch:
+# - dev branch: Light checks only (allows saving work)
+# - main branch: Full strict checks (production safety)
 
-echo "🚀 Running pre-push validation..."
+CURRENT_BRANCH=$(git branch --show-current)
 
-npm run test:all
+if [ "$CURRENT_BRANCH" = "main" ]; then
+    echo "🚀 Running pre-push validation for PRODUCTION (main branch)..."
+    echo "⚠️  Strict checks required for production deployment"
+    npm run test:all
+elif [ "$CURRENT_BRANCH" = "dev" ]; then
+    echo "💾 Running light pre-push checks for dev branch (work-in-progress)..."
+    echo "ℹ️  Full checks will run when you ship to production (npm run ship)"
+    # Only run quick checks, skip full test suite and security scan
+    ./scripts/dev-env-check.sh >/dev/null 2>&1 || true
+    echo "✅ Dev branch push allowed (full checks skipped for faster workflow)"
+else
+    echo "⚠️  Unknown branch: $CURRENT_BRANCH"
+    echo "Running full checks to be safe..."
+    npm run test:all
+fi
 
