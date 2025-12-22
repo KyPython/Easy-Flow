@@ -8,9 +8,16 @@
 # 1. Open terminal in project root
 cd /Users/ky/Easy-Flow
 
-# 2. Start everything (one command)
+# 2. Switch to dev branch (for work-in-progress - NOT deployed to production)
+git checkout dev
+
+# 3. Start everything (one command)
 ./start-dev.sh
 ```
+
+**Branch Strategy:**
+- **`dev` branch** = Your daily work (experiments, features, backups) - **NOT deployed**
+- **`main` branch** = Production-ready code (auto-deploys to your site providers)
 
 **What this does:**
 - ✅ Checks your environment (Node, Python, Docker, etc.)
@@ -96,10 +103,11 @@ git push origin dev
 
 ## 🚀 Pushing to GitHub
 
-**Just push - tests run automatically:**
+### Pushing `dev` branch (work in progress - NOT deployed):
 
 ```bash
-git push
+# Push dev branch (saves code, but NOT deployed to production)
+git push origin dev
 ```
 
 **What runs automatically (pre-push hook):**
@@ -113,6 +121,29 @@ git push
 
 **If security scan fails:** The push is **BLOCKED**. Fix vulnerabilities, then push again.
 **If tests fail:** The push is blocked. Fix the issues, then push again.
+
+**Benefits of pushing to `dev`:**
+- ✅ Your code is backed up on GitHub
+- ✅ NOT deployed to production (main branch stays clean)
+- ✅ Can experiment freely without breaking production
+- ✅ Can use `--no-verify` if needed to save work-in-progress (not recommended but available)
+
+### When ready for production (merge to `main`):
+
+```bash
+# 1. Make sure dev branch is up to date and pushed
+git checkout dev
+git push origin dev
+
+# 2. Switch to main and merge dev
+git checkout main
+git merge dev
+
+# 3. Push to main (this triggers production deployment)
+git push origin main
+```
+
+**⚠️ IMPORTANT:** Only push to `main` when code is production-ready. `main` branch auto-deploys to all your site providers.
 
 ---
 
@@ -173,11 +204,19 @@ npm run test:all     # Full check (runs automatically on push)
 npm run logs         # Watch all logs (color-coded)
 ```
 
-### Git
+### Git (Daily Work on `dev` branch)
 ```bash
+git checkout dev              # Switch to dev branch (work-in-progress)
 git add .
 git commit -m "feat(scope): description"
-git push
+git push origin dev           # Push to dev (saves code, NOT deployed)
+```
+
+### Git (When Ready for Production)
+```bash
+git checkout main             # Switch to main branch
+git merge dev                 # Merge dev into main
+git push origin main          # Push to main (triggers production deployment)
 ```
 
 ### URLs
