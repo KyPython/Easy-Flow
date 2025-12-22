@@ -321,6 +321,26 @@ router.get('/funnel', async (req, res) => {
 });
 
 /**
+ * GET /api/business-metrics/funnel-monitoring
+ * Returns funnel monitoring report with rule evaluations
+ */
+router.get('/funnel-monitoring', async (req, res) => {
+  try {
+    const funnelMonitoringService = require('../services/funnelMonitoringService');
+    const { timeframe = '30d' } = req.query;
+    
+    const report = await funnelMonitoringService.getMonitoringReport(timeframe);
+    res.json(report);
+  } catch (error) {
+    logger.error('[GET /api/business-metrics/funnel-monitoring] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch funnel monitoring report', 
+      details: error.message 
+    });
+  }
+});
+
+/**
  * GET /api/business-metrics/revenue
  * Returns revenue metrics
  */
