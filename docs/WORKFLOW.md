@@ -46,15 +46,23 @@ cd /Users/ky/Easy-Flow
 
 ## ✅ Committing Your Work
 
+**Important: Use `dev` branch for work-in-progress, `main` for production-ready code**
+
+- **`dev` branch** = Work in progress, experimental features, backups (NOT deployed)
+- **`main` branch** = Production-ready code (auto-deploys to your site providers)
+
 **Husky automatically runs validation before commits and pushes:**
 
 - **Pre-commit hook** (via Husky): Runs quick linting and build checks
 - **Pre-push hook** (via Husky): Runs comprehensive tests and security scans
 - **Commit-msg hook** (via Husky): Validates commit message format (Conventional Commits)
 
-**Just commit - validation runs automatically:**
+### Working on `dev` branch (recommended for daily work):
 
 ```bash
+# Make sure you're on dev branch
+git checkout dev
+
 # Stage your changes
 git add .
 
@@ -64,7 +72,15 @@ git commit -m "feat(scope): what you did"
 #   feat(auth): add login functionality
 #   fix(kafka): resolve consumer stuck issue
 #   refactor(backend): split app.js into modules
+
+# Push to GitHub (saves your code, but NOT deployed to production)
+git push origin dev
 ```
+
+**Benefits:**
+- ✅ Your code is backed up on GitHub
+- ✅ NOT deployed to production (main branch stays clean)
+- ✅ Can experiment freely without breaking production
 
 **What runs automatically (pre-commit hook):**
 - ✅ Frontend linting
