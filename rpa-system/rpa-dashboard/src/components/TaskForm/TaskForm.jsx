@@ -49,9 +49,8 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     selector: '',
     enableAI: false,
     extractionTargets: [],
-    // ✅ NEW: Link Discovery Fields
+    // ✅ NEW: Link Discovery Fields - auto-detect is default, no CSS selectors needed
     discoveryMethod: 'auto-detect',
-    cssSelector: '',
     linkText: '',
     testResults: [],
   }), [initialUrl]);
@@ -134,7 +133,6 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
             ...savedData,
             task: savedData.task || 'invoice_download',
             discoveryMethod: savedData.discoveryMethod || 'auto-detect',
-            cssSelector: savedData.cssSelector || '',
             linkText: savedData.linkText || '',
             // ✅ FIX: Always prioritize initialUrl over saved data for auto-population
             url: initialUrl || savedData.url || initialFormData.url
@@ -222,8 +220,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         username: form.username,
         password: form.password,
         discoveryMethod: form.discoveryMethod,
-        discoveryValue: form.discoveryMethod === 'css-selector' ? form.cssSelector : 
-                       form.discoveryMethod === 'text-match' ? form.linkText : null,
+        discoveryValue: form.discoveryMethod === 'text-match' ? form.linkText : null,
         testMode: true
       };
 
@@ -311,7 +308,6 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         updated.pdf_url = '';
         updated.selector = '';
         updated.discoveryMethod = 'auto-detect';
-        updated.cssSelector = '';
         updated.linkText = '';
         updated.extractionTargets = [];
         updated.enableAI = false;
@@ -346,13 +342,12 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     // }
     
     // ✅ NEW: Link Discovery Validation (replaces manual PDF URL requirement)
+    // ✅ ZERO FRICTION: Only validate text-match if user explicitly selected it
     if (form.task === 'invoice_download') {
-      if (form.discoveryMethod === 'css-selector' && !((form.cssSelector || '').trim())) {
-        newErrors.cssSelector = 'CSS Selector is required for this discovery method';
-      } else if (form.discoveryMethod === 'text-match' && !((form.linkText || '').trim())) {
-        newErrors.linkText = 'Link text is required for this discovery method';
+      if (form.discoveryMethod === 'text-match' && !((form.linkText || '').trim())) {
+        newErrors.linkText = 'Please enter the text you see on the download button (e.g., "Download PDF")';
       }
-      // Note: auto-detect method requires no additional validation
+      // Note: auto-detect method requires no additional validation - it's fully automatic
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -388,9 +383,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     
     // Other validations
     if (finalForm.task === 'invoice_download') {
-      if (finalForm.discoveryMethod === 'css-selector' && !((finalForm.cssSelector || '').trim())) {
-        newErrors.cssSelector = 'CSS Selector is required for this discovery method';
-      } else if (finalForm.discoveryMethod === 'text-match' && !((finalForm.linkText || '').trim())) {
+      if (finalForm.discoveryMethod === 'text-match' && !((finalForm.linkText || '').trim())) {
         newErrors.linkText = 'Link text is required for this discovery method';
       }
     }
@@ -422,8 +415,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         // For invoice_download tasks, include discovery parameters
         ...(finalForm.task === 'invoice_download' && {
           discoveryMethod: finalForm.discoveryMethod,
-          discoveryValue: finalForm.discoveryMethod === 'css-selector' ? finalForm.cssSelector : 
-                         finalForm.discoveryMethod === 'text-match' ? finalForm.linkText : null
+          discoveryValue: finalForm.discoveryMethod === 'text-match' ? finalForm.linkText : null
         })
       };
       
@@ -524,9 +516,8 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         selector: '',
         enableAI: false,
         extractionTargets: [],
-        // ✅ NEW: Reset Link Discovery fields
+        // ✅ NEW: Reset Link Discovery fields - always default to auto-detect
         discoveryMethod: 'auto-detect',
-        cssSelector: '',
         linkText: ''
       };
       
@@ -866,16 +857,17 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                 </p>
               </div>
 
-              {/* ✅ SEAMLESS UX: Hide advanced options by default, show only if needed */}
+              {/* ✅ ZERO FRICTION: Auto-detect is automatic - no configuration needed */}
+              {/* Advanced options completely hidden - only show if user needs help */}
               <details className={styles.advancedOptions}>
                 <summary className={styles.advancedSummary}>
-                  ⚙️ Advanced Options (Optional)
+                  ⚙️ Need Help? (Auto-detect works 99% of the time)
                 </summary>
                 
-                {/* Discovery Method Selector */}
+                {/* Only show text-match as a simple fallback - no CSS selectors */}
                 <div className={styles.formGroup} style={{ marginTop: '1rem' }}>
                   <label htmlFor="discoveryMethod" className={styles.label}>
-                    Discovery Method
+                    If auto-detect doesn't work, try this:
                   </label>
                   <select
                     id="discoveryMethod"
@@ -885,42 +877,14 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                     className={styles.select}
                   >
                     <option value="auto-detect">🤖 Auto-detect (Recommended - Works 99% of the time)</option>
-                    <option value="css-selector">🎯 CSS Selector (For specific elements)</option>
-                    <option value="text-match">📝 Find by Link Text</option>
+                    <option value="text-match">📝 Find by Link Text (e.g., type "Download PDF")</option>
                   </select>
                   <div className={styles.helperText}>
                     <b>Auto-detect:</b> Automatically finds PDF download links - no configuration needed<br/>
-                    <b>CSS Selector:</b> Target specific elements (for developers)<br/>
-                    <b>Link Text:</b> Find links containing specific text
+                    <b>Link Text:</b> If auto-detect doesn't work, type the exact text you see on the download button (like "Download PDF" or "Invoice")
                   </div>
                 </div>
               </details>
-
-              {/* ✅ SEAMLESS UX: Show advanced fields only when advanced method is selected */}
-              {form.discoveryMethod === 'css-selector' && (
-                <div className={styles.formGroup}>
-                  <label htmlFor="cssSelector" className={styles.label}>
-                    CSS Selector <span className={styles.required}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="cssSelector"
-                    name="cssSelector"
-                    value={form.cssSelector}
-                    onChange={handleChange}
-                    placeholder="e.g., .download-btn, #pdf-link, a[href*='.pdf']"
-                    className={`${styles.input} ${
-                      errors.cssSelector ? styles.error : ''
-                    }`}
-                  />
-                  <div className={styles.helperText}>
-                    <b>Examples:</b> <code>.download-btn</code>, <code>#invoice-link</code>, <code>a[href$='.pdf']</code>
-                  </div>
-                  {errors.cssSelector && (
-                    <span className={styles.errorText}>{errors.cssSelector}</span>
-                  )}
-                </div>
-              )}
 
               {form.discoveryMethod === 'text-match' && (
                 <div className={styles.formGroup}>

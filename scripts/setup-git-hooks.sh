@@ -1,7 +1,8 @@
 #!/bin/sh
 # EasyFlow Git Hooks Setup
-# Adapted from ubiquitous-automation: https://github.com/KyPython/ubiquitous-automation
-# Sets up pre-commit hook to run validation before commits
+# NOTE: This script is now DEPRECATED - Husky handles Git hooks automatically
+# Husky is configured in package.json and hooks are in .husky/
+# This script is kept for reference but Husky is the preferred method
 
 set -e
 
@@ -11,7 +12,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo "${BLUE}=== Setting up EasyFlow Git Hooks ===${NC}\n"
+echo "${BLUE}=== EasyFlow Git Hooks Setup ===${NC}\n"
+echo "${YELLOW}⚠️  NOTE: Husky now manages Git hooks automatically${NC}"
+echo "${YELLOW}   Hooks are configured in .husky/ directory${NC}"
+echo "${YELLOW}   Run 'npm install' to set up Husky hooks${NC}\n"
+echo "${BLUE}Proceeding with manual hook setup (legacy method)...${NC}\n"
 
 # Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

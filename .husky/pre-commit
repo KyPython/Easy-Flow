@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# EasyFlow Pre-Commit Hook
+# Runs quick validation checks before commits
+# Non-blocking for tests (they'll block in pre-push)
+
+echo "🔍 Running pre-commit checks..."
+
+npm run pre-commit

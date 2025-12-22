@@ -1,71 +1,121 @@
-.guideButton {
-  background: var(--primary, #2563eb);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 16px;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-}
-.guideButton:hover {
-  background: #174ea6;
-}
-.guideButton:active {
-  background: #113366;
-}
 .guide {
-  background: var(--background, #fff);
-  color: var(--text, #222);
-  border-radius: 16px;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
-  padding: 2rem 2.5rem;
-  max-width: 600px;
-  margin: 2rem auto;
-  font-family: inherit;
+  background: var(--surface);
+  color: var(--text-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  padding: var(--spacing-xl) var(--spacing-2xl);
+  max-width: 700px;
+  margin: var(--spacing-xl) auto;
+  font-family: var(--font-family-primary);
+  border: 1px solid var(--border-color);
 }
+
 .title {
-  font-size: 2rem;
-  margin-bottom: 1.5rem;
-  color: var(--primary, #2563eb);
+  font-size: var(--font-size-3xl);
+  margin-bottom: var(--spacing-lg);
+  color: var(--text-brand);
   text-align: center;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-brand);
 }
+
 .steps {
-  list-style: decimal inside;
+  list-style: none;
   padding: 0;
-  margin: 0 0 2rem 0;
+  margin: 0 0 var(--spacing-xl) 0;
 }
+
 .step {
-  margin-bottom: 1.2rem;
-  font-size: 1.1rem;
-  line-height: 1.5;
-  background: var(--card, #f3f4f6);
-  border-radius: 8px;
-  padding: 1rem 1.2rem;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  margin-bottom: var(--spacing-md);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
 }
+
+.step:hover {
+  border-color: var(--color-primary-200);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.stepHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.stepTitle {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-lg);
+  flex: 1;
+  min-width: 200px;
+}
+
+.stepDescription {
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.guideButton {
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+  font-family: var(--font-family-primary);
+}
+
+.guideButton:hover {
+  background: var(--color-primary-700);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.guideButton:active {
+  background: var(--color-primary-800);
+  transform: translateY(0);
+}
+
+.guideButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .footer {
   text-align: center;
-  font-size: 1rem;
-  color: var(--muted, #666);
-  margin-top: 1.5rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
 }
+
 .footer a {
-  color: var(--primary, #2563eb);
+  color: var(--text-brand);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+  transition: color 0.2s ease;
+}
+
+.footer a:hover {
+  color: var(--color-primary-700);
   text-decoration: underline;
 }
-[data-theme="dark"] .guide {
-  background: #181a20;
-  color: #f3f4f6;
-}
-[data-theme="dark"] .step {
-  background: #23262f;
-}
-[data-theme="dark"] .title {
-  color: #60a5fa;
-}
-[data-theme="dark"] .footer {
-  color: #aaa;
-}
+
+/* Dark theme support is handled automatically via CSS variables in theme.css */

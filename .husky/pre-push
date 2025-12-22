@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# EasyFlow Pre-Push Hook
+# Runs comprehensive tests and security scans before pushing
+# This blocks push if critical issues are found
+
+echo "🚀 Running pre-push validation..."
+
+npm run test:all
+

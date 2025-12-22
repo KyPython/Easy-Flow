@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# EasyFlow Commit Message Hook
+# Validates commit message format using Conventional Commits
+
+commit_msg=$(cat "$1")
+
+# Use git-workflow-helper to validate
+if ! ./scripts/git-workflow-helper.sh commit:validate "$commit_msg" >/dev/null 2>&1; then
+    echo "❌ Invalid commit message format. Please follow Conventional Commits."
+    echo "Format: <type>(<scope>): <subject>"
+    echo "Example: feat(auth): add login functionality"
+    echo "See docs/development/GIT_WORKFLOW.md for guidelines."
+    exit 1
+fi
+

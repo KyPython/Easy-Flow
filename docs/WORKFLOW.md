@@ -46,6 +46,12 @@ cd /Users/ky/Easy-Flow
 
 ## ✅ Committing Your Work
 
+**Husky automatically runs validation before commits and pushes:**
+
+- **Pre-commit hook** (via Husky): Runs quick linting and build checks
+- **Pre-push hook** (via Husky): Runs comprehensive tests and security scans
+- **Commit-msg hook** (via Husky): Validates commit message format (Conventional Commits)
+
 **Just commit - validation runs automatically:**
 
 ```bash

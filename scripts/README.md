@@ -9,10 +9,27 @@
 
 ## ⚙️ Ubiquitous Automation
 
-- **`pre-commit.sh`** - Pre-commit validation (runs automatically via git hook)
-- **`test-all.sh`** - Run full test suite (runs automatically before push) - use `npm run test:all`
+- **`pre-commit.sh`** - Pre-commit validation (runs automatically via Husky pre-commit hook)
+- **`test-all.sh`** - Run full test suite (runs automatically before push via Husky pre-push hook) - use `npm run test:all`
 - **`lint-and-test.sh`** - Quick linting and tests - use `npm run lint:test`
-- **`setup-git-hooks.sh`** - Setup Git hooks (one-time setup)
+- **`setup-git-hooks.sh`** - Legacy Git hooks setup (DEPRECATED - Husky handles this automatically)
+
+## 🪝 Husky Git Hooks (CI/CD Integration)
+
+**Husky automatically manages Git hooks for improved CI/CD:**
+
+- **`.husky/pre-commit`** - Runs `npm run pre-commit` (quick validation)
+- **`.husky/pre-push`** - Runs `npm run test:all` (comprehensive tests + security scan)
+- **`.husky/commit-msg`** - Validates commit messages (Conventional Commits format)
+
+**Setup:** Husky is automatically installed and configured when you run `npm install`
+
+**Hooks run automatically:**
+- Before every commit: Quick linting, build checks, code quality
+- Before every push: Full test suite, security scan (blocks push if vulnerabilities found)
+- On commit message: Validates format (blocks if invalid)
+
+**To bypass hooks (not recommended):** `git commit --no-verify` or `git push --no-verify`
 
 ## 📝 Git Workflows Sample
 

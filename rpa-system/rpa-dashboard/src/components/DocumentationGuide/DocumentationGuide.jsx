@@ -19,6 +19,16 @@ const steps = [
     button: { label: 'New Task', action: () => window.location.pathname = '/app/tasks' }
   },
   {
+    title: 'Automate Invoice Downloads from Vendor Portals',
+    description: 'Stop manually logging into vendor portals every month! EasyFlow automatically handles everything - it logs in for you, finds the invoices section, clicks the download buttons, and saves your PDFs. Works with ANY portal, even custom-built systems. You just provide your username and password - no CSS selectors, no technical knowledge needed. We figure out where to click automatically.',
+    button: { label: 'Try Invoice Download', action: () => window.location.pathname = '/app/tasks' }
+  },
+  {
+    title: 'No Technical Knowledge Required',
+    description: 'Worried you need to know CSS selectors or how to code? Don\'t be! EasyFlow automatically detects login forms, finds buttons, and navigates pages for you. Just tell us what you want to automate in plain English - like "download invoices from my vendor portal" - and we handle all the technical stuff behind the scenes.',
+    button: null
+  },
+  {
     title: 'See What\'s Getting Done For You',
     description: 'Check "Task Management" to see which boring tasks are running automatically. You can pause or cancel anything that\'s currently working.',
     button: { label: 'Task Management', action: () => window.location.pathname = '/app/tasks' }
@@ -34,9 +44,24 @@ const steps = [
     button: { label: 'Open File Manager', action: () => window.location.pathname = '/app/files' }
   },
   {
+    title: 'Schedule Tasks to Run Automatically',
+    description: 'Set up tasks to run daily, weekly, or monthly. Perfect for monthly invoice downloads, weekly reports, or daily data checks. Set it once and forget it.',
+    button: { label: 'Go to Workflows', action: () => window.location.pathname = '/app/workflows' }
+  },
+  {
     title: 'Chain Multiple Tasks Together',
     description: 'Want to process an invoice AND email the results AND update your spreadsheet? Create workflows to connect multiple boring tasks into one super-automation.',
     button: { label: 'Go to Workflows', action: () => window.location.pathname = '/app/workflows' }
+  },
+  {
+    title: 'Process Multiple Files at Once',
+    description: 'Upload dozens of invoices, receipts, or documents and process them all in one batch. Perfect for monthly accounting or bulk data extraction.',
+    button: { label: 'Bulk Processing', action: () => window.location.pathname = '/app/bulk-processor' }
+  },
+  {
+    title: 'Extract Data from Websites',
+    description: 'Automatically pull prices, product info, contact details, or any data from websites. Great for competitor monitoring, lead generation, or price tracking.',
+    button: { label: 'New Task', action: () => window.location.pathname = '/app/tasks' }
   },
   {
     title: 'How You Want Notifications',
@@ -64,32 +89,35 @@ const steps = [
 ];
 
 export default function DocumentationGuide() {
-  const { theme } = useTheme();
+  const { theme } = useTheme() || { theme: 'light' };
   return (
     <div className={styles.guide} data-theme={theme}>
       <h2 className={styles.title}>📚 EasyFlow Documentation</h2>
       <div className={styles.steps}>
         {steps.map((step, i) => (
           <div key={i} className={styles.step}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
-              <strong>{i > 0 ? `${i}. ${step.title}` : step.title}</strong>
+            <div className={styles.stepHeader}>
+              <strong className={styles.stepTitle}>
+                {i > 0 ? `${i}. ${step.title}` : step.title}
+              </strong>
               {step.button && (
                 <button
                   className={styles.guideButton}
                   type="button"
                   onClick={step.button.action}
+                  aria-label={`${step.button.label} - ${step.title}`}
                 >
                   {step.button.label}
                 </button>
               )}
             </div>
-            <div>{step.description}</div>
+            <p className={styles.stepDescription}>{step.description}</p>
           </div>
         ))}
       </div>
-      <div className={styles.footer}>
+      <footer className={styles.footer}>
         <span>Still stuck? Email <a href="mailto:support@useeasyflow.com">support@useeasyflow.com</a> for help!</span>
-      </div>
+      </footer>
     </div>
   );
 }
