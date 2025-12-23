@@ -94,6 +94,15 @@ const Header = ({ user }) => {
             </Link>
 
             <Link
+              to="/app/metrics"
+              className={`${styles.navLink} ${
+                isActive('/app/metrics') || isActive('/metrics') ? styles.activeNavLink : ''
+              }`}
+            >
+              📊 Metrics
+            </Link>
+
+            <Link
               to="/app/files"
               className={`${styles.navLink} ${
                 isActive('/app/files') ? styles.activeNavLink : ''

@@ -51,6 +51,7 @@ const WebhooksPage = lazy(() => import('./pages/WebhooksPage'));
 const RulesPage = lazy(() => import('./pages/RulesPage'));
 const AdminTemplates = lazy(() => import('./pages/AdminTemplates'));
 const UsageDebugPage = lazy(() => import('./pages/debug/UsageDebugPage'));
+const BusinessMetricsPage = lazy(() => import('./pages/BusinessMetricsPage'));
 
 // Heavy Feature Components (loaded only when specific features are accessed)
 const WorkflowPage = lazy(() => import('./components/WorkflowBuilder/WorkflowPage'));
@@ -260,6 +261,8 @@ function Shell() {
             <Route path="/app/settings" element={<Protected><SettingsPage /></Protected>} />
             <Route path="/app/teams" element={<Protected><TeamsPage /></Protected>} />
             <Route path="/app/analytics" element={<Protected><AnalyticsPage /></Protected>} />
+            <Route path="/app/metrics" element={<Protected><BusinessMetricsPage /></Protected>} />
+            <Route path="/metrics" element={<BusinessMetricsPage />} /> {/* Public route for easy mobile access */}
             <Route path="/app/integrations" element={<Protected><IntegrationsPage /></Protected>} />
             <Route path="/app/webhooks" element={<Protected><WebhooksPage /></Protected>} />
             <Route path="/app/rules" element={<Protected><RulesPage /></Protected>} />
