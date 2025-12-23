@@ -122,6 +122,11 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
       offset = 0,
       search
     } = req.query;
+    
+    // ✅ SECURITY: Validate types before using
+    const safeLimit = typeof limit === 'string' ? parseInt(limit, 10) : (typeof limit === 'number' ? limit : 50);
+    const safeOffset = typeof offset === 'string' ? parseInt(offset, 10) : (typeof offset === 'number' ? offset : 0);
+    const safeSearch = typeof search === 'string' ? search : (search ? String(search) : undefined);
 
     // Enforce retention window
     const effectiveStart = startDate && new Date(startDate) > retentionStart ? startDate : retentionStart.toISOString();
@@ -130,21 +135,21 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
     let result;
 
     // ✅ SECURITY: Validate type before using string methods
-    if (search && typeof search === 'string') {
+    if (safeSearch) {
       // Use search functionality
-      result = await auditLogger.searchAuditLogs(search, {
+      result = await auditLogger.searchAuditLogs(safeSearch, {
         userId,
         actionType,
         startDate: effectiveStart,
         endDate: effectiveEnd,
-        limit: parseInt(limit),
-        offset: parseInt(offset)
+        limit: safeLimit,
+        offset: safeOffset
       });
       result = {
         logs: result.results,
         total: result.total,
-        limit: parseInt(limit),
-        offset: parseInt(offset)
+        limit: safeLimit,
+        offset: safeOffset
       };
     } else {
       // Regular filtered query
@@ -183,25 +188,30 @@ router.get('/system', requireAdmin, requireFeature('audit_logs_admin'), async (r
       offset = 0,
       search
     } = req.query;
+    
+    // ✅ SECURITY: Validate types before using
+    const safeLimit = typeof limit === 'string' ? parseInt(limit, 10) : (typeof limit === 'number' ? limit : 100);
+    const safeOffset = typeof offset === 'string' ? parseInt(offset, 10) : (typeof offset === 'number' ? offset : 0);
+    const safeSearch = typeof search === 'string' ? search : (search ? String(search) : undefined);
 
     let result;
 
     // ✅ SECURITY: Validate type before using string methods
-    if (search && typeof search === 'string') {
+    if (safeSearch) {
       // Use search functionality
-      result = await auditLogger.searchAuditLogs(search, {
+      result = await auditLogger.searchAuditLogs(safeSearch, {
         userId,
         actionType,
         startDate,
         endDate,
-        limit: parseInt(limit),
-        offset: parseInt(offset)
+        limit: safeLimit,
+        offset: safeOffset
       });
       result = {
         logs: result.results,
         total: result.total,
-        limit: parseInt(limit),
-        offset: parseInt(offset)
+        limit: safeLimit,
+        offset: safeOffset
       };
     } else {
       // Regular filtered query

@@ -134,7 +134,7 @@ async function findPlanByPolarProductId(polarProductId) {
   }
 }
 
-async function updateUserSubscription(userId, planId, externalPaymentId, status = 'active', subscription = null, planSlug = null) {
+async function updateUserSubscription(userId, planId, externalPaymentId, status = 'active', subscription = null, planSlug = null, planData = null) {
   try {
     const { data: existingSubscription, error: fetchError } = await supabase
       .from('subscriptions')
@@ -215,11 +215,15 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
     if (profileError) {
       logger.error('Error updating profile plan:', profileError);
     } else {
-      if (process.env.NODE_ENV !== 'production') {
-        logger.info(`Profile plan updated for user ${userId} to plan ${planId}`);
-      }
+      logger.info(`✅ Profile plan updated for user ${userId}`, {
+        old_plan_id: existingSubscription?.plan_id || 'unknown',
+        new_plan_id: profilePlanId,
+        plan_slug: planSlug,
+        trigger: 'polar_webhook'
+      });
       
-      // Send a realtime notification to ensure frontend updates
+      // ✅ BULLETPROOF: Send realtime notification to ensure frontend updates immediately
+      // This ensures features are available immediately after upgrade/downgrade
       try {
         await supabase
           .channel('plan-notifications')
@@ -228,13 +232,40 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
             event: 'plan_updated',
             payload: {
               user_id: userId,
-              plan_id: planId,
+              plan_id: profilePlanId,
+              plan_slug: planSlug,
               updated_at: new Date().toISOString(),
-              trigger: 'polar_webhook'
+              trigger: 'polar_webhook',
+              // Include feature flags so frontend knows what changed
+              features: {
+                lead_generation: planData?.feature_flags?.lead_generation || 'No',
+                scraping_domains_per_month: planData?.feature_flags?.scraping_domains_per_month || 0,
+                scraping_jobs_per_month: planData?.feature_flags?.scraping_jobs_per_month || 0
+              }
             }
           });
+        
+        logger.info('✅ Realtime notification sent for plan update', { userId, plan_id: profilePlanId });
       } catch (broadcastError) {
-        logger.warn('Failed to send realtime notification:', broadcastError);
+        logger.warn('Failed to send realtime notification (non-fatal):', broadcastError);
+        // Non-fatal - plan update succeeded, just notification failed
+      }
+      
+      // ✅ BULLETPROOF: Verify plan update was successful
+      const { data: verifyProfile } = await supabase
+        .from('profiles')
+        .select('plan_id')
+        .eq('id', userId)
+        .single();
+      
+      if (verifyProfile?.plan_id === profilePlanId) {
+        logger.info('✅ Plan update verified successfully', { userId, plan_id: profilePlanId });
+      } else {
+        logger.error('❌ Plan update verification failed', {
+          userId,
+          expected: profilePlanId,
+          actual: verifyProfile?.plan_id
+        });
       }
     }
 
@@ -305,6 +336,16 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         const planId = planData.id; // UUID for subscriptions.plan_id
         const planSlug = planData.slug || planData.name; // Text for profiles.plan_id
 
+        // ✅ BULLETPROOF: Log plan upgrade/downgrade with feature changes
+        logger.info('🔄 Processing plan change', {
+          userId,
+          plan_id: planId,
+          plan_slug: planSlug,
+          plan_name: planData.name,
+          features: planData.feature_flags || {},
+          trigger: 'polar_webhook'
+        });
+
         // ✅ FIX: Pass full subscription object to capture trial and billing cycle info
         const result = await updateUserSubscription(
           userId,
@@ -312,7 +353,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           subscription.id,
           subscription.status,
           subscription, // Pass full subscription object for trial_end, billing_cycle_anchor, etc.
-          planSlug // Pass slug/name for profiles.plan_id update
+          planSlug, // Pass slug/name for profiles.plan_id update
+          planData // Pass plan data for feature flags in notification
         );
 
         if (!result) {

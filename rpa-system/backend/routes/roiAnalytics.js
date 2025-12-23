@@ -18,7 +18,7 @@ const { requireFeature } = require('../middleware/planEnforcement');
  * GET /api/roi-analytics/dashboard
  * Get comprehensive ROI dashboard data
  */
-router.get('/dashboard', requireFeature('analytics'), async (req, res) => {
+router.get('/dashboard', requireFeature('advanced_analytics'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -99,7 +99,7 @@ router.get('/dashboard', requireFeature('analytics'), async (req, res) => {
  * GET /api/roi-analytics/time-savings
  * Get detailed time savings analysis
  */
-router.get('/time-savings', requireFeature('analytics'), async (req, res) => {
+router.get('/time-savings', requireFeature('advanced_analytics'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -212,7 +212,7 @@ router.get('/time-savings', requireFeature('analytics'), async (req, res) => {
  * GET /api/roi-analytics/cost-benefit
  * Get cost-benefit analysis
  */
-router.get('/cost-benefit', requireFeature('analytics'), async (req, res) => {
+router.get('/cost-benefit', requireFeature('advanced_analytics'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -277,7 +277,7 @@ router.get('/cost-benefit', requireFeature('analytics'), async (req, res) => {
  * POST /api/roi-analytics/custom-hourly-rate
  * Set custom hourly rate for ROI calculations
  */
-router.post('/custom-hourly-rate', requireFeature('analytics'), async (req, res) => {
+router.post('/custom-hourly-rate', requireFeature('advanced_analytics'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -323,7 +323,7 @@ router.post('/custom-hourly-rate', requireFeature('analytics'), async (req, res)
  * GET /api/roi-analytics/export
  * Export ROI data as CSV or JSON
  */
-router.get('/export', requireFeature('analytics'), async (req, res) => {
+router.get('/export', requireFeature('advanced_analytics'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {

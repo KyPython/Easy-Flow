@@ -2,9 +2,19 @@
 const express = require('express');
 const path = require('path');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const { getLogger } = require('../utils/logger');
 
 const logger = getLogger('demo');
+
+// ✅ SECURITY: Rate limit expensive file operations
+const fileOperationLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute
+  message: 'Too many file operations, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Serve demo portal page
 router.get('/demo', (req, res) => {
@@ -17,7 +27,7 @@ router.get('/demo', (req, res) => {
 });
 
 // Generate PDF invoice with observability
-router.get('/demo/invoice-:id.pdf', (req, res) => {
+router.get('/demo/invoice-:id.pdf', fileOperationLimiter, (req, res) => {
   const { id } = req.params;
   
   logger.info('[Demo] PDF requested', { invoiceId: id, ip: req.ip });

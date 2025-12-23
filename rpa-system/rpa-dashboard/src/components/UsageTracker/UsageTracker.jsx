@@ -13,6 +13,7 @@ const featureOrder = [
   'webhook_integrations',
   'custom_integrations',
   'integrations_builder',
+  'business_rules',
   'advanced_analytics',
   'basic_analytics',
   'advanced_templates',
@@ -195,13 +196,24 @@ function UsageTracker({ showUpgrade = true, compact = false }) {
     });
   };
   
-  // Get color based on usage percentage
+  // Get color based on usage percentage - uses CSS variables for theme consistency
   const getProgressColor = (current, limit) => {
-    if (limit === -1 || limit === 0) return '#10b981'; // Green for unlimited/disabled
+    if (limit === -1 || limit === 0) {
+      // Use CSS variable for success color
+      return getComputedStyle(document.documentElement).getPropertyValue('--color-success-500').trim() || '#22c55e';
+    }
     const percentage = (current / limit) * 100;
-    if (percentage >= 90) return '#ef4444'; // Red for high usage
-    if (percentage >= 70) return '#f59e0b'; // Yellow for medium usage
-    return '#3b82f6'; // Blue for low usage
+    const root = document.documentElement;
+    if (percentage >= 90) {
+      // Use CSS variable for error color
+      return getComputedStyle(root).getPropertyValue('--color-error-500').trim() || '#ef4444';
+    }
+    if (percentage >= 70) {
+      // Use CSS variable for warning color
+      return getComputedStyle(root).getPropertyValue('--color-warning-500').trim() || '#f59e0b';
+    }
+    // Use CSS variable for primary color
+    return getComputedStyle(root).getPropertyValue('--color-primary-500').trim() || '#3b82f6';
   };
   
   const usageItems = getUsageItems();
@@ -337,7 +349,14 @@ function UsageTracker({ showUpgrade = true, compact = false }) {
               className={`${styles.usageItem} ${atLimit ? styles.atLimit : ''} ${item.isDisabled ? styles.disabled : ''}`}
             >
               <div className={styles.usageHeader}>
-                <div className={styles.iconWrapper} style={{ color: item.isDisabled ? '#6b7280' : item.color }}>
+                <div 
+                  className={styles.iconWrapper} 
+                  style={{ 
+                    color: item.isDisabled 
+                      ? getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280'
+                      : item.color 
+                  }}
+                >
                   {item.icon}
                 </div>
                 <div className={styles.usageInfo}>
@@ -369,7 +388,9 @@ function UsageTracker({ showUpgrade = true, compact = false }) {
                     className={styles.progressFill}
                     style={{ 
                       width: `${Math.min(percent, 100)}%`,
-                      backgroundColor: atLimit ? '#ef4444' : item.color
+                      backgroundColor: atLimit 
+                        ? getComputedStyle(document.documentElement).getPropertyValue('--color-error-500').trim() || '#ef4444'
+                        : item.color
                     }}
                   />
                 </div>

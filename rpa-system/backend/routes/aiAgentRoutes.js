@@ -15,6 +15,7 @@ const aiAgent = require('../services/aiWorkflowAgent');
 const { createLogger } = require('../middleware/structuredLogging');
 const { traceContextMiddleware } = require('../middleware/traceContext');
 const rateLimit = require('express-rate-limit');
+const { config: appConfig } = require('../utils/appConfig');
 
 // Namespaced logger for AI routes
 const logger = createLogger('ai.routes');
@@ -24,8 +25,8 @@ const contextLoggerMiddleware = traceContextMiddleware;
 
 // API rate limiter for authenticated endpoints
 const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 30, // 30 requests per minute for API endpoints
+  windowMs: appConfig.rateLimits.apiWindowMs,
+  max: appConfig.rateLimits.apiMaxRequests,
   message: { success: false, error: 'Too many requests, please slow down' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -541,8 +542,9 @@ router.post('/send-support-email', authMiddleware, contextLoggerMiddleware, asyn
     // Get SendGrid if available
     const sgMail = require('@sendgrid/mail');
     const sendgridKey = process.env.SENDGRID_API_KEY;
-    const supportEmail = process.env.SUPPORT_EMAIL || 'support@useeasyflow.com';
-    const fromEmail = process.env.FROM_EMAIL || 'noreply@useeasyflow.com';
+    const { config } = require('../utils/appConfig');
+    const supportEmail = config.urls.supportEmail;
+    const fromEmail = config.urls.noreplyEmail;
 
     if (!sendgridKey) {
       logger.warn('[AI Agent Route] SendGrid not configured, support email not sent');

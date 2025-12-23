@@ -102,6 +102,15 @@ try {
   logger.warn('⚠️ Business rules routes disabled:', e.message);
 }
 
+// Scraping & Lead Generation routes
+try {
+  const scrapingRoutes = require('./routes/scrapingRoutes');
+  app.use('/api/scraping', scrapingRoutes);
+  rootLogger.info('✓ Scraping routes loaded');
+} catch (e) {
+  logger.warn('⚠️ Scraping routes disabled:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3030;
 
@@ -839,6 +848,19 @@ if (businessMetricsRoutes) {
 
 if (businessRulesRoutes) {
   app.use('/api/business-rules', businessRulesRoutes);
+}
+
+// Mount scraping & lead generation routes
+let scrapingRoutes = null;
+try {
+  scrapingRoutes = require('./routes/scrapingRoutes');
+  rootLogger.info('✓ Scraping routes loaded');
+} catch (e) {
+  logger.warn('⚠️ Scraping routes disabled:', e.message);
+}
+
+if (scrapingRoutes) {
+  app.use('/api/scraping', scrapingRoutes);
 }
 
 // Mount decision logs routes
@@ -1946,6 +1968,18 @@ app.use('/api', authLimiter, async (req, res, next) => {
   }
   
   try {
+    // ✅ SECURITY: Check dev bypass first (only works in development, disabled in production)
+    if (process.env.NODE_ENV !== 'production') {
+      const { checkDevBypass } = require('./middleware/devBypassAuth');
+      const devUser = checkDevBypass(req);
+      if (devUser) {
+        req.user = devUser;
+        req.devBypass = true;
+        req.devUser = { id: devUser.id, isDevBypass: true };
+        return next();
+      }
+    }
+
     if (!supabase) {
       // Add artificial delay for consistent timing
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
@@ -2029,6 +2063,19 @@ try {
   rootLogger.info('✓ AI Agent routes mounted at /api/ai-agent (after auth middleware)');
 } catch (e) {
   rootLogger.warn('AI Agent routes not mounted (OpenAI API key may not be configured)', { error: e?.message || e });
+}
+
+// Mount Integration routes
+try {
+  const integrationRoutes = require('./routes/integrationRoutes');
+  app.use('/api/integrations', integrationRoutes);
+  
+  // Usage statistics routes
+  const usageRoutes = require('./routes/usageRoutes');
+  app.use('/api/usage', usageRoutes);
+  rootLogger.info('✓ Integration routes mounted at /api/integrations');
+} catch (e) {
+  rootLogger.warn('Integration routes not mounted', { error: e?.message || e });
 }
 
 // --- Authenticated API Routes ---
@@ -2874,7 +2921,8 @@ app.post('/api/tasks', async (req, res) => {
 });
 
 // POST /api/tasks/:id/run - Run a specific task and log it
-app.post('/api/tasks/:id/run', async (req, res) => {
+// ✅ BULLETPROOF: Uses requireAutomationRun middleware for consistent rate limiting
+app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req, res) => {
   const taskId = req.params.id;
   let runId;
 
@@ -2884,45 +2932,8 @@ app.post('/api/tasks/:id/run', async (req, res) => {
 
     if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
 
-    // --- Plan Limit Enforcement ---
-    const { data: subscription, error: subError } = await supabase
-      .from('subscriptions')
-      .select('plan_id')
-      .eq('user_id', req.user.id)
-      .eq('status', 'active')
-      .single();
-
-    if (subError || !subscription) {
-      return res.status(403).json({ error: 'No active subscription found.' });
-    }
-
-    const { data: plan, error: planError } = await supabase
-      .from('plans')
-      .select('feature_flags')
-      .eq('id', subscription.plan_id)
-      .single();
-
-    if (planError) return res.status(500).json({ error: 'Could not verify plan limits.' });
-
-    const maxRuns = plan.feature_flags?.max_runs_per_month;
-
-    if (maxRuns !== -1) {
-      const today = new Date();
-      const startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-      
-      const { count, error: countError } = await supabase
-        .from('automation_runs')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', req.user.id)
-        .gte('created_at', startDate);
-
-      if (countError) return res.status(500).json({ error: 'Could not count recent runs.' });
-
-      if (count >= maxRuns) {
-        return res.status(403).json({ error: 'You have reached your monthly run limit. Please upgrade your plan.' });
-      }
-    }
-    // --- End Limit Enforcement ---
+    // ✅ BULLETPROOF: Rate limiting is now handled by requireAutomationRun middleware
+    // This ensures consistent enforcement across all automation run endpoints
 
     // 1. Fetch the task details
     const { data: task, error: taskError } = await supabase
@@ -3674,8 +3685,11 @@ app.post('/api/track-event', async (req, res) => {
           frontend_timestamp: properties.timestamp
         };
         
+        // ✅ SECURITY: Validate type before using string methods
+        const safeLevel = typeof level === 'string' ? level : String(level || 'info');
+        
         // Route to appropriate log level
-        switch (level.toLowerCase()) {
+        switch (safeLevel.toLowerCase()) {
           case 'error':
             frontendLogger.error(`[FE:${namespace}] ${message}`, logData);
             break;
@@ -4188,7 +4202,8 @@ app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req,
 // }
 //
 
-app.post('/api/automation/execute', authMiddleware, automationLimiter, async (req, res) => {
+// ✅ BULLETPROOF: Uses requireAutomationRun middleware for consistent rate limiting
+app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automationLimiter, async (req, res) => {
   // ✅ CRITICAL: Log immediately when endpoint is hit
   // ✅ OBSERVABILITY: Use structured logging with trace context
   logger.info('🚨 Automation execute endpoint hit', {
@@ -5910,6 +5925,12 @@ app.get('/api/files', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const { folder, limit = 50, offset = 0, search, tags, category } = req.query;
     
+    // ✅ SECURITY: Validate types before using
+    const safeSearch = typeof search === 'string' ? search : (search ? String(search) : undefined);
+    const safeFolder = typeof folder === 'string' ? folder : (folder ? String(folder) : undefined);
+    const safeTags = Array.isArray(tags) ? tags : (typeof tags === 'string' ? [tags] : undefined);
+    const safeCategory = typeof category === 'string' ? category : (category ? String(category) : undefined);
+    
     logger.info(`[GET /api/files] Fetching files for user ${userId}`, {
       folder,
       limit,
@@ -5926,26 +5947,22 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       .eq('user_id', userId);
       // Removed .is('expires_at', null) to show all files, including those with expiration dates
 
-    if (folder) {
-      query = query.eq('folder_path', folder);
+    if (safeFolder) {
+      query = query.eq('folder_path', safeFolder);
     }
 
-    if (category) {
-      query = query.eq('category', category);
+    if (safeCategory) {
+      query = query.eq('category', safeCategory);
     }
 
-    // ✅ SECURITY: Validate type before using string methods
-    if (search && typeof search === 'string') {
-      query = query.or(`original_name.ilike.%${search}%,display_name.ilike.%${search}%,description.ilike.%${search}%`);
+    // ✅ SECURITY: Use validated search parameter
+    if (safeSearch) {
+      query = query.or(`original_name.ilike.%${safeSearch}%,display_name.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`);
     }
 
-    // ✅ SECURITY: Validate type before using string methods
-    if (tags && typeof tags === 'string') {
-      const tagArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
-      if (tagArray.length > 0) {
-        // Use overlaps operator to find files that have any of the specified tags
-        query = query.overlaps('tags', tagArray);
-      }
+    // ✅ SECURITY: Use validated tags parameter
+    if (safeTags && safeTags.length > 0) {
+      query = query.overlaps('tags', safeTags);
     }
 
     const { data, error } = await query
@@ -6595,9 +6612,12 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
       taskName = 'Automation Task';
     }
     
+    // ✅ SECURITY: Validate type before using string methods
+    const safeTaskName = typeof taskName === 'string' ? taskName : String(taskName || '');
+    
     // Add AI indicator if AI is enabled (but don't duplicate if already in name)
-    if (enableAI && !taskName.toLowerCase().includes('ai') && !taskName.toLowerCase().includes('enhanced')) {
-      taskName = `${taskName} (AI-Enhanced)`;
+    if (enableAI && !safeTaskName.toLowerCase().includes('ai') && !safeTaskName.toLowerCase().includes('enhanced')) {
+      taskName = `${safeTaskName} (AI-Enhanced)`;
     }
     
     const taskType = (safeType || safeTask || 'general').toLowerCase();

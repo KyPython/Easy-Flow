@@ -577,6 +577,10 @@ async function getConversationResponse(userMessage, context = {}) {
       });
     }
 
+    // Get support email from config
+    const { config: appConfig } = require('../utils/appConfig');
+    const supportEmail = appConfig.urls.supportEmail;
+    
     const enhancedSystemPrompt = `You are a helpful AI assistant for an automation workflow builder called Easy-Flow. 
 
 ## YOUR KNOWLEDGE ABOUT EASY-FLOW
@@ -591,7 +595,7 @@ Help users understand:
 
 ## SUPPORT CAPABILITIES
 You can also help users with support:
-- If they need to contact support, provide: support@useeasyflow.com
+- If they need to contact support, provide: ${supportEmail}
 - If they want to send an email, you can help them compose it
 - For billing questions, direct them to the Settings > Billing page
 
@@ -1040,6 +1044,17 @@ async function initializeKnowledge() {
     // Seed knowledge via YOUR RAG service
     logger.info('[AI Agent] Seeding knowledge via rag-node-ts...');
     const result = await ragClient.seedEasyFlowKnowledge();
+    
+    // Also seed integration knowledge
+    try {
+      const { addIntegrationKnowledge } = require('./addIntegrationKnowledge');
+      const integrationResult = await addIntegrationKnowledge();
+      if (integrationResult.success) {
+        logger.info('[AI Agent] Integration knowledge seeded');
+      }
+    } catch (integrationError) {
+      logger.warn('[AI Agent] Failed to seed integration knowledge:', integrationError);
+    }
     
     logger.info('[AI Agent] Knowledge seeded to rag-node-ts', {
       successful: result.successful,

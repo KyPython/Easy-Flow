@@ -191,6 +191,7 @@ const PaywallModal = ({
       'webhook_integrations',
       'custom_integrations',
       'integrations_builder',
+      'business_rules',
       'advanced_analytics',
       'basic_analytics',
       'advanced_templates',
@@ -334,7 +335,14 @@ const PaywallModal = ({
             Maybe Later
           </button>
           {isDevelopment && (
-            <button onClick={handleBypass} className={styles.cancelBtn} style={{backgroundColor: '#10b981', color: 'white'}}>
+            <button 
+              onClick={handleBypass} 
+              className={styles.cancelBtn} 
+              style={{
+                backgroundColor: 'var(--color-success-500)',
+                color: 'var(--on-primary)'
+              }}
+            >
               🚀 Dev Bypass
             </button>
           )}

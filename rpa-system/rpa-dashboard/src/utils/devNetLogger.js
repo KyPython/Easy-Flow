@@ -36,22 +36,17 @@ function getApiBaseUrl() {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     
-    // Development environments
+    // Development environments - use configured port
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:3030';
+      const backendPort = (typeof window !== 'undefined' && window._env?.VITE_BACKEND_PORT) ||
+                          (typeof process !== 'undefined' && process.env?.REACT_APP_BACKEND_PORT) ||
+                          '3030';
+      return `http://${hostname}:${backendPort}`;
     }
     
-    // Production environments
-    if (hostname === 'www.tryeasyflow.com' || hostname === 'tryeasyflow.com') {
-      // Use Render backend (env vars already checked above)
-      // To use api.tryeasyflow.com, set VITE_API_URL environment variable
-      return 'https://easyflow-backend-ad8e.onrender.com';
-    }
-    
-    // Vercel frontend (fallback only)
-    if (hostname === 'easy-flow-lac.vercel.app') {
-      return 'https://easyflow-backend-ad8e.onrender.com';
-    }
+    // Production environments - use same origin (no hardcoded domains)
+    // All production URLs should be configured via VITE_API_URL env var
+    return window.location.origin;
   }
   
   // Fallback: empty string (relative URLs will work with proxy)

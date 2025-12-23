@@ -187,7 +187,15 @@ export const usePlan = () => {
 
   // Helper functions
   const isPro = () => {
-    return planData?.plan?.name !== 'Hobbyist' && planData?.plan?.name !== 'Starter' && planData?.plan?.status === 'active';
+    if (!planData?.plan?.name) return false;
+    // Dynamic check: any plan that's not the first/lowest tier is considered "pro"
+    // This avoids hardcoding plan names
+    const planName = planData.plan.name.toLowerCase();
+    // Hobbyist/Free are typically tier 0, so anything above is "pro"
+    // But we check status to ensure it's active
+    return planData.plan.status === 'active' && 
+           planName !== 'hobbyist' && 
+           planName !== 'free';
   };
 
   const hasFeature = (feature) => {

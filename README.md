@@ -1,54 +1,24 @@
-# EasyFlow - RPA Automation Platform
+# EasyFlow
 
-**Automated invoice processing and workflow automation**
+**RPA Automation Platform**
 
-## 🚀 Start Here
+## Quick Start
 
-**For developers working on this project:**
+1. Read **[docs/WORKFLOW.md](docs/WORKFLOW.md)** for daily workflow
+2. Run `./start-dev.sh` to start everything
+3. Open http://localhost:3000
 
-1. **[docs/WORKFLOW.md](docs/WORKFLOW.md)** - Your daily workflow (start here!)
-
-**Everything is automated:**
-- ✅ Pre-commit hooks run validation automatically
-- ✅ Pre-push hooks run tests automatically
-- ✅ Browser opens automatically on start
-- ✅ Code quality metrics update automatically (every 5 min)
-- ✅ Observability stack runs automatically
-- ✅ **Backups are automatic** - Code (GitHub), Database (Supabase), Secrets (Render/GitHub)
-
-## 📁 Project Structure
-
-```
-Easy-Flow/
-├── docs/                    # Documentation
-├── scripts/                 # Development & deployment scripts
-├── rpa-system/             # Main application
-│   ├── backend/            # Node.js/Express API
-│   ├── rpa-dashboard/      # React frontend
-│   ├── automation/         # Python automation service
-│   └── monitoring/         # Observability stack configs
-├── logs/                    # Application logs
-└── data/                    # Data files
-```
-
-## 🛠️ Quick Commands
+## Commands
 
 ```bash
-./start-dev.sh      # Start everything (browser opens automatically)
+./start-dev.sh      # Start everything
 ./stop-dev.sh       # Stop everything
-npm run logs        # Watch all logs (color-coded)
-npm run lint:test   # Quick validation (runs automatically on commit)
-npm run test:all    # Full test suite (runs automatically on push)
+npm run ship        # Deploy to production
+npm run logs        # Watch logs
 ```
 
-**Note:** Pre-commit and pre-push hooks run automatically - you don't need to manually run validation!
+## URLs
 
-## 🔗 URLs
-
-- **Frontend:** http://localhost:3000
-- **Backend:** http://localhost:3030
-- **Grafana:** http://localhost:3001 (admin/admin123)
-
----
-
-**That's it. Read docs/WORKFLOW.md and start coding.**
+- Frontend: http://localhost:3000
+- Backend: http://localhost:3030
+- Grafana: http://localhost:3001 (admin/admin123)

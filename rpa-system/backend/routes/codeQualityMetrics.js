@@ -4,17 +4,27 @@ const { exec } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs').promises;
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 const { createLogger } = require('../middleware/structuredLogging');
 
 const logger = createLogger('code-quality-metrics');
 const execAsync = promisify(exec);
+
+// ✅ SECURITY: Rate limit expensive system command execution
+const systemCommandLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 requests per minute (expensive operation)
+  message: 'Too many requests, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 /**
  * GET /metrics/code-quality
  * Exports code quality metrics in Prometheus format
  * This endpoint is scraped by Prometheus to track code quality over time
  */
-router.get('/code-quality', async (req, res) => {
+router.get('/code-quality', systemCommandLimiter, async (req, res) => {
   try {
     // Run the export script to generate metrics
     const scriptPath = path.join(__dirname, '../../../scripts/export-quality-metrics.sh');

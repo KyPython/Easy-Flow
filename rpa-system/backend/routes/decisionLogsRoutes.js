@@ -18,9 +18,20 @@ const apiLimiter = rateLimit({
   keyGenerator: (req) => req.user?.id || req.ip
 });
 
-// Auth middleware (matches pattern from businessRulesRoutes)
+// Auth middleware with dev bypass support
+const { checkDevBypass } = require('../middleware/devBypassAuth');
 const authMiddleware = async (req, res, next) => {
   try {
+    // ✅ SECURITY: Check dev bypass first (only works in development)
+    const devUser = checkDevBypass(req);
+    if (devUser) {
+      req.user = devUser;
+      req.userId = devUser.id;
+      req.devBypass = true;
+      req.devUser = { id: devUser.id, isDevBypass: true };
+      return next();
+    }
+
     const supabase = getSupabase();
     if (!supabase) {
       return res.status(503).json({ error: 'Database not available' });

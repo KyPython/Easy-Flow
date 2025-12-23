@@ -6,10 +6,10 @@ import MetricCard from '../components/MetricCard/MetricCard';
 import styles from './BusinessMetricsPage.module.css';
 
 /**
- * Business Metrics Page (PRIVATE - Admin Only)
+ * Business Metrics Page (PRIVATE - Owner Only)
  * Mobile-friendly view of business metrics from easyflow-metrics
  * Automatically reads from /api/business-metrics/overview (which uses cached metrics)
- * Requires authentication - private business data
+ * Only accessible to owner (kyjahntsmith@gmail.com)
  */
 const BusinessMetricsPage = () => {
   const { theme } = useTheme();
@@ -18,6 +18,24 @@ const BusinessMetricsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+
+  // Owner-only access check
+  const OWNER_EMAILS = ['kyjahntsmith@gmail.com', 'kyjahnsmith36@gmail.com'];
+  const isOwner = user?.email && OWNER_EMAILS.some(email => 
+    user.email.toLowerCase() === email.toLowerCase()
+  );
+
+  // Show access denied if not owner
+  if (!loading && user && !isOwner) {
+    return (
+      <div className={styles.page} data-theme={theme}>
+        <div className={styles.error}>
+          <h2>🔒 Access Denied</h2>
+          <p>This page is only accessible to the owner.</p>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     loadMetrics();

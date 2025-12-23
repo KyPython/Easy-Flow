@@ -2,6 +2,7 @@ import React from 'react';
 import { usePlan } from '../../hooks/usePlan';
 import PaywallModal from '../PaywallModal/PaywallModal';
 import PropTypes from 'prop-types';
+import { getPlanHierarchy, getPlanLevel } from '../../utils/planHierarchy';
 
 /**
  * PlanGate component - Controls access to features based on user's plan
@@ -25,12 +26,28 @@ const PlanGate = ({
 }) => {
   const { planData, loading } = usePlan();
   const [modalDismissed, setModalDismissed] = React.useState(false);
+  const [planHierarchy, setPlanHierarchy] = React.useState(null);
 
   // Development bypass
   const isDevelopment = process.env.NODE_ENV === 'development' || process.env.REACT_APP_BYPASS_PAYWALL === 'true';
 
+  // Fetch plan hierarchy dynamically
+  React.useEffect(() => {
+    getPlanHierarchy().then(setPlanHierarchy).catch(err => {
+      console.error('[PlanGate] Error fetching plan hierarchy:', err);
+      // Use fallback hierarchy
+      setPlanHierarchy({
+        'hobbyist': 0,
+        'free': 0,
+        'starter': 1,
+        'professional': 2,
+        'enterprise': 3
+      });
+    });
+  }, []);
+
   // Show loading state
-  if (loading) {
+  if (loading || !planHierarchy) {
     return (
       <div className="plan-gate-loading">
         <div className="spinner" />
@@ -60,18 +77,30 @@ const PlanGate = ({
 
     // If a feature key is provided, check planData.limits for that feature
     if (feature) {
+      const featureValue = planData.limits?.[feature];
+      
       // Boolean feature flag (e.g. audit_logs: true)
-      if (typeof planData.limits?.[feature] === 'boolean') {
-        const access = planData.limits[feature];
+      if (typeof featureValue === 'boolean') {
+        const access = featureValue === true;
         console.log(`[PlanGate] Feature "${feature}" boolean check:`, access, logContext);
         return access;
       }
-      // Numeric feature limit (e.g. workflows: 0 or >0)
-      if (typeof planData.limits?.[feature] === 'number') {
-        const access = planData.limits[feature] > 0;
-        console.log(`[PlanGate] Feature "${feature}" numeric check:`, { limit: planData.limits[feature], access }, logContext);
+      
+      // String feature flag (e.g. business_rules: "Yes", "No", "Unlimited", "Basic (10 rules)")
+      if (typeof featureValue === 'string') {
+        const normalized = featureValue.toLowerCase().trim();
+        const access = normalized !== 'no' && normalized !== 'false' && normalized !== '';
+        console.log(`[PlanGate] Feature "${feature}" string check:`, { value: featureValue, normalized, access }, logContext);
         return access;
       }
+      
+      // Numeric feature limit (e.g. workflows: 0 or >0)
+      if (typeof featureValue === 'number') {
+        const access = featureValue > 0;
+        console.log(`[PlanGate] Feature "${feature}" numeric check:`, { limit: featureValue, access }, logContext);
+        return access;
+      }
+      
       // Fallback: not present or unknown type
       console.log(`[PlanGate] Feature "${feature}" not found in limits, denying access`, logContext);
       return false;
@@ -81,17 +110,10 @@ const PlanGate = ({
     if (requiredPlan) {
       const currentPlan = planData.plan?.name?.toLowerCase();
       const required = requiredPlan.toLowerCase();
-      const planHierarchy = {
-        'hobbyist': 0,
-        'free': 0,
-        'starter': 1,
-        'professional': 2,
-        'enterprise': 3
-      };
-      const currentLevel = planHierarchy[currentPlan] || 0;
-      const requiredLevel = planHierarchy[required] || 0;
+      const currentLevel = planHierarchy[currentPlan] ?? 0;
+      const requiredLevel = planHierarchy[required] ?? 0;
       const access = currentLevel >= requiredLevel;
-      console.log(`[PlanGate] Plan hierarchy check:`, { currentPlan, required, currentLevel, requiredLevel, access });
+      console.log(`[PlanGate] Plan hierarchy check:`, { currentPlan, required, currentLevel, requiredLevel, access, hierarchy: planHierarchy });
       return access;
     }
 

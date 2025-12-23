@@ -206,8 +206,10 @@ self.addEventListener('message', (event) => {
     console.warn('[firebase-messaging-sw] Rejected message from unauthorized origin:', event.origin);
     return;
   }
-  if (event.origin && event.origin !== allowedOrigin) {
-    console.warn('[firebase-messaging-sw.js] Rejected message from unauthorized origin:', event.origin);
+  
+  // ✅ SECURITY: Validate message data type
+  if (event.data && typeof event.data !== 'object') {
+    console.warn('[firebase-messaging-sw] Rejected message with invalid data type');
     return;
   }
   

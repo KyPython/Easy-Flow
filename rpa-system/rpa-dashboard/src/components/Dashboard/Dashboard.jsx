@@ -107,7 +107,16 @@ const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = 
         fallback={(
           <div className={styles.metricsGrid} aria-hidden="true">
             {metricCards.map((_, i) => (
-              <div key={i} style={{borderRadius: 8, background: '#f3f4f6', height: 88, margin: 8, flex: '1 1 200px'}} />
+              <div 
+                key={i} 
+                style={{
+                  borderRadius: 8, 
+                  background: 'var(--color-gray-100)', 
+                  height: 88, 
+                  margin: 8, 
+                  flex: '1 1 200px'
+                }} 
+              />
             ))}
           </div>
         )}

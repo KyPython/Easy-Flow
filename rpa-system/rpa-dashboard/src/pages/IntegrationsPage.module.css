@@ -1,14 +1,11 @@
 .integrationsPage {
   padding: 2rem;
-  min-height: 100vh;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .header {
   margin-bottom: 2rem;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 1rem;
 }
 
 .title {
@@ -19,52 +16,223 @@
 }
 
 .subtitle {
+  font-size: 1rem;
   color: var(--text-secondary);
-  font-size: 1.1rem;
 }
 
-.content {
-  max-width: 800px;
-}
-
-.placeholder {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+.alert {
+  padding: 1rem;
   border-radius: 8px;
-  padding: 2rem;
-  text-align: center;
+  margin-bottom: 1.5rem;
 }
 
-.placeholder h3 {
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+}
+
+.integrationsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.integrationCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.integrationCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.cardInfo {
+  flex: 1;
+}
+
+.cardTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  color: var(--text-primary);
+}
+
+.cardDescription {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.cardStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.testStatus {
+  color: var(--text-secondary);
+}
+
+.lastUsed {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.cardActions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: auto;
+}
+
+.btnPrimary,
+.btnSecondary,
+.btnDanger {
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  flex: 1;
+}
+
+.btnPrimary {
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+}
+
+.btnPrimary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  border: 1px solid var(--color-primary-200);
+}
+
+.btnSecondary:hover:not(:disabled) {
+  background: var(--color-primary-100);
+  border-color: var(--color-primary-300);
+}
+
+.btnSecondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnDanger {
+  background: #ea4335;
+  color: white;
+}
+
+.btnDanger:hover {
+  opacity: 0.9;
+}
+
+.infoSection {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-top: var(--spacing-xl);
+}
+
+.infoSection h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
   margin-bottom: 1rem;
   color: var(--text-primary);
 }
 
-.placeholder ul {
-  text-align: left;
-  max-width: 300px;
-  margin: 1rem auto;
+.infoSection ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
-.placeholder li {
-  margin-bottom: 0.5rem;
+.infoSection li {
+  padding: 0.5rem 0;
+  padding-left: 1.5rem;
+  position: relative;
   color: var(--text-secondary);
 }
 
-/* Dark theme */
-.darkTheme {
-  --bg-primary: #1a1a1a;
-  --bg-secondary: #2a2a2a;
-  --text-primary: #ffffff;
-  --text-secondary: #cccccc;
-  --border-color: #333333;
+.infoSection li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--color-primary-600);
+  font-weight: var(--font-weight-semibold);
 }
 
-/* Light theme (default) */
-.integrationsPage {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --text-primary: #1a1a1a;
-  --text-secondary: #6c757d;
-  --border-color: #dee2e6;
+/* Dark theme - uses theme.css variables automatically via .theme-dark class */
+.theme-dark .integrationCard {
+  background: var(--card-bg);
+  border-color: var(--border-color);
+}
+
+.theme-dark .infoSection {
+  background: var(--card-bg);
+  border-color: var(--border-color);
+}
+
+@media (max-width: 768px) {
+  .integrationsPage {
+    padding: 1rem;
+  }
+
+  .integrationsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .cardActions {
+    flex-direction: column;
+  }
 }

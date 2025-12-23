@@ -1,264 +1,52 @@
-# Your Daily Workflow
+# Daily Workflow
 
-**What you do every time you open this project**
-
-## 🚀 Starting Your Work Session
-
+## Start Working
 ```bash
-# 1. Open terminal in project root
 cd /Users/ky/Easy-Flow
-
-# 2. Switch to dev branch (for work-in-progress - NOT deployed to production)
 git checkout dev
-
-# 3. Start everything (one command)
 ./start-dev.sh
 ```
+**Opens:** http://localhost:3000 (auto-opens browser)
 
-**Branch Strategy:**
-- **`dev` branch** = Your daily work (experiments, features, backups) - **NOT deployed**
-- **`main` branch** = Production-ready code (auto-deploys to your site providers)
+## While Working
+- Make changes → Test in browser
+- Watch logs: `npm run logs`
+- Debug: http://localhost:3001 (Grafana)
 
-**What this does:**
-- ✅ Checks your environment (Node, Python, Docker, etc.)
-- ✅ Starts Kafka & Zookeeper (Docker)
-- ✅ Starts Observability Stack (Grafana, Prometheus, Loki, Tempo)
-- ✅ Starts Backend API (port 3030)
-- ✅ Starts Frontend Dashboard (port 3000)
-- ✅ Starts Automation Worker (port 7070)
-- ✅ Opens browser automatically to http://localhost:3000
-
-**Wait for:** "✅ All services started" message
-
-**Verify it's working:**
-- Browser should open automatically to http://localhost:3000
-- Or manually open http://localhost:3000 (frontend)
-- Check http://localhost:3030/health (backend health check)
-
----
-
-## 💻 While You Work
-
-1. **Make your changes** in your editor
-2. **Test manually** in the browser (http://localhost:3000)
-3. **Watch logs** if something breaks:
-   ```bash
-   npm run logs              # Watch all logs (color-coded, recommended)
-   # OR individually:
-   tail -f logs/backend.log
-   tail -f logs/automation-worker.log
-   ```
-
----
-
-## ✅ Committing Your Work
-
-**Important: Use `dev` branch for work-in-progress, `main` for production-ready code**
-
-- **`dev` branch** = Work in progress, experimental features, backups (NOT deployed)
-- **`main` branch** = Production-ready code (auto-deploys to your site providers)
-
-**Husky automatically runs validation before commits and pushes:**
-
-- **Pre-commit hook** (via Husky): Runs quick linting and build checks
-- **Pre-push hook** (via Husky): Runs comprehensive tests and security scans
-- **Commit-msg hook** (via Husky): Validates commit message format (Conventional Commits)
-
-### Working on `dev` branch (recommended for daily work):
-
+## Save Your Work
 ```bash
-# Make sure you're on dev branch
-git checkout dev
-
-# Stage your changes
 git add .
-
-# Commit with descriptive message (pre-commit hook runs automatically)
 git commit -m "feat(scope): what you did"
-# Examples:
-#   feat(auth): add login functionality
-#   fix(kafka): resolve consumer stuck issue
-#   refactor(backend): split app.js into modules
-
-# Push to GitHub (saves your code, but NOT deployed to production)
 git push origin dev
 ```
+**Auto-runs:** Linting, tests, security scan
 
-**Benefits:**
-- ✅ Your code is backed up on GitHub
-- ✅ NOT deployed to production (main branch stays clean)
-- ✅ Can experiment freely without breaking production
-
-**What runs automatically (pre-commit hook):**
-- ✅ Frontend linting
-- ✅ Backend linting
-- ✅ Quick tests
-- ✅ Build verification
-- ✅ Environment check
-- ✅ Code quality check
-
-**If validation fails:** The commit is blocked. Fix the issues, then commit again.
-
----
-
-## 🚀 Pushing to GitHub
-
-### Pushing `dev` branch (work in progress - NOT deployed):
-
+## Ship to Production
 ```bash
-# Push dev branch (saves code, but NOT deployed to production)
-git push origin dev
-```
-
-**What runs automatically (pre-push hook on `dev` branch):**
-- ✅ Light environment check only
-- ✅ **Full test suite SKIPPED** (for faster workflow)
-- ✅ **Security scan SKIPPED** (for faster workflow)
-
-**Benefits of pushing to `dev`:**
-- ✅ Your code is backed up on GitHub
-- ✅ NOT deployed to production (main branch stays clean)
-- ✅ Can experiment freely without breaking production
-- ✅ Fast push (no strict checks blocking you)
-- ✅ Full checks run automatically when you `npm run ship` to production
-
-### When ready for production (ship dev → main):
-
-**Easy way (recommended):**
-```bash
-# One command - runs all checks, merges, and deploys
 npm run ship
 ```
+**Does:** Full tests → Merge dev→main → Deploy
 
-**What `npm run ship` does:**
-1. ✅ Runs full test suite on `dev` branch
-2. ✅ Runs security scan
-3. ✅ Merges `dev` into `main`
-4. ✅ Runs final checks on `main`
-5. ✅ Pushes to `main` (triggers production deployment)
-
-**Manual way (if needed):**
+## Stop Working
 ```bash
-# 1. Make sure dev branch is up to date and pushed
-git checkout dev
-git push origin dev
-
-# 2. Switch to main and merge dev
-git checkout main
-git merge dev
-
-# 3. Push to main (this triggers production deployment)
-# ⚠️ NOTE: Pre-push hook will run strict checks before allowing push
-git push origin main
-```
-
-**⚠️ IMPORTANT:** Only push to `main` when code is production-ready. `main` branch auto-deploys to all your site providers.
-
----
-
-## 🛑 Ending Your Work Session
-
-```bash
-# Stop everything (one command)
 ./stop-dev.sh
 ```
 
-**What this does:**
-- Stops all PM2 processes (backend, frontend, automation)
-- Stops Docker containers (Kafka, observability stack)
-- Frees up all ports
+## Quick Reference
 
----
+**Start/Stop:**
+- `./start-dev.sh` - Start everything
+- `./stop-dev.sh` - Stop everything
 
-## 🔍 When Something Breaks
+**Logs:**
+- `npm run logs` - Watch all logs
 
-### Quick Debug Steps:
+**URLs:**
+- Frontend: http://localhost:3000
+- Backend: http://localhost:3030
+- Grafana: http://localhost:3001 (admin/admin123)
 
-1. **Check logs:**
-   ```bash
-   tail -f logs/backend.log
-   tail -f logs/automation-worker.log
-   ```
-
-2. **Check Grafana** (if observability is running):
-   - Open http://localhost:3001 (admin/admin123)
-   - Look at Metrics, Logs, Traces
-
-3. **Restart everything:**
-   ```bash
-   ./stop-dev.sh && ./start-dev.sh
-   ```
-
-4. **Check if services are running:**
-   ```bash
-   docker ps                    # Check Docker containers
-   pm2 status                  # Check PM2 processes
-   curl http://localhost:3030/health  # Check backend
-   ```
-
----
-
-## 📋 Quick Reference
-
-### Start/Stop
-```bash
-./start-dev.sh    # Start everything
-./stop-dev.sh     # Stop everything
-```
-
-### Testing
-```bash
-npm run lint:test    # Quick check (runs automatically on commit)
-npm run test:all     # Full check (runs automatically on push)
-npm run logs         # Watch all logs (color-coded)
-```
-
-### Git (Daily Work on `dev` branch)
-```bash
-git checkout dev              # Switch to dev branch (work-in-progress)
-git add .
-git commit -m "feat(scope): description"
-git push origin dev           # Push to dev (saves code, NOT deployed, fast push)
-```
-
-### Git (When Ready for Production)
-```bash
-npm run ship                  # One command: runs checks, merges, deploys
-# OR manually:
-git checkout main             # Switch to main branch
-git merge dev                 # Merge dev into main
-git push origin main          # Push to main (strict checks run automatically)
-```
-
-### URLs
-- **Frontend:** http://localhost:3000
-- **Backend:** http://localhost:3030
-- **Grafana:** http://localhost:3001 (admin/admin123)
-
----
-
-## 🎯 The System You're Following
-
-**This is a fully automated workflow:**
-
-1. **Start** → `./start-dev.sh` (browser opens automatically)
-2. **Work** → Make changes, test in browser
-3. **Commit** → `git commit -m "feat(scope): what you did"` (validation runs automatically)
-4. **Push** → `git push` (tests run automatically)
-5. **Stop** → `./stop-dev.sh`
-
-**That's it.** No manual validation, no manual testing, no confusion. Everything is automated.
-
----
-
-## 💡 Pro Tips
-
-- **Pre-commit hook runs automatically** - no need to manually run `npm run lint:test`
-- **Pre-push hook runs automatically** - no need to manually run `npm run test:all`
-- **Use `npm run logs`** to watch all logs at once (color-coded, easier to read)
-- **Use `./stop-dev.sh && ./start-dev.sh`** to restart cleanly
-- **Grafana is your friend** - use it to see what's happening in real-time
-- **Browser opens automatically** - no need to manually open http://localhost:3000
-- **Code quality metrics update automatically** - Prometheus scrapes every 5 minutes, no manual export needed
-- **All observability is automatic** - metrics, logs, and traces flow to Grafana automatically
+**Branch Strategy:**
+- `dev` = Daily work (NOT deployed)
+- `main` = Production (auto-deploys)
 

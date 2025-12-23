@@ -8,11 +8,12 @@ const router = express.Router();
 const triggerService = new TriggerService();
 
 // Get all schedules for user
-const { requireFeature } = require('../middleware/planEnforcement');
+const { requireFeature, getUserPlan } = require('../middleware/planEnforcement');
+const { checkScheduledAutomationLimit, checkWebhookLimit } = require('../middleware/comprehensiveRateLimit');
 
 // Use centralized supabase client
 
-router.get('/', requireFeature('schedules'), async (req, res) => {
+router.get('/', requireFeature('scheduled_automations'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -51,7 +52,7 @@ router.get('/', requireFeature('schedules'), async (req, res) => {
 });
 
 // Get specific schedule
-router.get('/:scheduleId', requireFeature('schedules'), async (req, res) => {
+router.get('/:scheduleId', requireFeature('scheduled_automations'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;
@@ -91,7 +92,8 @@ router.get('/:scheduleId', requireFeature('schedules'), async (req, res) => {
 });
 
 // Create new schedule
-router.post('/', requireFeature('schedules'), async (req, res) => {
+// PLAN ENFORCEMENT: Checks scheduled_automations feature and daily limits
+router.post('/', requireFeature('scheduled_automations'), checkScheduledAutomationLimit, async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -163,6 +165,58 @@ router.post('/', requireFeature('schedules'), async (req, res) => {
       isActive: true
     };
 
+    // ✅ BULLETPROOF: If creating a webhook schedule, check webhook limits
+    if (scheduleType === 'webhook') {
+      // Check webhook limit before creating
+      const planData = req.planData || await getUserPlan(userId);
+      const webhookValue = planData.limits?.webhook_integrations || planData.limits?.webhook_management;
+      const hasWebhooks = typeof webhookValue === 'string' 
+        ? webhookValue.toLowerCase() !== 'no' && webhookValue !== ''
+        : !!webhookValue;
+
+      if (!hasWebhooks) {
+        return res.status(403).json({
+          error: 'Webhooks not available',
+          message: 'This feature requires a Starter plan or higher.',
+          feature: 'webhook_integrations',
+          current_plan: planData.plan.name,
+          upgrade_required: true,
+          upgrade_url: '/pricing'
+        });
+      }
+
+      // Check webhook limit if not unlimited
+      const webhookStr = String(webhookValue || '').toLowerCase();
+      if (!webhookStr.includes('unlimited')) {
+        const supabase = getSupabase();
+        if (supabase) {
+          const { data: canCreate, error: checkError } = await supabase
+            .rpc('can_create_webhook', { user_uuid: userId });
+
+          if (!checkError && !canCreate) {
+            const { count } = await supabase
+              .from('workflow_schedules')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', userId)
+              .eq('schedule_type', 'webhook');
+
+            const match = webhookStr.match(/\d+/);
+            const webhookLimit = match ? parseInt(match[0], 10) : 0;
+
+            return res.status(403).json({
+              error: 'Webhook limit reached',
+              message: `You've reached your webhook limit (${webhookLimit} webhooks). Upgrade for higher limits.`,
+              current_plan: planData.plan.name,
+              usage: count || 0,
+              limit: webhookLimit,
+              upgrade_required: true,
+              upgrade_url: '/pricing'
+            });
+          }
+        }
+      }
+    }
+
     let schedule;
     if (scheduleType === 'webhook') {
       const webhookConfig = {
@@ -221,7 +275,7 @@ router.post('/', requireFeature('schedules'), async (req, res) => {
 });
 
 // Update schedule
-router.put('/:scheduleId', requireFeature('schedules'), async (req, res) => {
+router.put('/:scheduleId', requireFeature('scheduled_automations'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;
@@ -301,7 +355,7 @@ router.put('/:scheduleId', requireFeature('schedules'), async (req, res) => {
 });
 
 // Delete schedule
-router.delete('/:scheduleId', requireFeature('schedules'), async (req, res) => {
+router.delete('/:scheduleId', requireFeature('scheduled_automations'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;
@@ -336,7 +390,7 @@ router.delete('/:scheduleId', requireFeature('schedules'), async (req, res) => {
 });
 
 // Trigger schedule manually
-router.post('/:scheduleId/trigger', requireFeature('schedules'), async (req, res) => {
+router.post('/:scheduleId/trigger', requireFeature('scheduled_automations'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;
@@ -390,7 +444,7 @@ router.post('/:scheduleId/trigger', requireFeature('schedules'), async (req, res
 });
 
 // Get schedule execution history
-router.get('/:scheduleId/executions', requireFeature('schedules'), async (req, res) => {
+router.get('/:scheduleId/executions', requireFeature('scheduled_automations'), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;

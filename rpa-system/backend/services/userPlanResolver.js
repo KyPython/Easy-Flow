@@ -123,7 +123,7 @@ async function calculateUsage(userId) {
   
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   
-  const [monthlyRunsResult, storageResult, workflowsResult] = await Promise.all([
+  const [monthlyRunsResult, storageResult, workflowsResult, automationTasksResult] = await Promise.all([
     supabase
       .from('automation_runs')
       .select('id', { count: 'exact', head: true })
@@ -154,25 +154,75 @@ async function calculateUsage(userId) {
         .select('file_size')
         .eq('user_id', userId);
     })(),
+    // Count workflows from workflows table (canvas-based workflows)
     supabase
       .from('workflows')
       .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId),
+    // Count automation tasks from automation_tasks table (simple automation tasks)
+    // This is what the UI typically shows as "workflows" - combine both for accurate count
+    supabase
+      .from('automation_tasks')
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
+      .or('is_active.is.null,is_active.eq.true') // Count active or null (default active)
   ]);
   
   const monthlyRuns = monthlyRunsResult.count || 0;
   // ✅ OPTIMIZATION: Sum file sizes efficiently
   const storageBytes = storageResult.data?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
   const storageGB = storageBytes / (1024 * 1024 * 1024);
-  const workflows = workflowsResult.count || 0;
   
+  // Combine workflows from both tables for accurate count
+  // workflows table = canvas-based workflows
+  // automation_tasks table = simple automation tasks (what users typically see as "workflows")
+  const canvasWorkflows = workflowsResult.count || 0;
+  const automationTasks = automationTasksResult.count || 0;
+  const totalWorkflows = canvasWorkflows + automationTasks;
+  
+  logger.info('Usage calculated', {
+    userId,
+    monthlyRuns,
+    storageGB: Math.round(storageGB * 1000) / 1000,
+    canvasWorkflows,
+    automationTasks,
+    totalWorkflows
+  });
+  
+  // Calculate scraping usage
+  let scrapingUsage = {
+    domains_scraped_this_month: 0,
+    jobs_created: 0,
+    total_scrapes: 0
+  };
+
+  try {
+    if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
+      const { data: scrapingData, error: scrapingError } = await supabase
+        .rpc('get_scraping_usage', { user_uuid: userId })
+        .single();
+      
+      if (!scrapingError && scrapingData) {
+        scrapingUsage = scrapingData;
+      }
+    }
+  } catch (scrapingErr) {
+    // Non-fatal - continue with default values
+    logger.debug('Scraping usage calculation failed, using defaults', { userId });
+  }
+
   return {
     monthly_runs: monthlyRuns,
     automation_runs: monthlyRuns,
     automations: monthlyRuns,
     storage_gb: Math.round(storageGB * 1000) / 1000,
-    workflows: workflows,
-    team_members: 1
+    workflows: totalWorkflows, // Combined count from both tables
+    automation_workflows: totalWorkflows, // Alias for UI compatibility
+    team_members: 1,
+    // Scraping usage
+    scraping_domains_this_month: scrapingUsage.domains_scraped_this_month || 0,
+    scraping_jobs_created: scrapingUsage.jobs_created || 0,
+    scraping_total_scrapes: scrapingUsage.total_scrapes || 0
   };
 }
 

@@ -4,18 +4,115 @@ const { getSupabase } = require('../utils/supabaseClient');
 const { logger } = require('../utils/logger');
 const metricsCacheService = require('../services/metricsCacheService');
 
+// Import auth middleware with dev bypass support
+const { checkDevBypass } = require('../middleware/devBypassAuth');
+const authMiddleware = async (req, res, next) => {
+  try {
+    // ✅ SECURITY: Check dev bypass first (only works in development)
+    const devUser = checkDevBypass(req);
+    if (devUser) {
+      req.user = devUser;
+      req.userId = devUser.id;
+      req.devBypass = true;
+      req.devUser = { id: devUser.id, isDevBypass: true };
+      return next();
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    const authHeader = (req.get('authorization') || '').trim();
+    const parts = authHeader.split(' ');
+    const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
+
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data || !data.user) {
+      return res.status(401).json({ error: 'Authentication failed' });
+    }
+
+    req.user = data.user;
+    req.userId = data.user.id;
+    next();
+  } catch (error) {
+    logger.error('Auth middleware error:', { error: error.message });
+    res.status(401).json({ error: 'Authentication failed' });
+  }
+};
+
 /**
  * Business Metrics API Routes
  * Provides comprehensive business KPIs for EasyFlow
+ * PRIVATE - Owner only (kyjahntsmith@gmail.com, kyjahnsmith36@gmail.com)
  * Used by Grafana dashboards and business intelligence tools
  */
+
+/**
+ * Middleware: Check if user is owner
+ * Must be used AFTER authMiddleware
+ */
+const requireOwner = async (req, res, next) => {
+  try {
+    // ✅ SECURITY: Allow dev bypass to skip owner check in development
+    // This allows full testing without needing owner credentials
+    if (req.devBypass && process.env.NODE_ENV !== 'production') {
+      logger.info('[BusinessMetrics] Dev bypass active, skipping owner check', { userId: req.user?.id });
+      return next();
+    }
+
+    // Auth middleware should have set req.user
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Get user email - try multiple sources
+    let userEmail = req.user.email;
+    
+    // If not in req.user, get from Supabase auth
+    if (!userEmail) {
+      const supabase = getSupabase();
+      if (!supabase) {
+        return res.status(503).json({ error: 'Database not available' });
+      }
+
+      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(req.user.id);
+      if (authError || !authUser?.user?.email) {
+        logger.warn('[BusinessMetrics] Could not verify owner status', { userId: req.user.id, error: authError?.message });
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      userEmail = authUser.user.email;
+    }
+
+    const OWNER_EMAILS = ['kyjahntsmith@gmail.com', 'kyjahnsmith36@gmail.com'];
+    const normalizedUserEmail = (userEmail || '').toLowerCase().trim();
+    const isOwner = OWNER_EMAILS.some(email => 
+      normalizedUserEmail === email.toLowerCase().trim()
+    );
+    
+    if (!isOwner) {
+      logger.warn('[BusinessMetrics] Unauthorized access attempt', { email: userEmail, ownerEmails: OWNER_EMAILS });
+      return res.status(403).json({ error: 'Access denied - owner only' });
+    }
+
+    next();
+  } catch (error) {
+    logger.error('[BusinessMetrics] Owner check error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
 
 /**
  * GET /api/business-metrics/overview
  * Returns high-level business metrics overview
  * Uses cached metrics from easyflow-metrics/latest_metrics.json when available
+ * PRIVATE - Owner only
  */
-router.get('/overview', async (req, res) => {
+router.get('/overview', authMiddleware, requireOwner, async (req, res) => {
   try {
     // ✅ INTEGRATION: Try to get metrics from cache first (from easyflow-metrics)
     const cachedMetrics = await metricsCacheService.getMetrics();
@@ -207,8 +304,9 @@ router.get('/overview', async (req, res) => {
 /**
  * GET /api/business-metrics/signups
  * Returns signup metrics over time
+ * PRIVATE - Owner only
  */
-router.get('/signups', async (req, res) => {
+router.get('/signups', authMiddleware, requireOwner, async (req, res) => {
   try {
     const supabase = getSupabase();
     if (!supabase) {
@@ -268,8 +366,9 @@ router.get('/signups', async (req, res) => {
 /**
  * GET /api/business-metrics/funnel
  * Returns conversion funnel metrics
+ * PRIVATE - Owner only
  */
-router.get('/funnel', async (req, res) => {
+router.get('/funnel', authMiddleware, requireOwner, async (req, res) => {
   try {
     const supabase = getSupabase();
     if (!supabase) {
@@ -355,8 +454,9 @@ router.get('/funnel', async (req, res) => {
 /**
  * GET /api/business-metrics/revenue
  * Returns revenue metrics
+ * PRIVATE - Owner only
  */
-router.get('/revenue', async (req, res) => {
+router.get('/revenue', authMiddleware, requireOwner, async (req, res) => {
   try {
     const supabase = getSupabase();
     if (!supabase) {

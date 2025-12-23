@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../utils/ThemeContext';
 import { api } from '../utils/api';
+import PlanGate from '../components/PlanGate/PlanGate';
 import RulesList from '../components/Rules/RulesList';
 import RuleForm from '../components/Rules/RuleForm';
 import styles from './RulesPage.module.css';
 
 const RulesPage = () => {
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -73,48 +76,58 @@ const RulesPage = () => {
   };
 
   return (
-    <div className={styles.rulesPage} data-theme={theme}>
-      <div className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Business Rules</h1>
-          <p className={styles.subtitle}>
-            Define reusable business rules once, use them across all your workflows.
-            <br />
-            <small>Example: "VIP client = contract value &gt; $5,000"</small>
-          </p>
+    <PlanGate 
+      feature="business_rules"
+      requiredPlan="Starter"
+      upgradeMessage="Business Rules allow you to define reusable logic once and use it across all your workflows. Starter plan includes 10 rules, Professional and Enterprise plans include unlimited rules."
+      onPaywallClose={() => {
+        console.log('[RulesPage] Paywall dismissed, navigating back');
+        navigate(-1);
+      }}
+    >
+      <div className={styles.rulesPage} data-theme={theme}>
+        <div className={styles.header}>
+          <div>
+            <h1 className={styles.title}>Business Rules</h1>
+            <p className={styles.subtitle}>
+              Define reusable business rules once, use them across all your workflows.
+              <br />
+              <small>Example: "VIP client = contract value &gt; $5,000"</small>
+            </p>
+          </div>
+          <button 
+            className={styles.createButton}
+            onClick={handleCreateRule}
+          >
+            + Create Rule
+          </button>
         </div>
-        <button 
-          className={styles.createButton}
-          onClick={handleCreateRule}
-        >
-          + Create Rule
-        </button>
+
+        {error && (
+          <div className={styles.error}>
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className={styles.loading}>Loading rules...</div>
+        ) : (
+          <RulesList
+            rules={rules}
+            onEdit={handleEditRule}
+            onDelete={handleDeleteRule}
+          />
+        )}
+
+        {showForm && (
+          <RuleForm
+            rule={editingRule}
+            onClose={handleFormClose}
+            onSave={handleFormSave}
+          />
+        )}
       </div>
-
-      {error && (
-        <div className={styles.error}>
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className={styles.loading}>Loading rules...</div>
-      ) : (
-        <RulesList
-          rules={rules}
-          onEdit={handleEditRule}
-          onDelete={handleDeleteRule}
-        />
-      )}
-
-      {showForm && (
-        <RuleForm
-          rule={editingRule}
-          onClose={handleFormClose}
-          onSave={handleFormSave}
-        />
-      )}
-    </div>
+    </PlanGate>
   );
 };
 

@@ -94,15 +94,6 @@ const Header = ({ user }) => {
             </Link>
 
             <Link
-              to="/app/metrics"
-              className={`${styles.navLink} ${
-                isActive('/app/metrics') || isActive('/metrics') ? styles.activeNavLink : ''
-              }`}
-            >
-              📊 Metrics
-            </Link>
-
-            <Link
               to="/app/files"
               className={`${styles.navLink} ${
                 isActive('/app/files') ? styles.activeNavLink : ''
@@ -149,7 +140,7 @@ const Header = ({ user }) => {
               }`}
             >
               {t('nav.analytics','Analytics')} 
-              {(!planData?.plan || planData.plan.name === 'Hobbyist') && <span className={styles.proIcon}>✨</span>}
+              {(!planData?.plan || (planData.plan.price_cents === 0 || planData.plan.name?.toLowerCase() === 'hobbyist' || planData.plan.name?.toLowerCase() === 'free')) && <span className={styles.proIcon}>✨</span>}
             </Link>
 
             {/* Integrations - Professional+ feature */}
@@ -208,9 +199,9 @@ const Header = ({ user }) => {
                     marginRight: 12,
                     padding: '6px 10px',
                     borderRadius: 999,
-                    background: 'rgba(59,130,246,0.12)',
-                    color: '#1d4ed8',
-                    border: '1px solid rgba(59,130,246,0.35)',
+                    background: 'var(--color-primary-50)',
+                    color: 'var(--color-primary-700)',
+                    border: '1px solid var(--color-primary-300)',
                     fontSize: 12,
                   }}
                 >

@@ -107,9 +107,25 @@ echo "  Alertmanager:   http://localhost:9093"
 # Get absolute path for logs to avoid PM2 cwd resolution issues
 ROOT_DIR=$(pwd)
 
-# Generate a dynamic ecosystem file to ensure correct env vars
+# Load environment variables from .env file if it exists
+if [ -f .env ]; then
+  echo -e "${GREEN}Loading environment variables from .env file...${NC}"
+  export $(cat .env | grep -v '^#' | xargs)
+else
+  echo -e "${YELLOW}⚠️  No .env file found. Using defaults or environment variables.${NC}"
+  echo -e "${YELLOW}   Create a .env file in the project root with your configuration.${NC}"
+fi
+
+# Generate a dynamic ecosystem file that reads from environment variables
 echo -e "${YELLOW}Generating PM2 ecosystem config...${NC}"
 cat > ecosystem.config.js << EOL
+// Load environment variables from .env file
+require('dotenv').config();
+
+// Get root directory dynamically
+const path = require('path');
+const ROOT_DIR = __dirname;
+
 module.exports = {
   apps: [
     {
@@ -118,21 +134,26 @@ module.exports = {
       cwd: 'rpa-system/backend',
       watch: ['rpa-system/backend'],
       ignore_watch: ['node_modules', 'logs'],
-      error_file: '$ROOT_DIR/logs/backend-error.log',
-      out_file: '$ROOT_DIR/logs/backend.log',
+      error_file: path.join(ROOT_DIR, 'logs/backend-error.log'),
+      out_file: path.join(ROOT_DIR, 'logs/backend.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       merge_logs: true,
       env: {
-        NODE_ENV: 'development',
-        PORT: 3030,
-        KAFKA_ENABLED: 'true',
-        AUTOMATION_URL: 'http://127.0.0.1:7070',
-        KAFKA_CLIENT_ID: 'easyflow-backend',
-        KAFKA_BOOTSTRAP_SERVERS: '127.0.0.1:9092',
-        KAFKA_BROKERS: '127.0.0.1:9092',
-        SUPABASE_URL: "https://syxzilyuysdoirnezgii.supabase.co",
-        SUPABASE_SERVICE_ROLE: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk",
-        SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
+        NODE_ENV: process.env.NODE_ENV || 'development',
+        PORT: process.env.PORT || 3030,
+        KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
+        AUTOMATION_URL: process.env.AUTOMATION_URL || 'http://127.0.0.1:7070',
+        KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID || 'easyflow-backend',
+        KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
+        KAFKA_BROKERS: process.env.KAFKA_BROKERS || '127.0.0.1:9092',
+        SUPABASE_URL: process.env.SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE,
+        SUPABASE_KEY: process.env.SUPABASE_KEY,
+        SESSION_SECRET: process.env.SESSION_SECRET,
+        ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
+        SUPABASE_BUCKET: process.env.SUPABASE_BUCKET,
+        DEV_BYPASS_TOKEN: process.env.DEV_BYPASS_TOKEN,
+        DEV_USER_ID: process.env.DEV_USER_ID,
       },
     },
     {
@@ -140,13 +161,15 @@ module.exports = {
       script: 'node_modules/.bin/react-scripts',
       args: 'start',
       cwd: 'rpa-system/rpa-dashboard',
-      error_file: '$ROOT_DIR/logs/frontend-error.log',
-      out_file: '$ROOT_DIR/logs/frontend.log',
+      error_file: path.join(ROOT_DIR, 'logs/frontend-error.log'),
+      out_file: path.join(ROOT_DIR, 'logs/frontend.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       merge_logs: true,
       env: {
-        PORT: 3000,
-        BROWSER: 'none'
+        PORT: process.env.FRONTEND_PORT || 3000,
+        BROWSER: process.env.BROWSER || 'none',
+        REACT_APP_API_BASE: process.env.REACT_APP_API_BASE,
+        PUBLIC_URL: process.env.PUBLIC_URL,
       },
     },
     {
@@ -154,20 +177,20 @@ module.exports = {
       script: 'production_automation_service.py',
       interpreter: 'python3',
       cwd: 'rpa-system/automation/automation-service',
-      error_file: '$ROOT_DIR/logs/automation-worker.log',
-      out_file: '$ROOT_DIR/logs/automation-worker.log',
+      error_file: path.join(ROOT_DIR, 'logs/automation-worker.log'),
+      out_file: path.join(ROOT_DIR, 'logs/automation-worker.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       merge_logs: true,
       env: {
-        PYTHONUNBUFFERED: '1',
-        KAFKA_ENABLED: 'true',
-        PORT: 7070,
-        BACKEND_URL: 'http://127.0.0.1:3030',
-        KAFKA_BOOTSTRAP_SERVERS: '127.0.0.1:9092',
-        KAFKA_BROKERS: '127.0.0.1:9092',
-        SUPABASE_URL: "https://syxzilyuysdoirnezgii.supabase.co",
-        SUPABASE_SERVICE_ROLE: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk",
-        SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
+        PYTHONUNBUFFERED: process.env.PYTHONUNBUFFERED || '1',
+        KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
+        PORT: process.env.AUTOMATION_PORT || 7070,
+        BACKEND_URL: process.env.BACKEND_URL || 'http://127.0.0.1:3030',
+        KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
+        KAFKA_BROKERS: process.env.KAFKA_BROKERS || '127.0.0.1:9092',
+        SUPABASE_URL: process.env.SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE,
+        SUPABASE_KEY: process.env.SUPABASE_KEY,
       },
     },
   ],

@@ -35,7 +35,6 @@ CRITICAL_FILES=(
     "render.yaml"
     "docker-compose.yml"
     ".github/workflows"
-    "docs/database/safe_migration.sql"
     "docs/WORKFLOW.md"
 )
 

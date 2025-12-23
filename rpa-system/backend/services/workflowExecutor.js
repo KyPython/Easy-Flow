@@ -7,6 +7,16 @@ const path = require('path');
 const crypto = require('crypto');
 const axios = require('axios');
 
+// Import integration action handlers
+const {
+  executeSlackAction,
+  executeGmailAction,
+  executeSheetsAction,
+  executeMeetAction,
+  executeWhatsAppAction,
+  executeMultiChannelAction
+} = require('./workflowExecutorIntegrations');
+
 // ✅ OBSERVABILITY: Import OpenTelemetry API for trace propagation and span creation
 const { trace, context, propagation, SpanStatusCode } = require('@opentelemetry/api');
 
@@ -44,8 +54,9 @@ class WorkflowExecutor {
    * This ensures all outbound HTTP calls propagate the active span context
    */
   _createInstrumentedHttpClient() {
+    const { config } = require('../utils/appConfig');
     const client = axios.create({
-      timeout: 30000,
+      timeout: config.timeouts.httpDefault,
       headers: {
         'Content-Type': 'application/json'
       }
@@ -1921,6 +1932,26 @@ class WorkflowExecutor {
           return await this.executeFormSubmitAction(config, inputData, execution);
         case 'invoice_ocr':
           return await this.executeInvoiceOcrAction(config, inputData, execution);
+        // Integration actions
+        case 'slack_send':
+        case 'slack_read':
+        case 'slack_collect_feedback':
+          return await executeSlackAction(action_type, config, inputData, execution);
+        case 'gmail_send':
+        case 'gmail_read':
+        case 'gmail_collect_feedback':
+          return await executeGmailAction(action_type, config, inputData, execution);
+        case 'sheets_read':
+        case 'sheets_write':
+        case 'sheets_compile_feedback':
+          return await executeSheetsAction(action_type, config, inputData, execution);
+        case 'meet_transcribe':
+        case 'meet_process_recordings':
+          return await executeMeetAction(action_type, config, inputData, execution);
+        case 'whatsapp_send':
+          return await executeWhatsAppAction(action_type, config, inputData, execution);
+        case 'multi_channel_collect':
+          return await executeMultiChannelAction(config, inputData, execution);
         default:
           throw new Error(`Unsupported action type: ${action_type}`);
       }
@@ -2042,9 +2073,10 @@ class WorkflowExecutor {
       // Track step start time for duration
       const stepStartTime = Date.now();
       
-      // ✅ PRIORITY 2: Retry scraping 3x with exponential backoff (0s, 5s, 15s)
-      const maxAttempts = 3;
-      const backoffDelays = [0, 5000, 15000]; // 0s, 5s, 15s
+      // ✅ PRIORITY 2: Retry scraping with configurable exponential backoff
+      const { config } = require('../utils/appConfig');
+      const maxAttempts = config.retries.maxAttempts;
+      const backoffDelays = config.retries.scrapeBackoff;
       
       let lastError;
       let attempts = 0;
@@ -3087,12 +3119,13 @@ class WorkflowExecutor {
         }, 500);
         
         try {
-          return await axios.post(`${process.env.AUTOMATION_URL}/invoice-ocr`, {
+          const { getAutomationUrl, config } = require('../utils/appConfig');
+          return await axios.post(`${getAutomationUrl()}/invoice-ocr`, {
             file_source: fileToProcess,
             extract_fields,
             validation
           }, {
-            timeout: 120000, // OCR can take longer
+            timeout: config.timeouts.httpLong, // OCR can take longer
             signal: controller?.signal
           });
         } finally {
