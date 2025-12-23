@@ -7,7 +7,6 @@
 **For developers working on this project:**
 
 1. **[docs/WORKFLOW.md](docs/WORKFLOW.md)** - Your daily workflow (start here!)
-2. **[docs/DEBUGGING.md](docs/DEBUGGING.md)** - When something breaks
 
 **Everything is automated:**
 - ✅ Pre-commit hooks run validation automatically
