@@ -28,6 +28,7 @@
     "express-fileupload": "^1.5.2",
     "express-rate-limit": "^6.7.0",
     "firebase-admin": "^13.5.0",
+    "googleapis": "^144.0.0",
     "helmet": "^6.0.1",
     "kafkajs": "^2.2.4",
     "morgan": "^1.10.0",
