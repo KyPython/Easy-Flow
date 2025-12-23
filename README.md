@@ -14,6 +14,7 @@
 - ✅ Browser opens automatically on start
 - ✅ Code quality metrics update automatically (every 5 min)
 - ✅ Observability stack runs automatically
+- ✅ **Backups are automatic** - Code (GitHub), Database (Supabase), Secrets (Render/GitHub)
 
 ## 📁 Project Structure
 
