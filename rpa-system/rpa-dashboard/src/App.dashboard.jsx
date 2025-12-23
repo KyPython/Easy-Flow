@@ -262,7 +262,6 @@ function Shell() {
             <Route path="/app/teams" element={<Protected><TeamsPage /></Protected>} />
             <Route path="/app/analytics" element={<Protected><AnalyticsPage /></Protected>} />
             <Route path="/app/metrics" element={<Protected><BusinessMetricsPage /></Protected>} />
-            <Route path="/metrics" element={<BusinessMetricsPage />} /> {/* Public route for easy mobile access */}
             <Route path="/app/integrations" element={<Protected><IntegrationsPage /></Protected>} />
             <Route path="/app/webhooks" element={<Protected><WebhooksPage /></Protected>} />
             <Route path="/app/rules" element={<Protected><RulesPage /></Protected>} />

@@ -1,109 +1,76 @@
-/* Business Metrics Page - Mobile-First Design */
+/* Business Metrics Page - Styled to match Dashboard */
 .page {
+  padding: var(--spacing-2xl);
+  max-width: var(--container-max-width);
+  margin: 0 auto;
   min-height: 100vh;
-  padding: 1rem;
-  background: var(--surface, #ffffff);
-  color: var(--text-primary, #1a1a1a);
-}
-
-[data-theme="dark"] .page {
-  background: var(--surface, #1a1a1a);
-  color: var(--text-primary, #ffffff);
+  background: var(--surface);
+  color: var(--text-primary);
 }
 
 .header {
-  margin-bottom: 2rem;
+  margin-bottom: var(--spacing-2xl);
   text-align: center;
 }
 
 .title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  margin: 0 0 0.5rem 0;
-  color: var(--text-primary, #1a1a1a);
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-sm) 0;
+  font-family: var(--font-family-secondary);
 }
 
 .subtitle {
-  font-size: 0.875rem;
-  color: var(--text-secondary, #666);
-  margin: 0 0 1rem 0;
+  font-size: var(--font-size-lg);
+  color: var(--text-muted);
+  margin: 0 0 var(--spacing-md) 0;
 }
 
-.refreshButton {
-  background: var(--color-primary-600, #2563eb);
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
+/* Unified button styles (matches Dashboard) */
+.button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-gray-300);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .05s ease;
 }
 
-.refreshButton:hover {
-  opacity: 0.9;
+.button:hover {
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-400);
 }
 
-.refreshButton:active {
-  opacity: 0.7;
+.button:active {
+  transform: translateY(0.5px);
 }
 
-/* Metrics Grid - Responsive */
+.buttonPrimary {
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  border-color: var(--color-primary-200);
+}
+
+.buttonPrimary:hover {
+  background: var(--color-primary-200);
+  border-color: var(--color-primary-300);
+}
+
+/* Metrics Grid - Matches Dashboard */
 .metricsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.metricCard {
-  background: var(--surface-elevated, #f9fafb);
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 0.75rem;
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-[data-theme="dark"] .metricCard {
-  background: var(--surface-elevated, #2a2a2a);
-  border-color: var(--border-color, #404040);
-}
-
-.metricCard:active {
-  transform: scale(0.98);
-}
-
-.metricIcon {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.metricContent {
-  width: 100%;
-}
-
-.metricValue {
-  font-size: 1.75rem;
-  font-weight: 700;
-  margin: 0 0 0.25rem 0;
-  color: var(--color-primary-600, #2563eb);
-}
-
-.metricLabel {
-  font-size: 0.875rem;
-  color: var(--text-secondary, #666);
-  margin: 0 0 0.25rem 0;
-  font-weight: 500;
-}
-
-.metricSubtext {
-  font-size: 0.75rem;
-  color: var(--text-tertiary, #999);
-  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-xl);
+  margin-bottom: var(--spacing-2xl);
 }
 
 /* Loading State */
@@ -113,14 +80,14 @@
   align-items: center;
   justify-content: center;
   min-height: 50vh;
-  gap: 1rem;
+  gap: var(--spacing-md);
 }
 
 .spinner {
   width: 3rem;
   height: 3rem;
-  border: 3px solid var(--border-color, #e5e7eb);
-  border-top-color: var(--color-primary-600, #2563eb);
+  border: 3px solid var(--color-gray-200);
+  border-top-color: var(--color-primary-600);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -132,89 +99,52 @@
 /* Error State */
 .error {
   text-align: center;
-  padding: 2rem;
-  background: var(--surface-elevated, #f9fafb);
-  border-radius: 0.75rem;
-  border: 1px solid var(--border-color, #e5e7eb);
+  padding: var(--spacing-2xl);
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-gray-200);
+  box-shadow: var(--shadow-md);
 }
 
 .error h2 {
-  color: var(--color-error, #dc2626);
-  margin: 0 0 1rem 0;
+  color: var(--color-error);
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
 }
 
 .error p {
-  color: var(--text-secondary, #666);
-  margin: 0 0 1rem 0;
-}
-
-.retryButton {
-  background: var(--color-primary-600, #2563eb);
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.retryButton:hover {
-  opacity: 0.9;
+  color: var(--text-muted);
+  margin: 0 0 var(--spacing-md) 0;
 }
 
 /* Footer */
 .footer {
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color, #e5e7eb);
+  margin-top: var(--spacing-2xl);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-gray-200);
   text-align: center;
 }
 
 .footerText {
-  font-size: 0.75rem;
-  color: var(--text-tertiary, #999);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   margin: 0;
 }
 
 /* Mobile Optimizations */
 @media (max-width: 640px) {
   .page {
-    padding: 0.75rem;
+    padding: var(--spacing-lg);
   }
 
   .title {
-    font-size: 1.5rem;
+    font-size: var(--font-size-2xl);
   }
 
   .metricsGrid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-  }
-
-  .metricCard {
-    padding: 1rem;
-  }
-
-  .metricValue {
-    font-size: 1.5rem;
-  }
-
-  .metricIcon {
-    font-size: 1.5rem;
-  }
-}
-
-/* Tablet and up */
-@media (min-width: 768px) {
-  .page {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-  }
-
-  .metricsGrid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-md);
   }
 }
 
