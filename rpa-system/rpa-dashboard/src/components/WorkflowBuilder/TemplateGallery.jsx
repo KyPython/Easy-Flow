@@ -13,6 +13,7 @@ import {
   FaList
 } from 'react-icons/fa';
 import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates';
+import { useTheme } from '../../utils/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
 import TemplateDetails from './TemplateDetails';
 import VirtualizedGrid from '../VirtualizedGrid/VirtualizedGrid';
@@ -37,6 +38,7 @@ const formatTemplateCategory = (category) => {
 };
 
 const TemplateGallery = ({ onSelectTemplate, onClose }) => {
+  const { theme } = useTheme() || { theme: 'light' };
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('popularity');
@@ -151,7 +153,7 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
 
   if (loading && filteredAndSortedTemplates.length === 0) {
     return (
-      <div className={styles.loadingState}>
+      <div className={styles.loadingState} data-theme={theme}>
         {viewMode === 'grid' ? <SkeletonGrid count={6} /> : <SkeletonList count={5} />}
       </div>
     );
@@ -159,22 +161,28 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
 
   if (error) {
     return (
-      <div className={styles.errorState}>\n        <h3>Templates</h3>\n        <p className={styles.errorText}>{error}</p>\n        <button onClick={() => window.location.reload()} className={styles.retryButton}>Retry</button>\n      </div>
+      <div className={styles.errorState} data-theme={theme}>
+        <h3>Templates</h3>
+        <p className={styles.errorText}>{error}</p>
+        <button onClick={() => window.location.reload()} className={styles.retryButton}>Retry</button>
+      </div>
     );
   }
 
   if (selected) {
     return (
-      <TemplateDetails
-        templateId={selected}
-        onBack={() => setSelected(null)}
-        onUse={(wf) => onSelectTemplate(wf)}
-      />
+      <div data-theme={theme}>
+        <TemplateDetails
+          templateId={selected}
+          onBack={() => setSelected(null)}
+          onUse={(wf) => onSelectTemplate(wf)}
+        />
+      </div>
     );
   }
 
   return (
-    <div className={styles.templateGallery}>
+    <div className={styles.templateGallery} data-theme={theme}>
       <div className={styles.header}>
         <div className={styles.headerContent}>
           <h2 className={styles.title}>Workflow Templates</h2>
