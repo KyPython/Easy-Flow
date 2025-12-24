@@ -2115,7 +2115,11 @@ try {
 // Mount Team Management routes
 try {
   const teamRoutes = require('./routes/teamRoutes');
-  app.use('/api/team', authMiddleware, teamRoutes);
+  // Apply rate limiting: moderate limits for team management
+  const teamMiddleware = isProduction 
+    ? [authMiddleware, apiLimiter, teamRoutes]
+    : [authMiddleware, teamRoutes];
+  app.use('/api/team', ...teamMiddleware);
   rootLogger.info('✓ Team Management routes mounted at /api/team');
 } catch (e) {
   rootLogger.warn('Team Management routes not mounted', { error: e?.message || e });
@@ -2124,7 +2128,11 @@ try {
 // Mount Admin Analytics routes (internal - see what users are doing)
 try {
   const adminAnalyticsRoutes = require('./routes/adminAnalyticsRoutes');
-  app.use('/api/admin/analytics', authMiddleware, adminAnalyticsRoutes);
+  // Apply rate limiting: moderate limits for admin analytics (admin-only but still need protection)
+  const adminAnalyticsMiddleware = isProduction 
+    ? [authMiddleware, apiLimiter, adminAnalyticsRoutes]
+    : [authMiddleware, adminAnalyticsRoutes];
+  app.use('/api/admin/analytics', ...adminAnalyticsMiddleware);
   rootLogger.info('✓ Admin Analytics routes mounted at /api/admin/analytics');
 } catch (e) {
   rootLogger.warn('Admin Analytics routes not mounted', { error: e?.message || e });
@@ -6286,7 +6294,11 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
 // =====================================================
 
 // GET /api/files/shares - Get all shares for the current user
-app.get('/api/files/shares', authMiddleware, async (req, res) => {
+// Apply rate limiting: moderate limits for file sharing operations
+const fileSharesGetMiddleware = isProduction 
+  ? [authMiddleware, apiLimiter]
+  : [authMiddleware];
+app.get('/api/files/shares', ...fileSharesGetMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -6318,7 +6330,11 @@ app.get('/api/files/shares', authMiddleware, async (req, res) => {
 });
 
 // GET /api/files/:fileId/shares - Get shares for a specific file
-app.get('/api/files/:fileId/shares', authMiddleware, async (req, res) => {
+// Apply rate limiting: moderate limits for file sharing operations
+const fileSharesByIdGetMiddleware = isProduction 
+  ? [authMiddleware, apiLimiter]
+  : [authMiddleware];
+app.get('/api/files/:fileId/shares', ...fileSharesByIdGetMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const fileId = req.params.fileId;
@@ -6355,7 +6371,11 @@ app.get('/api/files/:fileId/shares', authMiddleware, async (req, res) => {
 });
 
 // POST /api/files/shares - Create a new share link
-app.post('/api/files/shares', authMiddleware, async (req, res) => {
+// Apply rate limiting: moderate limits for file sharing operations
+const fileSharesPostMiddleware = isProduction 
+  ? [authMiddleware, apiLimiter]
+  : [authMiddleware];
+app.post('/api/files/shares', ...fileSharesPostMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const { 
@@ -6479,7 +6499,11 @@ app.get('/api/files/:id/shares', authMiddleware, async (req, res) => {
 });
 
 // PUT /api/files/shares/:shareId - Update share settings
-app.put('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
+// Apply rate limiting: moderate limits for file sharing operations
+const fileSharesPutMiddleware = isProduction 
+  ? [authMiddleware, apiLimiter]
+  : [authMiddleware];
+app.put('/api/files/shares/:shareId', ...fileSharesPutMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const shareId = req.params.shareId;
@@ -6525,7 +6549,11 @@ app.put('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
 });
 
 // DELETE /api/files/shares/:shareId - Delete share
-app.delete('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
+// Apply rate limiting: moderate limits for file sharing operations
+const fileSharesDeleteMiddleware = isProduction 
+  ? [authMiddleware, apiLimiter]
+  : [authMiddleware];
+app.delete('/api/files/shares/:shareId', ...fileSharesDeleteMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const shareId = req.params.shareId;
