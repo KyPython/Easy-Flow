@@ -2,8 +2,6 @@
 # Watch all application logs in one terminal
 # Color-coded by service
 
-set -e
-
 # Load environment variables if .env exists
 if [ -f .env ]; then
     export $(cat .env | grep -v '^#' | xargs)
@@ -18,15 +16,16 @@ if [ ! -d "$LOG_DIR" ]; then
     exit 1
 fi
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+# Use printf for reliable color codes (works on both GNU and BSD sed)
+GREEN=$(printf '\033[0;32m')
+YELLOW=$(printf '\033[1;33m')
+BLUE=$(printf '\033[0;34m')
+RED=$(printf '\033[0;31m')
+CYAN=$(printf '\033[0;36m')
+NC=$(printf '\033[0m')
 
-echo "${BLUE}📊 Watching all EasyFlow logs...${NC}"
-echo "${YELLOW}Press Ctrl+C to stop${NC}"
+echo -e "${BLUE}📊 Watching all EasyFlow logs...${NC}"
+echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
 echo ""
 
 # Sanitize log file paths (prevent directory traversal)
@@ -45,6 +44,16 @@ AUTOMATION_LOG=$(sanitize_path "${LOG_DIR}/automation-worker.log")
 [ -f "$FRONTEND_LOG" ] || touch "$FRONTEND_LOG"
 [ -f "$AUTOMATION_LOG" ] || touch "$AUTOMATION_LOG"
 
+# Cleanup function to kill background processes
+cleanup() {
+    echo -e "\n${YELLOW}Stopping log watchers...${NC}"
+    kill $TAIL_PID1 $TAIL_PID2 $TAIL_PID3 2>/dev/null || true
+    exit 0
+}
+
+# Trap Ctrl+C and cleanup
+trap cleanup INT TERM
+
 # Use multitail if available, otherwise use tail with colors
 if command -v multitail >/dev/null 2>&1; then
     multitail \
@@ -54,10 +63,14 @@ if command -v multitail >/dev/null 2>&1; then
         -l "tail -f $FRONTEND_LOG" \
         -l "tail -f $AUTOMATION_LOG"
 else
-    # Fallback: use tail with simple prefix colors
-    tail -f "$BACKEND_LOG" | sed "s/^/${GREEN}[BACKEND]${NC} /" &
-    tail -f "$FRONTEND_LOG" | sed "s/^/${BLUE}[FRONTEND]${NC} /" &
-    tail -f "$AUTOMATION_LOG" | sed "s/^/${CYAN}[WORKER]${NC} /" &
+    # Fallback: use tail with colors (using printf for reliable escape sequences)
+    # Store PIDs for cleanup
+    tail -f "$BACKEND_LOG" | sed "s/^/$(printf '\033[0;32m')[BACKEND]$(printf '\033[0m') /" &
+    TAIL_PID1=$!
+    tail -f "$FRONTEND_LOG" | sed "s/^/$(printf '\033[0;34m')[FRONTEND]$(printf '\033[0m') /" &
+    TAIL_PID2=$!
+    tail -f "$AUTOMATION_LOG" | sed "s/^/$(printf '\033[0;36m')[WORKER]$(printf '\033[0m') /" &
+    TAIL_PID3=$!
     
     # Wait for all background processes
     wait

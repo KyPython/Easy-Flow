@@ -23,13 +23,18 @@ const HistoryPage = () => {
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [editError, setEditError] = useState('');
-  const [viewingTask, setViewingTask] = useState(null);
+  const [viewingTaskId, setViewingTaskId] = useState(null); // Store ID instead of full object
   const runsRef = useRef([]); // Store runs in ref to avoid dependency issues
+  const isInitialLoad = useRef(true); // Track if this is the first load
 
   useEffect(() => {
-    const fetchRuns = async () => {
+    const fetchRuns = async (isBackgroundRefresh = false) => {
       if (!user) return;
-      setLoading(true);
+      
+      // Only show loading state on initial load, not background refreshes
+      if (!isBackgroundRefresh) {
+        setLoading(true);
+      }
       setError('');
 
       // Set timeout to prevent infinite loading (30 seconds)
@@ -93,10 +98,16 @@ const HistoryPage = () => {
         logger.info('Automation runs fetched successfully', {
           user_id: user.id,
           count: runsDataFinal.length,
-          query_duration_ms: queryDuration
+          query_duration_ms: queryDuration,
+          is_background_refresh: isBackgroundRefresh
         });
         setRuns(runsDataFinal);
         runsRef.current = runsDataFinal; // Update ref
+        
+        // Mark initial load as complete
+        if (isInitialLoad.current) {
+          isInitialLoad.current = false;
+        }
       } catch (err) {
         logger.error('Failed to fetch automation runs', {
           error: err.message,
@@ -110,10 +121,13 @@ const HistoryPage = () => {
           clearTimeout(loadingTimeoutRef.current);
           loadingTimeoutRef.current = null;
         }
-        setLoading(false);
+        // Only set loading to false if this was the initial load
+        if (!isBackgroundRefresh) {
+          setLoading(false);
+        }
       }
     };
-    fetchRuns();
+    fetchRuns(false); // Initial load
     
     // ✅ UX: Smart auto-refresh - only refresh if there are active tasks, and pause when user is interacting
     let refreshInterval;
@@ -143,7 +157,7 @@ const HistoryPage = () => {
       );
       
       if (hasActiveTasks) {
-        fetchRuns();
+        fetchRuns(true); // Background refresh - no loading state
       }
     };
     
@@ -160,8 +174,22 @@ const HistoryPage = () => {
   }, [user]);
 
   const handleViewTask = (task) => {
-    setViewingTask(task);
+    // Store task ID instead of full object to ensure modal gets latest data
+    setViewingTaskId(task.id);
   };
+  
+  // Get the latest task data from runs when modal is open
+  const viewingTask = viewingTaskId 
+    ? runs.find(run => run.id === viewingTaskId) || null
+    : null;
+  
+  // Update viewingTaskId if the task is deleted or no longer exists
+  useEffect(() => {
+    if (viewingTaskId && !viewingTask) {
+      // Task was deleted or no longer exists, close modal
+      setViewingTaskId(null);
+    }
+  }, [viewingTaskId, viewingTask]);
 
   const handleEditTask = (task) => {
     setEditingTask(task);
@@ -351,7 +379,7 @@ const HistoryPage = () => {
       {viewingTask && (
         <TaskResultModal
           task={viewingTask}
-          onClose={() => setViewingTask(null)}
+          onClose={() => setViewingTaskId(null)}
         />
       )}
     </div>
