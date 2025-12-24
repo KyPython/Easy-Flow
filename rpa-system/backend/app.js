@@ -301,10 +301,15 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-// Rate limiting - More restrictive limits
+// Rate limiting - Environment-aware limits
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
+const isProduction = process.env.NODE_ENV === 'production';
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Increased for development
+  // Environment-aware limits: much higher in dev/test, reasonable in production
+  max: isDevelopment || isTest ? 10000 : 500, // 10k in dev/test, 500 in prod
   message: {
     error: 'Too many requests from this IP, please try again later.'
   },
@@ -321,14 +326,15 @@ const globalLimiter = rateLimit({
     }
   },
   skip: (req) => {
-    // Skip rate limiting if dev bypass is active
-    return req.devBypass === true;
+    // Skip rate limiting if dev bypass is active OR in development/test
+    return req.devBypass === true || isDevelopment || isTest;
   }
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Much higher limit for development
+  // Environment-aware limits: much higher in dev/test, reasonable in production
+  max: isDevelopment || isTest ? 10000 : 100,
   message: {
     error: 'Too many authentication attempts, please try again later.'
   },
@@ -336,8 +342,8 @@ const authLimiter = rateLimit({
     try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
   },
   skip: (req) => {
-    // Skip rate limiting if dev bypass is active OR in development mode
-    return req.devBypass === true || process.env.NODE_ENV === 'development';
+    // Skip rate limiting if dev bypass is active OR in development/test mode
+    return req.devBypass === true || isDevelopment || isTest;
   }
 });
 
@@ -363,7 +369,8 @@ app.get('/api/health/email-schema', async (_req, res) => {
 
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 200, // Increased for development
+  // Environment-aware limits: much higher in dev/test, reasonable in production
+  max: isDevelopment || isTest ? 5000 : 200,
   message: {
     error: 'API rate limit exceeded, please try again later.'
   },
@@ -371,15 +378,16 @@ const apiLimiter = rateLimit({
     try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
   },
   skip: (req) => {
-    // Skip rate limiting if dev bypass is active
-    return req.devBypass === true;
+    // Skip rate limiting if dev bypass is active OR in development/test
+    return req.devBypass === true || isDevelopment || isTest;
   }
 });
 
 // Strict limiter for automation endpoints
 const automationLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 100, // Increased for development
+  // Environment-aware limits: much higher in dev/test, reasonable in production
+  max: isDevelopment || isTest ? 2000 : 100,
   message: {
     error: 'Automation rate limit exceeded, please try again later.'
   },
@@ -387,8 +395,8 @@ const automationLimiter = rateLimit({
     try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
   },
   skip: (req) => {
-    // Skip rate limiting if dev bypass is active
-    return req.devBypass === true;
+    // Skip rate limiting if dev bypass is active OR in development/test
+    return req.devBypass === true || isDevelopment || isTest;
   }
 });
 

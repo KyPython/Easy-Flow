@@ -29,12 +29,15 @@ const path = require('path');
 const router = express.Router();
 
 // ✅ SECURITY: Rate limit expensive file system operations
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
 const fileSystemLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 20, // 20 requests per minute
+  max: isDevelopment || isTest ? 1000 : 20, // Much higher in dev/test
   message: 'Too many file operations, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
 });
 
 // Feedback storage configuration

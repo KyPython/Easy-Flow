@@ -121,19 +121,23 @@ const appConfig = {
     httpBackoff: [1000, 2000, 4000], // 1s, 2s, 4s
   },
 
-  // Rate Limits
+  // Rate Limits - Environment-aware defaults
   rateLimits: {
     // API Rate Limits
     apiWindowMs: getEnvNumber('RATE_LIMIT_WINDOW_MS', 60000), // 1 minute
-    apiMaxRequests: getEnvNumber('RATE_LIMIT_MAX_REQUESTS', 100),
+    // Much higher limits in development/test, reasonable in production
+    apiMaxRequests: getEnvNumber('RATE_LIMIT_MAX_REQUESTS', 
+      (getEnv('NODE_ENV') === 'development' || getEnv('NODE_ENV') === 'test') ? 5000 : 100),
     
     // Workflow Execution Rate Limits
     workflowWindowMs: getEnvNumber('WORKFLOW_RATE_LIMIT_WINDOW_MS', 60000),
-    workflowMaxExecutions: getEnvNumber('WORKFLOW_RATE_LIMIT_MAX', 10),
+    workflowMaxExecutions: getEnvNumber('WORKFLOW_RATE_LIMIT_MAX',
+      (getEnv('NODE_ENV') === 'development' || getEnv('NODE_ENV') === 'test') ? 1000 : 10),
     
     // Scraping Rate Limits
     scrapeWindowMs: getEnvNumber('SCRAPE_RATE_LIMIT_WINDOW_MS', 60000),
-    scrapeMaxRequests: getEnvNumber('SCRAPE_RATE_LIMIT_MAX', 20),
+    scrapeMaxRequests: getEnvNumber('SCRAPE_RATE_LIMIT_MAX',
+      (getEnv('NODE_ENV') === 'development' || getEnv('NODE_ENV') === 'test') ? 1000 : 20),
   },
 
   // Feature Flags

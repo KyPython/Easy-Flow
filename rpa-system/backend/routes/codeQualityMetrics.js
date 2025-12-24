@@ -11,12 +11,15 @@ const logger = createLogger('code-quality-metrics');
 const execAsync = promisify(exec);
 
 // ✅ SECURITY: Rate limit expensive system command execution
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
 const systemCommandLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 5, // 5 requests per minute (expensive operation)
+  max: isDevelopment || isTest ? 500 : 5, // Much higher in dev/test
   message: 'Too many requests, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
 });
 
 /**

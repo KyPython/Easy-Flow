@@ -8,12 +8,15 @@ const { getLogger } = require('../utils/logger');
 const logger = getLogger('demo');
 
 // ✅ SECURITY: Rate limit expensive file operations
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
 const fileOperationLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 requests per minute
+  max: isDevelopment || isTest ? 1000 : 10, // Much higher in dev/test
   message: 'Too many file operations, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
 });
 
 // Serve demo portal page

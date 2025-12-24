@@ -49,13 +49,16 @@ const authMiddleware = async (req, res, next) => {
 const logger = createLogger('routes.businessRules');
 const contextLoggerMiddleware = traceContextMiddleware;
 
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: isDevelopment || isTest ? 5000 : 30, // Much higher in dev/test
   message: { success: false, error: 'Too many requests, please slow down' },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip
+  keyGenerator: (req) => req.user?.id || req.ip,
+  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
 });
 
 /**

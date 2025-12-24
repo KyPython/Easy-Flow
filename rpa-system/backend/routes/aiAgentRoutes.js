@@ -23,14 +23,17 @@ const logger = createLogger('ai.routes');
 // Context logger middleware (same as traceContext)
 const contextLoggerMiddleware = traceContextMiddleware;
 
-// API rate limiter for authenticated endpoints
+// API rate limiter for authenticated endpoints - Environment-aware
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
 const apiLimiter = rateLimit({
   windowMs: appConfig.rateLimits.apiWindowMs,
   max: appConfig.rateLimits.apiMaxRequests,
   message: { success: false, error: 'Too many requests, please slow down' },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip
+  keyGenerator: (req) => req.user?.id || req.ip,
+  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
 });
 
 // Authentication middleware - validates JWT token

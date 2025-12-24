@@ -8,14 +8,17 @@ const rateLimit = require('express-rate-limit');
 
 const logger = createLogger('routes.decisionLogs');
 
-// Rate limiting
+// Rate limiting - Environment-aware
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100,
+  max: isDevelopment || isTest ? 5000 : 100, // Much higher in dev/test
   message: { success: false, error: 'Too many requests, please slow down' },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip
+  keyGenerator: (req) => req.user?.id || req.ip,
+  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
 });
 
 // Auth middleware with dev bypass support
