@@ -161,6 +161,7 @@ function WorkflowIdRedirect() {
 
 function Shell() {
   const { user } = useAuth();
+  const logger = createLogger('Shell'); // Structured logger for observability
   // Initialize Firebase on-demand when the runtime feature gate is enabled
   // This avoids the heavy Firebase SDK being loaded at module-eval time.
   useEffect(() => {
@@ -180,7 +181,7 @@ function Shell() {
             mod.initFirebase().catch(e => logger.warn('Firebase init failed', { error: e?.message || e, stack: e?.stack }));
           }
         } catch (e) {
-          console.warn('[Firebase] dynamic import failed', e && e.message ? e.message : e);
+          logger.warn('Firebase dynamic import failed', { error: e?.message || e, stack: e?.stack });
         }
       })();
       // Analytics gating: enable GTM/gtag only for paying users.

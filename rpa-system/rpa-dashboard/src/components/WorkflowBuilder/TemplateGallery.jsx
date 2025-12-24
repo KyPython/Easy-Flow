@@ -39,6 +39,7 @@ const formatTemplateCategory = (category) => {
 
 const TemplateGallery = ({ onSelectTemplate, onClose }) => {
   const { theme } = useTheme() || { theme: 'light' };
+  const logger = createLogger('TemplateGallery'); // Structured logger for observability
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('popularity');
