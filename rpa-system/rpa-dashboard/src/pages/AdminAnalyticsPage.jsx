@@ -114,22 +114,26 @@ const AdminAnalyticsPage = () => {
         <div className={styles.content}>
           <div className={styles.metricsGrid}>
             <div className={styles.metricCard}>
-              <div className={styles.metricValue}>{overview.totalUsers || 0}</div>
+              <div className={styles.metricValue}>{overview.overview?.totalUsers || overview.totalUsers || 0}</div>
               <div className={styles.metricLabel}>Total Users</div>
             </div>
             <div className={styles.metricCard}>
-              <div className={styles.metricValue}>{overview.activeUsers || 0}</div>
+              <div className={styles.metricValue}>{overview.overview?.activeUsers || overview.activeUsers || 0}</div>
               <div className={styles.metricLabel}>Active Users (30d)</div>
               <div className={styles.metricSubtext}>
-                {overview.totalUsers > 0 ? Math.round((overview.activeUsers / overview.totalUsers) * 100) : 0}% of total
+                {(() => {
+                  const total = overview.overview?.totalUsers || overview.totalUsers || 0;
+                  const active = overview.overview?.activeUsers || overview.activeUsers || 0;
+                  return total > 0 ? Math.round((active / total) * 100) : 0;
+                })()}% of total
               </div>
             </div>
             <div className={styles.metricCard}>
-              <div className={styles.metricValue}>{overview.totalWorkflows || 0}</div>
+              <div className={styles.metricValue}>{overview.overview?.totalWorkflows || overview.totalWorkflows || 0}</div>
               <div className={styles.metricLabel}>Total Workflows</div>
             </div>
             <div className={styles.metricCard}>
-              <div className={styles.metricValue}>{overview.totalRuns || 0}</div>
+              <div className={styles.metricValue}>{overview.overview?.totalRuns || overview.totalRuns || 0}</div>
               <div className={styles.metricLabel}>Total Runs</div>
             </div>
           </div>
@@ -137,12 +141,12 @@ const AdminAnalyticsPage = () => {
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>🔥 Most Popular Templates</h2>
             <div className={styles.list}>
-              {overview.popularTemplates && overview.popularTemplates.length > 0 ? (
+              {(overview.popularTemplates && overview.popularTemplates.length > 0) ? (
                 overview.popularTemplates.map((template, idx) => (
                   <div key={idx} className={styles.listItem}>
                     <div className={styles.listItemMain}>
                       <strong>{template.name}</strong>
-                      <span className={styles.badge}>{template.usage_count || 0} uses</span>
+                      <span className={styles.badge}>{template.usageCount || template.usage_count || 0} uses</span>
                     </div>
                     {template.rating && (
                       <div className={styles.listItemSub}>⭐ {template.rating}/5.0</div>
@@ -158,11 +162,11 @@ const AdminAnalyticsPage = () => {
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>🔌 Most Used Integrations</h2>
             <div className={styles.list}>
-              {overview.topIntegrations && overview.topIntegrations.length > 0 ? (
-                overview.topIntegrations.map((integration, idx) => (
+              {(overview.integrationUsage && overview.integrationUsage.length > 0) ? (
+                overview.integrationUsage.map((integration, idx) => (
                   <div key={idx} className={styles.listItem}>
                     <div className={styles.listItemMain}>
-                      <strong>{integration.provider}</strong>
+                      <strong>{integration.type || integration.provider}</strong>
                       <span className={styles.badge}>{integration.count} users</span>
                     </div>
                   </div>
