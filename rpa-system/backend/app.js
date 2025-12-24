@@ -3187,6 +3187,92 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
   }
 });
 
+// DELETE /api/runs/:id - Delete an automation run
+app.delete('/api/runs/:id', authMiddleware, async (req, res) => {
+  const startTime = Date.now();
+  const runId = req.params.id;
+  
+  logger.info('[DELETE /api/runs/:id] Request received', {
+    user_id: req.user?.id,
+    run_id: runId,
+    has_user: !!req.user,
+    path: req.path,
+    method: req.method
+  });
+
+  try {
+    // Defensive check
+    if (!req.user || !req.user.id) {
+      logger.warn('[DELETE /api/runs/:id] No user in request', {
+        has_user: !!req.user,
+        user_id: req.user?.id
+      });
+      return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+    }
+
+    if (!supabase) {
+      logger.error('[DELETE /api/runs/:id] Supabase not available');
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    // ✅ SECURITY: Validate runId type
+    if (!runId || typeof runId !== 'string') {
+      return res.status(400).json({ error: 'Invalid run ID' });
+    }
+
+    // ✅ SECURITY: Verify the run belongs to the user before deleting
+    const { data: existingRun, error: fetchError } = await supabase
+      .from('automation_runs')
+      .select('id, user_id')
+      .eq('id', runId)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (fetchError || !existingRun) {
+      logger.warn('[DELETE /api/runs/:id] Run not found or access denied', {
+        run_id: runId,
+        user_id: req.user.id,
+        error: fetchError?.message
+      });
+      return res.status(404).json({ error: 'Run not found or access denied' });
+    }
+
+    // Delete the run
+    const { error: deleteError } = await supabase
+      .from('automation_runs')
+      .delete()
+      .eq('id', runId)
+      .eq('user_id', req.user.id);
+
+    if (deleteError) {
+      logger.error('[DELETE /api/runs/:id] Delete failed', {
+        run_id: runId,
+        user_id: req.user.id,
+        error: deleteError.message
+      });
+      throw deleteError;
+    }
+
+    const duration = Date.now() - startTime;
+    logger.info('[DELETE /api/runs/:id] Success', {
+      user_id: req.user.id,
+      run_id: runId,
+      duration_ms: duration
+    });
+    res.json({ success: true, message: 'Run deleted successfully' });
+  } catch (err) {
+    const duration = Date.now() - startTime;
+    logger.error('[DELETE /api/runs/:id] Error', {
+      error: err.message,
+      stack: err.stack,
+      user_id: req.user?.id,
+      run_id: runId,
+      duration_ms: duration
+    });
+    res.status(500).json({ error: 'Failed to delete run', details: err.message });
+  }
+});
+
 // GET /api/queue/status - Get queue status and task positions
 app.get('/api/queue/status', authMiddleware, async (req, res) => {
   const startTime = Date.now();

@@ -130,53 +130,135 @@ const HistoryPage = () => {
       }
   }, [user, logger]);
 
-  // Initial load on mount
+  // ✅ Real-time updates with Supabase Realtime (replaces polling)
   useEffect(() => {
-    fetchRuns(false); // Initial load
-    
-    // ✅ UX: Smart auto-refresh - only refresh if there are active tasks, and pause when user is interacting
-    let refreshInterval;
-    let isUserInteracting = false;
-    let interactionTimeout;
-    
-    const handleUserInteraction = () => {
-      isUserInteracting = true;
-      clearTimeout(interactionTimeout);
-      interactionTimeout = setTimeout(() => {
-        isUserInteracting = false;
-      }, 2000); // Pause refresh for 2 seconds after user interaction (reduced from 5)
-    };
-    
-    // Track user interactions (mouse, keyboard, text selection)
-    document.addEventListener('mousedown', handleUserInteraction);
-    document.addEventListener('keydown', handleUserInteraction);
-    document.addEventListener('selectionchange', handleUserInteraction);
-    
-    const smartRefresh = () => {
-      // Don't refresh if user is actively interacting
-      if (isUserInteracting) return;
-      
-      // Only auto-refresh if there are queued/running tasks that need updates
-      const hasActiveTasks = runsRef.current.some(run => 
-        run.status === 'queued' || run.status === 'running' || run.status === 'pending'
-      );
-      
-      if (hasActiveTasks) {
-        fetchRuns(true); // Background refresh - no loading state
+    if (!user?.id) return;
+
+    let channel = null;
+    let client = null;
+
+    const setupRealtime = async () => {
+      try {
+        // Initial load
+        await fetchRuns(false);
+
+        // Initialize Supabase client for Realtime
+        client = await initSupabase();
+        if (!client || typeof client.channel !== 'function') {
+          logger.warn('Supabase Realtime not available, falling back to manual refresh only');
+          return;
+        }
+
+        // Set auth token for Realtime connection
+        try {
+          const sessionRes = await client.auth.getSession();
+          const session = sessionRes?.data?.session || sessionRes?.session || null;
+          if (session?.access_token && client.realtime && typeof client.realtime.setAuth === 'function') {
+            client.realtime.setAuth(session.access_token);
+          }
+        } catch (authErr) {
+          logger.warn('Failed to set Realtime auth token', { error: authErr?.message });
+        }
+
+        // Subscribe to changes in automation_runs table for this user
+        channel = client
+          .channel(`automation_runs:user_id=eq.${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*', // Listen to INSERT, UPDATE, DELETE
+              schema: 'public',
+              table: 'automation_runs',
+              filter: `user_id=eq.${user.id}`
+            },
+            (payload) => {
+              logger.info('Realtime update received', {
+                event_type: payload.eventType,
+                run_id: payload.new?.id || payload.old?.id,
+                user_id: user.id
+              });
+
+              // Handle different event types
+              if (payload.eventType === 'INSERT') {
+                // New run created - fetch full data to get task details
+                fetchRuns(true); // Background refresh
+              } else if (payload.eventType === 'UPDATE') {
+                // Run status or data changed - update local state
+                setRuns(prev => {
+                  const existingIndex = prev.findIndex(r => r.id === (payload.new?.id || payload.old?.id));
+                  if (existingIndex >= 0) {
+                    // Update existing run
+                    const updated = [...prev];
+                    // Merge new data, preserving automation_tasks if not in payload
+                    updated[existingIndex] = {
+                      ...updated[existingIndex],
+                      ...payload.new,
+                      // Preserve nested task data if not in payload
+                      automation_tasks: payload.new?.automation_tasks || updated[existingIndex].automation_tasks
+                    };
+                    return updated;
+                  } else {
+                    // New run not in list yet - fetch full data
+                    fetchRuns(true);
+                    return prev;
+                  }
+                });
+                runsRef.current = runsRef.current.map(run => {
+                  if (run.id === (payload.new?.id || payload.old?.id)) {
+                    return { ...run, ...payload.new, automation_tasks: payload.new?.automation_tasks || run.automation_tasks };
+                  }
+                  return run;
+                });
+              } else if (payload.eventType === 'DELETE') {
+                // Run deleted - remove from local state
+                const deletedId = payload.old?.id;
+                if (deletedId) {
+                  setRuns(prev => prev.filter(r => r.id !== deletedId));
+                  runsRef.current = runsRef.current.filter(r => r.id !== deletedId);
+                  // Close modal if viewing deleted run (check current state)
+                  setViewingTaskId(prev => prev === deletedId ? null : prev);
+                }
+              }
+            }
+          )
+          .subscribe((status) => {
+            logger.info('Realtime subscription status', {
+              status,
+              user_id: user.id
+            });
+            if (status === 'SUBSCRIBED') {
+              logger.info('Successfully subscribed to automation_runs changes', { user_id: user.id });
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              logger.warn('Realtime subscription error, falling back to manual refresh', {
+                status,
+                user_id: user.id
+              });
+            }
+          });
+      } catch (err) {
+        logger.error('Failed to setup Realtime subscription', {
+          error: err.message,
+          user_id: user.id,
+          stack: err.stack
+        });
+        // Fallback: still fetch initial data even if Realtime fails
+        fetchRuns(false);
       }
     };
-    
-    // Refresh every 5 seconds (reduced from 10 for more real-time feel), but only if there are active tasks
-    refreshInterval = setInterval(smartRefresh, 5000);
-    
+
+    setupRealtime();
+
+    // Cleanup: unsubscribe from Realtime channel
     return () => {
-      clearInterval(refreshInterval);
-      clearTimeout(interactionTimeout);
-      document.removeEventListener('mousedown', handleUserInteraction);
-      document.removeEventListener('keydown', handleUserInteraction);
-      document.removeEventListener('selectionchange', handleUserInteraction);
+      if (channel) {
+        try {
+          client?.removeChannel(channel);
+        } catch (err) {
+          logger.warn('Error removing Realtime channel', { error: err?.message });
+        }
+      }
     };
-  }, [user, fetchRuns]);
+  }, [user?.id, fetchRuns, viewingTaskId]);
 
   // ✅ Manual refresh handler
   const handleManualRefresh = useCallback(() => {
@@ -257,6 +339,7 @@ const HistoryPage = () => {
     }
   };
 
+  // ✅ Use backend API for delete (better security and consistency)
   const handleDeleteTask = async (runId) => {
     const runToDelete = runs.find(r => r.id === runId);
     if (!runToDelete) return; // Should not happen, but good practice
@@ -265,10 +348,33 @@ const HistoryPage = () => {
 
     if (window.confirm(`Are you sure you want to delete the run for "${taskName}"? This action cannot be undone.`)) {
       try {
-        const client = await initSupabase();
-        const { error: deleteError } = await client.from('automation_runs').delete().eq('id', runId);
-        if (deleteError) throw deleteError;
+        // Use backend API endpoint for delete
+        const apiUrl = process.env.REACT_APP_API_BASE 
+          ? `${process.env.REACT_APP_API_BASE}/api/runs/${runId}`
+          : `/api/runs/${runId}`;
+        
+        const response = await fetchWithAuth(apiUrl, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+
+        // Optimistically remove from local state (Realtime will also update, but this is faster)
         setRuns(prev => prev.filter(r => r.id !== runId));
+        runsRef.current = runsRef.current.filter(r => r.id !== runId);
+        
+        // Close modal if viewing deleted run
+        if (viewingTaskId === runId) {
+          setViewingTaskId(null);
+        }
+
+        logger.info('Run deleted successfully', {
+          run_id: runId,
+          user_id: user.id
+        });
       } catch (err) {
         logger.error('Error deleting run', {
           error: err.message || err,
