@@ -547,11 +547,13 @@ if (!SESSION_SECRET) {
 app.use(cookieParser(sessionSecretToUse));
 
 
-// Apply global rate limiter to all routes
-app.use(globalLimiter);
+// Apply global rate limiter to all routes (skip entirely in development/test)
+if (isProduction) {
+  app.use(globalLimiter);
+}
 
-// For test: apply authLimiter to /api/tasks and /api/health
-if (process.env.NODE_ENV === 'test') {
+// Apply auth limiter only in production
+if (isProduction) {
   app.use(['/api/tasks', '/api/health'], authLimiter);
 }
 
@@ -1092,7 +1094,11 @@ app.use('/api', referralRouter);
 try {
   const executionRoutes = require('./routes/executionRoutes');
   // ✅ INSTRUCTION 1: Apply context logger middleware after auth
-  app.use('/api/executions', authMiddleware, contextLoggerMiddleware, apiLimiter, executionRoutes);
+  // Apply apiLimiter only in production
+  const executionMiddleware = isProduction 
+    ? [authMiddleware, contextLoggerMiddleware, apiLimiter, executionRoutes]
+    : [authMiddleware, contextLoggerMiddleware, executionRoutes];
+  app.use('/api/executions', ...executionMiddleware);
   rootLogger.info('✓ Execution routes mounted at /api/executions');
 } catch (e) {
   rootLogger.warn('executionRoutes not mounted', { error: e?.message || e });
@@ -1972,7 +1978,8 @@ const PUBLIC_ENDPOINTS = [
   '/ai-agent/suggestions'
 ];
 
-app.use('/api', authLimiter, async (req, res, next) => {
+// Apply authLimiter only in production
+const apiAuthMiddleware = async (req, res, next) => {
   const startTime = Date.now();
   const minDelay = 100; // Minimum delay in ms to prevent timing attacks
   
@@ -2032,7 +2039,10 @@ app.use('/api', authLimiter, async (req, res, next) => {
     await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
     return res.status(500).json({ error: 'Authentication failed' });
   }
-});
+};
+
+// Apply rate limiter only in production, then auth middleware
+app.use('/api', isProduction ? authLimiter : (req, res, next) => next(), apiAuthMiddleware);
 
 // --- Authenticated API Routes ---
 // All routes defined below this point will require a valid JWT.
