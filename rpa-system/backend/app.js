@@ -2121,6 +2121,15 @@ try {
   rootLogger.warn('Team Management routes not mounted', { error: e?.message || e });
 }
 
+// Mount Admin Analytics routes (internal - see what users are doing)
+try {
+  const adminAnalyticsRoutes = require('./routes/adminAnalyticsRoutes');
+  app.use('/api/admin/analytics', authMiddleware, adminAnalyticsRoutes);
+  rootLogger.info('✓ Admin Analytics routes mounted at /api/admin/analytics');
+} catch (e) {
+  rootLogger.warn('Admin Analytics routes not mounted', { error: e?.message || e });
+}
+
 // --- Authenticated API Routes ---
 
 // Utility functions for security validation

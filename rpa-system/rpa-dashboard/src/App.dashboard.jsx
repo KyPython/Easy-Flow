@@ -50,6 +50,7 @@ const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'));
 const WebhooksPage = lazy(() => import('./pages/WebhooksPage'));
 const RulesPage = lazy(() => import('./pages/RulesPage'));
 const AdminTemplates = lazy(() => import('./pages/AdminTemplates'));
+const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'));
 const UsageDebugPage = lazy(() => import('./pages/debug/UsageDebugPage'));
 const BusinessMetricsPage = lazy(() => import('./pages/BusinessMetricsPage'));
 
@@ -284,8 +285,9 @@ function Shell() {
             <Route path="/app/workflows/executions" element={<Protected><WorkflowPage /></Protected>} />
             <Route path="/app/workflows/testing" element={<Protected><WorkflowPage /></Protected>} />
 
-            {/* Minimal Admin route (protect via env secret at backend) */}
+            {/* Admin routes (protect via env secret at backend) */}
             <Route path="/app/admin/templates" element={<Protected><AdminTemplates /></Protected>} />
+            <Route path="/app/admin/analytics" element={<Protected><AdminAnalyticsPage /></Protected>} />
 
             {/* Debug route - development only */}
             {process.env.NODE_ENV === 'development' && (
