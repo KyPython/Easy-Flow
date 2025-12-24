@@ -121,14 +121,22 @@ if (process.env.NODE_ENV === 'production') {
 
 // ✅ CORS MUST BE FIRST - Apply immediately after app creation
 // CORS: sensible defaults in dev; restrict in prod via ALLOWED_ORIGINS
-const DEFAULT_DEV_ORIGINS = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:3030',
-  'http://127.0.0.1:3030',
-];
+// ✅ DYNAMIC: Use environment variables for all ports
+const getDefaultDevOrigins = () => {
+  const frontendPort = process.env.FRONTEND_PORT || '3000';
+  const backendPort = process.env.PORT || '3030';
+  const vitePort = process.env.VITE_PORT || '5173';
+  
+  return [
+    `http://localhost:${frontendPort}`,
+    `http://127.0.0.1:${frontendPort}`,
+    `http://localhost:${vitePort}`,
+    `http://127.0.0.1:${vitePort}`,
+    `http://localhost:${backendPort}`,
+    `http://127.0.0.1:${backendPort}`,
+  ];
+};
+const DEFAULT_DEV_ORIGINS = getDefaultDevOrigins();
 const DEFAULT_PROD_ORIGINS = [
   'https://www.tryeasyflow.com',
   'https://tryeasyflow.com',
@@ -479,18 +487,26 @@ const automationLimiter = rateLimit({
     }
   });
 
-  // Allow local OTLP collector in development
+  // ✅ DYNAMIC: Allow local OTLP collector in development
   if (process.env.NODE_ENV !== 'production') {
-    if (!directives.connectSrc.includes('http://localhost:4318')) directives.connectSrc.push('http://localhost:4318');
-    // Allow localhost scripts and connections for development
-    if (!directives.scriptSrc.includes('http://localhost:3000')) directives.scriptSrc.push('http://localhost:3000');
-    if (!directives.scriptSrc.includes('http://localhost:3030')) directives.scriptSrc.push('http://localhost:3030');
-    if (!directives.scriptSrc.includes('http://127.0.0.1:3000')) directives.scriptSrc.push('http://127.0.0.1:3000');
-    if (!directives.scriptSrc.includes('http://127.0.0.1:3030')) directives.scriptSrc.push('http://127.0.0.1:3030');
-    if (!directives.connectSrc.includes('http://localhost:3000')) directives.connectSrc.push('http://localhost:3000');
-    if (!directives.connectSrc.includes('http://localhost:3030')) directives.connectSrc.push('http://localhost:3030');
-    if (!directives.connectSrc.includes('http://127.0.0.1:3000')) directives.connectSrc.push('http://127.0.0.1:3000');
-    if (!directives.connectSrc.includes('http://127.0.0.1:3030')) directives.connectSrc.push('http://127.0.0.1:3030');
+    const otlpPort = process.env.OTLP_PORT || '4318';
+    if (!directives.connectSrc.includes(`http://localhost:${otlpPort}`)) {
+      directives.connectSrc.push(`http://localhost:${otlpPort}`);
+    }
+    // ✅ DYNAMIC: Allow localhost scripts and connections for development using dynamic ports
+    const frontendPort = process.env.FRONTEND_PORT || '3000';
+    const backendPort = process.env.PORT || '3030';
+    const devOrigins = [
+      `http://localhost:${frontendPort}`,
+      `http://127.0.0.1:${frontendPort}`,
+      `http://localhost:${backendPort}`,
+      `http://127.0.0.1:${backendPort}`,
+    ];
+    
+    devOrigins.forEach(origin => {
+      if (!directives.scriptSrc.includes(origin)) directives.scriptSrc.push(origin);
+      if (!directives.connectSrc.includes(origin)) directives.connectSrc.push(origin);
+    });
   }
 
   // Add OTLP exporter origin if provided
@@ -4455,9 +4471,11 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
         const { url, username, password, discoveryValue } = taskData;
         
         // ✅ DEMO PORTAL: Make credentials optional for demo portal (it's a test site)
+        // ✅ DYNAMIC: Check for demo portal using dynamic backend port
+        const backendPort = process.env.PORT || '3030';
         const isDemoPortal = url && (
           url.includes('/demo') || 
-          url.includes('localhost:3030/demo') ||
+          url.includes(`localhost:${backendPort}/demo`) ||
           url.includes('demo@useeasyflow.com') ||
           url.includes('demo portal')
         );
@@ -6435,8 +6453,12 @@ app.post('/api/files/shares', ...fileSharesPostMiddleware, async (req, res) => {
       return res.status(500).json({ error: 'Failed to create share link' });
     }
 
-    // Generate share URL
-    const shareUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/shared/${shareToken}`;
+    // ✅ DYNAMIC: Generate share URL using environment variable with dynamic port fallback
+    const frontendUrl = process.env.FRONTEND_URL || 
+      (process.env.NODE_ENV === 'development' 
+        ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}`
+        : 'http://localhost:3000');
+    const shareUrl = `${frontendUrl}/shared/${shareToken}`;
 
     res.status(201).json({
       ...share,
@@ -6485,7 +6507,7 @@ app.get('/api/files/:id/shares', authMiddleware, async (req, res) => {
     // Add share URLs and remove password hashes
     const sharesWithUrls = shares.map(share => ({
       ...share,
-      shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/shared/${share.share_token}`,
+      shareUrl: `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}` : 'http://localhost:3000')}/shared/${share.share_token}`,
       permissions: share.permissions || 'view', // Ensure permissions field is included
       password_hash: undefined
     }));
@@ -6538,7 +6560,7 @@ app.put('/api/files/shares/:shareId', ...fileSharesPutMiddleware, async (req, re
 
     res.json({
       ...share,
-      shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/shared/${share.share_token}`,
+      shareUrl: `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}` : 'http://localhost:3000')}/shared/${share.share_token}`,
       password_hash: undefined
     });
 
@@ -7344,8 +7366,8 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
     const checkoutData = {
       product_id: plan.external_product_id,
       customer_email: user.email,
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?checkout=success`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/pricing?checkout=cancelled`,
+      success_url: `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}` : 'http://localhost:3000')}/settings?checkout=success`,
+      cancel_url: `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}` : 'http://localhost:3000')}/pricing?checkout=cancelled`,
       trial_period_days: 14, // 14-day free trial
       metadata: {
         user_id: user.id,

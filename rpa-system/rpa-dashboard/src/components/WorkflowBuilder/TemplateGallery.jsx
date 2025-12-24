@@ -63,7 +63,7 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
 
   const handleTemplateSelection = async (template) => {
     try {
-      console.log('Creating workflow from template:', template);
+      logger.info('Creating workflow from template', { template_id: template.id, template_name: template.name });
       
       // Generate a workflow name based on the template
       const workflowName = `${template.name} - ${new Date().toLocaleDateString()}`;
@@ -71,11 +71,18 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
       // Create the workflow from template
       const newWorkflow = await createFromTemplate(template.id, workflowName);
       
+      logger.info('Workflow created successfully from template', { workflow_id: newWorkflow?.id, template_id: template.id });
+      
       // Pass the created workflow back to parent
       onSelectTemplate(newWorkflow);
       
     } catch (error) {
-      console.error('Failed to create workflow from template:', error);
+      logger.error('Failed to create workflow from template', { 
+        error: error.message, 
+        stack: error.stack,
+        template_id: template?.id,
+        template_name: template?.name
+      });
       alert('Failed to create workflow from template: ' + error.message);
     }
   };

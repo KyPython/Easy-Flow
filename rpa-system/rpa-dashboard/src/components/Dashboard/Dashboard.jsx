@@ -242,7 +242,7 @@ const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = 
 
       {/* Usage Information Section - placed at bottom for mobile */}
       <div className={styles.usageSection}>
-        <Suspense fallback={<div style={{padding: '0.75rem', color: '#6b7280'}}>Loading usage summary…</div>}>
+        <Suspense fallback={<div style={{padding: '0.75rem', color: 'var(--text-muted, #6b7280)'}}>Loading usage summary…</div>}>
           <UsageTracker showUpgrade={true} />
         </Suspense>
       </div>

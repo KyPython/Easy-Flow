@@ -88,13 +88,13 @@ const LoadingSkeleton = () => (
       <div style={{
         width: '48px',
         height: '48px',
-        border: '4px solid rgba(79, 70, 229, 0.1)',
-        borderTopColor: 'rgb(79, 70, 229)',
+        border: '4px solid var(--color-primary-light, rgba(79, 70, 229, 0.1))',
+        borderTopColor: 'var(--color-primary, rgb(79, 70, 229))',
         borderRadius: '50%',
         animation: 'spin 0.8s linear infinite'
       }} />
       <p style={{
-        color: '#6b7280',
+        color: 'var(--text-muted, #6b7280)',
         fontSize: '0.875rem'
       }}>Loading...</p>
     </div>
@@ -131,10 +131,10 @@ const AnalyticsTracker = () => {
           });
         }
       } catch (e) {
-        console.warn('[Analytics] page_view failed', e && e.message ? e.message : e);
+        logger.warn('Analytics page_view failed', { error: e?.message || e, stack: e?.stack });
       }
     } catch (e) {
-      console.warn('[Analytics] tracker failed', e && e.message ? e.message : e);
+      logger.warn('Analytics tracker failed', { error: e?.message || e, stack: e?.stack });
     }
   }, [location]);
 
@@ -177,7 +177,7 @@ function Shell() {
           const mod = await import('./utils/firebaseConfig');
           if (mod && mod.initFirebase) {
             // Fire-and-forget initialization — do not block UI
-            mod.initFirebase().catch(e => console.warn('[Firebase] init failed', e && e.message ? e.message : e));
+            mod.initFirebase().catch(e => logger.warn('Firebase init failed', { error: e?.message || e, stack: e?.stack }));
           }
         } catch (e) {
           console.warn('[Firebase] dynamic import failed', e && e.message ? e.message : e);
@@ -187,13 +187,13 @@ function Shell() {
       (async () => {
         try {
           const mod = await import('./utils/analyticsGate');
-          mod.enableAnalyticsForUser(user).catch(e => console.debug('[analyticsGate] failed', e && e.message ? e.message : e));
+          mod.enableAnalyticsForUser(user).catch(e => logger.debug('Analytics gate failed', { error: e?.message || e, stack: e?.stack, user_id: user?.id }));
         } catch (e) {
-          console.debug('[analyticsGate] import failed', e && e.message ? e.message : e);
+          logger.debug('Analytics gate import failed', { error: e?.message || e, stack: e?.stack });
         }
       })();
     } catch (e) {
-      console.warn('[Firebase] init gate check failed', e && e.message ? e.message : e);
+      logger.warn('Firebase init gate check failed', { error: e?.message || e, stack: e?.stack });
     }
   }, [user]);
   // Restore usage tracking (milestones, sessions). The hook is lightweight
@@ -313,7 +313,7 @@ function Shell() {
               onWorkflowGenerated={(workflow) => {
                 // Close agent and navigate to workflows if a workflow was generated
                 setShowAIAgent(false);
-                console.log('[AIAgent] Workflow generated:', workflow?.name);
+                logger.info('AI Agent workflow generated', { workflow_name: workflow?.name, workflow_id: workflow?.id });
               }}
             />
           </Suspense>

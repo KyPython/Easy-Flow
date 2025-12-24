@@ -17,6 +17,7 @@ import { useI18n } from '../../i18n';
 import { initSupabase } from '../../utils/supabaseClient';
 import { useToast } from '../WorkflowBuilder/Toast';
 import PlanGate from '../PlanGate/PlanGate';
+import { createLogger } from '../../utils/logger'; // Structured logger for observability
 
 const BulkInvoiceProcessor = () => {
   const { user } = useAuth();
@@ -81,7 +82,7 @@ const BulkInvoiceProcessor = () => {
       if (error) throw error;
       setVendors(data || []);
     } catch (error) {
-      console.error('Error loading vendors:', error);
+      logger.error('Error loading vendors', { error: error.message, stack: error.stack, user_id: user?.id });
     }
   };
 
@@ -103,7 +104,7 @@ const BulkInvoiceProcessor = () => {
       if (error) throw error;
       setBatchJobs(data || []);
     } catch (error) {
-      console.error('Error loading batch jobs:', error);
+      logger.error('Error loading batch jobs', { error: error.message, stack: error.stack, user_id: user?.id });
     }
   };
 
@@ -140,7 +141,7 @@ const BulkInvoiceProcessor = () => {
       setShowVendorForm(false);
       await loadVendors();
     } catch (error) {
-      console.error('Error saving vendor:', error);
+      logger.error('Error saving vendor', { error: error.message, stack: error.stack, user_id: user?.id, vendor_name: newVendor.vendor_name });
       showError('Failed to save vendor configuration');
     } finally {
       setLoading(false);
@@ -168,7 +169,7 @@ const BulkInvoiceProcessor = () => {
       // Start polling for progress
       pollJobProgress(result.batchId);
     } catch (error) {
-      console.error('Error starting bulk processing:', error);
+      logger.error('Error starting bulk processing', { error: error.message, stack: error.stack, user_id: user?.id, vendor_id: selectedVendor?.id });
       showError('Failed to start bulk processing');
     } finally {
       setLoading(false);
@@ -198,7 +199,7 @@ const BulkInvoiceProcessor = () => {
           await loadBatchJobs();
         }
       } catch (error) {
-        console.error('Error polling job progress:', error);
+        logger.error('Error polling job progress', { error: error.message, stack: error.stack, user_id: user?.id, job_id: jobId });
         clearInterval(interval);
       }
     }, 3000);
