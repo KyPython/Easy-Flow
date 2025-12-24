@@ -37,7 +37,7 @@ const AdminAnalyticsPage = () => {
     try {
       const [overviewRes, activityRes, usageRes] = await Promise.all([
         api.get('/api/admin/analytics/overview'),
-        api.get('/api/admin/analytics/user-activity?days=30'),
+        api.get('/api/admin/analytics/user-activity'),
         api.get('/api/admin/analytics/workflow-usage')
       ]);
 
@@ -114,56 +114,62 @@ const AdminAnalyticsPage = () => {
         <div className={styles.content}>
           <div className={styles.metricsGrid}>
             <div className={styles.metricCard}>
-              <div className={styles.metricValue}>{overview.overview?.totalUsers || 0}</div>
+              <div className={styles.metricValue}>{overview.totalUsers || 0}</div>
               <div className={styles.metricLabel}>Total Users</div>
             </div>
             <div className={styles.metricCard}>
-              <div className={styles.metricValue}>{overview.overview?.activeUsers || 0}</div>
+              <div className={styles.metricValue}>{overview.activeUsers || 0}</div>
               <div className={styles.metricLabel}>Active Users (30d)</div>
               <div className={styles.metricSubtext}>
-                {overview.overview?.activeUserRate || 0}% of total
+                {overview.totalUsers > 0 ? Math.round((overview.activeUsers / overview.totalUsers) * 100) : 0}% of total
               </div>
             </div>
             <div className={styles.metricCard}>
-              <div className={styles.metricValue}>{overview.overview?.totalWorkflows || 0}</div>
+              <div className={styles.metricValue}>{overview.totalWorkflows || 0}</div>
               <div className={styles.metricLabel}>Total Workflows</div>
             </div>
             <div className={styles.metricCard}>
-              <div className={styles.metricValue}>{overview.overview?.totalRuns || 0}</div>
+              <div className={styles.metricValue}>{overview.totalRuns || 0}</div>
               <div className={styles.metricLabel}>Total Runs</div>
-            </div>
-            <div className={styles.metricCard}>
-              <div className={styles.metricValue}>{overview.overview?.failureRate || 0}%</div>
-              <div className={styles.metricLabel}>Failure Rate</div>
             </div>
           </div>
 
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>🔥 Most Popular Templates</h2>
             <div className={styles.list}>
-              {overview.popularTemplates?.map((template, idx) => (
-                <div key={idx} className={styles.listItem}>
-                  <div className={styles.listItemMain}>
-                    <strong>{template.name}</strong>
-                    <span className={styles.badge}>{template.usageCount} uses</span>
+              {overview.popularTemplates && overview.popularTemplates.length > 0 ? (
+                overview.popularTemplates.map((template, idx) => (
+                  <div key={idx} className={styles.listItem}>
+                    <div className={styles.listItemMain}>
+                      <strong>{template.name}</strong>
+                      <span className={styles.badge}>{template.usage_count || 0} uses</span>
+                    </div>
+                    {template.rating && (
+                      <div className={styles.listItemSub}>⭐ {template.rating}/5.0</div>
+                    )}
                   </div>
-                  <div className={styles.listItemSub}>⭐ {template.rating}/5.0</div>
-                </div>
-              )) || <p>No templates yet</p>}
+                ))
+              ) : (
+                <p>No templates yet</p>
+              )}
             </div>
           </div>
 
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>🔌 Most Used Integrations</h2>
             <div className={styles.list}>
-              {overview.integrationUsage?.map((integration, idx) => (
-                <div key={idx} className={styles.listItem}>
-                  <div className={styles.listItemMain}>
-                    <strong>{integration.type}</strong>
-                    <span className={styles.badge}>{integration.count} users</span>
+              {overview.topIntegrations && overview.topIntegrations.length > 0 ? (
+                overview.topIntegrations.map((integration, idx) => (
+                  <div key={idx} className={styles.listItem}>
+                    <div className={styles.listItemMain}>
+                      <strong>{integration.provider}</strong>
+                      <span className={styles.badge}>{integration.count} users</span>
+                    </div>
                   </div>
-                </div>
-              )) || <p>No integrations yet</p>}
+                ))
+              ) : (
+                <p>No integrations yet</p>
+              )}
             </div>
           </div>
         </div>
@@ -213,31 +219,41 @@ const AdminAnalyticsPage = () => {
       {activeTab === 'workflows' && workflowUsage && (
         <div className={styles.content}>
           <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>📋 Task Type Breakdown</h2>
+            <h2 className={styles.sectionTitle}>⭐ Popular Workflows</h2>
             <div className={styles.list}>
-              {workflowUsage.taskTypeBreakdown?.map((item, idx) => (
-                <div key={idx} className={styles.listItem}>
-                  <div className={styles.listItemMain}>
-                    <strong>{item.type || 'Unknown'}</strong>
-                    <span className={styles.badge}>{item.count} workflows</span>
+              {workflowUsage.popularWorkflows && workflowUsage.popularWorkflows.length > 0 ? (
+                workflowUsage.popularWorkflows.map((workflow, idx) => (
+                  <div key={idx} className={styles.listItem}>
+                    <div className={styles.listItemMain}>
+                      <strong>{workflow.name}</strong>
+                      <span className={styles.badge}>{workflow.usage_count || 0} uses</span>
+                    </div>
+                    {workflow.description && (
+                      <div className={styles.listItemSub}>{workflow.description}</div>
+                    )}
                   </div>
-                </div>
-              )) || <p>No workflow data yet</p>}
+                ))
+              ) : (
+                <p>No workflow data yet</p>
+              )}
             </div>
           </div>
 
           <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>⭐ Popular Templates</h2>
+            <h2 className={styles.sectionTitle}>📋 Task Type Breakdown</h2>
             <div className={styles.list}>
-              {workflowUsage.popularTemplates?.map((template, idx) => (
-                <div key={idx} className={styles.listItem}>
-                  <div className={styles.listItemMain}>
-                    <strong>{template.name}</strong>
-                    <span className={styles.badge}>{template.usageCount} uses</span>
+              {workflowUsage.taskTypeBreakdown && workflowUsage.taskTypeBreakdown.length > 0 ? (
+                workflowUsage.taskTypeBreakdown.map((item, idx) => (
+                  <div key={idx} className={styles.listItem}>
+                    <div className={styles.listItemMain}>
+                      <strong>{item.type || 'Unknown'}</strong>
+                      <span className={styles.badge}>{item.count || 0} tasks</span>
+                    </div>
                   </div>
-                  <div className={styles.listItemSub}>Category: {template.category}</div>
-                </div>
-              )) || <p>No template data yet</p>}
+                ))
+              ) : (
+                <p>No task type data yet</p>
+              )}
             </div>
           </div>
         </div>
