@@ -131,11 +131,13 @@ const HistoryPage = () => {
   }, [user, logger]);
 
   // ✅ Real-time updates with Supabase Realtime (replaces polling)
+  // Uses WebSocket subscriptions for instant updates when runs change
   useEffect(() => {
     if (!user?.id) return;
 
     let channel = null;
     let client = null;
+    let fallbackPollInterval = null;
 
     const setupRealtime = async () => {
       try {
@@ -145,7 +147,16 @@ const HistoryPage = () => {
         // Initialize Supabase client for Realtime
         client = await initSupabase();
         if (!client || typeof client.channel !== 'function') {
-          logger.warn('Supabase Realtime not available, falling back to manual refresh only');
+          logger.warn('Supabase Realtime not available, falling back to polling');
+          // Fallback: Use polling if Realtime is unavailable
+          fallbackPollInterval = setInterval(() => {
+            const hasActiveTasks = runsRef.current.some(run => 
+              run.status === 'queued' || run.status === 'running' || run.status === 'pending'
+            );
+            if (hasActiveTasks) {
+              fetchRuns(true); // Background refresh only for active tasks
+            }
+          }, 5000); // Poll every 5 seconds as fallback
           return;
         }
 
@@ -162,7 +173,14 @@ const HistoryPage = () => {
 
         // Subscribe to changes in automation_runs table for this user
         channel = client
-          .channel(`automation_runs:user_id=eq.${user.id}`)
+          .channel(`automation_runs:user_id=eq.${user.id}`, {
+            config: {
+              // Enable presence for better connection management
+              presence: {
+                key: user.id
+              }
+            }
+          })
           .on(
             'postgres_changes',
             {
@@ -183,7 +201,7 @@ const HistoryPage = () => {
                 // New run created - fetch full data to get task details
                 fetchRuns(true); // Background refresh
               } else if (payload.eventType === 'UPDATE') {
-                // Run status or data changed - update local state
+                // Run status or data changed - update local state efficiently
                 setRuns(prev => {
                   const existingIndex = prev.findIndex(r => r.id === (payload.new?.id || payload.old?.id));
                   if (existingIndex >= 0) {
@@ -203,6 +221,7 @@ const HistoryPage = () => {
                     return prev;
                   }
                 });
+                // Also update ref for consistency
                 runsRef.current = runsRef.current.map(run => {
                   if (run.id === (payload.new?.id || payload.old?.id)) {
                     return { ...run, ...payload.new, automation_tasks: payload.new?.automation_tasks || run.automation_tasks };
@@ -215,7 +234,7 @@ const HistoryPage = () => {
                 if (deletedId) {
                   setRuns(prev => prev.filter(r => r.id !== deletedId));
                   runsRef.current = runsRef.current.filter(r => r.id !== deletedId);
-                  // Close modal if viewing deleted run (check current state)
+                  // Close modal if viewing deleted run
                   setViewingTaskId(prev => prev === deletedId ? null : prev);
                 }
               }
@@ -227,12 +246,23 @@ const HistoryPage = () => {
               user_id: user.id
             });
             if (status === 'SUBSCRIBED') {
-              logger.info('Successfully subscribed to automation_runs changes', { user_id: user.id });
-            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-              logger.warn('Realtime subscription error, falling back to manual refresh', {
+              logger.info('Successfully subscribed to automation_runs changes via WebSocket', { user_id: user.id });
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+              logger.warn('Realtime subscription error, falling back to polling', {
                 status,
                 user_id: user.id
               });
+              // Fallback to polling if Realtime fails
+              if (!fallbackPollInterval) {
+                fallbackPollInterval = setInterval(() => {
+                  const hasActiveTasks = runsRef.current.some(run => 
+                    run.status === 'queued' || run.status === 'running' || run.status === 'pending'
+                  );
+                  if (hasActiveTasks) {
+                    fetchRuns(true);
+                  }
+                }, 5000);
+              }
             }
           });
       } catch (err) {
@@ -243,22 +273,37 @@ const HistoryPage = () => {
         });
         // Fallback: still fetch initial data even if Realtime fails
         fetchRuns(false);
+        // Also set up polling as fallback
+        if (!fallbackPollInterval) {
+          fallbackPollInterval = setInterval(() => {
+            const hasActiveTasks = runsRef.current.some(run => 
+              run.status === 'queued' || run.status === 'running' || run.status === 'pending'
+            );
+            if (hasActiveTasks) {
+              fetchRuns(true);
+            }
+          }, 5000);
+        }
       }
     };
 
     setupRealtime();
 
-    // Cleanup: unsubscribe from Realtime channel
+    // Cleanup: unsubscribe from Realtime channel and clear polling
     return () => {
-      if (channel) {
+      if (fallbackPollInterval) {
+        clearInterval(fallbackPollInterval);
+      }
+      if (channel && client) {
         try {
-          client?.removeChannel(channel);
+          client.removeChannel(channel);
+          logger.info('Realtime channel unsubscribed', { user_id: user.id });
         } catch (err) {
           logger.warn('Error removing Realtime channel', { error: err?.message });
         }
       }
     };
-  }, [user?.id, fetchRuns, viewingTaskId]);
+  }, [user?.id, fetchRuns]); // Removed viewingTaskId from deps to prevent unnecessary re-subscriptions
 
   // ✅ Manual refresh handler
   const handleManualRefresh = useCallback(() => {
