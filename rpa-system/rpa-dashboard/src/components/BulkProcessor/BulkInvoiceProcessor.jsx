@@ -14,7 +14,7 @@ import styles from './BulkProcessor.module.css';
 import { useAuth } from '../../utils/AuthContext';
 import { useTheme } from '../../utils/ThemeContext';
 import { useI18n } from '../../i18n';
-import { supabase } from '../../utils/supabaseClient';
+import { initSupabase } from '../../utils/supabaseClient';
 import { useToast } from '../WorkflowBuilder/Toast';
 import PlanGate from '../PlanGate/PlanGate';
 
@@ -66,7 +66,12 @@ const BulkInvoiceProcessor = () => {
 
   const loadVendors = async () => {
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      if (!client) {
+        throw new Error('Supabase not configured. Please add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to your environment.');
+      }
+      
+      const { data, error } = await client
         .from('vendor_configs')
         .select('*')
         .eq('user_id', user.id)
@@ -82,7 +87,12 @@ const BulkInvoiceProcessor = () => {
 
   const loadBatchJobs = async () => {
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      if (!client) {
+        throw new Error('Supabase not configured. Please add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to your environment.');
+      }
+      
+      const { data, error } = await client
         .from('batch_executions')
         .select('*')
         .eq('user_id', user.id)
@@ -101,7 +111,12 @@ const BulkInvoiceProcessor = () => {
     try {
       setLoading(true);
       
-      const { error } = await supabase
+      const client = await initSupabase();
+      if (!client) {
+        throw new Error('Supabase not configured. Please add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to your environment.');
+      }
+      
+      const { error } = await client
         .from('vendor_configs')
         .insert({
           user_id: user.id,
@@ -163,7 +178,12 @@ const BulkInvoiceProcessor = () => {
   const pollJobProgress = (batchId) => {
     const interval = setInterval(async () => {
       try {
-        const { data, error } = await supabase
+        const client = await initSupabase();
+        if (!client) {
+          throw new Error('Supabase not configured. Please add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to your environment.');
+        }
+        
+        const { data, error } = await client
           .from('batch_executions')
           .select('*')
           .eq('id', batchId)
@@ -188,7 +208,12 @@ const BulkInvoiceProcessor = () => {
 
   const deleteVendor = async (vendorId) => {
     try {
-      const { error } = await supabase
+      const client = await initSupabase();
+      if (!client) {
+        throw new Error('Supabase not configured. Please add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to your environment.');
+      }
+      
+      const { error } = await client
         .from('vendor_configs')
         .update({ is_active: false })
         .eq('id', vendorId);

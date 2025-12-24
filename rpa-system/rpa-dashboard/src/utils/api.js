@@ -1041,10 +1041,15 @@ export const createFileShare = async (shareData) => {
   );
 };
 
-export const getFileShares = async (fileId) => {
+export const getFileShares = async (fileId = null) => {
   return apiErrorHandler.safeApiCall(
     async () => {
-      const { data } = await api.get(`/api/files/${fileId}/shares`);
+      // If fileId is provided, get shares for that specific file
+      // Otherwise, get all shares for the current user
+      const endpoint = fileId 
+        ? `/api/files/${fileId}/shares`
+        : '/api/files/shares'; // Endpoint for all user shares
+      const { data } = await api.get(endpoint);
       return data;
     },
     {

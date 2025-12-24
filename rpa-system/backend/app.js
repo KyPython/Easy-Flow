@@ -2103,6 +2103,24 @@ try {
   rootLogger.warn('Integration routes not mounted', { error: e?.message || e });
 }
 
+// Mount ROI Analytics routes
+try {
+  const roiAnalyticsRoutes = require('./routes/roiAnalytics');
+  app.use('/api/roi-analytics', authMiddleware, roiAnalyticsRoutes);
+  rootLogger.info('✓ ROI Analytics routes mounted at /api/roi-analytics');
+} catch (e) {
+  rootLogger.warn('ROI Analytics routes not mounted', { error: e?.message || e });
+}
+
+// Mount Team Management routes
+try {
+  const teamRoutes = require('./routes/teamRoutes');
+  app.use('/api/team', authMiddleware, teamRoutes);
+  rootLogger.info('✓ Team Management routes mounted at /api/team');
+} catch (e) {
+  rootLogger.warn('Team Management routes not mounted', { error: e?.message || e });
+}
+
 // --- Authenticated API Routes ---
 
 // Utility functions for security validation
@@ -3120,8 +3138,15 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       return res.status(500).json({ error: 'Database connection not available' });
     }
 
-    // ✅ PERFORMANCE: Optimize query - fetch without expensive join first
-    // Then fetch task details separately if needed
+    // ✅ PERFORMANCE: Optimize query with proper indexes
+    // Required database indexes for optimal performance:
+    // CREATE INDEX idx_automation_runs_user_id_started_at ON automation_runs(user_id, started_at DESC);
+    // CREATE INDEX idx_automation_runs_task_id ON automation_runs(task_id) WHERE task_id IS NOT NULL;
+    // CREATE INDEX idx_automation_tasks_id ON automation_tasks(id);
+    //
+    // Query optimization: Fetch runs without expensive join, then fetch tasks separately
+    // This avoids N+1 queries and allows better use of indexes
+    const queryStartTime = Date.now();
     const { data: runsData, error } = await supabase
       .from('automation_runs')
       .select(`
@@ -3137,23 +3162,49 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       .order('started_at', { ascending: false })
       .limit(100);
     
-    if (error) throw error;
+    if (error) {
+      logger.error('[GET /api/runs] Database query error:', error);
+      throw error;
+    }
+    
+    const queryDuration = Date.now() - queryStartTime;
+    if (queryDuration > 2000) {
+      logger.warn('[GET /api/runs] Slow query detected', {
+        duration_ms: queryDuration,
+        user_id: req.user.id,
+        runs_count: runsData?.length || 0,
+        message: 'Consider adding database indexes: idx_automation_runs_user_id_started_at'
+      });
+    }
     
     // Fetch task details separately to avoid slow join
-    const taskIds = [...new Set(runsData.filter(r => r.task_id).map(r => r.task_id))];
+    // This is more efficient than a JOIN when we have proper indexes
+    const taskIds = [...new Set((runsData || []).filter(r => r.task_id).map(r => r.task_id))];
     let tasksMap = {};
     
     if (taskIds.length > 0) {
+      const taskQueryStart = Date.now();
       const { data: tasks, error: tasksError } = await supabase
         .from('automation_tasks')
         .select('id, name, url, task_type')
         .in('id', taskIds);
       
-      if (!tasksError && tasks) {
+      if (tasksError) {
+        logger.warn('[GET /api/runs] Error fetching tasks (non-critical):', tasksError);
+        // Don't fail the request if tasks can't be fetched
+      } else if (tasks) {
         tasksMap = tasks.reduce((acc, task) => {
           acc[task.id] = { name: task.name, url: task.url, task_type: task.task_type };
           return acc;
         }, {});
+      }
+      
+      const taskQueryDuration = Date.now() - taskQueryStart;
+      if (taskQueryDuration > 1000) {
+        logger.warn('[GET /api/runs] Slow task query detected', {
+          duration_ms: taskQueryDuration,
+          task_count: taskIds.length
+        });
       }
     }
     
@@ -6224,6 +6275,75 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
 // =====================================================
 // FILE SHARING API ENDPOINTS
 // =====================================================
+
+// GET /api/files/shares - Get all shares for the current user
+app.get('/api/files/shares', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { data: shares, error } = await supabase
+      .from('file_shares')
+      .select(`
+        *,
+        files (
+          id,
+          original_name,
+          file_size,
+          mime_type,
+          created_at
+        )
+      `)
+      .eq('shared_by', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('[GET /api/files/shares] Error:', error);
+      return res.status(500).json({ error: 'Failed to fetch shares' });
+    }
+
+    res.json({ shares: shares || [] });
+  } catch (err) {
+    logger.error('[GET /api/files/shares] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch shares' });
+  }
+});
+
+// GET /api/files/:fileId/shares - Get shares for a specific file
+app.get('/api/files/:fileId/shares', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const fileId = req.params.fileId;
+
+    // Verify file ownership
+    const { data: file, error: fileError } = await supabase
+      .from('files')
+      .select('id')
+      .eq('id', fileId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fileError || !file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const { data: shares, error } = await supabase
+      .from('file_shares')
+      .select('*')
+      .eq('file_id', fileId)
+      .eq('shared_by', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('[GET /api/files/:fileId/shares] Error:', error);
+      return res.status(500).json({ error: 'Failed to fetch shares' });
+    }
+
+    res.json({ shares: shares || [] });
+  } catch (err) {
+    logger.error('[GET /api/files/:fileId/shares] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch shares' });
+  }
+});
 
 // POST /api/files/shares - Create a new share link
 app.post('/api/files/shares', authMiddleware, async (req, res) => {
