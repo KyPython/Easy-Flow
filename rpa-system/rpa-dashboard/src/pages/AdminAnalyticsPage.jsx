@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../utils/AuthContext';
 import { useTheme } from '../utils/ThemeContext';
 import { api } from '../utils/api';
@@ -16,6 +17,7 @@ import styles from './AdminAnalyticsPage.module.css';
 const AdminAnalyticsPage = () => {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const logger = createLogger('AdminAnalyticsPage');
   
   const [overview, setOverview] = useState(null);
@@ -24,11 +26,48 @@ const AdminAnalyticsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
+  // ✅ SECURITY: Check admin status immediately before loading any data
   useEffect(() => {
-    if (!user) return;
-    loadAllData();
-  }, [user]);
+    if (!user) {
+      // Not authenticated - redirect to login
+      navigate('/auth');
+      return;
+    }
+
+    // Check admin status by attempting to access the API
+    // The backend will return 403 if user is not admin
+    const checkAdminAccess = async () => {
+      try {
+        // Try to access the overview endpoint - if we get 403, user is not admin
+        await api.get('/api/admin/analytics/overview');
+        // If successful, user is admin - proceed to load data
+        setIsCheckingAdmin(false);
+        loadAllData();
+      } catch (err) {
+        if (err.response?.status === 403) {
+          // Not an admin - redirect immediately
+          logger.warn('Non-admin user attempted to access admin analytics', {
+            userId: user.id,
+            email: user.email
+          });
+          navigate('/app', { replace: true });
+          return;
+        } else if (err.response?.status === 401) {
+          // Not authenticated - redirect to login
+          navigate('/auth', { replace: true });
+          return;
+        } else {
+          // Other error - show error message
+          setError(err.message || 'Failed to verify admin access');
+          setIsCheckingAdmin(false);
+        }
+      }
+    };
+
+    checkAdminAccess();
+  }, [user, navigate]);
 
   const loadAllData = async () => {
     setLoading(true);
@@ -51,7 +90,12 @@ const AdminAnalyticsPage = () => {
       });
       
       if (err.response?.status === 403) {
+        // Should not happen if checkAdminAccess worked, but handle it anyway
         setError('Admin access required. Add your email to ADMIN_EMAILS environment variable.');
+        // Redirect after showing error briefly
+        setTimeout(() => {
+          navigate('/app', { replace: true });
+        }, 2000);
       } else {
         setError(err.message || 'Failed to load analytics');
       }
@@ -59,6 +103,15 @@ const AdminAnalyticsPage = () => {
       setLoading(false);
     }
   };
+
+  // Show loading state while checking admin access
+  if (isCheckingAdmin || !user) {
+    return (
+      <div className={styles.page} data-theme={theme}>
+        <div className={styles.loading}>Verifying admin access...</div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
