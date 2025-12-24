@@ -6,7 +6,8 @@ cd /Users/ky/Easy-Flow
 git checkout dev
 ./start-dev.sh
 ```
-**Opens:** http://localhost:3000 (auto-opens browser)
+**Auto-installs:** All npm and Python dependencies if missing  
+**Opens:** http://localhost:3000
 
 ## While Working
 - Make changes → Test in browser
@@ -35,7 +36,7 @@ npm run ship
 ## Quick Reference
 
 **Start/Stop:**
-- `./start-dev.sh` - Start everything
+- `./start-dev.sh` - Start everything (auto-installs dependencies)
 - `./stop-dev.sh` - Stop everything
 
 **Logs:**

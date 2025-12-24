@@ -35,13 +35,113 @@ if ! command -v pm2 &> /dev/null; then
     npm install -g pm2
 fi
 
+# ==========================================
+# AUTOMATIC DEPENDENCY INSTALLATION
+# ==========================================
+echo ""
+echo -e "${YELLOW}📦 Checking and installing dependencies...${NC}"
+
+# Temporarily disable exit on error for dependency installation
+set +e
+
+# Function to check and install npm dependencies
+install_npm_deps() {
+    local dir=$1
+    local name=$2
+    
+    if [ -f "$dir/package.json" ]; then
+        if [ ! -d "$dir/node_modules" ] || [ "$dir/package.json" -nt "$dir/node_modules" ]; then
+            echo -e "${YELLOW}  Installing $name dependencies...${NC}"
+            if [ -d "$dir" ]; then
+                (cd "$dir" && npm install --silent 2>/dev/null)
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}  ✓ $name dependencies installed${NC}"
+                else
+                    echo -e "${RED}  ✗ Failed to install $name dependencies${NC}"
+                    echo -e "${YELLOW}     You may need to run: cd $dir && npm install${NC}"
+                fi
+            else
+                echo -e "${YELLOW}  ⚠ Directory $dir not found, skipping${NC}"
+            fi
+        else
+            echo -e "${GREEN}  ✓ $name dependencies already installed${NC}"
+        fi
+    fi
+}
+
+# Function to check and install Python dependencies
+install_python_deps() {
+    local dir=$1
+    local name=$2
+    local requirements_file=$3
+    
+    if [ -f "$requirements_file" ]; then
+        # Check if key packages are installed by trying to import them
+        # Check first package in requirements (usually the most critical)
+        local first_pkg=$(head -1 "$requirements_file" | cut -d'=' -f1 | cut -d'>' -f1 | cut -d'<' -f1 | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+        local import_name=$(echo "$first_pkg" | sed 's/-/_/g' | sed 's/\./_/g')
+        
+        # Try importing the package
+        if ! python3 -c "import $import_name" 2>/dev/null; then
+            echo -e "${YELLOW}  Installing $name Python dependencies...${NC}"
+            if [ -d "$dir" ]; then
+                (cd "$dir" && (
+                    pip3 install --user -r "$(basename "$requirements_file")" --quiet 2>/dev/null || \
+                    pip3 install -r "$(basename "$requirements_file")" --quiet 2>/dev/null || \
+                    python3 -m pip install --user -r "$(basename "$requirements_file")" --quiet 2>/dev/null || \
+                    python3 -m pip install -r "$(basename "$requirements_file")" --quiet 2>/dev/null
+                ))
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}  ✓ $name Python dependencies installed${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ Could not install $name Python dependencies automatically${NC}"
+                    echo -e "${YELLOW}     You may need to run: cd $dir && pip3 install -r $(basename $requirements_file)${NC}"
+                fi
+            else
+                echo -e "${YELLOW}  ⚠ Directory $dir not found, skipping${NC}"
+            fi
+        else
+            echo -e "${GREEN}  ✓ $name Python dependencies already installed${NC}"
+        fi
+    fi
+}
+
+# Install root dependencies (dotenv, husky, etc.)
+install_npm_deps "." "Root"
+
+# Install backend dependencies
+install_npm_deps "rpa-system/backend" "Backend"
+
+# Install frontend dependencies
+install_npm_deps "rpa-system/rpa-dashboard" "Frontend"
+
+# Install automation service Python dependencies
+install_python_deps "rpa-system/automation/automation-service" "Automation Service" "rpa-system/automation/automation-service/requirements.txt"
+
+# Also check general automation requirements
+if [ -f "rpa-system/automation/requirements.txt" ]; then
+    install_python_deps "rpa-system/automation" "Automation" "rpa-system/automation/requirements.txt"
+fi
+
+# Re-enable exit on error
+set -e
+
+echo -e "${GREEN}✓ All dependencies checked${NC}"
+echo ""
+
 # Stop any existing PM2 processes
 echo -e "${YELLOW}Stopping existing PM2 processes...${NC}"
 pm2 delete all 2>/dev/null || true
 
+# Set dynamic ports from environment variables with defaults (before port freeing)
+FRONTEND_PORT=${FRONTEND_PORT:-3000}
+BACKEND_PORT=${PORT:-3030}
+AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+BACKEND_METRICS_PORT=${BACKEND_METRICS_PORT:-9091}
+
 # Ensure critical ports are free (prevent address in use errors)
 echo -e "${YELLOW}Freeing up critical ports...${NC}"
-for port in 3000 3030 7070 7001 9091; do
+for port in $FRONTEND_PORT $BACKEND_PORT $AUTOMATION_PORT $BACKEND_METRICS_PORT; do
     if lsof -ti:$port > /dev/null 2>&1; then
         lsof -ti:$port | xargs kill -9 2>/dev/null || true
         echo -e "${GREEN}✓ Freed port $port${NC}"
@@ -49,7 +149,7 @@ for port in 3000 3030 7070 7001 9091; do
 done
 sleep 1
 
-# Stop Docker frontend container if running (it uses port 3000)
+# Stop Docker frontend container if running (it uses frontend port)
 echo -e "${YELLOW}Stopping Docker frontend container...${NC}"
 docker stop easy-flow-rpa-dashboard-1 2>/dev/null || true
 
@@ -116,6 +216,15 @@ else
   echo -e "${YELLOW}   Create a .env file in the project root with your configuration.${NC}"
 fi
 
+# Set dynamic ports from environment variables with defaults
+FRONTEND_PORT=${FRONTEND_PORT:-3000}
+BACKEND_PORT=${PORT:-3030}
+AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+BACKEND_METRICS_PORT=${BACKEND_METRICS_PORT:-9091}
+
+# Export ports so they're available in the ecosystem.config.js generation
+export FRONTEND_PORT BACKEND_PORT AUTOMATION_PORT BACKEND_METRICS_PORT
+
 # Generate a dynamic ecosystem file that reads from environment variables
 echo -e "${YELLOW}Generating PM2 ecosystem config...${NC}"
 cat > ecosystem.config.js << EOL
@@ -140,9 +249,9 @@ module.exports = {
       merge_logs: true,
       env: {
         NODE_ENV: process.env.NODE_ENV || 'development',
-        PORT: process.env.PORT || 3030,
+        PORT: process.env.PORT || '3030',
         KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
-        AUTOMATION_URL: process.env.AUTOMATION_URL || 'http://127.0.0.1:7070',
+        AUTOMATION_URL: process.env.AUTOMATION_URL || 'http://127.0.0.1:' + (process.env.AUTOMATION_PORT || '7070'),
         KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID || 'easyflow-backend',
         KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
         KAFKA_BROKERS: process.env.KAFKA_BROKERS || '127.0.0.1:9092',
@@ -166,7 +275,7 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       merge_logs: true,
       env: {
-        PORT: process.env.FRONTEND_PORT || 3000,
+        PORT: process.env.FRONTEND_PORT || '3000',
         BROWSER: process.env.BROWSER || 'none',
         REACT_APP_API_BASE: process.env.REACT_APP_API_BASE,
         PUBLIC_URL: process.env.PUBLIC_URL,
@@ -184,8 +293,8 @@ module.exports = {
       env: {
         PYTHONUNBUFFERED: process.env.PYTHONUNBUFFERED || '1',
         KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
-        PORT: process.env.AUTOMATION_PORT || 7070,
-        BACKEND_URL: process.env.BACKEND_URL || 'http://127.0.0.1:3030',
+        PORT: process.env.AUTOMATION_PORT || '7070',
+        BACKEND_URL: process.env.BACKEND_URL || 'http://127.0.0.1:' + (process.env.PORT || '3030'),
         KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
         KAFKA_BROKERS: process.env.KAFKA_BROKERS || '127.0.0.1:9092',
         SUPABASE_URL: process.env.SUPABASE_URL,
@@ -207,7 +316,7 @@ echo ""
 # Wait for Backend (up to 30s)
 BACKEND_OK=false
 for i in {1..30}; do
-    if curl -s http://localhost:3030/health > /dev/null; then
+    if curl -s http://localhost:$BACKEND_PORT/health > /dev/null; then
         echo -e "${GREEN}✓ Backend is healthy${NC}"
         BACKEND_OK=true
         break
@@ -219,7 +328,7 @@ done
 # Wait for Automation Worker (up to 30s)
 AUTO_OK=false
 for i in {1..30}; do
-    if curl -s http://localhost:7070/health > /dev/null; then
+    if curl -s http://localhost:$AUTOMATION_PORT/health > /dev/null; then
         echo -e "${GREEN}✓ Automation worker is healthy${NC}"
         AUTO_OK=true
         break
@@ -294,10 +403,10 @@ echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}All services started successfully!${NC}"
 echo ""
 echo "Application:"
-echo "  Frontend:         http://localhost:3000"
-echo "  Backend:          http://localhost:3030"
-echo "  Automation:       http://localhost:7070"
-echo "  Health Check:     http://localhost:3030/health"
+echo "  Frontend:         http://localhost:$FRONTEND_PORT"
+echo "  Backend:          http://localhost:$BACKEND_PORT"
+echo "  Automation:       http://localhost:$AUTOMATION_PORT"
+echo "  Health Check:     http://localhost:$BACKEND_PORT/health"
 echo ""
 echo "Infrastructure:"
 echo "  Kafka:            localhost:9092"
@@ -310,7 +419,7 @@ echo "  Promtail:         http://localhost:9080 (log shipper)"
 echo "  Tempo:            http://localhost:3200"
 echo "  OTEL Collector:   http://localhost:4318 (HTTP) / 4317 (gRPC)"
 echo "  Alertmanager:     http://localhost:9093"
-echo "  Backend Metrics:  http://localhost:9091/metrics"
+echo "  Backend Metrics:  http://localhost:$BACKEND_METRICS_PORT/metrics"
 echo ""
 echo "  All logs are automatically shipped to Loki and visible in Grafana"
 echo ""

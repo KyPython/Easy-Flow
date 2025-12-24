@@ -24,8 +24,19 @@ pkill -f "node server.js" 2>/dev/null && echo -e "${GREEN}✓ Killed node server
 pkill -f "react-scripts start" 2>/dev/null && echo -e "${GREEN}✓ Killed react-scripts processes${NC}" || true
 pkill -f "production_automation_service.py" 2>/dev/null && echo -e "${GREEN}✓ Killed automation service processes${NC}" || true
 
-# Kill processes on specific ports
-for port in 3000 3030 7070 7001; do
+# Load environment variables from .env file if it exists to get dynamic ports
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+fi
+
+# Set dynamic ports from environment variables with defaults
+FRONTEND_PORT=${FRONTEND_PORT:-3000}
+BACKEND_PORT=${PORT:-3030}
+AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+BACKEND_METRICS_PORT=${BACKEND_METRICS_PORT:-9091}
+
+# Kill processes on specific ports (matching ports freed in start-dev.sh)
+for port in $FRONTEND_PORT $BACKEND_PORT $AUTOMATION_PORT $BACKEND_METRICS_PORT; do
     if lsof -ti :$port > /dev/null 2>&1; then
         echo -e "${YELLOW}Killing processes on port $port...${NC}"
         lsof -ti :$port | xargs kill -9 2>/dev/null && echo -e "${GREEN}✓ Killed processes on port $port${NC}"
@@ -73,7 +84,8 @@ echo ""
 echo -e "${YELLOW}Verifying critical ports are free...${NC}"
 
 PORTS_OK=true
-for port in 3000 3030 7070 9090 3001 3100 3200 4317 4318 9091 9080 9093; do
+# Check application ports (dynamic) and observability ports (fixed)
+for port in $FRONTEND_PORT $BACKEND_PORT $AUTOMATION_PORT 9090 3001 3100 3200 4317 4318 $BACKEND_METRICS_PORT 9080 9093; do
     if lsof -i :$port | grep LISTEN > /dev/null 2>&1; then
         echo -e "${RED}✗ Port $port still in use${NC}"
         PORTS_OK=false

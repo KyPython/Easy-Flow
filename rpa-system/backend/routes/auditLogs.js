@@ -192,7 +192,8 @@ router.get('/system', requireAdmin, requireFeature('audit_logs_admin'), async (r
     // ✅ SECURITY: Validate types before using
     const safeLimit = typeof limit === 'string' ? parseInt(limit, 10) : (typeof limit === 'number' ? limit : 100);
     const safeOffset = typeof offset === 'string' ? parseInt(offset, 10) : (typeof offset === 'number' ? offset : 0);
-    const safeSearch = typeof search === 'string' ? search : (search ? String(search) : undefined);
+    // ✅ SECURITY: Ensure search is a string or undefined (never null/object)
+    const safeSearch = typeof search === 'string' ? search : (search !== null && search !== undefined ? String(search) : undefined);
 
     let result;
 

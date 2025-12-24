@@ -829,7 +829,14 @@ if (process.env.NODE_ENV === 'test') {
   });
 } else {
   // Production: CSRF disabled, rely on auth middleware + CORS
-  logger.info('🔓 CSRF disabled in production (cross-domain deployment)');
+  // ✅ SECURITY NOTE: CSRF protection is intentionally disabled for API endpoints
+  // because we use token-based authentication (authMiddleware) and CORS protection.
+  // All state-changing endpoints require valid authentication tokens.
+  // This is a common pattern for REST APIs and is secure when combined with:
+  // - Proper CORS configuration (ALLOWED_ORIGINS)
+  // - Authentication middleware (authMiddleware) on all protected routes
+  // - Token-based authentication (not cookie-based)
+  logger.info('🔓 CSRF disabled in production (cross-domain deployment, token-based auth)');
 }
 
 // Mount webhook routes (before other middleware to handle raw body parsing)
@@ -2648,7 +2655,8 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
   const safeType = typeof type === 'string' ? type : String(type || '');
   const safeTask = typeof task === 'string' ? task : String(task || '');
   const taskName = title || (safeType && safeType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || (safeTask && safeTask.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'Automation Task';
-  const taskType = (safeType || safeTask || 'general').toLowerCase();
+  // ✅ SECURITY: Ensure safeType/safeTask are strings before calling toLowerCase
+  const taskType = (typeof safeType === 'string' ? safeType : typeof safeTask === 'string' ? safeTask : 'general').toLowerCase();
     
     const { data: taskRecord, error: taskError } = await supabase
       .from('automation_tasks')
@@ -6576,7 +6584,8 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
     
     // Generate a descriptive task name with better fallbacks
     // Priority: title > formatted task type > formatted task value > URL-based > default
-    let taskName = title?.trim();
+    // ✅ SECURITY: Validate title is a string before calling trim
+    let taskName = (typeof title === 'string' ? title : String(title || '')).trim();
     
     if (!taskName && safeType) {
       // Format task type: "invoice_download" -> "Invoice Download"

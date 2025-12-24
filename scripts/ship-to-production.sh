@@ -15,14 +15,28 @@ NC='\033[0m'
 
 echo "${BLUE}=== 🚀 Shipping Dev to Production ===${NC}\n"
 
-# Check current branch
-CURRENT_BRANCH=$(git branch --show-current)
+# Validate we're in a git repository
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    echo "${RED}✗ Not in a git repository${NC}"
+    exit 1
+fi
+
+# Check current branch (sanitize output)
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null | sed 's/[^a-zA-Z0-9._-]//g')
+if [ -z "$CURRENT_BRANCH" ]; then
+    echo "${RED}✗ Could not determine current branch${NC}"
+    exit 1
+fi
+
 echo "${BLUE}Current branch: ${CYAN}$CURRENT_BRANCH${NC}"
 
 # Ensure we're on dev branch
 if [ "$CURRENT_BRANCH" != "dev" ]; then
     echo "${YELLOW}⚠️  You're not on the dev branch. Switching to dev...${NC}"
-    git checkout dev
+    git checkout dev || {
+        echo "${RED}✗ Failed to checkout dev branch${NC}"
+        exit 1
+    }
     CURRENT_BRANCH="dev"
 fi
 

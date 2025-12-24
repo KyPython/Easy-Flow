@@ -152,21 +152,36 @@ SUPABASE_URL="${SUPABASE_URL:-}"
 SUPABASE_KEY="${SUPABASE_KEY:-${SUPABASE_ANON_KEY:-}}"
 SUPABASE_SERVICE_ROLE="${SUPABASE_SERVICE_ROLE:-}"
 
+# Validate URL format (basic security check)
+is_valid_url() {
+    local url="$1"
+    if [[ "$url" =~ ^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
+        return 0
+    fi
+    return 1
+}
+
 if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_KEY" ]; then
-    echo "  Checking Supabase connection..."
-    # Try to ping Supabase REST API
-    if command -v curl >/dev/null 2>&1; then
-        # Check if Supabase URL is accessible
-        if curl -s -f -o /dev/null --max-time 5 "${SUPABASE_URL}/rest/v1/" -H "apikey: ${SUPABASE_KEY}" 2>/dev/null; then
-            echo "  ${GREEN}✓ Supabase:${NC}         connected (${SUPABASE_URL})"
-            INFRA_OK=$((INFRA_OK + 1))
+    # Security: Validate URL format before using
+    if ! is_valid_url "$SUPABASE_URL"; then
+        echo "  ${YELLOW}○ Supabase:${NC}         invalid URL format"
+        INFRA_WARN=$((INFRA_WARN + 1))
+    else
+        echo "  Checking Supabase connection..."
+        # Try to ping Supabase REST API
+        if command -v curl >/dev/null 2>&1; then
+            # Check if Supabase URL is accessible (use quoted variables)
+            if curl -s -f -o /dev/null --max-time 5 "${SUPABASE_URL}/rest/v1/" -H "apikey: ${SUPABASE_KEY}" 2>/dev/null; then
+                echo "  ${GREEN}✓ Supabase:${NC}         connected (${SUPABASE_URL})"
+                INFRA_OK=$((INFRA_OK + 1))
+            else
+                echo "  ${YELLOW}○ Supabase:${NC}         configured but connection failed (check URL/key)"
+                INFRA_WARN=$((INFRA_WARN + 1))
+            fi
         else
-            echo "  ${YELLOW}○ Supabase:${NC}         configured but connection failed (check URL/key)"
+            echo "  ${YELLOW}○ Supabase:${NC}         configured (curl not available for connection test)"
             INFRA_WARN=$((INFRA_WARN + 1))
         fi
-    else
-        echo "  ${YELLOW}○ Supabase:${NC}         configured (curl not available for connection test)"
-        INFRA_WARN=$((INFRA_WARN + 1))
     fi
 else
     echo "  ${YELLOW}○ Supabase:${NC}         not configured (set SUPABASE_URL and SUPABASE_KEY)"
@@ -215,10 +230,18 @@ else
     INFRA_WARN=$((INFRA_WARN + 1))
 fi
 
+# Load environment variables for dynamic ports
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+fi
+
+BACKEND_PORT=${PORT:-3030}
+AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+
 # Backend Health Check (if running)
 if command -v curl >/dev/null 2>&1; then
-    if curl -s -f -o /dev/null --max-time 2 "http://localhost:3030/health" 2>/dev/null; then
-        echo "  ${GREEN}✓ Backend API:${NC}      running (http://localhost:3030)"
+    if curl -s -f -o /dev/null --max-time 2 "http://localhost:${BACKEND_PORT}/health" 2>/dev/null; then
+        echo "  ${GREEN}✓ Backend API:${NC}      running (http://localhost:${BACKEND_PORT})"
         INFRA_OK=$((INFRA_OK + 1))
     else
         echo "  ${YELLOW}○ Backend API:${NC}      not running (start with: ./start-dev.sh)"
@@ -228,8 +251,8 @@ fi
 
 # Automation Worker Health Check (if running)
 if command -v curl >/dev/null 2>&1; then
-    if curl -s -f -o /dev/null --max-time 2 "http://localhost:7070/health" 2>/dev/null; then
-        echo "  ${GREEN}✓ Automation Worker:${NC} running (http://localhost:7070)"
+    if curl -s -f -o /dev/null --max-time 2 "http://localhost:${AUTOMATION_PORT}/health" 2>/dev/null; then
+        echo "  ${GREEN}✓ Automation Worker:${NC} running (http://localhost:${AUTOMATION_PORT})"
         INFRA_OK=$((INFRA_OK + 1))
     else
         echo "  ${YELLOW}○ Automation Worker:${NC} not running"

@@ -19,9 +19,9 @@ module.exports = {
       merge_logs: true,
       env: {
         NODE_ENV: process.env.NODE_ENV || 'development',
-        PORT: process.env.PORT || 3030,
+        PORT: process.env.PORT || '3030',
         KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
-        AUTOMATION_URL: process.env.AUTOMATION_URL || 'http://127.0.0.1:7070',
+        AUTOMATION_URL: process.env.AUTOMATION_URL || 'http://127.0.0.1:' + (process.env.AUTOMATION_PORT || '7070'),
         KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID || 'easyflow-backend',
         KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
         KAFKA_BROKERS: process.env.KAFKA_BROKERS || '127.0.0.1:9092',
@@ -45,7 +45,7 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       merge_logs: true,
       env: {
-        PORT: process.env.FRONTEND_PORT || 3000,
+        PORT: process.env.FRONTEND_PORT || '3000',
         BROWSER: process.env.BROWSER || 'none',
         REACT_APP_API_BASE: process.env.REACT_APP_API_BASE,
         PUBLIC_URL: process.env.PUBLIC_URL,
@@ -63,8 +63,8 @@ module.exports = {
       env: {
         PYTHONUNBUFFERED: process.env.PYTHONUNBUFFERED || '1',
         KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
-        PORT: process.env.AUTOMATION_PORT || 7070,
-        BACKEND_URL: process.env.BACKEND_URL || 'http://127.0.0.1:3030',
+        PORT: process.env.AUTOMATION_PORT || '7070',
+        BACKEND_URL: process.env.BACKEND_URL || 'http://127.0.0.1:' + (process.env.PORT || '3030'),
         KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
         KAFKA_BROKERS: process.env.KAFKA_BROKERS || '127.0.0.1:9092',
         SUPABASE_URL: process.env.SUPABASE_URL,
