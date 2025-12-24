@@ -118,15 +118,19 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
       endDate,
       actionType,
       action,
-      limit = 50,
-      offset = 0,
+      limit,
+      offset,
       search
-    } = req.query;
+    } = req.query || {};
     
-    // ✅ SECURITY: Validate types before using
+    // ✅ SECURITY: Validate types before using (prevent type confusion attacks)
+    // Ensure req.query is an object
+    if (!req.query || typeof req.query !== 'object') {
+      return res.status(400).json({ error: 'Invalid query parameters' });
+    }
     const safeLimit = typeof limit === 'string' ? parseInt(limit, 10) : (typeof limit === 'number' ? limit : 50);
     const safeOffset = typeof offset === 'string' ? parseInt(offset, 10) : (typeof offset === 'number' ? offset : 0);
-    const safeSearch = typeof search === 'string' ? search : (search ? String(search) : undefined);
+    const safeSearch = typeof search === 'string' ? search : (search && typeof search === 'object' ? undefined : (search ? String(search) : undefined));
 
     // Enforce retention window
     const effectiveStart = startDate && new Date(startDate) > retentionStart ? startDate : retentionStart.toISOString();
@@ -184,16 +188,20 @@ router.get('/system', requireAdmin, requireFeature('audit_logs_admin'), async (r
       actionType,
       userId,
       severity,
-      limit = 100,
-      offset = 0,
+      limit,
+      offset,
       search
-    } = req.query;
+    } = req.query || {};
     
-    // ✅ SECURITY: Validate types before using
+    // ✅ SECURITY: Validate types before using (prevent type confusion attacks)
+    // Ensure req.query is an object
+    if (!req.query || typeof req.query !== 'object') {
+      return res.status(400).json({ error: 'Invalid query parameters' });
+    }
     const safeLimit = typeof limit === 'string' ? parseInt(limit, 10) : (typeof limit === 'number' ? limit : 100);
     const safeOffset = typeof offset === 'string' ? parseInt(offset, 10) : (typeof offset === 'number' ? offset : 0);
     // ✅ SECURITY: Ensure search is a string or undefined (never null/object)
-    const safeSearch = typeof search === 'string' ? search : (search !== null && search !== undefined ? String(search) : undefined);
+    const safeSearch = typeof search === 'string' ? search : (search && typeof search === 'object' ? undefined : (search !== null && search !== undefined ? String(search) : undefined));
 
     let result;
 

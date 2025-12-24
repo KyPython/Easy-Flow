@@ -5949,21 +5949,29 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
 app.get('/api/files', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { folder, limit = 50, offset = 0, search, tags, category } = req.query;
     
-    // ✅ SECURITY: Validate types before using
-    const safeSearch = typeof search === 'string' ? search : (search ? String(search) : undefined);
-    const safeFolder = typeof folder === 'string' ? folder : (folder ? String(folder) : undefined);
-    const safeTags = Array.isArray(tags) ? tags : (typeof tags === 'string' ? [tags] : undefined);
-    const safeCategory = typeof category === 'string' ? category : (category ? String(category) : undefined);
+    // ✅ SECURITY: Validate req.query is an object before destructuring
+    if (!req.query || typeof req.query !== 'object') {
+      return res.status(400).json({ error: 'Invalid query parameters' });
+    }
+    
+    const { folder, limit, offset, search, tags, category } = req.query;
+    
+    // ✅ SECURITY: Validate types before using (prevent type confusion attacks)
+    const safeLimit = typeof limit === 'string' ? parseInt(limit, 10) : (typeof limit === 'number' ? limit : 50);
+    const safeOffset = typeof offset === 'string' ? parseInt(offset, 10) : (typeof offset === 'number' ? offset : 0);
+    const safeSearch = typeof search === 'string' ? search : (search && typeof search === 'object' ? undefined : (search ? String(search) : undefined));
+    const safeFolder = typeof folder === 'string' ? folder : (folder && typeof folder === 'object' ? undefined : (folder ? String(folder) : undefined));
+    const safeTags = Array.isArray(tags) ? tags : (typeof tags === 'string' ? [tags] : (tags && typeof tags === 'object' ? undefined : undefined));
+    const safeCategory = typeof category === 'string' ? category : (category && typeof category === 'object' ? undefined : (category ? String(category) : undefined));
     
     logger.info(`[GET /api/files] Fetching files for user ${userId}`, {
-      folder,
-      limit,
-      offset,
-      search,
-      tags,
-      category,
+      folder: safeFolder,
+      limit: safeLimit,
+      offset: safeOffset,
+      search: safeSearch,
+      tags: safeTags,
+      category: safeCategory,
       userAuthenticated: !!req.user
     });
     
@@ -5993,7 +6001,7 @@ app.get('/api/files', authMiddleware, async (req, res) => {
 
     const { data, error } = await query
       .order('created_at', { ascending: false })
-      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+      .range(safeOffset, safeOffset + safeLimit - 1);
       
     if (error) {
       logger.error('[GET /api/files] Files query error:', error);

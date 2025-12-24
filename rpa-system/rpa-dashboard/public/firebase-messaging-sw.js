@@ -202,7 +202,14 @@ self.addEventListener('message', (event) => {
   // ✅ SECURITY: Validate message origin to prevent XSS attacks
   // Only accept messages from the same origin
   const allowedOrigin = self.location.origin;
-  if (event.origin && event.origin !== allowedOrigin) {
+  
+  // Explicitly check if event.origin exists and matches allowed origin
+  if (!event.origin || typeof event.origin !== 'string') {
+    console.warn('[firebase-messaging-sw] Rejected message with missing or invalid origin');
+    return;
+  }
+  
+  if (event.origin !== allowedOrigin) {
     console.warn('[firebase-messaging-sw] Rejected message from unauthorized origin:', event.origin);
     return;
   }
