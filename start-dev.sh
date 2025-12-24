@@ -44,13 +44,46 @@ echo -e "${YELLOW}📦 Checking and installing dependencies...${NC}"
 # Temporarily disable exit on error for dependency installation
 set +e
 
+# Function to check if a specific npm package is installed
+check_npm_package() {
+    local dir=$1
+    local package=$2
+    
+    if [ -d "$dir/node_modules" ]; then
+        if [ -d "$dir/node_modules/$package" ] || [ -f "$dir/node_modules/$package/package.json" ]; then
+            return 0  # Package exists
+        fi
+    fi
+    return 1  # Package missing
+}
+
 # Function to check and install npm dependencies
 install_npm_deps() {
     local dir=$1
     local name=$2
+    local required_packages="${3:-}"  # Optional: comma-separated list of required packages
     
     if [ -f "$dir/package.json" ]; then
-        if [ ! -d "$dir/node_modules" ] || [ "$dir/package.json" -nt "$dir/node_modules" ]; then
+        local needs_install=false
+        
+        # Check if node_modules exists
+        if [ ! -d "$dir/node_modules" ]; then
+            needs_install=true
+        # Check if package.json is newer than node_modules
+        elif [ "$dir/package.json" -nt "$dir/node_modules" ]; then
+            needs_install=true
+        # Check for required packages if specified
+        elif [ -n "$required_packages" ]; then
+            IFS=',' read -ra PACKAGES <<< "$required_packages"
+            for package in "${PACKAGES[@]}"; do
+                if ! check_npm_package "$dir" "$package"; then
+                    needs_install=true
+                    break
+                fi
+            done
+        fi
+        
+        if [ "$needs_install" = true ]; then
             echo -e "${YELLOW}  Installing $name dependencies...${NC}"
             if [ -d "$dir" ]; then
                 (cd "$dir" && npm install --silent 2>/dev/null)
@@ -59,14 +92,17 @@ install_npm_deps() {
                 else
                     echo -e "${RED}  ✗ Failed to install $name dependencies${NC}"
                     echo -e "${YELLOW}     You may need to run: cd $dir && npm install${NC}"
+                    return 1
                 fi
             else
                 echo -e "${YELLOW}  ⚠ Directory $dir not found, skipping${NC}"
+                return 1
             fi
         else
             echo -e "${GREEN}  ✓ $name dependencies already installed${NC}"
         fi
     fi
+    return 0
 }
 
 # Function to check and install Python dependencies
@@ -106,8 +142,18 @@ install_python_deps() {
     fi
 }
 
-# Install root dependencies (dotenv, husky, etc.)
-install_npm_deps "." "Root"
+# Install root dependencies (dotenv is REQUIRED for ecosystem.config.js)
+# CRITICAL: dotenv must be installed before generating ecosystem.config.js
+install_npm_deps "." "Root" "dotenv"
+if [ $? -ne 0 ]; then
+    echo -e "${RED}✗ Failed to install root dependencies (dotenv required)${NC}"
+    echo -e "${YELLOW}  Attempting manual installation...${NC}"
+    npm install dotenv --save 2>/dev/null || {
+        echo -e "${RED}✗ Critical: Cannot install dotenv. Please run: npm install${NC}"
+        exit 1
+    }
+    echo -e "${GREEN}✓ dotenv installed${NC}"
+fi
 
 # Install backend dependencies
 install_npm_deps "rpa-system/backend" "Backend"
@@ -149,6 +195,14 @@ for port in $FRONTEND_PORT $BACKEND_PORT $AUTOMATION_PORT $BACKEND_METRICS_PORT;
 done
 sleep 1
 
+# Check if Docker daemon is running
+if ! docker info > /dev/null 2>&1; then
+    echo -e "${RED}✗ Docker daemon is not running${NC}"
+    echo -e "${YELLOW}  Please start Docker Desktop and try again${NC}"
+    echo -e "${YELLOW}  On macOS: Open Docker Desktop application${NC}"
+    exit 1
+fi
+
 # Stop Docker frontend container if running (it uses frontend port)
 echo -e "${YELLOW}Stopping Docker frontend container...${NC}"
 docker stop easy-flow-rpa-dashboard-1 2>/dev/null || true
@@ -162,7 +216,16 @@ rm -f logs/*.log
 
 # Start Kafka and Zookeeper via Docker Compose
 echo -e "${YELLOW}Starting Kafka and Zookeeper...${NC}"
-docker compose up -d kafka zookeeper
+if ! docker compose up -d kafka zookeeper 2>/dev/null; then
+    echo -e "${RED}✗ Failed to start Kafka/Zookeeper containers${NC}"
+    echo -e "${YELLOW}  Attempting to pull images and retry...${NC}"
+    docker compose pull kafka zookeeper 2>/dev/null || true
+    docker compose up -d kafka zookeeper || {
+        echo -e "${RED}✗ Critical: Cannot start Kafka/Zookeeper${NC}"
+        echo -e "${YELLOW}  Check Docker daemon and try: docker compose up -d kafka zookeeper${NC}"
+        exit 1
+    }
+fi
 sleep 5
 
 # Initialize Kafka topics
@@ -179,7 +242,14 @@ docker compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null || t
 # Remove stale containers that may conflict (including manually started ones)
 docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
 # Start all monitoring services
-docker compose -f rpa-system/docker-compose.monitoring.yml up -d
+if ! docker compose -f rpa-system/docker-compose.monitoring.yml up -d 2>/dev/null; then
+    echo -e "${YELLOW}⚠ Failed to start observability stack, attempting to pull images...${NC}"
+    docker compose -f rpa-system/docker-compose.monitoring.yml pull 2>/dev/null || true
+    docker compose -f rpa-system/docker-compose.monitoring.yml up -d || {
+        echo -e "${YELLOW}⚠ Observability stack failed to start (non-critical, continuing...)${NC}"
+        echo -e "${YELLOW}  You can start it manually: docker compose -f rpa-system/docker-compose.monitoring.yml up -d${NC}"
+    }
+fi
 sleep 5
 
 # Wait for Grafana to be ready (it may restart due to datasource provisioning)
@@ -224,6 +294,16 @@ BACKEND_METRICS_PORT=${BACKEND_METRICS_PORT:-9091}
 
 # Export ports so they're available in the ecosystem.config.js generation
 export FRONTEND_PORT BACKEND_PORT AUTOMATION_PORT BACKEND_METRICS_PORT
+
+# Verify dotenv is installed before generating ecosystem.config.js
+if ! check_npm_package "." "dotenv"; then
+    echo -e "${RED}✗ Critical: dotenv package not found in node_modules${NC}"
+    echo -e "${YELLOW}  Installing dotenv...${NC}"
+    npm install dotenv --save --silent 2>/dev/null || {
+        echo -e "${RED}✗ Failed to install dotenv. Cannot continue.${NC}"
+        exit 1
+    }
+fi
 
 # Generate a dynamic ecosystem file that reads from environment variables
 echo -e "${YELLOW}Generating PM2 ecosystem config...${NC}"
@@ -308,7 +388,24 @@ EOL
 
 # Start all services with PM2
 echo -e "${GREEN}Starting all services with PM2...${NC}"
-pm2 start ecosystem.config.js
+if ! pm2 start ecosystem.config.js 2>/dev/null; then
+    echo -e "${RED}✗ Failed to start services with PM2${NC}"
+    echo -e "${YELLOW}  Checking ecosystem.config.js syntax...${NC}"
+    # Validate the config file
+    if node -e "require('./ecosystem.config.js')" 2>/dev/null; then
+        echo -e "${GREEN}✓ ecosystem.config.js is valid${NC}"
+        echo -e "${YELLOW}  Attempting PM2 start again...${NC}"
+        pm2 start ecosystem.config.js || {
+            echo -e "${RED}✗ PM2 start failed. Check PM2 logs: pm2 logs${NC}"
+            exit 1
+        }
+    else
+        echo -e "${RED}✗ ecosystem.config.js has syntax errors${NC}"
+        echo -e "${YELLOW}  Error details:${NC}"
+        node -e "require('./ecosystem.config.js')" 2>&1 | head -5
+        exit 1
+    fi
+fi
 
 # Check services health
 echo ""
