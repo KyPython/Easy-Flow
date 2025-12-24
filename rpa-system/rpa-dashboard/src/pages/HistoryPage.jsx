@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { usePlan } from '../hooks/usePlan';
 import { useI18n } from '../i18n';
 import { useTheme } from '../utils/ThemeContext';
@@ -24,18 +24,19 @@ const HistoryPage = () => {
   const [editUrl, setEditUrl] = useState('');
   const [editError, setEditError] = useState('');
   const [viewingTaskId, setViewingTaskId] = useState(null); // Store ID instead of full object
+  const [isRefreshing, setIsRefreshing] = useState(false); // Track manual refresh state
   const runsRef = useRef([]); // Store runs in ref to avoid dependency issues
   const isInitialLoad = useRef(true); // Track if this is the first load
 
-  useEffect(() => {
-    const fetchRuns = async (isBackgroundRefresh = false) => {
-      if (!user) return;
-      
-      // Only show loading state on initial load, not background refreshes
-      if (!isBackgroundRefresh) {
-        setLoading(true);
-      }
-      setError('');
+  // ✅ Move fetchRuns to useCallback so it can be called from anywhere
+  const fetchRuns = useCallback(async (isBackgroundRefresh = false) => {
+    if (!user) return;
+    
+    // Only show loading state on initial load, not background refreshes
+    if (!isBackgroundRefresh) {
+      setLoading(true);
+    }
+    setError('');
 
       // Set timeout to prevent infinite loading (30 seconds)
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
@@ -125,8 +126,12 @@ const HistoryPage = () => {
         if (!isBackgroundRefresh) {
           setLoading(false);
         }
+        setIsRefreshing(false);
       }
-    };
+  }, [user, logger]);
+
+  // Initial load on mount
+  useEffect(() => {
     fetchRuns(false); // Initial load
     
     // ✅ UX: Smart auto-refresh - only refresh if there are active tasks, and pause when user is interacting
@@ -139,7 +144,7 @@ const HistoryPage = () => {
       clearTimeout(interactionTimeout);
       interactionTimeout = setTimeout(() => {
         isUserInteracting = false;
-      }, 5000); // Pause refresh for 5 seconds after user interaction
+      }, 2000); // Pause refresh for 2 seconds after user interaction (reduced from 5)
     };
     
     // Track user interactions (mouse, keyboard, text selection)
@@ -161,8 +166,8 @@ const HistoryPage = () => {
       }
     };
     
-    // Refresh every 10 seconds (increased from 5), but only if there are active tasks
-    refreshInterval = setInterval(smartRefresh, 10000);
+    // Refresh every 5 seconds (reduced from 10 for more real-time feel), but only if there are active tasks
+    refreshInterval = setInterval(smartRefresh, 5000);
     
     return () => {
       clearInterval(refreshInterval);
@@ -171,12 +176,25 @@ const HistoryPage = () => {
       document.removeEventListener('keydown', handleUserInteraction);
       document.removeEventListener('selectionchange', handleUserInteraction);
     };
-  }, [user]);
+  }, [user, fetchRuns]);
+
+  // ✅ Manual refresh handler
+  const handleManualRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    fetchRuns(false); // Force refresh with loading state
+  }, [fetchRuns]);
 
   const handleViewTask = (task) => {
     // Store task ID instead of full object to ensure modal gets latest data
     setViewingTaskId(task.id);
   };
+
+  // ✅ Handle modal close with refresh
+  const handleModalClose = useCallback(() => {
+    setViewingTaskId(null);
+    // Trigger refresh when modal closes to ensure list is up-to-date
+    fetchRuns(true); // Background refresh - no loading state
+  }, [fetchRuns]);
   
   // Get the latest task data from runs when modal is open
   const viewingTask = viewingTaskId 
@@ -271,6 +289,27 @@ const HistoryPage = () => {
   return (
     <div className={styles.container} data-theme={theme}>
       <ErrorMessage message={error} />
+
+      {/* ✅ Refresh button and header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '24px',
+        gap: '16px'
+      }}>
+        <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>
+          {t('history.title', 'Automation History')}
+        </h1>
+        <button
+          onClick={handleManualRefresh}
+          disabled={isRefreshing || loading}
+          className={styles.refreshButton}
+          title="Refresh automation history"
+        >
+          {isRefreshing ? '⟳' : '↻'} {isRefreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
 
       {/* Step-by-step guidance banner */}
       <div style={{
@@ -379,7 +418,7 @@ const HistoryPage = () => {
       {viewingTask && (
         <TaskResultModal
           task={viewingTask}
-          onClose={() => setViewingTaskId(null)}
+          onClose={handleModalClose}
         />
       )}
     </div>
