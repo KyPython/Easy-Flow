@@ -42,6 +42,11 @@ npm run ship
 **Logs:**
 - `npm run logs` - Watch all logs
 
+**Infrastructure:**
+- `npm run infra:plan` - Plan infrastructure changes
+- `npm run infra:apply` - Apply infrastructure changes
+- See [Infrastructure as Code Guide](INFRASTRUCTURE_AS_CODE.md) for details
+
 **URLs:**
 - Frontend: http://localhost:3000
 - Backend: http://localhost:3030

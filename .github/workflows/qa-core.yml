@@ -50,6 +50,18 @@ jobs:
           chmod +x scripts/code-quality-check.sh scripts/generate-quality-report.sh
           ./scripts/code-quality-check.sh || echo "⚠️ Code quality issues found (non-blocking)"
 
+      - name: Terraform Validation (if infrastructure changes)
+        if: contains(github.event.head_commit.modified, 'infrastructure/') || contains(github.event.head_commit.added, 'infrastructure/')
+        run: |
+          if [ -d "infrastructure" ] && [ -f "infrastructure/main.tf" ]; then
+            echo "🔍 Validating Terraform configuration..."
+            chmod +x scripts/terraform-validate.sh
+            cd infrastructure
+            ../scripts/terraform-validate.sh || echo "⚠️ Terraform validation issues (non-blocking)"
+          else
+            echo "○ No infrastructure changes detected, skipping Terraform validation"
+          fi
+
       - name: Generate quality report
         run: |
           ./scripts/generate-quality-report.sh || echo "⚠️ Report generation failed (non-blocking)"

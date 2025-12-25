@@ -139,6 +139,22 @@ else
     OPTIONAL_MISSING=$((OPTIONAL_MISSING + 1))
 fi
 
+# Terraform (Infrastructure as Code)
+if command -v terraform >/dev/null 2>&1; then
+    TERRAFORM_VERSION=$(terraform version -json 2>/dev/null | grep -o '"terraform_version":"[^"]*"' | cut -d'"' -f4 || terraform version | head -1 | awk '{print $2}')
+    echo "${GREEN}✓ Terraform:${NC}        $TERRAFORM_VERSION"
+    OPTIONAL_INSTALLED=$((OPTIONAL_INSTALLED + 1))
+    
+    # Check if infrastructure directory exists
+    if [ -d "infrastructure" ] && [ -f "infrastructure/main.tf" ]; then
+        echo "  ${GREEN}  Infrastructure config found${NC}"
+    fi
+else
+    echo "${YELLOW}○ Terraform:${NC}        not installed (recommended for Infrastructure as Code)"
+    echo "    Install: brew install terraform (macOS) or https://www.terraform.io/downloads"
+    OPTIONAL_MISSING=$((OPTIONAL_MISSING + 1))
+fi
+
 echo ""
 
 # Infrastructure Checks (Optional but Recommended)

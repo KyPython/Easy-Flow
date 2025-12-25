@@ -12,11 +12,30 @@ if [ "$CURRENT_BRANCH" = "main" ]; then
     echo "🚀 Running pre-push validation for PRODUCTION (main branch)..."
     echo "⚠️  Strict checks required for production deployment"
     npm run test:all
+    
+    # Terraform validation for infrastructure changes
+    if git diff origin/main --name-only | grep -q "infrastructure/.*\.tf$" || [ -d "infrastructure" ]; then
+        echo "🔍 Validating Terraform configuration..."
+        if [ -f "infrastructure/main.tf" ]; then
+            cd infrastructure
+            ../scripts/terraform-validate.sh || (echo "❌ Terraform validation failed" && exit 1)
+            cd ..
+        fi
+    fi
 elif [ "$CURRENT_BRANCH" = "dev" ]; then
     echo "💾 Running light pre-push checks for dev branch (work-in-progress)..."
     echo "ℹ️  Full checks will run when you ship to production (npm run ship)"
     # Only run quick checks, skip full test suite and security scan
     ./scripts/dev-env-check.sh >/dev/null 2>&1 || true
+    
+    # Quick Terraform format check for dev branch
+    if [ -d "infrastructure" ] && [ -f "infrastructure/main.tf" ]; then
+        echo "🔍 Quick Terraform format check..."
+        cd infrastructure
+        ../scripts/terraform-fmt.sh --check >/dev/null 2>&1 || echo "⚠️ Terraform files need formatting (run 'npm run infra:fmt')"
+        cd ..
+    fi
+    
     echo "✅ Dev branch push allowed (full checks skipped for faster workflow)"
 else
     echo "⚠️  Unknown branch: $CURRENT_BRANCH"

@@ -1,0 +1,108 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/**'
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to plan for'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.0"
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: |
+          cd infrastructure
+          terraform init -backend=false
+
+      - name: Terraform Format Check
+        run: |
+          cd infrastructure
+          terraform fmt -check -recursive || (echo "❌ Terraform files need formatting" && exit 1)
+
+      - name: Terraform Validate
+        run: |
+          cd infrastructure
+          terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          cd infrastructure
+          ENVIRONMENT=${INPUTS_ENVIRONMENT:-dev}
+          terraform plan \
+            -var="environment=$ENVIRONMENT" \
+            -no-color \
+            -out=tfplan \
+            -detailed-exitcode || true
+        continue-on-error: true
+
+      - name: Upload Plan Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: infrastructure/tfplan
+          retention-days: 1
+
+      - name: Comment PR with Plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PLAN: ${{ steps.plan.outputs.stdout }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            let planOutput = 'Plan completed successfully';
+            try {
+              planOutput = fs.readFileSync('infrastructure/tfplan', 'utf8');
+            } catch (e) {
+              planOutput = 'Plan file not found or empty';
+            }
+            
+            const output = `## 📋 Terraform Plan
+            
+            <details>
+            <summary>Click to expand plan output</summary>
+            
+            \`\`\`
+            ${planOutput.substring(0, 5000)}
+            \`\`\`
+            
+            </details>
+            
+            **Note:** Review the plan carefully before merging. Infrastructure changes will be applied on merge to main.
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
