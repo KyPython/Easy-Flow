@@ -177,7 +177,8 @@ router.post('/invite', requireFeature('team_management'), async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (!email || !email.includes('@')) {
+    // ✅ SECURITY: Validate email type before using string methods
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
       return res.status(400).json({ error: 'Valid email required' });
     }
 
