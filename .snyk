@@ -34,6 +34,9 @@ ignore:
     - 'rpa-system/rpa-dashboard/src/pages/SharedFilePage.jsx':
         reason: Uses validateUrl() and sanitizeFilename() - false positive
         expires: '2025-12-31T23:59:59.999Z'
+    - 'rpa-system/rpa-dashboard/src/utils/api.js':
+        reason: Uses validateUrl() and safeWindowOpen() - false positive
+        expires: '2025-12-31T23:59:59.999Z'
 
 # Open Redirect - False Positives
 # These components use safeWindowOpen() with URL validation
@@ -47,6 +50,9 @@ ignore:
         expires: '2025-12-31T23:59:59.999Z'
     - 'rpa-system/rpa-dashboard/src/components/FileSharing/FileSharing.jsx':
         reason: Uses safeWindowOpen() with URL validation - false positive
+        expires: '2025-12-31T23:59:59.999Z'
+    - 'rpa-system/rpa-dashboard/src/utils/api.js':
+        reason: Uses safeWindowOpen() and validateUrl() - false positive
         expires: '2025-12-31T23:59:59.999Z'
 
 # Hardcoded Password - False Positive
