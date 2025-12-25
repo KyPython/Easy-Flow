@@ -3,19 +3,34 @@ import { usePlan } from '../../hooks/usePlan';
 import { useTheme } from '../../utils/ThemeContext';
 import { FiZap, FiArrowUp, FiCheck } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
+import { getPlanLevel } from '../../utils/planHierarchy';
 import styles from './PlanStatus.module.css';
 
 const PlanStatus = ({ compact = false }) => {
   const { planData, loading } = usePlan();
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const [isPro, setIsPro] = React.useState(false);
+
+  // Dynamically determine if user is on a "pro" plan (not the lowest tier)
+  React.useEffect(() => {
+    if (planData?.plan?.name) {
+      getPlanLevel(planData.plan.name).then(level => {
+        // Tier 0 = lowest (free/hobbyist), tier 1+ = pro
+        setIsPro(level > 0);
+      }).catch(() => {
+        // Fallback: check if plan name suggests it's not free tier
+        const planName = planData.plan.name.toLowerCase();
+        setIsPro(planName !== 'hobbyist' && planName !== 'free');
+      });
+    }
+  }, [planData?.plan?.name]);
 
   if (loading || !planData) {
     return null;
   }
 
   const { plan = {}, usage = {}, limits = {} } = planData;
-  const isPro = plan?.name !== 'Hobbyist' && plan?.name !== 'Starter';
 
   const handleUpgrade = () => {
     navigate('/pricing');

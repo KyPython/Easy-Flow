@@ -533,12 +533,43 @@ def download_pdf(pdf_url, task_data):
         # ✅ SECURITY: Validate PDF URL to prevent SSRF
         # Only allow http/https URLs, block private IPs
         from urllib.parse import urlparse
+        import ipaddress
+        
         parsed_url = urlparse(pdf_url)
         if parsed_url.scheme not in ('http', 'https'):
             return {
                 "success": False,
                 "error": f"Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed."
             }
+        
+        # Block private IP addresses and localhost
+        hostname = parsed_url.hostname
+        if not hostname:
+            return {
+                "success": False,
+                "error": "Invalid URL: missing hostname"
+            }
+        
+        # Check for localhost variations
+        localhost_variants = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']
+        if hostname.lower() in localhost_variants:
+            return {
+                "success": False,
+                "error": "Private/localhost addresses are not allowed"
+            }
+        
+        # Check if hostname is an IP address and if it's private
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast:
+                return {
+                    "success": False,
+                    "error": "Private IP addresses are not allowed"
+                }
+        except ValueError:
+            # Not an IP address, check if it's a valid hostname
+            # Allow public hostnames
+            pass
         
         # ✅ SEAMLESS UX: Use cookies for authenticated PDF downloads
         headers = {}

@@ -23,7 +23,8 @@ if not SUPABASE_URL or not SUPABASE_ANON_KEY or not SUPABASE_SERVICE_ROLE:
 # create test user
 ts=int(time.time())
 email=f'test+autotest_{ts}@example.com'
-password='TempPassw0rd!'
+# ✅ SECURITY: Use environment variable for test password (fallback for local testing only)
+password=os.getenv('TEST_USER_PASSWORD', 'TempPassw0rd!')  # Test password - use env var in CI/CD
 print('Creating test user:', email)
 create_payload: Dict[str, object] = {'email': email, 'password': password, 'email_confirm': True}
 create_out='/tmp/create_user.json'

@@ -295,7 +295,14 @@ async function getUserPlan(userId) {
     logger.debug('Using default plan limits in development mode');
   }
 
-  return { plan, usage, limits };
+  // ✅ BULLETPROOF: Merge feature_flags into limits for unified access
+  // This ensures all features (including lead_generation) are accessible via limits
+  const mergedLimits = {
+    ...limits,
+    ...(plan.feature_flags || {})
+  };
+
+  return { plan, usage, limits: mergedLimits };
 }
 
 /**

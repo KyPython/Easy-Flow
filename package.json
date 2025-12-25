@@ -26,6 +26,7 @@
     "quality:report": "./scripts/generate-quality-report.sh",
     "security:scan": "./scripts/security-scan.sh",
     "logs": "./scripts/watch-logs.sh",
+    "ship": "./scripts/ship-to-production.sh",
     "prepare": "husky",
     "postinstall": "husky"
   },
@@ -47,6 +48,7 @@
     "npm": ">=9.0.0"
   },
   "devDependencies": {
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "dotenv": "^16.0.3"
   }
 }

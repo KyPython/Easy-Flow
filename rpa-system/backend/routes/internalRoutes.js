@@ -1,9 +1,22 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
 const { logger } = require('../utils/logger');
 
 const router = express.Router();
+
+// ✅ SECURITY: Rate limit expensive file system operations
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
+const fileSystemLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: isDevelopment || isTest ? 1000 : 20, // Much higher in dev/test
+  message: 'Too many file operations, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
+});
 
 // Create a child logger for frontend logs
 const frontendLogger = logger.child({ source: 'frontend' });
@@ -55,7 +68,7 @@ router.post('/front-logs', async (req, res) => {
 // This endpoint is intentionally public (no auth) so the dev dashboard can POST
 // errors when reproducing issues locally. Payloads are written to the repo's
 // `diagnostics/` directory to make collection easy.
-router.post('/front-errors', async (req, res) => {
+router.post('/front-errors', fileSystemLimiter, async (req, res) => {
   try {
     const payload = req.body || {};
     const ts = new Date().toISOString().replace(/[:.]/g, '-');

@@ -107,7 +107,16 @@ const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = 
         fallback={(
           <div className={styles.metricsGrid} aria-hidden="true">
             {metricCards.map((_, i) => (
-              <div key={i} style={{borderRadius: 8, background: '#f3f4f6', height: 88, margin: 8, flex: '1 1 200px'}} />
+              <div 
+                key={i} 
+                style={{
+                  borderRadius: 8, 
+                  background: 'var(--color-gray-100)', 
+                  height: 88, 
+                  margin: 8, 
+                  flex: '1 1 200px'
+                }} 
+              />
             ))}
           </div>
         )}
@@ -233,7 +242,7 @@ const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = 
 
       {/* Usage Information Section - placed at bottom for mobile */}
       <div className={styles.usageSection}>
-        <Suspense fallback={<div style={{padding: '0.75rem', color: '#6b7280'}}>Loading usage summary…</div>}>
+        <Suspense fallback={<div style={{padding: '0.75rem', color: 'var(--text-muted, #6b7280)'}}>Loading usage summary…</div>}>
           <UsageTracker showUpgrade={true} />
         </Suspense>
       </div>

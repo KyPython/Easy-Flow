@@ -112,6 +112,16 @@ const Header = ({ user }) => {
               {t('nav.workflows','Workflows')}
             </Link>
 
+            {/* Business Rules - Reusable rules for workflows */}
+            <Link
+              to="/app/rules"
+              className={`${styles.navLink} ${
+                isActive('/app/rules') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.rules','Rules')}
+            </Link>
+
             {/* Bulk Processing - Professional+ feature with paywall protection */}
             <Link
               to="/app/bulk-processor"
@@ -130,7 +140,7 @@ const Header = ({ user }) => {
               }`}
             >
               {t('nav.analytics','Analytics')} 
-              {(!planData?.plan || planData.plan.name === 'Hobbyist') && <span className={styles.proIcon}>✨</span>}
+              {(!planData?.plan || (planData.plan.price_cents === 0 || planData.plan.name?.toLowerCase() === 'hobbyist' || planData.plan.name?.toLowerCase() === 'free')) && <span className={styles.proIcon}>✨</span>}
             </Link>
 
             {/* Integrations - Professional+ feature */}
@@ -189,9 +199,9 @@ const Header = ({ user }) => {
                     marginRight: 12,
                     padding: '6px 10px',
                     borderRadius: 999,
-                    background: 'rgba(59,130,246,0.12)',
-                    color: '#1d4ed8',
-                    border: '1px solid rgba(59,130,246,0.35)',
+                    background: 'var(--color-primary-50)',
+                    color: 'var(--color-primary-700)',
+                    border: '1px solid var(--color-primary-300)',
                     fontSize: 12,
                   }}
                 >

@@ -12,6 +12,7 @@ import React, { useState, useEffect, memo } from 'react';
 import PropTypes from 'prop-types';
 import styles from './StepConfigPanel.module.css';
 import { FaTimes, FaTrash, FaPlus, FaMinus, FaCog, FaCheck } from 'react-icons/fa';
+import { api } from '../../utils/api';
 
 const StepConfigPanel = ({ node, onClose, onSave, onDelete, isReadOnly = false }) => {
   const [config, setConfig] = useState(node.data.config || {});
@@ -410,32 +411,110 @@ const EmailConfig = ({ config, updateConfig, isReadOnly }) => {
   );
 };
 
-// Condition Configuration
-const ConditionConfig = ({ config, updateConfig, isReadOnly }) => (
-  <div className={styles.formGroup}>
-    <label className={styles.label}>
-      Operator
-      <select
-        className={styles.select}
-        value={config.operator || 'AND'}
-        onChange={(e) => updateConfig({ operator: e.target.value })}
-        disabled={isReadOnly}
-      >
-        <option value="AND">AND (all conditions must be true)</option>
-        <option value="OR">OR (any condition can be true)</option>
-      </select>
-    </label>
+// Condition Configuration with Business Rule Support
+const ConditionConfig = ({ config, updateConfig, isReadOnly }) => {
+  const [rules, setRules] = useState([]);
+  const [loadingRules, setLoadingRules] = useState(false);
+  const [useRule, setUseRule] = useState(!!config.rule_id);
 
-    <label className={styles.label}>
-      Conditions *
-      <ConditionList
-        conditions={config.conditions || []}
-        onChange={(conditions) => updateConfig({ conditions })}
-        isReadOnly={isReadOnly}
-      />
-    </label>
-  </div>
-);
+  useEffect(() => {
+    // Load business rules when component mounts
+    const loadRules = async () => {
+      try {
+        setLoadingRules(true);
+        const { data } = await api.get('/api/business-rules');
+        if (data.success) {
+          setRules(data.data || []);
+        }
+      } catch (error) {
+        console.error('Failed to load business rules:', error);
+        setRules([]);
+      } finally {
+        setLoadingRules(false);
+      }
+    };
+    loadRules();
+  }, []);
+
+  const handleRuleSelect = (ruleId) => {
+    if (ruleId) {
+      const selectedRule = rules.find(r => r.id === ruleId);
+      updateConfig({ 
+        rule_id: ruleId,
+        rule_name: selectedRule?.name,
+        // Clear manual conditions when using a rule
+        conditions: []
+      });
+      setUseRule(true);
+    } else {
+      updateConfig({ 
+        rule_id: null,
+        rule_name: null
+      });
+      setUseRule(false);
+    }
+  };
+
+  return (
+    <div className={styles.formGroup}>
+      {/* ✅ NEW: Business Rule Selector */}
+      <label className={styles.label}>
+        Use Business Rule (Optional)
+        <select
+          className={styles.select}
+          value={config.rule_id || ''}
+          onChange={(e) => handleRuleSelect(e.target.value)}
+          disabled={isReadOnly || loadingRules}
+        >
+          <option value="">-- Manual Conditions --</option>
+          {loadingRules ? (
+            <option disabled>Loading rules...</option>
+          ) : rules.length === 0 ? (
+            <option disabled>No rules available. Create rules in the Rules page.</option>
+          ) : (
+            rules.map(rule => (
+              <option key={rule.id} value={rule.id}>
+                {rule.name} - {rule.description}
+              </option>
+            ))
+          )}
+        </select>
+      </label>
+      {config.rule_id && (
+        <div className={styles.helpText}>
+          ✅ Using rule: <strong>{config.rule_name || 'Selected rule'}</strong>. 
+          This condition will evaluate the rule against workflow data.
+        </div>
+      )}
+
+      {!useRule && (
+        <>
+          <label className={styles.label}>
+            Operator
+            <select
+              className={styles.select}
+              value={config.operator || 'AND'}
+              onChange={(e) => updateConfig({ operator: e.target.value })}
+              disabled={isReadOnly}
+            >
+              <option value="AND">AND (all conditions must be true)</option>
+              <option value="OR">OR (any condition can be true)</option>
+            </select>
+          </label>
+
+          <label className={styles.label}>
+            Conditions *
+            <ConditionList
+              conditions={config.conditions || []}
+              onChange={(conditions) => updateConfig({ conditions })}
+              isReadOnly={isReadOnly}
+            />
+          </label>
+        </>
+      )}
+    </div>
+  );
+};
 
 // Data Transform Configuration
 const DataTransformConfig = ({ config, updateConfig, isReadOnly }) => (

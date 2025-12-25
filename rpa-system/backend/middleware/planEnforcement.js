@@ -2,6 +2,7 @@
 const { logger, getLogger } = require('../utils/logger');
 // Dynamic, database-driven plan enforcement middleware
 const { getUserPlan } = require('../services/planService');
+const { getPlanHierarchy } = require('../utils/planHierarchy');
 
 // Throttle repeated error logs to prevent flooding
 const errorThrottleCache = new Map(); // errorKey -> { count, lastLogged, firstSeen }
@@ -80,6 +81,7 @@ const requireWorkflowRun = async (req, res, next) => {
 };
 
 // Middleware: Check if user can run automation (with limits)
+// ✅ BULLETPROOF: Uses database function for accurate limit checking
 const requireAutomationRun = async (req, res, next) => {
   try {
     // ✅ FIX: Check development mode FIRST to avoid unnecessary DB calls
@@ -101,13 +103,50 @@ const requireAutomationRun = async (req, res, next) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
+    // ✅ BULLETPROOF: Use database function for accurate limit checking
+    const { getSupabase } = require('../utils/supabaseClient');
+    const supabase = getSupabase();
+    
+    if (supabase && supabase.rpc) {
+      const { data: canRun, error: checkError } = await supabase
+        .rpc('can_run_automation', { user_uuid: userId });
+
+      if (!checkError && !canRun) {
+        // Get usage for error message
+        const { data: usageData } = await supabase
+          .rpc('get_automation_run_usage', { user_uuid: userId })
+          .single();
+
+        const planData = await getUserPlan(userId);
+        const usage = usageData?.runs_this_month || 0;
+        const limit = usageData?.limit_per_month || 0;
+        const planName = planData?.plan?.name || 'Unknown';
+
+        return res.status(403).json({
+          error: 'Monthly automation limit reached',
+          message: `You've used ${usage}/${limit} automation runs this month. Upgrade for higher limits.`,
+          current_plan: planName,
+          usage: usage,
+          limit: limit,
+          upgrade_required: true,
+          upgrade_url: '/pricing'
+        });
+      }
+
+      // If database function fails, fall back to planData check
+      if (checkError) {
+        logger.warn('Database function failed, falling back to planData check', { error: checkError.message });
+      }
+    }
+
+    // Fallback: Use planData check if database function not available
     const planData = await getUserPlan(userId);
     
     // If plan data is missing or invalid, block in production
     if (!planData || !planData.can_run_automation) {
       // ✅ FIX: Properly handle undefined values in error message
       const usage = planData?.usage?.monthly_runs ?? 0;
-      const limit = planData?.limits?.monthly_runs ?? 0;
+      const limit = planData?.limits?.automation_runs ?? planData?.limits?.monthly_runs ?? 0;
       const planName = planData?.plan?.name || 'Unknown';
       
       return res.status(403).json({
@@ -153,7 +192,24 @@ const requireFeature = (featureKey) => {
       }
 
       const planData = await getUserPlan(userId);
-      const hasFeature = planData.limits?.[featureKey] === true;
+      
+      // Check feature access - handle both boolean and string values from feature_flags
+      const featureValue = planData.limits?.[featureKey];
+      let hasFeature = false;
+      
+      if (typeof featureValue === 'boolean') {
+        hasFeature = featureValue === true;
+      } else if (typeof featureValue === 'string') {
+        // Handle string values: "Yes", "Unlimited", "Basic (10 rules)" = true; "No" = false
+        const normalized = featureValue.toLowerCase().trim();
+        hasFeature = normalized !== 'no' && normalized !== 'false' && normalized !== '';
+      } else if (typeof featureValue === 'number') {
+        // Numeric values > 0 mean feature is available
+        hasFeature = featureValue > 0;
+      } else if (featureValue !== null && featureValue !== undefined) {
+        // Any other truthy value means feature is available
+        hasFeature = !!featureValue;
+      }
       
       if (!hasFeature) {
         return res.status(403).json({
@@ -183,14 +239,6 @@ const requireFeature = (featureKey) => {
 
 // Middleware: Check if user has required plan level
 const requirePlan = (minPlan) => {
-  const planHierarchy = {
-    'hobbyist': 0,
-    'free': 0,
-    'starter': 1,
-    'professional': 2,
-    'enterprise': 3
-  };
-
   return async (req, res, next) => {
     try {
       // allow dev bypass to skip plan checks
@@ -204,8 +252,11 @@ const requirePlan = (minPlan) => {
       }
 
       const planData = await getUserPlan(userId);
-      const currentPlanLevel = planHierarchy[planData.plan.name?.toLowerCase()] || 0;
-      const requiredPlanLevel = planHierarchy[minPlan.toLowerCase()] || 0;
+      
+      // Get dynamic plan hierarchy from database
+      const planHierarchy = await getPlanHierarchy();
+      const currentPlanLevel = planHierarchy[planData.plan.name?.toLowerCase()] ?? 0;
+      const requiredPlanLevel = planHierarchy[minPlan.toLowerCase()] ?? 0;
       
       if (currentPlanLevel < requiredPlanLevel) {
         return res.status(403).json({
@@ -227,8 +278,14 @@ const requirePlan = (minPlan) => {
 };
 
 // Middleware: Check storage limits for file uploads
+// ✅ BULLETPROOF: Uses database function for accurate limit checking
 const checkStorageLimit = async (req, res, next) => {
   try {
+    // Allow dev bypass
+    if (req.devBypass) {
+      return next();
+    }
+
     const userId = req.user?.id;
     const fileSize = req.body?.file_size || req.file?.size || 0;
     
@@ -236,10 +293,52 @@ const checkStorageLimit = async (req, res, next) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const planData = await getUserPlan(userId);
-    const storageLimit = planData.limits.storage_gb;
-    const currentUsage = planData.usage.storage_gb;
     const fileSizeGB = fileSize / (1024 * 1024 * 1024);
+
+    // ✅ BULLETPROOF: Use database function for accurate limit checking
+    const { getSupabase } = require('../utils/supabaseClient');
+    const supabase = getSupabase();
+    
+    if (supabase && supabase.rpc) {
+      const { data: canUse, error: checkError } = await supabase
+        .rpc('can_use_storage', { 
+          user_uuid: userId,
+          additional_gb: fileSizeGB
+        });
+
+      if (!checkError && !canUse) {
+        // Get usage for error message
+        const { data: usageData } = await supabase
+          .rpc('get_storage_usage', { user_uuid: userId })
+          .single();
+
+        const planData = await getUserPlan(userId);
+        const currentUsage = usageData?.storage_gb_used || 0;
+        const storageLimit = usageData?.limit_gb || planData?.limits?.storage_gb || 0;
+        const planName = planData?.plan?.name || 'Unknown';
+
+        return res.status(403).json({
+          error: 'Storage limit exceeded',
+          message: `Adding this file would exceed your storage limit. Current usage: ${currentUsage.toFixed(2)}GB, Limit: ${storageLimit}GB`,
+          current_plan: planName,
+          current_usage_gb: currentUsage,
+          limit_gb: storageLimit,
+          file_size_gb: fileSizeGB,
+          upgrade_required: true,
+          upgrade_url: '/pricing'
+        });
+      }
+
+      // If database function fails, fall back to planData check
+      if (checkError) {
+        logger.warn('Database function failed, falling back to planData check', { error: checkError.message });
+      }
+    }
+
+    // Fallback: Use planData check if database function not available
+    const planData = await getUserPlan(userId);
+    const storageLimit = planData.limits?.storage_gb || 0;
+    const currentUsage = planData.usage?.storage_gb || 0;
     
     // Check if unlimited storage
     if (storageLimit === -1) {
@@ -252,10 +351,12 @@ const checkStorageLimit = async (req, res, next) => {
       return res.status(403).json({
         error: 'Storage limit exceeded',
         message: `Adding this file would exceed your storage limit. Current usage: ${currentUsage.toFixed(2)}GB, Limit: ${storageLimit}GB`,
+        current_plan: planData.plan?.name || 'Unknown',
         current_usage_gb: currentUsage,
         limit_gb: storageLimit,
         file_size_gb: fileSizeGB,
-        upgrade_required: true
+        upgrade_required: true,
+        upgrade_url: '/pricing'
       });
     }
 
@@ -263,7 +364,9 @@ const checkStorageLimit = async (req, res, next) => {
     next();
   } catch (error) {
     logger.error('Storage limit check error:', error);
-    res.status(500).json({ error: 'Failed to check storage limits' });
+    // Fail open for availability
+    req.planData = null;
+    next();
   }
 };
 

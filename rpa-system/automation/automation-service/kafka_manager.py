@@ -9,7 +9,7 @@ import json
 import time
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Callable
 from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
 from aiokafka.errors import KafkaError, NoBrokersAvailable
@@ -196,7 +196,7 @@ class KafkaManager:
                 'operation': 'kafka_message_processing',
                 'task_id': task_id,
                 'task_type': task_type,
-                'span_start': datetime.utcnow().isoformat() + "Z",
+                'span_start': datetime.now(timezone.utc).isoformat() + "Z",
                 'message_offset': getattr(message, 'offset', None),
                 'message_partition': getattr(message, 'partition', None),
                 # ✅ High-cardinality business attributes for filtering
@@ -205,7 +205,7 @@ class KafkaManager:
             
             # ✅ Log message processing start with full span context
             print(json.dumps({
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                 "level": "info",
                 "logger": "automation.kafka_manager",
                 "message": "Kafka message processing started",
@@ -225,11 +225,11 @@ class KafkaManager:
                 handler_start_time = time.time()
                 
                 print(json.dumps({
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                     "level": "info",
                     "logger": "automation.kafka_manager",
                     "message": f"Executing handler for task type: {task_type}",
-                    "span": {**span_context, "handler_start": datetime.utcnow().isoformat() + "Z"},
+                    "span": {**span_context, "handler_start": datetime.now(timezone.utc).isoformat() + "Z"},
                     "trace": trace_context
                 }))
                 
@@ -238,7 +238,7 @@ class KafkaManager:
                 handler_duration = time.time() - handler_start_time
                 
                 print(json.dumps({
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                     "level": "info",
                     "logger": "automation.kafka_manager",
                     "message": f"Handler execution completed for task type: {task_type}",
@@ -254,7 +254,7 @@ class KafkaManager:
                 await self.send_result(task_id, result, 'completed', trace_context)
             else:
                 print(json.dumps({
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                     "level": "warning",
                     "logger": "automation.kafka_manager",
                     "message": f"No handler found for task type: {task_type}",
@@ -268,7 +268,7 @@ class KafkaManager:
             # ✅ Log successful message processing completion
             total_duration = time.time() - message_start_time
             print(json.dumps({
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                 "level": "info",
                 "logger": "automation.kafka_manager",
                 "message": "Kafka message processing completed successfully",
@@ -276,7 +276,7 @@ class KafkaManager:
                     **span_context,
                     "duration": total_duration,
                     "status": "success",
-                    "span_end": datetime.utcnow().isoformat() + "Z"
+                    "span_end": datetime.now(timezone.utc).isoformat() + "Z"
                 },
                 "performance": {"total_duration": total_duration},
                 "trace": trace_context
@@ -305,7 +305,7 @@ class KafkaManager:
         """Send automation result back through Kafka with trace context"""
         if not self.kafka_enabled:
             print(json.dumps({
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                 "level": "info",
                 "logger": "automation.kafka_manager",
                 "message": "Kafka disabled, skipping result send",
@@ -320,7 +320,7 @@ class KafkaManager:
         try:
             if self.producer is None:
                 print(json.dumps({
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                     "level": "error",
                     "logger": "automation.kafka_manager",
                     "message": "Kafka producer not initialized",
@@ -344,13 +344,13 @@ class KafkaManager:
                 'task_id': task_id,
                 'status': status,
                 'data': result_data,
-                'timestamp': datetime.utcnow().isoformat() + "Z"
+                'timestamp': datetime.now(timezone.utc).isoformat() + "Z"
             }
             
             message = json.dumps(result_message)
             
             print(json.dumps({
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                 "level": "info",
                 "logger": "automation.kafka_manager",
                 "message": "Sending result to Kafka topic",
@@ -373,7 +373,7 @@ class KafkaManager:
             
         except Exception as e:
             print(json.dumps({
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
                 "level": "error",
                 "logger": "automation.kafka_manager",
                 "message": "Failed to send result to Kafka",

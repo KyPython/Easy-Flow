@@ -1,0 +1,27 @@
+name: 🔍 Verify Backups
+
+on:
+  schedule:
+    # Run weekly on Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Verify backups
+        run: |
+          chmod +x scripts/verify-backup.sh
+          ./scripts/verify-backup.sh
+      
+      - name: Check for unpushed commits
+        run: |
+          if [ -n "$(git log origin/dev..HEAD 2>/dev/null)" ] || [ -n "$(git log origin/main..HEAD 2>/dev/null)" ]; then
+            echo "⚠️ Unpushed commits detected"
+            echo "::warning::You have unpushed commits. Run 'git push' to backup your code."
+          fi
+

@@ -13,6 +13,7 @@ import {
   FaList
 } from 'react-icons/fa';
 import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates';
+import { useTheme } from '../../utils/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
 import TemplateDetails from './TemplateDetails';
 import VirtualizedGrid from '../VirtualizedGrid/VirtualizedGrid';
@@ -37,6 +38,8 @@ const formatTemplateCategory = (category) => {
 };
 
 const TemplateGallery = ({ onSelectTemplate, onClose }) => {
+  const { theme } = useTheme() || { theme: 'light' };
+  const logger = createLogger('TemplateGallery'); // Structured logger for observability
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('popularity');
@@ -61,7 +64,7 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
 
   const handleTemplateSelection = async (template) => {
     try {
-      console.log('Creating workflow from template:', template);
+      logger.info('Creating workflow from template', { template_id: template.id, template_name: template.name });
       
       // Generate a workflow name based on the template
       const workflowName = `${template.name} - ${new Date().toLocaleDateString()}`;
@@ -69,11 +72,18 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
       // Create the workflow from template
       const newWorkflow = await createFromTemplate(template.id, workflowName);
       
+      logger.info('Workflow created successfully from template', { workflow_id: newWorkflow?.id, template_id: template.id });
+      
       // Pass the created workflow back to parent
       onSelectTemplate(newWorkflow);
       
     } catch (error) {
-      console.error('Failed to create workflow from template:', error);
+      logger.error('Failed to create workflow from template', { 
+        error: error.message, 
+        stack: error.stack,
+        template_id: template?.id,
+        template_name: template?.name
+      });
       alert('Failed to create workflow from template: ' + error.message);
     }
   };
@@ -91,6 +101,19 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
     { value: 'report_generation', label: 'Report Generation' },
     { value: 'monitoring', label: 'Monitoring' }
   ];
+
+  // ✅ INDUSTRY-SPECIFIC TEMPLATES: Add industry filter
+  const industries = [
+    { value: 'all', label: 'All Industries' },
+    { value: 'freelancer', label: 'Freelancer' },
+    { value: 'agency', label: 'Agency' },
+    { value: 'home_services', label: 'Home Services' },
+    { value: 'ecommerce', label: 'E-commerce' },
+    { value: 'saas', label: 'SaaS' },
+    { value: 'consulting', label: 'Consulting' }
+  ];
+
+  const [selectedIndustry, setSelectedIndustry] = useState('all');
 
   const sortOptions = [
     { value: 'popularity', label: 'Most Popular' },
@@ -121,23 +144,24 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
   // Load from server whenever filters change
   useEffect(() => {
     setPage(1); // reset page when filters change
-  }, [searchQuery, selectedCategory, sortBy]);
+  }, [searchQuery, selectedCategory, selectedIndustry, sortBy]);
 
   useEffect(() => {
     loadTemplates({
       search: searchQuery,
       category: selectedCategory,
+      industry: selectedIndustry, // ✅ NEW: Pass industry filter
       sortBy,
       page,
       pageSize
     });
-  }, [searchQuery, selectedCategory, sortBy, page, pageSize, loadTemplates]);
+  }, [searchQuery, selectedCategory, selectedIndustry, sortBy, page, pageSize, loadTemplates]);
 
   const featuredTemplates = templates.filter(template => template.is_featured);
 
   if (loading && filteredAndSortedTemplates.length === 0) {
     return (
-      <div className={styles.loadingState}>
+      <div className={styles.loadingState} data-theme={theme}>
         {viewMode === 'grid' ? <SkeletonGrid count={6} /> : <SkeletonList count={5} />}
       </div>
     );
@@ -145,22 +169,28 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
 
   if (error) {
     return (
-      <div className={styles.errorState}>\n        <h3>Templates</h3>\n        <p className={styles.errorText}>{error}</p>\n        <button onClick={() => window.location.reload()} className={styles.retryButton}>Retry</button>\n      </div>
+      <div className={styles.errorState} data-theme={theme}>
+        <h3>Templates</h3>
+        <p className={styles.errorText}>{error}</p>
+        <button onClick={() => window.location.reload()} className={styles.retryButton}>Retry</button>
+      </div>
     );
   }
 
   if (selected) {
     return (
-      <TemplateDetails
-        templateId={selected}
-        onBack={() => setSelected(null)}
-        onUse={(wf) => onSelectTemplate(wf)}
-      />
+      <div data-theme={theme}>
+        <TemplateDetails
+          templateId={selected}
+          onBack={() => setSelected(null)}
+          onUse={(wf) => onSelectTemplate(wf)}
+        />
+      </div>
     );
   }
 
   return (
-    <div className={styles.templateGallery}>
+    <div className={styles.templateGallery} data-theme={theme}>
       <div className={styles.header}>
         <div className={styles.headerContent}>
           <h2 className={styles.title}>Workflow Templates</h2>
@@ -240,11 +270,27 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
                 ))}
               </select>
             </div>
+            
+            {/* ✅ NEW: Industry Filter */}
+            <div className={styles.filterGroup}>
+              <label className={styles.filterLabel}>Industry</label>
+              <select
+                value={selectedIndustry}
+                onChange={(e) => setSelectedIndustry(e.target.value)}
+                className={styles.filterSelect}
+              >
+                {industries.map(industry => (
+                  <option key={industry.value} value={industry.value}>
+                    {industry.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
 
         {/* Featured Templates */}
-        {featuredTemplates.length > 0 && searchQuery === '' && selectedCategory === 'all' && (
+        {featuredTemplates.length > 0 && searchQuery === '' && selectedCategory === 'all' && selectedIndustry === 'all' && (
           <div className={styles.featuredSection}>
             <h3 className={styles.sectionTitle}>
               <FaStar className={styles.sectionIcon} />

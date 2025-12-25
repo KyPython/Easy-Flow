@@ -128,6 +128,142 @@ const WORKFLOW_STEPS = {
       success: { type: 'boolean', default: true },
       message: { type: 'string', description: 'Completion message' }
     }
+  },
+  slack_send: {
+    id: 'slack_send',
+    label: 'Send Slack Message',
+    description: 'Send a message to a Slack channel',
+    icon: '💬',
+    configSchema: {
+      channel: { type: 'string', description: 'Slack channel name (e.g., #general)' },
+      message: { type: 'string', description: 'Message text to send' }
+    }
+  },
+  slack_read: {
+    id: 'slack_read',
+    label: 'Read Slack Messages',
+    description: 'Read messages from a Slack channel',
+    icon: '📥',
+    configSchema: {
+      channel: { type: 'string', description: 'Slack channel name' },
+      limit: { type: 'number', default: 100, description: 'Maximum number of messages to read' }
+    }
+  },
+  slack_collect_feedback: {
+    id: 'slack_collect_feedback',
+    label: 'Collect Feedback from Slack',
+    description: 'Collect customer feedback from Slack messages',
+    icon: '💭',
+    configSchema: {
+      channel: { type: 'string', description: 'Slack channel to monitor' },
+      keywords: { type: 'array', description: 'Keywords to filter feedback (e.g., ["feedback", "suggestion"])' }
+    }
+  },
+  gmail_send: {
+    id: 'gmail_send',
+    label: 'Send Gmail',
+    description: 'Send an email via Gmail',
+    icon: '📧',
+    configSchema: {
+      to: { type: 'array', description: 'Recipient email addresses' },
+      subject: { type: 'string', description: 'Email subject' },
+      body: { type: 'string', description: 'Email body text' }
+    }
+  },
+  gmail_read: {
+    id: 'gmail_read',
+    label: 'Read Gmail',
+    description: 'Read emails from Gmail inbox',
+    icon: '📬',
+    configSchema: {
+      query: { type: 'string', description: 'Gmail search query (e.g., "from:customer@example.com")' },
+      maxResults: { type: 'number', default: 10, description: 'Maximum emails to read' }
+    }
+  },
+  gmail_collect_feedback: {
+    id: 'gmail_collect_feedback',
+    label: 'Collect Feedback from Gmail',
+    description: 'Collect customer feedback from emails',
+    icon: '💌',
+    configSchema: {
+      keywords: { type: 'array', description: 'Keywords to filter feedback' },
+      maxResults: { type: 'number', default: 50 }
+    }
+  },
+  sheets_read: {
+    id: 'sheets_read',
+    label: 'Read Google Sheet',
+    description: 'Read data from a Google Sheet',
+    icon: '📊',
+    configSchema: {
+      spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+      range: { type: 'string', description: 'Cell range (e.g., "A1:C10")' },
+      sheetName: { type: 'string', description: 'Sheet name (optional)' }
+    }
+  },
+  sheets_write: {
+    id: 'sheets_write',
+    label: 'Write to Google Sheet',
+    description: 'Write data to a Google Sheet',
+    icon: '✍️',
+    configSchema: {
+      spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+      range: { type: 'string', description: 'Cell range to write to' },
+      values: { type: 'array', description: 'Data to write (array of arrays)' },
+      sheetName: { type: 'string', description: 'Sheet name (optional)' }
+    }
+  },
+  sheets_compile_feedback: {
+    id: 'sheets_compile_feedback',
+    label: 'Compile Feedback to Sheet',
+    description: 'Compile feedback from multiple sources into a Google Sheet',
+    icon: '📋',
+    configSchema: {
+      spreadsheetId: { type: 'string', description: 'Google Sheets spreadsheet ID' },
+      feedback: { type: 'array', description: 'Array of feedback items to compile' },
+      sheetName: { type: 'string', default: 'Feedback', description: 'Sheet name' }
+    }
+  },
+  meet_transcribe: {
+    id: 'meet_transcribe',
+    label: 'Transcribe Meet Recording',
+    description: 'Download and transcribe a Google Meet recording',
+    icon: '🎙️',
+    configSchema: {
+      fileId: { type: 'string', description: 'Google Drive file ID of the Meet recording' }
+    }
+  },
+  meet_process_recordings: {
+    id: 'meet_process_recordings',
+    label: 'Process Meet Recordings',
+    description: 'Find and transcribe all recent Meet recordings',
+    icon: '🎥',
+    configSchema: {
+      since: { type: 'string', description: 'ISO date string - only process recordings after this date' },
+      extractInsights: { type: 'boolean', default: false, description: 'Extract insights from transcriptions' }
+    }
+  },
+  whatsapp_send: {
+    id: 'whatsapp_send',
+    label: 'Send WhatsApp Message',
+    description: 'Send a message via WhatsApp',
+    icon: '📱',
+    configSchema: {
+      to: { type: 'string', description: 'WhatsApp phone number (with country code)' },
+      message: { type: 'string', description: 'Message text to send' }
+    }
+  },
+  multi_channel_collect: {
+    id: 'multi_channel_collect',
+    label: 'Collect from All Channels',
+    description: 'Collect feedback from Slack, Gmail, WhatsApp, and Meet automatically',
+    icon: '🔄',
+    configSchema: {
+      since: { type: 'string', description: 'ISO date string - only collect feedback after this date' },
+      keywords: { type: 'array', description: 'Keywords to filter feedback' },
+      channels: { type: 'object', description: 'Channel configuration (slack, gmail, whatsapp, meet)' },
+      includeTranscriptions: { type: 'boolean', default: false, description: 'Include Meet transcriptions' }
+    }
   }
 };
 
@@ -441,6 +577,10 @@ async function getConversationResponse(userMessage, context = {}) {
       });
     }
 
+    // Get support email from config
+    const { config: appConfig } = require('../utils/appConfig');
+    const supportEmail = appConfig.urls.supportEmail;
+    
     const enhancedSystemPrompt = `You are a helpful AI assistant for an automation workflow builder called Easy-Flow. 
 
 ## YOUR KNOWLEDGE ABOUT EASY-FLOW
@@ -455,7 +595,7 @@ Help users understand:
 
 ## SUPPORT CAPABILITIES
 You can also help users with support:
-- If they need to contact support, provide: support@useeasyflow.com
+- If they need to contact support, provide: ${supportEmail}
 - If they want to send an email, you can help them compose it
 - For billing questions, direct them to the Settings > Billing page
 
@@ -904,6 +1044,17 @@ async function initializeKnowledge() {
     // Seed knowledge via YOUR RAG service
     logger.info('[AI Agent] Seeding knowledge via rag-node-ts...');
     const result = await ragClient.seedEasyFlowKnowledge();
+    
+    // Also seed integration knowledge
+    try {
+      const { addIntegrationKnowledge } = require('./addIntegrationKnowledge');
+      const integrationResult = await addIntegrationKnowledge();
+      if (integrationResult.success) {
+        logger.info('[AI Agent] Integration knowledge seeded');
+      }
+    } catch (integrationError) {
+      logger.warn('[AI Agent] Failed to seed integration knowledge:', integrationError);
+    }
     
     logger.info('[AI Agent] Knowledge seeded to rag-node-ts', {
       successful: result.successful,

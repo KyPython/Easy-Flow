@@ -1348,7 +1348,9 @@ async function scrapeWebsite(params, context) {
     }
     
     // Call the automation service
-    const automationUrl = process.env.AUTOMATION_URL || 'http://127.0.0.1:7070';
+    const { getAutomationUrl, config } = require('../utils/appConfig');
+    const automationUrl = getAutomationUrl();
+    const scrapeTimeout = params.timeout || config.timeouts.scrapeDefault;
     
     actionLogger.debug('Calling automation service', { automationUrl, selectors });
     
@@ -1356,9 +1358,9 @@ async function scrapeWebsite(params, context) {
       url: params.url,
       selectors: selectors,
       wait_for: params.wait_for,
-      timeout: params.timeout || 30
+      timeout: scrapeTimeout
     }, {
-      timeout: (params.timeout || 30) * 1000 + 5000
+      timeout: (scrapeTimeout * 1000) + 5000
     });
 
     const duration = Date.now() - startTime;

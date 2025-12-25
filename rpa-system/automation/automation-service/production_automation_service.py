@@ -22,7 +22,7 @@ import signal
 import json
 import uuid
 from flask import Flask, request, jsonify
-from datetime import datetime
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 # ✅ INSTRUCTION 2: Import OpenTelemetry components for trace propagation
@@ -284,7 +284,7 @@ def send_result_to_kafka(task_id, result, status='completed', run_id=None):
             'task_id': task_id,
             'status': status,
             'result': result,
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'worker_id': os.getenv('HOSTNAME', 'unknown')
         }
         
@@ -677,7 +677,7 @@ def health_check():
     status = {
         'status': 'healthy',
         'service': 'automation-worker',
-        'timestamp': datetime.utcnow().isoformat(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'worker_id': os.getenv('HOSTNAME', 'unknown'),
         'kafka_status': "healthy" if get_kafka_producer() else "unhealthy",
         'active_workers': active_thread_count,

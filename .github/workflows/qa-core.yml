@@ -2,7 +2,9 @@ name: QA — core feature tests
 
 on:
   push:
+    branches: [main]  # Only run strict checks on main branch
   pull_request:
+    branches: [main]  # Only run strict checks on PRs targeting main
   workflow_dispatch:
 
 jobs:

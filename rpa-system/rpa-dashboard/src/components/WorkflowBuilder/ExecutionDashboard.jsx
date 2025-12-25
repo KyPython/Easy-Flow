@@ -12,9 +12,11 @@ import {
   FaChartLine,
   FaFilter,
   FaDownload,
-  FaEye
+  FaEye,
+  FaLightbulb
 } from 'react-icons/fa';
 import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
+import { api } from '../../utils/api';
 import MetricCard from '../MetricCard/MetricCard';
 import WorkflowStatusBadge from './WorkflowStatusBadge';
 import ExecutionCard from './ExecutionCard';
@@ -248,7 +250,9 @@ ExecutionDashboard.propTypes = {
 const ExecutionDetailsModal = ({ execution, onClose }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [stepExecutions, setStepExecutions] = useState([]);
+  const [decisionLogs, setDecisionLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingDecisions, setLoadingDecisions] = useState(false);
   const [retrying, setRetrying] = useState(false);
   
   // ✅ ENVIRONMENT-AWARE: Detect development vs production
@@ -301,6 +305,27 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
     loadStepExecutions();
   }, [execution.id]);
 
+  // ✅ NEW: Load decision logs when Decisions tab is active
+  useEffect(() => {
+    if (activeTab === 'decisions') {
+      const loadDecisionLogs = async () => {
+        try {
+          setLoadingDecisions(true);
+          const { data } = await api.get(`/api/decision-logs/${execution.id}`);
+          if (data.success) {
+            setDecisionLogs(data.data || []);
+          }
+        } catch (error) {
+          console.error('Failed to load decision logs:', error);
+          setDecisionLogs([]);
+        } finally {
+          setLoadingDecisions(false);
+        }
+      };
+      loadDecisionLogs();
+    }
+  }, [activeTab, execution.id]);
+
   const formatJSON = (data) => {
     if (!data) return 'N/A';
     return JSON.stringify(data, null, 2);
@@ -341,6 +366,14 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
             onClick={() => setActiveTab('data')}
           >
             {isDevelopment ? 'Input/Output' : 'Results'}
+          </button>
+          {/* ✅ NEW: Decisions Tab - Shows why decisions were made */}
+          <button
+            className={`${styles.tab} ${activeTab === 'decisions' ? styles.active : ''}`}
+            onClick={() => setActiveTab('decisions')}
+          >
+            <FaLightbulb style={{ marginRight: '4px' }} />
+            Decisions
           </button>
         </div>
 
@@ -546,6 +579,59 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ✅ NEW: Decisions Tab - Shows why decisions were made */}
+          {activeTab === 'decisions' && (
+            <div className={styles.decisionsTab}>
+              {loadingDecisions ? (
+                <div className={styles.loading}>
+                  <div className={styles.spinner} />
+                  <p>Loading decision logs...</p>
+                </div>
+              ) : decisionLogs.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <FaLightbulb className={styles.emptyIcon} />
+                  <h4>No decisions logged</h4>
+                  <p>Decision logs explain why workflow steps made certain choices. They appear when business rules are evaluated.</p>
+                </div>
+              ) : (
+                <div className={styles.decisionsList}>
+                  {decisionLogs.map((log, index) => (
+                    <div key={log.id || index} className={styles.decisionItem}>
+                      <div className={styles.decisionHeader}>
+                        <FaLightbulb className={styles.decisionIcon} />
+                        <div className={styles.decisionMeta}>
+                          <span className={styles.decisionType}>{log.decision_type || 'decision'}</span>
+                          {log.rule_name && (
+                            <span className={styles.ruleName}>Rule: {log.rule_name}</span>
+                          )}
+                          <span className={styles.decisionTime}>
+                            {new Date(log.created_at).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className={styles.decisionReason}>
+                        <strong>Why:</strong> {log.decision_reason}
+                      </div>
+                      {log.decision_outcome && (
+                        <div className={styles.decisionOutcome}>
+                          <strong>Result:</strong> {log.decision_outcome}
+                        </div>
+                      )}
+                      {isDevelopment && log.matched_condition && (
+                        <details className={styles.decisionDetails}>
+                          <summary>Technical Details</summary>
+                          <pre className={styles.jsonData}>
+                            {formatJSON(log.matched_condition)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -49,6 +49,75 @@ async function main() {
 
   const templates = [
     {
+      name: 'Slack → Google Sheets',
+      description: 'Automatically sync Slack messages to Google Sheets. Perfect for tracking customer feedback, support requests, or team updates without manual copy/paste.',
+      category: 'data_processing',
+      tags: ['slack', 'google-sheets', 'data-sync', 'copy-paste-elimination'],
+      is_public: true,
+      status: 'approved',
+      version: '1.0.0',
+      config: {
+        nodes: [
+          { id: 'start-1', type: 'start', position: { x: 100, y: 100 }, data: { label: 'New Slack Message' } },
+          { id: 'slack-read', type: 'slack', position: { x: 300, y: 100 }, data: { action: 'read_channel', channel: '{{channel}}' } },
+          { id: 'sheets-write', type: 'google-sheets', position: { x: 500, y: 100 }, data: { action: 'append_row', sheet: '{{sheet_name}}' } },
+          { id: 'end-1', type: 'end', position: { x: 700, y: 100 }, data: { label: 'Done' } }
+        ],
+        edges: [
+          { id: 'e1', source: 'start-1', target: 'slack-read' },
+          { id: 'e2', source: 'slack-read', target: 'sheets-write' },
+          { id: 'e3', source: 'sheets-write', target: 'end-1' }
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 }
+      }
+    },
+    {
+      name: 'Email → Notion',
+      description: 'Automatically add emails to Notion database. Stop manually copying email content into your notes - let EasyFlow do it for you.',
+      category: 'data_processing',
+      tags: ['email', 'notion', 'data-collection', 'copy-paste-elimination'],
+      is_public: true,
+      status: 'approved',
+      version: '1.0.0',
+      config: {
+        nodes: [
+          { id: 'start-1', type: 'start', position: { x: 100, y: 100 }, data: { label: 'New Email Received' } },
+          { id: 'email-read', type: 'email', position: { x: 300, y: 100 }, data: { action: 'read', filter: '{{filter}}' } },
+          { id: 'notion-create', type: 'notion', position: { x: 500, y: 100 }, data: { action: 'create_page', database: '{{database_id}}' } },
+          { id: 'end-1', type: 'end', position: { x: 700, y: 100 }, data: { label: 'Done' } }
+        ],
+        edges: [
+          { id: 'e1', source: 'start-1', target: 'email-read' },
+          { id: 'e2', source: 'email-read', target: 'notion-create' },
+          { id: 'e3', source: 'notion-create', target: 'end-1' }
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 }
+      }
+    },
+    {
+      name: 'Form → CRM',
+      description: 'Automatically add form submissions to your CRM. No more copy/pasting customer info from forms to your CRM system.',
+      category: 'business_process',
+      tags: ['form', 'crm', 'lead-management', 'copy-paste-elimination'],
+      is_public: true,
+      status: 'approved',
+      version: '1.0.0',
+      config: {
+        nodes: [
+          { id: 'start-1', type: 'start', position: { x: 100, y: 100 }, data: { label: 'Form Submitted' } },
+          { id: 'form-read', type: 'webhook', position: { x: 300, y: 100 }, data: { action: 'receive', endpoint: '{{form_endpoint}}' } },
+          { id: 'crm-create', type: 'crm', position: { x: 500, y: 100 }, data: { action: 'create_contact', crm: '{{crm_type}}' } },
+          { id: 'end-1', type: 'end', position: { x: 700, y: 100 }, data: { label: 'Done' } }
+        ],
+        edges: [
+          { id: 'e1', source: 'start-1', target: 'form-read' },
+          { id: 'e2', source: 'form-read', target: 'crm-create' },
+          { id: 'e3', source: 'crm-create', target: 'end-1' }
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 }
+      }
+    },
+    {
       name: 'Web Scrape and Email',
       description: 'Scrape a webpage and email the extracted results.',
       category: 'web_automation',

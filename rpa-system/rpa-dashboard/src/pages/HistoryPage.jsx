@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { usePlan } from '../hooks/usePlan';
 import { useI18n } from '../i18n';
 import { useTheme } from '../utils/ThemeContext';
@@ -23,14 +23,20 @@ const HistoryPage = () => {
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [editError, setEditError] = useState('');
-  const [viewingTask, setViewingTask] = useState(null);
+  const [viewingTaskId, setViewingTaskId] = useState(null); // Store ID instead of full object
+  const [isRefreshing, setIsRefreshing] = useState(false); // Track manual refresh state
   const runsRef = useRef([]); // Store runs in ref to avoid dependency issues
+  const isInitialLoad = useRef(true); // Track if this is the first load
 
-  useEffect(() => {
-    const fetchRuns = async () => {
-      if (!user) return;
+  // ✅ Move fetchRuns to useCallback so it can be called from anywhere
+  const fetchRuns = useCallback(async (isBackgroundRefresh = false) => {
+    if (!user) return;
+    
+    // Only show loading state on initial load, not background refreshes
+    if (!isBackgroundRefresh) {
       setLoading(true);
-      setError('');
+    }
+    setError('');
 
       // Set timeout to prevent infinite loading (30 seconds)
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
@@ -93,10 +99,16 @@ const HistoryPage = () => {
         logger.info('Automation runs fetched successfully', {
           user_id: user.id,
           count: runsDataFinal.length,
-          query_duration_ms: queryDuration
+          query_duration_ms: queryDuration,
+          is_background_refresh: isBackgroundRefresh
         });
         setRuns(runsDataFinal);
         runsRef.current = runsDataFinal; // Update ref
+        
+        // Mark initial load as complete
+        if (isInitialLoad.current) {
+          isInitialLoad.current = false;
+        }
       } catch (err) {
         logger.error('Failed to fetch automation runs', {
           error: err.message,
@@ -110,58 +122,219 @@ const HistoryPage = () => {
           clearTimeout(loadingTimeoutRef.current);
           loadingTimeoutRef.current = null;
         }
-        setLoading(false);
+        // Only set loading to false if this was the initial load
+        if (!isBackgroundRefresh) {
+          setLoading(false);
+        }
+        setIsRefreshing(false);
+      }
+  }, [user, logger]);
+
+  // ✅ Real-time updates with Supabase Realtime (replaces polling)
+  // Uses WebSocket subscriptions for instant updates when runs change
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let channel = null;
+    let client = null;
+    let fallbackPollInterval = null;
+
+    const setupRealtime = async () => {
+      try {
+        // Initial load
+        await fetchRuns(false);
+
+        // Initialize Supabase client for Realtime
+        client = await initSupabase();
+        if (!client || typeof client.channel !== 'function') {
+          logger.warn('Supabase Realtime not available, falling back to polling');
+          // Fallback: Use polling if Realtime is unavailable
+          fallbackPollInterval = setInterval(() => {
+            const hasActiveTasks = runsRef.current.some(run => 
+              run.status === 'queued' || run.status === 'running' || run.status === 'pending'
+            );
+            if (hasActiveTasks) {
+              fetchRuns(true); // Background refresh only for active tasks
+            }
+          }, 5000); // Poll every 5 seconds as fallback
+          return;
+        }
+
+        // Set auth token for Realtime connection
+        try {
+          const sessionRes = await client.auth.getSession();
+          const session = sessionRes?.data?.session || sessionRes?.session || null;
+          if (session?.access_token && client.realtime && typeof client.realtime.setAuth === 'function') {
+            client.realtime.setAuth(session.access_token);
+          }
+        } catch (authErr) {
+          logger.warn('Failed to set Realtime auth token', { error: authErr?.message });
+        }
+
+        // Subscribe to changes in automation_runs table for this user
+        channel = client
+          .channel(`automation_runs:user_id=eq.${user.id}`, {
+            config: {
+              // Enable presence for better connection management
+              presence: {
+                key: user.id
+              }
+            }
+          })
+          .on(
+            'postgres_changes',
+            {
+              event: '*', // Listen to INSERT, UPDATE, DELETE
+              schema: 'public',
+              table: 'automation_runs',
+              filter: `user_id=eq.${user.id}`
+            },
+            (payload) => {
+              logger.info('Realtime update received', {
+                event_type: payload.eventType,
+                run_id: payload.new?.id || payload.old?.id,
+                user_id: user.id
+              });
+
+              // Handle different event types
+              if (payload.eventType === 'INSERT') {
+                // New run created - fetch full data to get task details
+                fetchRuns(true); // Background refresh
+              } else if (payload.eventType === 'UPDATE') {
+                // Run status or data changed - update local state efficiently
+                setRuns(prev => {
+                  const existingIndex = prev.findIndex(r => r.id === (payload.new?.id || payload.old?.id));
+                  if (existingIndex >= 0) {
+                    // Update existing run
+                    const updated = [...prev];
+                    // Merge new data, preserving automation_tasks if not in payload
+                    updated[existingIndex] = {
+                      ...updated[existingIndex],
+                      ...payload.new,
+                      // Preserve nested task data if not in payload
+                      automation_tasks: payload.new?.automation_tasks || updated[existingIndex].automation_tasks
+                    };
+                    return updated;
+                  } else {
+                    // New run not in list yet - fetch full data
+                    fetchRuns(true);
+                    return prev;
+                  }
+                });
+                // Also update ref for consistency
+                runsRef.current = runsRef.current.map(run => {
+                  if (run.id === (payload.new?.id || payload.old?.id)) {
+                    return { ...run, ...payload.new, automation_tasks: payload.new?.automation_tasks || run.automation_tasks };
+                  }
+                  return run;
+                });
+              } else if (payload.eventType === 'DELETE') {
+                // Run deleted - remove from local state
+                const deletedId = payload.old?.id;
+                if (deletedId) {
+                  setRuns(prev => prev.filter(r => r.id !== deletedId));
+                  runsRef.current = runsRef.current.filter(r => r.id !== deletedId);
+                  // Close modal if viewing deleted run
+                  setViewingTaskId(prev => prev === deletedId ? null : prev);
+                }
+              }
+            }
+          )
+          .subscribe((status) => {
+            logger.info('Realtime subscription status', {
+              status,
+              user_id: user.id
+            });
+            if (status === 'SUBSCRIBED') {
+              logger.info('Successfully subscribed to automation_runs changes via WebSocket', { user_id: user.id });
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+              logger.warn('Realtime subscription error, falling back to polling', {
+                status,
+                user_id: user.id
+              });
+              // Fallback to polling if Realtime fails
+              if (!fallbackPollInterval) {
+                fallbackPollInterval = setInterval(() => {
+                  const hasActiveTasks = runsRef.current.some(run => 
+                    run.status === 'queued' || run.status === 'running' || run.status === 'pending'
+                  );
+                  if (hasActiveTasks) {
+                    fetchRuns(true);
+                  }
+                }, 5000);
+              }
+            }
+          });
+      } catch (err) {
+        logger.error('Failed to setup Realtime subscription', {
+          error: err.message,
+          user_id: user.id,
+          stack: err.stack
+        });
+        // Fallback: still fetch initial data even if Realtime fails
+        fetchRuns(false);
+        // Also set up polling as fallback
+        if (!fallbackPollInterval) {
+          fallbackPollInterval = setInterval(() => {
+            const hasActiveTasks = runsRef.current.some(run => 
+              run.status === 'queued' || run.status === 'running' || run.status === 'pending'
+            );
+            if (hasActiveTasks) {
+              fetchRuns(true);
+            }
+          }, 5000);
+        }
       }
     };
-    fetchRuns();
-    
-    // ✅ UX: Smart auto-refresh - only refresh if there are active tasks, and pause when user is interacting
-    let refreshInterval;
-    let isUserInteracting = false;
-    let interactionTimeout;
-    
-    const handleUserInteraction = () => {
-      isUserInteracting = true;
-      clearTimeout(interactionTimeout);
-      interactionTimeout = setTimeout(() => {
-        isUserInteracting = false;
-      }, 5000); // Pause refresh for 5 seconds after user interaction
-    };
-    
-    // Track user interactions (mouse, keyboard, text selection)
-    document.addEventListener('mousedown', handleUserInteraction);
-    document.addEventListener('keydown', handleUserInteraction);
-    document.addEventListener('selectionchange', handleUserInteraction);
-    
-    const smartRefresh = () => {
-      // Don't refresh if user is actively interacting
-      if (isUserInteracting) return;
-      
-      // Only auto-refresh if there are queued/running tasks that need updates
-      const hasActiveTasks = runsRef.current.some(run => 
-        run.status === 'queued' || run.status === 'running' || run.status === 'pending'
-      );
-      
-      if (hasActiveTasks) {
-        fetchRuns();
-      }
-    };
-    
-    // Refresh every 10 seconds (increased from 5), but only if there are active tasks
-    refreshInterval = setInterval(smartRefresh, 10000);
-    
+
+    setupRealtime();
+
+    // Cleanup: unsubscribe from Realtime channel and clear polling
     return () => {
-      clearInterval(refreshInterval);
-      clearTimeout(interactionTimeout);
-      document.removeEventListener('mousedown', handleUserInteraction);
-      document.removeEventListener('keydown', handleUserInteraction);
-      document.removeEventListener('selectionchange', handleUserInteraction);
+      if (fallbackPollInterval) {
+        clearInterval(fallbackPollInterval);
+      }
+      if (channel && client) {
+        try {
+          client.removeChannel(channel);
+          logger.info('Realtime channel unsubscribed', { user_id: user.id });
+        } catch (err) {
+          logger.warn('Error removing Realtime channel', { error: err?.message });
+        }
+      }
     };
-  }, [user]);
+  }, [user?.id, fetchRuns]); // Removed viewingTaskId from deps to prevent unnecessary re-subscriptions
+
+  // ✅ Manual refresh handler
+  const handleManualRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    fetchRuns(false); // Force refresh with loading state
+  }, [fetchRuns]);
 
   const handleViewTask = (task) => {
-    setViewingTask(task);
+    // Store task ID instead of full object to ensure modal gets latest data
+    setViewingTaskId(task.id);
   };
+
+  // ✅ Handle modal close with refresh
+  const handleModalClose = useCallback(() => {
+    setViewingTaskId(null);
+    // Trigger refresh when modal closes to ensure list is up-to-date
+    fetchRuns(true); // Background refresh - no loading state
+  }, [fetchRuns]);
+  
+  // Get the latest task data from runs when modal is open
+  const viewingTask = viewingTaskId 
+    ? runs.find(run => run.id === viewingTaskId) || null
+    : null;
+  
+  // Update viewingTaskId if the task is deleted or no longer exists
+  useEffect(() => {
+    if (viewingTaskId && !viewingTask) {
+      // Task was deleted or no longer exists, close modal
+      setViewingTaskId(null);
+    }
+  }, [viewingTaskId, viewingTask]);
 
   const handleEditTask = (task) => {
     setEditingTask(task);
@@ -211,6 +384,7 @@ const HistoryPage = () => {
     }
   };
 
+  // ✅ Use backend API for delete (better security and consistency)
   const handleDeleteTask = async (runId) => {
     const runToDelete = runs.find(r => r.id === runId);
     if (!runToDelete) return; // Should not happen, but good practice
@@ -219,10 +393,33 @@ const HistoryPage = () => {
 
     if (window.confirm(`Are you sure you want to delete the run for "${taskName}"? This action cannot be undone.`)) {
       try {
-        const client = await initSupabase();
-        const { error: deleteError } = await client.from('automation_runs').delete().eq('id', runId);
-        if (deleteError) throw deleteError;
+        // Use backend API endpoint for delete
+        const apiUrl = process.env.REACT_APP_API_BASE 
+          ? `${process.env.REACT_APP_API_BASE}/api/runs/${runId}`
+          : `/api/runs/${runId}`;
+        
+        const response = await fetchWithAuth(apiUrl, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+
+        // Optimistically remove from local state (Realtime will also update, but this is faster)
         setRuns(prev => prev.filter(r => r.id !== runId));
+        runsRef.current = runsRef.current.filter(r => r.id !== runId);
+        
+        // Close modal if viewing deleted run
+        if (viewingTaskId === runId) {
+          setViewingTaskId(null);
+        }
+
+        logger.info('Run deleted successfully', {
+          run_id: runId,
+          user_id: user.id
+        });
       } catch (err) {
         logger.error('Error deleting run', {
           error: err.message || err,
@@ -243,6 +440,27 @@ const HistoryPage = () => {
   return (
     <div className={styles.container} data-theme={theme}>
       <ErrorMessage message={error} />
+
+      {/* ✅ Refresh button and header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '24px',
+        gap: '16px'
+      }}>
+        <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 600 }}>
+          {t('history.title', 'Automation History')}
+        </h1>
+        <button
+          onClick={handleManualRefresh}
+          disabled={isRefreshing || loading}
+          className={styles.refreshButton}
+          title="Refresh automation history"
+        >
+          {isRefreshing ? '⟳' : '↻'} {isRefreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
 
       {/* Step-by-step guidance banner */}
       <div style={{
@@ -351,7 +569,7 @@ const HistoryPage = () => {
       {viewingTask && (
         <TaskResultModal
           task={viewingTask}
-          onClose={() => setViewingTask(null)}
+          onClose={handleModalClose}
         />
       )}
     </div>

@@ -16,14 +16,15 @@ class RobustWorkflowExecutor {
   constructor() {
     this.supabase = getSupabase();
     
-    // Execution configuration
+    // Execution configuration - all values from centralized config
+    const { config: appConfig } = require('../utils/appConfig');
     this.config = {
-      DEFAULT_TIMEOUT: 30000,      // 30 seconds hard timeout
-      SELECTOR_TIMEOUT: 15000,     // 15 seconds for element waiting
-      PAGE_LOAD_TIMEOUT: 20000,    // 20 seconds for page loads
-      LOGIN_TIMEOUT: 25000,        // 25 seconds for login operations
-      MAX_RETRY_ATTEMPTS: 3,       // Maximum retry attempts
-      RETRY_DELAY: 2000           // Delay between retries
+      DEFAULT_TIMEOUT: appConfig.timeouts.browserDefault,
+      SELECTOR_TIMEOUT: appConfig.timeouts.browserSelector,
+      PAGE_LOAD_TIMEOUT: appConfig.timeouts.browserPageLoad,
+      LOGIN_TIMEOUT: appConfig.timeouts.browserLogin,
+      MAX_RETRY_ATTEMPTS: appConfig.retries.maxAttempts,
+      RETRY_DELAY: appConfig.retries.baseDelay
     };
     
     this.runningExecutions = new Map();

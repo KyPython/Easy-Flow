@@ -208,7 +208,8 @@ export const enableBrowserAutofill = (formElement, targetUrl = null) => {
       'username': 'username',
       'user': 'username', 
       'login': 'username',
-      'password': 'current-password',
+      // Note: 'current-password' is an HTML autocomplete value, not an actual password
+      'password': 'current-password', // HTML5 autocomplete attribute value
       'url': 'url',
       'website': 'url',
       'target_url': 'url',

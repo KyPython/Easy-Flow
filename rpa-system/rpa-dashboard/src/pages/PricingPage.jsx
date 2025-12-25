@@ -203,7 +203,7 @@ export default function PricingPage() {
     // Track upgrade click from pricing page
     conversionTracker.trackUpgradeClicked(
       'pricing_page',
-      plan.name.toLowerCase() === 'hobbyist' ? 'Free Forever' : 'Start 14-Day Free Trial',
+      plan.price_cents === 0 ? 'Free Forever' : 'Start 14-Day Free Trial',
       planData?.plan?.name || 'hobbyist',
       null, // no specific feature context
       plan.name
@@ -299,6 +299,7 @@ export default function PricingPage() {
               'webhook_integrations',
               'custom_integrations',
               'integrations_builder',
+              'business_rules',
               'advanced_analytics',
               'basic_analytics',
               'advanced_templates',
@@ -361,7 +362,7 @@ export default function PricingPage() {
                     ? 'Creating checkout...' 
                     : currentPlanName.toLowerCase() === plan.name.toLowerCase() 
                       ? t('plan.current_plan','Current Plan') 
-                      : plan.name.toLowerCase() === 'hobbyist' 
+                      : plan.price_cents === 0 
                         ? 'Free Forever'
                         : 'Start 14-Day Free Trial'
                   }

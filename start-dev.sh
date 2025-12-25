@@ -35,13 +35,159 @@ if ! command -v pm2 &> /dev/null; then
     npm install -g pm2
 fi
 
+# ==========================================
+# AUTOMATIC DEPENDENCY INSTALLATION
+# ==========================================
+echo ""
+echo -e "${YELLOW}📦 Checking and installing dependencies...${NC}"
+
+# Temporarily disable exit on error for dependency installation
+set +e
+
+# Function to check if a specific npm package is installed
+check_npm_package() {
+    local dir=$1
+    local package=$2
+    
+    if [ -d "$dir/node_modules" ]; then
+        if [ -d "$dir/node_modules/$package" ] || [ -f "$dir/node_modules/$package/package.json" ]; then
+            return 0  # Package exists
+        fi
+    fi
+    return 1  # Package missing
+}
+
+# Function to check and install npm dependencies
+install_npm_deps() {
+    local dir=$1
+    local name=$2
+    local required_packages="${3:-}"  # Optional: comma-separated list of required packages
+    
+    if [ -f "$dir/package.json" ]; then
+        local needs_install=false
+        
+        # Check if node_modules exists
+        if [ ! -d "$dir/node_modules" ]; then
+            needs_install=true
+        # Check if package.json is newer than node_modules
+        elif [ "$dir/package.json" -nt "$dir/node_modules" ]; then
+            needs_install=true
+        # Check for required packages if specified
+        elif [ -n "$required_packages" ]; then
+            IFS=',' read -ra PACKAGES <<< "$required_packages"
+            for package in "${PACKAGES[@]}"; do
+                if ! check_npm_package "$dir" "$package"; then
+                    needs_install=true
+                    break
+                fi
+            done
+        fi
+        
+        if [ "$needs_install" = true ]; then
+            echo -e "${YELLOW}  Installing $name dependencies...${NC}"
+            if [ -d "$dir" ]; then
+                (cd "$dir" && npm install --silent 2>/dev/null)
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}  ✓ $name dependencies installed${NC}"
+                else
+                    echo -e "${RED}  ✗ Failed to install $name dependencies${NC}"
+                    echo -e "${YELLOW}     You may need to run: cd $dir && npm install${NC}"
+                    return 1
+                fi
+            else
+                echo -e "${YELLOW}  ⚠ Directory $dir not found, skipping${NC}"
+                return 1
+            fi
+        else
+            echo -e "${GREEN}  ✓ $name dependencies already installed${NC}"
+        fi
+    fi
+    return 0
+}
+
+# Function to check and install Python dependencies
+install_python_deps() {
+    local dir=$1
+    local name=$2
+    local requirements_file=$3
+    
+    if [ -f "$requirements_file" ]; then
+        # Check if key packages are installed by trying to import them
+        # Check first package in requirements (usually the most critical)
+        local first_pkg=$(head -1 "$requirements_file" | cut -d'=' -f1 | cut -d'>' -f1 | cut -d'<' -f1 | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+        local import_name=$(echo "$first_pkg" | sed 's/-/_/g' | sed 's/\./_/g')
+        
+        # Try importing the package
+        if ! python3 -c "import $import_name" 2>/dev/null; then
+            echo -e "${YELLOW}  Installing $name Python dependencies...${NC}"
+            if [ -d "$dir" ]; then
+                (cd "$dir" && (
+                    pip3 install --user -r "$(basename "$requirements_file")" --quiet 2>/dev/null || \
+                    pip3 install -r "$(basename "$requirements_file")" --quiet 2>/dev/null || \
+                    python3 -m pip install --user -r "$(basename "$requirements_file")" --quiet 2>/dev/null || \
+                    python3 -m pip install -r "$(basename "$requirements_file")" --quiet 2>/dev/null
+                ))
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}  ✓ $name Python dependencies installed${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ Could not install $name Python dependencies automatically${NC}"
+                    echo -e "${YELLOW}     You may need to run: cd $dir && pip3 install -r $(basename $requirements_file)${NC}"
+                fi
+            else
+                echo -e "${YELLOW}  ⚠ Directory $dir not found, skipping${NC}"
+            fi
+        else
+            echo -e "${GREEN}  ✓ $name Python dependencies already installed${NC}"
+        fi
+    fi
+}
+
+# Install root dependencies (dotenv is REQUIRED for ecosystem.config.js)
+# CRITICAL: dotenv must be installed before generating ecosystem.config.js
+install_npm_deps "." "Root" "dotenv"
+if [ $? -ne 0 ]; then
+    echo -e "${RED}✗ Failed to install root dependencies (dotenv required)${NC}"
+    echo -e "${YELLOW}  Attempting manual installation...${NC}"
+    npm install dotenv --save 2>/dev/null || {
+        echo -e "${RED}✗ Critical: Cannot install dotenv. Please run: npm install${NC}"
+        exit 1
+    }
+    echo -e "${GREEN}✓ dotenv installed${NC}"
+fi
+
+# Install backend dependencies
+install_npm_deps "rpa-system/backend" "Backend"
+
+# Install frontend dependencies
+install_npm_deps "rpa-system/rpa-dashboard" "Frontend"
+
+# Install automation service Python dependencies
+install_python_deps "rpa-system/automation/automation-service" "Automation Service" "rpa-system/automation/automation-service/requirements.txt"
+
+# Also check general automation requirements
+if [ -f "rpa-system/automation/requirements.txt" ]; then
+    install_python_deps "rpa-system/automation" "Automation" "rpa-system/automation/requirements.txt"
+fi
+
+# Re-enable exit on error
+set -e
+
+echo -e "${GREEN}✓ All dependencies checked${NC}"
+echo ""
+
 # Stop any existing PM2 processes
 echo -e "${YELLOW}Stopping existing PM2 processes...${NC}"
 pm2 delete all 2>/dev/null || true
 
+# Set dynamic ports from environment variables with defaults (before port freeing)
+FRONTEND_PORT=${FRONTEND_PORT:-3000}
+BACKEND_PORT=${PORT:-3030}
+AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+BACKEND_METRICS_PORT=${BACKEND_METRICS_PORT:-9091}
+
 # Ensure critical ports are free (prevent address in use errors)
 echo -e "${YELLOW}Freeing up critical ports...${NC}"
-for port in 3000 3030 7070 7001 9091; do
+for port in $FRONTEND_PORT $BACKEND_PORT $AUTOMATION_PORT $BACKEND_METRICS_PORT; do
     if lsof -ti:$port > /dev/null 2>&1; then
         lsof -ti:$port | xargs kill -9 2>/dev/null || true
         echo -e "${GREEN}✓ Freed port $port${NC}"
@@ -49,7 +195,15 @@ for port in 3000 3030 7070 7001 9091; do
 done
 sleep 1
 
-# Stop Docker frontend container if running (it uses port 3000)
+# Check if Docker daemon is running
+if ! docker info > /dev/null 2>&1; then
+    echo -e "${RED}✗ Docker daemon is not running${NC}"
+    echo -e "${YELLOW}  Please start Docker Desktop and try again${NC}"
+    echo -e "${YELLOW}  On macOS: Open Docker Desktop application${NC}"
+    exit 1
+fi
+
+# Stop Docker frontend container if running (it uses frontend port)
 echo -e "${YELLOW}Stopping Docker frontend container...${NC}"
 docker stop easy-flow-rpa-dashboard-1 2>/dev/null || true
 
@@ -62,7 +216,16 @@ rm -f logs/*.log
 
 # Start Kafka and Zookeeper via Docker Compose
 echo -e "${YELLOW}Starting Kafka and Zookeeper...${NC}"
-docker compose up -d kafka zookeeper
+if ! docker compose up -d kafka zookeeper 2>/dev/null; then
+    echo -e "${RED}✗ Failed to start Kafka/Zookeeper containers${NC}"
+    echo -e "${YELLOW}  Attempting to pull images and retry...${NC}"
+    docker compose pull kafka zookeeper 2>/dev/null || true
+    docker compose up -d kafka zookeeper || {
+        echo -e "${RED}✗ Critical: Cannot start Kafka/Zookeeper${NC}"
+        echo -e "${YELLOW}  Check Docker daemon and try: docker compose up -d kafka zookeeper${NC}"
+        exit 1
+    }
+fi
 sleep 5
 
 # Initialize Kafka topics
@@ -79,7 +242,14 @@ docker compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null || t
 # Remove stale containers that may conflict (including manually started ones)
 docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
 # Start all monitoring services
-docker compose -f rpa-system/docker-compose.monitoring.yml up -d
+if ! docker compose -f rpa-system/docker-compose.monitoring.yml up -d 2>/dev/null; then
+    echo -e "${YELLOW}⚠ Failed to start observability stack, attempting to pull images...${NC}"
+    docker compose -f rpa-system/docker-compose.monitoring.yml pull 2>/dev/null || true
+    docker compose -f rpa-system/docker-compose.monitoring.yml up -d || {
+        echo -e "${YELLOW}⚠ Observability stack failed to start (non-critical, continuing...)${NC}"
+        echo -e "${YELLOW}  You can start it manually: docker compose -f rpa-system/docker-compose.monitoring.yml up -d${NC}"
+    }
+fi
 sleep 5
 
 # Wait for Grafana to be ready (it may restart due to datasource provisioning)
@@ -107,9 +277,44 @@ echo "  Alertmanager:   http://localhost:9093"
 # Get absolute path for logs to avoid PM2 cwd resolution issues
 ROOT_DIR=$(pwd)
 
-# Generate a dynamic ecosystem file to ensure correct env vars
+# Load environment variables from .env file if it exists
+if [ -f .env ]; then
+  echo -e "${GREEN}Loading environment variables from .env file...${NC}"
+  export $(cat .env | grep -v '^#' | xargs)
+else
+  echo -e "${YELLOW}⚠️  No .env file found. Using defaults or environment variables.${NC}"
+  echo -e "${YELLOW}   Create a .env file in the project root with your configuration.${NC}"
+fi
+
+# Set dynamic ports from environment variables with defaults
+FRONTEND_PORT=${FRONTEND_PORT:-3000}
+BACKEND_PORT=${PORT:-3030}
+AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+BACKEND_METRICS_PORT=${BACKEND_METRICS_PORT:-9091}
+
+# Export ports so they're available in the ecosystem.config.js generation
+export FRONTEND_PORT BACKEND_PORT AUTOMATION_PORT BACKEND_METRICS_PORT
+
+# Verify dotenv is installed before generating ecosystem.config.js
+if ! check_npm_package "." "dotenv"; then
+    echo -e "${RED}✗ Critical: dotenv package not found in node_modules${NC}"
+    echo -e "${YELLOW}  Installing dotenv...${NC}"
+    npm install dotenv --save --silent 2>/dev/null || {
+        echo -e "${RED}✗ Failed to install dotenv. Cannot continue.${NC}"
+        exit 1
+    }
+fi
+
+# Generate a dynamic ecosystem file that reads from environment variables
 echo -e "${YELLOW}Generating PM2 ecosystem config...${NC}"
 cat > ecosystem.config.js << EOL
+// Load environment variables from .env file
+require('dotenv').config();
+
+// Get root directory dynamically
+const path = require('path');
+const ROOT_DIR = __dirname;
+
 module.exports = {
   apps: [
     {
@@ -118,21 +323,26 @@ module.exports = {
       cwd: 'rpa-system/backend',
       watch: ['rpa-system/backend'],
       ignore_watch: ['node_modules', 'logs'],
-      error_file: '$ROOT_DIR/logs/backend-error.log',
-      out_file: '$ROOT_DIR/logs/backend.log',
+      error_file: path.join(ROOT_DIR, 'logs/backend-error.log'),
+      out_file: path.join(ROOT_DIR, 'logs/backend.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       merge_logs: true,
       env: {
-        NODE_ENV: 'development',
-        PORT: 3030,
-        KAFKA_ENABLED: 'true',
-        AUTOMATION_URL: 'http://127.0.0.1:7070',
-        KAFKA_CLIENT_ID: 'easyflow-backend',
-        KAFKA_BOOTSTRAP_SERVERS: '127.0.0.1:9092',
-        KAFKA_BROKERS: '127.0.0.1:9092',
-        SUPABASE_URL: "https://syxzilyuysdoirnezgii.supabase.co",
-        SUPABASE_SERVICE_ROLE: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk",
-        SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
+        NODE_ENV: process.env.NODE_ENV || 'development',
+        PORT: process.env.PORT || '3030',
+        KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
+        AUTOMATION_URL: process.env.AUTOMATION_URL || 'http://127.0.0.1:' + (process.env.AUTOMATION_PORT || '7070'),
+        KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID || 'easyflow-backend',
+        KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
+        KAFKA_BROKERS: process.env.KAFKA_BROKERS || '127.0.0.1:9092',
+        SUPABASE_URL: process.env.SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE,
+        SUPABASE_KEY: process.env.SUPABASE_KEY,
+        SESSION_SECRET: process.env.SESSION_SECRET,
+        ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
+        SUPABASE_BUCKET: process.env.SUPABASE_BUCKET,
+        DEV_BYPASS_TOKEN: process.env.DEV_BYPASS_TOKEN,
+        DEV_USER_ID: process.env.DEV_USER_ID,
       },
     },
     {
@@ -140,13 +350,15 @@ module.exports = {
       script: 'node_modules/.bin/react-scripts',
       args: 'start',
       cwd: 'rpa-system/rpa-dashboard',
-      error_file: '$ROOT_DIR/logs/frontend-error.log',
-      out_file: '$ROOT_DIR/logs/frontend.log',
+      error_file: path.join(ROOT_DIR, 'logs/frontend-error.log'),
+      out_file: path.join(ROOT_DIR, 'logs/frontend.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       merge_logs: true,
       env: {
-        PORT: 3000,
-        BROWSER: 'none'
+        PORT: process.env.FRONTEND_PORT || '3000',
+        BROWSER: process.env.BROWSER || 'none',
+        REACT_APP_API_BASE: process.env.REACT_APP_API_BASE,
+        PUBLIC_URL: process.env.PUBLIC_URL,
       },
     },
     {
@@ -154,20 +366,20 @@ module.exports = {
       script: 'production_automation_service.py',
       interpreter: 'python3',
       cwd: 'rpa-system/automation/automation-service',
-      error_file: '$ROOT_DIR/logs/automation-worker.log',
-      out_file: '$ROOT_DIR/logs/automation-worker.log',
+      error_file: path.join(ROOT_DIR, 'logs/automation-worker.log'),
+      out_file: path.join(ROOT_DIR, 'logs/automation-worker.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       merge_logs: true,
       env: {
-        PYTHONUNBUFFERED: '1',
-        KAFKA_ENABLED: 'true',
-        PORT: 7070,
-        BACKEND_URL: 'http://127.0.0.1:3030',
-        KAFKA_BOOTSTRAP_SERVERS: '127.0.0.1:9092',
-        KAFKA_BROKERS: '127.0.0.1:9092',
-        SUPABASE_URL: "https://syxzilyuysdoirnezgii.supabase.co",
-        SUPABASE_SERVICE_ROLE: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjM5NzMxMCwiZXhwIjoyMDcxOTczMzEwfQ.pqi4cVHTSjWmwhCJcraoJgOc7UCw4fjuSTrlv_6oVwk",
-        SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eHppbHl1eXNkb2lybmV6Z2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTczMTAsImV4cCI6MjA3MTk3MzMxMH0.mfPrYidyc3DEbTmmQuZhmuqqCjV_DE4JWZiv7-n5nE0"
+        PYTHONUNBUFFERED: process.env.PYTHONUNBUFFERED || '1',
+        KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
+        PORT: process.env.AUTOMATION_PORT || '7070',
+        BACKEND_URL: process.env.BACKEND_URL || 'http://127.0.0.1:' + (process.env.PORT || '3030'),
+        KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
+        KAFKA_BROKERS: process.env.KAFKA_BROKERS || '127.0.0.1:9092',
+        SUPABASE_URL: process.env.SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE,
+        SUPABASE_KEY: process.env.SUPABASE_KEY,
       },
     },
   ],
@@ -176,7 +388,24 @@ EOL
 
 # Start all services with PM2
 echo -e "${GREEN}Starting all services with PM2...${NC}"
-pm2 start ecosystem.config.js
+if ! pm2 start ecosystem.config.js 2>/dev/null; then
+    echo -e "${RED}✗ Failed to start services with PM2${NC}"
+    echo -e "${YELLOW}  Checking ecosystem.config.js syntax...${NC}"
+    # Validate the config file
+    if node -e "require('./ecosystem.config.js')" 2>/dev/null; then
+        echo -e "${GREEN}✓ ecosystem.config.js is valid${NC}"
+        echo -e "${YELLOW}  Attempting PM2 start again...${NC}"
+        pm2 start ecosystem.config.js || {
+            echo -e "${RED}✗ PM2 start failed. Check PM2 logs: pm2 logs${NC}"
+            exit 1
+        }
+    else
+        echo -e "${RED}✗ ecosystem.config.js has syntax errors${NC}"
+        echo -e "${YELLOW}  Error details:${NC}"
+        node -e "require('./ecosystem.config.js')" 2>&1 | head -5
+        exit 1
+    fi
+fi
 
 # Check services health
 echo ""
@@ -184,7 +413,7 @@ echo ""
 # Wait for Backend (up to 30s)
 BACKEND_OK=false
 for i in {1..30}; do
-    if curl -s http://localhost:3030/health > /dev/null; then
+    if curl -s http://localhost:$BACKEND_PORT/health > /dev/null; then
         echo -e "${GREEN}✓ Backend is healthy${NC}"
         BACKEND_OK=true
         break
@@ -196,7 +425,7 @@ done
 # Wait for Automation Worker (up to 30s)
 AUTO_OK=false
 for i in {1..30}; do
-    if curl -s http://localhost:7070/health > /dev/null; then
+    if curl -s http://localhost:$AUTOMATION_PORT/health > /dev/null; then
         echo -e "${GREEN}✓ Automation worker is healthy${NC}"
         AUTO_OK=true
         break
@@ -271,10 +500,10 @@ echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}All services started successfully!${NC}"
 echo ""
 echo "Application:"
-echo "  Frontend:         http://localhost:3000"
-echo "  Backend:          http://localhost:3030"
-echo "  Automation:       http://localhost:7070"
-echo "  Health Check:     http://localhost:3030/health"
+echo "  Frontend:         http://localhost:$FRONTEND_PORT"
+echo "  Backend:          http://localhost:$BACKEND_PORT"
+echo "  Automation:       http://localhost:$AUTOMATION_PORT"
+echo "  Health Check:     http://localhost:$BACKEND_PORT/health"
 echo ""
 echo "Infrastructure:"
 echo "  Kafka:            localhost:9092"
@@ -287,7 +516,7 @@ echo "  Promtail:         http://localhost:9080 (log shipper)"
 echo "  Tempo:            http://localhost:3200"
 echo "  OTEL Collector:   http://localhost:4318 (HTTP) / 4317 (gRPC)"
 echo "  Alertmanager:     http://localhost:9093"
-echo "  Backend Metrics:  http://localhost:9091/metrics"
+echo "  Backend Metrics:  http://localhost:$BACKEND_METRICS_PORT/metrics"
 echo ""
 echo "  All logs are automatically shipped to Loki and visible in Grafana"
 echo ""

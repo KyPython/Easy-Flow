@@ -6,25 +6,60 @@ import styles from './UrlInput.module.css';
 
 // Get API base URL from environment or use relative path for production
 const getApiBaseUrl = () => {
-  // In development, use localhost
-  if (process.env.NODE_ENV === 'development') {
-    return process.env.REACT_APP_API_BASE || 'http://localhost:3030';
+  // Check for explicit env vars first
+  if (typeof window !== 'undefined' && window._env) {
+    if (window._env.VITE_API_URL) return window._env.VITE_API_URL;
+    if (window._env.VITE_API_BASE) return window._env.VITE_API_BASE;
+    if (window._env.REACT_APP_API_BASE) return window._env.REACT_APP_API_BASE;
   }
+  
+  // Check process.env (build-time)
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
+    if (process.env.REACT_APP_API_BASE) return process.env.REACT_APP_API_BASE;
+    if (process.env.VITE_API_BASE) return process.env.VITE_API_BASE;
+  }
+  
+  // In development, use localhost with configured port
+  if (process.env.NODE_ENV === 'development') {
+    const port = process.env.REACT_APP_BACKEND_PORT || process.env.VITE_BACKEND_PORT || '3030';
+    return `http://localhost:${port}`;
+  }
+  
   // In production, use the same origin as the frontend (works for deployed apps)
-  return window.location.origin;
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  
+  return '';
 };
 
-// Demo site configuration - reliable demo hosted on your backend
-const demoSites = [
-  { 
-    name: '🎯 Try Demo Portal', 
-    url: `${getApiBaseUrl()}/demo`,
-    username: 'demo@useeasyflow.com',
-    // ✅ SECURITY: Removed hardcoded password - users should enter their own credentials
-    password: '',
-    description: 'EasyFlow demo invoice portal - always available, always works!'
-  },
-];
+// Demo site configuration - all values from environment or defaults
+const getDemoConfig = () => {
+  const apiBase = getApiBaseUrl();
+  const demoUrl = (typeof window !== 'undefined' && window._env?.DEMO_URL) || 
+                  (typeof process !== 'undefined' && process.env?.REACT_APP_DEMO_URL) ||
+                  '/demo';
+  const demoUsername = (typeof window !== 'undefined' && window._env?.DEMO_USERNAME) ||
+                        (typeof process !== 'undefined' && process.env?.REACT_APP_DEMO_USERNAME) ||
+                        'demo@useeasyflow.com';
+  const demoDescription = (typeof window !== 'undefined' && window._env?.DEMO_DESCRIPTION) ||
+                           (typeof process !== 'undefined' && process.env?.REACT_APP_DEMO_DESCRIPTION) ||
+                           'EasyFlow demo invoice portal - always available, always works!';
+  
+  return [
+    { 
+      name: '🎯 Try Demo Portal', 
+      url: `${apiBase}${demoUrl}`,
+      username: demoUsername,
+      // ✅ SECURITY: Removed hardcoded password - users should enter their own credentials
+      password: '',
+      description: demoDescription
+    },
+  ];
+};
+
+const demoSites = getDemoConfig();
 
 const UrlInput = ({ onUrlSubmit, onUrlChange, onClear }) => {
   const { theme } = useTheme();

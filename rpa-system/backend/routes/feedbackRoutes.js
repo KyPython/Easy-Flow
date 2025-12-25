@@ -23,9 +23,22 @@ ASSUMPTIONS:
 */
 
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const fs = require('fs').promises;
 const path = require('path');
 const router = express.Router();
+
+// ✅ SECURITY: Rate limit expensive file system operations
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
+const fileSystemLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: isDevelopment || isTest ? 1000 : 20, // Much higher in dev/test
+  message: 'Too many file operations, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
+});
 
 // Feedback storage configuration
 const FEEDBACK_DIR = path.join(__dirname, '../../../data/feedback');
@@ -49,7 +62,7 @@ ensureDirectories();
  * POST /api/feedback
  * Submit user feedback from SurveyComponent
  */
-router.post('/feedback', async (req, res) => {
+router.post('/feedback', fileSystemLimiter, async (req, res) => {
   try {
     const feedback = {
       ...req.body,
@@ -105,7 +118,7 @@ router.post('/feedback', async (req, res) => {
  * POST /api/feedback/offline-sync
  * Sync offline feedback responses
  */
-router.post('/feedback/offline-sync', async (req, res) => {
+router.post('/feedback/offline-sync', fileSystemLimiter, async (req, res) => {
   try {
     const { offlineResponses } = req.body;
 
@@ -164,7 +177,7 @@ router.post('/feedback/offline-sync', async (req, res) => {
  * GET /api/checklists
  * List available downloadable checklists
  */
-router.get('/checklists', async (req, res) => {
+router.get('/checklists', fileSystemLimiter, async (req, res) => {
   try {
     // Check for summary file first
     const summaryFile = path.join(CHECKLISTS_DIR, 'checklists_summary.json');
@@ -217,7 +230,7 @@ router.get('/checklists', async (req, res) => {
  * GET /api/checklists/download/:filename
  * Download a specific checklist PDF
  */
-router.get('/checklists/download/:filename', async (req, res) => {
+router.get('/checklists/download/:filename', fileSystemLimiter, async (req, res) => {
   try {
     const { filename } = req.params;
 
@@ -297,7 +310,7 @@ router.get('/checklists/download/:filename', async (req, res) => {
  * GET /api/feedback/analytics
  * Get basic feedback analytics (admin only)
  */
-router.get('/feedback/analytics', async (req, res) => {
+router.get('/feedback/analytics', fileSystemLimiter, async (req, res) => {
   try {
     // Simple admin check (could be enhanced with proper auth)
     const adminKey = req.header('X-Admin-Key');

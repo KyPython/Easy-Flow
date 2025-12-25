@@ -622,7 +622,12 @@ class FirebaseNotificationService {
       // This creates a consistent mapping between Supabase and Firebase users
       const customToken = await admin.auth(firebaseAdminApp).createCustomToken(supabaseUserId, claims);
 
-      if (process.env.NODE_ENV === 'development') logger.info(`🔥 Generated custom token for Supabase user: ${supabaseUserId}`);
+      if (process.env.NODE_ENV === 'development') {
+        logger.info(`🔥 Generated custom token for Supabase user: ${supabaseUserId}`, {
+          tokenLength: customToken?.length || 0,
+          hasClaims: !!claims
+        });
+      }
 
       return {
         success: true,
@@ -632,11 +637,29 @@ class FirebaseNotificationService {
       };
 
     } catch (error) {
-      logger.error('🔥 Error generating custom token:', error);
+      logger.error('🔥 Error generating custom token:', {
+        error: error.message,
+        code: error.code,
+        userId: supabaseUserId,
+        userIdLength: supabaseUserId?.length || 0,
+        firebaseInitialized: !!firebaseAdminApp,
+        stack: error.stack
+      });
+      
+      // Provide more specific error messages
+      let errorMessage = error.message;
+      if (error.code === 'auth/invalid-uid') {
+        errorMessage = 'Invalid user ID format for Firebase';
+      } else if (error.code === 'app/invalid-credential') {
+        errorMessage = 'Firebase Admin credentials are invalid or expired';
+      } else if (error.code === 'app/invalid-argument') {
+        errorMessage = 'Invalid argument provided to Firebase Admin';
+      }
+      
       return {
         success: false,
-        error: error.message,
-        code: error.code
+        error: errorMessage,
+        code: error.code || 'TOKEN_GENERATION_FAILED'
       };
     }
   }

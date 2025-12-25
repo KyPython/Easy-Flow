@@ -28,9 +28,10 @@ export default function LandingPage() {
           </div>
 
           <p className={styles.lead}>
-            <strong>Before:</strong> Spend 3 hours every morning copying customer info from emails, updating spreadsheets, and sending follow-up messages.<br/><br/>
-            <strong>After:</strong> Click one button. Get your morning work done in 30 seconds.<br/><br/>
-            Turn any repetitive computer task into a simple one-click action. No coding required.
+            <strong>Stop Copy/Pasting Between Tools</strong><br/><br/>
+            <strong>Before:</strong> Copy data from Slack → paste into Google Sheets. Copy from email → paste into Notion. Copy from forms → paste into CRM. Hours wasted every week.<br/><br/>
+            <strong>After:</strong> Connect your tools once. EasyFlow automatically moves data between them. No more manual copy/paste. No coding required.<br/><br/>
+            <strong>Zero-infrastructure automation</strong> - No servers, no DevOps. Just connect and go.
           </p>
           <div className={styles.ctaGroup}>
             <a href="https://calendly.com/kyjahn-smith/consultation" target="_blank" rel="noopener noreferrer" className={styles.ctaPrimary}>
@@ -76,32 +77,42 @@ export default function LandingPage() {
       </section>
 
       <section className={styles.featuresSection}>
-  <h2 className={styles.sectionTitle}>{t('landing.why_choose','What Boring Tasks Can You Automate?')}</h2>
+        <h2 className={styles.sectionTitle}>{t('landing.why_choose','Stop Copy/Pasting Between Tools')}</h2>
         <div className={styles.featuresGrid}>
           <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>🤖</div>
-            <h3 className={styles.featureTitle}>{t('landing.feature_intelligent_title','Send Welcome Emails Automatically')}</h3>
+            <div className={styles.featureIcon}>💬</div>
+            <h3 className={styles.featureTitle}>Slack → Google Sheets</h3>
             <p className={styles.featureText}>
-              <strong>Before:</strong> Copy each new customer's info, write personalized email, send manually (15 minutes per customer)<br/><br/>
-              <strong>After:</strong> New customer signs up → Welcome email with their name and account details sent instantly
+              <strong>Before:</strong> Manually copy customer feedback from Slack messages into your tracking spreadsheet (30 min daily)<br/><br/>
+              <strong>After:</strong> New Slack message → Automatically added to Google Sheets. One-click template setup.
             </p>
           </div>
           <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>🧾</div>
-            <h3 className={styles.featureTitle}>{t('landing.feature_bulk_title','Create Weekly Sales Reports Without Copying Data')}</h3>
+            <div className={styles.featureIcon}>📧</div>
+            <h3 className={styles.featureTitle}>Email → Notion</h3>
             <p className={styles.featureText}>
-              <strong>Before:</strong> Download data from 4 different systems, copy into Excel, calculate totals, format charts (2 hours every Monday)<br/><br/>
-              <strong>After:</strong> Click one button → Professional report with charts emailed to you automatically
+              <strong>Before:</strong> Copy important emails into your Notion workspace manually (20 min daily)<br/><br/>
+              <strong>After:</strong> Important emails automatically saved to Notion database. No copy/paste needed.
             </p>
           </div>
           <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>🔗</div>
-            <h3 className={styles.featureTitle}>{t('landing.feature_integrations_title','Update Your CRM When Someone Fills Out a Form')}</h3>
+            <div className={styles.featureIcon}>📝</div>
+            <h3 className={styles.featureTitle}>Form → CRM</h3>
             <p className={styles.featureText}>
-              <strong>Before:</strong> Check website forms hourly, copy contact info to CRM, assign to sales rep, send follow-up (45 minutes daily)<br/><br/>
-              <strong>After:</strong> Form submitted → Contact added to CRM → Sales rep notified → Follow-up email sent
+              <strong>Before:</strong> Check forms, copy contact info, paste into CRM, assign to team (45 min daily)<br/><br/>
+              <strong>After:</strong> Form submitted → Contact automatically added to CRM → Team notified. Zero manual work.
             </p>
           </div>
+        </div>
+        
+        <div style={{ marginTop: '32px', textAlign: 'center', padding: '24px', background: 'rgba(102, 126, 234, 0.1)', borderRadius: '12px' }}>
+          <h3 style={{ marginBottom: '16px', fontSize: '20px', fontWeight: 600 }}>
+            🎯 Pre-Built Templates - No Setup Required
+          </h3>
+          <p style={{ marginBottom: '16px', fontSize: '16px', lineHeight: '1.6' }}>
+            Don't build from scratch. Choose a template, connect your accounts, and you're done.
+            <br/>Popular templates: <strong>Slack→Sheets</strong>, <strong>Email→Notion</strong>, <strong>Form→CRM</strong>
+          </p>
         </div>
 
         <div className={styles.ctaBig}>

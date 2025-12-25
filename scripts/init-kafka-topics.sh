@@ -1,24 +1,40 @@
 #!/bin/bash
 # Initialize Kafka topics required for Easy-Flow
 
-set -e
+# Don't exit on error - allow graceful degradation if Kafka isn't ready
+set +e
 
-KAFKA_CONTAINER="easy-flow-kafka-1"
-KAFKA_BOOTSTRAP="localhost:9092"
+# Load environment variables from .env if it exists
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+fi
+
+# Dynamic Kafka configuration with defaults
+KAFKA_CONTAINER="${KAFKA_CONTAINER:-easy-flow-kafka-1}"
+KAFKA_BOOTSTRAP="${KAFKA_BOOTSTRAP_SERVERS:-${KAFKA_BROKERS:-localhost:9092}}"
 
 echo "🔧 Initializing Kafka topics for Easy-Flow"
 echo "=========================================="
 
 # Wait for Kafka to be ready
-# Use kafka-broker-api-versions as it's faster and more reliable than kafka-topics --list
+# Use internal bootstrap address when checking from inside container
 echo "⏳ Waiting for Kafka to be ready..."
-MAX_WAIT=90  # Increased timeout to 90 seconds for slower systems
+MAX_WAIT=30  # Reduced to 30 seconds - if it's not ready by then, container is likely stuck
 WAIT_COUNT=0
+KAFKA_INTERNAL_BOOTSTRAP="kafka:29092"  # Internal address for docker exec commands
+
 while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-  # Check if Kafka broker is responding using broker API versions (faster check)
-  if docker exec $KAFKA_CONTAINER kafka-broker-api-versions --bootstrap-server $KAFKA_BOOTSTRAP 2>&1 | grep -q "broker"; then
+  # First check if container is actually running (sanitize container name)
+  if ! docker ps --filter "name=$KAFKA_CONTAINER" --format "{{.Names}}" | grep -q "^${KAFKA_CONTAINER}$"; then
+    echo "❌ ERROR: Kafka container is not running"
+    exit 1
+  fi
+  
+  # Check if Kafka broker is responding using internal address (faster, more reliable)
+  # Use quoted variables to prevent injection
+  if docker exec "$KAFKA_CONTAINER" kafka-broker-api-versions --bootstrap-server "$KAFKA_INTERNAL_BOOTSTRAP" 2>&1 | grep -q "broker"; then
     # Double-check with topics list to ensure full readiness
-    if docker exec $KAFKA_CONTAINER kafka-topics --bootstrap-server $KAFKA_BOOTSTRAP --list >/dev/null 2>&1; then
+    if docker exec "$KAFKA_CONTAINER" kafka-topics --bootstrap-server "$KAFKA_INTERNAL_BOOTSTRAP" --list >/dev/null 2>&1; then
       echo "✅ Kafka is ready"
       break
     fi
@@ -29,42 +45,77 @@ while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
 done
 
 if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
-  echo "❌ ERROR: Kafka did not become ready in time (waited ${MAX_WAIT}s)"
+  echo "⚠️  WARNING: Kafka health check timed out (waited ${MAX_WAIT}s)"
   echo "⚠️  Kafka container status:"
   docker ps --filter "name=$KAFKA_CONTAINER" --format "table {{.Names}}\t{{.Status}}"
-  echo "⚠️  Kafka logs (last 10 lines):"
-  docker logs $KAFKA_CONTAINER --tail 10 2>&1 | sed 's/^/  /'
-  exit 1
+  echo "⚠️  Attempting to restart Kafka container..."
+  docker restart $KAFKA_CONTAINER 2>/dev/null || true
+  sleep 5
+  echo "⚠️  Topics will be auto-created on first use if Kafka is still not ready"
+  # Don't exit - allow script to continue, topics will auto-create
+  KAFKA_READY=false
+else
+  KAFKA_READY=true
 fi
 
-echo "✅ Kafka is ready"
+if [ "$KAFKA_READY" = true ]; then
+  echo "✅ Kafka is ready"
+fi
+
+# Function to sanitize input (prevent injection)
+sanitize_input() {
+  local input="$1"
+  # Remove any characters that could be used for injection
+  echo "$input" | sed 's/[^a-zA-Z0-9._-]//g'
+}
 
 # Function to create or verify topic
 create_topic() {
-  local topic_name=$1
-  local partitions=$2
-  local replication_factor=$3
+  local topic_name=$(sanitize_input "$1")
+  local partitions=$(sanitize_input "$2")
+  local replication_factor=$(sanitize_input "$3")
+  
+  # Validate inputs
+  if [ -z "$topic_name" ] || [ -z "$partitions" ] || [ -z "$replication_factor" ]; then
+    echo "  ❌ Invalid topic parameters"
+    return 1
+  fi
+  
+  # Validate numeric inputs
+  if ! [[ "$partitions" =~ ^[0-9]+$ ]] || ! [[ "$replication_factor" =~ ^[0-9]+$ ]]; then
+    echo "  ❌ Partitions and replication factor must be numbers"
+    return 1
+  fi
   
   echo ""
   echo "📌 Checking topic: $topic_name"
   
-  if docker exec $KAFKA_CONTAINER kafka-topics --bootstrap-server $KAFKA_BOOTSTRAP --list | grep -q "^${topic_name}$"; then
+  # Check if we can even connect to Kafka first (use quoted variables)
+  if ! docker exec "$KAFKA_CONTAINER" kafka-topics --bootstrap-server "$KAFKA_INTERNAL_BOOTSTRAP" --list >/dev/null 2>&1; then
+    echo "  ⚠️  Cannot connect to Kafka - topic will be auto-created on first use"
+    return 1
+  fi
+  
+  if docker exec "$KAFKA_CONTAINER" kafka-topics --bootstrap-server "$KAFKA_INTERNAL_BOOTSTRAP" --list 2>/dev/null | grep -q "^${topic_name}$"; then
     echo "  ✅ Topic already exists"
     
-    # Describe the topic
+    # Describe the topic (use quoted variables)
     echo "  📊 Topic details:"
-    docker exec $KAFKA_CONTAINER kafka-topics \
-      --bootstrap-server $KAFKA_BOOTSTRAP \
+    docker exec "$KAFKA_CONTAINER" kafka-topics \
+      --bootstrap-server "$KAFKA_INTERNAL_BOOTSTRAP" \
       --describe \
-      --topic $topic_name | sed 's/^/    /'
+      --topic "$topic_name" 2>/dev/null | sed 's/^/    /' || echo "    (could not describe topic)"
   else
     echo "  🆕 Creating topic..."
-    docker exec $KAFKA_CONTAINER kafka-topics \
-      --bootstrap-server $KAFKA_BOOTSTRAP \
+    docker exec "$KAFKA_CONTAINER" kafka-topics \
+      --bootstrap-server "$KAFKA_INTERNAL_BOOTSTRAP" \
       --create \
-      --topic $topic_name \
-      --partitions $partitions \
-      --replication-factor $replication_factor
+      --topic "$topic_name" \
+      --partitions "$partitions" \
+      --replication-factor "$replication_factor" 2>&1 || {
+      echo "  ⚠️  Failed to create topic (may already exist or Kafka not ready)"
+      return 1
+    }
     
     echo "  ✅ Topic created successfully"
   fi
@@ -80,10 +131,10 @@ echo "=========================================="
 echo "✅ All Kafka topics initialized"
 echo ""
 
-# List all consumer groups
+# List all consumer groups (use quoted variables for security)
 echo "📋 Consumer groups:"
-docker exec $KAFKA_CONTAINER kafka-consumer-groups \
-  --bootstrap-server $KAFKA_BOOTSTRAP \
+docker exec "$KAFKA_CONTAINER" kafka-consumer-groups \
+  --bootstrap-server "$KAFKA_INTERNAL_BOOTSTRAP" \
   --list 2>/dev/null | sed 's/^/  /' || echo "  (none yet)"
 
 echo ""

@@ -94,6 +94,23 @@ try {
   logger.warn('⚠️ Business metrics routes disabled:', e.message);
 }
 
+let businessRulesRoutes = null;
+try {
+  businessRulesRoutes = require('./routes/businessRulesRoutes');
+  rootLogger.info('✓ Business rules routes loaded');
+} catch (e) {
+  logger.warn('⚠️ Business rules routes disabled:', e.message);
+}
+
+// Scraping & Lead Generation routes
+try {
+  const scrapingRoutes = require('./routes/scrapingRoutes');
+  app.use('/api/scraping', scrapingRoutes);
+  rootLogger.info('✓ Scraping routes loaded');
+} catch (e) {
+  logger.warn('⚠️ Scraping routes disabled:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3030;
 
@@ -104,14 +121,22 @@ if (process.env.NODE_ENV === 'production') {
 
 // ✅ CORS MUST BE FIRST - Apply immediately after app creation
 // CORS: sensible defaults in dev; restrict in prod via ALLOWED_ORIGINS
-const DEFAULT_DEV_ORIGINS = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:3030',
-  'http://127.0.0.1:3030',
-];
+// ✅ DYNAMIC: Use environment variables for all ports
+const getDefaultDevOrigins = () => {
+  const frontendPort = process.env.FRONTEND_PORT || '3000';
+  const backendPort = process.env.PORT || '3030';
+  const vitePort = process.env.VITE_PORT || '5173';
+  
+  return [
+    `http://localhost:${frontendPort}`,
+    `http://127.0.0.1:${frontendPort}`,
+    `http://localhost:${vitePort}`,
+    `http://127.0.0.1:${vitePort}`,
+    `http://localhost:${backendPort}`,
+    `http://127.0.0.1:${backendPort}`,
+  ];
+};
+const DEFAULT_DEV_ORIGINS = getDefaultDevOrigins();
 const DEFAULT_PROD_ORIGINS = [
   'https://www.tryeasyflow.com',
   'https://tryeasyflow.com',
@@ -284,10 +309,15 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-// Rate limiting - More restrictive limits
+// Rate limiting - Environment-aware limits
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isTest = process.env.NODE_ENV === 'test';
+const isProduction = process.env.NODE_ENV === 'production';
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Increased for development
+  // Environment-aware limits: much higher in dev/test, reasonable in production
+  max: isDevelopment || isTest ? 10000 : 500, // 10k in dev/test, 500 in prod
   message: {
     error: 'Too many requests from this IP, please try again later.'
   },
@@ -304,14 +334,15 @@ const globalLimiter = rateLimit({
     }
   },
   skip: (req) => {
-    // Skip rate limiting if dev bypass is active
-    return req.devBypass === true;
+    // Skip rate limiting if dev bypass is active OR in development/test
+    return req.devBypass === true || isDevelopment || isTest;
   }
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Much higher limit for development
+  // Environment-aware limits: much higher in dev/test, reasonable in production
+  max: isDevelopment || isTest ? 10000 : 100,
   message: {
     error: 'Too many authentication attempts, please try again later.'
   },
@@ -319,8 +350,8 @@ const authLimiter = rateLimit({
     try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
   },
   skip: (req) => {
-    // Skip rate limiting if dev bypass is active OR in development mode
-    return req.devBypass === true || process.env.NODE_ENV === 'development';
+    // Skip rate limiting if dev bypass is active OR in development/test mode
+    return req.devBypass === true || isDevelopment || isTest;
   }
 });
 
@@ -346,7 +377,8 @@ app.get('/api/health/email-schema', async (_req, res) => {
 
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 200, // Increased for development
+  // Environment-aware limits: much higher in dev/test, reasonable in production
+  max: isDevelopment || isTest ? 5000 : 200,
   message: {
     error: 'API rate limit exceeded, please try again later.'
   },
@@ -354,15 +386,16 @@ const apiLimiter = rateLimit({
     try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
   },
   skip: (req) => {
-    // Skip rate limiting if dev bypass is active
-    return req.devBypass === true;
+    // Skip rate limiting if dev bypass is active OR in development/test
+    return req.devBypass === true || isDevelopment || isTest;
   }
 });
 
 // Strict limiter for automation endpoints
 const automationLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 100, // Increased for development
+  // Environment-aware limits: much higher in dev/test, reasonable in production
+  max: isDevelopment || isTest ? 2000 : 100,
   message: {
     error: 'Automation rate limit exceeded, please try again later.'
   },
@@ -370,8 +403,8 @@ const automationLimiter = rateLimit({
     try { return req.ip || (typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.socket?.remoteAddress) || 'unknown'; } catch (e) { return 'unknown'; }
   },
   skip: (req) => {
-    // Skip rate limiting if dev bypass is active
-    return req.devBypass === true;
+    // Skip rate limiting if dev bypass is active OR in development/test
+    return req.devBypass === true || isDevelopment || isTest;
   }
 });
 
@@ -454,18 +487,26 @@ const automationLimiter = rateLimit({
     }
   });
 
-  // Allow local OTLP collector in development
+  // ✅ DYNAMIC: Allow local OTLP collector in development
   if (process.env.NODE_ENV !== 'production') {
-    if (!directives.connectSrc.includes('http://localhost:4318')) directives.connectSrc.push('http://localhost:4318');
-    // Allow localhost scripts and connections for development
-    if (!directives.scriptSrc.includes('http://localhost:3000')) directives.scriptSrc.push('http://localhost:3000');
-    if (!directives.scriptSrc.includes('http://localhost:3030')) directives.scriptSrc.push('http://localhost:3030');
-    if (!directives.scriptSrc.includes('http://127.0.0.1:3000')) directives.scriptSrc.push('http://127.0.0.1:3000');
-    if (!directives.scriptSrc.includes('http://127.0.0.1:3030')) directives.scriptSrc.push('http://127.0.0.1:3030');
-    if (!directives.connectSrc.includes('http://localhost:3000')) directives.connectSrc.push('http://localhost:3000');
-    if (!directives.connectSrc.includes('http://localhost:3030')) directives.connectSrc.push('http://localhost:3030');
-    if (!directives.connectSrc.includes('http://127.0.0.1:3000')) directives.connectSrc.push('http://127.0.0.1:3000');
-    if (!directives.connectSrc.includes('http://127.0.0.1:3030')) directives.connectSrc.push('http://127.0.0.1:3030');
+    const otlpPort = process.env.OTLP_PORT || '4318';
+    if (!directives.connectSrc.includes(`http://localhost:${otlpPort}`)) {
+      directives.connectSrc.push(`http://localhost:${otlpPort}`);
+    }
+    // ✅ DYNAMIC: Allow localhost scripts and connections for development using dynamic ports
+    const frontendPort = process.env.FRONTEND_PORT || '3000';
+    const backendPort = process.env.PORT || '3030';
+    const devOrigins = [
+      `http://localhost:${frontendPort}`,
+      `http://127.0.0.1:${frontendPort}`,
+      `http://localhost:${backendPort}`,
+      `http://127.0.0.1:${backendPort}`,
+    ];
+    
+    devOrigins.forEach(origin => {
+      if (!directives.scriptSrc.includes(origin)) directives.scriptSrc.push(origin);
+      if (!directives.connectSrc.includes(origin)) directives.connectSrc.push(origin);
+    });
   }
 
   // Add OTLP exporter origin if provided
@@ -522,11 +563,13 @@ if (!SESSION_SECRET) {
 app.use(cookieParser(sessionSecretToUse));
 
 
-// Apply global rate limiter to all routes
-app.use(globalLimiter);
+// Apply global rate limiter to all routes (skip entirely in development/test)
+if (isProduction) {
+  app.use(globalLimiter);
+}
 
-// For test: apply authLimiter to /api/tasks and /api/health
-if (process.env.NODE_ENV === 'test') {
+// Apply auth limiter only in production
+if (isProduction) {
   app.use(['/api/tasks', '/api/health'], authLimiter);
 }
 
@@ -812,7 +855,14 @@ if (process.env.NODE_ENV === 'test') {
   });
 } else {
   // Production: CSRF disabled, rely on auth middleware + CORS
-  logger.info('🔓 CSRF disabled in production (cross-domain deployment)');
+  // ✅ SECURITY NOTE: CSRF protection is intentionally disabled for API endpoints
+  // because we use token-based authentication (authMiddleware) and CORS protection.
+  // All state-changing endpoints require valid authentication tokens.
+  // This is a common pattern for REST APIs and is secure when combined with:
+  // - Proper CORS configuration (ALLOWED_ORIGINS)
+  // - Authentication middleware (authMiddleware) on all protected routes
+  // - Token-based authentication (not cookie-based)
+  logger.info('🔓 CSRF disabled in production (cross-domain deployment, token-based auth)');
 }
 
 // Mount webhook routes (before other middleware to handle raw body parsing)
@@ -827,6 +877,36 @@ if (socialProofRoutes) {
 
 if (businessMetricsRoutes) {
   app.use('/api/business-metrics', businessMetricsRoutes);
+}
+
+if (businessRulesRoutes) {
+  app.use('/api/business-rules', businessRulesRoutes);
+}
+
+// Mount scraping & lead generation routes
+let scrapingRoutes = null;
+try {
+  scrapingRoutes = require('./routes/scrapingRoutes');
+  rootLogger.info('✓ Scraping routes loaded');
+} catch (e) {
+  logger.warn('⚠️ Scraping routes disabled:', e.message);
+}
+
+if (scrapingRoutes) {
+  app.use('/api/scraping', scrapingRoutes);
+}
+
+// Mount decision logs routes
+let decisionLogsRoutes = null;
+try {
+  decisionLogsRoutes = require('./routes/decisionLogsRoutes');
+  rootLogger.info('✓ Decision logs routes loaded');
+} catch (e) {
+  logger.warn('⚠️ Decision logs routes disabled:', e.message);
+}
+
+if (decisionLogsRoutes) {
+  app.use('/api/decision-logs', decisionLogsRoutes);
 }
 
 // Mount email capture routes (public endpoint, no auth required)
@@ -1030,7 +1110,11 @@ app.use('/api', referralRouter);
 try {
   const executionRoutes = require('./routes/executionRoutes');
   // ✅ INSTRUCTION 1: Apply context logger middleware after auth
-  app.use('/api/executions', authMiddleware, contextLoggerMiddleware, apiLimiter, executionRoutes);
+  // Apply apiLimiter only in production
+  const executionMiddleware = isProduction 
+    ? [authMiddleware, contextLoggerMiddleware, apiLimiter, executionRoutes]
+    : [authMiddleware, contextLoggerMiddleware, executionRoutes];
+  app.use('/api/executions', ...executionMiddleware);
   rootLogger.info('✓ Execution routes mounted at /api/executions');
 } catch (e) {
   rootLogger.warn('executionRoutes not mounted', { error: e?.message || e });
@@ -1910,7 +1994,8 @@ const PUBLIC_ENDPOINTS = [
   '/ai-agent/suggestions'
 ];
 
-app.use('/api', authLimiter, async (req, res, next) => {
+// Apply authLimiter only in production
+const apiAuthMiddleware = async (req, res, next) => {
   const startTime = Date.now();
   const minDelay = 100; // Minimum delay in ms to prevent timing attacks
   
@@ -1921,6 +2006,18 @@ app.use('/api', authLimiter, async (req, res, next) => {
   }
   
   try {
+    // ✅ SECURITY: Check dev bypass first (only works in development, disabled in production)
+    if (process.env.NODE_ENV !== 'production') {
+      const { checkDevBypass } = require('./middleware/devBypassAuth');
+      const devUser = checkDevBypass(req);
+      if (devUser) {
+        req.user = devUser;
+        req.devBypass = true;
+        req.devUser = { id: devUser.id, isDevBypass: true };
+        return next();
+      }
+    }
+
     if (!supabase) {
       // Add artificial delay for consistent timing
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
@@ -1958,7 +2055,10 @@ app.use('/api', authLimiter, async (req, res, next) => {
     await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
     return res.status(500).json({ error: 'Authentication failed' });
   }
-});
+};
+
+// Apply rate limiter only in production, then auth middleware
+app.use('/api', isProduction ? authLimiter : (req, res, next) => next(), apiAuthMiddleware);
 
 // --- Authenticated API Routes ---
 // All routes defined below this point will require a valid JWT.
@@ -2004,6 +2104,54 @@ try {
   rootLogger.info('✓ AI Agent routes mounted at /api/ai-agent (after auth middleware)');
 } catch (e) {
   rootLogger.warn('AI Agent routes not mounted (OpenAI API key may not be configured)', { error: e?.message || e });
+}
+
+// Mount Integration routes
+try {
+  const integrationRoutes = require('./routes/integrationRoutes');
+  app.use('/api/integrations', integrationRoutes);
+  
+  // Usage statistics routes
+  const usageRoutes = require('./routes/usageRoutes');
+  app.use('/api/usage', usageRoutes);
+  rootLogger.info('✓ Integration routes mounted at /api/integrations');
+} catch (e) {
+  rootLogger.warn('Integration routes not mounted', { error: e?.message || e });
+}
+
+// Mount ROI Analytics routes
+try {
+  const roiAnalyticsRoutes = require('./routes/roiAnalytics');
+  app.use('/api/roi-analytics', authMiddleware, roiAnalyticsRoutes);
+  rootLogger.info('✓ ROI Analytics routes mounted at /api/roi-analytics');
+} catch (e) {
+  rootLogger.warn('ROI Analytics routes not mounted', { error: e?.message || e });
+}
+
+// Mount Team Management routes
+try {
+  const teamRoutes = require('./routes/teamRoutes');
+  // Apply rate limiting: moderate limits for team management
+  const teamMiddleware = isProduction 
+    ? [authMiddleware, apiLimiter, teamRoutes]
+    : [authMiddleware, teamRoutes];
+  app.use('/api/team', ...teamMiddleware);
+  rootLogger.info('✓ Team Management routes mounted at /api/team');
+} catch (e) {
+  rootLogger.warn('Team Management routes not mounted', { error: e?.message || e });
+}
+
+// Mount Admin Analytics routes (internal - see what users are doing)
+try {
+  const adminAnalyticsRoutes = require('./routes/adminAnalyticsRoutes');
+  // Apply rate limiting: moderate limits for admin analytics (admin-only but still need protection)
+  const adminAnalyticsMiddleware = isProduction 
+    ? [authMiddleware, apiLimiter, adminAnalyticsRoutes]
+    : [authMiddleware, adminAnalyticsRoutes];
+  app.use('/api/admin/analytics', ...adminAnalyticsMiddleware);
+  rootLogger.info('✓ Admin Analytics routes mounted at /api/admin/analytics');
+} catch (e) {
+  rootLogger.warn('Admin Analytics routes not mounted', { error: e?.message || e });
 }
 
 // --- Authenticated API Routes ---
@@ -2576,7 +2724,8 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
   const safeType = typeof type === 'string' ? type : String(type || '');
   const safeTask = typeof task === 'string' ? task : String(task || '');
   const taskName = title || (safeType && safeType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || (safeTask && safeTask.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'Automation Task';
-  const taskType = (safeType || safeTask || 'general').toLowerCase();
+  // ✅ SECURITY: Ensure safeType/safeTask are strings before calling toLowerCase
+  const taskType = (typeof safeType === 'string' ? safeType : typeof safeTask === 'string' ? safeTask : 'general').toLowerCase();
     
     const { data: taskRecord, error: taskError } = await supabase
       .from('automation_tasks')
@@ -2849,7 +2998,8 @@ app.post('/api/tasks', async (req, res) => {
 });
 
 // POST /api/tasks/:id/run - Run a specific task and log it
-app.post('/api/tasks/:id/run', async (req, res) => {
+// ✅ BULLETPROOF: Uses requireAutomationRun middleware for consistent rate limiting
+app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req, res) => {
   const taskId = req.params.id;
   let runId;
 
@@ -2859,45 +3009,8 @@ app.post('/api/tasks/:id/run', async (req, res) => {
 
     if (!supabase) return res.status(500).json({ error: 'Database connection not available' });
 
-    // --- Plan Limit Enforcement ---
-    const { data: subscription, error: subError } = await supabase
-      .from('subscriptions')
-      .select('plan_id')
-      .eq('user_id', req.user.id)
-      .eq('status', 'active')
-      .single();
-
-    if (subError || !subscription) {
-      return res.status(403).json({ error: 'No active subscription found.' });
-    }
-
-    const { data: plan, error: planError } = await supabase
-      .from('plans')
-      .select('feature_flags')
-      .eq('id', subscription.plan_id)
-      .single();
-
-    if (planError) return res.status(500).json({ error: 'Could not verify plan limits.' });
-
-    const maxRuns = plan.feature_flags?.max_runs_per_month;
-
-    if (maxRuns !== -1) {
-      const today = new Date();
-      const startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-      
-      const { count, error: countError } = await supabase
-        .from('automation_runs')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', req.user.id)
-        .gte('created_at', startDate);
-
-      if (countError) return res.status(500).json({ error: 'Could not count recent runs.' });
-
-      if (count >= maxRuns) {
-        return res.status(403).json({ error: 'You have reached your monthly run limit. Please upgrade your plan.' });
-      }
-    }
-    // --- End Limit Enforcement ---
+    // ✅ BULLETPROOF: Rate limiting is now handled by requireAutomationRun middleware
+    // This ensures consistent enforcement across all automation run endpoints
 
     // 1. Fetch the task details
     const { data: task, error: taskError } = await supabase
@@ -3058,8 +3171,15 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       return res.status(500).json({ error: 'Database connection not available' });
     }
 
-    // ✅ PERFORMANCE: Optimize query - fetch without expensive join first
-    // Then fetch task details separately if needed
+    // ✅ PERFORMANCE: Optimize query with proper indexes
+    // Required database indexes for optimal performance:
+    // CREATE INDEX idx_automation_runs_user_id_started_at ON automation_runs(user_id, started_at DESC);
+    // CREATE INDEX idx_automation_runs_task_id ON automation_runs(task_id) WHERE task_id IS NOT NULL;
+    // CREATE INDEX idx_automation_tasks_id ON automation_tasks(id);
+    //
+    // Query optimization: Fetch runs without expensive join, then fetch tasks separately
+    // This avoids N+1 queries and allows better use of indexes
+    const queryStartTime = Date.now();
     const { data: runsData, error } = await supabase
       .from('automation_runs')
       .select(`
@@ -3075,23 +3195,49 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       .order('started_at', { ascending: false })
       .limit(100);
     
-    if (error) throw error;
+    if (error) {
+      logger.error('[GET /api/runs] Database query error:', error);
+      throw error;
+    }
+    
+    const queryDuration = Date.now() - queryStartTime;
+    if (queryDuration > 2000) {
+      logger.warn('[GET /api/runs] Slow query detected', {
+        duration_ms: queryDuration,
+        user_id: req.user.id,
+        runs_count: runsData?.length || 0,
+        message: 'Consider adding database indexes: idx_automation_runs_user_id_started_at'
+      });
+    }
     
     // Fetch task details separately to avoid slow join
-    const taskIds = [...new Set(runsData.filter(r => r.task_id).map(r => r.task_id))];
+    // This is more efficient than a JOIN when we have proper indexes
+    const taskIds = [...new Set((runsData || []).filter(r => r.task_id).map(r => r.task_id))];
     let tasksMap = {};
     
     if (taskIds.length > 0) {
+      const taskQueryStart = Date.now();
       const { data: tasks, error: tasksError } = await supabase
         .from('automation_tasks')
         .select('id, name, url, task_type')
         .in('id', taskIds);
       
-      if (!tasksError && tasks) {
+      if (tasksError) {
+        logger.warn('[GET /api/runs] Error fetching tasks (non-critical):', tasksError);
+        // Don't fail the request if tasks can't be fetched
+      } else if (tasks) {
         tasksMap = tasks.reduce((acc, task) => {
           acc[task.id] = { name: task.name, url: task.url, task_type: task.task_type };
           return acc;
         }, {});
+      }
+      
+      const taskQueryDuration = Date.now() - taskQueryStart;
+      if (taskQueryDuration > 1000) {
+        logger.warn('[GET /api/runs] Slow task query detected', {
+          duration_ms: taskQueryDuration,
+          task_count: taskIds.length
+        });
       }
     }
     
@@ -3122,6 +3268,92 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       duration_ms: duration
     });
     res.status(500).json({ error: 'Failed to fetch runs', details: err.message });
+  }
+});
+
+// DELETE /api/runs/:id - Delete an automation run
+app.delete('/api/runs/:id', authMiddleware, async (req, res) => {
+  const startTime = Date.now();
+  const runId = req.params.id;
+  
+  logger.info('[DELETE /api/runs/:id] Request received', {
+    user_id: req.user?.id,
+    run_id: runId,
+    has_user: !!req.user,
+    path: req.path,
+    method: req.method
+  });
+
+  try {
+    // Defensive check
+    if (!req.user || !req.user.id) {
+      logger.warn('[DELETE /api/runs/:id] No user in request', {
+        has_user: !!req.user,
+        user_id: req.user?.id
+      });
+      return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+    }
+
+    if (!supabase) {
+      logger.error('[DELETE /api/runs/:id] Supabase not available');
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    // ✅ SECURITY: Validate runId type
+    if (!runId || typeof runId !== 'string') {
+      return res.status(400).json({ error: 'Invalid run ID' });
+    }
+
+    // ✅ SECURITY: Verify the run belongs to the user before deleting
+    const { data: existingRun, error: fetchError } = await supabase
+      .from('automation_runs')
+      .select('id, user_id')
+      .eq('id', runId)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (fetchError || !existingRun) {
+      logger.warn('[DELETE /api/runs/:id] Run not found or access denied', {
+        run_id: runId,
+        user_id: req.user.id,
+        error: fetchError?.message
+      });
+      return res.status(404).json({ error: 'Run not found or access denied' });
+    }
+
+    // Delete the run
+    const { error: deleteError } = await supabase
+      .from('automation_runs')
+      .delete()
+      .eq('id', runId)
+      .eq('user_id', req.user.id);
+
+    if (deleteError) {
+      logger.error('[DELETE /api/runs/:id] Delete failed', {
+        run_id: runId,
+        user_id: req.user.id,
+        error: deleteError.message
+      });
+      throw deleteError;
+    }
+
+    const duration = Date.now() - startTime;
+    logger.info('[DELETE /api/runs/:id] Success', {
+      user_id: req.user.id,
+      run_id: runId,
+      duration_ms: duration
+    });
+    res.json({ success: true, message: 'Run deleted successfully' });
+  } catch (err) {
+    const duration = Date.now() - startTime;
+    logger.error('[DELETE /api/runs/:id] Error', {
+      error: err.message,
+      stack: err.stack,
+      user_id: req.user?.id,
+      run_id: runId,
+      duration_ms: duration
+    });
+    res.status(500).json({ error: 'Failed to delete run', details: err.message });
   }
 });
 
@@ -3649,8 +3881,11 @@ app.post('/api/track-event', async (req, res) => {
           frontend_timestamp: properties.timestamp
         };
         
+        // ✅ SECURITY: Validate type before using string methods
+        const safeLevel = typeof level === 'string' ? level : String(level || 'info');
+        
         // Route to appropriate log level
-        switch (level.toLowerCase()) {
+        switch (safeLevel.toLowerCase()) {
           case 'error':
             frontendLogger.error(`[FE:${namespace}] ${message}`, logData);
             break;
@@ -4163,7 +4398,8 @@ app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req,
 // }
 //
 
-app.post('/api/automation/execute', authMiddleware, automationLimiter, async (req, res) => {
+// ✅ BULLETPROOF: Uses requireAutomationRun middleware for consistent rate limiting
+app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automationLimiter, async (req, res) => {
   // ✅ CRITICAL: Log immediately when endpoint is hit
   // ✅ OBSERVABILITY: Use structured logging with trace context
   logger.info('🚨 Automation execute endpoint hit', {
@@ -4235,9 +4471,11 @@ app.post('/api/automation/execute', authMiddleware, automationLimiter, async (re
         const { url, username, password, discoveryValue } = taskData;
         
         // ✅ DEMO PORTAL: Make credentials optional for demo portal (it's a test site)
+        // ✅ DYNAMIC: Check for demo portal using dynamic backend port
+        const backendPort = process.env.PORT || '3030';
         const isDemoPortal = url && (
           url.includes('/demo') || 
-          url.includes('localhost:3030/demo') ||
+          url.includes(`localhost:${backendPort}/demo`) ||
           url.includes('demo@useeasyflow.com') ||
           url.includes('demo portal')
         );
@@ -5883,15 +6121,30 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
 app.get('/api/files', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { folder, limit = 50, offset = 0, search, tags, category } = req.query;
+    
+    // ✅ SECURITY: Validate req.query is an object before destructuring
+    if (!req.query || typeof req.query !== 'object') {
+      return res.status(400).json({ error: 'Invalid query parameters' });
+    }
+    
+    const { folder, limit, offset, search, tags, category } = req.query;
+    
+    // ✅ SECURITY: Validate types before using (prevent type confusion attacks)
+    const safeLimit = typeof limit === 'string' ? parseInt(limit, 10) : (typeof limit === 'number' ? limit : 50);
+    const safeOffset = typeof offset === 'string' ? parseInt(offset, 10) : (typeof offset === 'number' ? offset : 0);
+    // ✅ SECURITY: Validate search parameter type (must be string or undefined)
+    const safeSearch = typeof search === 'string' ? search.trim() : (search === undefined || search === null ? undefined : String(search).trim());
+    const safeFolder = typeof folder === 'string' ? folder : (folder && typeof folder === 'object' ? undefined : (folder ? String(folder) : undefined));
+    const safeTags = Array.isArray(tags) ? tags : (typeof tags === 'string' ? [tags] : (tags && typeof tags === 'object' ? undefined : undefined));
+    const safeCategory = typeof category === 'string' ? category : (category && typeof category === 'object' ? undefined : (category ? String(category) : undefined));
     
     logger.info(`[GET /api/files] Fetching files for user ${userId}`, {
-      folder,
-      limit,
-      offset,
-      search,
-      tags,
-      category,
+      folder: safeFolder,
+      limit: safeLimit,
+      offset: safeOffset,
+      search: safeSearch,
+      tags: safeTags,
+      category: safeCategory,
       userAuthenticated: !!req.user
     });
     
@@ -5901,31 +6154,27 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       .eq('user_id', userId);
       // Removed .is('expires_at', null) to show all files, including those with expiration dates
 
-    if (folder) {
-      query = query.eq('folder_path', folder);
+    if (safeFolder) {
+      query = query.eq('folder_path', safeFolder);
     }
 
-    if (category) {
-      query = query.eq('category', category);
+    if (safeCategory) {
+      query = query.eq('category', safeCategory);
     }
 
-    // ✅ SECURITY: Validate type before using string methods
-    if (search && typeof search === 'string') {
-      query = query.or(`original_name.ilike.%${search}%,display_name.ilike.%${search}%,description.ilike.%${search}%`);
+    // ✅ SECURITY: Use validated search parameter
+    if (safeSearch) {
+      query = query.or(`original_name.ilike.%${safeSearch}%,display_name.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`);
     }
 
-    // ✅ SECURITY: Validate type before using string methods
-    if (tags && typeof tags === 'string') {
-      const tagArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
-      if (tagArray.length > 0) {
-        // Use overlaps operator to find files that have any of the specified tags
-        query = query.overlaps('tags', tagArray);
-      }
+    // ✅ SECURITY: Use validated tags parameter
+    if (safeTags && safeTags.length > 0) {
+      query = query.overlaps('tags', safeTags);
     }
 
     const { data, error } = await query
       .order('created_at', { ascending: false })
-      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+      .range(safeOffset, safeOffset + safeLimit - 1);
       
     if (error) {
       logger.error('[GET /api/files] Files query error:', error);
@@ -6063,8 +6312,89 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
 // FILE SHARING API ENDPOINTS
 // =====================================================
 
+// GET /api/files/shares - Get all shares for the current user
+// Apply rate limiting: moderate limits for file sharing operations
+const fileSharesGetMiddleware = isProduction 
+  ? [authMiddleware, apiLimiter]
+  : [authMiddleware];
+app.get('/api/files/shares', ...fileSharesGetMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { data: shares, error } = await supabase
+      .from('file_shares')
+      .select(`
+        *,
+        files (
+          id,
+          original_name,
+          file_size,
+          mime_type,
+          created_at
+        )
+      `)
+      .eq('shared_by', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('[GET /api/files/shares] Error:', error);
+      return res.status(500).json({ error: 'Failed to fetch shares' });
+    }
+
+    res.json({ shares: shares || [] });
+  } catch (err) {
+    logger.error('[GET /api/files/shares] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch shares' });
+  }
+});
+
+// GET /api/files/:fileId/shares - Get shares for a specific file
+// Apply rate limiting: moderate limits for file sharing operations
+const fileSharesByIdGetMiddleware = isProduction 
+  ? [authMiddleware, apiLimiter]
+  : [authMiddleware];
+app.get('/api/files/:fileId/shares', ...fileSharesByIdGetMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const fileId = req.params.fileId;
+
+    // Verify file ownership
+    const { data: file, error: fileError } = await supabase
+      .from('files')
+      .select('id')
+      .eq('id', fileId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fileError || !file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const { data: shares, error } = await supabase
+      .from('file_shares')
+      .select('*')
+      .eq('file_id', fileId)
+      .eq('shared_by', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('[GET /api/files/:fileId/shares] Error:', error);
+      return res.status(500).json({ error: 'Failed to fetch shares' });
+    }
+
+    res.json({ shares: shares || [] });
+  } catch (err) {
+    logger.error('[GET /api/files/:fileId/shares] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch shares' });
+  }
+});
+
 // POST /api/files/shares - Create a new share link
-app.post('/api/files/shares', authMiddleware, async (req, res) => {
+// Apply rate limiting: moderate limits for file sharing operations
+const fileSharesPostMiddleware = isProduction 
+  ? [authMiddleware, apiLimiter]
+  : [authMiddleware];
+app.post('/api/files/shares', ...fileSharesPostMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const { 
@@ -6124,8 +6454,12 @@ app.post('/api/files/shares', authMiddleware, async (req, res) => {
       return res.status(500).json({ error: 'Failed to create share link' });
     }
 
-    // Generate share URL
-    const shareUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/shared/${shareToken}`;
+    // ✅ DYNAMIC: Generate share URL using environment variable with dynamic port fallback
+    const frontendUrl = process.env.FRONTEND_URL || 
+      (process.env.NODE_ENV === 'development' 
+        ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}`
+        : 'http://localhost:3000');
+    const shareUrl = `${frontendUrl}/shared/${shareToken}`;
 
     res.status(201).json({
       ...share,
@@ -6174,7 +6508,7 @@ app.get('/api/files/:id/shares', authMiddleware, async (req, res) => {
     // Add share URLs and remove password hashes
     const sharesWithUrls = shares.map(share => ({
       ...share,
-      shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/shared/${share.share_token}`,
+      shareUrl: `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}` : 'http://localhost:3000')}/shared/${share.share_token}`,
       permissions: share.permissions || 'view', // Ensure permissions field is included
       password_hash: undefined
     }));
@@ -6188,7 +6522,11 @@ app.get('/api/files/:id/shares', authMiddleware, async (req, res) => {
 });
 
 // PUT /api/files/shares/:shareId - Update share settings
-app.put('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
+// Apply rate limiting: moderate limits for file sharing operations
+const fileSharesPutMiddleware = isProduction 
+  ? [authMiddleware, apiLimiter]
+  : [authMiddleware];
+app.put('/api/files/shares/:shareId', ...fileSharesPutMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const shareId = req.params.shareId;
@@ -6223,7 +6561,7 @@ app.put('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
 
     res.json({
       ...share,
-      shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/shared/${share.share_token}`,
+      shareUrl: `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}` : 'http://localhost:3000')}/shared/${share.share_token}`,
       password_hash: undefined
     });
 
@@ -6234,7 +6572,11 @@ app.put('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
 });
 
 // DELETE /api/files/shares/:shareId - Delete share
-app.delete('/api/files/shares/:shareId', authMiddleware, async (req, res) => {
+// Apply rate limiting: moderate limits for file sharing operations
+const fileSharesDeleteMiddleware = isProduction 
+  ? [authMiddleware, apiLimiter]
+  : [authMiddleware];
+app.delete('/api/files/shares/:shareId', ...fileSharesDeleteMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const shareId = req.params.shareId;
@@ -6534,7 +6876,8 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
     
     // Generate a descriptive task name with better fallbacks
     // Priority: title > formatted task type > formatted task value > URL-based > default
-    let taskName = title?.trim();
+    // ✅ SECURITY: Validate title is a string before calling trim
+    let taskName = (typeof title === 'string' ? title : String(title || '')).trim();
     
     if (!taskName && safeType) {
       // Format task type: "invoice_download" -> "Invoice Download"
@@ -6570,9 +6913,12 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
       taskName = 'Automation Task';
     }
     
+    // ✅ SECURITY: Validate type before using string methods
+    const safeTaskName = typeof taskName === 'string' ? taskName : String(taskName || '');
+    
     // Add AI indicator if AI is enabled (but don't duplicate if already in name)
-    if (enableAI && !taskName.toLowerCase().includes('ai') && !taskName.toLowerCase().includes('enhanced')) {
-      taskName = `${taskName} (AI-Enhanced)`;
+    if (enableAI && !safeTaskName.toLowerCase().includes('ai') && !safeTaskName.toLowerCase().includes('enhanced')) {
+      taskName = `${safeTaskName} (AI-Enhanced)`;
     }
     
     const taskType = (safeType || safeTask || 'general').toLowerCase();
@@ -7021,8 +7367,8 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
     const checkoutData = {
       product_id: plan.external_product_id,
       customer_email: user.email,
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?checkout=success`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/pricing?checkout=cancelled`,
+      success_url: `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}` : 'http://localhost:3000')}/settings?checkout=success`,
+      cancel_url: `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}` : 'http://localhost:3000')}/pricing?checkout=cancelled`,
       trial_period_days: 14, // 14-day free trial
       metadata: {
         user_id: user.id,

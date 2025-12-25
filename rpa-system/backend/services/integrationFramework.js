@@ -5,6 +5,13 @@ const { createInstrumentedHttpClient } = require('../middleware/httpInstrumentat
 const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');
 const { withPerformanceSpanSync, BulkOperationSpan } = require('../middleware/performanceInstrumentation');
 
+// Import new integrations
+const SlackIntegration = require('./integrations/slackIntegration');
+const GmailIntegration = require('./integrations/gmailIntegration');
+const GoogleSheetsIntegration = require('./integrations/googleSheetsIntegration');
+const GoogleMeetIntegration = require('./integrations/googleMeetIntegration');
+const WhatsAppIntegration = require('./integrations/whatsappIntegration');
+
 /**
  * Integration Framework for EasyFlow
  * Connects to external services like accounting software, CRMs, cloud storage
@@ -23,6 +30,10 @@ class IntegrationFramework {
       googleDrive: new GoogleDriveIntegration(this.http),
       salesforce: new SalesforceIntegration(this.http),
       slack: new SlackIntegration(this.http),
+      gmail: new GmailIntegration(),
+      googleSheets: new GoogleSheetsIntegration(),
+      googleMeet: new GoogleMeetIntegration(),
+      whatsapp: new WhatsAppIntegration(this.http),
       zapier: new ZapierIntegration(this.http)
     };
   }
@@ -354,61 +365,8 @@ class SalesforceIntegration {
   }
 }
 
-/**
- * Slack Integration
- */
-class SlackIntegration {
-  constructor() {
-    this.baseUrl = 'https://slack.com/api';
-    this.accessToken = null;
-  }
-
-  async authenticate(credentials) {
-    this.accessToken = credentials.accessToken;
-  }
-
-  async sendData(data) {
-    // Send message to Slack channel
-    const response = await axios.post(
-      `${this.baseUrl}/chat.postMessage`,
-      {
-        channel: data.channel,
-        text: data.message,
-        attachments: data.attachments || []
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    
-    return response.data;
-  }
-
-  async uploadFile(file, settings) {
-    const formData = new FormData();
-    formData.append('file', file.buffer, file.name);
-    formData.append('channels', settings.channel);
-    formData.append('title', settings.title || file.name);
-
-    const axios = require('axios');
-
-    const response = await axios.post(
-      `${this.baseUrl}/files.upload`,
-      formData,
-      {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'multipart/form-data'
-        }
-      }
-    );
-
-    return response.data;
-  }
-}
+// Slack, Gmail, Google Sheets, Google Meet, and WhatsApp integrations
+// are now in separate files in ./integrations/ directory
 
 /**
  * Zapier Integration (via webhooks)
