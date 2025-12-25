@@ -3,7 +3,8 @@
 # Adapted from ubiquitous-automation: https://github.com/KyPython/ubiquitous-automation
 # Runs all tests, linting, and builds for EasyFlow
 
-set -e
+# Don't exit on error - we track failures and report at the end
+set +e
 
 # Colors
 GREEN='\033[0;32m'
