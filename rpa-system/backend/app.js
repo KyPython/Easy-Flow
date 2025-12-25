@@ -6132,7 +6132,8 @@ app.get('/api/files', authMiddleware, async (req, res) => {
     // ✅ SECURITY: Validate types before using (prevent type confusion attacks)
     const safeLimit = typeof limit === 'string' ? parseInt(limit, 10) : (typeof limit === 'number' ? limit : 50);
     const safeOffset = typeof offset === 'string' ? parseInt(offset, 10) : (typeof offset === 'number' ? offset : 0);
-    const safeSearch = typeof search === 'string' ? search : (search && typeof search === 'object' ? undefined : (search ? String(search) : undefined));
+    // ✅ SECURITY: Validate search parameter type (must be string or undefined)
+    const safeSearch = typeof search === 'string' ? search.trim() : (search === undefined || search === null ? undefined : String(search).trim());
     const safeFolder = typeof folder === 'string' ? folder : (folder && typeof folder === 'object' ? undefined : (folder ? String(folder) : undefined));
     const safeTags = Array.isArray(tags) ? tags : (typeof tags === 'string' ? [tags] : (tags && typeof tags === 'object' ? undefined : undefined));
     const safeCategory = typeof category === 'string' ? category : (category && typeof category === 'object' ? undefined : (category ? String(category) : undefined));

@@ -199,17 +199,23 @@ self.addEventListener('install', (event) => {
 
 // Handle messages from the main thread
 self.addEventListener('message', (event) => {
-  // ✅ SECURITY: Validate message origin to prevent XSS attacks
+  // ✅ SECURITY: Validate message origin and type to prevent XSS attacks
   // Only accept messages from the same origin
-  const allowedOrigin = self.location.origin;
-  
-  // Explicitly check if event.origin exists and matches allowed origin
-  if (!event.origin || typeof event.origin !== 'string') {
-    console.warn('[firebase-messaging-sw] Rejected message with missing or invalid origin');
+  if (!event || typeof event !== 'object' || !event.origin) {
+    console.warn('[firebase-messaging-sw] Invalid message event - missing origin');
     return;
   }
   
-  if (event.origin !== allowedOrigin) {
+  // ✅ SECURITY: Explicit type check for origin (must be string)
+  if (typeof event.origin !== 'string') {
+    console.warn('[firebase-messaging-sw] Invalid message origin type');
+    return;
+  }
+  
+  const allowedOrigin = self.location.origin;
+  
+  // ✅ SECURITY: Strict origin comparison (both must be strings)
+  if (typeof allowedOrigin !== 'string' || event.origin !== allowedOrigin) {
     console.warn('[firebase-messaging-sw] Rejected message from unauthorized origin:', event.origin);
     return;
   }

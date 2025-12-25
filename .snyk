@@ -58,17 +58,22 @@ ignore:
         expires: '2025-12-31T23:59:59.999Z'
 
 # postMessage Validation - Enhanced Implementation
-# Firebase messaging service worker validates origin with explicit type checks
+# Firebase messaging service worker validates origin with explicit type checks:
+# - Validates event object and origin property exist
+# - Validates origin is a string type before comparison
+# - Compares against self.location.origin with strict type checking
 ignore:
   SNYK-JS-INSUFFICIENTPOSTMESSAGEVALIDATION-*:
     - 'rpa-system/rpa-dashboard/public/firebase-messaging-sw.js':
-        reason: Enhanced origin validation with explicit type checks implemented
+        reason: Enhanced origin validation with explicit type checks and event validation implemented
         expires: '2025-12-31T23:59:59.999Z'
 
 # Type Validation - Fixed
 # All type validation issues have been fixed with explicit type checks:
-# - app.js line 5952: Added validation for limit, offset, search, folder, tags, category
+# - app.js line 6130: Added validation for search parameter (safeSearch with type check)
+# - app.js line 5952: Added validation for limit, offset, folder, tags, category
+# - teamRoutes.js line 180: Added email type validation before using .includes()
 # - auditLogs.js line 123: Added req.query object validation and search type check
 # - auditLogs.js line 189: Added req.query object validation and search type check
-# All query parameters now have explicit type validation before use.
+# All query parameters and body parameters now have explicit type validation before use.
 
