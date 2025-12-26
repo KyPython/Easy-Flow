@@ -35,6 +35,8 @@
     "web-vitals": "^5.1.0"
   },
   "scripts": {
+    "prebuild": "node vercel-scripts/generate-firebase-config.js",
+    "prestart": "node vercel-scripts/generate-firebase-config.js",
     "start": "react-app-rewired start",
     "dev": "react-app-rewired start",
     "build": "react-app-rewired build",

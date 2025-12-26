@@ -57,6 +57,20 @@ module.exports = function override(config, env) {
     'path/': pathBrowserify,
   };
   
+  // Fix React Refresh runtime module resolution issue
+  // The error "Cannot find module './cjs/react-refresh-runtime.development.js'" 
+  // occurs when webpack can't resolve the react-refresh runtime module
+  try {
+    const reactRefreshPath = require.resolve('react-refresh');
+    config.resolve.alias['react-refresh/runtime'] = path.join(
+      path.dirname(reactRefreshPath),
+      'runtime.js'
+    );
+  } catch (e) {
+    // react-refresh not found, skip alias (shouldn't happen with react-scripts)
+    console.warn('[config-overrides] react-refresh not found, skipping alias');
+  }
+  
   // CRITICAL: Also set resolve.extensionAlias to handle path imports in ESM modules
   config.resolve.extensionAlias = {
     ...config.resolve.extensionAlias,
