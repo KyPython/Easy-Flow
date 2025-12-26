@@ -880,6 +880,7 @@ class NotificationService {
   }
 
   // Backend fallback using privileged server endpoint
+  // ⚠️ NOTE: This endpoint requires 'priority_support' feature (premium plans only)
   async _sendViaBackendFallback(userId, notification) {
     try {
       const client = await initSupabase();
@@ -888,7 +889,34 @@ class NotificationService {
         console.warn('🔔 Cannot use backend fallback: no Supabase session');
         return false;
       }
+
+      // ✅ SECURITY: Check plan before calling premium endpoint
+      // The /api/notifications/create endpoint requires 'priority_support' feature
+      // Check plan via API to avoid 403 errors for Starter plan users
       const { api } = require('./api');
+      try {
+        // Fetch user plan to check if they have priority_support feature
+        const planResponse = await api.get(buildApiUrl('/api/plans/current'));
+        const planData = planResponse?.data;
+        
+        // Check if user has priority_support feature
+        const hasPrioritySupport = planData?.limits?.priority_support === true || 
+                                   (typeof planData?.limits?.priority_support === 'string' && 
+                                    planData.limits.priority_support.toLowerCase() !== 'no');
+        
+        if (!hasPrioritySupport) {
+          if (isDev) {
+            console.warn('🔔 Notification creation requires premium plan. User is on:', planData?.plan?.name || 'Unknown');
+          }
+          // Silently fail - don't show error to user, just don't create notification
+          return false;
+        }
+      } catch (planError) {
+        // If plan check fails, log but don't block (might be network issue)
+        console.warn('🔔 Could not verify plan before notification creation:', planError?.message || planError);
+        // Continue to attempt notification creation - backend will enforce plan check
+      }
+
       await api.post(buildApiUrl('/api/notifications/create'), {
         type: notification.type || 'system_alert',
         title: notification.title || 'Notification',
@@ -901,6 +929,14 @@ class NotificationService {
       }
       return true;
     } catch (e) {
+      // Handle 403 errors gracefully (plan restriction)
+      if (e?.response?.status === 403) {
+        if (isDev) {
+          console.warn('🔔 Notification creation blocked: Premium plan required', e?.response?.data);
+        }
+        // Silently fail - don't show error to user
+        return false;
+      }
       console.error('🔔 Backend fallback error:', e);
       return false;
     }
