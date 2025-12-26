@@ -142,6 +142,46 @@ else
     snyk code test --severity-threshold="$SEVERITY_THRESHOLD" 2>&1 || true
 fi
 
+# Scan Terraform Infrastructure (if exists)
+if [ -d "infrastructure" ] && [ -f "infrastructure/main.tf" ]; then
+    echo "\n${BLUE}Scanning Terraform infrastructure for security issues...${NC}"
+    cd infrastructure
+    
+    # Use Checkov for Terraform security scanning (if available)
+    if command -v checkov >/dev/null 2>&1 || pip3 list 2>/dev/null | grep -q checkov; then
+        echo "  Running Checkov security scan..."
+        if checkov -d . --framework terraform --quiet --compact 2>&1 | tee /tmp/checkov-terraform.txt; then
+            echo "  ${GREEN}✓ Terraform: Security scan completed${NC}"
+        else
+            CHECKOV_ISSUES=$(grep -c "PASSED\|FAILED" /tmp/checkov-terraform.txt 2>/dev/null || echo "0")
+            if [ "$CHECKOV_ISSUES" -gt 0 ]; then
+                echo "  ${YELLOW}⚠ Terraform: Security issues found (see details above)${NC}"
+                SCAN_FAILED=$((SCAN_FAILED + 1))
+            else
+                echo "  ${GREEN}✓ Terraform: No security issues found${NC}"
+            fi
+        fi
+        rm -f /tmp/checkov-terraform.txt
+    else
+        echo "  ${YELLOW}○ Checkov not installed - skipping Terraform security scan${NC}"
+        echo "    Install: pip install checkov"
+        echo "    Or run manually: checkov -d infrastructure --framework terraform"
+    fi
+    
+    # Also try Snyk for Terraform (if supported)
+    if snyk iac test infrastructure --severity-threshold="$SEVERITY_THRESHOLD" --json >/tmp/snyk-terraform.json 2>&1 || true; then
+        TERRAFORM_ISSUES=$(cat /tmp/snyk-terraform.json 2>/dev/null | grep -o '"total":\s*[0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+        if [ -n "$TERRAFORM_ISSUES" ] && [ "$TERRAFORM_ISSUES" -gt 0 ]; then
+            echo "  ${YELLOW}⚠ Terraform (Snyk): Found $TERRAFORM_ISSUES security issue(s)${NC}"
+            snyk iac test infrastructure --severity-threshold="$SEVERITY_THRESHOLD" || SCAN_FAILED=$((SCAN_FAILED + 1))
+        else
+            echo "  ${GREEN}✓ Terraform (Snyk): No ${SEVERITY_THRESHOLD}+ security issues found${NC}"
+        fi
+    fi
+    rm -f /tmp/snyk-terraform.json
+    cd ..
+fi
+
 # Cleanup temp files
 rm -f /tmp/snyk-*.json
 

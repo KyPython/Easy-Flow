@@ -129,6 +129,32 @@ else
     echo "  Run 'npm run quality:check' for details"
 fi
 
+# Step 7: Terraform Validation (if infrastructure files changed)
+echo "\n${BLUE}Step 7: Checking Terraform configuration...${NC}"
+if git diff --cached --name-only | grep -q "infrastructure/.*\.tf$" || git diff --cached --name-only | grep -q "\.tf$"; then
+    if [ -d "infrastructure" ] && [ -f "infrastructure/main.tf" ]; then
+        cd infrastructure
+        if ../scripts/terraform-fmt.sh --check >/dev/null 2>&1; then
+            echo "  ${GREEN}✓ Terraform formatting is correct${NC}"
+        else
+            echo "  ${YELLOW}⚠ Terraform files need formatting${NC}"
+            echo "  Run 'npm run infra:fmt' to fix"
+            FAILED=$((FAILED + 1))
+        fi
+        if ../scripts/terraform-validate.sh >/dev/null 2>&1; then
+            echo "  ${GREEN}✓ Terraform validation passed${NC}"
+        else
+            echo "  ${RED}✗ Terraform validation failed${NC}"
+            FAILED=$((FAILED + 1))
+        fi
+        cd ..
+    else
+        echo "  ${YELLOW}○ No infrastructure directory found, skipping${NC}"
+    fi
+else
+    echo "  ${GREEN}○ No Terraform files changed, skipping${NC}"
+fi
+
 echo "\n${BLUE}=== Summary ===${NC}"
 
 if [ $FAILED -eq 0 ]; then

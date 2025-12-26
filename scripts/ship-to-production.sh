@@ -65,6 +65,26 @@ else
     exit 1
 fi
 
+# Step 2.5: Validate Terraform (if infrastructure exists)
+echo "\n${BLUE}Step 2.5: Validating Terraform configuration...${NC}"
+if [ -d "infrastructure" ] && [ -f "infrastructure/main.tf" ]; then
+    cd infrastructure
+    if ../scripts/terraform-validate.sh; then
+        echo "${GREEN}✓ Terraform validation passed${NC}"
+        
+        # Run Terraform plan to show what will change
+        echo "${BLUE}Running Terraform plan (preview)...${NC}"
+        ../scripts/terraform-plan.sh dev || echo "${YELLOW}⚠ Terraform plan completed with changes (review above)${NC}"
+    else
+        echo "${RED}✗ Terraform validation failed. Fix issues before shipping to production.${NC}"
+        cd ..
+        exit 1
+    fi
+    cd ..
+else
+    echo "${GREEN}○ No infrastructure directory found, skipping Terraform validation${NC}"
+fi
+
 # Step 3: Ensure dev is pushed to remote
 echo "\n${BLUE}Step 3: Ensuring dev branch is pushed to remote...${NC}"
 git push origin dev || {

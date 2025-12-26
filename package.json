@@ -27,8 +27,16 @@
     "security:scan": "./scripts/security-scan.sh",
     "logs": "./scripts/watch-logs.sh",
     "ship": "./scripts/ship-to-production.sh",
-    "prepare": "husky",
-    "postinstall": "husky"
+    "infra:init": "./scripts/terraform-init.sh",
+    "infra:plan": "./scripts/terraform-plan.sh",
+    "infra:apply": "./scripts/terraform-apply.sh",
+    "infra:validate": "./scripts/terraform-validate.sh",
+    "infra:destroy": "./scripts/terraform-destroy.sh",
+    "infra:fmt": "./scripts/terraform-fmt.sh",
+    "infra:fmt:check": "./scripts/terraform-fmt.sh --check",
+    "infra:drift": "./scripts/terraform-detect-drift.sh",
+    "prepare": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('husky').install(); } catch(e) { process.exit(0); } }\"",
+    "postinstall": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('husky').install(); } catch(e) { process.exit(0); } }\""
   },
   "keywords": [
     "automation",

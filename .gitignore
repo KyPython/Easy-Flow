@@ -410,3 +410,12 @@ ccloud-nodejs-client*/
 # Snyk Security Extension - AI Rules (auto-generated)
 .cursor/rules/snyk_rules.mdc
 rpa-system/monitoring/alertmanager.yml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+*.tfvars
+*.tfplan
+.terraform.lock.hcl

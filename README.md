@@ -8,13 +8,44 @@
 2. Run `./start-dev.sh` - automatically installs dependencies and starts everything
 3. Open http://localhost:3000
 
+## Documentation
+
+- **[Daily Workflow](docs/WORKFLOW.md)** - Start/stop, commit, deploy workflow
+- **[Infrastructure as Code](docs/INFRASTRUCTURE_AS_CODE.md)** - Terraform guide for managing infrastructure
+- **[DevOps Suite Requirements](docs/DEVOPS_SUITE_REQUIREMENTS.md)** - DevOps tools documentation
+
 ## Commands
 
+### Development
 ```bash
 ./start-dev.sh      # Start everything (auto-installs dependencies)
 ./stop-dev.sh       # Stop everything
-npm run ship        # Deploy to production
 npm run logs        # Watch logs
+```
+
+### Infrastructure as Code (Terraform)
+```bash
+npm run infra:init      # Initialize Terraform workspace
+npm run infra:plan      # Plan infrastructure changes
+npm run infra:apply     # Apply infrastructure changes
+npm run infra:validate  # Validate Terraform configuration
+npm run infra:destroy   # Destroy infrastructure (with confirmation)
+npm run infra:fmt       # Format Terraform files
+npm run infra:drift     # Detect infrastructure drift
+```
+
+### DevOps Suite Tools
+```bash
+npm run check-env       # Check development environment
+npm run lint:test      # Run linting and tests
+npm run quality:check   # Code quality scan
+npm run gen:route       # Generate route boilerplate
+npm run git:status      # Git workflow status
+```
+
+### Deployment
+```bash
+npm run ship        # Deploy to production
 ```
 
 ## URLs

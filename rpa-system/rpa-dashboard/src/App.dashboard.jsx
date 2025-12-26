@@ -47,6 +47,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const TeamsPage = lazy(() => import('./pages/TeamsPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'));
+const UnifiedDashboardPage = lazy(() => import('./pages/UnifiedDashboardPage'));
 const WebhooksPage = lazy(() => import('./pages/WebhooksPage'));
 const RulesPage = lazy(() => import('./pages/RulesPage'));
 const AdminTemplates = lazy(() => import('./pages/AdminTemplates'));
@@ -265,6 +266,7 @@ function Shell() {
             <Route path="/app/analytics" element={<Protected><AnalyticsPage /></Protected>} />
             <Route path="/app/metrics" element={<Protected><BusinessMetricsPage /></Protected>} />
             <Route path="/app/integrations" element={<Protected><IntegrationsPage /></Protected>} />
+            <Route path="/app/unified-dashboard" element={<Protected><UnifiedDashboardPage /></Protected>} />
             <Route path="/app/webhooks" element={<Protected><WebhooksPage /></Protected>} />
             <Route path="/app/rules" element={<Protected><RulesPage /></Protected>} />
 
