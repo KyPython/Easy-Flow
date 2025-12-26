@@ -22,6 +22,7 @@ import { LanguageProvider } from './utils/LanguageContext';
 import { SessionProvider } from './contexts/SessionContext';
 import { AccessibilityProvider } from './contexts/AccessibilityContext.tsx';
 import NetworkStatus from './components/NetworkStatus/NetworkStatus'; // Keep eager (small component)
+import logger from './utils/logger'; // Structured logger for observability
 // FIREBASE INITIALIZATION DEFERRED - was blocking main thread
 // import './utils/firebaseConfig';
 import './theme.css';
@@ -162,7 +163,6 @@ function WorkflowIdRedirect() {
 
 function Shell() {
   const { user } = useAuth();
-  const logger = createLogger('Shell'); // Structured logger for observability
   // Initialize Firebase on-demand when the runtime feature gate is enabled
   // This avoids the heavy Firebase SDK being loaded at module-eval time.
   useEffect(() => {
