@@ -45,10 +45,11 @@ See [Vercel Deployment Guide](VERCEL_DEPLOYMENT.md) to verify/fix settings.
 **Logs:**
 - `npm run logs` - Watch all logs
 
-**Infrastructure:**
-- `npm run infra:plan` - Plan infrastructure changes
+**Infrastructure (Terraform):**
+- `npm run infra:plan` - Plan infrastructure changes (dry run)
 - `npm run infra:apply` - Apply infrastructure changes
-- See [Infrastructure as Code Guide](INFRASTRUCTURE_AS_CODE.md) for details
+- `npm run infra:validate` - Validate Terraform config
+- `npm run infra:fmt` - Format Terraform files
 
 **URLs:**
 - Frontend: http://localhost:3000

@@ -12,8 +12,6 @@
 
 - **[Daily Workflow](docs/WORKFLOW.md)** - Start/stop, commit, deploy workflow
 - **[Vercel Deployment](docs/VERCEL_DEPLOYMENT.md)** - ⚠️ **CRITICAL:** Production branch configuration
-- **[Infrastructure as Code](docs/INFRASTRUCTURE_AS_CODE.md)** - Terraform guide for managing infrastructure
-- **[DevOps Suite Requirements](docs/DEVOPS_SUITE_REQUIREMENTS.md)** - DevOps tools documentation
 
 ## Commands
 
