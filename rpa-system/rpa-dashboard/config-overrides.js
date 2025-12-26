@@ -14,11 +14,19 @@ module.exports = function override(config, env) {
     net: false,
     tls: false,
     crypto: false,
-    path: pathBrowserify, // This should handle the 'path' import
+    // CRITICAL: path fallback MUST be set to pathBrowserify to handle OpenTelemetry imports
+    path: pathBrowserify,
     stream: require.resolve("stream-browserify"),
     buffer: require.resolve("buffer"),
     util: require.resolve("util"),
     os: require.resolve("os-browserify/browser"),
+  };
+  
+  // CRITICAL: Also ensure path is available globally for ESM modules
+  config.resolve.alias = {
+    ...config.resolve.alias,
+    'path': pathBrowserify,
+    'path/': pathBrowserify,
   };
   
   // Ensure fallbacks work for node_modules too
