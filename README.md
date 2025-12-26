@@ -11,6 +11,7 @@
 ## Documentation
 
 - **[Daily Workflow](docs/WORKFLOW.md)** - Start/stop, commit, deploy workflow
+- **[Vercel Deployment](docs/VERCEL_DEPLOYMENT.md)** - ⚠️ **CRITICAL:** Production branch configuration
 - **[Infrastructure as Code](docs/INFRASTRUCTURE_AS_CODE.md)** - Terraform guide for managing infrastructure
 - **[DevOps Suite Requirements](docs/DEVOPS_SUITE_REQUIREMENTS.md)** - DevOps tools documentation
 
@@ -45,8 +46,10 @@ npm run git:status      # Git workflow status
 
 ### Deployment
 ```bash
-npm run ship        # Deploy to production
+npm run vercel:check  # Verify Vercel is configured correctly (production from main only)
+npm run ship          # Deploy to production (merges dev→main)
 ```
+**⚠️ IMPORTANT:** Vercel MUST deploy production from `main` branch only. See [Vercel Deployment Guide](docs/VERCEL_DEPLOYMENT.md).
 
 ## URLs
 

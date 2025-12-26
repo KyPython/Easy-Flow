@@ -28,6 +28,9 @@ npm run ship
 ```
 **Does:** Full tests → Merge dev→main → Deploy
 
+**⚠️ IMPORTANT:** Vercel MUST be configured to deploy production from `main` branch only.  
+See [Vercel Deployment Guide](VERCEL_DEPLOYMENT.md) to verify/fix settings.
+
 ## Stop Working
 ```bash
 ./stop-dev.sh
