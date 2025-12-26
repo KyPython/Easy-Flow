@@ -35,8 +35,8 @@
     "infra:fmt": "./scripts/terraform-fmt.sh",
     "infra:fmt:check": "./scripts/terraform-fmt.sh --check",
     "infra:drift": "./scripts/terraform-detect-drift.sh",
-    "prepare": "husky",
-    "postinstall": "husky"
+    "prepare": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('husky').install(); } catch(e) { process.exit(0); } }\"",
+    "postinstall": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('husky').install(); } catch(e) { process.exit(0); } }\""
   },
   "keywords": [
     "automation",
