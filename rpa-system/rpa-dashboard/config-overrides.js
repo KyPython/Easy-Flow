@@ -51,13 +51,17 @@ module.exports = function override(config, env) {
   
   // Alias approach: replace at the module resolution level (happens BEFORE parsing)
   // CRITICAL: This must be set before any other alias configuration
+  // Use multiple alias patterns to catch all possible import paths
   config.resolve.alias = {
     ...config.resolve.alias,
     // Directly alias the problematic file to our empty module - use absolute path
-    // This MUST be an exact match to prevent webpack from parsing the original file
+    // Match both ESM and CJS versions, with and without extensions
     '@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile.js': emptyModulePath,
-    // Also alias the CJS version if it exists
+    '@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile': emptyModulePath,
     '@opentelemetry/instrumentation/build/src/instrumentationNodeModuleFile.js': emptyModulePath,
+    '@opentelemetry/instrumentation/build/src/instrumentationNodeModuleFile': emptyModulePath,
+    // Also match any import that includes this filename
+    'instrumentationNodeModuleFile': emptyModulePath,
     // Also ensure 'path' resolves to path-browserify in ALL contexts (including ESM)
     'path': pathBrowserify,
     'path/': pathBrowserify,
