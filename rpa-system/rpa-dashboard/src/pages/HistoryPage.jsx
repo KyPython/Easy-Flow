@@ -142,11 +142,17 @@ const HistoryPage = () => {
           user_id: user.id 
         });
         
-        if (queryDuration > 5000) {
-          logger.warn('Slow API response detected', {
+        // ✅ DYNAMIC: Only warn about slow responses in dev (more lenient threshold in prod)
+        const slowThreshold = isProduction ? 10000 : 5000; // 10s prod, 5s dev
+        if (queryDuration > slowThreshold) {
+          const logLevel = isProduction ? 'warn' : 'error'; // Error in dev, warn in prod
+          logger[logLevel]('Slow API response detected', {
             duration_ms: queryDuration,
             user_id: user.id,
-            message: 'Backend API took longer than 5 seconds - check database indexes'
+            environment: process.env.NODE_ENV,
+            message: isProduction 
+              ? 'Backend API is slower than expected'
+              : 'Backend API took longer than 5 seconds - check database indexes'
           });
         }
         
@@ -165,17 +171,38 @@ const HistoryPage = () => {
           isInitialLoad.current = false;
         }
       } catch (err) {
-        logger.error('Failed to fetch automation runs', {
-          error: err.message,
-          error_code: err.code,
-          user_id: user.id,
-          stack: err.stack
-        });
+        // ✅ DYNAMIC: Handle errors based on type and environment
+        const isAuthError = err.message?.includes('401') || err.message?.includes('Unauthorized');
+        const isNetworkError = err.message?.includes('ERR_NETWORK_IO_SUSPENDED') || err.message?.includes('Network');
+        const isTimeoutError = err.message?.includes('timeout');
+        
+        // In development: Log all errors with details
+        // In production: Only log unexpected errors (suppress expected ones)
+        if (isDevelopment || (!isAuthError && !isNetworkError)) {
+          logger.error('Failed to fetch automation runs', {
+            error: err.message,
+            error_code: err.code,
+            user_id: user.id,
+            error_type: isAuthError ? 'auth' : isNetworkError ? 'network' : isTimeoutError ? 'timeout' : 'unknown',
+            environment: process.env.NODE_ENV,
+            stack: isDevelopment ? err.stack : undefined // Only include stack in dev
+          });
+        } else if (isAuthError && isDevelopment) {
+          // Auth errors in dev: debug level (less noisy)
+          logger.debug('Authentication error (expected during session refresh)', {
+            user_id: user.id,
+            message: 'Will retry after token refresh'
+          });
+        }
+        
         // ✅ DYNAMIC: User-friendly error in prod, technical error in dev
-        const errorMessage = isProduction 
-          ? HISTORY_CONFIG.errorMessages.fetchError
-          : (err.message || HISTORY_CONFIG.errorMessages.fetchError);
-        setError(errorMessage);
+        // Don't show error for expected network issues (tab suspended, etc.)
+        if (!isNetworkError || isProduction) {
+          const errorMessage = isProduction 
+            ? HISTORY_CONFIG.errorMessages.fetchError
+            : (err.message || HISTORY_CONFIG.errorMessages.fetchError);
+          setError(errorMessage);
+        }
       } finally {
         if (loadingTimeoutRef.current) {
           clearTimeout(loadingTimeoutRef.current);
@@ -316,10 +343,20 @@ const HistoryPage = () => {
             if (status === 'SUBSCRIBED') {
               logger.info('Successfully subscribed to automation_runs changes via WebSocket', { user_id: user.id });
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-              logger.warn('Realtime subscription error, falling back to polling', {
-                status,
-                user_id: user.id
-              });
+              // ✅ DYNAMIC: Less noisy in dev (expected behavior), more visible in prod
+              if (isProduction) {
+                logger.warn('Realtime subscription error, falling back to polling', {
+                  status,
+                  user_id: user.id
+                });
+              } else {
+                // In dev: debug level (expected transient disconnects)
+                logger.debug('Realtime subscription temporarily disconnected (expected in dev)', {
+                  status,
+                  user_id: user.id,
+                  note: 'Will reconnect automatically'
+                });
+              }
               // Fallback to polling if Realtime fails
               // ✅ Ensure only one polling interval exists
               if (fallbackPollInterval) {
@@ -343,10 +380,14 @@ const HistoryPage = () => {
             }
           });
       } catch (err) {
-        logger.error('Failed to setup Realtime subscription', {
+        // ✅ DYNAMIC: Error level in prod, warn in dev (Realtime failures are common in dev)
+        const logLevel = isProduction ? 'error' : 'warn';
+        logger[logLevel]('Failed to setup Realtime subscription', {
           error: err.message,
           user_id: user.id,
-          stack: err.stack
+          environment: process.env.NODE_ENV,
+          note: isDevelopment ? 'Falling back to polling (expected in dev)' : 'Falling back to polling',
+          stack: isDevelopment ? err.stack : undefined // Only include stack in dev
         });
         // Fallback: still fetch initial data even if Realtime fails
         fetchRuns(false);
