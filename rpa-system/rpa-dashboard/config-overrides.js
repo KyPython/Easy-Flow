@@ -4,13 +4,17 @@ const webpack = require('webpack');
 module.exports = function override(config, env) {
   // Basic fallbacks for node modules - CRITICAL: must be set before other config
   config.resolve = config.resolve || {};
+  
+  // CRITICAL: Ensure path-browserify is resolved BEFORE setting fallback
+  const pathBrowserify = require.resolve("path-browserify");
+  
   config.resolve.fallback = {
     ...config.resolve.fallback,
     fs: false,
     net: false,
     tls: false,
     crypto: false,
-    path: require.resolve("path-browserify"), // This should handle the 'path' import
+    path: pathBrowserify, // This should handle the 'path' import
     stream: require.resolve("stream-browserify"),
     buffer: require.resolve("buffer"),
     util: require.resolve("util"),
@@ -48,8 +52,15 @@ module.exports = function override(config, env) {
     ...config.resolve.alias,
     // Directly alias the problematic file to our empty module - use absolute path
     '@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile.js': emptyModulePath,
-    // Also ensure 'path' resolves to path-browserify in ALL contexts
-    'path': require.resolve("path-browserify"),
+    // Also ensure 'path' resolves to path-browserify in ALL contexts (including ESM)
+    'path': pathBrowserify,
+    'path/': pathBrowserify,
+  };
+  
+  // CRITICAL: Also set resolve.extensionAlias to handle path imports in ESM modules
+  config.resolve.extensionAlias = {
+    ...config.resolve.extensionAlias,
+    '.js': ['.js', '.ts', '.tsx'],
   };
   
   config.plugins = [
