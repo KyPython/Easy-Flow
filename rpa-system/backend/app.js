@@ -156,6 +156,13 @@ const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
   .map(s => s.trim())
   .filter(Boolean);
 
+// ✅ CORS: Regex patterns for dynamic preview URLs (e.g., Vercel preview deployments)
+// This allows ANY Vercel preview URL for the project without hardcoding each one
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^https:\/\/easy-flow-.*-kypythons-projects\.vercel\.app$/, // Vercel preview URLs
+  /^https:\/\/.*\.vercel\.app$/, // Any Vercel preview (fallback)
+];
+
 // Debug logging for CORS configuration (quiet in production)
 if (process.env.NODE_ENV !== 'production') {
   rootLogger.info('🔧 CORS Debug Info (app.js):', {
@@ -198,6 +205,14 @@ const corsOptions = {
       });
     }
 
+    // ✅ CORS: Regex pattern matching for dynamic preview URLs (e.g., Vercel)
+    if (ALLOWED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin))) {
+      if (process.env.NODE_ENV !== 'production') {
+        logger.debug('✅ CORS: Allowing origin via regex pattern', { origin });
+      }
+      return cb(null, origin);
+    }
+
     // Suffix-based allow (e.g., preview deployments like *.vercel.app)
     if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) {
       return cb(null, origin);
@@ -228,7 +243,7 @@ app.options('*', cors(corsOptions));
 app.options('/*', (req, res) => {
   const origin = req.headers.origin;
   
-  // Use the same ALLOWED_ORIGINS and ALLOWED_SUFFIXES logic as main CORS middleware
+  // Use the same ALLOWED_ORIGINS, ALLOWED_ORIGIN_PATTERNS, and ALLOWED_SUFFIXES logic as main CORS middleware
   let corsOrigin = null;
   
   if (!origin) {
@@ -236,6 +251,9 @@ app.options('/*', (req, res) => {
     corsOrigin = '*';
   } else if (ALLOWED_ORIGINS.includes(origin)) {
     // Exact match in allowed origins
+    corsOrigin = origin;
+  } else if (ALLOWED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin))) {
+    // ✅ CORS: Regex pattern match (e.g., Vercel preview URLs)
     corsOrigin = origin;
   } else if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) {
     // Suffix-based match (e.g., *.vercel.app for preview deployments)
