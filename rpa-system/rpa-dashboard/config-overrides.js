@@ -38,7 +38,9 @@ module.exports = function override(config, env) {
   
   // Add a rule that replaces the problematic file with our empty module
   // This rule MUST come before other rules to intercept first
+  // CRITICAL: Use 'enforce: pre' to ensure this runs before any other loaders
   config.module.rules.unshift({
+    enforce: 'pre',
     test: /instrumentationNodeModuleFile\.js$/,
     include: /@opentelemetry\/instrumentation/,
     // Use a custom loader that returns the empty module content
@@ -48,10 +50,14 @@ module.exports = function override(config, env) {
   });
   
   // Alias approach: replace at the module resolution level (happens BEFORE parsing)
+  // CRITICAL: This must be set before any other alias configuration
   config.resolve.alias = {
     ...config.resolve.alias,
     // Directly alias the problematic file to our empty module - use absolute path
+    // This MUST be an exact match to prevent webpack from parsing the original file
     '@opentelemetry/instrumentation/build/esm/instrumentationNodeModuleFile.js': emptyModulePath,
+    // Also alias the CJS version if it exists
+    '@opentelemetry/instrumentation/build/src/instrumentationNodeModuleFile.js': emptyModulePath,
     // Also ensure 'path' resolves to path-browserify in ALL contexts (including ESM)
     'path': pathBrowserify,
     'path/': pathBrowserify,
@@ -77,13 +83,17 @@ module.exports = function override(config, env) {
     '.js': ['.js', '.ts', '.tsx'],
   };
   
+  // CRITICAL: Add plugins at the BEGINNING of the plugins array
+  // This ensures they run before other plugins that might try to parse the file
   config.plugins = [
-    ...config.plugins,
     // Replace the problematic Node.js-specific file with an empty module
-    // Use absolute path matching to be more specific
+    // This MUST be first to intercept before webpack tries to parse
     new webpack.NormalModuleReplacementPlugin(
-      /.*instrumentationNodeModuleFile\.js$/,
-      emptyModulePath
+      /instrumentationNodeModuleFile\.js$/,
+      (resource) => {
+        // Return the empty module path for all matches
+        return emptyModulePath;
+      }
     ),
     // Ignore it entirely - this should prevent webpack from even trying to parse it
     new webpack.IgnorePlugin({
@@ -94,7 +104,8 @@ module.exports = function override(config, env) {
           (context && context.includes('instrumentationNodeModuleFile.js'));
         return shouldIgnore;
       }
-    })
+    }),
+    ...config.plugins,
   ];
   
   // Configure dev server for SPA routing and selective API proxying
