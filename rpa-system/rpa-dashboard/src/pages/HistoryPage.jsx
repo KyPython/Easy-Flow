@@ -27,10 +27,19 @@ const HistoryPage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false); // Track manual refresh state
   const runsRef = useRef([]); // Store runs in ref to avoid dependency issues
   const isInitialLoad = useRef(true); // Track if this is the first load
+  const fetchInProgressRef = useRef(false); // Prevent concurrent requests
 
   // ✅ Move fetchRuns to useCallback so it can be called from anywhere
   const fetchRuns = useCallback(async (isBackgroundRefresh = false) => {
     if (!user) return;
+    
+    // ✅ REQUEST DEDUPLICATION: Prevent concurrent requests
+    if (fetchInProgressRef.current) {
+      logger.debug('Fetch already in progress, skipping duplicate request', { user_id: user.id });
+      return;
+    }
+    
+    fetchInProgressRef.current = true;
     
     // Only show loading state on initial load, not background refreshes
     if (!isBackgroundRefresh) {
@@ -47,6 +56,7 @@ const HistoryPage = () => {
         });
         setError('Loading is taking longer than expected. Please refresh the page.');
         setLoading(false);
+        fetchInProgressRef.current = false;
       }, 30000);
 
       try {
@@ -66,10 +76,11 @@ const HistoryPage = () => {
           user_id: user.id 
         });
         
+        // ✅ TIMEOUT: Increase to 30 seconds to match backend timeout
         const response = await Promise.race([
           fetchWithAuth(apiUrl),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('API request timeout after 15 seconds')), 15000)
+            setTimeout(() => reject(new Error('API request timeout after 30 seconds')), 30000)
           )
         ]);
         
@@ -127,6 +138,7 @@ const HistoryPage = () => {
           setLoading(false);
         }
         setIsRefreshing(false);
+        fetchInProgressRef.current = false; // ✅ Release lock
       }
   }, [user, logger]);
 
@@ -149,11 +161,20 @@ const HistoryPage = () => {
         if (!client || typeof client.channel !== 'function') {
           logger.warn('Supabase Realtime not available, falling back to polling');
           // Fallback: Use polling if Realtime is unavailable
+          // ✅ Only poll for recently active tasks (not stuck tasks from days ago)
           fallbackPollInterval = setInterval(() => {
-            const hasActiveTasks = runsRef.current.some(run => 
-              run.status === 'queued' || run.status === 'running' || run.status === 'pending'
-            );
-            if (hasActiveTasks) {
+            const now = Date.now();
+            const hasActiveTasks = runsRef.current.some(run => {
+              if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
+                return false;
+              }
+              // ✅ Skip tasks that have been "running" for more than 1 hour (likely stuck)
+              const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
+              const ageMs = now - startedAt;
+              const maxAgeMs = 60 * 60 * 1000; // 1 hour
+              return ageMs < maxAgeMs;
+            });
+            if (hasActiveTasks && !fetchInProgressRef.current) {
               fetchRuns(true); // Background refresh only for active tasks
             }
           }, 5000); // Poll every 5 seconds as fallback
@@ -253,16 +274,26 @@ const HistoryPage = () => {
                 user_id: user.id
               });
               // Fallback to polling if Realtime fails
-              if (!fallbackPollInterval) {
-                fallbackPollInterval = setInterval(() => {
-                  const hasActiveTasks = runsRef.current.some(run => 
-                    run.status === 'queued' || run.status === 'running' || run.status === 'pending'
-                  );
-                  if (hasActiveTasks) {
-                    fetchRuns(true);
-                  }
-                }, 5000);
+              // ✅ Ensure only one polling interval exists
+              if (fallbackPollInterval) {
+                clearInterval(fallbackPollInterval);
               }
+              fallbackPollInterval = setInterval(() => {
+                const now = Date.now();
+                const hasActiveTasks = runsRef.current.some(run => {
+                  if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
+                    return false;
+                  }
+                  // ✅ Skip tasks that have been "running" for more than 1 hour (likely stuck)
+                  const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
+                  const ageMs = now - startedAt;
+                  const maxAgeMs = 60 * 60 * 1000; // 1 hour
+                  return ageMs < maxAgeMs;
+                });
+                if (hasActiveTasks && !fetchInProgressRef.current) {
+                  fetchRuns(true);
+                }
+              }, 5000);
             }
           });
       } catch (err) {
@@ -274,16 +305,26 @@ const HistoryPage = () => {
         // Fallback: still fetch initial data even if Realtime fails
         fetchRuns(false);
         // Also set up polling as fallback
-        if (!fallbackPollInterval) {
-          fallbackPollInterval = setInterval(() => {
-            const hasActiveTasks = runsRef.current.some(run => 
-              run.status === 'queued' || run.status === 'running' || run.status === 'pending'
-            );
-            if (hasActiveTasks) {
-              fetchRuns(true);
-            }
-          }, 5000);
+        // ✅ Ensure only one polling interval exists
+        if (fallbackPollInterval) {
+          clearInterval(fallbackPollInterval);
         }
+        fallbackPollInterval = setInterval(() => {
+          const now = Date.now();
+          const hasActiveTasks = runsRef.current.some(run => {
+            if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
+              return false;
+            }
+            // ✅ Skip tasks that have been "running" for more than 1 hour (likely stuck)
+            const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
+            const ageMs = now - startedAt;
+            const maxAgeMs = 60 * 60 * 1000; // 1 hour
+            return ageMs < maxAgeMs;
+          });
+          if (hasActiveTasks && !fetchInProgressRef.current) {
+            fetchRuns(true);
+          }
+        }, 5000);
       }
     };
 
