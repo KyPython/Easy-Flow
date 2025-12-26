@@ -11,6 +11,49 @@ import ErrorMessage from '../components/ErrorMessage';
 // Note: Chatbot removed - AI Agent is now available globally via toggle button
 import TaskResultModal from '../components/TaskResultModal/TaskResultModal';
 import { createLogger } from '../utils/logger';
+
+// ✅ ENVIRONMENT-AWARE CONFIGURATION
+// Consumer-friendly in production, dev-friendly in development
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isProduction = process.env.NODE_ENV === 'production';
+
+const HISTORY_CONFIG = {
+  // API Request Timeout
+  // Production: Longer timeout for slower networks (consumer-friendly)
+  // Development: Shorter timeout for faster feedback (dev-friendly)
+  apiTimeout: isProduction ? 45000 : 20000, // 45s prod, 20s dev
+  
+  // Loading Timeout (UI feedback)
+  // Production: More patient for users
+  // Development: Faster feedback for debugging
+  loadingTimeout: isProduction ? 60000 : 30000, // 60s prod, 30s dev
+  
+  // Polling Interval (background refresh)
+  // Production: Less frequent to reduce server load (consumer-friendly)
+  // Development: More frequent for real-time updates (dev-friendly)
+  pollingInterval: isProduction ? 10000 : 5000, // 10s prod, 5s dev
+  
+  // Stuck Task Threshold (when to stop polling)
+  // Production: More patient (tasks might take longer)
+  // Development: Shorter threshold for faster feedback
+  stuckTaskThresholdMs: isProduction ? 2 * 60 * 60 * 1000 : 60 * 60 * 1000, // 2h prod, 1h dev
+  
+  // Error Messages
+  // Production: User-friendly, actionable messages
+  // Development: Technical details for debugging
+  errorMessages: {
+    timeout: isProduction 
+      ? 'The request is taking longer than expected. Please try refreshing the page.'
+      : 'API request timeout after 30 seconds',
+    loadingTimeout: isProduction
+      ? 'Loading is taking longer than expected. Please refresh the page or contact support if the issue persists.'
+      : 'Loading is taking longer than expected. Please refresh the page.',
+    fetchError: isProduction
+      ? 'Unable to load automation history. Please refresh the page or try again later.'
+      : 'Could not load automation history. The backend may be unavailable.'
+  }
+};
+
 const HistoryPage = () => {
   const { user } = useAuth();
   const { theme } = useTheme() || { theme: 'light' };
@@ -47,17 +90,18 @@ const HistoryPage = () => {
     }
     setError('');
 
-      // Set timeout to prevent infinite loading (30 seconds)
+      // ✅ DYNAMIC: Set timeout based on environment (consumer-friendly in prod, dev-friendly in dev)
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       loadingTimeoutRef.current = setTimeout(() => {
-        logger.error('History fetch timeout - taking longer than 30 seconds', {
+        logger.error('History fetch timeout', {
           user_id: user.id,
-          timeout: 30000
+          timeout: HISTORY_CONFIG.loadingTimeout,
+          environment: process.env.NODE_ENV
         });
-        setError('Loading is taking longer than expected. Please refresh the page.');
+        setError(HISTORY_CONFIG.errorMessages.loadingTimeout);
         setLoading(false);
         fetchInProgressRef.current = false;
-      }, 30000);
+      }, HISTORY_CONFIG.loadingTimeout);
 
       try {
         logger.info('Fetching automation runs via backend API', { user_id: user.id });
@@ -76,11 +120,11 @@ const HistoryPage = () => {
           user_id: user.id 
         });
         
-        // ✅ TIMEOUT: Increase to 30 seconds to match backend timeout
+        // ✅ DYNAMIC: Timeout based on environment (consumer-friendly in prod, dev-friendly in dev)
         const response = await Promise.race([
           fetchWithAuth(apiUrl),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('API request timeout after 30 seconds')), 30000)
+            setTimeout(() => reject(new Error(HISTORY_CONFIG.errorMessages.timeout)), HISTORY_CONFIG.apiTimeout)
           )
         ]);
         
@@ -127,7 +171,11 @@ const HistoryPage = () => {
           user_id: user.id,
           stack: err.stack
         });
-        setError(err.message || 'Could not load automation history. The backend may be unavailable.');
+        // ✅ DYNAMIC: User-friendly error in prod, technical error in dev
+        const errorMessage = isProduction 
+          ? HISTORY_CONFIG.errorMessages.fetchError
+          : (err.message || HISTORY_CONFIG.errorMessages.fetchError);
+        setError(errorMessage);
       } finally {
         if (loadingTimeoutRef.current) {
           clearTimeout(loadingTimeoutRef.current);
@@ -161,23 +209,22 @@ const HistoryPage = () => {
         if (!client || typeof client.channel !== 'function') {
           logger.warn('Supabase Realtime not available, falling back to polling');
           // Fallback: Use polling if Realtime is unavailable
-          // ✅ Only poll for recently active tasks (not stuck tasks from days ago)
+          // ✅ DYNAMIC: Polling interval and stuck task threshold based on environment
           fallbackPollInterval = setInterval(() => {
             const now = Date.now();
             const hasActiveTasks = runsRef.current.some(run => {
               if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
                 return false;
               }
-              // ✅ Skip tasks that have been "running" for more than 1 hour (likely stuck)
+              // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
               const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
               const ageMs = now - startedAt;
-              const maxAgeMs = 60 * 60 * 1000; // 1 hour
-              return ageMs < maxAgeMs;
+              return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
             });
             if (hasActiveTasks && !fetchInProgressRef.current) {
               fetchRuns(true); // Background refresh only for active tasks
             }
-          }, 5000); // Poll every 5 seconds as fallback
+          }, HISTORY_CONFIG.pollingInterval); // ✅ DYNAMIC: Environment-aware polling interval
           return;
         }
 
@@ -284,16 +331,15 @@ const HistoryPage = () => {
                   if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
                     return false;
                   }
-                  // ✅ Skip tasks that have been "running" for more than 1 hour (likely stuck)
+                  // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
                   const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
                   const ageMs = now - startedAt;
-                  const maxAgeMs = 60 * 60 * 1000; // 1 hour
-                  return ageMs < maxAgeMs;
+                  return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
                 });
                 if (hasActiveTasks && !fetchInProgressRef.current) {
                   fetchRuns(true);
                 }
-              }, 5000);
+              }, HISTORY_CONFIG.pollingInterval); // ✅ DYNAMIC: Environment-aware polling interval
             }
           });
       } catch (err) {
@@ -315,16 +361,15 @@ const HistoryPage = () => {
             if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
               return false;
             }
-            // ✅ Skip tasks that have been "running" for more than 1 hour (likely stuck)
+            // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
             const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
             const ageMs = now - startedAt;
-            const maxAgeMs = 60 * 60 * 1000; // 1 hour
-            return ageMs < maxAgeMs;
+            return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
           });
           if (hasActiveTasks && !fetchInProgressRef.current) {
             fetchRuns(true);
           }
-        }, 5000);
+        }, HISTORY_CONFIG.pollingInterval); // ✅ DYNAMIC: Environment-aware polling interval
       }
     };
 
