@@ -3,6 +3,17 @@
   "buildCommand": "cd rpa-dashboard && npm run build",
   "installCommand": "cd rpa-dashboard && (npm ci --include=dev --silent --no-audit --no-fund --loglevel=error > /dev/null 2>&1 || npm ci --include=dev --silent --no-audit --no-fund) && npx patch-package --silent 2>/dev/null || true",
   "outputDirectory": "rpa-dashboard/build",
-  "framework": null
+  "framework": null,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.hubspot.com https://*.hs-scripts.com https://*.hscollectedforms.net https://*.hs-analytics.net https://*.hs-banner.com https://*.usemessages.com https://*.googleapis.com https://*.firebase.com https://*.firebaseapp.com https://apis.google.com https://www.google-analytics.com https://www.googletagmanager.com; connect-src 'self' https://*.hubspot.com https://*.hs-scripts.com https://*.hscollectedforms.net https://*.hs-analytics.net https://*.hs-banner.com https://*.usemessages.com https://*.googleapis.com https://*.firebase.com https://*.firebaseapp.com https://easyflow-backend-ad8e.onrender.com https://syxzilyuysdoirnezgii.supabase.co wss://syxzilyuysdoirnezgii.supabase.co https://www.google-analytics.com https://firebaseinstallations.googleapis.com https://identitytoolkit.googleapis.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; frame-src 'self' https://*.hubspot.com;"
+        }
+      ]
+    }
+  ]
 }
 
