@@ -56,14 +56,32 @@ const initializeFirebaseAdmin = () => {
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
     const databaseURL = process.env.FIREBASE_DATABASE_URL;
     
+    // ✅ CRITICAL: Validate project ID matches frontend configuration
+    // Frontend expects: easyflow-77db9 (from firebaseConfig.js)
+    const EXPECTED_PROJECT_ID = 'easyflow-77db9';
+    if (projectId && projectId !== EXPECTED_PROJECT_ID) {
+      logger.error('🔥 CRITICAL: Firebase Project ID mismatch!', {
+        backend_project_id: projectId,
+        frontend_expected_project_id: EXPECTED_PROJECT_ID,
+        error: 'Backend and frontend must use the same Firebase project',
+        fix: `Set FIREBASE_PROJECT_ID=${EXPECTED_PROJECT_ID} in backend .env file`
+      });
+      // Don't fail initialization, but log the critical error
+    } else if (projectId === EXPECTED_PROJECT_ID) {
+      logger.info('✅ Firebase Project ID matches frontend configuration', {
+        project_id: projectId
+      });
+    }
+    
     // Debug output for troubleshooting
     logger.info('🔍 [DEBUG] Firebase environment variables check:', {
       NODE_ENV: process.env.NODE_ENV,
-      FIREBASE_PROJECT_ID: projectId ? 'set' : 'missing',
+      FIREBASE_PROJECT_ID: projectId ? `set (${projectId})` : 'missing',
       FIREBASE_CLIENT_EMAIL: clientEmail ? 'set' : 'missing',
       FIREBASE_PRIVATE_KEY: privateKey ? `set (${privateKey.length} chars)` : 'missing',
       FIREBASE_DATABASE_URL: databaseURL ? 'set' : 'missing',
-      allRequiredSet: !!(projectId && clientEmail && privateKey)
+      allRequiredSet: !!(projectId && clientEmail && privateKey),
+      project_id_matches_frontend: projectId === EXPECTED_PROJECT_ID
     });
 
     // Check if service account key file exists
@@ -637,12 +655,20 @@ class FirebaseNotificationService {
       };
 
     } catch (error) {
+      // ✅ CRITICAL: Enhanced error logging for 401 authentication failures
+      const projectId = firebaseAdminApp?.options?.projectId || process.env.FIREBASE_PROJECT_ID;
+      const EXPECTED_PROJECT_ID = 'easyflow-77db9';
+      const projectMismatch = projectId && projectId !== EXPECTED_PROJECT_ID;
+      
       logger.error('🔥 Error generating custom token:', {
         error: error.message,
         code: error.code,
         userId: supabaseUserId,
         userIdLength: supabaseUserId?.length || 0,
         firebaseInitialized: !!firebaseAdminApp,
+        backend_project_id: projectId,
+        frontend_expected_project_id: EXPECTED_PROJECT_ID,
+        project_id_mismatch: projectMismatch,
         stack: error.stack
       });
       
@@ -651,15 +677,21 @@ class FirebaseNotificationService {
       if (error.code === 'auth/invalid-uid') {
         errorMessage = 'Invalid user ID format for Firebase';
       } else if (error.code === 'app/invalid-credential') {
-        errorMessage = 'Firebase Admin credentials are invalid or expired';
+        errorMessage = projectMismatch 
+          ? `Firebase Admin credentials belong to project '${projectId}' but frontend expects '${EXPECTED_PROJECT_ID}'. Update FIREBASE_PROJECT_ID in backend .env to match frontend configuration.`
+          : 'Firebase Admin credentials are invalid or expired. Verify FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY belong to the correct Firebase project.';
       } else if (error.code === 'app/invalid-argument') {
         errorMessage = 'Invalid argument provided to Firebase Admin';
+      } else if (projectMismatch) {
+        // Add project mismatch warning even if error code doesn't indicate it
+        errorMessage = `Project ID mismatch: Backend uses '${projectId}' but frontend expects '${EXPECTED_PROJECT_ID}'. This will cause 401 authentication failures.`;
       }
       
       return {
         success: false,
         error: errorMessage,
-        code: error.code || 'TOKEN_GENERATION_FAILED'
+        code: error.code || 'TOKEN_GENERATION_FAILED',
+        projectMismatch: projectMismatch || undefined
       };
     }
   }
