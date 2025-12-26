@@ -64,12 +64,17 @@ if docker info > /dev/null 2>&1; then
         echo -e "${YELLOW}⚠ Docker automation worker not running${NC}"
     fi
 
-    # Stop Kafka and Zookeeper using docker compose
-    echo -e "${YELLOW}Stopping Kafka and Zookeeper...${NC}"
-    if docker compose stop kafka zookeeper 2>/dev/null; then
-        echo -e "${GREEN}✓ Kafka and Zookeeper stopped${NC}"
+    # Stop and completely remove Kafka and Zookeeper (prevents stale Zookeeper nodes)
+    echo -e "${YELLOW}Stopping and cleaning up Kafka and Zookeeper...${NC}"
+    # Stop first
+    docker compose stop kafka zookeeper 2>/dev/null || true
+    # Remove containers completely (this clears Zookeeper state and prevents NodeExistsException)
+    if docker compose rm -f kafka zookeeper 2>/dev/null; then
+        echo -e "${GREEN}✓ Kafka and Zookeeper stopped and cleaned up${NC}"
     else
-        echo -e "${YELLOW}⚠ Could not stop Kafka/Zookeeper via docker compose${NC}"
+        # Fallback: try to remove containers directly by name
+        docker rm -f easy-flow-kafka-1 easy-flow-zookeeper-1 2>/dev/null || true
+        echo -e "${YELLOW}⚠ Kafka/Zookeeper cleanup attempted${NC}"
     fi
 
     # Stop Observability Stack

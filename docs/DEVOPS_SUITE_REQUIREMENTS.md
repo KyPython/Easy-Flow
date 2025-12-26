@@ -132,6 +132,44 @@ BACKEND_PORT=${PORT:-3030}
 - Use `set -e` for critical scripts (start scripts)
 - Add retry logic for transient failures
 - Provide clear error messages with actionable guidance
+- **Self-healing:** Automatically detect and fix common issues (e.g., stale Zookeeper nodes, container conflicts)
+
+### 6.1. Container State Management (Kafka/Zookeeper Example)
+
+**Problem:** Containers can get into bad states (stale Zookeeper nodes, NodeExistsException, container conflicts)
+
+**Solution Required:**
+- Detect unhealthy containers (not just "running" but actually responding)
+- Automatically clean up and restart on failure
+- Check logs for specific error patterns (e.g., NodeExistsException)
+- Remove containers completely on stop (not just stop, but `rm -f`) to clear state
+- Retry with cleanup on health check failures
+
+**Example Pattern:**
+```bash
+# Auto-generated container health check
+check_kafka_health() {
+    local container=$(docker compose ps kafka --format json | jq -r '.[0].Name')
+    [ -z "$container" ] && return 1
+    docker exec "$container" kafka-broker-api-versions --bootstrap-server kafka:29092 >/dev/null 2>&1
+}
+
+# Auto-generated cleanup and restart
+cleanup_and_restart_kafka() {
+    docker compose stop kafka zookeeper 2>/dev/null || true
+    docker compose rm -f kafka zookeeper 2>/dev/null || true
+    sleep 2
+    docker compose up -d kafka zookeeper
+}
+
+# Auto-generated self-healing logic
+if ! check_kafka_health; then
+    # Check logs for specific errors
+    if docker logs "$container" 2>&1 | grep -q "NodeExistsException"; then
+        cleanup_and_restart_kafka
+    fi
+fi
+```
 
 **Example Pattern:**
 ```bash
