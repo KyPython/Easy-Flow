@@ -91,8 +91,8 @@ module.exports = function override(config, env) {
     new webpack.NormalModuleReplacementPlugin(
       /instrumentationNodeModuleFile\.js$/,
       (resource) => {
-        // Return the empty module path for all matches
-        return emptyModulePath;
+        // CRITICAL: Modify resource.request, don't return a value
+        resource.request = emptyModulePath;
       }
     ),
     // Ignore it entirely - this should prevent webpack from even trying to parse it
