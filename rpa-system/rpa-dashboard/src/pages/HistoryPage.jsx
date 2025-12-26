@@ -4,8 +4,9 @@ import { useI18n } from '../i18n';
 import { useTheme } from '../utils/ThemeContext';
 import TaskList from '../components/TaskList/TaskList';
 import { useAuth } from '../utils/AuthContext';
-import { supabase, initSupabase } from '../utils/supabaseClient';
+import { supabase, initSupabase, isSupabaseConfigured } from '../utils/supabaseClient';
 import { fetchWithAuth } from '../utils/devNetLogger';
+import { ApiErrorHandler } from '../utils/errorHandler';
 import styles from './HistoryPage.module.css';
 import ErrorMessage from '../components/ErrorMessage';
 // Note: Chatbot removed - AI Agent is now available globally via toggle button
@@ -71,6 +72,7 @@ const HistoryPage = () => {
   const runsRef = useRef([]); // Store runs in ref to avoid dependency issues
   const isInitialLoad = useRef(true); // Track if this is the first load
   const fetchInProgressRef = useRef(false); // Prevent concurrent requests
+  const errorHandlerRef = useRef(new ApiErrorHandler()); // Circuit breaker for API calls
 
   // ✅ Move fetchRuns to useCallback so it can be called from anywhere
   const fetchRuns = useCallback(async (isBackgroundRefresh = false) => {
@@ -228,30 +230,60 @@ const HistoryPage = () => {
 
     const setupRealtime = async () => {
       try {
+        // ✅ Check if Supabase is configured before attempting real-time
+        if (!isSupabaseConfigured()) {
+          const configMsg = 'Supabase not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY.';
+          if (isProduction) {
+            logger.error(configMsg, { user_id: user.id });
+            setError('Real-time updates unavailable. Please configure Supabase environment variables.');
+          } else {
+            logger.warn(configMsg, { user_id: user.id });
+          }
+          // Still fetch initial data, but don't set up polling if backend is unreachable
+          await fetchRuns(false);
+          return; // Don't attempt real-time or polling if Supabase isn't configured
+        }
+
         // Initial load
         await fetchRuns(false);
 
         // Initialize Supabase client for Realtime
         client = await initSupabase();
         if (!client || typeof client.channel !== 'function') {
-          logger.warn('Supabase Realtime not available, falling back to polling');
+          logger.warn('Supabase Realtime not available, falling back to polling', { user_id: user.id });
           // Fallback: Use polling if Realtime is unavailable
-          // ✅ DYNAMIC: Polling interval and stuck task threshold based on environment
-          fallbackPollInterval = setInterval(() => {
-            const now = Date.now();
-            const hasActiveTasks = runsRef.current.some(run => {
-              if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
-                return false;
+          // ✅ SMART POLLING: Only poll if backend is reachable (check circuit breaker)
+          const setupPolling = () => {
+            fallbackPollInterval = setInterval(() => {
+              // ✅ Check circuit breaker before polling - don't poll if backend is unreachable
+              const circuitBreaker = errorHandlerRef.current.getCircuitBreaker('/api/runs');
+              const breakerStatus = circuitBreaker.getStatus();
+              
+              if (breakerStatus.state === 'OPEN') {
+                // Circuit breaker is open - backend is unreachable, don't poll
+                logger.debug('Skipping poll - circuit breaker is OPEN (backend unreachable)', {
+                  user_id: user.id,
+                  nextAttempt: breakerStatus.nextAttempt ? new Date(breakerStatus.nextAttempt).toISOString() : null
+                });
+                return;
               }
-              // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
-              const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
-              const ageMs = now - startedAt;
-              return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
-            });
-            if (hasActiveTasks && !fetchInProgressRef.current) {
-              fetchRuns(true); // Background refresh only for active tasks
-            }
-          }, HISTORY_CONFIG.pollingInterval); // ✅ DYNAMIC: Environment-aware polling interval
+
+              const now = Date.now();
+              const hasActiveTasks = runsRef.current.some(run => {
+                if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
+                  return false;
+                }
+                // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
+                const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
+                const ageMs = now - startedAt;
+                return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
+              });
+              if (hasActiveTasks && !fetchInProgressRef.current) {
+                fetchRuns(true); // Background refresh only for active tasks
+              }
+            }, HISTORY_CONFIG.pollingInterval);
+          };
+          setupPolling();
           return;
         }
 
@@ -362,21 +394,38 @@ const HistoryPage = () => {
               if (fallbackPollInterval) {
                 clearInterval(fallbackPollInterval);
               }
-              fallbackPollInterval = setInterval(() => {
-                const now = Date.now();
-                const hasActiveTasks = runsRef.current.some(run => {
-                  if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
-                    return false;
+              // ✅ SMART POLLING: Only poll if backend is reachable (check circuit breaker)
+              const setupPolling = () => {
+                fallbackPollInterval = setInterval(() => {
+                  // ✅ Check circuit breaker before polling - don't poll if backend is unreachable
+                  const circuitBreaker = errorHandlerRef.current.getCircuitBreaker('/api/runs');
+                  const breakerStatus = circuitBreaker.getStatus();
+                  
+                  if (breakerStatus.state === 'OPEN') {
+                    // Circuit breaker is open - backend is unreachable, don't poll
+                    logger.debug('Skipping poll - circuit breaker is OPEN (backend unreachable)', {
+                      user_id: user.id,
+                      nextAttempt: breakerStatus.nextAttempt ? new Date(breakerStatus.nextAttempt).toISOString() : null
+                    });
+                    return;
                   }
-                  // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
-                  const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
-                  const ageMs = now - startedAt;
-                  return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
-                });
-                if (hasActiveTasks && !fetchInProgressRef.current) {
-                  fetchRuns(true);
-                }
-              }, HISTORY_CONFIG.pollingInterval); // ✅ DYNAMIC: Environment-aware polling interval
+
+                  const now = Date.now();
+                  const hasActiveTasks = runsRef.current.some(run => {
+                    if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
+                      return false;
+                    }
+                    // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
+                    const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
+                    const ageMs = now - startedAt;
+                    return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
+                  });
+                  if (hasActiveTasks && !fetchInProgressRef.current) {
+                    fetchRuns(true);
+                  }
+                }, HISTORY_CONFIG.pollingInterval);
+              };
+              setupPolling();
             }
           });
       } catch (err) {
@@ -391,26 +440,50 @@ const HistoryPage = () => {
         });
         // Fallback: still fetch initial data even if Realtime fails
         fetchRuns(false);
-        // Also set up polling as fallback
-        // ✅ Ensure only one polling interval exists
-        if (fallbackPollInterval) {
-          clearInterval(fallbackPollInterval);
-        }
-        fallbackPollInterval = setInterval(() => {
-          const now = Date.now();
-          const hasActiveTasks = runsRef.current.some(run => {
-            if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
-              return false;
-            }
-            // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
-            const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
-            const ageMs = now - startedAt;
-            return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
-          });
-          if (hasActiveTasks && !fetchInProgressRef.current) {
-            fetchRuns(true);
+        // Also set up polling as fallback (only if Supabase is configured)
+        if (isSupabaseConfigured()) {
+          // ✅ Ensure only one polling interval exists
+          if (fallbackPollInterval) {
+            clearInterval(fallbackPollInterval);
           }
-        }, HISTORY_CONFIG.pollingInterval); // ✅ DYNAMIC: Environment-aware polling interval
+          // ✅ SMART POLLING: Only poll if backend is reachable (check circuit breaker)
+          const setupPolling = () => {
+            fallbackPollInterval = setInterval(() => {
+              // ✅ Check circuit breaker before polling - don't poll if backend is unreachable
+              const circuitBreaker = errorHandlerRef.current.getCircuitBreaker('/api/runs');
+              const breakerStatus = circuitBreaker.getStatus();
+              
+              if (breakerStatus.state === 'OPEN') {
+                // Circuit breaker is open - backend is unreachable, don't poll
+                logger.debug('Skipping poll - circuit breaker is OPEN (backend unreachable)', {
+                  user_id: user.id,
+                  nextAttempt: breakerStatus.nextAttempt ? new Date(breakerStatus.nextAttempt).toISOString() : null
+                });
+                return;
+              }
+
+              const now = Date.now();
+              const hasActiveTasks = runsRef.current.some(run => {
+                if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
+                  return false;
+                }
+                // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
+                const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
+                const ageMs = now - startedAt;
+                return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
+              });
+              if (hasActiveTasks && !fetchInProgressRef.current) {
+                fetchRuns(true);
+              }
+            }, HISTORY_CONFIG.pollingInterval);
+          };
+          setupPolling();
+        } else {
+          // Supabase not configured - don't poll, just show error
+          if (isProduction) {
+            setError('Real-time updates unavailable. Please configure Supabase environment variables.');
+          }
+        }
       }
     };
 
