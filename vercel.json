@@ -1,7 +1,7 @@
 {
   "version": 2,
   "buildCommand": "cd rpa-system/rpa-dashboard && npm run build",
-  "installCommand": "cd rpa-system/rpa-dashboard && npm ci --include=dev --silent --no-audit --no-fund --loglevel=error > /dev/null 2>&1 || cd rpa-system/rpa-dashboard && npm ci --include=dev --silent --no-audit --no-fund",
+  "installCommand": "cd rpa-system/rpa-dashboard && (npm ci --include=dev --silent --no-audit --no-fund --loglevel=error > /dev/null 2>&1 || npm ci --include=dev --silent --no-audit --no-fund)",
   "outputDirectory": "rpa-system/rpa-dashboard/build",
   "framework": null
 }
