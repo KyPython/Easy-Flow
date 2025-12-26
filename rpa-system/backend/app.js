@@ -5666,6 +5666,43 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/plans/current - Get current user's plan (simplified endpoint for frontend)
+// This is a convenience endpoint that returns plan data in a simpler format
+// than /api/user/plan (which includes full usage stats and ETag caching)
+app.get('/api/plans/current', authMiddleware, async (req, res) => {
+  const { resolveUserPlan } = require('./services/userPlanResolver');
+  
+  try {
+    const userId = req.user.id;
+    
+    // Resolve plan with fallback handling
+    const { planData } = await resolveUserPlan(userId, {
+      normalizeMissingPlan: false
+    });
+    
+    // Return simplified format expected by frontend
+    // Format: { plan: {...}, limits: {...}, features: [...] }
+    res.json({
+      plan: planData.plan,
+      limits: planData.limits,
+      features: planData.features || [],
+      usage: planData.usage // Include usage for completeness
+    });
+    
+  } catch (error) {
+    logger.error('[GET /api/plans/current] Error', error, { 
+      userId: req.user?.id,
+      error_code: error.code || 'UNKNOWN',
+      error_message: error.message
+    });
+    
+    res.status(500).json({ 
+      error: 'Failed to fetch current plan',
+      details: process.env.NODE_ENV === 'production' ? undefined : error.message
+    });
+  }
+});
+
 // Admin middleware for protected endpoints
 const adminAuthMiddleware = (req, res, next) => {
   const adminSecret = req.headers['x-admin-secret'];

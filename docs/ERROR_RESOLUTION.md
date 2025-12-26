@@ -1,29 +1,12 @@
 # Error Resolution Guide
 
-This document addresses common errors and their solutions.
+This document addresses common errors and their solutions, ordered by priority.
 
-## 1. ⛔ 403 Forbidden - Notification Creation
+## 🔴 Priority 1: Firebase Authentication Failure (401) - ROOT CAUSE
 
-**Error:** `POST /api/notifications/create 403 (Forbidden) - "This feature requires a premium plan"`
+**Error:** `POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?... 401 (Unauthorized)`
 
-**What's happening:** The `/api/notifications/create` endpoint requires the `priority_support` feature, which is only available on premium plans (Professional/Enterprise).
-
-**Solution:** 
-- ✅ **Fixed:** The notification service now checks user plan before calling the backend endpoint
-- If you're on Starter plan, notifications will silently fail (no error shown to user)
-- To enable notifications, upgrade to Professional or Enterprise plan
-
-**Status:** ✅ Fixed in `notificationService.js` - plan check added before backend call
-
----
-
-## 2. ⚠️ Firebase Authentication Errors (401/400)
-
-**Errors:**
-- `signInWithCustomToken ... 401 (Unauthorized)`
-- `Create Installation request failed ... 400 INVALID_ARGUMENT`
-
-**What's happening:** The frontend is failing to authenticate with Firebase using a custom token from your backend, and subsequently, push notification registration fails.
+**What's happening:** The application starts, and the notificationService attempts to sign into Firebase using a custom token from your backend. This fails with a 401 Unauthorized error. This is the **primary blocker** and root cause of all notification-related errors.
 
 **Root Cause:**
 - **Service Account Mismatch:** The Firebase Admin SDK in your backend (used to generate custom tokens) is likely configured with credentials for a different Firebase project than the one your frontend is trying to connect to.
@@ -41,11 +24,48 @@ This document addresses common errors and their solutions.
    - **Under "API restrictions"**: Ensure **"Firebase Installations API"** and **"Identity Toolkit API"** are enabled.
 3. **Confirm Frontend Project ID:** Double-check that `projectId` in `/Users/ky/Easy-Flow/rpa-system/rpa-dashboard/src/utils/firebaseConfig.js` is `easyflow-77db9`.
 
-**Status:** ⚠️ Manual configuration required. See `docs/FIREBASE_CONFIGURATION.md` for detailed steps.
+**Cascade of Failures:**
+1. Firebase Auth Fails (401) → Can't get FCM token
+2. FCM Token Missing → Push notifications can't be enabled (400 Bad Request)
+3. Plan Check Fails (404) → Now fixed with `/api/plans/current` endpoint
+4. Feature Blocked (403) → Working as designed (Starter plan doesn't have priority_support)
+
+**Status:** ⚠️ **Manual configuration required.** See `docs/FIREBASE_CONFIGURATION.md` for detailed steps.
 
 ---
 
-## 3. 🐢 Performance: Slow API Responses (`/api/runs`) - NEEDS VERIFICATION
+## ✅ Priority 2: Missing API Endpoint (404) - FIXED
+
+**Error:** `GET http://localhost:3030/api/plans/current 404 (Not Found)`
+
+**What's happening:** The frontend notification service is trying to check the user's plan before creating notifications, but the `/api/plans/current` endpoint didn't exist.
+
+**Solution:** 
+- ✅ **Fixed:** Added `/api/plans/current` endpoint to backend (`app.js` line 5669)
+- This endpoint returns the current user's plan, limits, and features in a simplified format
+- The endpoint requires authentication and uses the same `resolveUserPlan` service as `/api/user/plan`
+- Returns: `{ plan: {...}, limits: {...}, features: [...], usage: {...} }`
+
+**Status:** ✅ Fixed - endpoint added
+
+---
+
+## ✅ Priority 3: Feature Gating (403) - Working as Designed
+
+**Error:** `POST http://localhost:3030/api/notifications/create 403 (Forbidden) - "This feature requires a premium plan"`
+
+**What's happening:** The `/api/notifications/create` endpoint requires the `priority_support` feature, which is only available on premium plans (Professional/Enterprise).
+
+**Solution:** 
+- ✅ **Fixed:** The notification service now checks user plan before calling the backend endpoint
+- If you're on Starter plan, notifications will silently fail (no error shown to user)
+- To enable notifications, upgrade to Professional or Enterprise plan
+
+**Status:** ✅ Fixed in `notificationService.js` - plan check added before backend call
+
+---
+
+## ⚠️ Priority 4: Slow API Responses (`/api/runs`) - NEEDS VERIFICATION
 
 **Error:** `[HistoryPage] Slow API response detected {duration_ms: 20341, ...}`
 
@@ -90,7 +110,7 @@ This document addresses common errors and their solutions.
 
 ---
 
-## 4. 🔌 Connectivity: Realtime Disconnects - Expected Behavior
+## ✅ Priority 5: Realtime Disconnects - Expected Behavior
 
 **Error:** `[realtime] Channel temporarily disconnected ... Channel status: CLOSED`
 
@@ -106,7 +126,7 @@ This document addresses common errors and their solutions.
 
 ---
 
-## 5. 🚫 Minor: Google Analytics Blocked - Expected Behavior
+## ✅ Priority 6: Google Analytics Blocked - Expected Behavior
 
 **Error:** `[net] POST failed {url: 'https://www.google-analytics.com/g/collect...'} status: 0`
 
@@ -120,7 +140,7 @@ This document addresses common errors and their solutions.
 
 ---
 
-## 6. 🔐 401 Unauthorized Errors - Authentication Issues
+## ✅ Priority 7: 401 Unauthorized Errors - Authentication Issues
 
 **Error:** `GET http://localhost:3030/api/runs 401 (Unauthorized)`
 
@@ -139,7 +159,7 @@ This document addresses common errors and their solutions.
 
 ---
 
-## 7. 🌐 Network Errors: ERR_NETWORK_IO_SUSPENDED
+## ✅ Priority 8: Network Errors: ERR_NETWORK_IO_SUSPENDED
 
 **Error:** `GET http://localhost:3030/api/runs net::ERR_NETWORK_IO_SUSPENDED`
 
@@ -159,13 +179,25 @@ This document addresses common errors and their solutions.
 
 ## Summary
 
-| Issue | Status | Action Required |
-|-------|--------|-----------------|
-| 403 Notification | ✅ Fixed | None |
-| Firebase Auth | ⚠️ Manual Config | See `docs/FIREBASE_CONFIGURATION.md` |
-| Slow API (20s+) | ⚠️ Verify Indexes | Run migration in Supabase SQL Editor |
-| Realtime Disconnects | ✅ Expected | None (logging improved) |
-| Google Analytics | ✅ Expected | None |
-| 401 Unauthorized | ✅ Logging Improved | Check auth flow if persistent |
-| Network Suspended | ✅ Fixed | None |
+| Priority | Issue | Status | Action Required |
+|----------|-------|--------|-----------------|
+| 🔴 **High** | Firebase Auth (401/400) | ⚠️ **ROOT CAUSE** | **Manual Config Required** - See `docs/FIREBASE_CONFIGURATION.md` |
+| ✅ | 404 `/api/plans/current` | ✅ Fixed | None - endpoint added |
+| ✅ | 403 Notification | ✅ Fixed | None |
+| ⚠️ | Slow API (20s+) | ⚠️ Verify Indexes | Run migration in Supabase SQL Editor |
+| ✅ | Realtime Disconnects | ✅ Expected | None (logging improved) |
+| ✅ | Google Analytics | ✅ Expected | None |
+| ✅ | 401 Unauthorized | ✅ Logging Improved | Check auth flow if persistent |
+| ✅ | Network Suspended | ✅ Fixed | None |
+
+### 🔴 Critical: Firebase Auth Failure (401) - Root Cause
+
+The **Firebase authentication failure (401 Unauthorized)** is the root cause of all notification-related errors:
+
+1. **Firebase Auth Fails (401)** → Can't get FCM token
+2. **FCM Token Missing** → Push notifications can't be enabled (400 Bad Request)
+3. **Plan Check Fails (404)** → ✅ Now fixed with `/api/plans/current` endpoint
+4. **Feature Blocked (403)** → Working as designed (Starter plan doesn't have priority_support)
+
+**Priority:** Fix Firebase configuration first - this will resolve the cascade of notification errors.
 
