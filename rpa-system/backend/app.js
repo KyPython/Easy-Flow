@@ -224,21 +224,38 @@ app.use(cors(corsOptions));
 // Ensure preflight requests are handled consistently
 app.options('*', cors(corsOptions));
 // Explicit OPTIONS handler for all routes to ensure CORS preflight works
+// ✅ FIX: Use same logic as main CORS middleware to support Vercel preview URLs
 app.options('/*', (req, res) => {
-  // ✅ SECURITY: Restrict CORS origin instead of using wildcard '*'
-  // Only allow specific origins or the requesting origin
-  // ✅ SECURITY: Restrict CORS to specific origins only - never use wildcard '*'
-  const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) : ['http://localhost:3000'];
   const origin = req.headers.origin;
-  // Only allow requests from whitelisted origins
-  const corsOrigin = (origin && allowedOrigins.includes(origin)) ? origin : (allowedOrigins.length > 0 ? allowedOrigins[0] : null);
+  
+  // Use the same ALLOWED_ORIGINS and ALLOWED_SUFFIXES logic as main CORS middleware
+  let corsOrigin = null;
+  
+  if (!origin) {
+    // Allow requests without origin (webhooks, server-to-server)
+    corsOrigin = '*';
+  } else if (ALLOWED_ORIGINS.includes(origin)) {
+    // Exact match in allowed origins
+    corsOrigin = origin;
+  } else if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) {
+    // Suffix-based match (e.g., *.vercel.app for preview deployments)
+    corsOrigin = origin;
+  } else if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== 'production') {
+    // Dev fallback: permissive when not explicitly configured
+    corsOrigin = origin;
+  }
+  
   if (corsOrigin) {
     res.header('Access-Control-Allow-Origin', corsOrigin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.sendStatus(204);
+  } else {
+    // Origin not allowed
+    rootLogger.warn('🚫 CORS preflight blocked origin (OPTIONS handler):', origin);
+    res.status(403).json({ error: 'CORS: origin not allowed' });
   }
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(204);
 });
 
 // Add after imports, before route definitions (around line 100)
