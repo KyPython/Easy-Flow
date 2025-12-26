@@ -9,6 +9,8 @@ git checkout dev
 **Auto-installs:** All npm and Python dependencies if missing  
 **Opens:** http://localhost:3000
 
+**⚠️ First Time?** Configure environment variables first: See [LOCAL_SETUP.md](LOCAL_SETUP.md)
+
 ## While Working
 - Make changes → Test in browser
 - Watch logs: `npm run logs`
