@@ -9,39 +9,93 @@ importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-comp
 // ✅ SECURITY: Firebase config is loaded from firebase-config.js (generated at build time from environment variables)
 // Note: Firebase API keys are PUBLIC keys (not secrets) but should still be managed via environment variables
 // The firebase-config.js file is generated during the build process using firebase-config.js.template
-let firebaseConfig;
+let firebaseConfig = null;
+let configError = null;
+
 try {
   // Try to load config from generated file (created at build time)
   importScripts('firebase-config.js');
   firebaseConfig = typeof FIREBASE_CONFIG !== 'undefined' ? FIREBASE_CONFIG : null;
 } catch (e) {
-  console.warn('[firebase-messaging-sw.js] Could not load firebase-config.js, using fallback');
-  // Fallback: Use environment variables if available (for development)
+  configError = e;
+  console.warn('[firebase-messaging-sw.js] Could not load firebase-config.js:', e.message);
+  // Fallback: Try to construct from environment (for development)
   // In production, firebase-config.js should always be generated at build time
-  // ✅ SECURITY: Fallback values removed - must use environment variables or generated config file
   firebaseConfig = {
-    apiKey: self.FIREBASE_API_KEY || '',
-    authDomain: self.FIREBASE_AUTH_DOMAIN || '',
-    databaseURL: self.FIREBASE_DATABASE_URL || '',
-    projectId: self.FIREBASE_PROJECT_ID || '',
-    storageBucket: self.FIREBASE_STORAGE_BUCKET || '',
-    messagingSenderId: self.FIREBASE_MESSAGING_SENDER_ID || '',
-    appId: self.FIREBASE_APP_ID || ''
+    apiKey: '',
+    authDomain: '',
+    databaseURL: '',
+    projectId: '',
+    storageBucket: '',
+    messagingSenderId: '',
+    appId: ''
   };
+}
+
+// ✅ CRITICAL: Validate config before initializing Firebase
+// This prevents "Missing App configuration value: projectId" errors
+const hasProjectId = firebaseConfig && firebaseConfig.projectId && firebaseConfig.projectId.trim();
+const hasApiKey = firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey.trim();
+
+if (!hasProjectId || !hasApiKey) {
+  const errorMessage = `🔥 FATAL: Firebase service worker configuration is missing!\n\n` +
+    `Missing: ${!hasProjectId ? 'projectId' : ''}${!hasProjectId && !hasApiKey ? ' and ' : ''}${!hasApiKey ? 'apiKey' : ''}\n\n` +
+    `Impact: Service worker cannot initialize, causing uncaught Firebase errors.\n\n` +
+    `Fix: Ensure firebase-config.js is generated at build time with all required values.\n` +
+    `For local development, check that .env.local contains REACT_APP_FIREBASE_PROJECT_ID and REACT_APP_FIREBASE_API_KEY.\n\n` +
+    `Current config: ${JSON.stringify({ projectId: firebaseConfig?.projectId || '(missing)', apiKey: firebaseConfig?.apiKey ? '(present)' : '(missing)' }, null, 2)}`;
   
-  // Validate that config is not empty
-  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-    console.error('[firebase-messaging-sw.js] Firebase config is missing required values. Please ensure firebase-config.js is generated at build time or environment variables are set.');
+  console.error('[firebase-messaging-sw.js]', errorMessage);
+  
+  // ✅ DEVELOPMENT: Throw error to prevent silent failure
+  // In production, we'll skip initialization but log the error
+  const isDevelopment = self.location && (
+    self.location.hostname === 'localhost' || 
+    self.location.hostname === '127.0.0.1' ||
+    self.location.hostname.includes('localhost')
+  );
+  
+  if (isDevelopment) {
+    // Create a proper error object
+    const fatalError = new Error(errorMessage);
+    fatalError.name = 'FirebaseConfigurationError';
+    throw fatalError; // This will be caught by the unhandledrejection handler
+  }
+  
+  // Production: Don't initialize, but don't throw (to avoid breaking the service worker)
+  console.error('[firebase-messaging-sw.js] Skipping Firebase initialization due to missing configuration');
+} else {
+  // Config is valid, initialize Firebase
+  try {
+    firebase.initializeApp(firebaseConfig);
+    console.log('[firebase-messaging-sw.js] Firebase initialized successfully');
+  } catch (initError) {
+    console.error('[firebase-messaging-sw.js] Firebase initialization failed:', initError);
+    // Don't throw in production to avoid breaking the service worker
+    if (self.location && (self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1')) {
+      throw initError; // Fail loudly in development
+    }
   }
 }
 
-firebase.initializeApp(firebaseConfig);
-
 // Retrieve an instance of Firebase Messaging so that it can handle background messages
-const messaging = firebase.messaging();
+// Only initialize if Firebase was successfully initialized
+let messaging = null;
+try {
+  if (firebase.apps && firebase.apps.length > 0) {
+    messaging = firebase.messaging();
+    console.log('[firebase-messaging-sw.js] Firebase Messaging initialized');
+  } else {
+    console.warn('[firebase-messaging-sw.js] Firebase not initialized, messaging unavailable');
+  }
+} catch (e) {
+  console.error('[firebase-messaging-sw.js] Failed to initialize Firebase Messaging:', e);
+  messaging = null;
+}
 
-// Handle background messages
-messaging.onBackgroundMessage((payload) => {
+// Handle background messages (only if messaging is available)
+if (messaging) {
+  messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message:', payload);
 
   const { notification, data } = payload;
@@ -72,9 +126,12 @@ messaging.onBackgroundMessage((payload) => {
     image: data?.image // Optional large image
   };
 
-  // Show the notification
-  self.registration.showNotification(notificationTitle, notificationOptions);
-});
+    // Show the notification
+    self.registration.showNotification(notificationTitle, notificationOptions);
+  });
+} else {
+  console.warn('[firebase-messaging-sw.js] Firebase Messaging not available, background message handler not registered');
+}
 
 // Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
@@ -239,7 +296,32 @@ self.addEventListener('error', (event) => {
 });
 
 self.addEventListener('unhandledrejection', (event) => {
-  console.error('[firebase-messaging-sw.js] Unhandled promise rejection:', event.reason);
+  const error = event.reason;
+  const isConfigError = error && (error.name === 'FirebaseConfigurationError' || error.message?.includes('FATAL'));
+  
+  if (isConfigError) {
+    // ✅ CRITICAL: Log configuration errors prominently
+    console.error('\n\n🔥🔥🔥 FIREBASE SERVICE WORKER CONFIGURATION ERROR 🔥🔥🔥\n');
+    console.error(error.message || error);
+    console.error('\nThis error prevents the service worker from initializing Firebase.');
+    console.error('Fix: Ensure firebase-config.js is generated at build time with all required Firebase values.');
+    console.error('For local development, check rpa-system/rpa-dashboard/.env.local\n');
+    
+    // In development, we want this to be visible, so don't prevent default
+    // This will show up in the browser console as an unhandled rejection
+    if (self.location && (self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1')) {
+      // Development: Let the error propagate so it's visible
+      return;
+    }
+  } else {
+    console.error('[firebase-messaging-sw.js] Unhandled promise rejection:', event.reason);
+  }
+  
+  // Prevent the default unhandled rejection behavior for non-config errors
+  // (to avoid breaking the service worker for other errors)
+  if (!isConfigError) {
+    event.preventDefault();
+  }
 });
 
 console.log('[firebase-messaging-sw.js] Firebase messaging service worker loaded');
