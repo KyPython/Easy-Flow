@@ -178,11 +178,41 @@ function Shell() {
         try {
           const mod = await import('./utils/firebaseConfig');
           if (mod && mod.initFirebase) {
-            // Fire-and-forget initialization — do not block UI
-            mod.initFirebase().catch(e => logger.warn('Firebase init failed', { error: e?.message || e, stack: e?.stack }));
+            // ✅ CRITICAL: Catch configuration errors and log them prominently
+            // In development, firebaseConfig.js will throw fatal errors that we should surface
+            mod.initFirebase().catch(e => {
+              if (e?.name === 'FirebaseConfigurationError' || e?.message?.includes('FATAL')) {
+                // Configuration error - log prominently and prevent silent fallback
+                logger.error('🔥 Firebase configuration error - this will cause polling fallback!', {
+                  error: e?.message || e,
+                  details: e?.details,
+                  stack: e?.stack
+                });
+                console.error('🔥 Firebase configuration error:', e.message);
+                if (e.details) {
+                  console.error('Details:', e.details);
+                }
+              } else {
+                // Other initialization errors (network, etc.) - log as warning
+                logger.warn('Firebase init failed', { error: e?.message || e, stack: e?.stack });
+              }
+            });
           }
         } catch (e) {
-          logger.warn('Firebase dynamic import failed', { error: e?.message || e, stack: e?.stack });
+          // Module import failed - could be configuration error thrown during module evaluation
+          if (e?.name === 'FirebaseConfigurationError' || e?.message?.includes('FATAL')) {
+            logger.error('🔥 Firebase configuration error during module import!', {
+              error: e?.message || e,
+              details: e?.details,
+              stack: e?.stack
+            });
+            console.error('🔥 Firebase configuration error:', e.message);
+            if (e.details) {
+              console.error('Details:', e.details);
+            }
+          } else {
+            logger.warn('Firebase dynamic import failed', { error: e?.message || e, stack: e?.stack });
+          }
         }
       })();
       // Analytics gating: enable GTM/gtag only for paying users.
