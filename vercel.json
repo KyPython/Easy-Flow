@@ -1,18 +1,90 @@
 {
   "version": 2,
-  "buildCommand": "cd rpa-dashboard && npm run build",
-  "installCommand": "node vercel-scripts/silent-install.js",
-  "outputDirectory": "rpa-dashboard/build",
+  "name": "easyflow-dashboard",
   "framework": null,
+  "installCommand": "node vercel-scripts/silent-install.js",
+  "buildCommand": "node -e \"if (process.env.VERCEL_ENV === 'production' && process.env.VERCEL_GIT_COMMIT_REF === 'dev') { console.error('❌ ERROR: Production deployments from dev branch are BLOCKED. Change Vercel Production Branch to main in dashboard.'); process.exit(1); }\" && cd rpa-dashboard && DISABLE_ESLINT_PLUGIN=true npm run build",
+  "outputDirectory": "rpa-dashboard/build",
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
         {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.hubspot.com https://*.hs-scripts.com https://*.hscollectedforms.net https://*.hs-analytics.net https://*.hs-banner.com https://*.usemessages.com https://*.googleapis.com https://*.firebase.com https://*.firebaseapp.com https://apis.google.com https://www.google-analytics.com https://www.googletagmanager.com; connect-src 'self' https://*.hubspot.com https://*.hs-scripts.com https://*.hscollectedforms.net https://*.hs-analytics.net https://*.hs-banner.com https://*.usemessages.com https://*.googleapis.com https://*.firebase.com https://*.firebaseapp.com https://easyflow-backend-ad8e.onrender.com https://syxzilyuysdoirnezgii.supabase.co wss://syxzilyuysdoirnezgii.supabase.co https://www.google-analytics.com https://firebaseinstallations.googleapis.com https://identitytoolkit.googleapis.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; frame-src 'self' https://*.hubspot.com;"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://www.gstatic.com https://www.uchat.com.au https://*.uchat.com.au https://sdk.dfktv2.com https://*.dfktv2.com https://js.hs-scripts.com https://js-na1.hs-scripts.com https://js-na2.hs-scripts.com https://js.hsforms.net https://js.hscollectedforms.net https://*.hs-scripts.com https://*.hubspot.com https://js.hs-analytics.net https://cdn2.hubspot.net https://track.hubspot.com https://*.hscollectedforms.net https://*.hs-analytics.net https://*.hs-banner.com https://*.usemessages.com https://ipapi.co https://*.firebase.com https://*.firebaseio.com https://*.firebaseapp.com https://*.googleapis.com https://apis.google.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://easyflow-backend-ad8e.onrender.com https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://stats.g.doubleclick.net https://www.uchat.com.au https://*.uchat.com.au https://sdk.dfktv2.com https://api.hubapi.com https://*.hubspot.com https://forms.hsforms.com https://track.hubspot.com https://*.hs-analytics.net https://*.hs-banner.com https://*.hsforms.com https://*.hscollectedforms.net https://*.usemessages.com https://cdn2.hubspot.net https://ipapi.co https://*.firebase.com https://*.firebaseio.com https://*.firebaseapp.com https://*.googleapis.com https://firebaseinstallations.googleapis.com https://identitytoolkit.googleapis.com https://fcm.googleapis.com; img-src 'self' data: https: https://track.hubspot.com https://*.hubspot.com https://*.hs-analytics.net https://cdn2.hubspot.net; style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com https://cdn2.hubspot.net; font-src 'self' data: https: https://fonts.gstatic.com https://cdn2.hubspot.net; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' https://www.uchat.com.au https://*.uchat.com.au https://sdk.dfktv2.com https://*.dfktv2.com https://*.firebaseio.com https://*.hubspot.com https://forms.hsforms.com; frame-ancestors 'none'; upgrade-insecure-requests"
         }
       ]
+    },
+    {
+      "source": "/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.(jpg|jpeg|png|gif|ico|svg|webp)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.(js|css|woff|woff2|ttf|eot)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
