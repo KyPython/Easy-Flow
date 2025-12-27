@@ -4,10 +4,15 @@
 
 ## Quick Start
 
-1. **First Time Setup:** Read **[docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md)** to configure environment variables
-2. Read **[docs/WORKFLOW.md](docs/WORKFLOW.md)** for daily workflow
-3. Run `./start-dev.sh` - automatically installs dependencies and starts everything
-4. Open http://localhost:3000
+1. Read **[docs/WORKFLOW.md](docs/WORKFLOW.md)** for daily workflow
+2. Run `./start-dev.sh` - automatically installs dependencies and starts everything
+3. Open http://localhost:3000
+
+**First Time?** If you see polling floods or 401 errors, configure `.env.local`:
+```bash
+cd rpa-system/rpa-dashboard && cp .env.example .env.local
+# Edit .env.local with Firebase & Supabase credentials, then restart
+```
 
 ## Documentation
 

@@ -9,7 +9,16 @@ git checkout dev
 **Auto-installs:** All npm and Python dependencies if missing  
 **Opens:** http://localhost:3000
 
-**⚠️ First Time?** Configure environment variables first: See [LOCAL_SETUP.md](LOCAL_SETUP.md)
+**⚠️ First Time Setup:** If you see polling floods or 401 errors, configure environment variables:
+```bash
+cd rpa-system/rpa-dashboard
+cp .env.example .env.local
+# Edit .env.local with your Firebase & Supabase credentials
+# Then restart: ./stop-dev.sh && ./start-dev.sh
+```
+**Get credentials:**
+- Firebase: https://console.firebase.google.com/ → Project Settings → General → Your apps → Web app
+- Supabase: https://app.supabase.com/ → Settings → API
 
 ## While Working
 - Make changes → Test in browser
