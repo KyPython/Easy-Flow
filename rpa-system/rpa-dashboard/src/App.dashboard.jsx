@@ -163,6 +163,9 @@ function WorkflowIdRedirect() {
 
 function Shell() {
   const { user } = useAuth();
+  // State to trigger render error for Firebase config errors (caught by ErrorBoundary)
+  const [firebaseConfigError, setFirebaseConfigError] = useState(null);
+  
   // Initialize Firebase on-demand when the runtime feature gate is enabled
   // This avoids the heavy Firebase SDK being loaded at module-eval time.
   useEffect(() => {
@@ -178,9 +181,11 @@ function Shell() {
         try {
           const mod = await import('./utils/firebaseConfig');
           if (mod && mod.initFirebase) {
-            // ✅ CRITICAL: Catch configuration errors and log them prominently
-            // In development, firebaseConfig.js will throw fatal errors that we should surface
-            mod.initFirebase().catch(e => {
+            // ✅ CRITICAL: In development, re-throw configuration errors to crash the app
+            // This prevents silent fallback to polling that floods the backend
+            try {
+              await mod.initFirebase();
+            } catch (e) {
               if (e?.name === 'FirebaseConfigurationError' || e?.message?.includes('FATAL')) {
                 // Configuration error - log prominently
                 logger.error('🔥 Firebase configuration error - this will cause polling fallback!', {
@@ -192,16 +197,16 @@ function Shell() {
                 if (e.details) {
                   console.error('Details:', e.details);
                 }
-                // ✅ DEVELOPMENT: Re-throw to crash the app and show React error overlay
+                // ✅ DEVELOPMENT: Trigger render error that ErrorBoundary will catch
                 if (process.env.NODE_ENV === 'development') {
-                  throw e; // This will crash the app and show React error overlay
+                  setFirebaseConfigError(e); // This will trigger a render error
                 }
                 // Production: Don't crash, just log (already logged above)
               } else {
                 // Other initialization errors (network, etc.) - log as warning
                 logger.warn('Firebase init failed', { error: e?.message || e, stack: e?.stack });
               }
-            });
+            }
           }
         } catch (e) {
           // Module import failed - could be configuration error thrown during module evaluation
@@ -215,9 +220,9 @@ function Shell() {
             if (e.details) {
               console.error('Details:', e.details);
             }
-            // ✅ DEVELOPMENT: Re-throw to crash the app and show React error overlay
+            // ✅ DEVELOPMENT: Trigger render error that ErrorBoundary will catch
             if (process.env.NODE_ENV === 'development') {
-              throw e; // This will crash the app and show React error overlay
+              setFirebaseConfigError(e); // This will trigger a render error
             }
             // Production: Don't crash, just log (already logged above)
           } else {
