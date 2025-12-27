@@ -2,9 +2,9 @@
   "version": 2,
   "name": "easyflow-dashboard",
   "framework": null,
-  "installCommand": "node rpa-system/vercel-scripts/silent-install.js",
-  "buildCommand": "node rpa-system/vercel-scripts/check-production-branch.js && cd rpa-system/rpa-dashboard && DISABLE_ESLINT_PLUGIN=true npm run build",
-  "outputDirectory": "rpa-system/rpa-dashboard/build",
+  "installCommand": "node vercel-scripts/silent-install.js",
+  "buildCommand": "node vercel-scripts/check-production-branch.js && cd rpa-dashboard && DISABLE_ESLINT_PLUGIN=true npm run build",
+  "outputDirectory": "rpa-dashboard/build",
   "headers": [
     {
       "source": "/(.*)",
