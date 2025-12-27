@@ -9,16 +9,13 @@ git checkout dev
 **Auto-installs:** All npm and Python dependencies if missing  
 **Opens:** http://localhost:3000
 
-**⚠️ First Time Setup:** If you see polling floods or 401 errors, configure environment variables:
-```bash
-cd rpa-system/rpa-dashboard
-cp .env.example .env.local
-# Edit .env.local with your Firebase & Supabase credentials
-# Then restart: ./stop-dev.sh && ./start-dev.sh
-```
-**Get credentials:**
-- Firebase: https://console.firebase.google.com/ → Project Settings → General → Your apps → Web app
-- Supabase: https://app.supabase.com/ → Settings → API
+**⚠️ Polling Floods or 401 Errors?** If you already have `.env.local` but still see issues:
+1. **Restart the dev server** - CRA only loads `.env.local` on startup:
+   ```bash
+   ./stop-dev.sh && ./start-dev.sh
+   ```
+2. **Verify variables are loaded** - Check browser console for Firebase/Supabase config warnings
+3. **If missing variables** - Copy `.env.example` to `.env.local` and fill in credentials
 
 ## While Working
 - Make changes → Test in browser
