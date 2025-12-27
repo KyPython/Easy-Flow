@@ -383,9 +383,31 @@ fi
 
 # Generate a dynamic ecosystem file that reads from environment variables
 echo -e "${YELLOW}Generating PM2 ecosystem config...${NC}"
+
+# Load frontend .env.local if it exists
+FRONTEND_ENV_VARS={}
+if [ -f "rpa-system/rpa-dashboard/.env.local" ]; then
+  echo -e "${GREEN}Loading frontend environment variables from .env.local...${NC}"
+  # Export all REACT_APP_ and VITE_ variables from .env.local
+  set -a
+  source rpa-system/rpa-dashboard/.env.local 2>/dev/null || true
+  set +a
+fi
+
 cat > ecosystem.config.js << EOL
 // Load environment variables from .env file
 require('dotenv').config();
+
+// Load frontend .env.local if it exists
+const fs = require('fs');
+const path = require('path');
+const frontendEnvPath = path.join(__dirname, 'rpa-system/rpa-dashboard/.env.local');
+if (fs.existsSync(frontendEnvPath)) {
+  const frontendEnv = require('dotenv').config({ path: frontendEnvPath });
+  if (frontendEnv.parsed) {
+    console.log('Loaded frontend .env.local with', Object.keys(frontendEnv.parsed).length, 'variables');
+  }
+}
 
 // Get root directory dynamically
 const path = require('path');
@@ -435,6 +457,13 @@ module.exports = {
         BROWSER: process.env.BROWSER || 'none',
         REACT_APP_API_BASE: process.env.REACT_APP_API_BASE,
         PUBLIC_URL: process.env.PUBLIC_URL,
+        // Load all REACT_APP_ and VITE_ variables from .env.local
+        ...Object.keys(process.env)
+          .filter(key => key.startsWith('REACT_APP_') || key.startsWith('VITE_'))
+          .reduce((acc, key) => {
+            acc[key] = process.env[key];
+            return acc;
+          }, {}),
       },
     },
     {
