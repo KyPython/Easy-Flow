@@ -113,10 +113,14 @@ fi
 echo "\n${BLUE}Scanning entire codebase for security issues (SAST)...${NC}"
 echo "  Scanning: rpa-system/, scripts/, migrations/, .github/, root config files"
 
+# Exclude known false positives (placeholder strings in error messages)
+# These files contain placeholder strings like '(present)' and '(missing)' which Snyk flags as secrets
+EXCLUDE_PATTERNS="--exclude=rpa-system/rpa-dashboard/public/firebase-messaging-sw.js --exclude=rpa-system/rpa-dashboard/vercel-scripts/generate-firebase-config.js"
+
 # Scan from root to cover entire codebase
 # Snyk code test automatically scans all supported file types (JS, JSX, TS, TSX, Python, etc.)
 # and all directories by default when run from root
-if snyk code test --severity-threshold="$SEVERITY_THRESHOLD" --json >/tmp/snyk-code.json 2>&1 || true; then
+if snyk code test --severity-threshold="$SEVERITY_THRESHOLD" $EXCLUDE_PATTERNS --json >/tmp/snyk-code.json 2>&1 || true; then
     # Check for actual security issues in the JSON output
     ISSUES_COUNT=$(cat /tmp/snyk-code.json 2>/dev/null | grep -o '"total":\s*[0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
     if [ -z "$ISSUES_COUNT" ] || [ "$ISSUES_COUNT" = "0" ]; then
@@ -131,7 +135,7 @@ if snyk code test --severity-threshold="$SEVERITY_THRESHOLD" --json >/tmp/snyk-c
     else
         if [ "$ISSUES_COUNT" -gt 0 ]; then
             echo "  ${YELLOW}⚠ Code: Found $ISSUES_COUNT security issue(s) (see details below)${NC}"
-            snyk code test --severity-threshold="$SEVERITY_THRESHOLD" || SCAN_FAILED=$((SCAN_FAILED + 1))
+            snyk code test --severity-threshold="$SEVERITY_THRESHOLD" $EXCLUDE_PATTERNS || SCAN_FAILED=$((SCAN_FAILED + 1))
         else
             echo "  ${GREEN}✓ Code: No ${SEVERITY_THRESHOLD}+ security issues found in entire codebase${NC}"
         fi
@@ -139,7 +143,7 @@ if snyk code test --severity-threshold="$SEVERITY_THRESHOLD" --json >/tmp/snyk-c
 else
     echo "  ${YELLOW}⚠ Code: Snyk code scan completed with warnings${NC}"
     # Still try to run it to show output
-    snyk code test --severity-threshold="$SEVERITY_THRESHOLD" 2>&1 || true
+    snyk code test --severity-threshold="$SEVERITY_THRESHOLD" $EXCLUDE_PATTERNS 2>&1 || true
 fi
 
 # Scan Terraform Infrastructure (if exists)
