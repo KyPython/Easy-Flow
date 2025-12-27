@@ -182,7 +182,7 @@ function Shell() {
             // In development, firebaseConfig.js will throw fatal errors that we should surface
             mod.initFirebase().catch(e => {
               if (e?.name === 'FirebaseConfigurationError' || e?.message?.includes('FATAL')) {
-                // Configuration error - log prominently and prevent silent fallback
+                // Configuration error - log prominently
                 logger.error('🔥 Firebase configuration error - this will cause polling fallback!', {
                   error: e?.message || e,
                   details: e?.details,
@@ -192,6 +192,11 @@ function Shell() {
                 if (e.details) {
                   console.error('Details:', e.details);
                 }
+                // ✅ DEVELOPMENT: Re-throw to crash the app and show React error overlay
+                if (process.env.NODE_ENV === 'development') {
+                  throw e; // This will crash the app and show React error overlay
+                }
+                // Production: Don't crash, just log (already logged above)
               } else {
                 // Other initialization errors (network, etc.) - log as warning
                 logger.warn('Firebase init failed', { error: e?.message || e, stack: e?.stack });
@@ -210,6 +215,11 @@ function Shell() {
             if (e.details) {
               console.error('Details:', e.details);
             }
+            // ✅ DEVELOPMENT: Re-throw to crash the app and show React error overlay
+            if (process.env.NODE_ENV === 'development') {
+              throw e; // This will crash the app and show React error overlay
+            }
+            // Production: Don't crash, just log (already logged above)
           } else {
             logger.warn('Firebase dynamic import failed', { error: e?.message || e, stack: e?.stack });
           }
