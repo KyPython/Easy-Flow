@@ -7313,32 +7313,9 @@ app.post('/api/extract-data-bulk', authMiddleware, requirePlan('professional'), 
 });
 
 // Integration endpoints
-app.get('/api/integrations', authMiddleware, requireFeature('custom_integrations'), async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const { data: integrations, error } = await supabase
-      .from('user_integrations')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (error) {
-      throw new Error(`Failed to fetch integrations: ${error.message}`);
-    }
-
-    res.json({
-      success: true,
-      integrations: integrations || []
-    });
-
-  } catch (error) {
-    logger.error('[integrations] Error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
+// NOTE: /api/integrations routes are handled by integrationRoutes.js (mounted at line 2147)
+// The integrationRoutes uses integration_credentials table with 'service' field
+// This duplicate route has been removed to avoid conflicts
 
 // GET /api/integrations/usage - Get integration usage stats (workflows, recent activity)
 app.get('/api/integrations/usage', authMiddleware, async (req, res) => {
