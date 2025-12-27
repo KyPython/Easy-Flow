@@ -6,6 +6,9 @@ import { FiDownload, FiExternalLink } from 'react-icons/fi';
 import { formatDateTime, formatTaskType } from '../../utils/formatters';
 import { fetchWithAuth } from '../../utils/devNetLogger';
 import { validateUrl, sanitizeFilename, safeWindowOpen } from '../../utils/security';
+import { createLogger } from '../../utils/logger';
+
+const logger = createLogger('TaskList');
 
 // Queue Status Badge Component
 const QueueStatusBadge = ({ taskId, queuedAt, timeSinceStart }) => {
@@ -31,11 +34,15 @@ const QueueStatusBadge = ({ taskId, queuedAt, timeSinceStart }) => {
     };
 
     fetchQueueStatus();
-    const interval = setInterval(fetchQueueStatus, 10000); // Refresh every 10 seconds
+    const { getConfig } = require('../../utils/dynamicConfig');
+    const refreshInterval = getConfig('intervals.queueStatus', 10000);
+    const interval = setInterval(fetchQueueStatus, refreshInterval);
     return () => clearInterval(interval);
   }, [taskId, timeSinceStart]);
 
-  const isStuck = timeSinceStart > 600; // > 10 minutes
+  const { getConfig } = require('../../utils/dynamicConfig');
+  const stuckThresholdSeconds = getConfig('thresholds.queueStuckMinutes', 10) * 60;
+  const isStuck = timeSinceStart > stuckThresholdSeconds;
   const position = queueInfo?.position;
   const estimatedWait = queueInfo?.estimated_wait_display;
 
@@ -128,7 +135,8 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
       window.URL.revokeObjectURL(url);
       
     } catch (error) {
-      console.error('Download failed:', error);
+      // ✅ ENV-AWARE: Use logger instead of direct console.error
+      logger.error('Download failed', error);
       // ✅ SECURITY: Use safe window.open with URL validation
       safeWindowOpen(task.artifact_url);
     } finally {
@@ -419,7 +427,8 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                         }
                       } catch (e) {
                         // If parsing fails, just use the original status from database
-                        console.warn('[TaskList] Error parsing result:', e);
+                        // ✅ ENV-AWARE: Use logger instead of direct console.warn
+                        logger.debug('Error parsing result', { error: e?.message || e });
                       }
                       
                       // Calculate time since task was created
@@ -427,10 +436,35 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                         ? Math.floor((new Date() - new Date(task.started_at)) / 1000)
                         : 0;
                       
+                      // ✅ DYNAMIC: Stuck task threshold from config (non-hardcoded)
+                      const { getConfig } = require('../../utils/dynamicConfig');
+                      const STUCK_THRESHOLD_HOURS = getConfig('thresholds.stuckTaskHours', 24);
+                      const STUCK_THRESHOLD_SECONDS = STUCK_THRESHOLD_HOURS * 60 * 60;
+                      const isStuck = (displayStatus === 'running' || displayStatus === 'queued' || displayStatus === 'pending') 
+                        && timeSinceStart > STUCK_THRESHOLD_SECONDS;
+                      
+                      // If task is stuck, override status to 'failed' for display
+                      if (isStuck) {
+                        displayStatus = 'failed';
+                      }
+                      
                       return (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <StatusBadge status={displayStatus} />
-                          {isQueued && timeSinceStart > 0 && (
+                          {isStuck && (
+                            <span 
+                              style={{ 
+                                fontSize: '11px', 
+                                color: '#dc3545',
+                                fontStyle: 'italic',
+                                fontWeight: 600
+                              }}
+                              title="This task has been stuck for over 24 hours. It was likely submitted before system fixes were applied. Please submit a new task instead."
+                            >
+                              ⚠️ Stuck
+                            </span>
+                          )}
+                          {isQueued && timeSinceStart > 0 && !isStuck && (
                             <QueueStatusBadge 
                               taskId={task.id}
                               queuedAt={task.started_at}

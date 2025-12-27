@@ -107,6 +107,15 @@ export async function fetchWithAuth(url, options = {}) {
   try {
     const res = await _fn(fullUrl, mergedOptions);
 
+    // ✅ ENVIRONMENT-AWARE: Only log 401s in dev if they're unexpected
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    if (res.status === 401 && isDevelopment) {
+      // In dev: Only log 401s occasionally to reduce noise (expected during token refresh)
+      if (shouldLog()) {
+        console.debug('[devNetLogger] 401 Unauthorized (expected during session refresh)', { url, hasToken: !!token });
+      }
+    }
+
     // Dev diagnostic: mirror the same detection as the global fetch wrapper
     try {
       const acao = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-origin') : null;
@@ -135,6 +144,18 @@ export async function fetchWithAuth(url, options = {}) {
 
     return res;
   } catch (err) {
+    // ✅ ENVIRONMENT-AWARE: Suppress expected network errors in dev
+    const isNetworkSuspended = err.message?.includes('ERR_NETWORK_IO_SUSPENDED') || err.message?.includes('Failed to fetch');
+    if (isNetworkSuspended && isDevelopment) {
+      // Tab suspended errors are expected - don't throw, just log at debug level
+      console.debug('[devNetLogger] Network request suspended (tab backgrounded - expected)', { url });
+      // Return a mock response to prevent error propagation
+      return new Response(JSON.stringify({ error: 'Network suspended' }), { 
+        status: 0, 
+        statusText: 'Network suspended',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
     throw err;
   }
 }

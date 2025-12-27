@@ -3,9 +3,13 @@ import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';
 import { useTheme } from '../utils/ThemeContext';
 import Dashboard from '../components/Dashboard/Dashboard';
+import UnifiedDashboardPage from './UnifiedDashboardPage';
 import { initSupabase } from '../utils/supabaseClient';
 import ErrorMessage from '../components/ErrorMessage';
 import { createLogger } from '../utils/logger';
+import { sanitizeErrorMessage } from '../utils/errorMessages';
+import { getEnvMessage } from '../utils/envAwareMessages';
+import { getConfig } from '../utils/dynamicConfig';
 
 // Note: Chatbot removed - AI Agent is now available globally via toggle button
 
@@ -35,9 +39,7 @@ const DashboardPage = () => {
         window.gtag('event', 'trial_signup', {
           'method': 'website'
         });
-        if (process.env.NODE_ENV === 'development') {
-          console.info('[Analytics] New signup tracked');
-        }
+        logger.info('New signup tracked');
       }
       sessionStorage.removeItem('just_signed_up');
     }
@@ -59,7 +61,10 @@ const DashboardPage = () => {
         timeout: 15000,
         duration_ms: duration
       });
-      setError('Loading is taking longer than expected. Please refresh the page.');
+      setError(getEnvMessage({
+        dev: 'Loading timeout after 30 seconds',
+        prod: 'Loading is taking longer than expected. Please refresh the page.'
+      }));
       setLoading(false);
     }, 15000);
 
@@ -111,11 +116,12 @@ const DashboardPage = () => {
       });
       
       // Log performance warning if query is slow
-      if (queryDuration > 3000) {
+      const slowQueryThreshold = getConfig('thresholds.slowQuery', 3000);
+      if (queryDuration > slowQueryThreshold) {
         logger.warn('⚠️ [Dashboard] Slow query detected', {
           user_id: user.id,
           duration_ms: queryDuration,
-          threshold_ms: 3000
+          threshold_ms: getConfig('thresholds.slowQuery', 3000)
         });
       }
 
@@ -145,7 +151,7 @@ const DashboardPage = () => {
         }
       } catch (e) {
         // Silently fail - workflows count is optional
-        console.debug('Failed to fetch workflows count:', e);
+        logger.debug('Failed to fetch workflows count', { error: e });
       }
 
     } catch (err) {
@@ -159,21 +165,29 @@ const DashboardPage = () => {
         stack: err.stack
       });
       
-      // More user-friendly error messages
-      let userMessage = 'Unable to load dashboard data';
+      // ✅ ENV-AWARE: Use sanitizeErrorMessage and getEnvMessage for user-friendly errors
+      const errorMsg = sanitizeErrorMessage(err) || getEnvMessage({
+        dev: 'Failed to load dashboard data: ' + (err.message || 'Unknown error'),
+        prod: 'Unable to load dashboard data. Please try again.'
+      });
       
+      // Additional context for specific error types (environment-aware)
+      let userMessage = errorMsg;
       if (err.message?.includes('timeout')) {
-        userMessage = 'Request timed out. The server may be slow. Please try again.';
+        userMessage = getEnvMessage({
+          dev: 'Request timeout: ' + err.message,
+          prod: 'Request timed out. The server may be slow. Please try again.'
+        });
       } else if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
-        userMessage = 'Connection error. Please check your internet connection and try again.';
-      } else if (err.message?.includes('CSP') || err.message?.includes('Content Security Policy')) {
-        userMessage = 'Dashboard temporarily unavailable. Please refresh the page or try again in a moment.';
-      } else if (err.message?.includes('CORS')) {
-        userMessage = 'Connection error. Please check your internet connection and try again.';
+        userMessage = getEnvMessage({
+          dev: 'Network error: ' + err.message,
+          prod: 'Connection error. Please check your internet connection and try again.'
+        });
       } else if (err.message?.includes('not authenticated') || err.message?.includes('unauthorized') || err.message?.includes('401')) {
-        userMessage = 'Please sign in again to access your dashboard.';
-      } else if (err.message?.includes('500') || err.message?.includes('Database')) {
-        userMessage = 'Database connection issue. Please try again in a moment.';
+        userMessage = getEnvMessage({
+          dev: 'Authentication error: ' + err.message,
+          prod: 'Please sign in again to access your dashboard.'
+        });
       }
       
       setError(userMessage);
@@ -209,9 +223,7 @@ const DashboardPage = () => {
 
             // Then subscribe to realtime events and throttle updates
             try {
-              if (process.env.NODE_ENV === 'development') {
-                console.info('[Dashboard] creating realtime channel for user', user.id);
-              }
+              logger.debug('Creating realtime channel for user', { user_id: user.id });
               channel = client
                 .channel(`realtime:automation_runs:user_id=eq.${user.id}`)
                 .on(
@@ -223,9 +235,7 @@ const DashboardPage = () => {
                     filter: `user_id=eq.${user.id}`
                   },
                   (payload) => {
-                    if (process.env.NODE_ENV === 'development') {
-                      console.info('[Dashboard] realtime payload received', payload);
-                    }
+                    logger.debug('Realtime payload received', { payload });
                     if (updateTimeout) clearTimeout(updateTimeout);
                     updateTimeout = setTimeout(() => {
                       fetchDashboardData();
@@ -236,9 +246,7 @@ const DashboardPage = () => {
               // Attempt to subscribe and log lifecycle status
               try {
                 const sub = channel.subscribe((status) => {
-                  if (process.env.NODE_ENV === 'development') {
-                    console.info('[Dashboard] realtime channel status', status);
-                  }
+                  logger.debug('Realtime channel status', { status });
                 });
                 logger.debug('Subscribe() called for automation_runs channel', {
                   channel: sub || channel,
@@ -307,10 +315,15 @@ const DashboardPage = () => {
     );
   }
 
+  // Dashboard shows EasyFlow app-specific status (automation runs, workflows, schedules)
   return (
     <div data-theme={theme}>
       <ErrorMessage message={error} />
-      <Dashboard metrics={metrics} recentTasks={recentTasks} workflowsCount={workflowsCount} user={user} />
+      <Dashboard 
+        metrics={metrics}
+        recentTasks={recentTasks}
+        workflowsCount={workflowsCount}
+      />
     </div>
   );
 };

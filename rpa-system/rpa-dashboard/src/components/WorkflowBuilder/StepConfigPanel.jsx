@@ -39,7 +39,9 @@ const StepConfigPanel = ({ node, onClose, onSave, onDelete, isReadOnly = false }
         valid = !!(configData.to && configData.to.length > 0 && configData.subject && configData.subject.trim());
         break;
       case 'condition':
-        valid = !!(configData.conditions && configData.conditions.length > 0);
+        // ✅ FIX: Allow business rule OR manual conditions
+        // Business rules have rule_id, manual conditions have conditions array
+        valid = !!(configData.rule_id || (configData.conditions && configData.conditions.length > 0));
         break;
       case 'data_transform':
         valid = !!(configData.transformations && configData.transformations.length > 0);
@@ -183,7 +185,10 @@ const WebScrapeConfig = ({ config, updateConfig, isReadOnly }) => (
     </label>
 
     <label className={styles.label}>
-      CSS Selectors
+      What parts of the page should we grab? <span className={styles.optional}>(Optional)</span>
+      <div className={styles.helperText} style={{ marginBottom: '8px', fontSize: '0.9em' }}>
+        <b>💡 Tip:</b> Leave blank to grab everything, or specify which parts you want (like prices, titles, etc.)
+      </div>
       <SelectorList
         selectors={config.selectors || []}
         onChange={(selectors) => updateConfig({ selectors })}
@@ -192,15 +197,18 @@ const WebScrapeConfig = ({ config, updateConfig, isReadOnly }) => (
     </label>
 
     <label className={styles.label}>
-      Wait for Element
+      Wait for page element <span className={styles.optional}>(Optional)</span>
       <input
         type="text"
         className={styles.input}
         value={config.wait_for || ''}
         onChange={(e) => updateConfig({ wait_for: e.target.value })}
-        placeholder="CSS selector to wait for"
+        placeholder="e.g., wait for a specific button or section to load"
         disabled={isReadOnly}
       />
+      <div className={styles.helperText} style={{ fontSize: '0.9em' }}>
+        <b>What is this?</b> If the page takes time to load, tell us what to wait for before grabbing data.
+      </div>
     </label>
 
     <label className={styles.label}>
@@ -230,7 +238,7 @@ const WebScrapeConfig = ({ config, updateConfig, isReadOnly }) => (
         />
       </label>
       <label className={styles.label}>
-        Base Backoff (ms)
+        Wait time between retries (milliseconds)
         <input
           type="number"
           className={styles.input}
@@ -250,46 +258,55 @@ const WebScrapeConfig = ({ config, updateConfig, isReadOnly }) => (
 const ApiCallConfig = ({ config, updateConfig, isReadOnly }) => (
   <div className={styles.formGroup}>
     <label className={styles.label}>
-      HTTP Method *
+      What should we do? *
       <select
         className={styles.select}
         value={config.method || 'GET'}
         onChange={(e) => updateConfig({ method: e.target.value })}
         disabled={isReadOnly}
       >
-        <option value="GET">GET</option>
-        <option value="POST">POST</option>
-        <option value="PUT">PUT</option>
-        <option value="DELETE">DELETE</option>
+        <option value="GET">Get information (read)</option>
+        <option value="POST">Send information (create)</option>
+        <option value="PUT">Update information</option>
+        <option value="DELETE">Delete information</option>
       </select>
+      <div className={styles.helperText} style={{ fontSize: '0.9em', marginTop: '4px' }}>
+        <b>What is this?</b> Choose whether you want to get data, send data, update data, or delete data.
+      </div>
     </label>
 
     <label className={styles.label}>
-      API URL *
+      Website or service address * <span className={styles.optional}>(URL)</span>
       <input
         type="url"
         className={styles.input}
         value={config.url || ''}
         onChange={(e) => updateConfig({ url: e.target.value })}
-        placeholder="https://api.example.com/endpoint"
+        placeholder="https://example.com/api/data"
         disabled={isReadOnly}
       />
+      <div className={styles.helperText} style={{ fontSize: '0.9em', marginTop: '4px' }}>
+        <b>What is this?</b> The web address where the information is located or where you want to send data.
+      </div>
     </label>
 
     <label className={styles.label}>
-      Headers
+      Extra information to send <span className={styles.optional}>(Optional)</span>
       <KeyValueList
         items={config.headers || {}}
         onChange={(headers) => updateConfig({ headers })}
-        keyPlaceholder="Header name"
-        valuePlaceholder="Header value"
+        keyPlaceholder="e.g., Authorization, Content-Type"
+        valuePlaceholder="e.g., Bearer token123, application/json"
         isReadOnly={isReadOnly}
       />
+      <div className={styles.helperText} style={{ fontSize: '0.9em', marginTop: '4px' }}>
+        <b>What is this?</b> Sometimes you need to send extra information like passwords or tokens. Most people can leave this blank.
+      </div>
     </label>
 
     {(config.method === 'POST' || config.method === 'PUT') && (
       <label className={styles.label}>
-        Request Body (JSON)
+        What data should we send? <span className={styles.optional}>(Optional)</span>
         <textarea
           className={styles.textarea}
           value={config.body ? JSON.stringify(config.body, null, 2) : ''}
@@ -301,10 +318,13 @@ const ApiCallConfig = ({ config, updateConfig, isReadOnly }) => (
               // Invalid JSON, keep as string for now
             }
           }}
-          placeholder='{"key": "value"}'
+          placeholder='Example: {"name": "John", "email": "john@example.com"}'
           rows="4"
           disabled={isReadOnly}
         />
+        <div className={styles.helperText} style={{ fontSize: '0.9em', marginTop: '4px' }}>
+          <b>What is this?</b> The information you want to send. Format: <code>{'{"name": "value", "another": "value"}'}</code>
+        </div>
       </label>
     )}
 
@@ -335,7 +355,7 @@ const ApiCallConfig = ({ config, updateConfig, isReadOnly }) => (
         />
       </label>
       <label className={styles.label}>
-        Base Backoff (ms)
+        Wait time between retries (milliseconds)
         <input
           type="number"
           className={styles.input}
@@ -427,7 +447,10 @@ const ConditionConfig = ({ config, updateConfig, isReadOnly }) => {
           setRules(data.data || []);
         }
       } catch (error) {
-        console.error('Failed to load business rules:', error);
+        // ✅ OBSERVABILITY: Use logger instead of console.error
+        const { createLogger } = require('../../utils/logger');
+        const logger = createLogger('ConditionConfig');
+        logger.error('Failed to load business rules', error);
         setRules([]);
       } finally {
         setLoadingRules(false);
@@ -520,17 +543,20 @@ const ConditionConfig = ({ config, updateConfig, isReadOnly }) => {
 const DataTransformConfig = ({ config, updateConfig, isReadOnly }) => (
   <div className={styles.formGroup}>
     <label className={styles.label}>
-      Output Format
+      How should we format the data?
       <select
         className={styles.select}
         value={config.output_format || 'json'}
         onChange={(e) => updateConfig({ output_format: e.target.value })}
         disabled={isReadOnly}
       >
-        <option value="json">JSON</option>
-        <option value="csv">CSV</option>
-        <option value="xml">XML</option>
+        <option value="json">Structured data (JSON) - Recommended</option>
+        <option value="csv">Spreadsheet format (CSV)</option>
+        <option value="xml">XML format</option>
       </select>
+      <div className={styles.helperText} style={{ fontSize: '0.9em', marginTop: '4px' }}>
+        <b>What is this?</b> Choose how you want the data organized. Most people use "Structured data".
+      </div>
     </label>
 
     <label className={styles.label}>
@@ -659,7 +685,7 @@ const FileUploadConfig = ({ config, updateConfig, isReadOnly }) => (
         />
       </label>
       <label className={styles.label}>
-        Base Backoff (ms)
+        Wait time between retries (milliseconds)
         <input
           type="number"
           className={styles.input}
@@ -842,7 +868,7 @@ const SelectorList = ({ selectors, onChange, isReadOnly }) => {
           />
           <input
             type="text"
-            placeholder="CSS selector"
+            placeholder="e.g., .price, #title, button.download"
             value={selector.selector || ''}
             onChange={(e) => updateSelector(index, { selector: e.target.value })}
             className={styles.listInput}

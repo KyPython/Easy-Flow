@@ -5,11 +5,18 @@ import { api } from '../utils/api';
 import PlanGate from '../components/PlanGate/PlanGate';
 import RulesList from '../components/Rules/RulesList';
 import RuleForm from '../components/Rules/RuleForm';
+import { sanitizeErrorMessage } from '../utils/errorMessages';
+import { getEnvMessage } from '../utils/envAwareMessages';
+import { createLogger } from '../utils/logger';
+import { useToast } from '../components/WorkflowBuilder/Toast';
 import styles from './RulesPage.module.css';
+
+const logger = createLogger('RulesPage');
 
 const RulesPage = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const { error: showError } = useToast();
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,11 +35,17 @@ const RulesPage = () => {
       if (data.success) {
         setRules(data.data || []);
       } else {
-        setError(data.error || 'Failed to load rules');
+        setError(sanitizeErrorMessage(data.error) || getEnvMessage({
+          dev: 'Failed to load rules: ' + (data.error || 'Unknown error'),
+          prod: 'Failed to load rules. Please try again.'
+        }));
       }
     } catch (err) {
-      setError(err.message || 'Failed to load rules');
-      console.error('Error loading rules:', err);
+      logger.error('Error loading rules', err);
+      setError(sanitizeErrorMessage(err) || getEnvMessage({
+        dev: 'Failed to load rules: ' + (err.message || 'Unknown error'),
+        prod: 'Failed to load rules. Please try again.'
+      }));
     } finally {
       setLoading(false);
     }
@@ -58,10 +71,20 @@ const RulesPage = () => {
       if (data.success) {
         await loadRules();
       } else {
-        alert('Failed to delete rule: ' + (data.error || 'Unknown error'));
+        const errorMsg = sanitizeErrorMessage(data.error) || getEnvMessage({
+          dev: 'Failed to delete rule: ' + (data.error || 'Unknown error'),
+          prod: 'Failed to delete rule. Please try again.'
+        });
+        showError(errorMsg);
+        logger.error('Failed to delete rule', { error: data.error });
       }
     } catch (err) {
-      alert('Failed to delete rule: ' + err.message);
+      logger.error('Failed to delete rule', err);
+      const errorMsg = sanitizeErrorMessage(err) || getEnvMessage({
+        dev: 'Failed to delete rule: ' + (err.message || 'Unknown error'),
+        prod: 'Failed to delete rule. Please try again.'
+      });
+      showError(errorMsg);
     }
   };
 
@@ -81,7 +104,7 @@ const RulesPage = () => {
       requiredPlan="Starter"
       upgradeMessage="Business Rules allow you to define reusable logic once and use it across all your workflows. Starter plan includes 10 rules, Professional and Enterprise plans include unlimited rules."
       onPaywallClose={() => {
-        console.log('[RulesPage] Paywall dismissed, navigating back');
+        logger.debug('Paywall dismissed, navigating back');
         navigate(-1);
       }}
     >

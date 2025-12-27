@@ -8,6 +8,10 @@ import { api } from '../utils/api';
 import conversionTracker from '../utils/conversionTracking';
 import styles from './PricingPage.module.css';
 import { UserCountBadge, TrustBadges } from '../components/SocialProof';
+import { useToast } from '../components/WorkflowBuilder/Toast';
+import { createLogger } from '../utils/logger';
+import { sanitizeErrorMessage } from '../utils/errorMessages';
+import { getEnvMessage } from '../utils/envAwareMessages';
 
 // Fallback pricing when Supabase is unavailable
 const FALLBACK_PLANS = [
@@ -114,6 +118,8 @@ export default function PricingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { planData, trialDaysLeft } = usePlan();
+  const { error: showError } = useToast();
+  const logger = createLogger('PricingPage');
   const [plans, setPlans] = useState(FALLBACK_PLANS);
   const [featureLabels, setFeatureLabels] = useState({});
   const [userSubscription, setUserSubscription] = useState(null);
@@ -228,7 +234,7 @@ export default function PricingPage() {
           return;
         }
       } catch (apiError) {
-        console.warn('Dynamic checkout failed, falling back to static URL:', apiError);
+        logger.warn('Dynamic checkout failed, falling back to static URL', { error: apiError });
       }
       
       // Fallback to existing polar_url if dynamic generation fails
@@ -239,8 +245,12 @@ export default function PricingPage() {
       }
       
     } catch (error) {
-      console.error('Error creating checkout:', error);
-      alert('Failed to create checkout session. Please try again.');
+      logger.error('Error creating checkout', error);
+      const errorMsg = sanitizeErrorMessage(error) || getEnvMessage({
+        dev: 'Failed to create checkout session: ' + (error.message || 'Unknown error'),
+        prod: 'Failed to create checkout session. Please try again.'
+      });
+      showError(errorMsg);
     } finally {
       setLoading(false);
     }

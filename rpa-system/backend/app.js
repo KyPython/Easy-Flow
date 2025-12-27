@@ -156,6 +156,13 @@ const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
   .map(s => s.trim())
   .filter(Boolean);
 
+// ✅ CORS: Regex patterns for dynamic preview URLs (e.g., Vercel preview deployments)
+// This allows ANY Vercel preview URL for the project without hardcoding each one
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^https:\/\/easy-flow-.*-kypythons-projects\.vercel\.app$/, // Vercel preview URLs
+  /^https:\/\/.*\.vercel\.app$/, // Any Vercel preview (fallback)
+];
+
 // Debug logging for CORS configuration (quiet in production)
 if (process.env.NODE_ENV !== 'production') {
   rootLogger.info('🔧 CORS Debug Info (app.js):', {
@@ -198,6 +205,14 @@ const corsOptions = {
       });
     }
 
+    // ✅ CORS: Regex pattern matching for dynamic preview URLs (e.g., Vercel)
+    if (ALLOWED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin))) {
+      if (process.env.NODE_ENV !== 'production') {
+        logger.debug('✅ CORS: Allowing origin via regex pattern', { origin });
+      }
+      return cb(null, origin);
+    }
+
     // Suffix-based allow (e.g., preview deployments like *.vercel.app)
     if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) {
       return cb(null, origin);
@@ -224,21 +239,41 @@ app.use(cors(corsOptions));
 // Ensure preflight requests are handled consistently
 app.options('*', cors(corsOptions));
 // Explicit OPTIONS handler for all routes to ensure CORS preflight works
+// ✅ FIX: Use same logic as main CORS middleware to support Vercel preview URLs
 app.options('/*', (req, res) => {
-  // ✅ SECURITY: Restrict CORS origin instead of using wildcard '*'
-  // Only allow specific origins or the requesting origin
-  // ✅ SECURITY: Restrict CORS to specific origins only - never use wildcard '*'
-  const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) : ['http://localhost:3000'];
   const origin = req.headers.origin;
-  // Only allow requests from whitelisted origins
-  const corsOrigin = (origin && allowedOrigins.includes(origin)) ? origin : (allowedOrigins.length > 0 ? allowedOrigins[0] : null);
+  
+  // Use the same ALLOWED_ORIGINS, ALLOWED_ORIGIN_PATTERNS, and ALLOWED_SUFFIXES logic as main CORS middleware
+  let corsOrigin = null;
+  
+  if (!origin) {
+    // Allow requests without origin (webhooks, server-to-server)
+    corsOrigin = '*';
+  } else if (ALLOWED_ORIGINS.includes(origin)) {
+    // Exact match in allowed origins
+    corsOrigin = origin;
+  } else if (ALLOWED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin))) {
+    // ✅ CORS: Regex pattern match (e.g., Vercel preview URLs)
+    corsOrigin = origin;
+  } else if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) {
+    // Suffix-based match (e.g., *.vercel.app for preview deployments)
+    corsOrigin = origin;
+  } else if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== 'production') {
+    // Dev fallback: permissive when not explicitly configured
+    corsOrigin = origin;
+  }
+  
   if (corsOrigin) {
     res.header('Access-Control-Allow-Origin', corsOrigin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.sendStatus(204);
+  } else {
+    // Origin not allowed
+    rootLogger.warn('🚫 CORS preflight blocked origin (OPTIONS handler):', origin);
+    res.status(403).json({ error: 'CORS: origin not allowed' });
   }
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(204);
 });
 
 // Add after imports, before route definitions (around line 100)
@@ -2360,6 +2395,7 @@ async function queueTaskRun(runId, taskData) {
       task_id: taskData.task_id,
       user_id: taskData.user_id,
       type: taskData.task_type || taskData.type || 'general',
+      task_type: taskData.task_type || taskData.type || 'general', // ✅ FIX: Also send task_type for worker compatibility
       parameters: taskData.parameters || {}
     };
     
@@ -2367,8 +2403,21 @@ async function queueTaskRun(runId, taskData) {
     // The automation worker expects pdf_url at top level: task_data.get('pdf_url') or task_data.get('url')
     if (payload.type === 'invoice_download' || payload.type === 'invoice-download') {
       const params = payload.parameters || {};
-      if (params.pdf_url) {
-        payload.pdf_url = params.pdf_url;
+      // ✅ FIX: Extract pdf_url even if it's undefined/null, so we can detect missing PDF URL
+      const pdfUrl = params.pdf_url;
+      if (pdfUrl) {
+        payload.pdf_url = pdfUrl;
+      } else {
+        // ✅ FIX: If no pdf_url provided, check if we should fail early or use url as fallback
+        // For invoice_download, we need a direct PDF URL, not a login page URL
+        // If url is a login page and no pdf_url, this will fail - which is correct behavior
+        // But we should log this clearly for debugging
+        logger.warn(`[queueTaskRun] Invoice download task missing pdf_url. Will use url as fallback: ${validatedUrl}`, {
+          run_id: runId,
+          task_id: taskData.task_id,
+          has_url: !!validatedUrl,
+          url_is_pdf: validatedUrl && validatedUrl.toLowerCase().endsWith('.pdf')
+        });
       }
     }
     
@@ -4457,7 +4506,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
                                     typeof discoveryMethod === 'string' &&
                                     discoveryMethod.trim() !== '' &&
                                     discoveryMethod !== 'none' &&
-                                    ['auto-detect', 'css-selector', 'text-match'].includes(discoveryMethod);
+                                    ['auto-detect', 'text-match'].includes(discoveryMethod);
     
     if (taskData.task_type === 'invoice_download' && hasValidDiscoveryMethod) {
       logger.info(`[AutomationExecute] Processing invoice download with link discovery for user ${req.user.id}`, {
@@ -4511,19 +4560,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
           });
         }
 
-        if (discoveryMethod === 'css-selector' && !discoveryValue) {
-          const { getUserErrorMessage } = require('./utils/environmentAwareMessages');
-          const errorMsg = getUserErrorMessage(
-            'CSS Selector is required when using css-selector method',
-            {
-              context: 'api.automation.execute',
-              userMessage: 'Please provide a CSS selector to locate the PDF link'
-            }
-          );
-          return res.status(400).json({
-            error: errorMsg
-          });
-        }
+        // ✅ REMOVED: CSS selector option - not user-friendly, auto-detect works 99% of the time
 
         if (discoveryMethod === 'text-match' && !discoveryValue) {
           const { getUserErrorMessage } = require('./utils/environmentAwareMessages');
@@ -4595,11 +4632,11 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
           } else if (allLinksFound > 0) {
             // Found links but no PDFs - helpful!
             errorMessage = `Found ${allLinksFound} link(s) on "${pageTitle}", but none appear to be PDF downloads. The page may not have PDF files, or they might be behind a different navigation path.`;
-            suggestion = 'Try: 1) Navigating to a page that lists invoices/downloads, 2) Using a different discovery method (CSS selector or text match), or 3) Providing a direct PDF URL if you know it.';
+            suggestion = 'Try: 1) Navigating to a page that lists invoices/downloads, 2) Using a different discovery method (text match), or 3) Providing a direct PDF URL if you know it.';
           } else {
             // No links found at all
             errorMessage = 'No downloadable links found on the page. This could mean: the page structure is different than expected, login didn\'t complete successfully, or the page loaded incorrectly.';
-            suggestion = 'Try: 1) Verifying your login credentials work, 2) Checking that you\'re on the right page (one that should have download links), 3) Using a CSS selector or text match discovery method, or 4) Providing a direct PDF URL.';
+            suggestion = 'Try: 1) Verifying your login credentials work, 2) Checking that you\'re on the right page (one that should have download links), 3) Using text match discovery method, or 4) Providing a direct PDF URL.';
           }
           
           // ✅ UX IMPROVEMENT: Don't block - allow fallback to direct PDF URL
@@ -5661,6 +5698,43 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
     
     res.status(500).json({ 
       error: 'Internal server error',
+      details: process.env.NODE_ENV === 'production' ? undefined : error.message
+    });
+  }
+});
+
+// GET /api/plans/current - Get current user's plan (simplified endpoint for frontend)
+// This is a convenience endpoint that returns plan data in a simpler format
+// than /api/user/plan (which includes full usage stats and ETag caching)
+app.get('/api/plans/current', authMiddleware, async (req, res) => {
+  const { resolveUserPlan } = require('./services/userPlanResolver');
+  
+  try {
+    const userId = req.user.id;
+    
+    // Resolve plan with fallback handling
+    const { planData } = await resolveUserPlan(userId, {
+      normalizeMissingPlan: false
+    });
+    
+    // Return simplified format expected by frontend
+    // Format: { plan: {...}, limits: {...}, features: [...] }
+    res.json({
+      plan: planData.plan,
+      limits: planData.limits,
+      features: planData.features || [],
+      usage: planData.usage // Include usage for completeness
+    });
+    
+  } catch (error) {
+    logger.error('[GET /api/plans/current] Error', error, { 
+      userId: req.user?.id,
+      error_code: error.code || 'UNKNOWN',
+      error_message: error.message
+    });
+    
+    res.status(500).json({ 
+      error: 'Failed to fetch current plan',
       details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
   }
@@ -6968,11 +7042,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
       
       try {
 
-        if (discoveryMethod === 'css-selector' && !discoveryValue) {
-          return res.status(400).json({
-            error: 'CSS Selector is required when using css-selector method'
-          });
-        }
+        // ✅ REMOVED: CSS selector option - not user-friendly, auto-detect works 99% of the time
 
         if (discoveryMethod === 'text-match' && !discoveryValue) {
           return res.status(400).json({
@@ -7263,6 +7333,109 @@ app.get('/api/integrations', authMiddleware, requireFeature('custom_integrations
 
   } catch (error) {
     logger.error('[integrations] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/integrations/usage - Get integration usage stats (workflows, recent activity)
+app.get('/api/integrations/usage', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const usage = {};
+
+    // Map integration service names to their action types
+    const integrationActions = {
+      slack: ['slack_send', 'slack_read', 'slack_collect_feedback'],
+      gmail: ['gmail_send', 'gmail_read', 'gmail_collect_feedback'],
+      google_sheets: ['sheets_read', 'sheets_write', 'sheets_compile_feedback'],
+      google_meet: ['meet_transcribe', 'meet_process_recordings'],
+      whatsapp: ['whatsapp_send'],
+      notion: [] // Add notion actions when available
+    };
+
+    // Get all workflows for this user
+    const { data: workflows, error: workflowsError } = await supabase
+      .from('workflows')
+      .select('id, name, steps, status')
+      .eq('user_id', userId);
+
+    if (workflowsError) {
+      logger.warn('[integrations/usage] Error fetching workflows:', workflowsError);
+    }
+
+    // For each integration, find workflows that use it
+    for (const [serviceId, actionTypes] of Object.entries(integrationActions)) {
+      const workflowsUsingService = [];
+      
+      if (workflows && actionTypes.length > 0) {
+        for (const workflow of workflows) {
+          if (!workflow.steps || !Array.isArray(workflow.steps)) continue;
+          
+          // Check if any step uses this integration
+          const usesIntegration = workflow.steps.some(step => {
+            const actionType = step.action_type || step.type;
+            return actionTypes.includes(actionType);
+          });
+
+          if (usesIntegration) {
+            workflowsUsingService.push({
+              id: workflow.id,
+              name: workflow.name,
+              status: workflow.status
+            });
+          }
+        }
+      }
+
+      // Count recent workflow executions (last 24 hours) that used this integration
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      let recentActivityCount = 0;
+
+      if (workflowsUsingService.length > 0) {
+        const workflowIds = workflowsUsingService.map(w => w.id);
+        try {
+          const { data: recentExecutions, error: executionsError } = await supabase
+            .from('workflow_executions')
+            .select('id')
+            .in('workflow_id', workflowIds)
+            .gte('created_at', oneDayAgo)
+            .eq('status', 'completed');
+
+          if (!executionsError && recentExecutions) {
+            recentActivityCount = recentExecutions.length;
+          } else if (executionsError) {
+            // Log but don't fail - table might not exist or be empty
+            logger.debug('[integrations/usage] Could not fetch workflow executions', { 
+              error: executionsError.message,
+              serviceId 
+            });
+          }
+        } catch (execError) {
+          // Gracefully handle if workflow_executions table doesn't exist
+          logger.debug('[integrations/usage] Workflow executions query failed', { 
+            error: execError.message,
+            serviceId 
+          });
+        }
+      }
+
+      usage[serviceId] = {
+        workflowCount: workflowsUsingService.length,
+        workflows: workflowsUsingService,
+        recentActivityCount
+      };
+    }
+
+    res.json({
+      success: true,
+      usage
+    });
+
+  } catch (error) {
+    logger.error('[integrations/usage] Error:', error);
     res.status(500).json({
       success: false,
       error: error.message

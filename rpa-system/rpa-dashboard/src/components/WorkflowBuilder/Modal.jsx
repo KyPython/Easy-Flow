@@ -14,7 +14,7 @@ const Modal = ({
   closeOnOverlayClick = true,
   className = ''
 }) => {
-  // Handle escape key
+  // Handle escape key and auto-scroll
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape' && isOpen) {
@@ -25,6 +25,14 @@ const Modal = ({
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
+      
+      // ✅ AUTO-SCROLL: Ensure modal is in view when it opens
+      setTimeout(() => {
+        const modalElement = document.querySelector(`.${styles.modal}`);
+        if (modalElement) {
+          modalElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
     }
 
     return () => {

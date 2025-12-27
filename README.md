@@ -8,12 +8,19 @@
 2. Run `./start-dev.sh` - automatically installs dependencies and starts everything
 3. Open http://localhost:3000
 
+**First Time?** The app will **fail loudly** if Firebase config is missing (prevents silent polling floods).
+
+**To fix:**
+1. Create `.env.local` if missing: `touch rpa-system/rpa-dashboard/.env.local`
+2. Add Firebase credentials (from Firebase Console → Project Settings → General → Your apps)
+3. Restart: `./stop-dev.sh && ./start-dev.sh`
+
+See [docs/WORKFLOW.md](docs/WORKFLOW.md) for complete setup instructions.
+
 ## Documentation
 
 - **[Daily Workflow](docs/WORKFLOW.md)** - Start/stop, commit, deploy workflow
 - **[Vercel Deployment](docs/VERCEL_DEPLOYMENT.md)** - ⚠️ **CRITICAL:** Production branch configuration
-- **[Infrastructure as Code](docs/INFRASTRUCTURE_AS_CODE.md)** - Terraform guide for managing infrastructure
-- **[DevOps Suite Requirements](docs/DEVOPS_SUITE_REQUIREMENTS.md)** - DevOps tools documentation
 
 ## Commands
 

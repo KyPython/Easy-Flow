@@ -10,6 +10,7 @@ let axios;
 let usageTracker = null;
 let NotificationTemplates = null;
 let firebaseNotificationService = null;
+let aiDataExtractor = null;
 try {
     // Try to use the new Confluent Kafka client first
     ConfluentKafka = require('@confluentinc/kafka-javascript').KafkaJS.Kafka;
@@ -559,6 +560,91 @@ class KafkaService {
                                         if (artifactUrl) {
                                             updateData.artifact_url = artifactUrl;
                                             logger.info(`[KafkaService] Setting artifact_url for run ${runRecordId}: ${artifactUrl}`);
+                                        }
+                                        
+                                        // ✅ AI EXTRACTION: Process AI extraction if enabled and task completed successfully
+                                        // Get task parameters from automation_tasks table to check if AI extraction was enabled
+                                        if (dbStatus === 'completed' && runRecordId) {
+                                            try {
+                                                // Get the task record to check for enableAI and extractionTargets
+                                                const { data: runData } = await supabase
+                                                    .from('automation_runs')
+                                                    .select('task_id')
+                                                    .eq('id', runRecordId)
+                                                    .single();
+                                                
+                                                if (runData?.task_id) {
+                                                    const { data: taskData } = await supabase
+                                                        .from('automation_tasks')
+                                                        .select('parameters')
+                                                        .eq('id', runData.task_id)
+                                                        .single();
+                                                    
+                                                    if (taskData?.parameters) {
+                                                        const params = typeof taskData.parameters === 'string' 
+                                                            ? JSON.parse(taskData.parameters) 
+                                                            : taskData.parameters;
+                                                        
+                                                        if (params.enableAI && params.extractionTargets && params.extractionTargets.length > 0) {
+                                                            // Lazy-load AIDataExtractor
+                                                            if (!aiDataExtractor) {
+                                                                const { AIDataExtractor } = require('../services/aiDataExtractor');
+                                                                aiDataExtractor = new AIDataExtractor();
+                                                            }
+                                                            
+                                                            logger.info(`[KafkaService] Processing AI extraction for run ${runRecordId}`, {
+                                                                runId: runRecordId,
+                                                                extractionTargets: params.extractionTargets
+                                                            });
+                                                            
+                                                            // Get the artifact (PDF or HTML content) for extraction
+                                                            if (artifactUrl) {
+                                                                // Download the artifact for extraction
+                                                                const artifactResponse = await axios.get(artifactUrl, { responseType: 'arraybuffer' });
+                                                                const artifactBuffer = Buffer.from(artifactResponse.data);
+                                                                
+                                                                // Determine if it's a PDF or HTML
+                                                                const fileName = artifactUrl.split('/').pop() || 'file';
+                                                                let aiExtractionResult = null;
+                                                                
+                                                                if (fileName.toLowerCase().endsWith('.pdf')) {
+                                                                    // Extract from PDF (invoice extraction)
+                                                                    aiExtractionResult = await aiDataExtractor.extractInvoiceData(artifactBuffer, fileName);
+                                                                } else {
+                                                                    // Extract from HTML/web page
+                                                                    const htmlContent = artifactBuffer.toString('utf-8');
+                                                                    aiExtractionResult = await aiDataExtractor.extractWebPageData(htmlContent, params.extractionTargets);
+                                                                }
+                                                                
+                                                                // Add AI extraction result to stored result
+                                                                resultToStore.aiExtraction = aiExtractionResult;
+                                                                updateData.result = JSON.stringify(resultToStore);
+                                                                
+                                                                logger.info(`[KafkaService] ✅ AI extraction completed for run ${runRecordId}`, {
+                                                                    runId: runRecordId,
+                                                                    success: aiExtractionResult?.success,
+                                                                    extractedFields: aiExtractionResult?.extractedData ? Object.keys(aiExtractionResult.extractedData) : null
+                                                                });
+                                                            } else {
+                                                                logger.warn(`[KafkaService] AI extraction requested but no artifact URL available for run ${runRecordId}`);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            } catch (aiError) {
+                                                // Don't fail the whole task if AI extraction fails
+                                                logger.error('[KafkaService] AI extraction failed (non-fatal):', {
+                                                    error: aiError?.message || aiError,
+                                                    runId: runRecordId,
+                                                    stack: aiError?.stack
+                                                });
+                                                // Store error in result but don't fail the task
+                                                resultToStore.aiExtraction = {
+                                                    success: false,
+                                                    error: aiError?.message || 'AI extraction failed'
+                                                };
+                                                updateData.result = JSON.stringify(resultToStore);
+                                            }
                                         }
                                         
                                         const { error: updateError } = await supabase

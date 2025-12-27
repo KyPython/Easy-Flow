@@ -21,6 +21,27 @@ const SUPPORT_EMAIL = process.env.REACT_APP_SUPPORT_EMAIL || 'support@useeasyflo
 // Using reliable examples that actually automate (no manual work)
 const EXAMPLE_PROMPTS = [
   {
+    icon: '📌',
+    title: 'Download Invoices',
+    prompt: 'Download invoices from my vendor portal',
+    category: 'task',
+    description: 'One-click invoice automation'
+  },
+  {
+    icon: '🌐',
+    title: 'Scrape Website',
+    prompt: 'Scrape example.com for prices and product names',
+    category: 'task',
+    description: 'Extract data from any website'
+  },
+  {
+    icon: '📝',
+    title: 'Submit Form',
+    prompt: 'Submit a form on example.com with my contact information',
+    category: 'task',
+    description: 'Automate form submissions'
+  },
+  {
     icon: '🔄',
     title: 'Build Workflow',
     prompt: 'Create a workflow that checks prices on amazon.com daily and emails me if they drop below $50',
@@ -242,16 +263,43 @@ const Message = ({ message, isUser, isTyping, onApplyWorkflow, onAction }) => {
             {/* Show action buttons if available */}
             {message.actions && message.actions.length > 0 && (
               <div className={styles.actionButtons}>
-                {message.actions.map((action, idx) => (
-                  <button
-                    key={idx}
-                    className={`${styles.actionBtn} ${styles[action.variant || 'primary']}`}
-                    onClick={() => onAction(action)}
-                  >
-                    {action.icon && <span>{action.icon}</span>}
-                    {action.label}
-                  </button>
-                ))}
+                {message.actions.map((action, idx) => {
+                  // Special handling for bookmarklet - make it draggable
+                  if (action.type === 'bookmarklet') {
+                    return (
+                      <a
+                        key={idx}
+                        href={action.href}
+                        className={`${styles.actionBtn} ${styles[action.variant || 'primary']}`}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', action.href);
+                          e.dataTransfer.effectAllowed = 'copy';
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onAction(action);
+                        }}
+                        title="Drag to your bookmarks bar, then click it on any website!"
+                        style={{ cursor: 'grab' }}
+                      >
+                        {action.icon && <span>{action.icon}</span>}
+                        {action.label}
+                      </a>
+                    );
+                  }
+                  // Regular buttons
+                  return (
+                    <button
+                      key={idx}
+                      className={`${styles.actionBtn} ${styles[action.variant || 'primary']}`}
+                      onClick={() => onAction(action)}
+                    >
+                      {action.icon && <span>{action.icon}</span>}
+                      {action.label}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -314,10 +362,16 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
 "Scrape example.com for prices"
 "Send an email to john@example.com"
 "Show me my tasks"
+"Download invoices from my vendor portal" 📌
 
 🔄 BUILD WORKFLOWS — Describe automations:
 "Monitor a website daily and alert me"
 "Pull data from an API and save it"
+
+✨ NEW FEATURES:
+📌 Bookmarklet: One-click invoice downloads from vendor portals!
+🤖 AI Extraction: FREE automatic data extraction from PDFs and web pages
+🎯 Plain English: No more technical jargon - everything is user-friendly!
 
 ❓ GET HELP — Ask me anything!
 
@@ -418,6 +472,25 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
       case 'link':
         window.open(action.href, '_blank');
         break;
+      case 'bookmarklet':
+        // Show instructions for bookmarklet
+        const instructions = action.instructions || 'Drag this button to your bookmarks bar, then click it while on any website!';
+        alert(`📌 ${instructions}\n\nAfter adding to bookmarks:\n1. Go to your vendor portal\n2. Click the "EasyFlow Automation" bookmark\n3. EasyFlow opens with the URL pre-filled!`);
+        // Also provide the bookmarklet code in a way they can copy
+        const bookmarkletText = `javascript:(function(){const url=encodeURIComponent(window.location.href);const base=window.location.hostname==='localhost'?'http://localhost:3000':'https://app.useeasyflow.com';window.open(base+'/app/tasks?url='+url+'&task=invoice_download','_blank');alert('🚀 Opening EasyFlow!');})();`;
+        navigator.clipboard.writeText(bookmarkletText).then(() => {
+          // Show success message
+          setMessages(prev => [...prev, {
+            id: `bookmarklet-copied-${Date.now()}`,
+            content: '✅ Bookmarklet code copied! Right-click your bookmarks bar → "Add page" → Paste the code as the URL → Name it "EasyFlow Automation"',
+            isUser: false,
+            timestamp: new Date()
+          }]);
+        }).catch(() => {
+          // Fallback if clipboard fails
+          console.log('Bookmarklet code:', bookmarkletText);
+        });
+        break;
       case 'sendSupport':
         // Send email to support on behalf of user
         sendSupportEmail(action.subject, action.body);
@@ -425,7 +498,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
       default:
         console.log('Unknown action:', action);
     }
-  }, []);
+  }, [setMessages]);
 
   // Send support email via backend
   const sendSupportEmail = async (subject, body) => {
@@ -564,6 +637,57 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
     saveMessage(userMessage); // Save user message
     setInputValue('');
     setIsLoading(true);
+
+    // ✅ BOOKMARKLET DETECTION: Check if user mentions vendor portal/invoice download
+    // Flexible pattern to catch typos, variations, and different phrasings
+    const lowerMessage = textToSend.toLowerCase();
+    
+    // Check for invoice-related keywords (handles typos like "nvoices")
+    const hasInvoiceKeyword = /\b(invoic|nvoic|invois|nvois)/i.test(textToSend);
+    
+    // Check for download/get/fetch actions
+    const hasDownloadKeyword = /\b(download|get|fetch|grab|pull|retrieve)/i.test(textToSend);
+    
+    // Check for portal/website/site references
+    const hasPortalKeyword = /\b(portal|website|site|page|platform)/i.test(textToSend);
+    
+    // Check for vendor/supplier references
+    const hasVendorKeyword = /\b(vendor|supplier|merchant)/i.test(textToSend);
+    
+    // Match if: (vendor + portal) OR (invoice + download) OR (invoice + portal) OR (download + portal)
+    const mentionsVendorPortal = (
+      (hasVendorKeyword && hasPortalKeyword) ||
+      (hasInvoiceKeyword && hasDownloadKeyword) ||
+      (hasInvoiceKeyword && hasPortalKeyword) ||
+      (hasDownloadKeyword && hasPortalKeyword) ||
+      lowerMessage.includes('vendor portal') ||
+      lowerMessage.includes('vendor website')
+    ) && !lowerMessage.includes('bookmarklet') && !lowerMessage.includes('bookmark');
+    
+    if (mentionsVendorPortal) {
+      // Provide bookmarklet solution immediately (before backend response)
+      const bookmarkletCode = `javascript:(function(){const url=encodeURIComponent(window.location.href);const base=window.location.hostname==='localhost'?'http://localhost:3000':'https://app.useeasyflow.com';window.open(base+'/app/tasks?url='+url+'&task=invoice_download','_blank');alert('🚀 Opening EasyFlow with this page\\'s URL!\\n\\nJust add your login credentials and click "Run Automation".');})();`;
+      
+      setMessages(prev => [...prev, {
+        id: `bookmarklet-help-${Date.now()}`,
+        content: `Perfect! I can help you download invoices from your vendor portal. Here's the easiest way - no need to copy/paste URLs! 🎯\n\n**Quick Solution - Bookmarklet:**\n\n1. **Drag the button below to your bookmarks bar**\n2. **When you're on your vendor portal, just click the bookmark!**\n3. EasyFlow will open with the page URL already filled in - just add your login credentials and run! ✨\n\n**No more switching tabs or copying URLs!**`,
+        isUser: false,
+        timestamp: new Date(),
+        actions: [{
+          type: 'bookmarklet',
+          href: bookmarkletCode,
+          label: '📌 Drag to Bookmarks Bar',
+          variant: 'primary',
+          instructions: 'Drag this button to your bookmarks bar, then click it while on any website!'
+        }],
+        suggestions: [
+          'Or just tell me the vendor portal URL and I can help you set it up',
+          'I can also create a workflow that runs automatically'
+        ]
+      }]);
+      setIsLoading(false); // Stop loading as we've provided a local response
+      return; // ✅ FIX: Don't send to backend - we've already provided the solution
+    }
 
     // First, check if this is a support-related query we can handle locally
     const supportIntent = detectSupportIntent(userMessage.content);

@@ -181,9 +181,19 @@ const requireAutomationRun = async (req, res, next) => {
 const requireFeature = (featureKey) => {
   return async (req, res, next) => {
     try {
-      // allow dev bypass to skip feature checks
-      if (req.devBypass) {
-        return next(); // Dev bypass: skip feature enforcement, but do not inject static planData
+      // ✅ FIX: Check development mode FIRST to avoid unnecessary DB calls
+      // Check multiple ways NODE_ENV might be set
+      const nodeEnv = (process.env.NODE_ENV || process.env.node_env || 'development').toLowerCase();
+      const isDevelopment = nodeEnv === 'development' || nodeEnv === 'dev';
+      
+      // Allow explicit dev bypass token OR development mode to short-circuit feature checks
+      if (req.devBypass || isDevelopment) {
+        logger.info('[PlanEnforcement] Development mode detected, skipping feature check', {
+          feature: featureKey,
+          devBypass: !!req.devBypass,
+          nodeEnv: process.env.NODE_ENV || process.env.node_env || 'development'
+        });
+        return next(); // Skip feature enforcement entirely in development
       }
       const userId = req.user?.id;
       
@@ -241,9 +251,19 @@ const requireFeature = (featureKey) => {
 const requirePlan = (minPlan) => {
   return async (req, res, next) => {
     try {
-      // allow dev bypass to skip plan checks
-      if (req.devBypass) {
-        return next(); // Dev bypass: skip plan enforcement, but do not inject static planData
+      // ✅ FIX: Check development mode FIRST to avoid unnecessary DB calls
+      // Check multiple ways NODE_ENV might be set
+      const nodeEnv = (process.env.NODE_ENV || process.env.node_env || 'development').toLowerCase();
+      const isDevelopment = nodeEnv === 'development' || nodeEnv === 'dev';
+      
+      // Allow explicit dev bypass token OR development mode to short-circuit plan checks
+      if (req.devBypass || isDevelopment) {
+        logger.info('[PlanEnforcement] Development mode detected, skipping plan check', {
+          requiredPlan: minPlan,
+          devBypass: !!req.devBypass,
+          nodeEnv: process.env.NODE_ENV || process.env.node_env || 'development'
+        });
+        return next(); // Skip plan enforcement entirely in development
       }
       const userId = req.user?.id;
       

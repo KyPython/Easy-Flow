@@ -154,6 +154,16 @@ const Header = ({ user }) => {
               {(!planData?.plan || ['Hobbyist', 'Starter'].includes(planData.plan.name)) && <span className={styles.proIcon}>✨</span>}
             </Link>
 
+            {/* Unified Dashboard - External tools status */}
+            <Link
+              to="/app/unified-dashboard"
+              className={`${styles.navLink} ${
+                isActive('/app/unified-dashboard') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.unified_dashboard','Status')}
+            </Link>
+
             {/* Webhooks - Professional+ feature */}
             <Link
               to="/app/webhooks"

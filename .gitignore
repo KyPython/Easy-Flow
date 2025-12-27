@@ -419,3 +419,4 @@ rpa-system/monitoring/alertmanager.yml
 *.tfvars
 *.tfplan
 .terraform.lock.hcl
+rpa-system/rpa-dashboard/public/firebase-config.js

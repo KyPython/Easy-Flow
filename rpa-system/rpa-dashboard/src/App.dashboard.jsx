@@ -22,6 +22,7 @@ import { LanguageProvider } from './utils/LanguageContext';
 import { SessionProvider } from './contexts/SessionContext';
 import { AccessibilityProvider } from './contexts/AccessibilityContext.tsx';
 import NetworkStatus from './components/NetworkStatus/NetworkStatus'; // Keep eager (small component)
+import logger from './utils/logger'; // Structured logger for observability
 // FIREBASE INITIALIZATION DEFERRED - was blocking main thread
 // import './utils/firebaseConfig';
 import './theme.css';
@@ -144,8 +145,16 @@ const AnalyticsTracker = () => {
 
 function Protected({ children }) {
   const { session, loading } = useAuth();
+  const location = useLocation();
+  
   if (loading) return null; // or a spinner component
-  if (!session) return <Navigate to="/" replace />;
+  if (!session) {
+    // ✅ SMART REDIRECT: Save intended path before redirecting to login
+    if (location.pathname !== '/auth' && location.pathname !== '/') {
+      sessionStorage.setItem('intended_path', location.pathname + location.search);
+    }
+    return <Navigate to="/auth" replace />;
+  }
   return children;
 }
 
@@ -162,7 +171,9 @@ function WorkflowIdRedirect() {
 
 function Shell() {
   const { user } = useAuth();
-  const logger = createLogger('Shell'); // Structured logger for observability
+  // State to trigger render error for Firebase config errors (caught by ErrorBoundary)
+  const [firebaseConfigError, setFirebaseConfigError] = useState(null);
+  
   // Initialize Firebase on-demand when the runtime feature gate is enabled
   // This avoids the heavy Firebase SDK being loaded at module-eval time.
   useEffect(() => {
@@ -178,11 +189,55 @@ function Shell() {
         try {
           const mod = await import('./utils/firebaseConfig');
           if (mod && mod.initFirebase) {
-            // Fire-and-forget initialization — do not block UI
-            mod.initFirebase().catch(e => logger.warn('Firebase init failed', { error: e?.message || e, stack: e?.stack }));
+            // ✅ CRITICAL: In development, re-throw configuration errors to crash the app
+            // This prevents silent fallback to polling that floods the backend
+            try {
+              await mod.initFirebase();
+            } catch (e) {
+              if (e?.name === 'FirebaseConfigurationError' || e?.message?.includes('FATAL')) {
+                // Configuration error - log prominently
+                logger.error('🔥 Firebase configuration error - this will cause polling fallback!', {
+                  error: e?.message || e,
+                  details: e?.details,
+                  stack: e?.stack
+                });
+                console.error('🔥 Firebase configuration error:', e.message);
+                if (e.details) {
+                  console.error('Details:', e.details);
+                }
+                // ✅ DEVELOPMENT: Trigger render error that ErrorBoundary will catch
+                if (process.env.NODE_ENV === 'development') {
+                  setFirebaseConfigError(e); // This will trigger a render error
+                  console.error("Firebase config error detected, setting state to trigger crash overlay.");
+                }
+                // Production: Don't crash, just log (already logged above)
+              } else {
+                // Other initialization errors (network, etc.) - log as warning
+                logger.warn('Firebase init failed', { error: e?.message || e, stack: e?.stack });
+              }
+            }
           }
         } catch (e) {
-          logger.warn('Firebase dynamic import failed', { error: e?.message || e, stack: e?.stack });
+          // Module import failed - could be configuration error thrown during module evaluation
+          if (e?.name === 'FirebaseConfigurationError' || e?.message?.includes('FATAL')) {
+            logger.error('🔥 Firebase configuration error during module import!', {
+              error: e?.message || e,
+              details: e?.details,
+              stack: e?.stack
+            });
+            console.error('🔥 Firebase configuration error:', e.message);
+            if (e.details) {
+              console.error('Details:', e.details);
+            }
+            // ✅ DEVELOPMENT: Trigger render error that ErrorBoundary will catch
+            if (process.env.NODE_ENV === 'development') {
+              setFirebaseConfigError(e); // This will trigger a render error
+              console.error("Firebase config error on import, setting state to trigger crash overlay.");
+            }
+            // Production: Don't crash, just log (already logged above)
+          } else {
+            logger.warn('Firebase dynamic import failed', { error: e?.message || e, stack: e?.stack });
+          }
         }
       })();
       // Analytics gating: enable GTM/gtag only for paying users.
@@ -198,6 +253,13 @@ function Shell() {
       logger.warn('Firebase init gate check failed', { error: e?.message || e, stack: e?.stack });
     }
   }, [user]);
+  
+  // ✅ DEVELOPMENT: Throw render error if Firebase config error detected (caught by ErrorBoundary)
+  if (process.env.NODE_ENV === 'development' && firebaseConfigError) {
+    console.error("Re-rendering with firebaseConfigError, throwing now to activate overlay.");
+    throw firebaseConfigError; // This will be caught by React ErrorBoundary and show error overlay
+  }
+  
   // Restore usage tracking (milestones, sessions). The hook is lightweight
   // and stores metrics in localStorage. It is safe to run when user is null.
   const {

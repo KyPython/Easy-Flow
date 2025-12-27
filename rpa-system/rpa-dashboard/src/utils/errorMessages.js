@@ -70,6 +70,11 @@ export const sanitizeErrorMessage = (error) => {
     'syntax error': 'An error occurred while processing your request. Please try again.',
     'typeerror': 'An unexpected error occurred. Please try again or contact support.',
     'referenceerror': 'An unexpected error occurred. Please refresh the page.',
+    'missing required field': 'Required information is missing. Please check your input and try again.',
+    'missing required field:': 'Required information is missing. Please check your input and try again.',
+    'pdf_url or url': 'The document URL is required. Please provide a valid URL and try again.',
+    'pdf_url': 'The document URL is required. Please provide a valid URL and try again.',
+    'url': 'A URL is required. Please provide a valid URL and try again.',
   };
 
   // Check for specific error patterns (case-insensitive) - apply in both dev and prod

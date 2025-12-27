@@ -528,12 +528,13 @@ const WorkflowBuilder = () => {
                 showSuccess('✅ Workflow execution completed successfully!');
               }
               
-              // Default: switch to executions tab
+              // ✅ AUTO-REDIRECT: Switch to executions tab with notification
               const workflowPath = workflowId || currentWorkflow?.id;
               const executionsPath = workflowPath
                 ? `/app/workflows/builder/${workflowPath}/executions`
                 : '/app/workflows/builder/executions';
               
+              showSuccess('✅ Workflow execution completed! ↪️ Redirecting to execution results in 2 seconds...');
               setTimeout(() => {
                 navigate(executionsPath);
               }, 2000);

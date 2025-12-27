@@ -109,11 +109,14 @@ function shouldLogApiCall() {
   return apiLogCounter % API_LOG_SAMPLE_RATE === 0;
 }
 
+// ✅ DYNAMIC: Use dynamicConfig for all API settings (non-hardcoded)
+import { getConfig } from './dynamicConfig';
+
 // Use absolute backend URL in production via REACT_APP_API_BASE.
 // In local dev (CRA), keep it relative to leverage the proxy.
 export const api = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE || '',
-  timeout: 30000,
+  baseURL: getConfig('api.baseUrl', process.env.REACT_APP_API_BASE || ''),
+  timeout: getConfig('api.timeout', 30000),
 });
 
 // Enable credentials to allow session cookies in cross-origin requests
@@ -422,7 +425,8 @@ api.interceptors.response.use(
 
     try {
       const now = Date.now();
-      const throttleWindowMs = 30000; // 30s window between global refresh attempts
+      const { getConfig } = require('./dynamicConfig');
+      const throttleWindowMs = getConfig('intervals.statusRefresh', 30000); // Dynamic refresh interval
 
       if (!isRefreshing && (now - lastRefreshAttempt) > throttleWindowMs) {
         isRefreshing = true;
@@ -957,7 +961,11 @@ export const getFileDownloadUrl = async (fileId) => {
 // Generic request helper with AbortController + retry/backoff.
 // Returns the axios response object.
 export async function requestWithRetry(requestConfig, options = {}) {
-  const { retries = 2, backoffMs = 500, timeout = api.defaults.timeout || 30000 } = options;
+  // ✅ DYNAMIC: Use dynamicConfig for defaults (non-hardcoded)
+  const { getConfig } = require('./dynamicConfig');
+  const { retries = getConfig('api.retries', 2), 
+          backoffMs = getConfig('api.backoffMs', 500), 
+          timeout = api.defaults.timeout || getConfig('api.timeout', 30000) } = options;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;

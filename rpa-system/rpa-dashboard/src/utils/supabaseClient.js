@@ -363,6 +363,15 @@ export async function isUserPaid(userId) {
   }
 }
 
+// ✅ Helper: Check if Supabase is properly configured
+export function isSupabaseConfigured() {
+  // Check if we have valid URL and anon key
+  if (looksLikePlaceholder(rawUrl)) return false;
+  if (!rawUrl || !rawAnon) return false;
+  // Check if real client has been initialized (not just stub)
+  return _realSupabase !== null;
+}
+
 export default supabase;
 export { supabase };
 

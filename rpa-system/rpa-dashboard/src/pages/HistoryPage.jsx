@@ -4,17 +4,56 @@ import { useI18n } from '../i18n';
 import { useTheme } from '../utils/ThemeContext';
 import TaskList from '../components/TaskList/TaskList';
 import { useAuth } from '../utils/AuthContext';
-import { supabase, initSupabase } from '../utils/supabaseClient';
+import { supabase, initSupabase, isSupabaseConfigured } from '../utils/supabaseClient';
 import { fetchWithAuth } from '../utils/devNetLogger';
+import { ApiErrorHandler } from '../utils/errorHandler';
 import styles from './HistoryPage.module.css';
 import ErrorMessage from '../components/ErrorMessage';
 // Note: Chatbot removed - AI Agent is now available globally via toggle button
 import TaskResultModal from '../components/TaskResultModal/TaskResultModal';
 import { createLogger } from '../utils/logger';
+import { sanitizeErrorMessage } from '../utils/errorMessages';
+import { getEnvMessage } from '../utils/envAwareMessages';
+
+// ✅ DYNAMIC CONFIGURATION: All values from dynamicConfig (environment-aware, non-hardcoded)
+import { getConfig } from '../utils/dynamicConfig';
+
+const HISTORY_CONFIG = {
+  // API Request Timeout (from dynamic config)
+  apiTimeout: getConfig('timeouts.api', 30000),
+  
+  // Loading Timeout (from dynamic config)
+  loadingTimeout: getConfig('timeouts.loading', 60000),
+  
+  // Polling Interval (from dynamic config)
+  pollingInterval: getConfig('intervals.polling', 10000),
+  
+  // Stuck Task Threshold (from dynamic config, converted from hours to ms)
+  stuckTaskThresholdMs: getConfig('thresholds.stuckTaskHours', 24) * 60 * 60 * 1000,
+  
+  // Error Messages (environment-aware via getEnvMessage)
+  errorMessages: {
+    timeout: getEnvMessage({
+      dev: `API request timeout after ${getConfig('timeouts.api', 30000) / 1000} seconds`,
+      prod: 'The request is taking longer than expected. Please try refreshing the page.'
+    }),
+    loadingTimeout: getEnvMessage({
+      dev: `Loading timeout after ${getConfig('timeouts.loading', 60000) / 1000} seconds`,
+      prod: 'Loading is taking longer than expected. Please refresh the page or contact support if the issue persists.'
+    }),
+    fetchError: getEnvMessage({
+      dev: 'Could not load automation history. The backend may be unavailable.',
+      prod: 'Unable to load automation history. Please refresh the page or try again later.'
+    })
+  }
+};
+
 const HistoryPage = () => {
   const { user } = useAuth();
   const { theme } = useTheme() || { theme: 'light' };
   const logger = createLogger('HistoryPage');
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isProduction = process.env.NODE_ENV === 'production';
   const loadingTimeoutRef = useRef(null);
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,27 +66,39 @@ const HistoryPage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false); // Track manual refresh state
   const runsRef = useRef([]); // Store runs in ref to avoid dependency issues
   const isInitialLoad = useRef(true); // Track if this is the first load
+  const fetchInProgressRef = useRef(false); // Prevent concurrent requests
+  const errorHandlerRef = useRef(new ApiErrorHandler()); // Circuit breaker for API calls
 
   // ✅ Move fetchRuns to useCallback so it can be called from anywhere
   const fetchRuns = useCallback(async (isBackgroundRefresh = false) => {
-    if (!user) return;
+      if (!user) return;
+    
+    // ✅ REQUEST DEDUPLICATION: Prevent concurrent requests
+    if (fetchInProgressRef.current) {
+      logger.debug('Fetch already in progress, skipping duplicate request', { user_id: user.id });
+      return;
+    }
+    
+    fetchInProgressRef.current = true;
     
     // Only show loading state on initial load, not background refreshes
     if (!isBackgroundRefresh) {
       setLoading(true);
     }
-    setError('');
+      setError('');
 
-      // Set timeout to prevent infinite loading (30 seconds)
+      // ✅ DYNAMIC: Set timeout based on environment (consumer-friendly in prod, dev-friendly in dev)
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       loadingTimeoutRef.current = setTimeout(() => {
-        logger.error('History fetch timeout - taking longer than 30 seconds', {
+        logger.error('History fetch timeout', {
           user_id: user.id,
-          timeout: 30000
+          timeout: HISTORY_CONFIG.loadingTimeout,
+          environment: process.env.NODE_ENV
         });
-        setError('Loading is taking longer than expected. Please refresh the page.');
+        setError(HISTORY_CONFIG.errorMessages.loadingTimeout);
         setLoading(false);
-      }, 30000);
+        fetchInProgressRef.current = false;
+      }, HISTORY_CONFIG.loadingTimeout);
 
       try {
         logger.info('Fetching automation runs via backend API', { user_id: user.id });
@@ -66,10 +117,11 @@ const HistoryPage = () => {
           user_id: user.id 
         });
         
+        // ✅ DYNAMIC: Timeout based on environment (consumer-friendly in prod, dev-friendly in dev)
         const response = await Promise.race([
           fetchWithAuth(apiUrl),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('API request timeout after 15 seconds')), 15000)
+            setTimeout(() => reject(new Error(HISTORY_CONFIG.errorMessages.timeout)), HISTORY_CONFIG.apiTimeout)
           )
         ]);
         
@@ -87,11 +139,17 @@ const HistoryPage = () => {
           user_id: user.id 
         });
         
-        if (queryDuration > 5000) {
-          logger.warn('Slow API response detected', {
+        // ✅ DYNAMIC: Only warn about slow responses in dev (more lenient threshold in prod)
+        const slowThreshold = isProduction ? 10000 : 5000; // 10s prod, 5s dev
+        if (queryDuration > slowThreshold) {
+          const logLevel = isProduction ? 'warn' : 'error'; // Error in dev, warn in prod
+          logger[logLevel]('Slow API response detected', {
             duration_ms: queryDuration,
             user_id: user.id,
-            message: 'Backend API took longer than 5 seconds - check database indexes'
+            environment: process.env.NODE_ENV,
+            message: isProduction 
+              ? 'Backend API is slower than expected'
+              : 'Backend API took longer than 5 seconds - check database indexes'
           });
         }
         
@@ -110,13 +168,39 @@ const HistoryPage = () => {
           isInitialLoad.current = false;
         }
       } catch (err) {
+        // ✅ DYNAMIC: Handle errors based on type and environment
+        const isAuthError = err.message?.includes('401') || err.message?.includes('Unauthorized');
+        const isNetworkError = err.message?.includes('ERR_NETWORK_IO_SUSPENDED') || err.message?.includes('Network');
+        const isTimeoutError = err.message?.includes('timeout');
+        
+        // In development: Log all errors with details
+        // In production: Only log unexpected errors (suppress expected ones)
+        if (isDevelopment || (!isAuthError && !isNetworkError)) {
         logger.error('Failed to fetch automation runs', {
           error: err.message,
           error_code: err.code,
           user_id: user.id,
-          stack: err.stack
-        });
-        setError(err.message || 'Could not load automation history. The backend may be unavailable.');
+            error_type: isAuthError ? 'auth' : isNetworkError ? 'network' : isTimeoutError ? 'timeout' : 'unknown',
+            environment: process.env.NODE_ENV,
+            stack: isDevelopment ? err.stack : undefined // Only include stack in dev
+          });
+        } else if (isAuthError && isDevelopment) {
+          // Auth errors in dev: debug level (less noisy)
+          logger.debug('Authentication error (expected during session refresh)', {
+            user_id: user.id,
+            message: 'Will retry after token refresh'
+          });
+        }
+        
+        // ✅ DYNAMIC: User-friendly error in prod, technical error in dev
+        // Don't show error for expected network issues (tab suspended, etc.)
+        if (!isNetworkError || isProduction) {
+          const errorMessage = getEnvMessage({
+            dev: err.message || HISTORY_CONFIG.errorMessages.fetchError,
+            prod: HISTORY_CONFIG.errorMessages.fetchError
+          });
+          setError(sanitizeErrorMessage(errorMessage));
+        }
       } finally {
         if (loadingTimeoutRef.current) {
           clearTimeout(loadingTimeoutRef.current);
@@ -124,39 +208,98 @@ const HistoryPage = () => {
         }
         // Only set loading to false if this was the initial load
         if (!isBackgroundRefresh) {
-          setLoading(false);
+        setLoading(false);
         }
         setIsRefreshing(false);
+        fetchInProgressRef.current = false; // ✅ Release lock
       }
   }, [user, logger]);
 
   // ✅ Real-time updates with Supabase Realtime (replaces polling)
   // Uses WebSocket subscriptions for instant updates when runs change
+  const setupInProgressRef = useRef(false); // Prevent concurrent setup attempts
   useEffect(() => {
     if (!user?.id) return;
+    
+    // ✅ Prevent concurrent setup attempts
+    if (setupInProgressRef.current) {
+      logger.debug('Realtime setup already in progress, skipping', { user_id: user.id });
+      return;
+    }
 
     let channel = null;
     let client = null;
     let fallbackPollInterval = null;
 
     const setupRealtime = async () => {
+      setupInProgressRef.current = true;
       try {
+        // ✅ FAIL LOUDLY: Check if Supabase is configured before attempting real-time
+        if (!isSupabaseConfigured()) {
+          const configMsg = '🔥 FATAL: Supabase not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY.';
+          const errorDetails = {
+            missing: 'REACT_APP_SUPABASE_URL and/or REACT_APP_SUPABASE_ANON_KEY',
+            impact: 'Real-time updates unavailable, causing silent fallback to polling that floods the backend',
+            fix: 'Set Supabase environment variables in .env.local (local) or Vercel (production)'
+          };
+          
+          if (isDevelopment) {
+            // ✅ DEVELOPMENT: Fail loudly to prevent silent fallback
+            logger.error(configMsg, { user_id: user.id, ...errorDetails });
+            setError(`🔥 Configuration Error: ${errorDetails.missing} is missing. Real-time features will not work. Please configure Supabase in .env.local and restart the dev server.`);
+            // Don't fetch or poll - force user to fix configuration
+            setupInProgressRef.current = false;
+            return;
+          } else {
+            // Production: Show user-friendly error but still allow data fetching
+            logger.error(configMsg, { user_id: user.id, ...errorDetails });
+            setError('Real-time updates unavailable. Please configure Supabase environment variables.');
+            await fetchRuns(false);
+            setupInProgressRef.current = false;
+            return; // Don't attempt real-time or polling if Supabase isn't configured
+          }
+        }
+
         // Initial load
         await fetchRuns(false);
 
         // Initialize Supabase client for Realtime
         client = await initSupabase();
         if (!client || typeof client.channel !== 'function') {
-          logger.warn('Supabase Realtime not available, falling back to polling');
+          logger.warn('Supabase Realtime not available, falling back to polling', { user_id: user.id });
           // Fallback: Use polling if Realtime is unavailable
-          fallbackPollInterval = setInterval(() => {
-            const hasActiveTasks = runsRef.current.some(run => 
-              run.status === 'queued' || run.status === 'running' || run.status === 'pending'
-            );
-            if (hasActiveTasks) {
-              fetchRuns(true); // Background refresh only for active tasks
-            }
-          }, 5000); // Poll every 5 seconds as fallback
+          // ✅ SMART POLLING: Only poll if backend is reachable (check circuit breaker)
+          const setupPolling = () => {
+            fallbackPollInterval = setInterval(() => {
+              // ✅ Check circuit breaker before polling - don't poll if backend is unreachable
+              const circuitBreaker = errorHandlerRef.current.getCircuitBreaker('/api/runs');
+              const breakerStatus = circuitBreaker.getStatus();
+              
+              if (breakerStatus.state === 'OPEN') {
+                // Circuit breaker is open - backend is unreachable, don't poll
+                logger.debug('Skipping poll - circuit breaker is OPEN (backend unreachable)', {
+                  user_id: user.id,
+                  nextAttempt: breakerStatus.nextAttempt ? new Date(breakerStatus.nextAttempt).toISOString() : null
+                });
+                return;
+              }
+
+              const now = Date.now();
+              const hasActiveTasks = runsRef.current.some(run => {
+                if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
+                  return false;
+                }
+                // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
+                const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
+                const ageMs = now - startedAt;
+                return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
+              });
+              if (hasActiveTasks && !fetchInProgressRef.current) {
+                fetchRuns(true); // Background refresh only for active tasks
+              }
+            }, HISTORY_CONFIG.pollingInterval);
+          };
+          setupPolling();
           return;
         }
 
@@ -200,6 +343,11 @@ const HistoryPage = () => {
               if (payload.eventType === 'INSERT') {
                 // New run created - fetch full data to get task details
                 fetchRuns(true); // Background refresh
+                
+                // ✅ AUTO-SCROLL: Scroll to top when new run is added (new runs appear at top)
+                setTimeout(() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 500); // Wait for data to load
               } else if (payload.eventType === 'UPDATE') {
                 // Run status or data changed - update local state efficiently
                 setRuns(prev => {
@@ -248,41 +396,139 @@ const HistoryPage = () => {
             if (status === 'SUBSCRIBED') {
               logger.info('Successfully subscribed to automation_runs changes via WebSocket', { user_id: user.id });
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-              logger.warn('Realtime subscription error, falling back to polling', {
-                status,
-                user_id: user.id
-              });
-              // Fallback to polling if Realtime fails
-              if (!fallbackPollInterval) {
+              // ✅ FAIL LOUDLY: Check if this is a configuration error before falling back
+              const isConfigError = status === 'CHANNEL_ERROR' && (
+                !isSupabaseConfigured() || 
+                (typeof window !== 'undefined' && !window._supabase?.auth?.getSession)
+              );
+              
+              if (isConfigError && isDevelopment) {
+                // ✅ DEVELOPMENT: Fail loudly for configuration errors
+                const errorMsg = '🔥 FATAL: Real-time connection failed due to configuration error. Check Supabase configuration.';
+                logger.error(errorMsg, {
+                  status,
+                  user_id: user.id,
+                  supabase_configured: isSupabaseConfigured(),
+                  note: 'This prevents silent fallback to polling. Fix configuration to resolve.'
+                });
+                setError('🔥 Real-time connection failed. Please check Supabase configuration in .env.local and restart the dev server.');
+                // Don't fall back to polling - force configuration fix
+                return;
+              }
+              
+              // ✅ DYNAMIC: Less noisy in dev (expected behavior), more visible in prod
+              if (isProduction) {
+                logger.warn('Realtime subscription error, falling back to polling', {
+                  status,
+                  user_id: user.id
+                });
+              } else {
+                // In dev: warn level for non-config errors (transient disconnects are expected)
+                logger.warn('Realtime subscription temporarily disconnected', {
+                  status,
+                  user_id: user.id,
+                  note: 'Will reconnect automatically. If this persists, check Supabase configuration.'
+                });
+              }
+              // Fallback to polling if Realtime fails (only for non-config errors)
+              // ✅ Ensure only one polling interval exists
+              if (fallbackPollInterval) {
+                clearInterval(fallbackPollInterval);
+              }
+              // ✅ SMART POLLING: Only poll if backend is reachable (check circuit breaker)
+              const setupPolling = () => {
                 fallbackPollInterval = setInterval(() => {
-                  const hasActiveTasks = runsRef.current.some(run => 
-                    run.status === 'queued' || run.status === 'running' || run.status === 'pending'
-                  );
-                  if (hasActiveTasks) {
+                  // ✅ Check circuit breaker before polling - don't poll if backend is unreachable
+                  const circuitBreaker = errorHandlerRef.current.getCircuitBreaker('/api/runs');
+                  const breakerStatus = circuitBreaker.getStatus();
+                  
+                  if (breakerStatus.state === 'OPEN') {
+                    // Circuit breaker is open - backend is unreachable, don't poll
+                    logger.debug('Skipping poll - circuit breaker is OPEN (backend unreachable)', {
+                      user_id: user.id,
+                      nextAttempt: breakerStatus.nextAttempt ? new Date(breakerStatus.nextAttempt).toISOString() : null
+                    });
+                    return;
+                  }
+
+                  const now = Date.now();
+                  const hasActiveTasks = runsRef.current.some(run => {
+                    if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
+                      return false;
+                    }
+                    // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
+                    const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
+                    const ageMs = now - startedAt;
+                    return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
+                  });
+                  if (hasActiveTasks && !fetchInProgressRef.current) {
                     fetchRuns(true);
                   }
-                }, 5000);
-              }
+                }, HISTORY_CONFIG.pollingInterval);
+              };
+              setupPolling();
             }
           });
       } catch (err) {
-        logger.error('Failed to setup Realtime subscription', {
+        // ✅ DYNAMIC: Error level in prod, warn in dev (Realtime failures are common in dev)
+        const logLevel = isProduction ? 'error' : 'warn';
+        logger[logLevel]('Failed to setup Realtime subscription', {
           error: err.message,
           user_id: user.id,
-          stack: err.stack
+          environment: process.env.NODE_ENV,
+          note: isDevelopment ? 'Falling back to polling (expected in dev)' : 'Falling back to polling',
+          stack: isDevelopment ? err.stack : undefined // Only include stack in dev
         });
-        // Fallback: still fetch initial data even if Realtime fails
-        fetchRuns(false);
-        // Also set up polling as fallback
-        if (!fallbackPollInterval) {
-          fallbackPollInterval = setInterval(() => {
-            const hasActiveTasks = runsRef.current.some(run => 
-              run.status === 'queued' || run.status === 'running' || run.status === 'pending'
-            );
-            if (hasActiveTasks) {
-              fetchRuns(true);
-            }
-          }, 5000);
+        // Fallback: only fetch initial data if we haven't already loaded it
+        // (Prevent repeated initial loads when real-time fails)
+        if (runsRef.current.length === 0) {
+          fetchRuns(false);
+        } else {
+          logger.debug('Skipping initial fetch - data already loaded', { user_id: user.id });
+        }
+        // Also set up polling as fallback (only if Supabase is configured)
+        if (isSupabaseConfigured()) {
+          // ✅ Ensure only one polling interval exists
+          if (fallbackPollInterval) {
+            clearInterval(fallbackPollInterval);
+          }
+          // ✅ SMART POLLING: Only poll if backend is reachable (check circuit breaker)
+          const setupPolling = () => {
+            fallbackPollInterval = setInterval(() => {
+              // ✅ Check circuit breaker before polling - don't poll if backend is unreachable
+              const circuitBreaker = errorHandlerRef.current.getCircuitBreaker('/api/runs');
+              const breakerStatus = circuitBreaker.getStatus();
+              
+              if (breakerStatus.state === 'OPEN') {
+                // Circuit breaker is open - backend is unreachable, don't poll
+                logger.debug('Skipping poll - circuit breaker is OPEN (backend unreachable)', {
+                  user_id: user.id,
+                  nextAttempt: breakerStatus.nextAttempt ? new Date(breakerStatus.nextAttempt).toISOString() : null
+                });
+                return;
+              }
+
+              const now = Date.now();
+              const hasActiveTasks = runsRef.current.some(run => {
+                if (run.status !== 'queued' && run.status !== 'running' && run.status !== 'pending') {
+                  return false;
+                }
+                // ✅ DYNAMIC: Skip tasks that have been "running" longer than threshold (likely stuck)
+                const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0;
+                const ageMs = now - startedAt;
+                return ageMs < HISTORY_CONFIG.stuckTaskThresholdMs;
+              });
+              if (hasActiveTasks && !fetchInProgressRef.current) {
+                fetchRuns(true);
+              }
+            }, HISTORY_CONFIG.pollingInterval);
+          };
+          setupPolling();
+        } else {
+          // Supabase not configured - don't poll, just show error
+          if (isProduction) {
+            setError('Real-time updates unavailable. Please configure Supabase environment variables.');
+          }
         }
       }
     };
@@ -291,6 +537,7 @@ const HistoryPage = () => {
 
     // Cleanup: unsubscribe from Realtime channel and clear polling
     return () => {
+      setupInProgressRef.current = false; // Reset setup flag on cleanup
       if (fallbackPollInterval) {
         clearInterval(fallbackPollInterval);
       }
@@ -303,7 +550,7 @@ const HistoryPage = () => {
         }
       }
     };
-  }, [user?.id, fetchRuns]); // Removed viewingTaskId from deps to prevent unnecessary re-subscriptions
+  }, [user?.id]); // ✅ Removed fetchRuns from deps to prevent re-initialization loops
 
   // ✅ Manual refresh handler
   const handleManualRefresh = useCallback(() => {
@@ -427,7 +674,10 @@ const HistoryPage = () => {
           user_id: user.id,
           stack: err.stack
         });
-        setError(err.message || 'Failed to delete the run. Please try again.');
+        setError(sanitizeErrorMessage(err) || getEnvMessage({
+          dev: 'Failed to delete the run: ' + (err.message || 'Unknown error'),
+          prod: 'Failed to delete the run. Please try again.'
+        }));
       }
     }
   };

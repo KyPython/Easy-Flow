@@ -43,10 +43,89 @@ const isMessagingConfigured = missingMessaging.length === 0;
 const isDatabaseConfigured = missingDatabase.length === 0;
 const isAnyConfigured = isMessagingConfigured || isDatabaseConfigured;
 
-if (!isAnyConfigured && process.env.NODE_ENV === 'development') {
-  console.warn('Firebase configuration incomplete. Missing (messaging):', missingMessaging);
-  console.warn('Firebase configuration incomplete. Missing (database):', missingDatabase);
-  console.warn('Real-time features will be disabled.');
+// ✅ CRITICAL: Validate projectId - this is required for ALL Firebase features
+const hasProjectId = !!(firebaseConfig.projectId && firebaseConfig.projectId.trim());
+
+// ✅ FATAL ERROR: Throw immediately if critical config is missing in development
+// This prevents silent fallback to polling that floods the backend
+if (!hasProjectId) {
+  const errorDetails = {
+    message: '🔥 FATAL: Firebase projectId is missing!',
+    missing: 'REACT_APP_FIREBASE_PROJECT_ID',
+    impact: 'Firebase cannot initialize, causing frontend to fall back to aggressive polling that floods the backend API.',
+    fix: 'Set REACT_APP_FIREBASE_PROJECT_ID in your .env.local file (local) or Vercel environment variables (production).',
+    currentValue: firebaseConfig.projectId || '(undefined)',
+    envSources: {
+      runtime: runtimeEnv.REACT_APP_FIREBASE_PROJECT_ID || '(not set)',
+      buildTime: process.env.REACT_APP_FIREBASE_PROJECT_ID || '(not set)'
+    }
+  };
+
+  if (process.env.NODE_ENV === 'development') {
+    // ✅ DEVELOPMENT: Throw fatal error to prevent silent failure
+    const fatalError = new Error(
+      `\n\n🔥 FATAL FIREBASE CONFIGURATION ERROR 🔥\n\n` +
+      `${errorDetails.message}\n` +
+      `Missing: ${errorDetails.missing}\n\n` +
+      `Impact: ${errorDetails.impact}\n\n` +
+      `Fix: ${errorDetails.fix}\n\n` +
+      `Current projectId: ${errorDetails.currentValue}\n` +
+      `Runtime env: ${errorDetails.envSources.runtime}\n` +
+      `Build-time env: ${errorDetails.envSources.buildTime}\n\n` +
+      `This error prevents the app from silently falling back to polling.\n` +
+      `Please create/update rpa-system/rpa-dashboard/.env.local with:\n` +
+      `  REACT_APP_FIREBASE_PROJECT_ID=your-project-id\n\n`
+    );
+    fatalError.name = 'FirebaseConfigurationError';
+    fatalError.details = errorDetails;
+    throw fatalError;
+  } else {
+    // ✅ PRODUCTION: Log critical error (don't throw to avoid breaking production)
+    console.error('🔥 CRITICAL: Firebase projectId is missing in production!');
+    console.error('Missing environment variable: REACT_APP_FIREBASE_PROJECT_ID');
+    console.error('Impact: Firebase cannot initialize, causing frontend to fall back to aggressive polling');
+    console.error('Fix: Set REACT_APP_FIREBASE_PROJECT_ID in Vercel environment variables');
+    console.error('Current value:', firebaseConfig.projectId || '(undefined)');
+  }
+}
+
+if (!isAnyConfigured) {
+  const errorDetails = {
+    missingMessaging,
+    missingDatabase,
+    impact: 'Real-time features disabled, causing frontend to fall back to aggressive polling that floods the backend API.',
+    fix: 'Set all required Firebase environment variables in .env.local (local) or Vercel (production).'
+  };
+
+  if (process.env.NODE_ENV === 'development') {
+    // ✅ DEVELOPMENT: Throw fatal error to prevent silent failure
+    const fatalError = new Error(
+      `\n\n🔥 FATAL FIREBASE CONFIGURATION ERROR 🔥\n\n` +
+      `Firebase configuration is incomplete!\n\n` +
+      `Missing messaging config: ${missingMessaging.join(', ')}\n` +
+      `Missing database config: ${missingDatabase.join(', ')}\n\n` +
+      `Impact: ${errorDetails.impact}\n\n` +
+      `Fix: ${errorDetails.fix}\n\n` +
+      `Please create/update rpa-system/rpa-dashboard/.env.local with all required Firebase variables.\n` +
+      `See rpa-system/rpa-dashboard/.env.example for the complete list.\n\n`
+    );
+    fatalError.name = 'FirebaseConfigurationError';
+    fatalError.details = errorDetails;
+    throw fatalError;
+  } else {
+    // ✅ PRODUCTION: Log critical error messages
+    console.error('🔥 CRITICAL: Firebase configuration incomplete in production!');
+    if (missingMessaging.length > 0) {
+      console.error('Missing messaging config:', missingMessaging.join(', '));
+      console.error('Set these Vercel environment variables:', missingMessaging.map(f => f.replace('REACT_APP_', '')).join(', '));
+    }
+    if (missingDatabase.length > 0) {
+      console.error('Missing database config:', missingDatabase.join(', '));
+      console.error('Set these Vercel environment variables:', missingDatabase.map(f => f.replace('REACT_APP_', '')).join(', '));
+    }
+    console.error('Impact: Real-time features disabled, causing frontend to fall back to aggressive polling');
+    console.error('Fix: Set all required Firebase environment variables in Vercel project settings');
+  }
 }
 
 // Initialize Firebase
@@ -61,12 +140,43 @@ let isFirebaseConfigured = isAnyConfigured;
 const noop = () => {};
 
 export async function initFirebase() {
+  // ✅ CRITICAL: Check projectId before attempting initialization
+  // Note: In development, this should have already thrown during module evaluation
+  // This is a safety check for production or if module evaluation didn't catch it
+  if (!hasProjectId) {
+    const errorMsg = '🔥 Cannot initialize Firebase: projectId is missing. Set REACT_APP_FIREBASE_PROJECT_ID in Vercel environment variables.';
+    if (process.env.NODE_ENV === 'production') {
+      console.error(errorMsg);
+      console.error('Current firebaseConfig.projectId:', firebaseConfig.projectId || '(undefined)');
+      console.error('This will cause Firebase authentication to fail and trigger polling fallback.');
+    } else {
+      // In development, this should have been caught at module load time
+      // But if we get here, throw to prevent silent failure
+      throw new Error(
+        `🔥 FATAL: Firebase projectId is missing!\n` +
+        `Set REACT_APP_FIREBASE_PROJECT_ID in rpa-system/rpa-dashboard/.env.local\n` +
+        `Current value: ${firebaseConfig.projectId || '(undefined)'}`
+      );
+    }
+    isFirebaseConfigured = false;
+    return { app: null, messaging: null, database: null, auth: null };
+  }
+
   if (!isAnyConfigured) {
     if (process.env.NODE_ENV === 'development') {
-      console.warn('Firebase not configured - skipping init. Missing keys:', {
-        missingMessaging: missingMessaging,
-        missingDatabase: missingDatabase
-      });
+      // In development, this should have been caught at module load time
+      // But if we get here, throw to prevent silent failure
+      throw new Error(
+        `🔥 FATAL: Firebase configuration incomplete!\n` +
+        `Missing messaging: ${missingMessaging.join(', ')}\n` +
+        `Missing database: ${missingDatabase.join(', ')}\n` +
+        `Set all required variables in rpa-system/rpa-dashboard/.env.local`
+      );
+    } else {
+      console.error('🔥 Firebase not configured - missing required environment variables');
+      console.error('Missing messaging:', missingMessaging.join(', '));
+      console.error('Missing database:', missingDatabase.join(', '));
+      console.error('This will cause real-time features to fail and trigger polling fallback.');
     }
     isFirebaseConfigured = false;
     return { app: null, messaging: null, database: null, auth: null };
@@ -79,6 +189,11 @@ export async function initFirebase() {
     const firebaseAuth = await import('firebase/auth');
     const firebaseDatabase = await import('firebase/database');
     const firebaseMessaging = await import('firebase/messaging');
+
+    // ✅ VALIDATE: Ensure projectId is present before initialization
+    if (!firebaseConfig.projectId || !firebaseConfig.projectId.trim()) {
+      throw new Error('Firebase projectId is required but was not provided. Set REACT_APP_FIREBASE_PROJECT_ID in Vercel environment variables.');
+    }
 
     // Initialize app
     app = firebaseApp.initializeApp(firebaseConfig);

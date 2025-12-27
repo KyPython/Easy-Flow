@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import supabase, { initSupabase } from './supabaseClient';
 import { fetchWithAuth } from './devNetLogger';
+import { createLogger } from './logger';
 
 const AuthContext = createContext();
 
@@ -17,6 +18,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
+  const logger = createLogger('Auth');
 
   // Check if backend authentication is available
   // Always use fetchWithAuth and handle 401 gracefully
@@ -32,7 +34,7 @@ export const AuthProvider = ({ children }) => {
       const hasCookie = (typeof document !== 'undefined' && document.cookie && document.cookie.length > 0);
       if (!token && !hasCookie) {
         // No credentials available to send; skip backend call to avoid 401
-        console.debug('[Auth] No token or cookies found; skipping backend /api/auth/session call.');
+        logger.debug('No token or cookies found; skipping backend /api/auth/session call.');
         return false;
       }
 
@@ -47,7 +49,7 @@ export const AuthProvider = ({ children }) => {
       const isJson = contentType.includes('application/json');
       
       if (response.status === 401) {
-        console.log('[Auth] Backend returned 401, clearing session');
+        logger.info('Backend returned 401, clearing session');
         setUser(null);
         setSession(null);
         localStorage.removeItem('dev_token');
@@ -57,7 +59,7 @@ export const AuthProvider = ({ children }) => {
       // If response is not JSON, log the actual content for debugging
       if (!isJson) {
         const errorText = await response.text();
-        console.error('[Auth] Backend returned non-JSON response:', {
+        logger.error('Backend returned non-JSON response', {
           status: response.status,
           statusText: response.statusText,
           contentType: contentType,
@@ -77,7 +79,7 @@ export const AuthProvider = ({ children }) => {
       } else {
         // Non-200 status with JSON response
         const errorData = await response.json().catch(() => ({}));
-        console.warn('[Auth] Backend session check returned error:', {
+        logger.warn('Backend session check returned error', {
           status: response.status,
           statusText: response.statusText,
           error: errorData
@@ -87,11 +89,11 @@ export const AuthProvider = ({ children }) => {
       // IMPROVED: Don't clear session on network errors - preserve existing session
       // This prevents sign-out on page refresh when backend is temporarily unreachable
       if (error.message && error.message.includes('JSON')) {
-        console.error('[Auth] Backend session check failed - received HTML instead of JSON. Backend may be down or misconfigured:', error.message);
+        logger.error('Backend session check failed - received HTML instead of JSON. Backend may be down or misconfigured', error);
       } else {
-        console.warn('[Auth] Backend session check failed (network error):', error.message);
+        logger.warn('Backend session check failed (network error)', { error: error.message || error });
       }
-      console.log('[Auth] Preserving existing session state due to network error');
+      logger.debug('Preserving existing session state due to network error');
       // Don't clear user/session - let the existing Supabase session persist
       // Only clear on explicit 401 (handled above)
     }
@@ -100,14 +102,14 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      console.log('[Auth] Initializing authentication...');
+      logger.info('Initializing authentication...');
       try {
         // Ensure Supabase client is initialized so auth methods and listeners
         // attach to the real client rather than to the stub.
         try {
           await initSupabase();
         } catch (e) {
-          console.warn('[Auth] Supabase init failed, continuing with stub:', e.message);
+          logger.warn('Supabase init failed, continuing with stub', { error: e.message || e });
         }
         // Prefer Supabase client-side session if available so we can forward its token to backend
         try {

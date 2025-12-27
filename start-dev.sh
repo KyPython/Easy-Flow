@@ -214,19 +214,95 @@ mkdir -p logs
 # Clear existing logs to start fresh
 rm -f logs/*.log
 
-# Start Kafka and Zookeeper via Docker Compose
+# Start Kafka and Zookeeper via Docker Compose with automatic error recovery
 echo -e "${YELLOW}Starting Kafka and Zookeeper...${NC}"
+
+# Function to check if Kafka is healthy (not just running, but actually responding)
+check_kafka_health() {
+    local container_name=$(docker compose ps kafka --format json 2>/dev/null | grep -o '"Name":"[^"]*"' | cut -d'"' -f4 | head -1)
+    if [ -z "$container_name" ]; then
+        return 1
+    fi
+    # Check if Kafka broker is responding
+    docker exec "$container_name" kafka-broker-api-versions --bootstrap-server kafka:29092 >/dev/null 2>&1
+}
+
+# Function to clean up and restart Kafka/Zookeeper (handles stale Zookeeper nodes)
+cleanup_and_restart_kafka() {
+    echo -e "${YELLOW}  Cleaning up Kafka/Zookeeper state...${NC}"
+    # Stop and remove containers completely (clears Zookeeper state)
+    docker compose stop kafka zookeeper 2>/dev/null || true
+    docker compose rm -f kafka zookeeper 2>/dev/null || true
+    # Wait a moment for cleanup
+    sleep 2
+    # Start fresh
+    if docker compose up -d kafka zookeeper 2>/dev/null; then
+        return 0
+    else
+        echo -e "${YELLOW}  Retry: Pulling images and starting...${NC}"
+        docker compose pull kafka zookeeper 2>/dev/null || true
+        docker compose up -d kafka zookeeper 2>/dev/null
+        return $?
+    fi
+}
+
+# Try to start normally first
 if ! docker compose up -d kafka zookeeper 2>/dev/null; then
-    echo -e "${RED}✗ Failed to start Kafka/Zookeeper containers${NC}"
-    echo -e "${YELLOW}  Attempting to pull images and retry...${NC}"
-    docker compose pull kafka zookeeper 2>/dev/null || true
-    docker compose up -d kafka zookeeper || {
-        echo -e "${RED}✗ Critical: Cannot start Kafka/Zookeeper${NC}"
-        echo -e "${YELLOW}  Check Docker daemon and try: docker compose up -d kafka zookeeper${NC}"
-        exit 1
-    }
+    echo -e "${YELLOW}  Initial start failed, attempting cleanup and retry...${NC}"
+    cleanup_and_restart_kafka
 fi
-sleep 5
+
+# Wait for containers to be running
+echo -e "${YELLOW}  Waiting for containers to be ready...${NC}"
+MAX_WAIT=15
+WAIT_COUNT=0
+while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+    if docker compose ps kafka zookeeper 2>/dev/null | grep -q "Up"; then
+        break
+    fi
+    sleep 1
+    WAIT_COUNT=$((WAIT_COUNT + 1))
+done
+
+# Check if Kafka is actually healthy (not just running)
+echo -e "${YELLOW}  Verifying Kafka health...${NC}"
+MAX_HEALTH_WAIT=30
+HEALTH_WAIT=0
+while [ $HEALTH_WAIT -lt $MAX_HEALTH_WAIT ]; do
+    if check_kafka_health; then
+        echo -e "${GREEN}✓ Kafka is healthy${NC}"
+        break
+    fi
+    # If Kafka container exists but isn't healthy, check for Zookeeper node conflicts
+    if [ $HEALTH_WAIT -eq 10 ] || [ $HEALTH_WAIT -eq 20 ]; then
+        echo -e "${YELLOW}  Kafka not responding, checking for stale Zookeeper nodes...${NC}"
+        # Check Kafka logs for NodeExistsException (stale Zookeeper node)
+        kafka_container=$(docker compose ps kafka --format json 2>/dev/null | grep -o '"Name":"[^"]*"' | cut -d'"' -f4 | head -1)
+        if [ -n "$kafka_container" ] && docker logs "$kafka_container" 2>&1 | grep -q "NodeExistsException"; then
+            echo -e "${YELLOW}  Detected stale Zookeeper node, cleaning up and restarting...${NC}"
+            if cleanup_and_restart_kafka; then
+                HEALTH_WAIT=0  # Reset counter after cleanup
+                continue
+            else
+                echo -e "${YELLOW}  Cleanup failed, will retry...${NC}"
+            fi
+        fi
+    fi
+    sleep 2
+    HEALTH_WAIT=$((HEALTH_WAIT + 2))
+done
+
+# Final health check
+if ! check_kafka_health; then
+    echo -e "${YELLOW}⚠ Kafka health check failed, attempting final cleanup and restart...${NC}"
+    cleanup_and_restart_kafka
+    sleep 10
+    if ! check_kafka_health; then
+        echo -e "${YELLOW}⚠ Kafka may not be fully ready, but continuing (topics will auto-create)${NC}"
+    else
+        echo -e "${GREEN}✓ Kafka recovered after cleanup${NC}"
+    fi
+fi
 
 # Initialize Kafka topics
 echo -e "${YELLOW}Initializing Kafka topics...${NC}"
@@ -307,12 +383,33 @@ fi
 
 # Generate a dynamic ecosystem file that reads from environment variables
 echo -e "${YELLOW}Generating PM2 ecosystem config...${NC}"
+
+# Load frontend .env.local if it exists
+FRONTEND_ENV_VARS={}
+if [ -f "rpa-system/rpa-dashboard/.env.local" ]; then
+  echo -e "${GREEN}Loading frontend environment variables from .env.local...${NC}"
+  # Export all REACT_APP_ and VITE_ variables from .env.local
+  set -a
+  source rpa-system/rpa-dashboard/.env.local 2>/dev/null || true
+  set +a
+fi
+
 cat > ecosystem.config.js << EOL
 // Load environment variables from .env file
 require('dotenv').config();
 
-// Get root directory dynamically
+// Load frontend .env.local if it exists
+const fs = require('fs');
 const path = require('path');
+const frontendEnvPath = path.join(__dirname, 'rpa-system/rpa-dashboard/.env.local');
+if (fs.existsSync(frontendEnvPath)) {
+  const frontendEnv = require('dotenv').config({ path: frontendEnvPath });
+  if (frontendEnv.parsed) {
+    console.log('Loaded frontend .env.local with', Object.keys(frontendEnv.parsed).length, 'variables');
+  }
+}
+
+// Get root directory dynamically
 const ROOT_DIR = __dirname;
 
 module.exports = {
@@ -359,6 +456,13 @@ module.exports = {
         BROWSER: process.env.BROWSER || 'none',
         REACT_APP_API_BASE: process.env.REACT_APP_API_BASE,
         PUBLIC_URL: process.env.PUBLIC_URL,
+        // Load all REACT_APP_ and VITE_ variables from .env.local
+        ...Object.keys(process.env)
+          .filter(key => key.startsWith('REACT_APP_') || key.startsWith('VITE_'))
+          .reduce((acc, key) => {
+            acc[key] = process.env[key];
+            return acc;
+          }, {}),
       },
     },
     {

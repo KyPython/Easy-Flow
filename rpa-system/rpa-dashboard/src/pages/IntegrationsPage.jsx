@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../utils/ThemeContext';
 import { useAuth } from '../utils/AuthContext';
 import { api } from '../utils/api';
+import logger from '../utils/logger';
+import { sanitizeErrorMessage } from '../utils/errorMessages';
+import { getEnvMessage } from '../utils/envAwareMessages';
 import PlanGate from '../components/PlanGate/PlanGate';
 import styles from './IntegrationsPage.module.css';
 
@@ -73,8 +76,11 @@ const IntegrationsPage = () => {
         setIntegrations(response.data.integrations);
       }
     } catch (err) {
-      console.error('Failed to load integrations:', err);
-      setError('Failed to load integrations');
+      logger.error('Failed to load integrations', err);
+      setError(sanitizeErrorMessage(err) || getEnvMessage({
+        dev: 'Failed to load integrations: ' + (err.message || 'Unknown error'),
+        prod: 'Failed to load integrations. Please try again.'
+      }));
     } finally {
       setLoading(false);
     }

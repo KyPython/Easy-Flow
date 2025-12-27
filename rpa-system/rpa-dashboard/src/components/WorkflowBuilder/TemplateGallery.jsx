@@ -14,6 +14,7 @@ import {
 } from 'react-icons/fa';
 import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates';
 import { useTheme } from '../../utils/ThemeContext';
+import { createLogger } from '../../utils/logger';
 import LoadingSpinner from './LoadingSpinner';
 import TemplateDetails from './TemplateDetails';
 import VirtualizedGrid from '../VirtualizedGrid/VirtualizedGrid';
