@@ -150,7 +150,7 @@ module.exports = function override(config, env) {
       index: '/index.html',
       // Explicitly serve index.html for all non-API routes
       rewrites: [
-        { from: /^\/api\/.*$/, to: '/api' }, // Don't rewrite API routes
+        { from: /^\/api\/.*$/, to: (context) => context.parsedUrl.pathname }, // Don't rewrite API routes - pass through
         { from: /./, to: '/index.html' } // Rewrite everything else to index.html
       ]
     };
