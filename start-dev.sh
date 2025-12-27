@@ -410,7 +410,6 @@ if (fs.existsSync(frontendEnvPath)) {
 }
 
 // Get root directory dynamically
-const path = require('path');
 const ROOT_DIR = __dirname;
 
 module.exports = {
