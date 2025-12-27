@@ -150,8 +150,12 @@ module.exports = function override(config, env) {
       index: '/index.html',
       // Explicitly serve index.html for all non-API routes
       rewrites: [
-        { from: /^\/api\/.*$/, to: (context) => context.parsedUrl.pathname }, // Don't rewrite API routes - pass through
-        { from: /./, to: '/index.html' } // Rewrite everything else to index.html
+        // Don't rewrite API routes - let them pass through to proxy
+        { from: /^\/api\/.*$/, to: (context) => context.parsedUrl.pathname },
+        // Rewrite everything else (including /app) to index.html
+        { from: /^\/app\/.*$/, to: '/index.html' },
+        { from: /^\/auth\/.*$/, to: '/index.html' },
+        { from: /./, to: '/index.html' }
       ]
     };
   }
