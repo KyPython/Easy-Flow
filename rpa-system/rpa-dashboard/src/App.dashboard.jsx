@@ -243,6 +243,12 @@ function Shell() {
       logger.warn('Firebase init gate check failed', { error: e?.message || e, stack: e?.stack });
     }
   }, [user]);
+  
+  // ✅ DEVELOPMENT: Throw render error if Firebase config error detected (caught by ErrorBoundary)
+  if (process.env.NODE_ENV === 'development' && firebaseConfigError) {
+    throw firebaseConfigError; // This will be caught by React ErrorBoundary and show error overlay
+  }
+  
   // Restore usage tracking (milestones, sessions). The hook is lightweight
   // and stores metrics in localStorage. It is safe to run when user is null.
   const {
