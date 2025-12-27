@@ -20,7 +20,12 @@ import useUsageTracking from '../../hooks/useUsageTracking';
 import SearchSuggestions from '../SearchSuggestions/SearchSuggestions';
 import PaywallModal from '../PaywallModal/PaywallModal';
 import { sanitizeErrorMessage } from '../../utils/errorMessages';
+import { createLogger } from '../../utils/logger';
+import { getEnvMessage } from '../../utils/envAwareMessages';
+import { getConfig } from '../../utils/dynamicConfig';
 import styles from './TaskForm.module.css';
+
+const logger = createLogger('TaskForm');
 
 const token = localStorage.getItem('sb-syxzilyuysdoirnezgii-auth-token');
 const parsedToken = (() => {
@@ -49,6 +54,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     selector: '',
     enableAI: false,
     extractionTargets: [],
+    extractionTargetsText: '', // ✅ FIX: Store raw textarea value to prevent cursor jumping
     // ✅ NEW: Link Discovery Fields - auto-detect is default, no CSS selectors needed
     discoveryMethod: 'auto-detect',
     linkText: '',
@@ -113,7 +119,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           const CURRENT_SCHEMA_VERSION = '1.2.0'; // Fixed duplicate task type issue
           
           if (!savedData.schemaVersion || savedData.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-            console.log('[TaskForm] Clearing outdated form data due to schema change');
+            logger.debug('Clearing outdated form data due to schema change');
             clearData(); // Clear old incompatible data
             setIsFormLoaded(true);
             return;
@@ -121,7 +127,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           
           // Additional validation to prevent corrupted data
           if (savedData.task && !taskTypes.find(type => type.value === savedData.task)) {
-            console.log('[TaskForm] Clearing form data with invalid task type');
+            logger.debug('Clearing form data with invalid task type');
             clearData();
             setIsFormLoaded(true);
             return;
@@ -134,6 +140,10 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
             task: savedData.task || 'invoice_download',
             discoveryMethod: savedData.discoveryMethod || 'auto-detect',
             linkText: savedData.linkText || '',
+            // ✅ FIX: Sync extractionTargetsText from extractionTargets if not present
+            extractionTargetsText: savedData.extractionTargetsText || (savedData.extractionTargets && Array.isArray(savedData.extractionTargets) 
+              ? savedData.extractionTargets.map(t => `${t.name}: ${t.description}`).join('\n')
+              : ''),
             // ✅ FIX: Always prioritize initialUrl over saved data for auto-population
             url: initialUrl || savedData.url || initialFormData.url
           };
@@ -215,12 +225,14 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     setDiscoveryResults([]);
     
     try {
+      // ✅ FIX: Always use auto-detect for testing to show ALL available links
+      // This lets users see all link texts and click one to auto-fill
       const testPayload = {
         url: form.url,
         username: form.username,
         password: form.password,
-        discoveryMethod: form.discoveryMethod,
-        discoveryValue: form.discoveryMethod === 'text-match' ? form.linkText : null,
+        discoveryMethod: 'auto-detect', // Always show all links when testing
+        discoveryValue: null,
         testMode: true
       };
 
@@ -243,6 +255,14 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
       setDiscoveryResults(discoveredLinks);
       setShowDiscoveryResults(true);
       
+      // ✅ AUTO-SCROLL: Scroll to discovery results when they appear
+      setTimeout(() => {
+        const resultsElement = document.querySelector('[class*="discoveryResults"], [class*="resultsList"]');
+        if (resultsElement) {
+          resultsElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 300);
+      
       if (discoveredLinks.length > 0) {
         showSuccess(`🎉 Found ${discoveredLinks.length} potential PDF link(s)!`);
       } else {
@@ -250,7 +270,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
       }
       
     } catch (error) {
-      console.error('[TaskForm] Link discovery test failed:', error);
+      logger.error('Link discovery test failed', error);
 
       // Enhanced error handling for discovery testing - always non-blocking
       const errorData = error.response?.data || {};
@@ -310,6 +330,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         updated.discoveryMethod = 'auto-detect';
         updated.linkText = '';
         updated.extractionTargets = [];
+        updated.extractionTargetsText = '';
         updated.enableAI = false;
       }
       
@@ -360,7 +381,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     let finalForm = { ...form };
     const urlToUse = initialUrl || form.url || '';
     
-    console.log('[TaskForm] Submit - initialUrl:', initialUrl, 'form.url:', form.url, 'urlToUse:', urlToUse);
+    logger.debug('Submit', { initialUrl, formUrl: form.url, urlToUse });
     
     if (initialUrl && initialUrl.trim() && (!form.url || form.url.trim() !== initialUrl.trim())) {
       finalForm.url = initialUrl;
@@ -375,7 +396,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     const urlToValidate = urlToUse;
     const newErrors = {};
     if (!urlToValidate.trim()) {
-      console.error('[TaskForm] Validation failed - no URL found');
+      logger.warn('Validation failed - no URL found');
       newErrors.url = 'Target URL is required';
     } else if (!isValidUrl(urlToValidate)) {
       newErrors.url = 'Please enter a valid URL';
@@ -390,7 +411,30 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      console.error('[TaskForm] Validation failed:', newErrors);
+      logger.warn('Validation failed', { errors: newErrors });
+      
+      // ✅ AUTO-SCROLL: Scroll to first error field
+      setTimeout(() => {
+        const firstErrorField = Object.keys(newErrors)[0];
+        const errorInput = document.querySelector(
+          `input[name="${firstErrorField}"], 
+           textarea[name="${firstErrorField}"], 
+           select[name="${firstErrorField}"],
+           input[id="${firstErrorField}"],
+           textarea[id="${firstErrorField}"]`
+        );
+        if (errorInput) {
+          errorInput.focus();
+          errorInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          // Fallback: scroll to first error message
+          const errorElement = document.querySelector('[class*="error"], [class*="Error"]');
+          if (errorElement) {
+            errorElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }
+      }, 100);
+      
       return;
     }
 
@@ -398,13 +442,30 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
     try {
       // ✅ FIX: Always use the URL we validated (from initialUrl or form.url)
       const finalUrl = urlToValidate || initialUrl || form.url || '';
-      console.log('[TaskForm] Submitting with URL:', finalUrl, 'initialUrl:', initialUrl, 'form.url:', form.url);
+      logger.debug('Submitting', { finalUrl, initialUrl, formUrl: form.url });
       
       if (!finalUrl) {
-        console.error('[TaskForm] CRITICAL: No URL available for submission!');
+        logger.error('CRITICAL: No URL available for submission!');
         setErrors({ url: 'Target URL is required' });
         setIsSubmitting(false);
         return;
+      }
+      
+      // ✅ FIX: Parse extractionTargetsText if it exists (user might have typed but not blurred)
+      let parsedExtractionTargets = finalForm.extractionTargets;
+      if (finalForm.extractionTargetsText !== undefined && finalForm.extractionTargetsText.trim()) {
+        const lines = finalForm.extractionTargetsText
+          .split('\n')
+          .filter((line) => line.trim());
+        parsedExtractionTargets = lines.map((line) => {
+          const [name, ...descParts] = line.split(':');
+          return {
+            name: name.trim(),
+            description:
+              descParts.join(':').trim() ||
+              name.trim(),
+          };
+        });
       }
       
       // ✅ NEW: Enhanced payload with link discovery parameters
@@ -412,6 +473,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         ...finalForm,
         url: finalUrl, // Always include URL - this is critical
         task_type: finalForm.task,
+        extractionTargets: parsedExtractionTargets, // Use parsed targets
         // For invoice_download tasks, include discovery parameters
         ...(finalForm.task === 'invoice_download' && {
           discoveryMethod: finalForm.discoveryMethod,
@@ -431,13 +493,14 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         completedTask = resp?.data;
         
         // ✅ FIX: Log the RAW response to see what we're actually getting
-        console.log('[TaskForm] 🔍 RAW API RESPONSE:', resp);
-        console.log('[TaskForm] 🔍 Response data:', resp?.data);
-        console.log('[TaskForm] 🔍 Response status:', resp?.status);
-        console.log('[TaskForm] 🔍 Response headers:', resp?.headers);
+        logger.debug('API response', { 
+          data: resp?.data, 
+          status: resp?.status, 
+          headers: resp?.headers 
+        });
         
         // ✅ FIX: Show FULL error details to user
-        console.log('[TaskForm] 🔍 Checking database status:', {
+        logger.debug('Checking database status', {
           db_recorded: completedTask?.db_recorded,
           db_warning: completedTask?.db_warning,
           db_error_details: completedTask?.db_error_details,
@@ -451,7 +514,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           const details = completedTask.db_error_details;
           
           // ✅ FIX: Expand the fullResponse object so we can see everything
-          console.error('[TaskForm] ❌ Database error detected:', {
+          logger.error('Database error detected', {
             errorMsg,
             details,
             details_type: typeof details,
@@ -460,18 +523,19 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           });
           
           // ✅ FIX: Log the FULL response object with all properties visible
-          console.error('[TaskForm] ❌ FULL RESPONSE OBJECT (expanded):');
-          console.error('  - db_recorded:', completedTask?.db_recorded);
-          console.error('  - db_warning:', completedTask?.db_warning);
-          console.error('  - db_error_details:', completedTask?.db_error_details);
-          console.error('  - All keys:', completedTask ? Object.keys(completedTask) : 'N/A');
-          console.error('  - Full JSON:', JSON.stringify(completedTask, null, 2));
+          logger.error('Full response object', {
+            db_recorded: completedTask?.db_recorded,
+            db_warning: completedTask?.db_warning,
+            db_error_details: completedTask?.db_error_details,
+            all_keys: completedTask ? Object.keys(completedTask) : 'N/A',
+            full_json: completedTask
+          });
           
           // ✅ FIX: Check if db_error_details exists but is null/undefined
           if (completedTask && 'db_error_details' in completedTask) {
-            console.error('  - db_error_details EXISTS but value is:', completedTask.db_error_details);
+            logger.debug('db_error_details exists', { value: completedTask.db_error_details });
           } else {
-            console.error('  - db_error_details KEY DOES NOT EXIST in response');
+            logger.debug('db_error_details key does not exist in response');
           }
           
           let fullMessage = `⚠️ Task queued but database record creation failed: ${errorMsg}`;
@@ -516,6 +580,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         selector: '',
         enableAI: false,
         extractionTargets: [],
+        extractionTargetsText: '',
         // ✅ NEW: Reset Link Discovery fields - always default to auto-detect
         discoveryMethod: 'auto-detect',
         linkText: ''
@@ -531,32 +596,33 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         }
       }
 
-      // ✅ UX: Auto-navigate to history after successful submission
+      // ✅ UX: Auto-navigate to history after successful submission with clear notification
+      const taskId = completedTask?.task_id || completedTask?.id
+        ? ` (ID: ${(completedTask.task_id || completedTask.id).toString().slice(0, 8)}...)`
+        : '';
+      
       if (completedTask?.status === 'queued') {
-        const taskId = completedTask.task_id || completedTask.id
-          ? ` (ID: ${(completedTask.task_id || completedTask.id).toString().slice(0, 8)}...)`
-          : '';
         showSuccess(
-          `✅ Task submitted successfully${taskId}! Redirecting to Automation History...`
+          `✅ Task submitted successfully${taskId}! ↪️ Redirecting to Automation History in 2 seconds...`
         );
         
-        // Auto-navigate after 1.5 seconds
+        // Auto-navigate after 2 seconds with countdown
         setTimeout(() => {
           navigate('/app/history');
-        }, 1500);
+        }, 2000);
       } else if (completedTask?.message) {
-        showSuccess(completedTask.message);
+        showSuccess(`${completedTask.message} ↪️ Redirecting to Automation History in 2 seconds...`);
         setTimeout(() => {
           navigate('/app/history');
-        }, 1500);
+        }, 2000);
       } else {
-        showSuccess('Task submitted successfully! Redirecting...');
+        showSuccess('✅ Task submitted successfully! ↪️ Redirecting to Automation History in 2 seconds...');
         setTimeout(() => {
           navigate('/app/history');
-        }, 1500);
+        }, 2000);
       }
     } catch (error) {
-      console.error('Task submission failed:', error);
+      logger.error('Task submission failed', error);
       let userMessage = 'Task submission failed. Please try again.';
       
       // ✅ NEW: Enhanced error handling for link discovery
@@ -631,9 +697,9 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         } else if (errorMessage.includes('No PDF download links found')) {
           userMessage = '🔍 No PDF links found. Try adjusting your discovery method or check your login credentials.';
         } else if (errorMessage.includes('CSS Selector is required')) {
-          userMessage = '⚠️ Please provide a CSS selector for the link discovery method.';
+          userMessage = '⚠️ Please specify which part of the page to look for.';
         } else if (errorMessage.includes('Link Text is required')) {
-          userMessage = '⚠️ Please provide link text for the text-match discovery method.';
+          userMessage = '⚠️ Please tell us which button to click. Use the "Find Available Buttons" button below to see your options!';
         } else if (errorMessage.includes('Username and password are required') || 
                    errorMessage.includes('login credentials')) {
           // ✅ FIX: Also handle legacy error messages - remove dev details
@@ -790,7 +856,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
               <SearchSuggestions 
                 query={form.url} 
                 onSelect={(url) => {
-                  console.log('[TaskForm] Search selected', { url });
+                  logger.debug('Search selected', { url });
                   handleChange({ target: { name: 'url', value: url } });
                 }}
               />
@@ -859,7 +925,17 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
 
               {/* ✅ ZERO FRICTION: Auto-detect is automatic - no configuration needed */}
               {/* Advanced options completely hidden - only show if user needs help */}
-              <details className={styles.advancedOptions}>
+              <details 
+                className={styles.advancedOptions}
+                onToggle={(e) => {
+                  // ✅ AUTO-SCROLL: Scroll to expanded details section
+                  if (e.target.open) {
+                    setTimeout(() => {
+                      e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 100);
+                  }
+                }}
+              >
                 <summary className={styles.advancedSummary}>
                   ⚙️ Need Help? (Auto-detect works 99% of the time)
                 </summary>
@@ -881,7 +957,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                   </select>
                   <div className={styles.helperText}>
                     <b>Auto-detect:</b> Automatically finds PDF download links - no configuration needed<br/>
-                    <b>Link Text:</b> If auto-detect doesn't work, type the exact text you see on the download button (like "Download PDF" or "Invoice")
+                    <b>Link Text:</b> If auto-detect doesn't work, click "Find Available Link Texts" below to see all options, then click one to auto-fill!
                   </div>
                 </div>
               </details>
@@ -889,8 +965,11 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
               {form.discoveryMethod === 'text-match' && (
                 <div className={styles.formGroup}>
                   <label htmlFor="linkText" className={styles.label}>
-                    Link Text <span className={styles.required}>*</span>
+                    Which button should we click? <span className={styles.required}>*</span>
                   </label>
+                  <div className={styles.helperText} style={{ marginBottom: '8px', fontSize: '0.95em' }}>
+                    <b>💡 Don't know what to type?</b> Click the button below first to see all available options!
+                  </div>
                   <input
                     type="text"
                     id="linkText"
@@ -902,16 +981,41 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                       errors.linkText ? styles.error : ''
                     }`}
                   />
-                  <div className={styles.helperText}>
-                    <b>Examples:</b> "Download PDF", "Invoice", "Download Invoice"
-                  </div>
                   {errors.linkText && (
                     <span className={styles.errorText}>{errors.linkText}</span>
                   )}
                 </div>
               )}
 
-              {/* ✅ SEAMLESS UX: Optional testing - hidden by default, shown in advanced */}
+              {/* ✅ SEAMLESS UX: Show test discovery prominently when text-match is selected */}
+              {form.discoveryMethod === 'text-match' ? (
+                <div className={styles.discoveryTesting} style={{ marginTop: '1rem', padding: '12px', background: 'var(--color-primary-50, #f0f4ff)', borderRadius: '6px', border: '1px solid var(--color-primary-200, #cbd5e1)' }}>
+                  <div style={{ marginBottom: '8px', fontWeight: '600', color: 'var(--color-primary-700, #1e40af)' }}>
+                    📋 Step 1: Find Available Buttons
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleTestLinkDiscovery}
+                    disabled={isTestingDiscovery || !form.url || !form.username || !form.password}
+                    className={styles.testButton}
+                    style={{ width: '100%', marginBottom: '8px' }}
+                  >
+                    {isTestingDiscovery ? (
+                      <>
+                        <span className={styles.spinner}></span>
+                        Looking for buttons...
+                      </>
+                    ) : (
+                      <>
+                        🔍 Show Me All Available Buttons
+                      </>
+                    )}
+                  </button>
+                  <div className={styles.testHelperText} style={{ fontSize: '0.9em' }}>
+                    <b>What this does:</b> We'll scan the page and show you all clickable buttons. Then you can click one to auto-fill the field above!
+                  </div>
+                </div>
+              ) : (
               <details className={styles.advancedOptions} style={{ marginTop: '1rem' }}>
                 <summary className={styles.advancedSummary}>
                   🧪 Test Discovery (Optional)
@@ -939,17 +1043,37 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                   </div>
                 </div>
               </details>
+              )}
 
               {/* Discovery Results */}
               {showDiscoveryResults && discoveryResults.length > 0 && (
                 <div className={styles.discoveryResults}>
-                  <h4 className={styles.resultsTitle}>✅ Found PDF Links:</h4>
+                  <h4 className={styles.resultsTitle}>
+                    ✅ Found {discoveryResults.length} PDF Link{discoveryResults.length !== 1 ? 's' : ''}:
+                  </h4>
                   <div className={styles.resultsList}>
-                    {discoveryResults.map((link, index) => (
+                    {discoveryResults.map((link, index) => {
+                      const linkText = link.text || 'PDF Link';
+                      return (
                       <div key={index} className={styles.resultItem}>
                         <div className={styles.resultUrl}>
                           <span className={styles.resultIcon}>📄</span>
-                          <span className={styles.resultText}>{link.text || 'PDF Link'}</span>
+                            {form.discoveryMethod === 'text-match' ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setForm({ ...form, linkText: linkText });
+                                  setShowDiscoveryResults(false);
+                                  showSuccess(`✓ Selected "${linkText}"`);
+                                }}
+                                className={styles.clickableLinkText}
+                                title="Click to use this link text"
+                              >
+                                {linkText}
+                              </button>
+                            ) : (
+                              <span className={styles.resultText}>{linkText}</span>
+                            )}
                         </div>
                         <div className={styles.resultHref}>
                           <code>{link.href}</code>
@@ -958,14 +1082,20 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                           Confidence: {Math.round((link.score || 0.8) * 100)}%
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                  {form.discoveryMethod === 'text-match' && (
+                    <div className={styles.helperText} style={{ marginTop: '0.5rem', fontStyle: 'italic' }}>
+                      💡 Click any link text above to auto-fill it in the "Link Text" field
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => setShowDiscoveryResults(false)}
                     className={styles.closeResultsButton}
                   >
-                    ✓ Looks Good
+                    ✓ {form.discoveryMethod === 'text-match' ? 'Close' : 'Looks Good'}
                   </button>
                 </div>
               )}
@@ -977,8 +1107,8 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                     No PDF links found. Try:
                     <ul>
                       <li>Different discovery method</li>
-                      <li>More specific CSS selector</li>
-                      <li>Different link text</li>
+                      <li>Different link text (if using text-match)</li>
+                      <li>Check that you're logged in correctly</li>
                     </ul>
                   </div>
                 </div>
@@ -1011,7 +1141,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           {form.task === 'web_scraping' && (
             <div className={styles.formGroup}>
               <label htmlFor="selector" className={styles.label}>
-                Selector <span className={styles.optional}>(Optional)</span>
+                Which part of the page should we grab? <span className={styles.optional}>(Optional)</span>
               </label>
               <input
                 type="text"
@@ -1023,8 +1153,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                 className={styles.input}
               />
               <div className={styles.helperText}>
-                <b>What is this?</b> (Optional) Use a CSS selector to grab
-                a specific part of the page.
+                <b>What is this?</b> (Optional) If you only want specific parts of the page (like prices or titles), you can specify them here. Most people can leave this blank.
               </div>
             </div>
           )}
@@ -1060,22 +1189,84 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                   htmlFor="extractionTargets"
                   className={styles.label}
                 >
-                  What data should we extract?{' '}
-                  <span className={styles.optional}>(Optional)</span>
+                  What information do you want?{' '}
+                  <span className={styles.optional}>(Optional - Leave blank for auto-detection)</span>
                 </label>
                 <textarea
                   id="extractionTargets"
-                  value={form.extractionTargets
+                  value={form.extractionTargetsText !== undefined ? form.extractionTargetsText : form.extractionTargets
                     .map(
                       (target) =>
                         `${target.name}: ${target.description}`
                     )
                     .join('\n')}
                   onChange={(e) => {
-                    const lines = e.target.value
-                      .split('\n')
-                      .filter((line) => line.trim());
-                    const targets = lines.map((line) => {
+                    // ✅ FIX: Store raw text value to prevent cursor jumping
+                    // Auto-formatting happens on Enter (onKeyDown) and on blur
+                    setForm({
+                      ...form,
+                      extractionTargetsText: e.target.value,
+                    });
+                  }}
+                  onKeyDown={(e) => {
+                    // ✅ AUTO-FORMAT: When user presses Enter, auto-format the current line if needed
+                    if (e.key === 'Enter') {
+                      const textarea = e.target;
+                      const cursorPos = textarea.selectionStart;
+                      const textBeforeCursor = textarea.value.substring(0, cursorPos);
+                      const currentLine = textBeforeCursor.split('\n').pop() || '';
+                      
+                      // If current line has text but no colon, auto-add ": " before inserting newline
+                      if (currentLine.trim() && !currentLine.includes(':')) {
+                        e.preventDefault();
+                        const linesBefore = textBeforeCursor.split('\n');
+                        const lastLineIndex = linesBefore.length - 1;
+                        if (lastLineIndex >= 0) {
+                          linesBefore[lastLineIndex] = `${linesBefore[lastLineIndex].trim()}: `;
+                          const textAfterCursor = textarea.value.substring(cursorPos);
+                          const newValue = linesBefore.join('\n') + '\n' + textAfterCursor;
+                          setForm({
+                            ...form,
+                            extractionTargetsText: newValue,
+                          });
+                          // Set cursor to start of new line
+                          setTimeout(() => {
+                            const newPos = linesBefore.join('\n').length + 1;
+                            textarea.setSelectionRange(newPos, newPos);
+                          }, 0);
+                        }
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    // ✅ AUTO-FORMAT: Format all lines on blur to ensure correct format
+                    const lines = e.target.value.split('\n');
+                    const formattedLines = lines.map((line) => {
+                      const trimmed = line.trim();
+                      if (!trimmed) return '';
+                      
+                      // If line has no colon, add ": " at the end
+                      if (!trimmed.includes(':')) {
+                        return `${trimmed}: `;
+                      }
+                      
+                      // Normalize spacing around colon
+                      const colonIndex = trimmed.indexOf(':');
+                      if (colonIndex > 0) {
+                        const before = trimmed.substring(0, colonIndex).trim();
+                        const after = trimmed.substring(colonIndex + 1).trim();
+                        if (before) {
+                          return after ? `${before}: ${after}` : `${before}: `;
+                        }
+                      }
+                      
+                      return trimmed;
+                    }).filter(line => line.trim()); // Remove empty lines
+                    
+                    const formattedValue = formattedLines.join('\n');
+                    
+                    // Parse extraction targets
+                    const targets = formattedLines.map((line) => {
                       const [name, ...descParts] = line.split(':');
                       return {
                         name: name.trim(),
@@ -1084,19 +1275,37 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
                           name.trim(),
                       };
                     });
+                    
                     setForm({
                       ...form,
                       extractionTargets: targets,
+                      extractionTargetsText: formattedValue, // Store formatted value
                     });
                   }}
-                  placeholder={`vendor_name: Company name\ninvoice_amount: Total amount due\ndue_date: Payment due date\ncontact_email: Email address`}
+                  placeholder={`Company Name: The company that sent the invoice\nTotal Amount: How much money is due\nDue Date: When payment is needed\nEmail: Contact email address`}
                   className={styles.textarea}
                   rows={4}
                 />
                 <div className={styles.helperText}>
-                  <b>Format:</b> One item per line as
-                  &quot;field_name: description&quot;. Leave blank for
-                  auto-detection.
+                  <div style={{ marginBottom: '8px' }}>
+                    <b>💡 Simple Instructions:</b>
+                  </div>
+                  <div style={{ marginBottom: '8px', paddingLeft: '8px' }}>
+                    1. Type what you want (e.g., "Company Name")<br/>
+                    2. Press <kbd>Enter</kbd> - we'll format it for you!<br/>
+                    3. Type what it means (e.g., "The company that sent the invoice")
+                  </div>
+                  <div style={{ marginTop: '12px', padding: '8px', background: 'var(--color-primary-50, #f0f4ff)', borderRadius: '4px', border: '1px solid var(--color-primary-200, #cbd5e1)' }}>
+                    <b>📝 Example:</b><br/>
+                    <code style={{ display: 'block', marginTop: '4px' }}>
+                      Company Name: The company that sent the invoice<br/>
+                      Total Amount: How much money is due<br/>
+                      Due Date: When payment is needed
+                    </code>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '0.9em', color: 'var(--text-muted, #666)' }}>
+                    <b>✨ Don't worry about the format!</b> Just type what you want and press Enter - we'll handle the rest.
+                  </div>
                 </div>
               </div>
             )}

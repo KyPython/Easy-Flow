@@ -1,8 +1,18 @@
 // Load environment variables from .env file
 require('dotenv').config();
 
-// Get root directory dynamically
+// Load frontend .env.local if it exists
+const fs = require('fs');
 const path = require('path');
+const frontendEnvPath = path.join(__dirname, 'rpa-system/rpa-dashboard/.env.local');
+if (fs.existsSync(frontendEnvPath)) {
+  const frontendEnv = require('dotenv').config({ path: frontendEnvPath });
+  if (frontendEnv.parsed) {
+    console.log('Loaded frontend .env.local with', Object.keys(frontendEnv.parsed).length, 'variables');
+  }
+}
+
+// Get root directory dynamically
 const ROOT_DIR = __dirname;
 
 module.exports = {
@@ -49,6 +59,13 @@ module.exports = {
         BROWSER: process.env.BROWSER || 'none',
         REACT_APP_API_BASE: process.env.REACT_APP_API_BASE,
         PUBLIC_URL: process.env.PUBLIC_URL,
+        // Load all REACT_APP_ and VITE_ variables from .env.local
+        ...Object.keys(process.env)
+          .filter(key => key.startsWith('REACT_APP_') || key.startsWith('VITE_'))
+          .reduce((acc, key) => {
+            acc[key] = process.env[key];
+            return acc;
+          }, {}),
       },
     },
     {

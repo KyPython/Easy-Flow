@@ -20,8 +20,19 @@ const logger = createLogger('realtime');
 // NOTE: These are defined as JS variables/objects since this file is .js, not .ts
 // type RealtimeState = 'idle' | 'connecting' | 'subscribed' | 'reconnecting' | 'permanent_error' | 'fallback_polling' | 'error';
 
-// Max retries before declaring a permanent_error/fallback
-const MAX_RETRIES = 5; 
+// ✅ DYNAMIC: Max retries from config (non-hardcoded)
+// Import will be done inside the hook to avoid circular dependencies
+let MAX_RETRIES = 5;
+let MAX_BACKOFF_MS = 30000;
+
+// Initialize from config (called once)
+try {
+  const { getConfig } = require('../utils/dynamicConfig');
+  MAX_RETRIES = getConfig('thresholds.realtimeMaxRetries', 5);
+  MAX_BACKOFF_MS = getConfig('thresholds.realtimeMaxBackoff', 30000);
+} catch (e) {
+  // Fallback to defaults if config not available
+} 
 
 // Placeholder for data fetching used by polling fallback
 const refreshData = async () => {
@@ -53,7 +64,7 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
   // Backoff and error tracking refs
   const backoffRef = useRef({
     attempts: {} ,
-    maxDelayMs: 30000,
+    maxDelayMs: MAX_BACKOFF_MS, // From dynamic config
   });
   const fatalErrors = useRef(new Set());
   const pollingTimers = useRef(new Map());
@@ -79,17 +90,26 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
       /not in publication/i, 
       /insufficient replica identity/i, 
       /invalid.*filter/i,
-      /replica identity/i
+      /replica identity/i,
+      /invalid.*api.*key/i,
+      /api.*key.*invalid/i,
+      /project.*not.*found/i,
+      /configuration.*error/i,
+      /missing.*configuration/i,
+      /supabase.*not.*configured/i,
+      /firebase.*not.*configured/i
     ],
 
-    // Retry with session refresh
+    // Retry with session refresh (also treat as config error in dev if persistent)
     AUTH_ISSUE: [
       /permission denied/i, 
       /policy violation/i, 
       /unauthorized/i, 
       /jwt.*expired/i, 
       /authentication.*failed/i,
-      /auth.*token/i
+      /auth.*token/i,
+      /invalid.*credentials/i,
+      /api.*key.*restricted/i
     ],
 
     // Always retry with exponential backoff (Network/Transient issues)
@@ -335,8 +355,43 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
       const attempts = backoffRef.current.attempts[channelKey] || 0;
 
       // 1. Log error status with appropriate severity
-      // Transient errors are warnings, others are errors
+      // ✅ FAIL LOUDLY: Configuration errors should fail immediately in development
+      const isDevelopment = process.env.NODE_ENV === 'development' || 
+                           (typeof window !== 'undefined' && 
+                            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
+      
       if (status !== 'SUBSCRIBED') {
+        // Check if this is a configuration-related error
+        const isConfigError = category === 'FATAL_CONFIG' || 
+                             category === 'AUTH_ISSUE' || // Auth issues often indicate config problems
+                             msg?.toLowerCase().includes('configuration') ||
+                             msg?.toLowerCase().includes('unauthorized') ||
+                             msg?.toLowerCase().includes('invalid api key') ||
+                             msg?.toLowerCase().includes('api key') ||
+                             msg?.toLowerCase().includes('project not found') ||
+                             msg?.toLowerCase().includes('not configured') ||
+                             msg?.toLowerCase().includes('missing') && msg?.toLowerCase().includes('key');
+        
+        if (isConfigError && isDevelopment) {
+          // ✅ DEVELOPMENT: Fail loudly for configuration errors
+          logger.error('🔥 FATAL: Real-time connection failed due to configuration error', null, {
+            channelKey,
+            msg,
+            category,
+            note: 'This prevents silent fallback. Fix configuration to resolve.',
+            action: 'Check Supabase/Firebase configuration in .env.local'
+          });
+          // Don't retry or fallback - force configuration fix
+          notifyError({
+            type: 'REALTIME_CONFIG_ERROR',
+            channel: channelKey,
+            message: 'Real-time connection failed due to configuration error',
+            details: msg,
+            action: 'FIX_CONFIGURATION'
+          });
+          return; // Stop here - don't retry or fallback
+        }
+        
         if (category === 'TRANSIENT') {
           logger.warn('Channel temporarily disconnected', { channelKey, msg, category, willRetry: true });
         } else if (category === 'UNKNOWN') {

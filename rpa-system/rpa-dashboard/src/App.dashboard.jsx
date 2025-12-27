@@ -145,8 +145,16 @@ const AnalyticsTracker = () => {
 
 function Protected({ children }) {
   const { session, loading } = useAuth();
+  const location = useLocation();
+  
   if (loading) return null; // or a spinner component
-  if (!session) return <Navigate to="/" replace />;
+  if (!session) {
+    // ✅ SMART REDIRECT: Save intended path before redirecting to login
+    if (location.pathname !== '/auth' && location.pathname !== '/') {
+      sessionStorage.setItem('intended_path', location.pathname + location.search);
+    }
+    return <Navigate to="/auth" replace />;
+  }
   return children;
 }
 
@@ -200,6 +208,7 @@ function Shell() {
                 // ✅ DEVELOPMENT: Trigger render error that ErrorBoundary will catch
                 if (process.env.NODE_ENV === 'development') {
                   setFirebaseConfigError(e); // This will trigger a render error
+                  console.error("Firebase config error detected, setting state to trigger crash overlay.");
                 }
                 // Production: Don't crash, just log (already logged above)
               } else {
@@ -223,6 +232,7 @@ function Shell() {
             // ✅ DEVELOPMENT: Trigger render error that ErrorBoundary will catch
             if (process.env.NODE_ENV === 'development') {
               setFirebaseConfigError(e); // This will trigger a render error
+              console.error("Firebase config error on import, setting state to trigger crash overlay.");
             }
             // Production: Don't crash, just log (already logged above)
           } else {
@@ -246,6 +256,7 @@ function Shell() {
   
   // ✅ DEVELOPMENT: Throw render error if Firebase config error detected (caught by ErrorBoundary)
   if (process.env.NODE_ENV === 'development' && firebaseConfigError) {
+    console.error("Re-rendering with firebaseConfigError, throwing now to activate overlay.");
     throw firebaseConfigError; // This will be caught by React ErrorBoundary and show error overlay
   }
   

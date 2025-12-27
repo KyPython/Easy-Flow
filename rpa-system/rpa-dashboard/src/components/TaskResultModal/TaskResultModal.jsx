@@ -1,23 +1,70 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './TaskResultModal.module.css';
 import { useNavigate } from 'react-router-dom';
 import { validateUrl, sanitizeFilename, safeWindowOpen } from '../../utils/security';
 import { sanitizeErrorMessage as sanitizeError } from '../../utils/errorMessages';
+import { createLogger } from '../../utils/logger';
+import { getConfig } from '../../utils/dynamicConfig';
 
 const TaskResultModal = ({ task, onClose }) => {
+  // ✅ FIX: Early return must be BEFORE hooks to avoid "Rendered fewer hooks" error
+  if (!task) return null;
+  
+  // All hooks must be called after early return check
   const navigate = useNavigate();
   const [downloading, setDownloading] = useState(false);
+  const [autoRedirecting, setAutoRedirecting] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(5);
+  const logger = createLogger('TaskResultModal');
   
-  if (!task) return null;
+  // ✅ AUTO-REDIRECT: After viewing results, auto-redirect to history
+  useEffect(() => {
+    // Only auto-redirect if task is completed or failed (not queued/running)
+    const shouldAutoRedirect = task.status === 'completed' || task.status === 'failed';
+    
+    if (!shouldAutoRedirect) return;
+    
+    // Start countdown after 2 seconds of viewing
+    const startTimer = setTimeout(() => {
+      setAutoRedirecting(true);
+      
+      // Countdown from 5 to 0
+      let countdown = 5;
+      setRedirectCountdown(countdown);
+      
+      const countdownInterval = setInterval(() => {
+        countdown--;
+        setRedirectCountdown(countdown);
+        
+        if (countdown <= 0) {
+          clearInterval(countdownInterval);
+          // Redirect to history page
+          navigate('/app/history');
+        }
+      }, 1000);
+      
+      // Store interval ID for cleanup
+      window._taskResultModalInterval = countdownInterval;
+    }, 2000);
+    
+    // Cleanup function
+    return () => {
+      clearTimeout(startTimer);
+      if (window._taskResultModalInterval) {
+        clearInterval(window._taskResultModalInterval);
+        window._taskResultModalInterval = null;
+      }
+    };
+  }, [task.status, navigate]);
 
   // ✅ OBSERVABILITY: Unified download handler that matches TaskList behavior
   const handleDownload = async (artifactUrl, filename) => {
     if (!artifactUrl) {
-      console.error('[TaskResultModal] No artifact URL provided');
+      logger.error('No artifact URL provided');
       return;
     }
 
-    console.log('[TaskResultModal] Starting download', { 
+    logger.debug('Starting download', { 
       url: artifactUrl,
       filename,
       task_id: task.id 
@@ -35,14 +82,14 @@ const TaskResultModal = ({ task, onClose }) => {
       });
 
       if (!response.ok) {
-        console.error('[TaskResultModal] Download failed', { 
+        logger.error('Download failed', { 
           status: response.status, 
           statusText: response.statusText 
         });
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      console.log('[TaskResultModal] Fetched blob, creating download link');
+      logger.debug('Fetched blob, creating download link');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       
@@ -74,10 +121,10 @@ const TaskResultModal = ({ task, onClose }) => {
       // Clean up the blob URL
       window.URL.revokeObjectURL(url);
       
-      console.log('[TaskResultModal] Download successful', { filename: downloadFilename });
+      logger.info('Download successful', { filename: downloadFilename });
       
     } catch (error) {
-      console.error('[TaskResultModal] Download failed, trying fallback', error);
+      logger.error('Download failed, trying fallback', error);
       // ✅ SECURITY: Use safe window.open with URL validation
       safeWindowOpen(artifactUrl);
     } finally {
@@ -170,6 +217,19 @@ const TaskResultModal = ({ task, onClose }) => {
     actualStatus = resultData.status;
     isQueued = resultData.status === 'queued';
   }
+  
+  // ✅ DYNAMIC: Stuck task threshold from config (non-hardcoded)
+  const STUCK_THRESHOLD_HOURS = getConfig('thresholds.stuckTaskHours', 24);
+  const taskStartTime = task.started_at ? new Date(task.started_at).getTime() : null;
+  const now = Date.now();
+  const hoursSinceStart = taskStartTime ? (now - taskStartTime) / (1000 * 60 * 60) : 0;
+  const isStuck = (actualStatus === 'running' || actualStatus === 'queued' || actualStatus === 'pending')
+    && hoursSinceStart > STUCK_THRESHOLD_HOURS;
+  
+  // If task is stuck, override status to 'failed' for display
+  if (isStuck) {
+    actualStatus = 'failed';
+  }
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
@@ -186,7 +246,8 @@ const TaskResultModal = ({ task, onClose }) => {
               ? Math.floor((new Date() - new Date(task.started_at)) / 1000 / 60) // minutes
               : 0;
             
-            const isStuck = queuedTime > 10; // More than 10 minutes = likely stuck
+            const stuckThresholdMinutes = getConfig('thresholds.queueStuckMinutes', 10);
+            const isStuck = queuedTime > stuckThresholdMinutes;
             
             return (
               <div className={styles.queuedState}>
@@ -414,12 +475,43 @@ const TaskResultModal = ({ task, onClose }) => {
                   <strong>Error:</strong> {formatted.error}
                 </div>
               )}
+              {isStuck && (
+                <div className={styles.stuckWarning}>
+                  <p><strong>⚠️ This task appears to be stuck</strong></p>
+                  <p className={styles.muted}>
+                    This task has been processing for over {Math.floor(hoursSinceStart)} hours. 
+                    It was likely submitted before system fixes were applied and won't process automatically.
+                  </p>
+                  <p className={styles.muted}>
+                    <strong>What to do:</strong> Submit a new task - it will process immediately with all fixes in place.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         <div className={styles.modalFooter}>
-          <button className={styles.closeBtn} onClick={onClose}>Close</button>
+          {autoRedirecting && (
+            <div className={styles.redirectNotice} style={{
+              padding: '12px',
+              background: 'var(--color-primary-50, #f0f4ff)',
+              borderRadius: '6px',
+              marginBottom: '12px',
+              border: '1px solid var(--color-primary-200, #cbd5e1)',
+              textAlign: 'center'
+            }}>
+              <p style={{ margin: '0 0 8px 0', fontWeight: '600', color: 'var(--color-primary-700, #1e40af)' }}>
+                ↪️ Redirecting to Automation History in {redirectCountdown} seconds...
+              </p>
+              <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted, #666)' }}>
+                You can close this modal or wait to be redirected automatically.
+              </p>
+            </div>
+          )}
+          <button className={styles.closeBtn} onClick={onClose}>
+            {autoRedirecting ? `Close Now (${redirectCountdown}s)` : 'Close'}
+          </button>
         </div>
       </div>
     </div>

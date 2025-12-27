@@ -22,17 +22,26 @@ const CURRENT_LOG_LEVEL = process.env.NODE_ENV === 'production' ? LOG_LEVELS.INF
 // Sample rate: 1 = log everything, 10 = log 10% (every 10th log), 100 = log 1%
 const getLogSampleRate = () => {
   try {
+    // Check localStorage override first (for runtime debugging)
     const stored = localStorage.getItem('LOG_SAMPLE_RATE');
     if (stored) {
       const rate = parseInt(stored, 10);
       if (rate > 0) return rate;
     }
+    
+    // Check dynamic config (environment-aware)
+    const { getConfig } = require('./dynamicConfig');
+    const configRate = getConfig('observability.logSampleRate');
+    if (configRate !== undefined && configRate > 0) {
+      return configRate;
+    }
   } catch (e) {
-    // localStorage may not be available
+    // Fallback if dynamicConfig not available
   }
-  // Default: sample 1% of logs (1 in 100) for DEBUG/INFO, always log WARN/ERROR
+  
+  // Default: sample 1% of logs (1 in 100) for DEBUG/INFO in production, always log in dev
   // More aggressive sampling to prevent log flooding
-  return 100;
+  return process.env.NODE_ENV === 'production' ? 100 : 1;
 };
 
 const LOG_SAMPLE_RATE = getLogSampleRate();
@@ -175,13 +184,31 @@ class FrontendLogger {
                          level === 'WARN' ? 'warn' : 
                          level === 'ERROR' || level === 'FATAL' ? 'error' : 'log';
 
-    // Format console message
+    // Format console message with environment awareness
     const prefix = `[${this.namespace}]`;
     const throttleNote = (cached && cached.count > MAX_LOGS_PER_WINDOW) ? 
       ` (repeated ${cached.count - MAX_LOGS_PER_WINDOW} times)` : '';
     const sampleNote = (shouldSample && LOG_SAMPLE_RATE > 1) ? 
       ` [sampled: 1/${LOG_SAMPLE_RATE}]` : '';
-    originalConsole[consoleMethod](prefix, message + throttleNote + sampleNote, extra);
+    
+    // ✅ ENV-AWARE: In production, suppress technical details from console
+    // Only show user-friendly messages or critical errors
+    const isProd = process.env.NODE_ENV === 'production';
+    const shouldSuppress = isProd && 
+                          (level === 'DEBUG' || 
+                           (level === 'INFO' && !message.toLowerCase().includes('error') && !message.toLowerCase().includes('failed')));
+    
+    if (shouldSuppress) {
+      // In production, only send to telemetry, don't clutter console
+      return;
+    }
+    
+    // Format message: in production, keep it concise; in dev, show all details
+    const formattedMessage = isProd 
+      ? message.replace(/\[sampled:.*?\]/g, '').replace(/\(repeated.*?times\)/g, '') // Remove technical details in prod
+      : message + throttleNote + sampleNote;
+    
+    originalConsole[consoleMethod](prefix, formattedMessage, isProd ? {} : extra);
 
     // Send to backend telemetry if requested or if it's a warning/error (but also throttled)
     if ((sendToBackend || LOG_LEVELS[level] >= LOG_LEVELS.WARN) && (!cached || cached.count <= MAX_LOGS_PER_WINDOW * 2)) {
@@ -221,9 +248,15 @@ class FrontendLogger {
         }
       }
       
-      // ✅ FIX: Send logs to /api/internal/front-logs endpoint which routes through structured logger
-      // This ensures logs are integrated into the observability system (Loki/Grafana)
+      // ✅ OBSERVABILITY: Send logs to backend observability system
+      // This ensures ALL logs are integrated into the observability system (Loki/Grafana)
       const { api } = await import('./api');
+      const { getConfig } = await import('./dynamicConfig');
+      
+      // Check if observability is enabled
+      if (!getConfig('observability.enabled', true)) {
+        return; // Observability disabled
+      }
       
       // Format log entry for front-logs endpoint
       const frontLogEntry = {
@@ -233,11 +266,16 @@ class FrontendLogger {
         data: logEntry.context || {},
         trace: logEntry.trace || {},
         user: logEntry.user || null,
-        timestamp: logEntry.timestamp
+        timestamp: logEntry.timestamp,
+        environment: process.env.NODE_ENV || 'development',
+        hostname: typeof window !== 'undefined' ? window.location.hostname : 'server-side',
       };
       
-      // Don't await - fire and forget
-      api.post('/api/internal/front-logs', { logs: [frontLogEntry] })
+      // Get endpoint from config (defaults to /api/internal/front-logs)
+      const endpoint = getConfig('observability.frontLogsEndpoint', '/api/internal/front-logs');
+      
+      // Don't await - fire and forget (never let telemetry break the app)
+      api.post(endpoint, { logs: [frontLogEntry] })
         .catch(() => {
           // Silently fail - never let telemetry break the app
         });

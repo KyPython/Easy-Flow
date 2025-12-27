@@ -4,6 +4,9 @@ import { useTheme } from '../utils/ThemeContext';
 import { useAuth } from '../utils/AuthContext';
 import { api } from '../utils/api';
 import logger from '../utils/logger';
+import { sanitizeErrorMessage } from '../utils/errorMessages';
+import { getEnvMessage } from '../utils/envAwareMessages';
+import { getConfig } from '../utils/dynamicConfig';
 import styles from './UnifiedDashboardPage.module.css';
 
 const TOOL_CATEGORIES = {
@@ -22,12 +25,6 @@ const TOOL_CATEGORIES = {
       { id: 'google_meet', name: 'Google Meet', icon: '🎥', color: '#00832D' },
       { id: 'notion', name: 'Notion', icon: '📝', color: '#000000' }
     ]
-  },
-  automation: {
-    name: 'Automation',
-    tools: [
-      { id: 'easyflow', name: 'EasyFlow', icon: '🤖', color: '#6366F1' }
-    ]
   }
 };
 
@@ -37,12 +34,7 @@ const UnifiedDashboardPage = () => {
   const navigate = useNavigate();
   
   const [integrations, setIntegrations] = useState([]);
-  const [automationStats, setAutomationStats] = useState({
-    totalRuns: 0,
-    completedRuns: 0,
-    failedRuns: 0,
-    activeWorkflows: 0
-  });
+  const [integrationUsage, setIntegrationUsage] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -53,33 +45,31 @@ const UnifiedDashboardPage = () => {
     try {
       setError('');
       
-      // Fetch integrations status
+      // Fetch integrations status (external tools only)
       const integrationsResponse = await api.get('/api/integrations').catch(() => ({ data: { success: false, integrations: [] } }));
       const connectedIntegrations = integrationsResponse.data.success 
         ? integrationsResponse.data.integrations 
         : [];
 
-      // Fetch automation stats
-      const dashboardResponse = await api.get('/api/dashboard').catch(() => ({ data: {} }));
-      const dashboardData = dashboardResponse.data || {};
+      // Fetch integration usage stats (workflows, recent activity)
+      const usageResponse = await api.get('/api/integrations/usage').catch(() => ({ data: { success: false, usage: {} } }));
+      const usageData = usageResponse.data.success 
+        ? usageResponse.data.usage 
+        : {};
 
       setIntegrations(connectedIntegrations);
-      setAutomationStats({
-        totalRuns: dashboardData.totalRuns || 0,
-        completedRuns: dashboardData.recentRuns?.filter(r => r.status === 'completed').length || 0,
-        failedRuns: dashboardData.recentRuns?.filter(r => r.status === 'failed').length || 0,
-        activeWorkflows: dashboardData.activeWorkflows || 0
-      });
-      
+      setIntegrationUsage(usageData);
       setLastRefresh(new Date());
       
-      logger.info('[UnifiedDashboard] Status refreshed', {
-        integrations_count: connectedIntegrations.length,
-        total_runs: dashboardData.totalRuns || 0
+      logger.info('[UnifiedDashboard] External tools status refreshed', {
+        integrations_count: connectedIntegrations.length
       });
     } catch (err) {
-      logger.error('[UnifiedDashboard] Failed to fetch status', { error: err.message });
-      setError('Failed to load status. Please try again.');
+      logger.error('Failed to fetch status', { error: err.message || err });
+      setError(sanitizeErrorMessage(err) || getEnvMessage({
+        dev: 'Failed to load status: ' + (err.message || 'Unknown error'),
+        prod: 'Failed to load status. Please try again.'
+      }));
     } finally {
       setLoading(false);
     }
@@ -89,7 +79,8 @@ const UnifiedDashboardPage = () => {
     fetchAllStatus();
     
     // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchAllStatus, 30000);
+    const refreshInterval = getConfig('intervals.statusRefresh', 30000);
+    const interval = setInterval(fetchAllStatus, refreshInterval);
     return () => clearInterval(interval);
   }, [fetchAllStatus]);
 
@@ -187,15 +178,13 @@ const UnifiedDashboardPage = () => {
             </span>
           </div>
           <div className={styles.statItem}>
-            <span className={styles.statLabel}>Automation Runs</span>
-            <span className={styles.statValue}>{automationStats.totalRuns}</span>
+            <span className={styles.statLabel}>Total Integrations</span>
+            <span className={styles.statValue}>{integrations.length}</span>
           </div>
           <div className={styles.statItem}>
-            <span className={styles.statLabel}>Success Rate</span>
+            <span className={styles.statLabel}>Active Integrations</span>
             <span className={styles.statValue}>
-              {automationStats.totalRuns > 0 
-                ? Math.round((automationStats.completedRuns / automationStats.totalRuns) * 100)
-                : 0}%
+              {integrations.filter(i => i.isActive).length}
             </span>
           </div>
         </div>
@@ -249,17 +238,55 @@ const UnifiedDashboardPage = () => {
                           </span>
                         </div>
                       )}
+                      {integrationUsage[tool.id] && (
+                        <>
+                          {integrationUsage[tool.id].workflowCount > 0 && (
+                            <div className={styles.detailItem}>
+                              <span className={styles.detailLabel}>Used in:</span>
+                              <span className={styles.detailValue}>
+                                {integrationUsage[tool.id].workflowCount} workflow{integrationUsage[tool.id].workflowCount !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          )}
+                          {integrationUsage[tool.id].recentActivityCount > 0 && (
+                            <div className={styles.detailItem}>
+                              <span className={styles.detailLabel}>Recent Activity:</span>
+                              <span className={styles.detailValue}>
+                                {integrationUsage[tool.id].recentActivityCount} run{integrationUsage[tool.id].recentActivityCount !== 1 ? 's' : ''} (24h)
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
                   
                   <div className={styles.toolActions}>
                     {integration ? (
-                      <button
-                        className={styles.actionBtn}
-                        onClick={() => navigate('/app/integrations')}
-                      >
-                        Manage
-                      </button>
+                      <>
+                        <button
+                          className={styles.actionBtn}
+                          onClick={() => navigate('/app/integrations')}
+                        >
+                          Manage
+                        </button>
+                        {integrationUsage[tool.id]?.workflows && integrationUsage[tool.id].workflows.length > 0 && (
+                          <button
+                            className={styles.actionBtn}
+                            onClick={() => navigate('/app/workflows')}
+                            style={{ marginTop: '8px', fontSize: '0.9em' }}
+                          >
+                            View Workflows ({integrationUsage[tool.id].workflows.length})
+                          </button>
+                        )}
+                        <button
+                          className={styles.actionBtn}
+                          onClick={() => navigate(`/app/workflows?create=${tool.id}`)}
+                          style={{ marginTop: '8px', fontSize: '0.9em', background: tool.color }}
+                        >
+                          ➕ Create Automation
+                        </button>
+                      </>
                     ) : (
                       <button
                         className={styles.actionBtn}
@@ -277,40 +304,67 @@ const UnifiedDashboardPage = () => {
         </div>
       ))}
 
-      {/* Automation Stats */}
-      <div className={styles.automationSection}>
-        <h2 className={styles.sectionTitle}>Automation Activity</h2>
-        <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <div className={styles.statIcon}>📊</div>
-            <div className={styles.statContent}>
-              <div className={styles.statValue}>{automationStats.totalRuns}</div>
-              <div className={styles.statLabel}>Total Runs</div>
-            </div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statIcon}>✅</div>
-            <div className={styles.statContent}>
-              <div className={styles.statValue}>{automationStats.completedRuns}</div>
-              <div className={styles.statLabel}>Completed</div>
-            </div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statIcon}>❌</div>
-            <div className={styles.statContent}>
-              <div className={styles.statValue}>{automationStats.failedRuns}</div>
-              <div className={styles.statLabel}>Failed</div>
-            </div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statIcon}>🔄</div>
-            <div className={styles.statContent}>
-              <div className={styles.statValue}>{automationStats.activeWorkflows}</div>
-              <div className={styles.statLabel}>Active Workflows</div>
-            </div>
+      {/* EasyFlow Automation Activity */}
+      {Object.keys(integrationUsage).some(toolId => integrationUsage[toolId]?.recentActivityCount > 0) && (
+        <div className={styles.automationActivity}>
+          <h2 className={styles.sectionTitle}>🤖 EasyFlow Automation Activity</h2>
+          <p className={styles.sectionSubtitle}>
+            Recent automations using your connected tools (last 24 hours)
+          </p>
+          <div className={styles.activityGrid}>
+            {Object.entries(integrationUsage)
+              .filter(([_, stats]) => stats.recentActivityCount > 0)
+              .map(([toolId, stats]) => {
+                const tool = Object.values(TOOL_CATEGORIES)
+                  .flatMap(cat => cat.tools)
+                  .find(t => t.id === toolId);
+                if (!tool) return null;
+                
+                return (
+                  <div key={toolId} className={styles.activityCard}>
+                    <div className={styles.activityHeader}>
+                      <div 
+                        className={styles.activityIcon}
+                        style={{ background: tool.color }}
+                      >
+                        {tool.icon}
+                      </div>
+                      <div>
+                        <h3 className={styles.activityToolName}>{tool.name}</h3>
+                        <p className={styles.activityCount}>
+                          {stats.recentActivityCount} automation{stats.recentActivityCount !== 1 ? 's' : ''} ran
+                        </p>
+                      </div>
+                    </div>
+                    {stats.workflows && stats.workflows.length > 0 && (
+                      <div className={styles.activityWorkflows}>
+                        <span className={styles.activityLabel}>Active in:</span>
+                        <div className={styles.workflowTags}>
+                          {stats.workflows.slice(0, 3).map(w => (
+                            <span key={w.id} className={styles.workflowTag}>
+                              {w.name}
+                            </span>
+                          ))}
+                          {stats.workflows.length > 3 && (
+                            <span className={styles.workflowTag}>
+                              +{stats.workflows.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      className={styles.activityBtn}
+                      onClick={() => navigate('/app/workflows')}
+                    >
+                      View Workflows →
+                    </button>
+                  </div>
+                );
+              })}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Quick Actions */}
       <div className={styles.quickActions}>
@@ -324,21 +378,15 @@ const UnifiedDashboardPage = () => {
           </button>
           <button 
             className={styles.quickActionBtn}
-            onClick={() => navigate('/app/history')}
-          >
-            📜 View History
-          </button>
-          <button 
-            className={styles.quickActionBtn}
-            onClick={() => navigate('/app/analytics')}
-          >
-            📈 View Analytics
-          </button>
-          <button 
-            className={styles.quickActionBtn}
             onClick={() => navigate('/app')}
           >
-            ➕ Create Workflow
+            📊 View EasyFlow Dashboard
+          </button>
+          <button 
+            className={styles.quickActionBtn}
+            onClick={() => navigate('/app/workflows')}
+          >
+            ➕ Create New Workflow
           </button>
         </div>
       </div>

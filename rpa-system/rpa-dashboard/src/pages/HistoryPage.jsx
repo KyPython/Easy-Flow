@@ -12,46 +12,39 @@ import ErrorMessage from '../components/ErrorMessage';
 // Note: Chatbot removed - AI Agent is now available globally via toggle button
 import TaskResultModal from '../components/TaskResultModal/TaskResultModal';
 import { createLogger } from '../utils/logger';
+import { sanitizeErrorMessage } from '../utils/errorMessages';
+import { getEnvMessage } from '../utils/envAwareMessages';
 
-// ✅ ENVIRONMENT-AWARE CONFIGURATION
-// Consumer-friendly in production, dev-friendly in development
-const isDevelopment = process.env.NODE_ENV === 'development';
-const isProduction = process.env.NODE_ENV === 'production';
+// ✅ DYNAMIC CONFIGURATION: All values from dynamicConfig (environment-aware, non-hardcoded)
+import { getConfig } from '../utils/dynamicConfig';
 
 const HISTORY_CONFIG = {
-  // API Request Timeout
-  // Production: Longer timeout for slower networks (consumer-friendly)
-  // Development: Shorter timeout for faster feedback (dev-friendly)
-  apiTimeout: isProduction ? 45000 : 20000, // 45s prod, 20s dev
+  // API Request Timeout (from dynamic config)
+  apiTimeout: getConfig('timeouts.api', 30000),
   
-  // Loading Timeout (UI feedback)
-  // Production: More patient for users
-  // Development: Faster feedback for debugging
-  loadingTimeout: isProduction ? 60000 : 30000, // 60s prod, 30s dev
+  // Loading Timeout (from dynamic config)
+  loadingTimeout: getConfig('timeouts.loading', 60000),
   
-  // Polling Interval (background refresh)
-  // Production: Less frequent to reduce server load (consumer-friendly)
-  // Development: More frequent for real-time updates (dev-friendly)
-  pollingInterval: isProduction ? 10000 : 5000, // 10s prod, 5s dev
+  // Polling Interval (from dynamic config)
+  pollingInterval: getConfig('intervals.polling', 10000),
   
-  // Stuck Task Threshold (when to stop polling)
-  // Production: More patient (tasks might take longer)
-  // Development: Shorter threshold for faster feedback
-  stuckTaskThresholdMs: isProduction ? 2 * 60 * 60 * 1000 : 60 * 60 * 1000, // 2h prod, 1h dev
+  // Stuck Task Threshold (from dynamic config, converted from hours to ms)
+  stuckTaskThresholdMs: getConfig('thresholds.stuckTaskHours', 24) * 60 * 60 * 1000,
   
-  // Error Messages
-  // Production: User-friendly, actionable messages
-  // Development: Technical details for debugging
+  // Error Messages (environment-aware via getEnvMessage)
   errorMessages: {
-    timeout: isProduction 
-      ? 'The request is taking longer than expected. Please try refreshing the page.'
-      : 'API request timeout after 30 seconds',
-    loadingTimeout: isProduction
-      ? 'Loading is taking longer than expected. Please refresh the page or contact support if the issue persists.'
-      : 'Loading is taking longer than expected. Please refresh the page.',
-    fetchError: isProduction
-      ? 'Unable to load automation history. Please refresh the page or try again later.'
-      : 'Could not load automation history. The backend may be unavailable.'
+    timeout: getEnvMessage({
+      dev: `API request timeout after ${getConfig('timeouts.api', 30000) / 1000} seconds`,
+      prod: 'The request is taking longer than expected. Please try refreshing the page.'
+    }),
+    loadingTimeout: getEnvMessage({
+      dev: `Loading timeout after ${getConfig('timeouts.loading', 60000) / 1000} seconds`,
+      prod: 'Loading is taking longer than expected. Please refresh the page or contact support if the issue persists.'
+    }),
+    fetchError: getEnvMessage({
+      dev: 'Could not load automation history. The backend may be unavailable.',
+      prod: 'Unable to load automation history. Please refresh the page or try again later.'
+    })
   }
 };
 
@@ -59,6 +52,8 @@ const HistoryPage = () => {
   const { user } = useAuth();
   const { theme } = useTheme() || { theme: 'light' };
   const logger = createLogger('HistoryPage');
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isProduction = process.env.NODE_ENV === 'production';
   const loadingTimeoutRef = useRef(null);
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +71,7 @@ const HistoryPage = () => {
 
   // ✅ Move fetchRuns to useCallback so it can be called from anywhere
   const fetchRuns = useCallback(async (isBackgroundRefresh = false) => {
-    if (!user) return;
+      if (!user) return;
     
     // ✅ REQUEST DEDUPLICATION: Prevent concurrent requests
     if (fetchInProgressRef.current) {
@@ -90,7 +85,7 @@ const HistoryPage = () => {
     if (!isBackgroundRefresh) {
       setLoading(true);
     }
-    setError('');
+      setError('');
 
       // ✅ DYNAMIC: Set timeout based on environment (consumer-friendly in prod, dev-friendly in dev)
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
@@ -181,10 +176,10 @@ const HistoryPage = () => {
         // In development: Log all errors with details
         // In production: Only log unexpected errors (suppress expected ones)
         if (isDevelopment || (!isAuthError && !isNetworkError)) {
-          logger.error('Failed to fetch automation runs', {
-            error: err.message,
-            error_code: err.code,
-            user_id: user.id,
+        logger.error('Failed to fetch automation runs', {
+          error: err.message,
+          error_code: err.code,
+          user_id: user.id,
             error_type: isAuthError ? 'auth' : isNetworkError ? 'network' : isTimeoutError ? 'timeout' : 'unknown',
             environment: process.env.NODE_ENV,
             stack: isDevelopment ? err.stack : undefined // Only include stack in dev
@@ -200,10 +195,11 @@ const HistoryPage = () => {
         // ✅ DYNAMIC: User-friendly error in prod, technical error in dev
         // Don't show error for expected network issues (tab suspended, etc.)
         if (!isNetworkError || isProduction) {
-          const errorMessage = isProduction 
-            ? HISTORY_CONFIG.errorMessages.fetchError
-            : (err.message || HISTORY_CONFIG.errorMessages.fetchError);
-          setError(errorMessage);
+          const errorMessage = getEnvMessage({
+            dev: err.message || HISTORY_CONFIG.errorMessages.fetchError,
+            prod: HISTORY_CONFIG.errorMessages.fetchError
+          });
+          setError(sanitizeErrorMessage(errorMessage));
         }
       } finally {
         if (loadingTimeoutRef.current) {
@@ -212,7 +208,7 @@ const HistoryPage = () => {
         }
         // Only set loading to false if this was the initial load
         if (!isBackgroundRefresh) {
-          setLoading(false);
+        setLoading(false);
         }
         setIsRefreshing(false);
         fetchInProgressRef.current = false; // ✅ Release lock
@@ -221,27 +217,47 @@ const HistoryPage = () => {
 
   // ✅ Real-time updates with Supabase Realtime (replaces polling)
   // Uses WebSocket subscriptions for instant updates when runs change
+  const setupInProgressRef = useRef(false); // Prevent concurrent setup attempts
   useEffect(() => {
     if (!user?.id) return;
+    
+    // ✅ Prevent concurrent setup attempts
+    if (setupInProgressRef.current) {
+      logger.debug('Realtime setup already in progress, skipping', { user_id: user.id });
+      return;
+    }
 
     let channel = null;
     let client = null;
     let fallbackPollInterval = null;
 
     const setupRealtime = async () => {
+      setupInProgressRef.current = true;
       try {
-        // ✅ Check if Supabase is configured before attempting real-time
+        // ✅ FAIL LOUDLY: Check if Supabase is configured before attempting real-time
         if (!isSupabaseConfigured()) {
-          const configMsg = 'Supabase not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY.';
-          if (isProduction) {
-            logger.error(configMsg, { user_id: user.id });
-            setError('Real-time updates unavailable. Please configure Supabase environment variables.');
+          const configMsg = '🔥 FATAL: Supabase not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY.';
+          const errorDetails = {
+            missing: 'REACT_APP_SUPABASE_URL and/or REACT_APP_SUPABASE_ANON_KEY',
+            impact: 'Real-time updates unavailable, causing silent fallback to polling that floods the backend',
+            fix: 'Set Supabase environment variables in .env.local (local) or Vercel (production)'
+          };
+          
+          if (isDevelopment) {
+            // ✅ DEVELOPMENT: Fail loudly to prevent silent fallback
+            logger.error(configMsg, { user_id: user.id, ...errorDetails });
+            setError(`🔥 Configuration Error: ${errorDetails.missing} is missing. Real-time features will not work. Please configure Supabase in .env.local and restart the dev server.`);
+            // Don't fetch or poll - force user to fix configuration
+            setupInProgressRef.current = false;
+            return;
           } else {
-            logger.warn(configMsg, { user_id: user.id });
+            // Production: Show user-friendly error but still allow data fetching
+            logger.error(configMsg, { user_id: user.id, ...errorDetails });
+            setError('Real-time updates unavailable. Please configure Supabase environment variables.');
+            await fetchRuns(false);
+            setupInProgressRef.current = false;
+            return; // Don't attempt real-time or polling if Supabase isn't configured
           }
-          // Still fetch initial data, but don't set up polling if backend is unreachable
-          await fetchRuns(false);
-          return; // Don't attempt real-time or polling if Supabase isn't configured
         }
 
         // Initial load
@@ -327,6 +343,11 @@ const HistoryPage = () => {
               if (payload.eventType === 'INSERT') {
                 // New run created - fetch full data to get task details
                 fetchRuns(true); // Background refresh
+                
+                // ✅ AUTO-SCROLL: Scroll to top when new run is added (new runs appear at top)
+                setTimeout(() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 500); // Wait for data to load
               } else if (payload.eventType === 'UPDATE') {
                 // Run status or data changed - update local state efficiently
                 setRuns(prev => {
@@ -375,6 +396,26 @@ const HistoryPage = () => {
             if (status === 'SUBSCRIBED') {
               logger.info('Successfully subscribed to automation_runs changes via WebSocket', { user_id: user.id });
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+              // ✅ FAIL LOUDLY: Check if this is a configuration error before falling back
+              const isConfigError = status === 'CHANNEL_ERROR' && (
+                !isSupabaseConfigured() || 
+                (typeof window !== 'undefined' && !window._supabase?.auth?.getSession)
+              );
+              
+              if (isConfigError && isDevelopment) {
+                // ✅ DEVELOPMENT: Fail loudly for configuration errors
+                const errorMsg = '🔥 FATAL: Real-time connection failed due to configuration error. Check Supabase configuration.';
+                logger.error(errorMsg, {
+                  status,
+                  user_id: user.id,
+                  supabase_configured: isSupabaseConfigured(),
+                  note: 'This prevents silent fallback to polling. Fix configuration to resolve.'
+                });
+                setError('🔥 Real-time connection failed. Please check Supabase configuration in .env.local and restart the dev server.');
+                // Don't fall back to polling - force configuration fix
+                return;
+              }
+              
               // ✅ DYNAMIC: Less noisy in dev (expected behavior), more visible in prod
               if (isProduction) {
                 logger.warn('Realtime subscription error, falling back to polling', {
@@ -382,14 +423,14 @@ const HistoryPage = () => {
                   user_id: user.id
                 });
               } else {
-                // In dev: debug level (expected transient disconnects)
-                logger.debug('Realtime subscription temporarily disconnected (expected in dev)', {
+                // In dev: warn level for non-config errors (transient disconnects are expected)
+                logger.warn('Realtime subscription temporarily disconnected', {
                   status,
                   user_id: user.id,
-                  note: 'Will reconnect automatically'
+                  note: 'Will reconnect automatically. If this persists, check Supabase configuration.'
                 });
               }
-              // Fallback to polling if Realtime fails
+              // Fallback to polling if Realtime fails (only for non-config errors)
               // ✅ Ensure only one polling interval exists
               if (fallbackPollInterval) {
                 clearInterval(fallbackPollInterval);
@@ -438,8 +479,13 @@ const HistoryPage = () => {
           note: isDevelopment ? 'Falling back to polling (expected in dev)' : 'Falling back to polling',
           stack: isDevelopment ? err.stack : undefined // Only include stack in dev
         });
-        // Fallback: still fetch initial data even if Realtime fails
-        fetchRuns(false);
+        // Fallback: only fetch initial data if we haven't already loaded it
+        // (Prevent repeated initial loads when real-time fails)
+        if (runsRef.current.length === 0) {
+          fetchRuns(false);
+        } else {
+          logger.debug('Skipping initial fetch - data already loaded', { user_id: user.id });
+        }
         // Also set up polling as fallback (only if Supabase is configured)
         if (isSupabaseConfigured()) {
           // ✅ Ensure only one polling interval exists
@@ -491,6 +537,7 @@ const HistoryPage = () => {
 
     // Cleanup: unsubscribe from Realtime channel and clear polling
     return () => {
+      setupInProgressRef.current = false; // Reset setup flag on cleanup
       if (fallbackPollInterval) {
         clearInterval(fallbackPollInterval);
       }
@@ -503,7 +550,7 @@ const HistoryPage = () => {
         }
       }
     };
-  }, [user?.id, fetchRuns]); // Removed viewingTaskId from deps to prevent unnecessary re-subscriptions
+  }, [user?.id]); // ✅ Removed fetchRuns from deps to prevent re-initialization loops
 
   // ✅ Manual refresh handler
   const handleManualRefresh = useCallback(() => {
@@ -627,7 +674,10 @@ const HistoryPage = () => {
           user_id: user.id,
           stack: err.stack
         });
-        setError(err.message || 'Failed to delete the run. Please try again.');
+        setError(sanitizeErrorMessage(err) || getEnvMessage({
+          dev: 'Failed to delete the run: ' + (err.message || 'Unknown error'),
+          prod: 'Failed to delete the run. Please try again.'
+        }));
       }
     }
   };

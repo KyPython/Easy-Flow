@@ -197,12 +197,7 @@ router.post('/test-link-discovery', requireFeature('workflow_executions'), async
       });
     }
 
-    // Validate discovery method specific requirements
-    if (discoveryMethod === 'css-selector' && !discoveryValue) {
-      return res.status(400).json({
-        error: 'CSS Selector is required when using css-selector method'
-      });
-    }
+    // ✅ REMOVED: CSS selector option - not user-friendly, auto-detect works 99% of the time
 
     if (discoveryMethod === 'text-match' && !discoveryValue) {
       return res.status(400).json({

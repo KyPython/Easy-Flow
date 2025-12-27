@@ -156,11 +156,13 @@ export default function AuthPage() {
             throw new Error('Login failed: No user data returned');
           }
           
-          // Successful login - redirect to dashboard
-          setSuccess('Login successful! Redirecting to dashboard...');
+          // ✅ SMART REDIRECT: Check if user was trying to access a specific page
+          const intendedPath = sessionStorage.getItem('intended_path') || '/app';
+          sessionStorage.removeItem('intended_path');
           
           // Convert pending signup flag to active signup flag for conversion tracking
-          if (sessionStorage.getItem('just_signed_up_pending') === 'true') {
+          const isNewUser = sessionStorage.getItem('just_signed_up_pending') === 'true';
+          if (isNewUser) {
             sessionStorage.setItem('just_signed_up', 'true');
             sessionStorage.removeItem('just_signed_up_pending');
             // Track conversion event
@@ -170,8 +172,16 @@ export default function AuthPage() {
           // Track login event and trigger any first-login campaigns
           try { trackEvent({ user_id: user.id, event_name: 'user_login' }); } catch (e) { console.debug('trackEvent failed', e); }
           try { triggerCampaign({ user_id: user.id, reason: 'first_login' }); } catch (e) { console.debug('triggerCampaign failed', e); }
+          
+          // ✅ SMART REDIRECT: New users go to tasks page, existing users go to intended path or dashboard
+          const redirectPath = isNewUser ? '/app/tasks' : intendedPath;
+          const redirectMessage = isNewUser 
+            ? 'Welcome! Redirecting to create your first automation...' 
+            : `Login successful! Redirecting${intendedPath !== '/app' ? ' to your destination' : ' to dashboard'}...`;
+          
+          setSuccess(redirectMessage);
           setTimeout(() => {
-            navigate('/app');
+            navigate(redirectPath);
           }, 1500);
         } else {
           const { error } = await signUp({ email, password });

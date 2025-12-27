@@ -18,18 +18,10 @@ try {
   firebaseConfig = typeof FIREBASE_CONFIG !== 'undefined' ? FIREBASE_CONFIG : null;
 } catch (e) {
   configError = e;
-  console.warn('[firebase-messaging-sw.js] Could not load firebase-config.js:', e.message);
-  // Fallback: Try to construct from environment (for development)
-  // In production, firebase-config.js should always be generated at build time
-  firebaseConfig = {
-    apiKey: '',
-    authDomain: '',
-    databaseURL: '',
-    projectId: '',
-    storageBucket: '',
-    messagingSenderId: '',
-    appId: ''
-  };
+  console.error('[firebase-messaging-sw.js] ❌ CRITICAL: Could not load firebase-config.js:', e.message);
+  // ✅ FIX: Don't create empty fallback config - this hides the real problem
+  // Instead, set to null so validation below will catch it and fail loudly
+  firebaseConfig = null;
 }
 
 // ✅ CRITICAL: Validate config before initializing Firebase
