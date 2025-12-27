@@ -1,114 +1,20 @@
 # Snyk Policy File
-# Documents intentional security design decisions
+# This file configures Snyk security scanning
 
-version: v1.25.0
+version: v1.22.0
 
-# CSRF Protection - Intentionally Disabled
-# Our API uses token-based authentication (not cookie-based) with authMiddleware
-# on all protected routes. CSRF protection is not needed for token-based APIs.
-# Security is provided by:
-# - Authentication middleware (authMiddleware) on all protected routes
-# - CORS configuration (ALLOWED_ORIGINS)
-# - Token-based authentication (Bearer tokens)
-# This is a standard pattern for REST APIs.
+# Ignore false positives for Firebase public API keys
+# These are NOT secrets - Firebase API keys are meant to be public in client code
 ignore:
-  SNYK-JS-EXPRESS-567485:
+  SNYK-JS-HARDCODED-SECRET-0c42abb1-7a0c-4d93-aeeb-619337fc359b:
     - '*':
-        reason: CSRF intentionally disabled - using token-based auth with CORS
+        reason: Firebase API key is public by design, not a secret
         expires: '2026-12-31T23:59:59.999Z'
-  javascript/UseCsurfForExpress:
+        created: '2025-12-27T00:00:00.000Z'
+  SNYK-JS-HARDCODED-SECRET-5baf95a7-0388-45d7-aa32-a35375708b8e:
     - '*':
-        reason: CSRF intentionally disabled - using token-based auth with CORS
+        reason: Firebase config values are public, not secrets
         expires: '2026-12-31T23:59:59.999Z'
+        created: '2025-12-27T00:00:00.000Z'
 
-# DOM XSS - False Positives
-# These components already use validateUrl() and sanitizeFilename() utilities
-# React also auto-escapes content. These are false positives.
-ignore:
-  SNYK-JS-DOMXSS-*:
-    - '*':
-        reason: React auto-escapes content, and all components use validateUrl()/sanitizeFilename() - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-  javascript/DOMXSS:
-    - 'rpa-system/rpa-dashboard/src/components/FileManager/FileManager.jsx':
-        reason: Uses validateUrl() and sanitizeFilename() - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-    - 'rpa-system/rpa-dashboard/src/components/TaskResultModal/TaskResultModal.jsx':
-        reason: Uses validateUrl() and sanitizeFilename() - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-    - 'rpa-system/rpa-dashboard/src/components/TaskList/TaskList.jsx':
-        reason: Uses validateUrl() and safeWindowOpen() - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-    - 'rpa-system/rpa-dashboard/src/pages/SharedFilePage.jsx':
-        reason: Uses validateUrl() and sanitizeFilename() - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-    - 'rpa-system/rpa-dashboard/src/utils/api.js':
-        reason: Uses validateUrl() and safeWindowOpen() - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-
-# Open Redirect - False Positives
-# These components use safeWindowOpen() with URL validation
-ignore:
-  SNYK-JS-OR-*:
-    - '*':
-        reason: All components use safeWindowOpen() with validateUrl() - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-  javascript/OR:
-    - 'rpa-system/rpa-dashboard/src/components/TaskList/TaskList.jsx':
-        reason: Uses safeWindowOpen() with URL validation - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-    - 'rpa-system/rpa-dashboard/src/pages/SettingsPage.jsx':
-        reason: Uses safeWindowOpen() with URL validation - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-    - 'rpa-system/rpa-dashboard/src/components/FileSharing/FileSharing.jsx':
-        reason: Uses safeWindowOpen() with URL validation - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-    - 'rpa-system/rpa-dashboard/src/utils/api.js':
-        reason: Uses safeWindowOpen() and validateUrl() - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-
-# Hardcoded Password - False Positive
-# This is an HTML autocomplete attribute value, not an actual password
-ignore:
-  SNYK-JS-NOHARDCODEDPASSWORDS-*:
-    - 'rpa-system/rpa-dashboard/src/utils/formPersistence.js':
-        reason: HTML autocomplete value, not actual password - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-  javascript/NoHardcodedPasswords:
-    - 'rpa-system/rpa-dashboard/src/utils/formPersistence.js':
-        reason: HTML autocomplete value, not actual password - false positive
-        expires: '2026-12-31T23:59:59.999Z'
-
-# postMessage Validation - Enhanced Implementation
-# Firebase messaging service worker validates origin with explicit type checks:
-# - Validates event object and origin property exist
-# - Validates origin is a string type before comparison
-# - Compares against self.location.origin with strict type checking
-ignore:
-  SNYK-JS-INSUFFICIENTPOSTMESSAGEVALIDATION-*:
-    - 'rpa-system/rpa-dashboard/public/firebase-messaging-sw.js':
-        reason: Enhanced origin validation with explicit type checks and event validation implemented
-        expires: '2026-12-31T23:59:59.999Z'
-  javascript/InsufficientPostmessageValidation:
-    - 'rpa-system/rpa-dashboard/public/firebase-messaging-sw.js':
-        reason: Enhanced origin validation with explicit type checks and event validation implemented
-        expires: '2026-12-31T23:59:59.999Z'
-
-# Type Validation - Fixed
-# All type validation issues have been fixed with explicit type checks:
-# - app.js line 6130: Added validation for search parameter (safeSearch with type check)
-# - app.js line 5952: Added validation for limit, offset, folder, tags, category
-# - teamRoutes.js line 180: Added email type validation before using .includes()
-# - auditLogs.js line 123: Added req.query object validation and search type check
-# - auditLogs.js line 189: Added req.query object validation and search type check
-# All query parameters and body parameters now have explicit type validation before use.
-# If any type validation issues appear, they should be fixed rather than ignored.
-ignore:
-  javascript/HTTPSourceWithUncheckedType:
-    - 'rpa-system/backend/app.js':
-        reason: All query parameters have explicit type validation (safeSearch, safeLimit, safeOffset, etc.)
-        expires: '2026-12-31T23:59:59.999Z'
-    - 'rpa-system/backend/routes/teamRoutes.js':
-        reason: Email parameter has explicit type validation before using .includes()
-        expires: '2026-12-31T23:59:59.999Z'
-
+patch: {}
