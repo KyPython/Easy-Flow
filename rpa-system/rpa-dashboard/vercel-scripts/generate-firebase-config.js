@@ -39,9 +39,52 @@ fs.writeFileSync(outputPath, template, 'utf8');
 
 console.log('✓ Generated firebase-config.js');
 
-// Validate that required values are set
-if (!config.apiKey || !config.projectId) {
-  console.warn('⚠️  Warning: Firebase config is missing required values (apiKey, projectId)');
-  console.warn('   Service worker may not function correctly without these values.');
+// ✅ CRITICAL: Validate that required values are set
+// Only fail in development when running `npm start` (not during builds or CI)
+const isDevelopment = process.env.NODE_ENV !== 'production';
+const isCI = process.env.CI === 'true' || process.env.VERCEL === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const isBuild = process.env.npm_lifecycle_event === 'build' || process.env.npm_lifecycle_event === 'prebuild';
+const isStart = process.env.npm_lifecycle_event === 'start' || process.env.npm_lifecycle_event === 'prestart';
+
+const missingRequired = [];
+
+if (!config.apiKey || !config.apiKey.trim()) {
+  missingRequired.push('REACT_APP_FIREBASE_API_KEY');
+}
+if (!config.projectId || !config.projectId.trim()) {
+  missingRequired.push('REACT_APP_FIREBASE_PROJECT_ID');
+}
+
+if (missingRequired.length > 0) {
+  const errorMessage = `\n\n🔥 FATAL: Firebase service worker configuration is missing required values!\n\n` +
+    `Missing: ${missingRequired.join(', ')}\n\n` +
+    `Impact: Service worker cannot initialize Firebase, causing uncaught errors.\n\n` +
+    `Fix: Set these environment variables in .env.local (local) or Vercel (production):\n` +
+    `  ${missingRequired.join('\n  ')}\n\n` +
+    `For local development:\n` +
+    `  1. Edit rpa-system/rpa-dashboard/.env.local\n` +
+    `  2. Add the missing variables\n` +
+    `  3. Restart the dev server (./stop-dev.sh && ./start-dev.sh)\n\n`;
+  
+  // ✅ DEVELOPMENT: Fail loudly when starting dev server (not during builds or CI)
+  if (isDevelopment && isStart && !isCI) {
+    console.error(errorMessage);
+    console.error('Current config values:', {
+      apiKey: config.apiKey ? '(present)' : '(missing)',
+      projectId: config.projectId ? '(present)' : '(missing)',
+      authDomain: config.authDomain ? '(present)' : '(missing)',
+      appId: config.appId ? '(present)' : '(missing)'
+    });
+    process.exit(1); // Exit with error code to fail the start
+  } else {
+    // Build/CI: Warn but don't fail (to avoid breaking builds)
+    console.warn('⚠️  Warning: Firebase config is missing required values:', missingRequired.join(', '));
+    console.warn('   Service worker may not function correctly without these values.');
+    if (isBuild && !isCI) {
+      console.warn('   This is a build - consider setting these values before deploying.');
+    }
+  }
+} else {
+  console.log('✓ Firebase config validation passed');
 }
 
