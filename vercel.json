@@ -3,7 +3,7 @@
   "name": "easyflow-dashboard",
   "framework": null,
   "installCommand": "node vercel-scripts/silent-install.js",
-  "buildCommand": "node -e \"if (process.env.VERCEL_ENV === 'production' && process.env.VERCEL_GIT_COMMIT_REF === 'dev') { console.error('❌ ERROR: Production deployments from dev branch are BLOCKED. Change Vercel Production Branch to main in dashboard.'); process.exit(1); }\" && cd rpa-dashboard && DISABLE_ESLINT_PLUGIN=true npm run build",
+  "buildCommand": "node vercel-scripts/check-production-branch.js && cd rpa-dashboard && DISABLE_ESLINT_PLUGIN=true npm run build",
   "outputDirectory": "rpa-dashboard/build",
   "headers": [
     {
