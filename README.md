@@ -8,11 +8,14 @@
 2. Run `./start-dev.sh` - automatically installs dependencies and starts everything
 3. Open http://localhost:3000
 
-**First Time?** If you see polling floods or 401 errors, configure `.env.local`:
-```bash
-cd rpa-system/rpa-dashboard && cp .env.example .env.local
-# Edit .env.local with Firebase & Supabase credentials, then restart
-```
+**First Time?** The app will **fail loudly** if Firebase config is missing (prevents silent polling floods).
+
+**To fix:**
+1. Create `.env.local` if missing: `touch rpa-system/rpa-dashboard/.env.local`
+2. Add Firebase credentials (from Firebase Console → Project Settings → General → Your apps)
+3. Restart: `./stop-dev.sh && ./start-dev.sh`
+
+See [docs/WORKFLOW.md](docs/WORKFLOW.md) for complete setup instructions.
 
 ## Documentation
 

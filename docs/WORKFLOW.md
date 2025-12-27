@@ -9,13 +9,53 @@ git checkout dev
 **Auto-installs:** All npm and Python dependencies if missing  
 **Opens:** http://localhost:3000
 
-**⚠️ Polling Floods or 401 Errors?** If you already have `.env.local` but still see issues:
-1. **Restart the dev server** - CRA only loads `.env.local` on startup:
+**⚠️ Polling Floods or 401 Errors?** This usually means Firebase configuration is missing.
+
+**The app will now FAIL LOUDLY in development** if Firebase config is missing, preventing silent fallback to polling.
+
+**To Fix:**
+1. **Check if `.env.local` exists:**
+   ```bash
+   ls -la rpa-system/rpa-dashboard/.env.local
+   ```
+
+2. **If missing, create it:**
+   ```bash
+   touch rpa-system/rpa-dashboard/.env.local
+   ```
+
+3. **Add Firebase configuration** (get values from Firebase Console → Project Settings → General → Your apps):
+   ```bash
+   # Edit the file
+   nano rpa-system/rpa-dashboard/.env.local
+   ```
+   
+   Required variables:
+   ```plaintext
+   # === FIREBASE CONFIGURATION (REQUIRED) ===
+   REACT_APP_FIREBASE_API_KEY=AIzaSy...YOUR_KEY...
+   REACT_APP_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+   REACT_APP_FIREBASE_DATABASE_URL=https://your-project-id.firebaseio.com
+   REACT_APP_FIREBASE_PROJECT_ID=your-project-id
+   REACT_APP_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+   REACT_APP_FIREBASE_MESSAGING_SENDER_ID=1234567890
+   REACT_APP_FIREBASE_APP_ID=1:1234567890:web:abcdef123456
+   REACT_APP_FIREBASE_MEASUREMENT_ID=G-ABCDEFGHIJ
+   
+   # === SUPABASE CONFIGURATION (REQUIRED) ===
+   REACT_APP_SUPABASE_URL=https://your-project.supabase.co
+   REACT_APP_SUPABASE_ANON_KEY=your-anon-key
+   
+   # === LOCAL API CONFIGURATION ===
+   REACT_APP_API_BASE=http://localhost:3030
+   ```
+
+4. **Restart the dev server** - CRA only loads `.env.local` on startup:
    ```bash
    ./stop-dev.sh && ./start-dev.sh
    ```
-2. **Verify variables are loaded** - Check browser console for Firebase/Supabase config warnings
-3. **If missing variables** - Copy `.env.example` to `.env.local` and fill in credentials
+
+5. **Verify it worked** - The app should start without Firebase configuration errors. Check browser console for confirmation.
 
 ## While Working
 - Make changes → Test in browser
