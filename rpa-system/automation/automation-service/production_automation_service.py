@@ -480,6 +480,31 @@ def process_automation_task(task_data):
                     else:
                         result = {'success': False, 'error': download_result.get('error', 'Download failed'), 'details': download_result}
                         task_logger.error(f"❌ Invoice download failed: {result.get('error')}")
+        elif task_type == 'form_submission':
+            # Form submission task - fill and submit forms on web pages
+            url = task_data.get('url')
+            form_data = task_data.get('form_data', {})
+            selectors = task_data.get('selectors', {})
+            wait_after_submit = task_data.get('wait_after_submit', 3)
+            
+            if not url:
+                result = {'success': False, 'error': 'Missing required field: url'}
+            elif not form_data:
+                result = {'success': False, 'error': 'Missing required field: form_data'}
+            else:
+                try:
+                    from . import generic_scraper
+                except ImportError:
+                    import generic_scraper
+                
+                task_logger.info(f"📝 Starting form submission for: {url}")
+                submit_result = generic_scraper.submit_form(url, form_data, selectors, wait_after_submit)
+                if submit_result.get('status') == 'success' or submit_result.get('success'):
+                    result = {'success': True, 'data': submit_result, 'message': f'Form submitted successfully at {url}'}
+                    task_logger.info(f"✅ Form submission completed successfully")
+                else:
+                    result = {'success': False, 'error': submit_result.get('error', 'Form submission failed'), 'details': submit_result}
+                    task_logger.error(f"❌ Form submission failed: {result.get('error')}")
         else:
             result = {'success': False, 'error': f'Unknown task type: {task_type}'}
 
