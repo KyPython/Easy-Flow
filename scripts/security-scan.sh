@@ -120,25 +120,58 @@ FALSE_POSITIVE_FILES="rpa-system/rpa-dashboard/public/firebase-messaging-sw.js r
 # Snyk code test automatically scans all supported file types (JS, JSX, TS, TSX, Python, etc.)
 # and all directories by default when run from root
 if snyk code test --severity-threshold="$SEVERITY_THRESHOLD" --json >/tmp/snyk-code.json 2>&1 || true; then
-    # Check for actual security issues in the JSON output
-    ISSUES_COUNT=$(cat /tmp/snyk-code.json 2>/dev/null | grep -o '"total":\s*[0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+    # Extract actual issue files using jq if available, otherwise use grep
+    if command -v jq >/dev/null 2>&1; then
+        # Use jq to extract unique file paths from error-level issues (remove quotes)
+        ACTUAL_ISSUE_FILES=$(cat /tmp/snyk-code.json 2>/dev/null | jq -r '.runs[0].results[]? | select(.level == "error") | .locations[0].physicalLocation.artifactLocation.uri' 2>/dev/null | sort -u | grep -v '^$' || echo "")
+        ISSUES_COUNT=$(echo "$ACTUAL_ISSUE_FILES" | grep -v '^$' | wc -l | tr -d ' ')
+    else
+        # Fallback: use grep to count issues
+        ISSUES_COUNT=$(cat /tmp/snyk-code.json 2>/dev/null | grep -o '"total":\s*[0-9]*' | grep -o '[0-9]*' | head -1 || echo "0")
+        ACTUAL_ISSUE_FILES=""
+    fi
     
     # Filter out false positives by checking if issues are only from known false positive files
     if [ -n "$ISSUES_COUNT" ] && [ "$ISSUES_COUNT" -gt 0 ]; then
-        # Check if all issues are from false positive files
-        FALSE_POSITIVE_COUNT=0
-        for false_file in $FALSE_POSITIVE_FILES; do
-            # Count issues from this false positive file
-            FILE_ISSUES=$(cat /tmp/snyk-code.json 2>/dev/null | grep -c "$false_file" || echo "0")
-            FALSE_POSITIVE_COUNT=$((FALSE_POSITIVE_COUNT + FILE_ISSUES))
-        done
-        
-        # If all issues are from false positive files, allow scan to pass
-        if [ "$FALSE_POSITIVE_COUNT" -ge "$ISSUES_COUNT" ]; then
-            echo "  ${GREEN}✓ Code: No ${SEVERITY_THRESHOLD}+ security issues found (only false positives from error messages)${NC}"
+        if [ -n "$ACTUAL_ISSUE_FILES" ]; then
+            # Check if all issue files are in the false positive list
+            ALL_FALSE_POSITIVES=true
+            for issue_file in $ACTUAL_ISSUE_FILES; do
+                IS_FALSE_POSITIVE=false
+                for false_file in $FALSE_POSITIVE_FILES; do
+                    if echo "$issue_file" | grep -q "$false_file"; then
+                        IS_FALSE_POSITIVE=true
+                        break
+                    fi
+                done
+                if [ "$IS_FALSE_POSITIVE" = false ]; then
+                    ALL_FALSE_POSITIVES=false
+                    break
+                fi
+            done
+            
+            if [ "$ALL_FALSE_POSITIVES" = true ]; then
+                echo "  ${GREEN}✓ Code: No ${SEVERITY_THRESHOLD}+ security issues found (only false positives from error messages)${NC}"
+            else
+                echo "  ${YELLOW}⚠ Code: Found $ISSUES_COUNT security issue(s) (see details below)${NC}"
+                snyk code test --severity-threshold="$SEVERITY_THRESHOLD" || SCAN_FAILED=$((SCAN_FAILED + 1))
+            fi
         else
-            echo "  ${YELLOW}⚠ Code: Found $ISSUES_COUNT security issue(s) (see details below)${NC}"
-            snyk code test --severity-threshold="$SEVERITY_THRESHOLD" || SCAN_FAILED=$((SCAN_FAILED + 1))
+            # Fallback: use grep to check if all issues are from false positive files
+            FALSE_POSITIVE_COUNT=0
+            for false_file in $FALSE_POSITIVE_FILES; do
+                FILE_ISSUES=$(cat /tmp/snyk-code.json 2>/dev/null | grep -c "$false_file" || echo "0")
+                if [ "$FILE_ISSUES" -gt 0 ]; then
+                    FALSE_POSITIVE_COUNT=$((FALSE_POSITIVE_COUNT + 1))
+                fi
+            done
+            
+            if [ "$FALSE_POSITIVE_COUNT" -ge "$ISSUES_COUNT" ] && [ "$ISSUES_COUNT" -gt 0 ]; then
+                echo "  ${GREEN}✓ Code: No ${SEVERITY_THRESHOLD}+ security issues found (only false positives from error messages)${NC}"
+            else
+                echo "  ${YELLOW}⚠ Code: Found $ISSUES_COUNT security issue(s) (see details below)${NC}"
+                snyk code test --severity-threshold="$SEVERITY_THRESHOLD" || SCAN_FAILED=$((SCAN_FAILED + 1))
+            fi
         fi
     else
         # Also check for runs array with issues
