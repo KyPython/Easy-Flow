@@ -142,11 +142,17 @@ module.exports = function override(config, env) {
     };
     
     // Ensure SPA routes are handled correctly - serve index.html for all routes
-    // This prevents 404 errors when navigating to routes like /auth
+    // This prevents 404 errors when navigating to routes like /app, /auth, etc.
     // IMPORTANT: Proxy middleware runs BEFORE historyApiFallback, so /api/* won't hit this
     config.devServer.historyApiFallback = {
       disableDotRule: true,
       htmlAcceptHeaders: ['text/html', 'application/xhtml+xml'],
+      index: '/index.html',
+      // Explicitly serve index.html for all non-API routes
+      rewrites: [
+        { from: /^\/api\/.*$/, to: '/api' }, // Don't rewrite API routes
+        { from: /./, to: '/index.html' } // Rewrite everything else to index.html
+      ]
     };
   }
   
