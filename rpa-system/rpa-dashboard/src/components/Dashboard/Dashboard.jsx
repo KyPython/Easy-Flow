@@ -175,6 +175,54 @@ const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = 
         </div>
       </div>
 
+      {/* ✅ NEW FEATURE: Execution Modes Highlight */}
+      <div className={styles.featureHighlight} style={{
+        background: 'linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-success-50) 100%)',
+        border: '2px solid var(--color-primary-200)',
+        borderRadius: 'var(--radius-xl)',
+        padding: 'var(--spacing-lg)',
+        margin: 'var(--spacing-lg) 0',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '2rem', marginBottom: 'var(--spacing-sm)' }}>⚡💰</div>
+        <h3 style={{ 
+          fontSize: 'var(--font-size-lg)', 
+          fontWeight: 'var(--font-weight-bold)',
+          marginBottom: 'var(--spacing-xs)',
+          color: 'var(--text-primary)'
+        }}>
+          Save Up to 25% on Workflow Costs
+        </h3>
+        <p style={{ 
+          fontSize: 'var(--font-size-sm)', 
+          color: 'var(--text-muted)',
+          marginBottom: 'var(--spacing-md)',
+          lineHeight: 1.6
+        }}>
+          Choose <strong>Instant</strong> for urgent tasks, <strong>Balanced</strong> for standard runs, or <strong>Scheduled</strong> for batch jobs. 
+          Smart scheduling automatically optimizes costs by batching non-urgent workflows.
+        </p>
+        <button 
+          className={styles.actionCard}
+          onClick={() => navigate('/app/workflows')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 'var(--spacing-sm)',
+            padding: 'var(--spacing-sm) var(--spacing-md)',
+            background: 'var(--color-primary-600)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            cursor: 'pointer',
+            fontWeight: 'var(--font-weight-medium)'
+          }}
+        >
+          <span>⚙️</span>
+          <span>Try Execution Modes</span>
+        </button>
+      </div>
+
       {/* Quick actions */}
       <div className={styles.quickActions}>
   <h2 className={styles.quickActionsTitle}>{t('dashboard.quick_actions','Quick Actions')}</h2>

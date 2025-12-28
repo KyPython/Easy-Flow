@@ -3,6 +3,15 @@ import supabase, { initSupabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
 import { api } from '../utils/api';
 
+// UUID validation regex (matches Supabase UUID format)
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Validate workflowId is a valid UUID
+const isValidWorkflowId = (id) => {
+  if (!id) return false;
+  return uuidRegex.test(id);
+};
+
 export const useWorkflowExecutions = (workflowId) => {
   const [executions, setExecutions] = useState([]);
   const [stats, setStats] = useState({
@@ -17,10 +26,14 @@ export const useWorkflowExecutions = (workflowId) => {
 
   // Load executions for the workflow
   const loadExecutions = useCallback(async () => {
-    if (!workflowId) {
+    if (!workflowId || !isValidWorkflowId(workflowId)) {
       setExecutions([]);
       setStats({ total: 0, completed: 0, failed: 0, running: 0, cancelled: 0 });
       setLoading(false);
+      if (workflowId && !isValidWorkflowId(workflowId)) {
+        console.warn(`[useWorkflowExecutions] Invalid workflowId format: "${workflowId}". Expected UUID format.`);
+        setError(`Invalid workflow ID format: "${workflowId}"`);
+      }
       return;
     }
 
@@ -186,7 +199,11 @@ export const useWorkflowExecutions = (workflowId) => {
   };
 
   // Start a new workflow execution
-  const startExecution = async (inputData = {}, retryCount = 0) => {
+  const startExecution = async (inputData = {}, retryCount = 0, executionMode = null) => {
+    if (!workflowId || !isValidWorkflowId(workflowId)) {
+      throw new Error(`Invalid workflow ID: "${workflowId}"`);
+    }
+    
     try {
       const client = await initSupabase();
       const { data: session } = await client.auth.getSession();
@@ -197,7 +214,8 @@ export const useWorkflowExecutions = (workflowId) => {
       const response = await api.post(buildApiUrl('/api/workflows/execute'), {
         workflowId,
         inputData,
-        triggeredBy: 'manual'
+        triggeredBy: 'manual',
+        executionMode // ✅ EXECUTION MODES: Pass execution mode to backend
       });
       
       const result = response.data || response;
@@ -450,7 +468,7 @@ export const useWorkflowExecutions = (workflowId) => {
 
   // Set up real-time subscription for execution updates
   useEffect(() => {
-    if (!workflowId) return;
+    if (!workflowId || !isValidWorkflowId(workflowId)) return;
 
     let subscription = null;
     (async () => {

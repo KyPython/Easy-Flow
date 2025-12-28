@@ -49,6 +49,33 @@ const { v4: uuidv4 } = require('uuid');
 // Load environment variables from the backend/.env file early so modules that
 // require configuration (Firebase, Supabase, etc.) see the variables on require-time.
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+
+// ✅ CRITICAL: Run comprehensive configuration health check BEFORE initializing services
+// This prevents the authentication cascade by catching all config issues early
+try {
+  const { runConfigHealthCheck } = require('./utils/configHealthCheck');
+  const healthCheck = runConfigHealthCheck();
+  if (healthCheck.shouldExit) {
+    logger.error('🔥 Configuration health check failed - server will not start');
+    process.exit(1);
+  }
+} catch (healthCheckError) {
+  // If health check module fails to load, log but continue (to avoid breaking if file is missing)
+  logger.warn('⚠️ Configuration health check not available:', healthCheckError.message);
+  
+  // Fallback: Still validate Firebase config
+  try {
+    const { validateFirebaseConfig } = require('./utils/firebaseConfigValidator');
+    const validationResult = validateFirebaseConfig();
+    if (!validationResult.valid && (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev')) {
+      logger.error('🔥 Firebase configuration validation failed - server will not start');
+      process.exit(1);
+    }
+  } catch (validationError) {
+    logger.warn('⚠️ Firebase config validator not available:', validationError.message);
+  }
+}
+
 const { firebaseNotificationService, NotificationTemplates } = require('./utils/firebaseAdmin');
 const { getKafkaService } = require('./utils/kafkaService');
 const taskStatusStore = require('./utils/taskStatusStore');
@@ -265,10 +292,10 @@ app.options('/*', (req, res) => {
   
   if (corsOrigin) {
     res.header('Access-Control-Allow-Origin', corsOrigin);
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.sendStatus(204);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(204);
   } else {
     // Origin not allowed
     rootLogger.warn('🚫 CORS preflight blocked origin (OPTIONS handler):', origin);
@@ -600,7 +627,7 @@ app.use(cookieParser(sessionSecretToUse));
 
 // Apply global rate limiter to all routes (skip entirely in development/test)
 if (isProduction) {
-  app.use(globalLimiter);
+app.use(globalLimiter);
 }
 
 // Apply auth limiter only in production
@@ -1215,7 +1242,11 @@ try {
       if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
 
       const executor = new WorkflowExecutor();
-      logger.info('[API] execute request', { userId, workflowId, triggeredBy, traceId });
+      
+      // ✅ EXECUTION MODES: Get execution mode from request or auto-detect
+      const { executionMode } = req.body || {};
+      
+      logger.info('[API] execute request', { userId, workflowId, triggeredBy, executionMode, traceId });
       let execution;
       try {
         execution = await executor.startExecution({
@@ -1223,7 +1254,8 @@ try {
           userId,
           triggeredBy,
           triggerData,
-          inputData
+          inputData,
+          executionMode // Pass explicit mode if provided
         });
       } catch (e) {
         const msg = e?.message || '';
@@ -2136,6 +2168,10 @@ app.get('/api/workflows', authMiddleware, async (req, res) => {
 try {
   const aiAgentRoutes = require('./routes/aiAgentRoutes');
   app.use('/api/ai-agent', aiAgentRoutes);
+  
+  // RAG service routes
+  const ragRoutes = require('./routes/ragRoutes');
+  app.use('/api/rag', ragRoutes);
   rootLogger.info('✓ AI Agent routes mounted at /api/ai-agent (after auth middleware)');
 } catch (e) {
   rootLogger.warn('AI Agent routes not mounted (OpenAI API key may not be configured)', { error: e?.message || e });

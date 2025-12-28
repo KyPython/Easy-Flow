@@ -18,6 +18,9 @@ import { initSupabase } from '../../utils/supabaseClient';
 import { useToast } from '../WorkflowBuilder/Toast';
 import PlanGate from '../PlanGate/PlanGate';
 import { createLogger } from '../../utils/logger'; // Structured logger for observability
+import { api } from '../../utils/api'; // API client
+
+const logger = createLogger('BulkInvoiceProcessor');
 
 const BulkInvoiceProcessor = () => {
   const { user } = useAuth();
@@ -169,7 +172,7 @@ const BulkInvoiceProcessor = () => {
       // Start polling for progress
       pollJobProgress(result.batchId);
     } catch (error) {
-      logger.error('Error starting bulk processing', { error: error.message, stack: error.stack, user_id: user?.id, vendor_id: selectedVendor?.id });
+      logger.error('Error starting bulk processing', { error: error.message, stack: error.stack, user_id: user?.id, vendor_count: vendors.length });
       showError('Failed to start bulk processing');
     } finally {
       setLoading(false);
@@ -199,7 +202,7 @@ const BulkInvoiceProcessor = () => {
           await loadBatchJobs();
         }
       } catch (error) {
-        logger.error('Error polling job progress', { error: error.message, stack: error.stack, user_id: user?.id, job_id: jobId });
+        logger.error('Error polling job progress', { error: error.message, stack: error.stack, user_id: user?.id, batch_id: batchId });
         clearInterval(interval);
       }
     }, 3000);

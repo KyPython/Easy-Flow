@@ -88,6 +88,33 @@ const ExecutionCard = ({
   const actualStatus = getActualStatus(execution);
   const statusColor = getStatusColor(actualStatus);
   
+  // ✅ EXECUTION MODES: Extract execution mode and cost from metadata
+  const getExecutionModeInfo = () => {
+    try {
+      const metadata = typeof execution.metadata === 'string' 
+        ? JSON.parse(execution.metadata) 
+        : execution.metadata;
+      
+      if (metadata?.execution_mode || execution.execution_mode) {
+        const mode = metadata?.execution_mode || execution.execution_mode;
+        const costEstimate = metadata?.cost_estimate;
+        const modeConfig = metadata?.mode_config;
+        
+        return {
+          mode,
+          tier: costEstimate?.tier || modeConfig?.tier || mode,
+          cost: costEstimate?.costPerExecution || modeConfig?.costPerExecution,
+          savings: costEstimate?.savingsPercentage || null
+        };
+      }
+    } catch (e) {
+      // Metadata parsing failed, ignore
+    }
+    return null;
+  };
+  
+  const modeInfo = getExecutionModeInfo();
+  
   // Generate user-friendly error message
   const getFailureMessage = () => {
     if (actualStatus === 'failed' && execution.status === 'completed') {
@@ -146,6 +173,23 @@ const ExecutionCard = ({
       </div>
 
       <div className={styles.cardContent}>
+        {/* ✅ EXECUTION MODES: Display execution mode and cost info */}
+        {modeInfo && (
+          <div className={styles.executionModeInfo}>
+            <span className={styles.modeBadge} data-mode={modeInfo.mode}>
+              {modeInfo.mode === 'real-time' ? '⚡' : modeInfo.mode === 'eco' ? '💰' : '⚖️'} {modeInfo.tier}
+            </span>
+            {modeInfo.cost && (
+              <span className={styles.costInfo}>
+                ${parseFloat(modeInfo.cost).toFixed(4)}
+                {modeInfo.savings && modeInfo.savings !== '0%' && (
+                  <span className={styles.savingsInfo}> (Save {modeInfo.savings})</span>
+                )}
+              </span>
+            )}
+          </div>
+        )}
+        
         <div className={styles.statusBadge}>
           <span className={`${styles.badge} ${styles[statusColor]}`}>
             {actualStatus}

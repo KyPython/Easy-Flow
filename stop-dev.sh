@@ -11,13 +11,30 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Stop all PM2 processes
+# Stop all PM2 processes (including RAG service)
 echo -e "${YELLOW}Stopping PM2 processes...${NC}"
 if command -v pm2 &> /dev/null; then
+    # Stop RAG service specifically if it exists
+    if pm2 list | grep -q "rag-node-ts\|rag-service"; then
+        echo -e "${YELLOW}  Stopping RAG service...${NC}"
+        pm2 stop rag-node-ts 2>/dev/null || pm2 stop rag-service 2>/dev/null || true
+        pm2 delete rag-node-ts 2>/dev/null || pm2 delete rag-service 2>/dev/null || true
+    fi
+    
+    # Stop all other PM2 processes
     pm2 delete all 2>/dev/null && echo -e "${GREEN}✓ All PM2 processes stopped${NC}" || echo -e "${YELLOW}⚠ No PM2 processes running${NC}"
 else
     echo -e "${YELLOW}⚠ PM2 not installed, skipping PM2 cleanup${NC}"
 fi
+
+# Fallback: Kill RAG service if running on port 3002 (or 3001 for legacy)
+RAG_PORT=${RAG_SERVICE_PORT:-3002}
+for port in $RAG_PORT 3001; do
+    if lsof -ti:$port > /dev/null 2>&1; then
+        echo -e "${YELLOW}Stopping RAG service on port $port...${NC}"
+        lsof -ti:$port | xargs kill -9 2>/dev/null && echo -e "${GREEN}✓ RAG service stopped${NC}" || true
+    fi
+done
 
 # Fallback: kill by process name (for any orphaned processes)
 echo -e "${YELLOW}Cleaning up any orphaned processes...${NC}"
@@ -101,7 +118,8 @@ echo -e "${YELLOW}Verifying critical ports are free...${NC}"
 PORTS_OK=true
 # Check application ports (dynamic) and observability ports (fixed)
 # Use quoted variables and validate port numbers
-for port in "$FRONTEND_PORT" "$BACKEND_PORT" "$AUTOMATION_PORT" 9090 3001 3100 3200 4317 4318 "$BACKEND_METRICS_PORT" 9080 9093; do
+RAG_PORT=${RAG_SERVICE_PORT:-3002}
+for port in "$FRONTEND_PORT" "$BACKEND_PORT" "$AUTOMATION_PORT" 9090 3001 $RAG_PORT 3100 3200 4317 4318 "$BACKEND_METRICS_PORT" 9080 9093; do
     # Validate port is a number
     if [[ "$port" =~ ^[0-9]+$ ]]; then
         if lsof -i :"$port" 2>/dev/null | grep LISTEN > /dev/null 2>&1; then

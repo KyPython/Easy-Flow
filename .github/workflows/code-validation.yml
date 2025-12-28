@@ -1,0 +1,123 @@
+name: Code Validation — SRP, Dynamic, Theme, Logging (Branch-Aware)
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            rpa-system/package-lock.json
+            rpa-system/rpa-dashboard/package-lock.json
+            rpa-system/backend/package-lock.json
+
+      - name: Determine branch and validation mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+          echo "🔍 Branch: ${{ steps.branch-info.outputs.branch }}"
+          echo "🔍 Mode: ${{ steps.branch-info.outputs.mode }}"
+          echo "🔍 Blocking: ${{ steps.branch-info.outputs.blocking }}"
+
+      - name: Make validation scripts executable
+        run: |
+          chmod +x scripts/validate-all.sh
+          chmod +x scripts/validate-srp.sh
+          chmod +x scripts/validate-dynamic-code.sh
+          chmod +x scripts/validate-theme-consistency.sh
+          chmod +x scripts/validate-logging-integration.sh
+          chmod +x scripts/validate-rag-knowledge.sh
+
+      - name: Run Single Responsibility Principle (SRP) Validation
+        run: |
+          echo "🔍 Checking files, methods, functions, and documentation for SRP compliance..."
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-srp.sh || (echo "❌ SRP validation failed" && exit 1)
+          else
+            ./scripts/validate-srp.sh || echo "⚠️ SRP validation issues found (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Run Dynamic Code Validation
+        run: |
+          echo "🔍 Checking for hardcoded values and ensuring code is dynamic..."
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-dynamic-code.sh || (echo "❌ Dynamic code validation failed" && exit 1)
+          else
+            ./scripts/validate-dynamic-code.sh || echo "⚠️ Dynamic code validation issues found (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Run Theme Consistency Validation
+        run: |
+          echo "🔍 Checking React components for theme usage and consistency..."
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-theme-consistency.sh || (echo "❌ Theme consistency validation failed" && exit 1)
+          else
+            ./scripts/validate-theme-consistency.sh || echo "⚠️ Theme consistency validation issues found (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Run Logging Integration Validation
+        run: |
+          echo "🔍 Checking that all logs use the observability system..."
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-logging-integration.sh || (echo "❌ Logging integration validation failed" && exit 1)
+          else
+            ./scripts/validate-logging-integration.sh || echo "⚠️ Logging integration validation issues found (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Run RAG Knowledge Validation
+        run: |
+          echo "🔍 Checking RAG knowledge is up-to-date..."
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-rag-knowledge.sh || (echo "❌ RAG knowledge validation failed" && exit 1)
+          else
+            ./scripts/validate-rag-knowledge.sh || echo "⚠️ RAG knowledge may be outdated (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Validation Summary
+        if: always()
+        run: |
+          echo "## Code Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ steps.branch-info.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode**: ${{ steps.branch-info.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            echo "**Status**: Strict validation - failures block merge" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status**: Permissive validation - warnings only" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All validation checks must pass before code can be shipped to production:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Single Responsibility Principle (SRP)**: Files, methods, functions, and docs follow SRP" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dynamic Code**: Code uses environment variables and configuration (not hardcoded)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Theme Consistency**: All React components use ThemeContext and CSS variables" >> $GITHUB_STEP_SUMMARY
+          echo "- **Logging Integration**: All logs use structured logging and observability system" >> $GITHUB_STEP_SUMMARY
+

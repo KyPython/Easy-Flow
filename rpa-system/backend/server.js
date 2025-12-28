@@ -70,6 +70,48 @@ if (require.main === module) {
         logger.warn('[server] ⚠️ Supabase not configured - skipping database warm-up');
       }
       
+      // ✅ RAG INITIALIZATION: Seed knowledge base on startup (non-blocking)
+      // This ensures the AI assistant has access to EasyFlow knowledge
+      if (process.env.RAG_AUTO_SEED !== 'false') {
+        try {
+          const ragClient = require('./services/ragClient');
+          const aiAgent = require('./services/aiWorkflowAgent');
+          
+          // Initialize RAG knowledge asynchronously (don't block server startup)
+          setImmediate(async () => {
+            try {
+              logger.info('[server] 🧠 Initializing RAG knowledge base...');
+              const result = await aiAgent.initializeKnowledge();
+              
+              if (result.success) {
+                logger.info('[server] ✅ RAG knowledge base initialized', {
+                  method: result.method,
+                  successCount: result.successCount,
+                  errorCount: result.errorCount
+                });
+              } else {
+                logger.warn('[server] ⚠️ RAG knowledge initialization failed (non-critical)', {
+                  error: result.error,
+                  hint: result.hint || 'RAG service may not be running - AI assistant will work but with limited knowledge'
+                });
+              }
+            } catch (ragError) {
+              logger.warn('[server] ⚠️ RAG initialization error (non-critical)', {
+                error: ragError.message,
+                hint: 'RAG service may not be running. Start it with: cd /Users/ky/rag-node-ts && npm run dev'
+              });
+            }
+          });
+        } catch (ragInitError) {
+          logger.warn('[server] ⚠️ RAG client not available (non-critical)', {
+            error: ragInitError.message,
+            hint: 'RAG integration is optional - server will start without it'
+          });
+        }
+      } else {
+        logger.info('[server] RAG auto-seeding disabled (RAG_AUTO_SEED=false)');
+      }
+      
       // Start server only after database is ready (or confirmed not needed)
       app.listen(PORT, HOST, () => {
         logger.info(`[server] EasyFlow backend listening on http://${HOST}:${PORT}`, {

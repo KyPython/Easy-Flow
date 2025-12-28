@@ -1,65 +1,120 @@
 # EasyFlow
 
-**RPA Automation Platform**
+**RPA Automation Platform - Stop Doing Boring Work & Save on Costs**
 
-## Quick Start
+---
 
-1. Read **[docs/WORKFLOW.md](docs/WORKFLOW.md)** for daily workflow
-2. Run `./start-dev.sh` - automatically installs dependencies and starts everything
-3. Open http://localhost:3000
+## 🚀 Quick Start
 
-**First Time?** The app will **fail loudly** if Firebase config is missing (prevents silent polling floods).
-
-**To fix:**
-1. Create `.env.local` if missing: `touch rpa-system/rpa-dashboard/.env.local`
-2. Add Firebase credentials (from Firebase Console → Project Settings → General → Your apps)
-3. Restart: `./stop-dev.sh && ./start-dev.sh`
-
-See [docs/WORKFLOW.md](docs/WORKFLOW.md) for complete setup instructions.
-
-## Documentation
-
-- **[Daily Workflow](docs/WORKFLOW.md)** - Start/stop, commit, deploy workflow
-- **[Vercel Deployment](docs/VERCEL_DEPLOYMENT.md)** - ⚠️ **CRITICAL:** Production branch configuration
-
-## Commands
-
-### Development
+### First Time Setup
 ```bash
-./start-dev.sh      # Start everything (auto-installs dependencies)
-./stop-dev.sh       # Stop everything
-npm run logs        # Watch logs
+# 1. Start development environment (auto-installs dependencies)
+./start-dev.sh
+
+# 2. Access the app
+# Frontend: http://localhost:3000
+# Backend: http://localhost:3030
 ```
 
-### Infrastructure as Code (Terraform)
+### Required Setup
+1. **Backend Environment**: `rpa-system/backend/.env` (Firebase, Supabase, etc.)
+2. **Frontend Environment**: `rpa-system/rpa-dashboard/.env.local` (Firebase, Supabase)
+3. **Service Worker Config**: `rpa-system/rpa-dashboard/public/firebase-config.js`
+
+**See**: [DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md) for complete setup
+
+---
+
+## 📘 Daily Developer Guide
+
+**👉 [DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md)** - **START HERE** - Everything you need for daily work:
+- Quick start and setup
+- Daily workflow (start, develop, ship)
+- Common tasks and commands
+- Troubleshooting
+- Branch strategy (dev vs main)
+
+---
+
+## 🗺️ Codebase Navigation
+
+**👉 [CODEBASE_NAVIGATION.md](CODEBASE_NAVIGATION.md)** - Complete codebase map:
+- Every route → component/handler mapped
+- Click-to-code flow examples
+- Component and service maps
+- Directory structure
+
+---
+
+## 📚 Essential Documentation
+
+### Daily Use
+- **[DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md)** - **START HERE** - Complete daily workflow guide
+- **[CODEBASE_NAVIGATION.md](CODEBASE_NAVIGATION.md)** - Find any code by UI click
+- **[BRANCH_AWARE_CI_CD.md](docs/BRANCH_AWARE_CI_CD.md)** - How dev/main branches work
+
+### Client Automation (Revenue)
+- **[CLIENT_AUTOMATION_QUICK_START.md](docs/CLIENT_AUTOMATION_QUICK_START.md)** - **START HERE** - 15-minute action plan
+- **[CLIENT_AUTOMATION_GUIDE.md](docs/CLIENT_AUTOMATION_GUIDE.md)** - Complete client automation process
+- **[OUTREACH_TEMPLATES.md](docs/OUTREACH_TEMPLATES.md)** - Copy-paste outreach scripts
+
+### Reference (When Needed)
+- **[RAG_INTEGRATION.md](docs/RAG_INTEGRATION.md)** - RAG service setup
+- **[CODE_VALIDATION_SYSTEM.md](docs/CODE_VALIDATION_SYSTEM.md)** - Validation rules
+- **[RAG_KNOWLEDGE_VALIDATION.md](docs/RAG_KNOWLEDGE_VALIDATION.md)** - RAG validation guide
+
+## 🔑 Key Commands
+
+### Daily Development
 ```bash
-npm run infra:init      # Initialize Terraform workspace
-npm run infra:plan      # Plan infrastructure changes
-npm run infra:apply     # Apply infrastructure changes
-npm run infra:validate  # Validate Terraform configuration
-npm run infra:destroy   # Destroy infrastructure (with confirmation)
-npm run infra:fmt       # Format Terraform files
-npm run infra:drift     # Detect infrastructure drift
+./start-dev.sh          # Start all services
+./stop-dev.sh           # Stop all services
+npm run logs            # Watch logs
+npm run check-env       # Check environment
 ```
 
-### DevOps Suite Tools
+### Validation & Quality
 ```bash
-npm run check-env       # Check development environment
-npm run lint:test      # Run linting and tests
+npm run validate:all    # All validations (SRP, Dynamic, Theme, Logging, RAG)
+npm run validate:rag    # RAG knowledge validation
+npm run test:all        # Run all tests
 npm run quality:check   # Code quality scan
-npm run gen:route       # Generate route boilerplate
+```
+
+### Git & Deployment
+```bash
+npm run ship            # Ship to production (dev → main, fully automated)
 npm run git:status      # Git workflow status
 ```
 
-### Deployment
+### Code Generation
 ```bash
-npm run vercel:check  # Verify Vercel is configured correctly (production from main only)
-npm run ship          # Deploy to production (merges dev→main)
+npm run gen:route       # Generate route boilerplate
+npm run gen:service     # Generate service boilerplate
+npm run gen:component   # Generate component boilerplate
 ```
-**⚠️ IMPORTANT:** Vercel MUST deploy production from `main` branch only. See [Vercel Deployment Guide](docs/VERCEL_DEPLOYMENT.md).
 
-## URLs
+### Client Automation
+```bash
+npm run client:template # Create client workflow template
+```
 
-- Frontend: http://localhost:3000
-- Backend: http://localhost:3030
-- Grafana: http://localhost:3001 (admin/admin123)
+**See**: [DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md) for complete command reference
+
+---
+
+## 🌐 Local URLs
+
+- **Frontend**: http://localhost:3000
+- **Backend**: http://localhost:3030
+- **Grafana**: http://localhost:3001 (admin/admin123)
+- **RAG Service**: http://localhost:3001 (if running)
+
+---
+
+## 🎯 Branch Strategy
+
+- **Dev Branch** (`dev`): Permissive validation, allows work-in-progress code
+- **Main Branch** (`main`): Strict validation, production-ready code only
+
+**See**: [BRANCH_AWARE_CI_CD.md](docs/BRANCH_AWARE_CI_CD.md) for details

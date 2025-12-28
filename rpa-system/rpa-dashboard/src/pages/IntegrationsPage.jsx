@@ -7,6 +7,7 @@ import logger from '../utils/logger';
 import { sanitizeErrorMessage } from '../utils/errorMessages';
 import { getEnvMessage } from '../utils/envAwareMessages';
 import PlanGate from '../components/PlanGate/PlanGate';
+import IntegrationKeyModal from '../components/IntegrationKeyModal/IntegrationKeyModal';
 import styles from './IntegrationsPage.module.css';
 
 const INTEGRATIONS = [
@@ -63,6 +64,8 @@ const IntegrationsPage = () => {
   const [testing, setTesting] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [selectedIntegration, setSelectedIntegration] = useState(null);
 
   useEffect(() => {
     loadIntegrations();
@@ -135,20 +138,28 @@ const IntegrationsPage = () => {
           }, 5 * 60 * 1000);
         }
       } else {
-        // Manual API key entry (for WhatsApp, etc.)
-        const apiKey = prompt(`Enter your ${integration.name} API key:`);
-        if (apiKey) {
-          await api.post(`/api/integrations/${service}/connect`, {
-            credentials: { apiKey },
-            displayName: `${integration.name} Integration`
-          });
-          setSuccess(`${integration.name} connected successfully`);
-          loadIntegrations();
-        }
+        // Show API key modal (for WhatsApp, etc.)
+        setSelectedIntegration(integration);
+        setShowKeyModal(true);
       }
     } catch (err) {
-      console.error('Failed to connect integration:', err);
-      setError(err.response?.data?.error || `Failed to connect ${service}`);
+      // Handle OAuth configuration errors gracefully
+      const integration = INTEGRATIONS.find(i => i.id === service);
+      if (err.response?.data?.error?.includes('not configured')) {
+        const serviceName = integration?.name || service;
+        setError(
+          getEnvMessage({
+            dev: `${serviceName} OAuth is not configured. Please set ${serviceName.toUpperCase()}_CLIENT_ID and ${serviceName.toUpperCase()}_CLIENT_SECRET environment variables.`,
+            prod: `${serviceName} integration is temporarily unavailable. Please contact support if this persists.`
+          })
+        );
+      } else {
+        logger.error('Failed to connect integration:', err);
+        setError(sanitizeErrorMessage(err) || getEnvMessage({
+          dev: `Failed to connect ${integration?.name || service}: ${err.message || 'Unknown error'}`,
+          prod: `Failed to connect ${integration?.name || service}. Please try again.`
+        }));
+      }
     } finally {
       setConnecting(null);
     }
@@ -197,6 +208,31 @@ const IntegrationsPage = () => {
 
   const getIntegrationStatus = (service) => {
     return integrations.find(i => i.service === service);
+  };
+
+  const handleApiKeyConnect = async (credentials) => {
+    if (!selectedIntegration) return;
+
+    try {
+      setConnecting(selectedIntegration.id);
+      setError('');
+      setSuccess('');
+
+      await api.post(`/api/integrations/${selectedIntegration.id}/connect`, {
+        credentials,
+        displayName: `${selectedIntegration.name} Integration`
+      });
+
+      setSuccess(`${selectedIntegration.name} connected successfully`);
+      setShowKeyModal(false);
+      setSelectedIntegration(null);
+      loadIntegrations();
+    } catch (err) {
+      logger.error('Failed to connect integration:', err);
+      throw new Error(err.response?.data?.error || `Failed to connect ${selectedIntegration.name}`);
+    } finally {
+      setConnecting(null);
+    }
   };
   
   return (
@@ -339,6 +375,16 @@ const IntegrationsPage = () => {
             <li>Test connections anytime to verify they're working</li>
           </ul>
         </div>
+
+        <IntegrationKeyModal
+          isOpen={showKeyModal}
+          onClose={() => {
+            setShowKeyModal(false);
+            setSelectedIntegration(null);
+          }}
+          integration={selectedIntegration}
+          onConnect={handleApiKeyConnect}
+        />
       </div>
     </PlanGate>
   );

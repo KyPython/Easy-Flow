@@ -1,0 +1,117 @@
+name: QA — Dev Branch (Permissive)
+
+on:
+  push:
+    branches: [dev]  # Run permissive checks on dev branch
+  pull_request:
+    branches: [dev]  # Run permissive checks on PRs targeting dev
+  workflow_dispatch:
+
+jobs:
+  qa-dev:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            rpa-system/package-lock.json
+            rpa-system/rpa-dashboard/package-lock.json
+            rpa-system/backend/package-lock.json
+
+      - name: Check development environment
+        run: |
+          chmod +x scripts/dev-env-check.sh
+          ./scripts/dev-env-check.sh || echo "⚠️ Some optional tools missing (continuing anyway)"
+        continue-on-error: true
+
+      - name: Run security scan (Snyk) - WARNING ONLY
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          chmod +x scripts/security-scan.sh
+          npm install -g snyk || true
+          ./scripts/security-scan.sh || echo "⚠️ Security scan found issues (non-blocking on dev branch)"
+        continue-on-error: true
+
+      - name: Auto-fix code formatting (before tests)
+        run: |
+          echo "🔧 Auto-fixing code formatting issues..."
+          # Frontend ESLint
+          if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
+            cd rpa-system/rpa-dashboard
+            npm run lint:fix 2>/dev/null || npx eslint . --ext .js,.jsx --fix 2>/dev/null || true
+            cd ../..
+          fi
+          # Backend ESLint
+          if [ -f "rpa-system/backend/package.json" ]; then
+            cd rpa-system/backend
+            npm run lint:fix 2>/dev/null || npx eslint . --ext .js --fix 2>/dev/null || true
+            cd ../..
+          fi
+          # Terraform formatting
+          if [ -d "infrastructure" ] && command -v terraform >/dev/null 2>&1; then
+            find infrastructure -name "*.tf" -o -name "*.tfvars" | xargs terraform fmt 2>/dev/null || true
+          fi
+        continue-on-error: true
+
+      - name: Run comprehensive test suite - WARNING ONLY
+        run: |
+          chmod +x scripts/test-all.sh scripts/lint-and-test.sh
+          ./scripts/test-all.sh || echo "⚠️ Some tests failed (non-blocking on dev branch)"
+        continue-on-error: true
+
+      - name: Run code quality check - WARNING ONLY
+        run: |
+          chmod +x scripts/code-quality-check.sh
+          ./scripts/code-quality-check.sh || echo "⚠️ Code quality issues found (non-blocking on dev branch)"
+        continue-on-error: true
+
+      - name: Run comprehensive code validation - WARNING ONLY
+        run: |
+          chmod +x scripts/validate-all.sh scripts/validate-srp.sh scripts/validate-dynamic-code.sh scripts/validate-theme-consistency.sh scripts/validate-logging-integration.sh
+          ./scripts/validate-all.sh || echo "⚠️ Code validation issues found (non-blocking on dev branch)"
+        continue-on-error: true
+
+      - name: Validate RAG Knowledge Base - WARNING ONLY
+        run: |
+          chmod +x scripts/validate-rag-knowledge.sh
+          ./scripts/validate-rag-knowledge.sh || echo "⚠️ RAG knowledge may be outdated (non-blocking on dev branch)"
+        continue-on-error: true
+
+      - name: Assess feature readiness (optional)
+        if: always()
+        continue-on-error: true
+        run: |
+          if command -v jq >/dev/null 2>&1 || sudo apt-get install -y jq; then
+            chmod +x scripts/assess-feature-readiness.sh
+            ./scripts/assess-feature-readiness.sh || echo "⚠️ Feature assessment completed with warnings"
+          else
+            echo "⚠️ jq not available, skipping feature assessment"
+          fi
+
+      - name: Dev Branch Summary
+        if: always()
+        run: |
+          echo "## Dev Branch Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Dev branch validation completed (all checks are non-blocking)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note**: Dev branch allows code to be pushed even if checks fail." >> $GITHUB_STEP_SUMMARY
+          echo "This prevents loss of work-in-progress code." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Before merging to main**: All checks must pass in qa-core.yml workflow." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Feature Assessment**: Run \`npm run assess:features\` to check feature readiness." >> $GITHUB_STEP_SUMMARY
+

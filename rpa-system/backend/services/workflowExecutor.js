@@ -23,6 +23,10 @@ const { trace, context, propagation, SpanStatusCode } = require('@opentelemetry/
 // ✅ INSTRUCTION 2: Import structured logger (Gap 13, 15)
 const { createLogger } = require('../middleware/structuredLogging');
 
+// ✅ EXECUTION MODES: Import execution mode service
+const { ExecutionModeService, EXECUTION_MODES } = require('./executionModeService');
+const { SmartScheduler } = require('./smartScheduler');
+
 // ✅ Consumer-friendly error messages
 const { mapError } = require('../utils/consumerErrorMessages');
 
@@ -47,6 +51,10 @@ class WorkflowExecutor {
     
     // ✅ INSTRUCTION 1: Create instrumented Axios instance for trace propagation
     this.httpClient = this._createInstrumentedHttpClient();
+    
+    // ✅ EXECUTION MODES: Initialize execution mode service and smart scheduler
+    this.executionModeService = new ExecutionModeService();
+    this.smartScheduler = new SmartScheduler();
   }
   
   /**
@@ -529,7 +537,8 @@ class WorkflowExecutor {
       triggeredBy = 'manual', 
       triggerData = {}, 
       inputData = {},
-      resumeFromExecutionId = null // ✅ PHASE 3: Resume from previous execution
+      resumeFromExecutionId = null, // ✅ PHASE 3: Resume from previous execution
+      executionMode = null // ✅ EXECUTION MODES: Explicit mode override
     } = config;
     
     // ✅ PHASE 3: If resuming, get data from previous execution
@@ -698,18 +707,55 @@ class WorkflowExecutor {
         }
       }
       
-      // Create workflow execution record
+      // ✅ EXECUTION MODES: Determine execution mode and get configuration
+      const context = { triggeredBy, triggerData };
+      const determinedMode = executionMode || this.executionModeService.determineExecutionMode(workflow, context);
+      const modeConfig = this.executionModeService.getExecutionConfig(determinedMode);
+      const costEstimate = this.executionModeService.estimateCost(workflow, determinedMode);
+      
+      this.logger.info('Execution mode determined', {
+        workflow_id: workflowId,
+        execution_mode: determinedMode,
+        tier: costEstimate.tier,
+        cost_per_execution: costEstimate.costPerExecution,
+        savings_percentage: costEstimate.savingsPercentage,
+        triggered_by: triggeredBy
+      });
+      
+      // ✅ SMART SCHEDULING: For eco mode, schedule optimally
+      let scheduledExecution = null;
+      if (determinedMode === EXECUTION_MODES.ECO) {
+        scheduledExecution = await this.smartScheduler.scheduleWorkflow(workflow, context);
+        this.logger.info('Workflow scheduled for eco mode', {
+          workflow_id: workflowId,
+          execute_at: scheduledExecution.executeAt,
+          batched: scheduledExecution.batched,
+          reason: scheduledExecution.reason
+        });
+      }
+      
+      // Create workflow execution record with execution mode metadata
+      const executionMetadata = {
+        execution_mode: determinedMode,
+        mode_config: modeConfig,
+        cost_estimate: costEstimate,
+        scheduled_execution: scheduledExecution
+      };
+      
       const { data: execution, error: executionError } = await this.supabase
         .from('workflow_executions')
         .insert({
           workflow_id: workflowId,
           user_id: userId,
-          status: 'running',
-          started_at: new Date().toISOString(),
+          status: scheduledExecution && scheduledExecution.executeAt > new Date() ? 'queued' : 'running',
+          started_at: scheduledExecution && scheduledExecution.executeAt > new Date() ? null : new Date().toISOString(),
+          scheduled_at: scheduledExecution?.executeAt?.toISOString() || null,
           input_data: inputData,
           triggered_by: triggeredBy,
           trigger_data: triggerData,
-          steps_total: workflow.workflow_steps?.length || 0
+          steps_total: workflow.workflow_steps?.length || 0,
+          execution_mode: determinedMode,
+          metadata: executionMetadata
         })
         .select()
         .single();
@@ -726,14 +772,25 @@ class WorkflowExecutor {
         });
       }
       
+      // ✅ EXECUTION MODES: For scheduled executions, don't start immediately
+      if (scheduledExecution && scheduledExecution.executeAt > new Date()) {
+        // Queue for later execution
+        this.logger.info('Workflow queued for scheduled execution', {
+          execution_id: execution.id,
+          execute_at: scheduledExecution.executeAt,
+          mode: determinedMode
+        });
+        return execution;
+      }
+      
       // Mark as running
-      this.runningExecutions.set(execution.id, { cancelled: false, timer: executionTimer });
+      this.runningExecutions.set(execution.id, { cancelled: false, timer: executionTimer, executionMode: determinedMode });
       
       // ✅ FIX: Also register in shared registry so cancel endpoint can find it
-      executionRegistry.set(execution.id, { cancelled: false, executor: this, timer: executionTimer });
+      executionRegistry.set(execution.id, { cancelled: false, executor: this, timer: executionTimer, executionMode: determinedMode });
 
-      // Start execution asynchronously
-      this.executeWorkflow(execution, workflow).then(() => {
+      // Start execution asynchronously with execution mode
+      this.executeWorkflow(execution, workflow, { executionMode: determinedMode, modeConfig }).then(() => {
         // ✅ FIX: Clear timeout timer when execution completes successfully
         if (executionTimer) {
           clearTimeout(executionTimer);
@@ -768,11 +825,26 @@ class WorkflowExecutor {
     }
   }
 
-  async executeWorkflow(execution, workflow) {
+  async executeWorkflow(execution, workflow, options = {}) {
     const startTime = Date.now();
     let currentData = execution.input_data || {};
     let stepsExecuted = 0;
     const partialResults = []; // ✅ FIX: Track partial successes
+    
+    // ✅ EXECUTION MODES: Get execution mode and config
+    const executionMode = options.executionMode || execution.execution_mode || EXECUTION_MODES.BALANCED;
+    const modeConfig = options.modeConfig || this.executionModeService.getExecutionConfig(executionMode);
+    
+    // ✅ EXECUTION MODES: Apply mode-specific timeout
+    const executionTimeout = modeConfig.timeout || 300000; // Default 5 minutes
+    
+    this.logger.info('executeWorkflow: Starting with execution mode', {
+      execution_id: execution.id,
+      workflow_id: workflow.id,
+      execution_mode: executionMode,
+      timeout_ms: executionTimeout,
+      tier: modeConfig.tier
+    });
     
     // ✅ OBSERVABILITY: Create OpenTelemetry span for workflow execution
     const tracer = trace.getTracer('workflow.executor');
@@ -794,7 +866,9 @@ class WorkflowExecutor {
           'execution.user_id': execution.user_id,
           'workflow.steps_count': workflow.workflow_steps?.length || 0,
           'business.operation': 'workflow_execution',
-          'business.workflow_type': workflow.workflow_type || 'generic'
+          'business.workflow_type': workflow.workflow_type || 'generic',
+          'execution.mode': executionMode,
+          'execution.tier': modeConfig.tier
         }
       },
       async (span) => {

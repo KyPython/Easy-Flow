@@ -26,36 +26,54 @@ try {
 
 // ✅ CRITICAL: Validate config before initializing Firebase
 // This prevents "Missing App configuration value: projectId" errors
+// This also prevents the authentication cascade (401 → FCM 400 → Supabase instability)
 const hasProjectId = firebaseConfig && firebaseConfig.projectId && firebaseConfig.projectId.trim();
 const hasApiKey = firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey.trim();
 
 if (!hasProjectId || !hasApiKey) {
-  const errorMessage = `🔥 FATAL: Firebase service worker configuration is missing!\n\n` +
-    `Missing: ${!hasProjectId ? 'projectId' : ''}${!hasProjectId && !hasApiKey ? ' and ' : ''}${!hasApiKey ? 'apiKey' : ''}\n\n` +
-    `Impact: Service worker cannot initialize, causing uncaught Firebase errors.\n\n` +
-    `Fix: Ensure firebase-config.js is generated at build time with all required values.\n` +
-    `For local development, check that .env.local contains REACT_APP_FIREBASE_PROJECT_ID and REACT_APP_FIREBASE_API_KEY.\n\n` +
+  const missingFields = [];
+  if (!hasProjectId) missingFields.push('projectId');
+  if (!hasApiKey) missingFields.push('apiKey');
+  
+  const errorMessage = `🔥🔥🔥 FATAL: Firebase service worker configuration is missing! 🔥🔥🔥\n\n` +
+    `Missing: ${missingFields.join(' and ')}\n\n` +
+    `CASCADE IMPACT:\n` +
+    `  1. Firebase authentication will fail (401)\n` +
+    `  2. FCM registration will fail (400 INVALID_ARGUMENT)\n` +
+    `  3. Supabase real-time will become unstable (WebSocket flapping)\n` +
+    `  4. App will fall back to inefficient API polling\n\n` +
+    `ROOT CAUSE: firebase-config.js is missing or incomplete\n\n` +
+    `FIX:\n` +
+    `  - For local dev: Check rpa-system/rpa-dashboard/.env.local contains:\n` +
+    `    REACT_APP_FIREBASE_PROJECT_ID=your-project-id\n` +
+    `    REACT_APP_FIREBASE_API_KEY=your-api-key\n\n` +
+    `  - For production: Ensure Vercel environment variables are set\n\n` +
     `Current config: ${JSON.stringify({ projectId: firebaseConfig?.projectId || '(missing)', apiKey: firebaseConfig?.apiKey ? '(present)' : '(missing)' }, null, 2)}`;
   
+  console.error('\n' + '='.repeat(80));
   console.error('[firebase-messaging-sw.js]', errorMessage);
+  console.error('='.repeat(80) + '\n');
   
-  // ✅ DEVELOPMENT: Throw error to prevent silent failure
-  // In production, we'll skip initialization but log the error
+  // ✅ CRITICAL: Always throw in development to prevent silent failure
+  // In production, we'll skip initialization but log prominently
   const isDevelopment = self.location && (
     self.location.hostname === 'localhost' || 
     self.location.hostname === '127.0.0.1' ||
-    self.location.hostname.includes('localhost')
+    self.location.hostname.includes('localhost') ||
+    self.location.hostname.includes('127.0.0.1')
   );
   
   if (isDevelopment) {
-    // Create a proper error object
+    // Create a proper error object that will be caught by unhandledrejection handler
     const fatalError = new Error(errorMessage);
     fatalError.name = 'FirebaseConfigurationError';
-    throw fatalError; // This will be caught by the unhandledrejection handler
+    fatalError.cascadeImpact = '401 auth → FCM 400 → Supabase instability → Polling fallback';
+    throw fatalError; // This will be caught by the unhandledrejection handler below
   }
   
-  // Production: Don't initialize, but don't throw (to avoid breaking the service worker)
-  console.error('[firebase-messaging-sw.js] Skipping Firebase initialization due to missing configuration');
+  // Production: Don't initialize, but log prominently
+  console.error('[firebase-messaging-sw.js] ⚠️ SKIPPING Firebase initialization due to missing configuration');
+  console.error('[firebase-messaging-sw.js] This will cause authentication failures and cascade to other systems');
 } else {
   // Config is valid, initialize Firebase
   try {

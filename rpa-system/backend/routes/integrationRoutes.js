@@ -260,7 +260,11 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
   switch (service) {
     case 'slack':
       const slackClientId = process.env.SLACK_CLIENT_ID;
-      if (!slackClientId) throw new Error('SLACK_CLIENT_ID not configured');
+      if (!slackClientId) {
+        const error = new Error('SLACK_CLIENT_ID not configured');
+        error.statusCode = 503;
+        throw error;
+      }
       
       const slackScopes = 'chat:write,channels:read,channels:history,files:write';
       return `https://slack.com/oauth/v2/authorize?client_id=${slackClientId}&scope=${slackScopes}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${stateToken}`;
@@ -270,7 +274,11 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
     case 'google_meet':
     case 'google_drive':
       const googleClientId = process.env.GOOGLE_CLIENT_ID;
-      if (!googleClientId) throw new Error('GOOGLE_CLIENT_ID not configured');
+      if (!googleClientId) {
+        const error = new Error('GOOGLE_CLIENT_ID not configured');
+        error.statusCode = 503;
+        throw error;
+      }
       
       const scopes = {
         gmail: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',

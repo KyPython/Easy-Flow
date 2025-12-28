@@ -13,6 +13,9 @@ const isDev = MODE !== 'production';
 import { initFirebase, isFirebaseConfigured, isMessagingConfigured, NOTIFICATION_TYPES, NOTIFICATION_PRIORITIES } from './firebaseConfig';
 import supabase, { initSupabase } from './supabaseClient';
 import { buildApiUrl } from './config';
+import { createLogger } from './logger';
+
+const logger = createLogger('NotificationService');
 
 class NotificationService {
   constructor() {
@@ -195,38 +198,55 @@ class NotificationService {
       return true;
       
     } catch (error) {
-      // Enhanced error logging for Firebase authentication failures
+      // ✅ CRITICAL: Enhanced error logging for Firebase authentication failures
+      // This is often the root cause of the authentication cascade
       const errorCode = error?.code || error?.errorInfo?.code || 'UNKNOWN';
-      const errorMessage = error?.message || error?.errorInfo?.message || 'Unknown error';
+      const is401 = errorCode.includes('401') || errorCode.includes('auth/') || error.message?.includes('401');
       
-      const errorDetails = {
-        message: errorMessage,
+      logger.error('\n🔥🔥🔥 FIREBASE AUTHENTICATION FAILURE 🔥🔥🔥', {
+        message: error.message,
         code: errorCode,
-        code: error?.code || 'UNKNOWN',
-        stack: isDev ? error?.stack : undefined,
-        userId: user?.id,
-        email: user?.email
-      };
-      
-      console.error('🔔 Firebase authentication with custom token failed:', errorDetails);
+        userId: user.id,
+        email: user.email,
+        cascade_impact: 'This failure will cascade: FCM → Supabase → Polling fallback',
+        likely_cause: is401 
+          ? 'Project ID mismatch between backend and frontend Firebase configs'
+          : 'Invalid credentials or configuration',
+        fix: is401
+          ? 'Ensure FIREBASE_PROJECT_ID in backend .env matches REACT_APP_FIREBASE_PROJECT_ID in frontend .env.local'
+          : 'Verify Firebase credentials are valid and belong to the same project',
+        stack: isDev ? error.stack : undefined
+      });
       
       // Check for specific error codes that indicate configuration issues
-      if (error?.code === 'auth/request-had-invalid-authentication-credentials') {
-        console.error('🔔 Firebase token validation failed - check backend Firebase Admin configuration and service account credentials');
+      if (error?.code === 'auth/request-had-invalid-authentication-credentials' || is401) {
+        logger.error('🔔 Firebase token validation failed - LIKELY CAUSE: Project ID mismatch');
+        logger.error('🔔 Backend and frontend must use the same Firebase project ID');
+        logger.error('🔔 Check: FIREBASE_PROJECT_ID in backend .env matches REACT_APP_FIREBASE_PROJECT_ID in frontend .env.local');
       } else if (error?.code === 'auth/invalid-custom-token') {
-        console.error('🔔 Invalid custom token format - check backend token generation logic');
+        logger.error('🔔 Invalid custom token format - check backend token generation logic');
       } else if (error?.code === 'auth/custom-token-mismatch') {
-        console.error('🔔 Token project mismatch - ensure Firebase project IDs match between frontend and backend');
+        logger.error('🔔 Token project mismatch - ensure Firebase project IDs match between frontend and backend');
       }
       
-      // Fallback to application-level authentication
+      // In development, log additional diagnostic info
       if (isDev) {
-        console.log('🔔 Falling back to application-level authentication');
+        try {
+          const { initFirebase } = require('./firebaseConfig');
+          const frontendConfig = require('./firebaseConfig');
+          logger.error('🔍 Diagnostic Info:', {
+            frontend_project_id: frontendConfig.firebaseConfig?.projectId || '(not loaded)',
+            backend_project_id: 'Check backend .env FIREBASE_PROJECT_ID',
+            note: 'Backend and frontend MUST use the same Firebase project ID'
+          });
+        } catch (configError) {
+          // Ignore if firebaseConfig can't be loaded
+        }
       }
-      this.firebaseAuthUser = { uid: user.id };
       
-      // Still return true to allow initialization to continue with limited functionality
-      return true;
+      // Don't fallback silently - return false to indicate failure
+      // This prevents the cascade by stopping Firebase initialization
+      return false;
     }
   }
 

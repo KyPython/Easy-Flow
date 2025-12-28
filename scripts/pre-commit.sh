@@ -2,8 +2,27 @@
 # EasyFlow Pre-Commit Validation Script
 # Adapted from ubiquitous-automation: https://github.com/KyPython/ubiquitous-automation
 # Runs linting, tests, and build checks before committing
+# Branch-aware: Non-blocking on dev, blocking on main
 
-set -e
+# Determine current branch
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+IS_DEV_BRANCH=false
+IS_MAIN_BRANCH=false
+
+if [ "$CURRENT_BRANCH" = "dev" ]; then
+  IS_DEV_BRANCH=true
+elif [ "$CURRENT_BRANCH" = "main" ]; then
+  IS_MAIN_BRANCH=true
+fi
+
+# On dev branch, make checks non-blocking (warnings only)
+if [ "$IS_DEV_BRANCH" = true ]; then
+  set +e  # Don't exit on errors
+  BLOCKING=false
+else
+  set -e  # Exit on errors for main branch
+  BLOCKING=true
+fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -13,6 +32,17 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo "${BLUE}=== EasyFlow Pre-Commit Validation ===${NC}\n"
+
+# Show branch-aware mode
+if [ "$IS_DEV_BRANCH" = true ]; then
+  echo "${YELLOW}📌 Dev Branch Mode: Non-blocking (warnings only)${NC}"
+  echo "${YELLOW}   Code can be committed even if checks fail${NC}\n"
+elif [ "$IS_MAIN_BRANCH" = true ]; then
+  echo "${RED}📌 Main Branch Mode: Blocking (strict validation)${NC}"
+  echo "${RED}   All checks must pass before committing${NC}\n"
+else
+  echo "${BLUE}📌 Branch: ${CURRENT_BRANCH} (defaulting to strict mode)${NC}\n"
+fi
 
 # Track if any checks fail
 FAILED=0
@@ -129,6 +159,22 @@ else
     echo "  Run 'npm run quality:check' for details"
 fi
 
+# Step 6.5: Quick validation checks (non-blocking in pre-commit, blocking in CI/CD)
+echo "\n${BLUE}Step 6.5: Running quick validation checks...${NC}"
+if ./scripts/validate-srp.sh >/dev/null 2>&1; then
+    echo "  ${GREEN}✓ SRP validation passed${NC}"
+else
+    echo "  ${YELLOW}⚠ SRP violations found (non-blocking in pre-commit)${NC}"
+    echo "  ${YELLOW}  Will block in CI/CD and production deployment${NC}"
+fi
+
+if ./scripts/validate-theme-consistency.sh >/dev/null 2>&1; then
+    echo "  ${GREEN}✓ Theme consistency check passed${NC}"
+else
+    echo "  ${YELLOW}⚠ Theme consistency issues found (non-blocking in pre-commit)${NC}"
+    echo "  ${YELLOW}  Will block in CI/CD and production deployment${NC}"
+fi
+
 # Step 7: Terraform Validation (if infrastructure files changed)
 echo "\n${BLUE}Step 7: Checking Terraform configuration...${NC}"
 if git diff --cached --name-only | grep -q "infrastructure/.*\.tf$" || git diff --cached --name-only | grep -q "\.tf$"; then
@@ -161,7 +207,13 @@ if [ $FAILED -eq 0 ]; then
     echo "${GREEN}✅ All pre-commit checks passed!${NC}"
     exit 0
 else
-    echo "${RED}❌ Some pre-commit checks failed. Please fix issues before committing.${NC}"
-    exit 1
+    if [ "$IS_DEV_BRANCH" = true ]; then
+        echo "${YELLOW}⚠️ Some pre-commit checks failed (non-blocking on dev branch)${NC}"
+        echo "${YELLOW}   Code will be committed, but fix issues before merging to main${NC}"
+        exit 0  # Don't block on dev branch
+    else
+        echo "${RED}❌ Some pre-commit checks failed. Please fix issues before committing.${NC}"
+        exit 1  # Block on main branch
+    fi
 fi
 

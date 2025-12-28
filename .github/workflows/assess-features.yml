@@ -1,0 +1,120 @@
+name: Assess Feature Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      auto_ship:
+        description: 'Auto-ship ready features to production'
+        required: false
+        default: 'false'
+        type: boolean
+  schedule:
+    # Run daily at 9 AM UTC to assess features
+    - cron: '0 9 * * *'
+  push:
+    branches: [dev]
+    paths:
+      - 'scripts/assess-feature-readiness.sh'
+      - 'scripts/ship-features.sh'
+      - '.github/workflows/assess-features.yml'
+
+jobs:
+  assess-features:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for feature detection
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/assess-feature-readiness.sh
+          chmod +x scripts/ship-features.sh
+
+      - name: Assess feature readiness
+        id: assess
+        run: |
+          echo "🔍 Assessing feature readiness..."
+          ./scripts/assess-feature-readiness.sh || true
+          
+          # Read results from manifest
+          if [ -f ".features/features.json" ]; then
+            READY_COUNT=$(jq '[.[] | select(.status == "ready")] | length' .features/features.json || echo "0")
+            NOT_READY_COUNT=$(jq '[.[] | select(.status == "draft")] | length' .features/features.json || echo "0")
+            SHIPPED_COUNT=$(jq '[.[] | select(.status == "shipped")] | length' .features/features.json || echo "0")
+            
+            echo "ready_count=$READY_COUNT" >> $GITHUB_OUTPUT
+            echo "not_ready_count=$NOT_READY_COUNT" >> $GITHUB_OUTPUT
+            echo "shipped_count=$SHIPPED_COUNT" >> $GITHUB_OUTPUT
+            
+            # Get ready feature names
+            READY_FEATURES=$(jq -r '[.[] | select(.status == "ready") | .name] | join(", ")' .features/features.json || echo "")
+            echo "ready_features=$READY_FEATURES" >> $GITHUB_OUTPUT
+          else
+            echo "ready_count=0" >> $GITHUB_OUTPUT
+            echo "not_ready_count=0" >> $GITHUB_OUTPUT
+            echo "shipped_count=0" >> $GITHUB_OUTPUT
+            echo "ready_features=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload feature manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: feature-manifest
+          path: .features/
+          retention-days: 90
+
+      - name: Generate assessment summary
+        if: always()
+        run: |
+          echo "## Feature Readiness Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Ready for Production**: ${{ steps.assess.outputs.ready_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚠️ **Not Ready**: ${{ steps.assess.outputs.not_ready_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚀 **Shipped**: ${{ steps.assess.outputs.shipped_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.assess.outputs.ready_count }}" != "0" ]; then
+            echo "### Ready Features" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.assess.outputs.ready_features }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**To ship these features, run:**" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "npm run ship:features" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Ship ready features (if requested)
+        if: |
+          steps.assess.outputs.ready_count != '0' && 
+          (github.event.inputs.auto_ship == 'true' || env.AUTO_SHIP == 'true')
+        env:
+          AUTO_SHIP: 'true'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🚀 Auto-shipping ready features..."
+          
+          # Configure git for automated commits
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Ship features
+          ./scripts/ship-features.sh || {
+            echo "⚠️ Shipping failed. Check logs above."
+            exit 1
+          }
+

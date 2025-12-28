@@ -76,6 +76,40 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ✅ NEW FEATURE: Cost Savings Highlight */}
+      <section className={styles.featuresSection} style={{ background: 'var(--color-success-50)', padding: 'var(--spacing-xl)', borderRadius: 'var(--radius-xl)', margin: 'var(--spacing-xl) 0' }}>
+        <h2 className={styles.sectionTitle}>💰 Save Up to 25% on Automation Costs</h2>
+        <p style={{ textAlign: 'center', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--spacing-lg)', color: 'var(--text-muted)' }}>
+          Unlike Zapier and Make, EasyFlow automatically optimizes costs with smart execution modes
+        </p>
+        <div className={styles.featuresGrid}>
+          <div className={styles.featureCard}>
+            <div className={styles.featureIcon}>⚡</div>
+            <h3 className={styles.featureTitle}>Instant Mode</h3>
+            <p className={styles.featureText}>
+              <strong>For urgent tasks:</strong> User-triggered workflows run immediately. Perfect for real-time automation needs.
+            </p>
+          </div>
+          <div className={styles.featureCard}>
+            <div className={styles.featureIcon}>⚖️</div>
+            <h3 className={styles.featureTitle}>Balanced Mode</h3>
+            <p className={styles.featureText}>
+              <strong>Standard performance:</strong> 12.5% cost savings. Best for most workflows that don't need instant execution.
+            </p>
+          </div>
+          <div className={styles.featureCard}>
+            <div className={styles.featureIcon}>💰</div>
+            <h3 className={styles.featureTitle}>Scheduled Mode</h3>
+            <p className={styles.featureText}>
+              <strong>Cost-optimized:</strong> 25% savings by batching workflows during off-peak hours. Perfect for background tasks.
+            </p>
+          </div>
+        </div>
+        <p style={{ textAlign: 'center', fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-md)', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+          Smart scheduling automatically selects the best mode based on your workflow's urgency and context
+        </p>
+      </section>
+
       <section className={styles.featuresSection}>
         <h2 className={styles.sectionTitle}>{t('landing.why_choose','Stop Copy/Pasting Between Tools')}</h2>
         <div className={styles.featuresGrid}>

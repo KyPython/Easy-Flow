@@ -162,6 +162,11 @@ class TriggerService {
 
   async executeScheduledWorkflow(schedule) {
     try {
+      // ✅ EXECUTION MODES: Import execution mode services
+      const { ExecutionModeService, EXECUTION_MODES } = require('./executionModeService');
+      const { SmartScheduler } = require('./smartScheduler');
+      const executionModeService = new ExecutionModeService();
+      const smartScheduler = new SmartScheduler();
       const { workflow_id, user_id, id: schedule_id, workflow } = schedule;
       
       if (process.env.NODE_ENV !== 'production') {
@@ -177,6 +182,24 @@ class TriggerService {
         return;
       }
       
+      // ✅ EXECUTION MODES: Determine execution mode for scheduled workflow
+      const context = { triggeredBy: 'schedule', triggerData: { scheduleId: schedule_id } };
+      const executionMode = executionModeService.determineExecutionMode(workflow, context);
+      const modeConfig = executionModeService.getExecutionConfig(executionMode);
+      const costEstimate = executionModeService.estimateCost(workflow, executionMode);
+      
+      logger.info('Scheduled workflow execution mode determined', {
+        workflow_id: workflow_id,
+        schedule_id: schedule_id,
+        execution_mode: executionMode,
+        tier: costEstimate.tier,
+        cost_per_execution: costEstimate.costPerExecution,
+        savings_percentage: costEstimate.savingsPercentage
+      });
+      
+      // ✅ SMART SCHEDULING: Schedule workflow optimally
+      const scheduledExecution = await smartScheduler.scheduleWorkflow(workflow, context);
+      
       // ✅ PHASE 3: Use critical workflow handler for scheduled workflows
       // (especially "Scheduled Web Scraping → Email Report" type)
       const isCriticalWorkflow = this._isCriticalWorkflowType(workflow);
@@ -186,17 +209,18 @@ class TriggerService {
           const { CriticalWorkflowHandler } = require('./criticalWorkflowHandler');
           const criticalHandler = new CriticalWorkflowHandler();
           
-          // Start execution first
+          // Start execution first with execution mode
           const execution = await this.workflowExecutor.startExecution({
             workflowId: workflow_id,
             userId: user_id,
             triggeredBy: 'schedule',
-            triggerData: { scheduleId: schedule_id }
+            triggerData: { scheduleId: schedule_id },
+            executionMode: executionMode
           });
           
           // Execute with critical workflow handler
           // Note: executeWorkflow is async and runs in background
-          this.workflowExecutor.executeWorkflow(execution, workflow)
+          this.workflowExecutor.executeWorkflow(execution, workflow, { executionMode, modeConfig })
             .then(() => {
               logger.info(`[TriggerService] Critical workflow execution completed: ${execution.id}`);
             })
@@ -212,12 +236,13 @@ class TriggerService {
         }
       }
       
-      // Standard execution for non-critical workflows
+      // Standard execution for non-critical workflows with execution mode
       const execution = await this.workflowExecutor.startExecution({
         workflowId: workflow_id,
         userId: user_id,
         triggeredBy: 'schedule',
-        triggerData: { scheduleId: schedule_id }
+        triggerData: { scheduleId: schedule_id },
+        executionMode: executionMode
       });
       
       // Update schedule stats

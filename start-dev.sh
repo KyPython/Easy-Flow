@@ -175,6 +175,81 @@ set -e
 echo -e "${GREEN}✓ All dependencies checked${NC}"
 echo ""
 
+# Start RAG service (required for AI Agent knowledge base)
+echo -e "${YELLOW}Starting RAG service...${NC}"
+RAG_DIR="/Users/ky/rag-node-ts"
+RAG_PORT=${RAG_SERVICE_PORT:-3002}  # Use 3002 to avoid conflict with Grafana (3001)
+
+# Check if RAG service is already running
+if curl -s http://localhost:$RAG_PORT/health > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ RAG service is already running${NC}"
+else
+    # Check if RAG directory exists
+    if [ ! -d "$RAG_DIR" ]; then
+        echo -e "${RED}✗ RAG service directory not found at $RAG_DIR${NC}"
+        echo -e "${YELLOW}  Please ensure the RAG service is set up at the expected location${NC}"
+        exit 1
+    fi
+    
+    # Check if RAG service dependencies are installed
+    if [ ! -d "$RAG_DIR/node_modules" ]; then
+        echo -e "${YELLOW}  Installing RAG service dependencies...${NC}"
+        (cd "$RAG_DIR" && npm install --silent 2>/dev/null) || {
+            echo -e "${YELLOW}  ⚠ Failed to install RAG dependencies automatically${NC}"
+            echo -e "${YELLOW}  You may need to run: cd $RAG_DIR && npm install${NC}"
+        }
+    fi
+    
+    # Start RAG service with PM2
+    echo -e "${YELLOW}  Starting RAG service with PM2...${NC}"
+    
+    # Check if RAG is already in PM2
+    if pm2 list | grep -q "rag-node-ts\|rag-service"; then
+        echo -e "${GREEN}  ✓ RAG service already in PM2, restarting...${NC}"
+        pm2 restart rag-node-ts 2>/dev/null || pm2 restart rag-service 2>/dev/null || true
+    else
+        # Start RAG service - check for common start scripts
+        if [ -f "$RAG_DIR/package.json" ]; then
+            # Try to determine the start command
+            START_CMD=$(cd "$RAG_DIR" && node -e "const pkg=require('./package.json'); console.log(pkg.scripts?.dev || pkg.scripts?.start || 'npm start')" 2>/dev/null || echo "npm run dev")
+            
+            # Set RAG port via environment variable
+            export PORT=$RAG_PORT
+            
+            # Start with PM2
+            (cd "$RAG_DIR" && PORT=$RAG_PORT pm2 start "$START_CMD" --name rag-node-ts --interpreter npm --no-autorestart --update-env 2>/dev/null) || {
+                # Fallback: try npm run dev directly with port
+                (cd "$RAG_DIR" && PORT=$RAG_PORT pm2 start npm --name rag-node-ts -- run dev --update-env 2>/dev/null) || {
+                    echo -e "${YELLOW}  ⚠ Failed to start RAG service with PM2${NC}"
+                    echo -e "${YELLOW}  Attempting to start in background...${NC}"
+                    (cd "$RAG_DIR" && PORT=$RAG_PORT nohup npm run dev > /tmp/rag-service.log 2>&1 &)
+                }
+            }
+        else
+            echo -e "${RED}  ✗ RAG service package.json not found${NC}"
+            exit 1
+        fi
+    fi
+    
+    # Wait for RAG service to be ready
+    echo -e "${YELLOW}  Waiting for RAG service to be ready...${NC}"
+    RAG_READY=false
+    for i in {1..30}; do
+        if curl -s http://localhost:$RAG_PORT/health > /dev/null 2>&1; then
+            echo -e "${GREEN}✓ RAG service is ready${NC}"
+            RAG_READY=true
+            break
+        fi
+        sleep 1
+    done
+    
+    if [ "$RAG_READY" = false ]; then
+        echo -e "${YELLOW}⚠ RAG service may still be starting (check http://localhost:$RAG_PORT/health)${NC}"
+        echo -e "${YELLOW}  You can check logs: pm2 logs rag-node-ts${NC}"
+    fi
+fi
+echo ""
+
 # Stop any existing PM2 processes
 echo -e "${YELLOW}Stopping existing PM2 processes...${NC}"
 pm2 delete all 2>/dev/null || true
@@ -195,17 +270,53 @@ for port in $FRONTEND_PORT $BACKEND_PORT $AUTOMATION_PORT $BACKEND_METRICS_PORT;
 done
 sleep 1
 
-# Check if Docker daemon is running
-if ! docker info > /dev/null 2>&1; then
-    echo -e "${RED}✗ Docker daemon is not running${NC}"
-    echo -e "${YELLOW}  Please start Docker Desktop and try again${NC}"
-    echo -e "${YELLOW}  On macOS: Open Docker Desktop application${NC}"
-    exit 1
+# Check if Docker daemon is running (with retry and better error handling)
+DOCKER_READY=false
+DOCKER_RETRIES=3
+for i in $(seq 1 $DOCKER_RETRIES); do
+    if docker info > /dev/null 2>&1; then
+        DOCKER_READY=true
+        break
+    fi
+    if [ $i -lt $DOCKER_RETRIES ]; then
+        echo -e "${YELLOW}  Docker check failed, retrying ($i/$DOCKER_RETRIES)...${NC}"
+        sleep 2
+    fi
+done
+
+if [ "$DOCKER_READY" = false ]; then
+    echo -e "${RED}✗ Docker daemon is not accessible${NC}"
+    echo -e "${YELLOW}  Attempting to diagnose...${NC}"
+    
+    # Check if Docker Desktop is installed
+    if [ -d "/Applications/Docker.app" ] || [ -d "$HOME/Applications/Docker.app" ]; then
+        echo -e "${YELLOW}  Docker Desktop is installed but daemon is not responding${NC}"
+        echo -e "${YELLOW}  Please ensure Docker Desktop is running${NC}"
+    else
+        echo -e "${YELLOW}  Docker Desktop may not be installed${NC}"
+    fi
+    
+    # Check common socket paths
+    if [ -S "/var/run/docker.sock" ]; then
+        echo -e "${YELLOW}  Found socket at /var/run/docker.sock (checking permissions...)${NC}"
+    elif [ -S "$HOME/.docker/run/docker.sock" ]; then
+        echo -e "${YELLOW}  Found socket at $HOME/.docker/run/docker.sock${NC}"
+    else
+        echo -e "${YELLOW}  No Docker socket found at common locations${NC}"
+    fi
+    
+    echo -e "${YELLOW}  Continuing anyway (Docker is only needed for Kafka and monitoring stack)${NC}"
+    echo -e "${YELLOW}  You can start Docker later and run: docker compose up -d${NC}"
+    echo ""
+    # Don't exit - allow script to continue without Docker (Kafka/monitoring are optional
 fi
 
 # Stop Docker frontend container if running (it uses frontend port)
-echo -e "${YELLOW}Stopping Docker frontend container...${NC}"
-docker stop easy-flow-rpa-dashboard-1 2>/dev/null || true
+# Only if Docker is available
+if [ "$DOCKER_READY" = true ]; then
+    echo -e "${YELLOW}Stopping Docker frontend container...${NC}"
+    docker stop easy-flow-rpa-dashboard-1 2>/dev/null || true
+fi
 
 sleep 2
 
@@ -215,7 +326,9 @@ mkdir -p logs
 rm -f logs/*.log
 
 # Start Kafka and Zookeeper via Docker Compose with automatic error recovery
-echo -e "${YELLOW}Starting Kafka and Zookeeper...${NC}"
+# Only proceed if Docker is available
+if [ "$DOCKER_READY" = true ]; then
+    echo -e "${YELLOW}Starting Kafka and Zookeeper...${NC}"
 
 # Function to check if Kafka is healthy (not just running, but actually responding)
 check_kafka_health() {
@@ -292,63 +405,74 @@ while [ $HEALTH_WAIT -lt $MAX_HEALTH_WAIT ]; do
     HEALTH_WAIT=$((HEALTH_WAIT + 2))
 done
 
-# Final health check
-if ! check_kafka_health; then
-    echo -e "${YELLOW}⚠ Kafka health check failed, attempting final cleanup and restart...${NC}"
-    cleanup_and_restart_kafka
-    sleep 10
+    # Final health check
     if ! check_kafka_health; then
-        echo -e "${YELLOW}⚠ Kafka may not be fully ready, but continuing (topics will auto-create)${NC}"
-    else
-        echo -e "${GREEN}✓ Kafka recovered after cleanup${NC}"
+        echo -e "${YELLOW}⚠ Kafka health check failed, attempting final cleanup and restart...${NC}"
+        cleanup_and_restart_kafka
+        sleep 10
+        if ! check_kafka_health; then
+            echo -e "${YELLOW}⚠ Kafka may not be fully ready, but continuing (topics will auto-create)${NC}"
+        else
+            echo -e "${GREEN}✓ Kafka recovered after cleanup${NC}"
+        fi
     fi
-fi
 
-# Initialize Kafka topics
-echo -e "${YELLOW}Initializing Kafka topics...${NC}"
-./scripts/init-kafka-topics.sh || {
-  echo -e "${RED}⚠ Warning: Failed to initialize Kafka topics${NC}"
-  echo -e "${YELLOW}  Topics will be auto-created on first use${NC}"
-}
+    # Initialize Kafka topics
+    echo -e "${YELLOW}Initializing Kafka topics...${NC}"
+    ./scripts/init-kafka-topics.sh || {
+      echo -e "${RED}⚠ Warning: Failed to initialize Kafka topics${NC}"
+      echo -e "${YELLOW}  Topics will be auto-created on first use${NC}"
+    }
+else
+    echo -e "${YELLOW}⚠ Skipping Kafka startup (Docker not available)${NC}"
+    echo -e "${YELLOW}  Start Docker and run: docker compose up -d kafka zookeeper${NC}"
+fi
 
 # Start Observability Stack (Prometheus, Grafana, Loki, Tempo, OTEL Collector, Alertmanager)
-echo -e "${YELLOW}Starting Observability Stack...${NC}"
-# Clean up any existing monitoring containers first
-docker compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null || true
-# Remove stale containers that may conflict (including manually started ones)
-docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
-# Start all monitoring services
-if ! docker compose -f rpa-system/docker-compose.monitoring.yml up -d 2>/dev/null; then
-    echo -e "${YELLOW}⚠ Failed to start observability stack, attempting to pull images...${NC}"
-    docker compose -f rpa-system/docker-compose.monitoring.yml pull 2>/dev/null || true
-    docker compose -f rpa-system/docker-compose.monitoring.yml up -d || {
-        echo -e "${YELLOW}⚠ Observability stack failed to start (non-critical, continuing...)${NC}"
-        echo -e "${YELLOW}  You can start it manually: docker compose -f rpa-system/docker-compose.monitoring.yml up -d${NC}"
-    }
-fi
-sleep 5
-
-# Wait for Grafana to be ready (it may restart due to datasource provisioning)
-echo -e "${YELLOW}Waiting for Grafana to be ready...${NC}"
-GRAFANA_READY=false
-for i in {1..30}; do
-    if curl -s http://localhost:3001/api/health > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ Grafana is ready${NC}"
-        GRAFANA_READY=true
-        break
+# Only proceed if Docker is available
+if [ "$DOCKER_READY" = true ]; then
+    echo -e "${YELLOW}Starting Observability Stack...${NC}"
+    # Clean up any existing monitoring containers first
+    docker compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null || true
+    # Remove stale containers that may conflict (including manually started ones)
+    docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
+    # Start all monitoring services
+    if ! docker compose -f rpa-system/docker-compose.monitoring.yml up -d 2>/dev/null; then
+        echo -e "${YELLOW}⚠ Failed to start observability stack, attempting to pull images...${NC}"
+        docker compose -f rpa-system/docker-compose.monitoring.yml pull 2>/dev/null || true
+        docker compose -f rpa-system/docker-compose.monitoring.yml up -d || {
+            echo -e "${YELLOW}⚠ Observability stack failed to start (non-critical, continuing...)${NC}"
+            echo -e "${YELLOW}  You can start it manually: docker compose -f rpa-system/docker-compose.monitoring.yml up -d${NC}"
+        }
     fi
-    sleep 2
-done
-[ "$GRAFANA_READY" = false ] && echo -e "${YELLOW}⚠ Grafana may still be starting (check http://localhost:3001)${NC}"
+    
+    sleep 5
 
-echo -e "${GREEN}✓ Observability stack started${NC}"
-echo "  Grafana:        http://localhost:3001 (admin/admin123)"
-echo "  Prometheus:     http://localhost:9090"
-echo "  Loki:           http://localhost:3100 (logs)"
-echo "  Promtail:       http://localhost:9080 (log shipper)"
-echo "  Tempo:          http://localhost:3200"
-echo "  OTEL Collector: http://localhost:4318 (HTTP) / 4317 (gRPC)"
-echo "  Alertmanager:   http://localhost:9093"
+    # Wait for Grafana to be ready (it may restart due to datasource provisioning)
+    echo -e "${YELLOW}Waiting for Grafana to be ready...${NC}"
+    GRAFANA_READY=false
+    for i in {1..30}; do
+        if curl -s http://localhost:3001/api/health > /dev/null 2>&1; then
+            echo -e "${GREEN}✓ Grafana is ready${NC}"
+            GRAFANA_READY=true
+            break
+        fi
+        sleep 2
+    done
+    [ "$GRAFANA_READY" = false ] && echo -e "${YELLOW}⚠ Grafana may still be starting (check http://localhost:3001)${NC}"
+
+    echo -e "${GREEN}✓ Observability stack started${NC}"
+    echo "  Grafana:        http://localhost:3001 (admin/admin123)"
+    echo "  Prometheus:     http://localhost:9090"
+    echo "  Loki:           http://localhost:3100 (logs)"
+    echo "  Promtail:       http://localhost:9080 (log shipper)"
+    echo "  Tempo:          http://localhost:3200"
+    echo "  OTEL Collector: http://localhost:4318 (HTTP) / 4317 (gRPC)"
+    echo "  Alertmanager:   http://localhost:9093"
+else
+    echo -e "${YELLOW}⚠ Skipping Observability Stack startup (Docker not available)${NC}"
+    echo -e "${YELLOW}  Start Docker and run: docker compose -f rpa-system/docker-compose.monitoring.yml up -d${NC}"
+fi
 
 # Get absolute path for logs to avoid PM2 cwd resolution issues
 ROOT_DIR=$(pwd)
@@ -368,8 +492,9 @@ BACKEND_PORT=${PORT:-3030}
 AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
 BACKEND_METRICS_PORT=${BACKEND_METRICS_PORT:-9091}
 
-# Export ports so they're available in the ecosystem.config.js generation
+# Export ports and RAG URL so they're available in the ecosystem.config.js generation
 export FRONTEND_PORT BACKEND_PORT AUTOMATION_PORT BACKEND_METRICS_PORT
+export RAG_SERVICE_URL="http://localhost:${RAG_PORT:-3002}"
 
 # Verify dotenv is installed before generating ecosystem.config.js
 if ! check_npm_package "." "dotenv"; then
@@ -440,6 +565,7 @@ module.exports = {
         SUPABASE_BUCKET: process.env.SUPABASE_BUCKET,
         DEV_BYPASS_TOKEN: process.env.DEV_BYPASS_TOKEN,
         DEV_USER_ID: process.env.DEV_USER_ID,
+        RAG_SERVICE_URL: process.env.RAG_SERVICE_URL || 'http://localhost:3002',
       },
     },
     {
@@ -539,19 +665,21 @@ done
 [ "$AUTO_OK" = false ] && { echo -e "${RED}✗ Automation worker failed to start${NC}"; echo -e "${YELLOW}Error logs:${NC}"; pm2 logs easyflow-automation --err --lines 20 --nostream; }
 
 # Wait for Prometheus to be ready, then reload config to pick up backend metrics
-echo -e "${YELLOW}Waiting for Prometheus to be ready...${NC}"
-PROMETHEUS_READY=false
-for i in {1..30}; do
-    if curl -s http://localhost:9090/-/healthy > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ Prometheus is ready${NC}"
-        PROMETHEUS_READY=true
-        break
-    fi
-    sleep 1
-done
+# Only if Docker is available and observability stack was started
+if [ "$DOCKER_READY" = true ]; then
+    echo -e "${YELLOW}Waiting for Prometheus to be ready...${NC}"
+    PROMETHEUS_READY=false
+    for i in {1..30}; do
+        if curl -s http://localhost:9090/-/healthy > /dev/null 2>&1; then
+            echo -e "${GREEN}✓ Prometheus is ready${NC}"
+            PROMETHEUS_READY=true
+            break
+        fi
+        sleep 1
+    done
 
-if [ "$PROMETHEUS_READY" = true ] && [ "$BACKEND_OK" = true ]; then
-    echo -e "${YELLOW}Reloading Prometheus configuration to discover backend metrics...${NC}"
+    if [ "$PROMETHEUS_READY" = true ] && [ "$BACKEND_OK" = true ]; then
+        echo -e "${YELLOW}Reloading Prometheus configuration to discover backend metrics...${NC}"
     if curl -s -X POST http://localhost:9090/-/reload > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Prometheus configuration reloaded${NC}"
         # Wait for Prometheus to scrape targets
@@ -597,6 +725,7 @@ if [ "$PROMETHEUS_READY" = true ] && [ "$BACKEND_OK" = true ]; then
     else
         echo -e "${YELLOW}⚠ Could not reload Prometheus (may need manual reload at http://localhost:9090/-/reload)${NC}"
     fi
+    fi
 fi
 
 echo ""
@@ -609,20 +738,34 @@ echo "  Backend:          http://localhost:$BACKEND_PORT"
 echo "  Automation:       http://localhost:$AUTOMATION_PORT"
 echo "  Health Check:     http://localhost:$BACKEND_PORT/health"
 echo ""
-echo "Infrastructure:"
-echo "  Kafka:            localhost:9092"
-echo ""
-echo "Observability:"
-echo "  Grafana:          http://localhost:3001 (admin/admin123)"
-echo "  Prometheus:       http://localhost:9090"
-echo "  Loki:             http://localhost:3100 (logs)"
-echo "  Promtail:         http://localhost:9080 (log shipper)"
-echo "  Tempo:            http://localhost:3200"
-echo "  OTEL Collector:   http://localhost:4318 (HTTP) / 4317 (gRPC)"
-echo "  Alertmanager:     http://localhost:9093"
-echo "  Backend Metrics:  http://localhost:$BACKEND_METRICS_PORT/metrics"
-echo ""
-echo "  All logs are automatically shipped to Loki and visible in Grafana"
+if [ "$DOCKER_READY" = true ]; then
+    echo "Infrastructure:"
+    echo "  Kafka:            localhost:9092"
+    echo ""
+    echo "Services:"
+    echo "  RAG Service:      http://localhost:${RAG_PORT:-3002}"
+    echo ""
+    echo "Observability:"
+    echo "  Grafana:          http://localhost:3001 (admin/admin123)"
+    echo "  Prometheus:       http://localhost:9090"
+    echo "  Loki:             http://localhost:3100 (logs)"
+    echo "  Promtail:         http://localhost:9080 (log shipper)"
+    echo "  Tempo:            http://localhost:3200"
+    echo "  OTEL Collector:   http://localhost:4318 (HTTP) / 4317 (gRPC)"
+    echo "  Alertmanager:     http://localhost:9093"
+    echo "  Backend Metrics:  http://localhost:$BACKEND_METRICS_PORT/metrics"
+    echo ""
+    echo "  All logs are automatically shipped to Loki and visible in Grafana"
+else
+    echo "Services:"
+    echo "  RAG Service:      http://localhost:${RAG_PORT:-3002}"
+    echo ""
+    echo -e "${YELLOW}⚠ Docker not available - Kafka and Observability stack skipped${NC}"
+    echo -e "${YELLOW}  To start them:${NC}"
+    echo -e "${YELLOW}    1. Ensure Docker Desktop is running${NC}"
+    echo -e "${YELLOW}    2. Run: docker compose up -d kafka zookeeper${NC}"
+    echo -e "${YELLOW}    3. Run: docker compose -f rpa-system/docker-compose.monitoring.yml up -d${NC}"
+fi
 echo ""
 echo "Logs (PM2):"
 echo "  All services:     pm2 logs"

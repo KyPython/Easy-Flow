@@ -27,6 +27,7 @@ import ScheduleManager from './ScheduleManager';
 import ExecutionDashboard from './ExecutionDashboard';
 import WorkflowTesting from './WorkflowTesting';
 import WorkflowVersionHistory from './WorkflowVersionHistory';
+import ExecutionModeSelector from './ExecutionModeSelector'; // ✅ EXECUTION MODES: Import execution mode selector
 import { useWorkflow } from '../../hooks/useWorkflow';
 import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
 import { useWorkflowValidation } from '../../hooks/useWorkflowValidation';
@@ -59,6 +60,8 @@ const WorkflowBuilder = () => {
   const { error: showError, warning: showWarning, success: showSuccess, info: showInfo } = useToast();
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showAIAgent, setShowAIAgent] = useState(false);
+  const [executionMode, setExecutionMode] = useState(null); // ✅ EXECUTION MODES: Track selected execution mode
+  const [showExecutionModeSelector, setShowExecutionModeSelector] = useState(false); // ✅ EXECUTION MODES: Show mode selector
   
   // Ref to access WorkflowCanvas methods
   const canvasRef = useRef(null);
@@ -265,7 +268,7 @@ const WorkflowBuilder = () => {
       setIsExecuting(true);
       setShowExecutionOverlay(true); // Show overlay when execution starts
       setExecutionDetails(null); // Reset previous execution details
-      const result = await startExecution();
+      const result = await startExecution({}, 0, executionMode); // ✅ EXECUTION MODES: Pass execution mode
       const execId = result?.execution?.id || result?.id || null;
       if (execId) {
         setCurrentExecutionId(execId);
@@ -851,20 +854,54 @@ const WorkflowBuilder = () => {
                 <FaStop /> Stop
               </button>
             ) : (
-              <button
-                className={`${styles.actionButton} ${styles.executeButton}`}
-                onClick={handleExecuteWorkflow}
-                disabled={!hasWorkflowId}
-                aria-disabled={!hasWorkflowId}
-                title={!hasWorkflowId
-                  ? '💡 Save the workflow first, then you can run it!'
-                  : (!isActive ? '⚠️ Activate the workflow to enable running' : '🎬 Run this workflow')}
-              >
-                <FaPlay /> Run
-              </button>
+              <>
+                <button
+                  className={`${styles.actionButton} ${styles.executeButton}`}
+                  onClick={handleExecuteWorkflow}
+                  disabled={!hasWorkflowId}
+                  aria-disabled={!hasWorkflowId}
+                  title={!hasWorkflowId
+                    ? '💡 Save the workflow first, then you can run it!'
+                    : (!isActive ? '⚠️ Activate the workflow to enable running' : '🎬 Run this workflow')}
+                >
+                  <FaPlay /> Run
+                </button>
+                <button
+                  className={`${styles.actionButton} ${styles.modeButton}`}
+                  onClick={() => setShowExecutionModeSelector(!showExecutionModeSelector)}
+                  title="💰 Save up to 25% on workflow costs - Choose Instant, Balanced, or Scheduled execution mode"
+                >
+                  <FaCog /> Mode
+                </button>
+              </>
             )}
           </div>
         )}
+      {/* ✅ EXECUTION MODES: Execution Mode Selector Modal */}
+      {showExecutionModeSelector && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} role="dialog" aria-modal="true" aria-label="Execution Mode Selection">
+            <div className={styles.modalHeader}>
+              <h2>Select Execution Mode</h2>
+              <button
+                className={styles.closeButton}
+                onClick={() => setShowExecutionModeSelector(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <ExecutionModeSelector
+              workflow={currentWorkflow}
+              selectedMode={executionMode}
+              onModeChange={(mode) => {
+                setExecutionMode(mode);
+                setShowExecutionModeSelector(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
       {/* Version History Modal */}
       {showVersionHistory && (
         <div className={styles.modalOverlay}>
