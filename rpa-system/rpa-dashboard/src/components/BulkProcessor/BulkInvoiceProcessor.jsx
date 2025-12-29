@@ -75,10 +75,10 @@ const BulkInvoiceProcessor = () => {
         throw new Error('Supabase not configured. Please add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to your environment.');
       }
       
+      // RLS automatically filters by authenticated user - no need for explicit user_id filter
       const { data, error } = await client
         .from('vendor_configs')
         .select('*')
-        .eq('user_id', user.id)
         .eq('is_active', true)
         .order('vendor_name');
 
@@ -96,10 +96,10 @@ const BulkInvoiceProcessor = () => {
         throw new Error('Supabase not configured. Please add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to your environment.');
       }
       
+      // RLS automatically filters by authenticated user - no need for explicit user_id filter
       const { data, error } = await client
         .from('batch_executions')
         .select('*')
-        .eq('user_id', user.id)
         .eq('type', 'bulk_invoice_download')
         .order('created_at', { ascending: false })
         .limit(10);

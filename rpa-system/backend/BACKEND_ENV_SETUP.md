@@ -42,9 +42,21 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 # SUPABASE_KEY=your-service-role-key-here
 ```
 
-### 3. Integration OAuth (OPTIONAL - Prevents 500 errors on /api/integrations/*)
+### 3. Integration OAuth (REQUIRED - Prevents 500 errors on /api/integrations/*)
 
-#### Google OAuth (for Gmail, Google Sheets, Google Meet)
+**⚠️ CRITICAL:** These credentials are required for OAuth flows to work. Without them, you'll get 500 errors when trying to connect integrations.
+
+#### Quick Setup (Interactive Script)
+```bash
+cd rpa-system/backend
+./add-oauth-credentials.sh
+```
+
+This interactive script will guide you through adding the credentials to your `.env` file.
+
+#### Manual Setup
+
+##### Google OAuth (for Gmail, Google Sheets, Google Meet, Google Drive)
 ```bash
 # Get from: https://console.cloud.google.com/apis/credentials
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
@@ -53,12 +65,23 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 
 **How to get Google OAuth credentials:**
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Select your project
-3. Go to APIs & Services → Credentials
-4. Create OAuth 2.0 Client ID
-5. Set authorized redirect URI: `http://localhost:3030/api/integrations/gmail/oauth/callback`
+2. Select your project (or create one)
+3. Enable required APIs:
+   - Gmail API (for Gmail integration)
+   - Google Sheets API (for Sheets integration)
+   - Google Drive API (for Drive integration)
+   - Google Calendar API (for Meet integration)
+4. Go to APIs & Services → Credentials
+5. Click "Create Credentials" → "OAuth client ID"
+6. Choose "Web application"
+7. Add authorized redirect URIs:
+   - `http://localhost:3030/api/integrations/gmail/oauth/callback`
+   - `http://localhost:3030/api/integrations/google_sheets/oauth/callback`
+   - `http://localhost:3030/api/integrations/google_drive/oauth/callback`
+   - `http://localhost:3030/api/integrations/google_meet/oauth/callback`
+8. Copy the Client ID and Client Secret to your `.env` file
 
-#### Slack OAuth
+##### Slack OAuth
 ```bash
 # Get from: https://api.slack.com/apps
 SLACK_CLIENT_ID=your-slack-client-id
@@ -67,10 +90,20 @@ SLACK_CLIENT_SECRET=your-slack-client-secret
 
 **How to get Slack OAuth credentials:**
 1. Go to [Slack API Apps](https://api.slack.com/apps)
-2. Create New App → From scratch
-3. Go to OAuth & Permissions
-4. Add Redirect URL: `http://localhost:3030/api/integrations/slack/oauth/callback`
-5. Add scopes: `chat:write`, `channels:read`, `channels:history`, `files:write`
+2. Click "Create New App" → "From scratch"
+3. Name your app and select your workspace
+4. Go to "OAuth & Permissions" in the sidebar
+5. Scroll to "Redirect URLs" and add:
+   - `http://localhost:3030/api/integrations/slack/oauth/callback`
+6. Scroll to "Scopes" → "Bot Token Scopes" and add:
+   - `chat:write` - Send messages
+   - `channels:read` - View basic channel information
+   - `channels:history` - View message history
+   - `files:write` - Upload files
+7. Scroll to "User Token Scopes" and add (if needed):
+   - `channels:read` - View basic channel information
+8. Click "Install to Workspace" (you'll need workspace admin approval)
+9. Copy the "Client ID" and "Client Secret" from "App Credentials" to your `.env` file
 
 ## Quick Setup Checklist
 
