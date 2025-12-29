@@ -3,7 +3,7 @@ import { useI18n } from '../i18n';
 import supabase, { initSupabase, signInWithPassword, signUp } from '../utils/supabaseClient';
 import { useAuth } from '../utils/AuthContext';
 import { trackEvent, triggerCampaign } from '../utils/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import styles from './AuthPage.module.css';
 
 export default function AuthPage() {
@@ -348,6 +348,14 @@ export default function AuthPage() {
             )}
           </div>
         </form>
+        <div className={styles.legalLinks}>
+          <p className={styles.legalText}>
+            By {mode === 'login' ? 'signing in' : 'signing up'}, you agree to our{' '}
+            <Link to="/terms" className={styles.legalLink}>Terms of Use</Link>
+            {' '}and{' '}
+            <Link to="/privacy" className={styles.legalLink}>Privacy Policy</Link>.
+          </p>
+        </div>
       </div>
     </div>
   );

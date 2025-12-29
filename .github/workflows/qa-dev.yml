@@ -81,7 +81,7 @@ jobs:
 
       - name: Run comprehensive code validation - WARNING ONLY
         run: |
-          chmod +x scripts/validate-all.sh scripts/validate-srp.sh scripts/validate-dynamic-code.sh scripts/validate-theme-consistency.sh scripts/validate-logging-integration.sh
+          chmod +x scripts/validate-all.sh scripts/validate-srp.sh scripts/validate-dynamic-code.sh scripts/validate-theme-consistency.sh scripts/validate-logging-integration.sh scripts/validate-env-aware-messages.sh
           ./scripts/validate-all.sh || echo "⚠️ Code validation issues found (non-blocking on dev branch)"
         continue-on-error: true
 

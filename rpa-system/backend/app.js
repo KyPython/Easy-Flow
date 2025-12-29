@@ -263,6 +263,16 @@ const corsOptions = {
 
 // Apply CORS FIRST - before any other middleware
 app.use(cors(corsOptions));
+
+// Add ngrok skip-browser-warning header for OAuth callbacks (helps with free tier warning page)
+// Note: This only helps with subsequent requests - initial OAuth redirects may still show the warning
+app.use((req, res, next) => {
+  // Set header to skip ngrok browser warning for OAuth callbacks
+  if (req.path.includes('/oauth/callback')) {
+    res.setHeader('ngrok-skip-browser-warning', 'true');
+  }
+  next();
+});
 // Ensure preflight requests are handled consistently
 app.options('*', cors(corsOptions));
 // Explicit OPTIONS handler for all routes to ensure CORS preflight works
@@ -2125,7 +2135,15 @@ const apiAuthMiddleware = async (req, res, next) => {
 };
 
 // Apply rate limiter only in production, then auth middleware
-app.use('/api', isProduction ? authLimiter : (req, res, next) => next(), apiAuthMiddleware);
+// Apply auth middleware to /api routes, but exclude OAuth callbacks
+// OAuth callbacks authenticate via state tokens, not JWT tokens
+app.use('/api', isProduction ? authLimiter : (req, res, next) => next(), (req, res, next) => {
+  // Skip auth for OAuth callback routes (they authenticate via state token)
+  if (req.path.match(/\/integrations\/\w+\/oauth\/callback$/)) {
+    return next();
+  }
+  return apiAuthMiddleware(req, res, next);
+});
 
 // --- Authenticated API Routes ---
 // All routes defined below this point will require a valid JWT.
@@ -7353,108 +7371,8 @@ app.post('/api/extract-data-bulk', authMiddleware, requirePlan('professional'), 
 // The integrationRoutes uses integration_credentials table with 'service' field
 // This duplicate route has been removed to avoid conflicts
 
-// GET /api/integrations/usage - Get integration usage stats (workflows, recent activity)
-app.get('/api/integrations/usage', authMiddleware, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const usage = {};
-
-    // Map integration service names to their action types
-    const integrationActions = {
-      slack: ['slack_send', 'slack_read', 'slack_collect_feedback'],
-      gmail: ['gmail_send', 'gmail_read', 'gmail_collect_feedback'],
-      google_sheets: ['sheets_read', 'sheets_write', 'sheets_compile_feedback'],
-      google_meet: ['meet_transcribe', 'meet_process_recordings'],
-      whatsapp: ['whatsapp_send'],
-      notion: [] // Add notion actions when available
-    };
-
-    // Get all workflows for this user
-    const { data: workflows, error: workflowsError } = await supabase
-      .from('workflows')
-      .select('id, name, steps, status')
-      .eq('user_id', userId);
-
-    if (workflowsError) {
-      logger.warn('[integrations/usage] Error fetching workflows:', workflowsError);
-    }
-
-    // For each integration, find workflows that use it
-    for (const [serviceId, actionTypes] of Object.entries(integrationActions)) {
-      const workflowsUsingService = [];
-      
-      if (workflows && actionTypes.length > 0) {
-        for (const workflow of workflows) {
-          if (!workflow.steps || !Array.isArray(workflow.steps)) continue;
-          
-          // Check if any step uses this integration
-          const usesIntegration = workflow.steps.some(step => {
-            const actionType = step.action_type || step.type;
-            return actionTypes.includes(actionType);
-          });
-
-          if (usesIntegration) {
-            workflowsUsingService.push({
-              id: workflow.id,
-              name: workflow.name,
-              status: workflow.status
-            });
-          }
-        }
-      }
-
-      // Count recent workflow executions (last 24 hours) that used this integration
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      let recentActivityCount = 0;
-
-      if (workflowsUsingService.length > 0) {
-        const workflowIds = workflowsUsingService.map(w => w.id);
-        try {
-          const { data: recentExecutions, error: executionsError } = await supabase
-            .from('workflow_executions')
-            .select('id')
-            .in('workflow_id', workflowIds)
-            .gte('created_at', oneDayAgo)
-            .eq('status', 'completed');
-
-          if (!executionsError && recentExecutions) {
-            recentActivityCount = recentExecutions.length;
-          } else if (executionsError) {
-            // Log but don't fail - table might not exist or be empty
-            logger.debug('[integrations/usage] Could not fetch workflow executions', { 
-              error: executionsError.message,
-              serviceId 
-            });
-          }
-        } catch (execError) {
-          // Gracefully handle if workflow_executions table doesn't exist
-          logger.debug('[integrations/usage] Workflow executions query failed', { 
-            error: execError.message,
-            serviceId 
-          });
-        }
-      }
-
-      usage[serviceId] = {
-        workflowCount: workflowsUsingService.length,
-        workflows: workflowsUsingService,
-        recentActivityCount
-      };
-    }
-
-    res.json({
-      success: true,
-      usage
-    });
-
-  } catch (error) {
-    logger.error('[integrations/usage] Error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
+// GET /api/integrations/usage - Moved to integrationRoutes.js to avoid route conflicts
+// The endpoint is now defined in routes/integrationRoutes.js before the /:service route
 
 app.post('/api/integrations/sync-files', authMiddleware, requireFeature('custom_integrations'), async (req, res) => {
   if (!integrationFramework) {

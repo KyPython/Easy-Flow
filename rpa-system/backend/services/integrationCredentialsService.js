@@ -212,7 +212,36 @@ class IntegrationCredentialsService {
         .eq('id', credentials.id);
       
       logger.error(`[IntegrationCredentials] Connection test failed for ${service}:`, error);
-      return { success: false, error: error.message };
+      
+      // Format error message to be more user-friendly
+      let errorMessage = error.message;
+      
+      // Gmail API not enabled
+      if (error.message?.includes('Gmail API has not been used') || error.message?.includes('Gmail API') && error.message?.includes('disabled')) {
+        const projectIdMatch = error.message.match(/project (\d+)/);
+        const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
+        errorMessage = `Gmail API is not enabled. Enable it at: https://console.cloud.google.com/apis/api/gmail.googleapis.com/overview?project=${projectId}`;
+      }
+      // Google Sheets API not enabled
+      else if (error.message?.includes('Sheets API') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
+        const projectIdMatch = error.message.match(/project (\d+)/);
+        const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
+        errorMessage = `Google Sheets API is not enabled. Enable it at: https://console.cloud.google.com/apis/api/sheets.googleapis.com/overview?project=${projectId}`;
+      }
+      // Google Drive API not enabled
+      else if (error.message?.includes('Drive API') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
+        const projectIdMatch = error.message.match(/project (\d+)/);
+        const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
+        errorMessage = `Google Drive API is not enabled. Enable it at: https://console.cloud.google.com/apis/api/drive.googleapis.com/overview?project=${projectId}`;
+      }
+      // Google Meet API not enabled
+      else if (error.message?.includes('Meet API') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
+        const projectIdMatch = error.message.match(/project (\d+)/);
+        const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
+        errorMessage = `Google Meet API is not enabled. Enable it at: https://console.cloud.google.com/apis/api/meet.googleapis.com/overview?project=${projectId}`;
+      }
+      
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -252,14 +281,16 @@ class IntegrationCredentialsService {
    * @private
    */
   _getIntegrationClass(service) {
-    const integrations = {
-      slack: require('./integrations/slackIntegration'),
-      gmail: require('./integrations/gmailIntegration'),
-      google_sheets: require('./integrations/googleSheetsIntegration'),
-      google_meet: require('./integrations/googleMeetIntegration'),
-      google_drive: require('./integrations/googleDriveIntegration'),
-      whatsapp: require('./integrations/whatsappIntegration')
-    };
+      const integrations = {
+        slack: require('./integrations/slackIntegration'),
+        gmail: require('./integrations/gmailIntegration'),
+        google_sheets: require('./integrations/googleSheetsIntegration'),
+        google_meet: require('./integrations/googleMeetIntegration'),
+        google_drive: require('./integrations/googleDriveIntegration'),
+        google_calendar: require('./integrations/googleCalendarIntegration'),
+        whatsapp: require('./integrations/whatsappIntegration'),
+        notion: require('./integrations/notionIntegration')
+      };
     
     const IntegrationClass = integrations[service];
     if (!IntegrationClass) {
@@ -303,8 +334,11 @@ class IntegrationCredentialsService {
   /**
    * Validate and retrieve OAuth state
    * @param {String} stateToken - OAuth state token
+   * @param {Object} options - { peek: boolean } - If true, don't delete the state token
    */
-  async validateOAuthState(stateToken) {
+  async validateOAuthState(stateToken, options = {}) {
+    const { peek = false } = options;
+    
     const { data, error } = await this.supabase
       .from('integration_oauth_states')
       .select('*')
@@ -321,11 +355,13 @@ class IntegrationCredentialsService {
       return null; // Expired or invalid
     }
     
-    // Delete used state
-    await this.supabase
-      .from('integration_oauth_states')
-      .delete()
-      .eq('id', data.id);
+    // Delete used state only if not peeking
+    if (!peek) {
+      await this.supabase
+        .from('integration_oauth_states')
+        .delete()
+        .eq('id', data.id);
+    }
     
     return data;
   }

@@ -260,6 +260,130 @@ BACKEND_PORT=${PORT:-3030}
 AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
 BACKEND_METRICS_PORT=${BACKEND_METRICS_PORT:-9091}
 
+# Check if ngrok should be started (for OAuth redirect URIs requiring HTTPS)
+# Start ngrok if: NGROK_ENABLED is set, or API_BASE_URL contains ngrok, or SLACK_CLIENT_ID is set
+NGROK_ENABLED=${NGROK_ENABLED:-false}
+
+# Load backend .env variables for ngrok detection (without affecting current environment)
+BACKEND_ENV_FILE="rpa-system/backend/.env"
+BACKEND_API_BASE_URL=""
+BACKEND_SLACK_CLIENT_ID=""
+if [ -f "$BACKEND_ENV_FILE" ]; then
+    # Extract specific variables from .env file without sourcing
+    BACKEND_API_BASE_URL=$(grep "^API_BASE_URL=" "$BACKEND_ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "")
+    BACKEND_SLACK_CLIENT_ID=$(grep "^SLACK_CLIENT_ID=" "$BACKEND_ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "")
+fi
+
+# Determine if ngrok should start
+SHOULD_START_NGROK=false
+if [ "$NGROK_ENABLED" = "true" ] || [ "$NGROK_ENABLED" = "1" ]; then
+    SHOULD_START_NGROK=true
+elif [[ "${BACKEND_API_BASE_URL}" == *"ngrok"* ]] || [[ "${API_BASE_URL:-}" == *"ngrok"* ]]; then
+    SHOULD_START_NGROK=true
+elif [ -n "${BACKEND_SLACK_CLIENT_ID}" ] || [ -n "${SLACK_CLIENT_ID:-}" ]; then
+    # If Slack OAuth is configured, ngrok is likely needed (Slack requires HTTPS)
+    SHOULD_START_NGROK=true
+fi
+
+# Start ngrok if needed
+if [ "$SHOULD_START_NGROK" = true ]; then
+    if command -v ngrok &> /dev/null; then
+        # Check if ngrok is already running
+        if ! curl -s http://localhost:4040/api/tunnels > /dev/null 2>&1; then
+            echo -e "${YELLOW}Starting ngrok tunnel for HTTPS OAuth redirects...${NC}"
+            # Ensure logs directory exists
+            mkdir -p logs
+            
+            # Don't kill existing ngrok - preserve it if running to keep URL stable
+            # Only kill if there's a stale PID file pointing to a dead process
+            if [ -f ".ngrok.pid" ]; then
+                NGROK_PID=$(cat .ngrok.pid 2>/dev/null)
+                if [ -n "$NGROK_PID" ] && ! kill -0 "$NGROK_PID" 2>/dev/null; then
+                    # PID file exists but process is dead - clean it up
+                    rm -f .ngrok.pid
+                fi
+            fi
+            
+            # Verify backend is running on the expected port
+            if ! lsof -ti:$BACKEND_PORT > /dev/null 2>&1; then
+                echo -e "${YELLOW}⚠ Backend not running on port $BACKEND_PORT yet${NC}"
+                echo -e "${YELLOW}  ngrok will start but may fail until backend starts${NC}"
+            fi
+            
+            # Start ngrok in background, redirecting output to a log file
+            # Note: Free tier shows a warning page on first visit (OAuth providers will see this)
+            # Users can click "Visit Site" to proceed. This is a ngrok free tier limitation.
+            echo -e "${YELLOW}  Starting ngrok tunnel to port $BACKEND_PORT...${NC}"
+            nohup ngrok http $BACKEND_PORT > logs/ngrok.log 2>&1 &
+            NGROK_PID=$!
+            echo $NGROK_PID > .ngrok.pid
+            echo -e "${GREEN}✓ ngrok started (PID: $NGROK_PID)${NC}"
+            
+            # Wait for ngrok to be ready
+            echo -e "${YELLOW}  Waiting for ngrok to initialize...${NC}"
+            NGROK_URL=""
+            for i in {1..15}; do
+                sleep 1
+                if curl -s http://localhost:4040/api/tunnels > /dev/null 2>&1; then
+                    # Get the ngrok URL
+                    NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null | grep -o '"public_url":"https://[^"]*"' | head -1 | cut -d'"' -f4 || echo "")
+                    if [ -n "$NGROK_URL" ]; then
+                        echo -e "${GREEN}✓ ngrok ready: $NGROK_URL${NC}"
+                        
+                        # Automatically update API_BASE_URL in .env file
+                        if [ -f "$BACKEND_ENV_FILE" ]; then
+                            # Check if API_BASE_URL exists in .env
+                            if grep -q "^API_BASE_URL=" "$BACKEND_ENV_FILE" 2>/dev/null; then
+                                # Update existing API_BASE_URL
+                                if [[ "$OSTYPE" == "darwin"* ]]; then
+                                    # macOS
+                                    sed -i '' "s|^API_BASE_URL=.*|API_BASE_URL=$NGROK_URL|" "$BACKEND_ENV_FILE"
+                                else
+                                    # Linux
+                                    sed -i "s|^API_BASE_URL=.*|API_BASE_URL=$NGROK_URL|" "$BACKEND_ENV_FILE"
+                                fi
+                            else
+                                # Add API_BASE_URL if it doesn't exist
+                                echo "API_BASE_URL=$NGROK_URL" >> "$BACKEND_ENV_FILE"
+                            fi
+                            echo -e "${GREEN}✓ Updated API_BASE_URL in $BACKEND_ENV_FILE${NC}"
+                        fi
+                        break
+                    fi
+                fi
+                # Show progress every 3 seconds
+                if [ $((i % 3)) -eq 0 ]; then
+                    echo -e "${YELLOW}    Still waiting... (${i}/15)${NC}"
+                fi
+            done
+            
+            if [ -z "$NGROK_URL" ]; then
+                echo -e "${RED}✗ ngrok failed to start or URL not accessible${NC}"
+                echo -e "${YELLOW}  Check logs/ngrok.log for details${NC}"
+                if [ -f logs/ngrok.log ]; then
+                    echo -e "${YELLOW}  Last few lines:${NC}"
+                    tail -5 logs/ngrok.log 2>/dev/null || true
+                fi
+            fi
+        else
+            # ngrok is already running, get the URL
+            NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null | grep -o '"public_url":"https://[^"]*"' | head -1 | cut -d'"' -f4 || echo "")
+            if [ -n "$NGROK_URL" ]; then
+                echo -e "${GREEN}✓ ngrok already running: $NGROK_URL${NC}"
+            else
+                echo -e "${YELLOW}⚠ ngrok appears to be running but URL not accessible${NC}"
+            fi
+        fi
+    else
+        echo -e "${RED}✗ ngrok not installed (required for Slack OAuth HTTPS redirects)${NC}"
+        echo -e "${YELLOW}  Install: brew install ngrok${NC}"
+        echo -e "${YELLOW}  Then configure: ngrok config add-authtoken YOUR_TOKEN${NC}"
+        echo -e "${YELLOW}  Or set NGROK_ENABLED=false to skip${NC}"
+    fi
+else
+    echo -e "${YELLOW}ℹ ngrok not needed (Slack OAuth not configured or disabled)${NC}"
+fi
+
 # Ensure critical ports are free (prevent address in use errors)
 echo -e "${YELLOW}Freeing up critical ports...${NC}"
 for port in $FRONTEND_PORT $BACKEND_PORT $AUTOMATION_PORT $BACKEND_METRICS_PORT; do
@@ -737,6 +861,10 @@ echo "  Frontend:         http://localhost:$FRONTEND_PORT"
 echo "  Backend:          http://localhost:$BACKEND_PORT"
 echo "  Automation:       http://localhost:$AUTOMATION_PORT"
 echo "  Health Check:     http://localhost:$BACKEND_PORT/health"
+if [ "$SHOULD_START_NGROK" = true ] && [ -n "${NGROK_URL:-}" ]; then
+    echo "  ngrok (HTTPS):    $NGROK_URL"
+    echo "  OAuth Callback:   $NGROK_URL/api/integrations/*/oauth/callback"
+fi
 echo ""
 if [ "$DOCKER_READY" = true ]; then
     echo "Infrastructure:"

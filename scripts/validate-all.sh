@@ -17,13 +17,14 @@ echo "${BLUE}║     EasyFlow Comprehensive Code Validation Suite         ║${N
 echo "${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}\n"
 
 FAILED=0
-TOTAL_CHECKS=5
+TOTAL_CHECKS=6
 
 # Track which checks passed/failed (using simple variables for compatibility)
 SRP_RESULT=""
 DYNAMIC_RESULT=""
 THEME_RESULT=""
 LOGGING_RESULT=""
+ENV_MESSAGES_RESULT=""
 RAG_RESULT=""
 
 # Function to run a validation check
@@ -51,6 +52,7 @@ run_check "Single Responsibility Principle (SRP)" "validate-srp.sh" "SRP_RESULT"
 run_check "Dynamic Code Validation" "validate-dynamic-code.sh" "DYNAMIC_RESULT"
 run_check "Theme Consistency Validation" "validate-theme-consistency.sh" "THEME_RESULT"
 run_check "Logging Integration Validation" "validate-logging-integration.sh" "LOGGING_RESULT"
+run_check "Environment-Aware Messages Validation" "validate-env-aware-messages.sh" "ENV_MESSAGES_RESULT"
 run_check "RAG Knowledge Base Validation" "validate-rag-knowledge.sh" "RAG_RESULT"
 
 # Summary
@@ -82,6 +84,12 @@ else
     echo "${RED}❌ Logging Integration Validation: FAILED${NC}"
 fi
 
+if [ "$ENV_MESSAGES_RESULT" = "PASSED" ]; then
+    echo "${GREEN}✅ Environment-Aware Messages Validation: PASSED${NC}"
+else
+    echo "${RED}❌ Environment-Aware Messages Validation: FAILED${NC}"
+fi
+
 if [ "$RAG_RESULT" = "PASSED" ]; then
     echo "${GREEN}✅ RAG Knowledge Base Validation: PASSED${NC}"
 else
@@ -104,7 +112,8 @@ else
     echo "  3. Make code dynamic (use env vars, config files)"
     echo "  4. Ensure theme consistency (use ThemeContext)"
     echo "  5. Integrate logging (use structured logger)"
-    echo "  6. Update RAG knowledge (update ragClient.js and aiWorkflowAgent.js)"
+    echo "  6. Use environment-aware messages (use getEnvMessage for user-facing messages)"
+    echo "  7. Update RAG knowledge (update ragClient.js and aiWorkflowAgent.js)"
     echo ""
     exit 1
 fi

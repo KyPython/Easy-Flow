@@ -218,3 +218,21 @@
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
 }
+
+.legalLinks {
+  display: flex;
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-md);
+}
+
+.legalLink {
+  color: var(--color-brand-blue, #2563eb);
+  text-decoration: none;
+  font-size: var(--font-size-base);
+  transition: opacity 0.2s ease;
+}
+
+.legalLink:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}

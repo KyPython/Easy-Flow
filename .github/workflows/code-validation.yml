@@ -50,6 +50,7 @@ jobs:
           chmod +x scripts/validate-dynamic-code.sh
           chmod +x scripts/validate-theme-consistency.sh
           chmod +x scripts/validate-logging-integration.sh
+          chmod +x scripts/validate-env-aware-messages.sh
           chmod +x scripts/validate-rag-knowledge.sh
 
       - name: Run Single Responsibility Principle (SRP) Validation
@@ -92,6 +93,16 @@ jobs:
           fi
         continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
+      - name: Run Environment-Aware Messages Validation
+        run: |
+          echo "🔍 Checking that all user-facing messages are environment-aware..."
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-env-aware-messages.sh || (echo "❌ Environment-aware messages validation failed" && exit 1)
+          else
+            ./scripts/validate-env-aware-messages.sh || echo "⚠️ Environment-aware messages validation issues found (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
       - name: Run RAG Knowledge Validation
         run: |
           echo "🔍 Checking RAG knowledge is up-to-date..."
@@ -120,4 +131,5 @@ jobs:
           echo "- **Dynamic Code**: Code uses environment variables and configuration (not hardcoded)" >> $GITHUB_STEP_SUMMARY
           echo "- **Theme Consistency**: All React components use ThemeContext and CSS variables" >> $GITHUB_STEP_SUMMARY
           echo "- **Logging Integration**: All logs use structured logging and observability system" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment-Aware Messages**: All user-facing messages use getEnvMessage() for dev/prod differentiation" >> $GITHUB_STEP_SUMMARY
 

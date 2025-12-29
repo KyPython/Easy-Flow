@@ -66,11 +66,17 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 **How to get Google OAuth credentials:**
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Select your project (or create one)
-3. Enable required APIs:
-   - Gmail API (for Gmail integration)
-   - Google Sheets API (for Sheets integration)
-   - Google Drive API (for Drive integration)
-   - Google Calendar API (for Meet integration)
+3. **⚠️ CRITICAL: Enable required APIs first:**
+   - **Gmail API**: https://console.cloud.google.com/apis/library/gmail.googleapis.com
+     - Click "Enable" button
+   - **Google Sheets API**: https://console.cloud.google.com/apis/library/sheets.googleapis.com
+     - Click "Enable" button
+   - **Google Drive API**: https://console.cloud.google.com/apis/library/drive.googleapis.com
+     - Click "Enable" button
+   - **Google Meet API**: https://console.cloud.google.com/apis/library/meet.googleapis.com
+     - Click "Enable" button
+   - **Google Calendar API** (for Meet): https://console.cloud.google.com/apis/library/calendar-json.googleapis.com
+     - Click "Enable" button
 4. Go to APIs & Services → Credentials
 5. Click "Create Credentials" → "OAuth client ID"
 6. Choose "Web application"
@@ -79,6 +85,46 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
    - `http://localhost:3030/api/integrations/google_sheets/oauth/callback`
    - `http://localhost:3030/api/integrations/google_drive/oauth/callback`
    - `http://localhost:3030/api/integrations/google_meet/oauth/callback`
+8. Copy the Client ID and Client Secret to your `.env` file
+
+##### WhatsApp OAuth (Meta/Facebook) - Optional
+```bash
+# Get from: https://developers.facebook.com/apps/
+FACEBOOK_APP_ID=your-facebook-app-id
+FACEBOOK_APP_SECRET=your-facebook-app-secret
+```
+
+**Note:** WhatsApp supports two connection methods:
+- **OAuth (Meta)**: Connect via Facebook Login (requires Facebook App setup)
+- **API Keys (Twilio)**: Connect via API keys (always available as fallback)
+
+If `FACEBOOK_APP_ID` and `FACEBOOK_APP_SECRET` are not configured, WhatsApp will use the API key modal for Twilio connections.
+
+**How to get Facebook OAuth credentials:**
+1. Go to [Facebook Developers](https://developers.facebook.com/)
+2. Create a new app or select an existing one
+3. Add "WhatsApp" product to your app
+4. Go to Settings → Basic
+5. Copy App ID and App Secret
+6. Add to your `.env` file
+
+##### Notion OAuth
+```bash
+# Get from: https://www.notion.so/my-integrations
+NOTION_CLIENT_ID=your-notion-client-id
+NOTION_CLIENT_SECRET=your-notion-client-secret
+```
+
+**How to get Notion OAuth credentials:**
+1. Go to [Notion Integrations](https://www.notion.so/my-integrations)
+2. Click "New integration"
+3. Name your integration (e.g., "EasyFlow")
+4. Select your workspace
+5. Copy the "Internal Integration Token" (this is your client secret)
+6. For OAuth, you'll need to create an OAuth app at https://www.notion.so/my-integrations
+7. Add authorized redirect URIs:
+   - `http://localhost:3030/api/integrations/notion/oauth/callback` (for development)
+   - `https://easyflow-backend-ad8e.onrender.com/api/integrations/notion/oauth/callback` (for production)
 8. Copy the Client ID and Client Secret to your `.env` file
 
 ##### Slack OAuth
@@ -94,7 +140,17 @@ SLACK_CLIENT_SECRET=your-slack-client-secret
 3. Name your app and select your workspace
 4. Go to "OAuth & Permissions" in the sidebar
 5. Scroll to "Redirect URLs" and add:
-   - `http://localhost:3030/api/integrations/slack/oauth/callback`
+   - **⚠️ IMPORTANT: Slack requires HTTPS for redirect URIs**
+   - **Option 1 (Local Dev with ngrok):** Use ngrok to create HTTPS tunnel:
+     ```bash
+     # Install ngrok: https://ngrok.com/download
+     ngrok http 3030
+     # Copy the HTTPS URL (e.g., https://abc123.ngrok.io)
+     # Add to Slack: https://abc123.ngrok.io/api/integrations/slack/oauth/callback
+     # Set in .env: API_BASE_URL=https://abc123.ngrok.io
+     ```
+   - **Option 2 (Production):** Use your production URL:
+     - `https://easyflow-backend-ad8e.onrender.com/api/integrations/slack/oauth/callback`
 6. Scroll to "Scopes" → "Bot Token Scopes" and add:
    - `chat:write` - Send messages
    - `channels:read` - View basic channel information

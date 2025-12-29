@@ -36,6 +36,25 @@ for port in $RAG_PORT 3001; do
     fi
 done
 
+# Keep ngrok running to preserve stable URL (don't stop it)
+# This prevents OAuth redirect URIs from changing when restarting dev servers
+if [ -f ".ngrok.pid" ]; then
+    NGROK_PID=$(cat .ngrok.pid 2>/dev/null)
+    if [ -n "$NGROK_PID" ] && kill -0 "$NGROK_PID" 2>/dev/null; then
+        NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null | grep -o '"public_url":"https://[^"]*"' | head -1 | cut -d'"' -f4 || echo "")
+        if [ -n "$NGROK_URL" ]; then
+            echo -e "${GREEN}✓ ngrok kept running: $NGROK_URL${NC}"
+            echo -e "${YELLOW}  (Preserved to maintain stable OAuth redirect URLs)${NC}"
+        fi
+    else
+        # PID file exists but process is dead - clean it up
+        rm -f .ngrok.pid
+    fi
+fi
+
+# Don't kill ngrok processes - keep them running for stable URLs
+# If you need to stop ngrok, do it manually: pkill -f "ngrok http"
+
 # Fallback: kill by process name (for any orphaned processes)
 echo -e "${YELLOW}Cleaning up any orphaned processes...${NC}"
 pkill -f "node server.js" 2>/dev/null && echo -e "${GREEN}✓ Killed node server.js processes${NC}" || true

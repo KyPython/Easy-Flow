@@ -1,0 +1,193 @@
+/* Reuse the same styles as PrivacyPage */
+.page {
+  min-height: 100vh;
+  background: var(--bg, #f8fafc);
+  color: var(--text-primary, #0f172a);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+[data-theme="dark"] .page {
+  background: var(--color-gray-900, #0f172a);
+  color: var(--color-gray-100, #f1f5f9);
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--spacing-xl, 2rem);
+  padding-top: calc(var(--header-height, 64px) + var(--spacing-xl, 2rem));
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-2xl, 3rem);
+  padding-bottom: var(--spacing-lg, 1.5rem);
+  border-bottom: 2px solid var(--color-gray-200, #e2e8f0);
+}
+
+[data-theme="dark"] .header {
+  border-bottom-color: var(--color-gray-700, #334155);
+}
+
+.title {
+  font-size: var(--font-size-4xl, 2.25rem);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-brand-blue, #2563eb);
+  margin: 0;
+}
+
+.themeToggle {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--color-gray-300, #cbd5e1);
+  border-radius: var(--radius-full, 9999px);
+  padding: var(--spacing-sm, 0.5rem);
+  cursor: pointer;
+  font-size: var(--font-size-xl, 1.25rem);
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .themeToggle {
+  background: var(--color-gray-800, #1e293b);
+  border-color: var(--color-gray-600, #475569);
+}
+
+.themeToggle:hover {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1));
+}
+
+.content {
+  background: var(--surface, #ffffff);
+  border-radius: var(--radius-lg, 12px);
+  padding: var(--spacing-2xl, 3rem);
+  box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.1));
+  line-height: 1.7;
+}
+
+[data-theme="dark"] .content {
+  background: var(--color-gray-800, #1e293b);
+  box-shadow: var(--shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.3));
+}
+
+.lastUpdated {
+  color: var(--text-muted, #64748b);
+  font-size: var(--font-size-sm, 0.875rem);
+  margin-bottom: var(--spacing-xl, 2rem);
+  font-style: italic;
+}
+
+.section {
+  margin-bottom: var(--spacing-2xl, 3rem);
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.section h2 {
+  font-size: var(--font-size-2xl, 1.5rem);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-brand-blue, #2563eb);
+  margin-bottom: var(--spacing-md, 1rem);
+  margin-top: 0;
+}
+
+.section h3 {
+  font-size: var(--font-size-xl, 1.25rem);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--text-primary, #0f172a);
+  margin-top: var(--spacing-lg, 1.5rem);
+  margin-bottom: var(--spacing-sm, 0.5rem);
+}
+
+[data-theme="dark"] .section h3 {
+  color: var(--color-gray-100, #f1f5f9);
+}
+
+.section p {
+  margin-bottom: var(--spacing-md, 1rem);
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme="dark"] .section p {
+  color: var(--color-gray-200, #e2e8f0);
+}
+
+.section ul {
+  margin-left: var(--spacing-lg, 1.5rem);
+  margin-bottom: var(--spacing-md, 1rem);
+}
+
+.section li {
+  margin-bottom: var(--spacing-sm, 0.5rem);
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme="dark"] .section li {
+  color: var(--color-gray-200, #e2e8f0);
+}
+
+.section li strong {
+  color: var(--color-brand-blue, #2563eb);
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.section a {
+  color: var(--color-brand-blue, #2563eb);
+  text-decoration: underline;
+  transition: opacity 0.2s ease;
+}
+
+.section a:hover {
+  opacity: 0.8;
+}
+
+.footer {
+  margin-top: var(--spacing-2xl, 3rem);
+  padding-top: var(--spacing-xl, 2rem);
+  border-top: 1px solid var(--color-gray-200, #e2e8f0);
+  text-align: center;
+}
+
+[data-theme="dark"] .footer {
+  border-top-color: var(--color-gray-700, #334155);
+}
+
+.backLink {
+  color: var(--color-brand-blue, #2563eb);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium, 500);
+  font-size: var(--font-size-lg, 1.125rem);
+  transition: opacity 0.2s ease;
+}
+
+.backLink:hover {
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: var(--spacing-md, 1rem);
+    padding-top: calc(var(--header-height, 64px) + var(--spacing-md, 1rem));
+  }
+
+  .content {
+    padding: var(--spacing-lg, 1.5rem);
+  }
+
+  .title {
+    font-size: var(--font-size-2xl, 1.5rem);
+  }
+
+  .section h2 {
+    font-size: var(--font-size-xl, 1.25rem);
+  }
+}
+

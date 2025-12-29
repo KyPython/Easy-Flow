@@ -33,8 +33,10 @@ router.get('/', requireFeature('team_management'), async (req, res) => {
       .eq('id', userId)
       .single();
 
+    // If profile doesn't exist, return empty team (user hasn't set up their profile yet)
     if (profileError || !profile) {
-      return res.status(404).json({ error: 'User profile not found' });
+      logger.warn('User profile not found, returning empty team', { userId, error: profileError?.message });
+      return res.json({ members: [] });
     }
 
     // If no organization, return empty team
@@ -191,15 +193,40 @@ router.post('/invite', requireFeature('team_management'), async (req, res) => {
       return res.status(503).json({ error: 'Database not available' });
     }
 
-    // Verify requester is admin/owner
+    // Verify requester is admin/owner, or is the first/only user in their organization
     const { data: requester, error: requesterError } = await supabase
       .from('profiles')
       .select('organization_id, role')
       .eq('id', userId)
       .single();
 
-    if (requesterError || !requester || !['admin', 'owner'].includes(requester.role)) {
+    if (requesterError || !requester) {
+      logger.warn('User profile not found for team invite', { userId, error: requesterError?.message });
       return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    // Check if user has admin/owner role
+    const hasAdminRole = requester.role && ['admin', 'owner'].includes(requester.role);
+    
+    if (!hasAdminRole) {
+      // If no role, check if they're the only member in their organization (first user)
+      if (requester.organization_id) {
+        const { data: orgMembers, error: orgError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('organization_id', requester.organization_id)
+          .limit(2);
+        
+        const isOnlyMember = !orgError && orgMembers && orgMembers.length === 1 && orgMembers[0].id === userId;
+        
+        if (!isOnlyMember) {
+          return res.status(403).json({ error: 'Insufficient permissions. Only admins and owners can invite team members.' });
+        }
+        // First user can invite - they'll become owner
+      } else {
+        // No organization yet - first user can invite
+        // They'll create the organization when they invite
+      }
     }
 
     // TODO: Send invitation email and create invitation record

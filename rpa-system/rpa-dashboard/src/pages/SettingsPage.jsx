@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import PlanGate from '../components/PlanGate/PlanGate';
 import supabase, { initSupabase } from '../utils/supabaseClient';
 import { useAuth } from '../utils/AuthContext';
@@ -768,6 +769,15 @@ export default function SettingsPage() {
             {planError && <div className={styles.error}>{planError}</div>}
           </>
         )}
+      </section>
+
+      {/* Legal */}
+      <section className={styles.section}>
+        <h3 className={styles.heading}>Legal</h3>
+        <div className={styles.legalLinks}>
+          <Link to="/privacy" className={styles.legalLink}>Privacy Policy</Link>
+          <Link to="/terms" className={styles.legalLink}>Terms of Use</Link>
+        </div>
       </section>
       </div>
   );
