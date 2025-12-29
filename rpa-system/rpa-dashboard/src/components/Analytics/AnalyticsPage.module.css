@@ -1,23 +1,13 @@
-/* Reports & Exports title font size for theme consistency */
-.reportsTitle {
-  font-size: var(--font-size-xl, 1.5rem);
-}
-/* Error message styling for theme consistency */
-.error {
-  color: var(--color-error, #d32f2f);
-  background: var(--color-error-bg, #fff0f0);
-  border: 1px solid var(--color-error-border, #d32f2f22);
-  padding: var(--spacing-xs) var(--spacing-md);
-  border-radius: var(--radius-md);
-  margin: var(--spacing-md) 0;
-  font-size: var(--font-size-md);
-}
 /* AnalyticsPage.module.css - Analytics Dashboard styling using app theme variables */
+/* Consistent with UnifiedDashboardPage and other pages */
 
 .analyticsPage {
   padding: var(--spacing-2xl);
-  max-width: var(--container-max-width);
+  max-width: var(--container-max-width, 1400px);
   margin: 0 auto;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--text-primary);
 }
 
 .header {
@@ -34,7 +24,8 @@
 }
 
 .section {
-  background: var(--card-bg);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--spacing-xl);
   box-shadow: var(--shadow-md);
@@ -57,4 +48,54 @@
   display: flex;
   gap: var(--spacing-md);
   margin-top: var(--spacing-md);
+}
+
+/* Loading state - consistent with UnifiedDashboardPage */
+.loadingContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 1rem;
+}
+
+.spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid var(--color-primary-200);
+  border-top-color: var(--color-primary-600);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error message styling for theme consistency */
+.error {
+  color: var(--color-error, #d32f2f);
+  background: var(--color-error-50, #fff0f0);
+  border: 1px solid var(--color-error-200, #d32f2f22);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin: var(--spacing-md) 0;
+  font-size: var(--font-size-md);
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .section {
+  background: var(--surface-dark, var(--surface));
+  border-color: var(--border-dark, var(--border));
+}
+
+[data-theme="dark"] .chartPlaceholder {
+  background: var(--bg-muted-dark, var(--bg-muted));
+  color: var(--text-muted-dark, var(--text-muted));
+}
+
+[data-theme="dark"] .error {
+  background: var(--color-error-900, rgba(211, 47, 47, 0.1));
+  border-color: var(--color-error-700, rgba(211, 47, 47, 0.3));
 }

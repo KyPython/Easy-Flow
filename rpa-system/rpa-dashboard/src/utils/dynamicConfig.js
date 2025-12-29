@@ -96,6 +96,9 @@ export const dynamicConfig = {
     
     // Dashboard refresh
     dashboard: getEnvInt('REACT_APP_DASHBOARD_REFRESH_INTERVAL', 30000),
+    
+    // Analytics refresh interval
+    analyticsRefresh: getEnvInt('REACT_APP_ANALYTICS_REFRESH_INTERVAL', 30000),
   },
 
   // ========== Thresholds ==========
