@@ -25,12 +25,17 @@ const AnalyticsPage = () => {
         navigate(-1);
       }}
     >
-      <div className={styles.analyticsPage + ' theme-' + theme}>
+      <div className={styles.analyticsPage} data-theme={theme}>
         <header className={styles.header}>
           <h1 className={styles.title}>Analytics Dashboard</h1>
         </header>
-        {loading && <div>Loading analytics...</div>}
-  {error && <div className={styles.error}>Error loading analytics: {error.message || 'Unknown error'}</div>}
+        {loading && (
+          <div className={styles.loadingContainer}>
+            <div className={styles.spinner}></div>
+            <p>Loading analytics...</p>
+          </div>
+        )}
+        {error && <div className={styles.error}>Error loading analytics: {error.message || 'Unknown error'}</div>}
         {!loading && !error && (
           <>
             <UsageCharts data={data} />

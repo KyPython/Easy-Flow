@@ -1,7 +1,7 @@
 #!/bin/bash
-# EasyFlow Code Quality Check
-# Adapted from software-entropy: https://github.com/KyPython/software-entropy
-# Scans codebase for code smells: long functions, large files, TODO/FIXME density
+# EasyFlow Code Quality Check - Hotspot-Focused Analysis
+# Uses Software Entropy tool with hotspot detection (complexity × churn)
+# Philosophy: "Fix these 10 hotspots first" instead of "You have 50,000 issues"
 
 set -e
 
@@ -13,166 +13,129 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-echo "${BLUE}=== EasyFlow Code Quality Check ===${NC}\n"
+echo "${BLUE}=== EasyFlow Code Quality Check (Hotspot-Focused) ===${NC}\n"
+echo "${CYAN}Why Hotspots Matter:${NC}"
+echo "  SonarQube says: \"You have 50,000 bad lines of code.\""
+echo "  Software Entropy says: \"Fix these hotspots first.\""
+echo "  ${CYAN}Hotspots = Complex Code × Frequent Changes${NC}"
+echo ""
 
-# Check if software-entropy is available
-if ! command -v npx >/dev/null 2>&1; then
-    echo "${RED}✗ npx not found. Please install Node.js and npm.${NC}"
+# Check for local software-entropy tool first, then fallback to npx
+SOFTWARE_ENTROPY_CMD=""
+if [ -f "/Users/ky/software-entropy/dist/cli.js" ]; then
+    SOFTWARE_ENTROPY_CMD="node /Users/ky/software-entropy/dist/cli.js"
+    echo "${GREEN}✓ Using local Software Entropy tool${NC}"
+elif command -v software-entropy >/dev/null 2>&1; then
+    SOFTWARE_ENTROPY_CMD="software-entropy"
+    echo "${GREEN}✓ Using global Software Entropy installation${NC}"
+elif command -v npx >/dev/null 2>&1; then
+    SOFTWARE_ENTROPY_CMD="npx -y software-entropy@latest"
+    echo "${YELLOW}⚠ Using npx (consider installing locally for better performance)${NC}"
+else
+    echo "${RED}✗ Software Entropy not found.${NC}"
+    echo "  Install: npm install -g software-entropy"
+    echo "  Or ensure Node.js/npx is available"
     exit 1
 fi
 
-# Load configuration from .code-quality-config.json if available
-if [ -f ".code-quality-config.json" ]; then
-    MAX_FUNCTION_LINES=${MAX_FUNCTION_LINES:-$(node -e "console.log(require('./.code-quality-config.json').rules.longFunction.threshold || 50)" 2>/dev/null || echo "50")}
-    MAX_FILE_LINES=${MAX_FILE_LINES:-$(node -e "console.log(require('./.code-quality-config.json').rules.largeFile.threshold || 500)" 2>/dev/null || echo "500")}
-    MAX_TODO_DENSITY=${MAX_TODO_DENSITY:-$(node -e "console.log(require('./.code-quality-config.json').rules.todoDensity.threshold || 5)" 2>/dev/null || echo "5")}
-else
-    # Default thresholds (can be overridden)
-    MAX_FUNCTION_LINES=${MAX_FUNCTION_LINES:-50}
-    MAX_FILE_LINES=${MAX_FILE_LINES:-500}
-    MAX_TODO_DENSITY=${MAX_TODO_DENSITY:-5}
-fi
-
-# Directories to scan
-SCAN_DIRS=(
-    "rpa-system/backend"
-    "rpa-system/rpa-dashboard/src"
-    "rpa-system/automation/automation-service"
-)
-
-# Patterns to include
-INCLUDE_PATTERNS="**/*.{js,jsx,ts,tsx,py}"
-
-# Patterns to exclude
-EXCLUDE_PATTERNS="**/node_modules/**,**/dist/**,**/build/**,**/__pycache__/**,**/*.test.js,**/*.spec.js,**/*.test.ts,**/*.spec.ts,**/coverage/**,**/.git/**"
-
-# Output file
+# Hotspot-focused configuration
+HOTSPOT_WINDOW="${HOTSPOT_WINDOW:-30}"  # Days for churn analysis
+TOP_HOTSPOTS="${TOP_HOTSPOTS:-10}"      # Number of top hotspots to show
+CONFIG_FILE="${CONFIG_FILE:-.code-quality-config.json}"
 OUTPUT_FILE="${1:-code-quality-report.json}"
 
-# Track results
-TOTAL_ISSUES=0
-FAILED_SCANS=0
+# Check if we're in a git repository (required for hotspot analysis)
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    echo "${YELLOW}⚠ Not a git repository. Hotspot analysis requires git history.${NC}"
+    echo "  Run: git init (if new repo) or ensure you're in a git repo"
+    echo "  Falling back to traditional scan (without hotspots)..."
+    USE_HOTSPOTS=false
+else
+    USE_HOTSPOTS=true
+    echo "${GREEN}✓ Git repository detected - hotspot analysis enabled${NC}"
+fi
 
+echo ""
 echo "${BLUE}Configuration:${NC}"
-echo "  Max function lines: ${CYAN}$MAX_FUNCTION_LINES${NC}"
-echo "  Max file lines: ${CYAN}$MAX_FILE_LINES${NC}"
-echo "  Max TODO density: ${CYAN}$MAX_TODO_DENSITY${NC} per 100 lines"
+echo "  Hotspot Window: ${CYAN}${HOTSPOT_WINDOW} days${NC}"
+echo "  Top Hotspots: ${CYAN}${TOP_HOTSPOTS}${NC}"
+if [ -f "$CONFIG_FILE" ]; then
+    echo "  Config File: ${CYAN}${CONFIG_FILE}${NC}"
+fi
 echo ""
 
-# Function to scan a directory
-scan_directory() {
-    local dir="$1"
-    local dir_name=$(basename "$dir")
+# Run hotspot-focused analysis
+echo "${BLUE}Running hotspot analysis...${NC}"
+echo "${CYAN}This identifies files that are BOTH complex AND frequently changed.${NC}"
+echo ""
+
+if [ "$USE_HOTSPOTS" = true ]; then
+    # Hotspot analysis (default - this is the core value)
+    # Note: Tool may output errors to stderr but still succeed
+    OUTPUT=$(mktemp)
+    ERROR_OUTPUT=$(mktemp)
     
-    if [ ! -d "$dir" ]; then
-        echo "${YELLOW}○ Skipping $dir (not found)${NC}"
-        return 0
-    fi
-    
-    echo "${BLUE}Scanning $dir_name...${NC}"
-    
-    # Try to run software-entropy via npx
-    if npx -y software-entropy@latest "$dir" \
-        --max-function-lines "$MAX_FUNCTION_LINES" \
-        --max-file-lines "$MAX_FILE_LINES" \
-        --max-todo-density "$MAX_TODO_DENSITY" \
-        --include "$INCLUDE_PATTERNS" \
-        --exclude "$EXCLUDE_PATTERNS" \
-        --output "/tmp/${dir_name}-quality.json" \
-        --json 2>/dev/null; then
-        
-        # Check if issues were found
-        if [ -f "/tmp/${dir_name}-quality.json" ]; then
-            local issues=$(cat "/tmp/${dir_name}-quality.json" | grep -o '"severity"' | wc -l || echo "0")
-            if [ "$issues" -gt 0 ]; then
-                echo "  ${YELLOW}⚠ Found $issues code quality issues${NC}"
-                TOTAL_ISSUES=$((TOTAL_ISSUES + issues))
-                
-                # Show summary
-                cat "/tmp/${dir_name}-quality.json" | grep -E '"file"|"message"|"severity"' | head -15 || true
-            else
-                echo "  ${GREEN}✓ No issues found${NC}"
-            fi
+    if $SOFTWARE_ENTROPY_CMD . \
+        --config "$CONFIG_FILE" \
+        --hotspot-window "$HOTSPOT_WINDOW" \
+        --top-hotspots "$TOP_HOTSPOTS" \
+        --output "${OUTPUT_FILE:-code-quality-report.json}" \
+        > "$OUTPUT" 2> "$ERROR_OUTPUT"; then
+        cat "$OUTPUT"
+        # Show errors if any (but don't fail)
+        if [ -s "$ERROR_OUTPUT" ]; then
+            echo ""
+            echo "${YELLOW}⚠ Warnings (non-critical):${NC}"
+            cat "$ERROR_OUTPUT" | head -5
         fi
+        rm -f "$OUTPUT" "$ERROR_OUTPUT"
+        echo ""
+        echo "${GREEN}✅ Hotspot analysis complete!${NC}"
+        echo ""
+        echo "${CYAN}💡 Next Steps:${NC}"
+        echo "  1. Review the top ${TOP_HOTSPOTS} hotspots above"
+        echo "  2. Start with the highest-scoring files (complexity × churn)"
+        echo "  3. Refactor complex functions in these files"
+        echo "  4. Add tests before refactoring"
+        echo ""
+        exit 0
     else
-        echo "  ${YELLOW}⚠ software-entropy not available via npx, using fallback checks${NC}"
-        run_fallback_checks "$dir"
-        FAILED_SCANS=$((FAILED_SCANS + 1))
+        # Show output even if command failed
+        cat "$OUTPUT" 2>/dev/null || true
+        cat "$ERROR_OUTPUT" 2>/dev/null || true
+        rm -f "$OUTPUT" "$ERROR_OUTPUT"
+        echo ""
+        echo "${RED}✗ Hotspot analysis failed${NC}"
+        exit 1
     fi
-}
-
-# Fallback checks using basic tools
-run_fallback_checks() {
-    local dir="$1"
-    local issues=0
-    
-    echo "  ${BLUE}Running fallback code quality checks...${NC}"
-    
-    # Check for large files
-    while IFS= read -r file; do
-        local lines=$(wc -l < "$file" 2>/dev/null || echo "0")
-        if [ "$lines" -gt "$MAX_FILE_LINES" ]; then
-            echo "    ${YELLOW}⚠ Large file: $file ($lines lines, threshold: $MAX_FILE_LINES)${NC}"
-            issues=$((issues + 1))
-        fi
-    done < <(find "$dir" -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" -o -name "*.py" \) \
-        ! -path "*/node_modules/*" \
-        ! -path "*/dist/*" \
-        ! -path "*/build/*" \
-        ! -path "*/__pycache__/*" \
-        ! -name "*.test.js" \
-        ! -name "*.spec.js" \
-        2>/dev/null | head -20)
-    
-    # Check for TODO/FIXME density
-    while IFS= read -r file; do
-        local lines=$(wc -l < "$file" 2>/dev/null || echo "1")
-        local todos=$(grep -cE "(TODO|FIXME|XXX|HACK|NOTE)" "$file" 2>/dev/null || echo "0")
-        local density=$((todos * 100 / lines))
-        
-        if [ "$density" -gt "$MAX_TODO_DENSITY" ] && [ "$todos" -gt 0 ]; then
-            echo "    ${YELLOW}⚠ High TODO density: $file ($todos TODOs in $lines lines, density: ${density}%)${NC}"
-            issues=$((issues + 1))
-        fi
-    done < <(find "$dir" -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" -o -name "*.py" \) \
-        ! -path "*/node_modules/*" \
-        ! -path "*/dist/*" \
-        ! -path "*/build/*" \
-        ! -path "*/__pycache__/*" \
-        ! -name "*.test.js" \
-        ! -name "*.spec.js" \
-        2>/dev/null | head -20)
-    
-    TOTAL_ISSUES=$((TOTAL_ISSUES + issues))
-    
-    if [ "$issues" -eq 0 ]; then
-        echo "  ${GREEN}✓ No issues found with fallback checks${NC}"
-    fi
-}
-
-# Scan each directory
-for dir in "${SCAN_DIRS[@]}"; do
-    scan_directory "$dir"
-    echo ""
-done
-
-# Summary
-echo "${BLUE}=== Summary ===${NC}"
-if [ "$TOTAL_ISSUES" -eq 0 ]; then
-    echo "${GREEN}✅ No code quality issues found!${NC}"
-    exit 0
 else
-    echo "${YELLOW}⚠ Found $TOTAL_ISSUES code quality issue(s)${NC}"
-    echo ""
-    echo "${CYAN}Recommendations:${NC}"
-    echo "  1. Review large files and consider splitting them"
-    echo "  2. Break down long functions into smaller, focused functions"
-    echo "  3. Address TODO/FIXME comments or convert them to issues"
-    echo "  4. Run with software-entropy for detailed analysis:"
-    echo "     ${BLUE}npx -y software-entropy@latest .${NC}"
-    echo ""
+    # Fallback: Traditional scan without hotspots
+    echo "${YELLOW}Running traditional scan (no hotspots - git required)...${NC}"
+    OUTPUT=$(mktemp)
+    ERROR_OUTPUT=$(mktemp)
     
-    # Don't fail the script - just warn
-    exit 0
+    if $SOFTWARE_ENTROPY_CMD . \
+        --config "$CONFIG_FILE" \
+        --no-hotspots \
+        --output "${OUTPUT_FILE:-code-quality-report.json}" \
+        > "$OUTPUT" 2> "$ERROR_OUTPUT"; then
+        cat "$OUTPUT"
+        if [ -s "$ERROR_OUTPUT" ]; then
+            echo ""
+            echo "${YELLOW}⚠ Warnings:${NC}"
+            cat "$ERROR_OUTPUT" | head -5
+        fi
+        rm -f "$OUTPUT" "$ERROR_OUTPUT"
+        echo ""
+        echo "${GREEN}✅ Code quality scan complete!${NC}"
+        exit 0
+    else
+        cat "$OUTPUT" 2>/dev/null || true
+        cat "$ERROR_OUTPUT" 2>/dev/null || true
+        rm -f "$OUTPUT" "$ERROR_OUTPUT"
+        echo ""
+        echo "${RED}✗ Code quality scan failed${NC}"
+        exit 1
+    fi
 fi
 

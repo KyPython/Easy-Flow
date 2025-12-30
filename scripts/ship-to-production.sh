@@ -53,6 +53,7 @@ if npm run test:all; then
     echo "${GREEN}✓ All tests passed on dev branch${NC}"
 else
     echo "${RED}✗ Tests failed on dev branch. Fix issues before shipping to production.${NC}"
+    echo "${YELLOW}  Run 'npm run test:all' to see detailed test results${NC}"
     exit 1
 fi
 
@@ -62,6 +63,26 @@ if npm run security:scan; then
     echo "${GREEN}✓ Security scan passed${NC}"
 else
     echo "${RED}✗ Security scan failed. Fix vulnerabilities before shipping to production.${NC}"
+    exit 1
+fi
+
+# Step 2.25: Run comprehensive code validation (SRP, Dynamic, Theme, Logging, RAG)
+echo "\n${BLUE}Step 2.25: Running comprehensive code validation...${NC}"
+if ./scripts/validate-all.sh; then
+    echo "${GREEN}✓ All code validation checks passed${NC}"
+else
+    echo "${RED}✗ Code validation failed. Fix issues before shipping to production.${NC}"
+    echo "${YELLOW}  Run './scripts/validate-all.sh' for details${NC}"
+    exit 1
+fi
+
+# Step 2.3: Validate RAG Knowledge Base
+echo "\n${BLUE}Step 2.3: Validating RAG Knowledge Base...${NC}"
+if ./scripts/validate-rag-knowledge.sh; then
+    echo "${GREEN}✓ RAG knowledge validation passed${NC}"
+else
+    echo "${RED}✗ RAG knowledge validation failed. Fix issues before shipping to production.${NC}"
+    echo "${YELLOW}  Update ragClient.js seedEasyFlowKnowledge() and aiWorkflowAgent.js system prompts${NC}"
     exit 1
 fi
 

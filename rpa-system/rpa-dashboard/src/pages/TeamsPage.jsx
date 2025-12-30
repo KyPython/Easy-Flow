@@ -42,6 +42,20 @@ function getAuthToken() {
 }
 const roleOptions = ['Owner', 'Admin', 'Member'];
 
+// Map display role names to backend role values
+const roleMap = {
+  'Owner': 'owner',
+  'Admin': 'admin',
+  'Member': 'member'
+};
+
+// Reverse map for displaying backend roles
+const roleDisplayMap = {
+  'owner': 'Owner',
+  'admin': 'Admin',
+  'member': 'Member'
+};
+
 function TeamManagement() {
   const [members, setMembers] = useState([]);
   const [showInvite, setShowInvite] = useState(false);
@@ -82,11 +96,13 @@ function TeamManagement() {
   };
 
   // Change role
-  const handleRoleChange = async (id, newRole) => {
+  const handleRoleChange = async (id, newRoleDisplay) => {
     setLoading(true);
     try {
-      await api.patch(`/api/team/${id}`, { role: newRole });
-      setMembers((prev) => prev.map((m) => m.id === id ? { ...m, role: newRole } : m));
+      // Convert display role to backend role
+      const backendRole = roleMap[newRoleDisplay] || newRoleDisplay.toLowerCase();
+      await api.patch(`/api/team/${id}`, { role: backendRole });
+      setMembers((prev) => prev.map((m) => m.id === id ? { ...m, role: newRoleDisplay } : m));
     } catch (e) {
       setError('Failed to update role.');
     }
@@ -98,7 +114,9 @@ function TeamManagement() {
     if (!inviteEmail) return;
     setLoading(true);
     try {
-      const { data } = await api.post('/api/team/invite', { email: inviteEmail, role: inviteRole });
+      // Convert display role to backend role
+      const backendRole = roleMap[inviteRole] || inviteRole.toLowerCase();
+      const { data } = await api.post('/api/team/invite', { email: inviteEmail, role: backendRole });
       if (data.member) setMembers((prev) => [...prev, data.member]);
       setInviteEmail('');
       setInviteRole('Member');
@@ -123,28 +141,32 @@ function TeamManagement() {
         {!loading && members.length === 0 && !error && (
           <div style={{ padding: '32px', textAlign: 'center', color: '#666' }}>No team members yet.</div>
         )}
-        {members.map((member) => (
-          <div className={styles.memberRow} key={member.id} style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #eee', padding: '16px 24px' }}>
-            <span style={{ flex: 2 }}>{member.name}</span>
-            <span style={{ flex: 3 }}>{member.email}</span>
-            <span style={{ flex: 2 }}>
-              <select
-                value={member.role}
-                onChange={(e) => handleRoleChange(member.id, e.target.value)}
-                style={{ padding: 6, borderRadius: 6, border: '1px solid #ccc', background: '#fff', color: '#222' }}
-              >
-                {roleOptions.map((role) => (
-                  <option key={role} value={role}>{role}</option>
-                ))}
-              </select>
-            </span>
+        {members.map((member) => {
+          // Convert backend role to display role
+          const displayRole = roleDisplayMap[member.role] || member.role || 'Member';
+          return (
+            <div className={styles.memberRow} key={member.id} style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #eee', padding: '16px 24px' }}>
+              <span style={{ flex: 2 }}>{member.full_name || member.name || 'N/A'}</span>
+              <span style={{ flex: 3 }}>{member.email}</span>
+              <span style={{ flex: 2 }}>
+                <select
+                  value={displayRole}
+                  onChange={(e) => handleRoleChange(member.id, e.target.value)}
+                  style={{ padding: 6, borderRadius: 6, border: '1px solid #ccc', background: '#fff', color: '#222' }}
+                >
+                  {roleOptions.map((role) => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+              </span>
             <span style={{ flex: 1, textAlign: 'right' }}>
               <button style={{ background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontWeight: 600, cursor: 'pointer' }} onClick={() => handleRemove(member.id)} disabled={loading}>
                 Remove
               </button>
             </span>
           </div>
-        ))}
+          );
+        })}
       </div>
       <div style={{ marginTop: 32, textAlign: 'right' }}>
         <button style={{ background: '#007bff', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontWeight: 600, cursor: 'pointer', margin: '0 8px' }} onClick={() => setShowInvite(true)} disabled={loading}>

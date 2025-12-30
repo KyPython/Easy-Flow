@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext';
-import SearchSuggestions from '../SearchSuggestions/SearchSuggestions';
+import { SearchSuggestions } from '../LazyLoader';
 import styles from './UrlInput.module.css';
 
 // Get API base URL from environment or use relative path for production

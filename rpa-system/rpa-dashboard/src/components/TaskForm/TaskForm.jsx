@@ -17,7 +17,7 @@ import { useFormPersistence, enableBrowserAutofill } from '../../utils/formPersi
 import { useAuth } from '../../utils/AuthContext';
 import { useTheme } from '../../utils/ThemeContext';
 import useUsageTracking from '../../hooks/useUsageTracking';
-import SearchSuggestions from '../SearchSuggestions/SearchSuggestions';
+import { SearchSuggestions } from '../LazyLoader';
 import PaywallModal from '../PaywallModal/PaywallModal';
 import { sanitizeErrorMessage } from '../../utils/errorMessages';
 import { createLogger } from '../../utils/logger';

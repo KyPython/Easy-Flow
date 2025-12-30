@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import PlanGate from '../components/PlanGate/PlanGate';
 import supabase, { initSupabase } from '../utils/supabaseClient';
 import { useAuth } from '../utils/AuthContext';
@@ -240,7 +241,8 @@ export default function SettingsPage() {
     if (!user) return;
     try {
       setPageLoading(true);
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('subscriptions')
         .select('*, plan:plans(*)')
         .eq('user_id', user.id)
@@ -249,40 +251,86 @@ export default function SettingsPage() {
         .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        // ✅ UX: Handle specific error cases gracefully
+        if (error.code === 'PGRST116' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+          // Table doesn't exist or RLS blocking - not a critical error
+          logger.warn('Subscription table not accessible', {
+            error: error.message,
+            code: error.code,
+            user_id: user?.id
+          });
+          setSubscription(null);
+          return;
+        }
+        throw error;
+      }
       setSubscription(data || null);
       setPlanId(data?.plan?.id || null);
     } catch (err) {
-      logger.error('Error fetching subscription', {
-        error: err.message || err,
-        user_id: user?.id,
-        stack: err.stack
-      });
-      setPlanError('Error fetching subscription');
+      // ✅ UX: Only log critical errors, not expected RLS/table issues
+      if (err.code !== 'PGRST116' && !err.message?.includes('relation') && !err.message?.includes('does not exist')) {
+        logger.error('Error fetching subscription', {
+          error: err.message || err,
+          code: err.code,
+          user_id: user?.id
+        });
+      } else {
+        logger.warn('Subscription data not available', {
+          error: err.message || err,
+          code: err.code,
+          user_id: user?.id
+        });
+      }
+      // Don't set error message for expected cases (RLS, missing tables)
+      if (err.code !== 'PGRST116' && !err.message?.includes('relation')) {
+        setPlanError('Error fetching subscription');
+      }
     } finally {
       setPageLoading(false);
     }
-  }, [user]);
+  }, [user, logger]);
 
   // Fetch all plans
   const fetchPlans = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const client = await initSupabase();
+      const { data, error } = await client
         .from('plans')
         .select('id, name, price_cents, billing_interval, polar_url, description')
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        // ✅ UX: Handle specific error cases gracefully
+        if (error.code === 'PGRST116' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+          // Table doesn't exist or RLS blocking - not a critical error
+          logger.warn('Plans table not accessible', {
+            error: error.message,
+            code: error.code
+          });
+          setPlans([]);
+          return;
+        }
+        throw error;
+      }
       setPlans(data || []);
     } catch (err) {
-      logger.error('Error fetching plans', {
-        error: err.message || err,
-        user_id: user?.id,
-        stack: err.stack
-      });
-      setPlanError('Error loading plans');
+      // ✅ UX: Only log critical errors, not expected RLS/table issues
+      if (err.code !== 'PGRST116' && !err.message?.includes('relation') && !err.message?.includes('does not exist')) {
+        logger.error('Error fetching plans', {
+          error: err.message || err,
+          code: err.code
+        });
+        setPlanError('Error loading plans');
+      } else {
+        logger.warn('Plans data not available', {
+          error: err.message || err,
+          code: err.code
+        });
+        // Don't set error for expected cases - user can still use the page
+      }
     }
-  }, []);
+  }, [logger]);
 
   // Set default planId after plans load
   useEffect(() => {
@@ -721,6 +769,15 @@ export default function SettingsPage() {
             {planError && <div className={styles.error}>{planError}</div>}
           </>
         )}
+      </section>
+
+      {/* Legal */}
+      <section className={styles.section}>
+        <h3 className={styles.heading}>Legal</h3>
+        <div className={styles.legalLinks}>
+          <Link to="/privacy" className={styles.legalLink}>Privacy Policy</Link>
+          <Link to="/terms" className={styles.legalLink}>Terms of Use</Link>
+        </div>
       </section>
       </div>
   );

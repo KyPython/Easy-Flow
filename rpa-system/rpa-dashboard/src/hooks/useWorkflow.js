@@ -3,6 +3,15 @@ import { supabase, initSupabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
 import { api } from '../utils/api';
 
+// UUID validation regex (matches Supabase UUID format)
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Validate workflowId is a valid UUID
+const isValidWorkflowId = (id) => {
+  if (!id) return false;
+  return uuidRegex.test(id);
+};
+
 export const useWorkflow = (workflowId) => {
   const [workflow, setWorkflow] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -11,8 +20,12 @@ export const useWorkflow = (workflowId) => {
 
   // Load workflow data
   useEffect(() => {
-    if (!workflowId) {
+    if (!workflowId || !isValidWorkflowId(workflowId)) {
       setLoading(false);
+      if (workflowId && !isValidWorkflowId(workflowId)) {
+        console.warn(`[useWorkflow] Invalid workflowId format: "${workflowId}". Expected UUID format.`);
+        setError(`Invalid workflow ID format: "${workflowId}"`);
+      }
       return;
     }
 
@@ -54,7 +67,7 @@ export const useWorkflow = (workflowId) => {
 
   // Update workflow
   const updateWorkflow = useCallback(async (updates) => {
-    if (!workflowId) return;
+    if (!workflowId || !isValidWorkflowId(workflowId)) return;
 
     try {
       setSaving(true);
@@ -260,7 +273,7 @@ export const useWorkflow = (workflowId) => {
 
   // Delete workflow
   const deleteWorkflow = async () => {
-    if (!workflowId) return;
+    if (!workflowId || !isValidWorkflowId(workflowId)) return;
 
     try {
       const client = await initSupabase();
@@ -281,7 +294,7 @@ export const useWorkflow = (workflowId) => {
 
   // Execute workflow
   const executeWorkflow = async (inputData = {}) => {
-    if (!workflowId) return;
+    if (!workflowId || !isValidWorkflowId(workflowId)) return;
 
     try {
       const { data: result } = await api.post(buildApiUrl('/api/workflows/execute'), {
@@ -297,7 +310,7 @@ export const useWorkflow = (workflowId) => {
 
   // Get workflow executions
   const getExecutions = async (limit = 50, offset = 0) => {
-    if (!workflowId) return [];
+    if (!workflowId || !isValidWorkflowId(workflowId)) return [];
 
     try {
       const client = await initSupabase();

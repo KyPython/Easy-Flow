@@ -17,14 +17,17 @@ export default function LandingPage() {
         <div className={styles.heroContent}>
           <div className={styles.topRow}>
             <h1 className={styles.title}>🚀 Stop Doing Boring Work</h1>
-            <button
-              type="button"
-              onClick={toggle}
-              className={styles.themeToggle}
-              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-            >
-              {theme === 'light' ? '🌙' : '☀️'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <Link to="/privacy" className={styles.footerLink} style={{ fontSize: 'var(--font-size-sm)', textDecoration: 'underline' }}>Privacy Policy</Link>
+              <button
+                type="button"
+                onClick={toggle}
+                className={styles.themeToggle}
+                aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+              >
+                {theme === 'light' ? '🌙' : '☀️'}
+              </button>
+            </div>
           </div>
 
           <p className={styles.lead}>
@@ -32,6 +35,12 @@ export default function LandingPage() {
             <strong>Before:</strong> Copy data from Slack → paste into Google Sheets. Copy from email → paste into Notion. Copy from forms → paste into CRM. Hours wasted every week.<br/><br/>
             <strong>After:</strong> Connect your tools once. EasyFlow automatically moves data between them. No more manual copy/paste. No coding required.<br/><br/>
             <strong>Zero-infrastructure automation</strong> - No servers, no DevOps. Just connect and go.
+          </p>
+          <p style={{ fontSize: 'var(--font-size-sm)', marginTop: '16px', textAlign: 'center' }}>
+            By using EasyFlow, you agree to our{' '}
+            <Link to="/terms" style={{ textDecoration: 'underline' }}>Terms of Use</Link>
+            {' '}and{' '}
+            <Link to="/privacy" style={{ textDecoration: 'underline' }}>Privacy Policy</Link>.
           </p>
           <div className={styles.ctaGroup}>
             <a href="https://calendly.com/kyjahn-smith/consultation" target="_blank" rel="noopener noreferrer" className={styles.ctaPrimary}>
@@ -74,6 +83,40 @@ export default function LandingPage() {
             {t('landing.early_users_benefits', 'Free done-with-you setup + priority support + direct line to the builder (me, KyJahn)')}
           </p>
         </div>
+      </section>
+
+      {/* ✅ NEW FEATURE: Cost Savings Highlight */}
+      <section className={styles.featuresSection} style={{ background: 'var(--color-success-50)', padding: 'var(--spacing-xl)', borderRadius: 'var(--radius-xl)', margin: 'var(--spacing-xl) 0' }}>
+        <h2 className={styles.sectionTitle}>💰 Save Up to 25% on Automation Costs</h2>
+        <p style={{ textAlign: 'center', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--spacing-lg)', color: 'var(--text-muted)' }}>
+          Unlike Zapier and Make, EasyFlow automatically optimizes costs with smart execution modes
+        </p>
+        <div className={styles.featuresGrid}>
+          <div className={styles.featureCard}>
+            <div className={styles.featureIcon}>⚡</div>
+            <h3 className={styles.featureTitle}>Instant Mode</h3>
+            <p className={styles.featureText}>
+              <strong>For urgent tasks:</strong> User-triggered workflows run immediately. Perfect for real-time automation needs.
+            </p>
+          </div>
+          <div className={styles.featureCard}>
+            <div className={styles.featureIcon}>⚖️</div>
+            <h3 className={styles.featureTitle}>Balanced Mode</h3>
+            <p className={styles.featureText}>
+              <strong>Standard performance:</strong> 12.5% cost savings. Best for most workflows that don't need instant execution.
+            </p>
+          </div>
+          <div className={styles.featureCard}>
+            <div className={styles.featureIcon}>💰</div>
+            <h3 className={styles.featureTitle}>Scheduled Mode</h3>
+            <p className={styles.featureText}>
+              <strong>Cost-optimized:</strong> 25% savings by batching workflows during off-peak hours. Perfect for background tasks.
+            </p>
+          </div>
+        </div>
+        <p style={{ textAlign: 'center', fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-md)', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+          Smart scheduling automatically selects the best mode based on your workflow's urgency and context
+        </p>
       </section>
 
       <section className={styles.featuresSection}>
@@ -127,6 +170,10 @@ export default function LandingPage() {
         <div className={styles.footerLinks}>
           <a href="tel:+12034494970" className={styles.footerLink}>{t('landing.call_support','Call Support: +1 (203) 449-4970')}</a>
           <a href="mailto:support@useeasyflow.com" className={styles.footerLink}>{t('landing.email_support','Email: support@useeasyflow.com')}</a>
+        </div>
+        <div className={styles.footerLinks} style={{ marginTop: 'var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>
+          <Link to="/privacy" className={styles.footerLink}>Privacy Policy</Link>
+          <Link to="/terms" className={styles.footerLink}>Terms of Use</Link>
         </div>
       </footer>
     </div>

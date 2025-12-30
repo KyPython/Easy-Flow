@@ -54,13 +54,60 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
       }
 
       // Load versions and statistics in parallel using centralized api
-      const [versionsResp, statsResp] = await Promise.all([
+      // Use Promise.allSettled to handle partial failures gracefully
+      const [versionsResult, statsResult] = await Promise.allSettled([
         api.get(`/api/workflows/${workflowId}/versions?limit=50`, { headers: { Authorization: `Bearer ${token}` } }),
         api.get(`/api/workflows/${workflowId}/versions/statistics`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
-      setVersions(versionsResp?.data?.data?.versions || []);
-      setStatistics(statsResp?.data?.data || null);
+      // Handle versions response
+      if (versionsResult.status === 'fulfilled') {
+        setVersions(versionsResult.value?.data?.data?.versions || versionsResult.value?.data?.versions || []);
+      } else {
+        const versionsErr = versionsResult.reason;
+        // ✅ UX: Handle 404 gracefully - feature may not be implemented yet
+        if (versionsErr.response?.status === 404) {
+          console.warn('Workflow versioning endpoint not available:', versionsErr.response?.status);
+          setVersions([]); // Set empty array instead of showing error
+        } else {
+          throw versionsErr; // Re-throw non-404 errors
+        }
+      }
+
+      // Handle statistics response
+      if (statsResult.status === 'fulfilled') {
+        setStatistics(statsResult.value?.data?.data || statsResult.value?.data || null);
+      } else {
+        const statsErr = statsResult.reason;
+        // ✅ UX: Handle 404 gracefully - feature may not be implemented yet
+        if (statsErr.response?.status === 404) {
+          console.warn('Workflow version statistics endpoint not available:', statsErr.response?.status);
+          setStatistics(null); // Set null instead of showing error
+        } else {
+          // Only set error if versions also failed (to avoid duplicate error messages)
+          if (versionsResult.status === 'rejected' && versionsResult.reason.response?.status !== 404) {
+            throw statsErr;
+          }
+        }
+      }
+
+      // Only show error if both requests failed with non-404 errors
+      if (versionsResult.status === 'rejected' && statsResult.status === 'rejected') {
+        const versionsErr = versionsResult.reason;
+        const statsErr = statsResult.reason;
+        
+        if (versionsErr.response?.status !== 404 && statsErr.response?.status !== 404) {
+          // Both failed with non-404 errors - show error message
+          if (versionsErr.response?.status === 403 || statsErr.response?.status === 403) {
+            setError('Version history is not available on your current plan. Please upgrade to access this feature.');
+          } else if (versionsErr.response?.status === 401 || statsErr.response?.status === 401) {
+            setError('Please sign in to view version history.');
+          } else {
+            setError(versionsErr.response?.data?.error || versionsErr.message || 'Failed to load version history. Please try again.');
+          }
+        }
+        // If both are 404, silently handle (feature not implemented)
+      }
 
     } catch (err) {
       console.error('Failed to load version data:', err);
@@ -70,6 +117,11 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
         setError('Version history is not available on your current plan. Please upgrade to access this feature.');
       } else if (err.response?.status === 401) {
         setError('Please sign in to view version history.');
+      } else if (err.response?.status === 404) {
+        // ✅ UX: Handle 404 gracefully - feature may not be implemented yet
+        setVersions([]);
+        setStatistics(null);
+        // Don't set error message for 404 - feature may not be available
       } else {
         setError(err.response?.data?.error || err.message || 'Failed to load version history. Please try again.');
       }

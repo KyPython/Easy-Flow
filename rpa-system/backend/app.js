@@ -49,6 +49,33 @@ const { v4: uuidv4 } = require('uuid');
 // Load environment variables from the backend/.env file early so modules that
 // require configuration (Firebase, Supabase, etc.) see the variables on require-time.
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+
+// ✅ CRITICAL: Run comprehensive configuration health check BEFORE initializing services
+// This prevents the authentication cascade by catching all config issues early
+try {
+  const { runConfigHealthCheck } = require('./utils/configHealthCheck');
+  const healthCheck = runConfigHealthCheck();
+  if (healthCheck.shouldExit) {
+    logger.error('🔥 Configuration health check failed - server will not start');
+    process.exit(1);
+  }
+} catch (healthCheckError) {
+  // If health check module fails to load, log but continue (to avoid breaking if file is missing)
+  logger.warn('⚠️ Configuration health check not available:', healthCheckError.message);
+  
+  // Fallback: Still validate Firebase config
+  try {
+    const { validateFirebaseConfig } = require('./utils/firebaseConfigValidator');
+    const validationResult = validateFirebaseConfig();
+    if (!validationResult.valid && (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev')) {
+      logger.error('🔥 Firebase configuration validation failed - server will not start');
+      process.exit(1);
+    }
+  } catch (validationError) {
+    logger.warn('⚠️ Firebase config validator not available:', validationError.message);
+  }
+}
+
 const { firebaseNotificationService, NotificationTemplates } = require('./utils/firebaseAdmin');
 const { getKafkaService } = require('./utils/kafkaService');
 const taskStatusStore = require('./utils/taskStatusStore');
@@ -236,6 +263,16 @@ const corsOptions = {
 
 // Apply CORS FIRST - before any other middleware
 app.use(cors(corsOptions));
+
+// Add ngrok skip-browser-warning header for OAuth callbacks (helps with free tier warning page)
+// Note: This only helps with subsequent requests - initial OAuth redirects may still show the warning
+app.use((req, res, next) => {
+  // Set header to skip ngrok browser warning for OAuth callbacks
+  if (req.path.includes('/oauth/callback')) {
+    res.setHeader('ngrok-skip-browser-warning', 'true');
+  }
+  next();
+});
 // Ensure preflight requests are handled consistently
 app.options('*', cors(corsOptions));
 // Explicit OPTIONS handler for all routes to ensure CORS preflight works
@@ -265,10 +302,10 @@ app.options('/*', (req, res) => {
   
   if (corsOrigin) {
     res.header('Access-Control-Allow-Origin', corsOrigin);
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.sendStatus(204);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(204);
   } else {
     // Origin not allowed
     rootLogger.warn('🚫 CORS preflight blocked origin (OPTIONS handler):', origin);
@@ -600,7 +637,7 @@ app.use(cookieParser(sessionSecretToUse));
 
 // Apply global rate limiter to all routes (skip entirely in development/test)
 if (isProduction) {
-  app.use(globalLimiter);
+app.use(globalLimiter);
 }
 
 // Apply auth limiter only in production
@@ -1215,7 +1252,11 @@ try {
       if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
 
       const executor = new WorkflowExecutor();
-      logger.info('[API] execute request', { userId, workflowId, triggeredBy, traceId });
+      
+      // ✅ EXECUTION MODES: Get execution mode from request or auto-detect
+      const { executionMode } = req.body || {};
+      
+      logger.info('[API] execute request', { userId, workflowId, triggeredBy, executionMode, traceId });
       let execution;
       try {
         execution = await executor.startExecution({
@@ -1223,7 +1264,8 @@ try {
           userId,
           triggeredBy,
           triggerData,
-          inputData
+          inputData,
+          executionMode // Pass explicit mode if provided
         });
       } catch (e) {
         const msg = e?.message || '';
@@ -2093,7 +2135,15 @@ const apiAuthMiddleware = async (req, res, next) => {
 };
 
 // Apply rate limiter only in production, then auth middleware
-app.use('/api', isProduction ? authLimiter : (req, res, next) => next(), apiAuthMiddleware);
+// Apply auth middleware to /api routes, but exclude OAuth callbacks
+// OAuth callbacks authenticate via state tokens, not JWT tokens
+app.use('/api', isProduction ? authLimiter : (req, res, next) => next(), (req, res, next) => {
+  // Skip auth for OAuth callback routes (they authenticate via state token)
+  if (req.path.match(/\/integrations\/\w+\/oauth\/callback$/)) {
+    return next();
+  }
+  return apiAuthMiddleware(req, res, next);
+});
 
 // --- Authenticated API Routes ---
 // All routes defined below this point will require a valid JWT.
@@ -2136,6 +2186,10 @@ app.get('/api/workflows', authMiddleware, async (req, res) => {
 try {
   const aiAgentRoutes = require('./routes/aiAgentRoutes');
   app.use('/api/ai-agent', aiAgentRoutes);
+  
+  // RAG service routes
+  const ragRoutes = require('./routes/ragRoutes');
+  app.use('/api/rag', ragRoutes);
   rootLogger.info('✓ AI Agent routes mounted at /api/ai-agent (after auth middleware)');
 } catch (e) {
   rootLogger.warn('AI Agent routes not mounted (OpenAI API key may not be configured)', { error: e?.message || e });
@@ -7317,108 +7371,8 @@ app.post('/api/extract-data-bulk', authMiddleware, requirePlan('professional'), 
 // The integrationRoutes uses integration_credentials table with 'service' field
 // This duplicate route has been removed to avoid conflicts
 
-// GET /api/integrations/usage - Get integration usage stats (workflows, recent activity)
-app.get('/api/integrations/usage', authMiddleware, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const usage = {};
-
-    // Map integration service names to their action types
-    const integrationActions = {
-      slack: ['slack_send', 'slack_read', 'slack_collect_feedback'],
-      gmail: ['gmail_send', 'gmail_read', 'gmail_collect_feedback'],
-      google_sheets: ['sheets_read', 'sheets_write', 'sheets_compile_feedback'],
-      google_meet: ['meet_transcribe', 'meet_process_recordings'],
-      whatsapp: ['whatsapp_send'],
-      notion: [] // Add notion actions when available
-    };
-
-    // Get all workflows for this user
-    const { data: workflows, error: workflowsError } = await supabase
-      .from('workflows')
-      .select('id, name, steps, status')
-      .eq('user_id', userId);
-
-    if (workflowsError) {
-      logger.warn('[integrations/usage] Error fetching workflows:', workflowsError);
-    }
-
-    // For each integration, find workflows that use it
-    for (const [serviceId, actionTypes] of Object.entries(integrationActions)) {
-      const workflowsUsingService = [];
-      
-      if (workflows && actionTypes.length > 0) {
-        for (const workflow of workflows) {
-          if (!workflow.steps || !Array.isArray(workflow.steps)) continue;
-          
-          // Check if any step uses this integration
-          const usesIntegration = workflow.steps.some(step => {
-            const actionType = step.action_type || step.type;
-            return actionTypes.includes(actionType);
-          });
-
-          if (usesIntegration) {
-            workflowsUsingService.push({
-              id: workflow.id,
-              name: workflow.name,
-              status: workflow.status
-            });
-          }
-        }
-      }
-
-      // Count recent workflow executions (last 24 hours) that used this integration
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      let recentActivityCount = 0;
-
-      if (workflowsUsingService.length > 0) {
-        const workflowIds = workflowsUsingService.map(w => w.id);
-        try {
-          const { data: recentExecutions, error: executionsError } = await supabase
-            .from('workflow_executions')
-            .select('id')
-            .in('workflow_id', workflowIds)
-            .gte('created_at', oneDayAgo)
-            .eq('status', 'completed');
-
-          if (!executionsError && recentExecutions) {
-            recentActivityCount = recentExecutions.length;
-          } else if (executionsError) {
-            // Log but don't fail - table might not exist or be empty
-            logger.debug('[integrations/usage] Could not fetch workflow executions', { 
-              error: executionsError.message,
-              serviceId 
-            });
-          }
-        } catch (execError) {
-          // Gracefully handle if workflow_executions table doesn't exist
-          logger.debug('[integrations/usage] Workflow executions query failed', { 
-            error: execError.message,
-            serviceId 
-          });
-        }
-      }
-
-      usage[serviceId] = {
-        workflowCount: workflowsUsingService.length,
-        workflows: workflowsUsingService,
-        recentActivityCount
-      };
-    }
-
-    res.json({
-      success: true,
-      usage
-    });
-
-  } catch (error) {
-    logger.error('[integrations/usage] Error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
+// GET /api/integrations/usage - Moved to integrationRoutes.js to avoid route conflicts
+// The endpoint is now defined in routes/integrationRoutes.js before the /:service route
 
 app.post('/api/integrations/sync-files', authMiddleware, requireFeature('custom_integrations'), async (req, res) => {
   if (!integrationFramework) {

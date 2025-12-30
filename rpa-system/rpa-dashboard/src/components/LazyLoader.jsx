@@ -4,6 +4,7 @@ import React, { Suspense } from 'react';
 const LazyStepConfigPanel = React.lazy(() => import('./WorkflowBuilder/StepConfigPanel'));
 const LazyTaskForm = React.lazy(() => import('./TaskForm/TaskForm'));
 const LazyFileManager = React.lazy(() => import('./FileManager/FileManager'));
+const LazySearchSuggestions = React.lazy(() => import('./SearchSuggestions/SearchSuggestions'));
 
 // Loading fallback component
 const LoadingFallback = ({ componentName = "component" }) => (
@@ -49,8 +50,15 @@ export const FileManager = (props) => (
   </Suspense>
 );
 
+export const SearchSuggestions = (props) => (
+  <Suspense fallback={<LoadingFallback componentName="search suggestions" />}>
+    <LazySearchSuggestions {...props} />
+  </Suspense>
+);
+
 export default {
   StepConfigPanel,
   TaskForm,
-  FileManager
+  FileManager,
+  SearchSuggestions
 };

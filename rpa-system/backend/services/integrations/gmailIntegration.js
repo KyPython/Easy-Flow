@@ -45,7 +45,29 @@ class GmailIntegration {
         email: profile.data.emailAddress
       });
     } catch (error) {
-      throw new Error(`Gmail authentication failed: ${error.message}`);
+      // Provide helpful error messages for common issues
+      let errorMessage = error.message;
+      
+      if (error.message?.includes('has not been used') || error.message?.includes('is disabled')) {
+        // Extract project ID from error message if available
+        const projectIdMatch = error.message.match(/project (\d+)/);
+        const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
+        
+        errorMessage = `Gmail API is not enabled in your Google Cloud project. ` +
+          `Please enable it at: https://console.cloud.google.com/apis/api/gmail.googleapis.com/overview?project=${projectId} ` +
+          `If you just enabled it, wait a few minutes and try again.`;
+      } else if (error.message?.includes('invalid_grant') || error.message?.includes('token')) {
+        errorMessage = `Gmail authentication token expired or invalid. Please reconnect the integration.`;
+      } else if (error.message?.includes('insufficient')) {
+        errorMessage = `Insufficient permissions for Gmail. Please reconnect and grant all required permissions.`;
+      }
+      
+      logger.error('[GmailIntegration] Authentication failed:', {
+        error: error.message,
+        code: error.code
+      });
+      
+      throw new Error(`Gmail authentication failed: ${errorMessage}`);
     }
   }
 

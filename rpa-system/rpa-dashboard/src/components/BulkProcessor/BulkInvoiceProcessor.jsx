@@ -18,6 +18,9 @@ import { initSupabase } from '../../utils/supabaseClient';
 import { useToast } from '../WorkflowBuilder/Toast';
 import PlanGate from '../PlanGate/PlanGate';
 import { createLogger } from '../../utils/logger'; // Structured logger for observability
+import { api } from '../../utils/api'; // API client
+
+const logger = createLogger('BulkInvoiceProcessor');
 
 const BulkInvoiceProcessor = () => {
   const { user } = useAuth();
@@ -72,10 +75,10 @@ const BulkInvoiceProcessor = () => {
         throw new Error('Supabase not configured. Please add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to your environment.');
       }
       
+      // RLS automatically filters by authenticated user - no need for explicit user_id filter
       const { data, error } = await client
         .from('vendor_configs')
         .select('*')
-        .eq('user_id', user.id)
         .eq('is_active', true)
         .order('vendor_name');
 
@@ -93,10 +96,10 @@ const BulkInvoiceProcessor = () => {
         throw new Error('Supabase not configured. Please add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to your environment.');
       }
       
+      // RLS automatically filters by authenticated user - no need for explicit user_id filter
       const { data, error } = await client
         .from('batch_executions')
         .select('*')
-        .eq('user_id', user.id)
         .eq('type', 'bulk_invoice_download')
         .order('created_at', { ascending: false })
         .limit(10);
@@ -169,7 +172,7 @@ const BulkInvoiceProcessor = () => {
       // Start polling for progress
       pollJobProgress(result.batchId);
     } catch (error) {
-      logger.error('Error starting bulk processing', { error: error.message, stack: error.stack, user_id: user?.id, vendor_id: selectedVendor?.id });
+      logger.error('Error starting bulk processing', { error: error.message, stack: error.stack, user_id: user?.id, vendor_count: vendors.length });
       showError('Failed to start bulk processing');
     } finally {
       setLoading(false);
@@ -199,7 +202,7 @@ const BulkInvoiceProcessor = () => {
           await loadBatchJobs();
         }
       } catch (error) {
-        logger.error('Error polling job progress', { error: error.message, stack: error.stack, user_id: user?.id, job_id: jobId });
+        logger.error('Error polling job progress', { error: error.message, stack: error.stack, user_id: user?.id, batch_id: batchId });
         clearInterval(interval);
       }
     }, 3000);

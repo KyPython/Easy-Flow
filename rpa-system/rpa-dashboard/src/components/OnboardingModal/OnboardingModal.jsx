@@ -90,6 +90,36 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
       content: (
         <div className={styles.stepContent}>
           <p>{t('onboarding.step4.congrats','Perfect! You\'re ready to start turning boring work into button clicks.')}</p>
+          
+          {/* ✅ NEW FEATURE: Execution Modes Highlight */}
+          <div style={{
+            background: 'linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-success-50) 100%)',
+            border: '2px solid var(--color-primary-200)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--spacing-md)',
+            margin: 'var(--spacing-md) 0',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '1.5rem', marginBottom: 'var(--spacing-xs)' }}>⚡💰</div>
+            <h4 style={{ 
+              fontSize: 'var(--font-size-base)', 
+              fontWeight: 'var(--font-weight-bold)',
+              marginBottom: 'var(--spacing-xs)',
+              color: 'var(--text-primary)'
+            }}>
+              💰 Save Up to 25% on Workflow Costs
+            </h4>
+            <p style={{ 
+              fontSize: 'var(--font-size-sm)', 
+              color: 'var(--text-muted)',
+              marginBottom: 0,
+              lineHeight: 1.5
+            }}>
+              When creating workflows, choose <strong>Instant</strong> for urgent tasks, <strong>Balanced</strong> for standard runs, 
+              or <strong>Scheduled</strong> for batch jobs. Smart scheduling automatically optimizes costs!
+            </p>
+          </div>
+          
           <div className={styles.completionContent}>
             <div className={styles.nextSteps}>
               <h4>{t('onboarding.step4.whats_next','What\'s next?')}</h4>

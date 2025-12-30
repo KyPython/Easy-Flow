@@ -5,13 +5,42 @@
 const fs = require('fs');
 const path = require('path');
 
+// ✅ CRITICAL: Load .env.local file for local development
+// React's build system loads .env.local, but Node scripts don't automatically
+try {
+  // Try to load dotenv if available (it's in the root package.json)
+  const dotenvPath = path.join(__dirname, '../../../node_modules/dotenv');
+  if (fs.existsSync(dotenvPath)) {
+    require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
+  } else {
+    // Fallback: manually parse .env.local if dotenv is not available
+    const envLocalPath = path.join(__dirname, '../.env.local');
+    if (fs.existsSync(envLocalPath)) {
+      const envContent = fs.readFileSync(envLocalPath, 'utf8');
+      envContent.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+          const [key, ...valueParts] = trimmed.split('=');
+          if (key && valueParts.length > 0) {
+            const value = valueParts.join('=').replace(/^["']|["']$/g, '');
+            process.env[key] = value;
+          }
+        }
+      });
+    }
+  }
+} catch (e) {
+  // If dotenv fails, continue - environment variables may be set via other means
+  console.warn('[generate-firebase-config] Could not load .env.local, using process.env only');
+}
+
 const templatePath = path.join(__dirname, '../public/firebase-config.js.template');
 const outputPath = path.join(__dirname, '../public/firebase-config.js');
 
 // Read template
 let template = fs.readFileSync(templatePath, 'utf8');
 
-// Get environment variables (from process.env or window._env in browser)
+// Get environment variables (from process.env, .env.local, or window._env in browser)
 const env = process.env;
 
 // Replace placeholders with environment variables

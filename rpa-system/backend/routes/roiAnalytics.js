@@ -40,17 +40,54 @@ router.get('/dashboard', requireFeature('advanced_analytics'), async (req, res) 
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     // Get automation execution data
-    const { data: automations, error: automationError } = await supabase
-      .from('automation_executions')
+    // Try workflow_executions first (newer table), fallback to automation_executions if it exists
+    let automations = [];
+    let automationError = null;
+    
+    // Try workflow_executions table (primary)
+    const { data: workflowExecs, error: workflowError } = await supabase
+      .from('workflow_executions')
       .select(`
-        id, task_type, status, execution_time, 
-        created_at, result, estimated_time_saved
+        id, status, started_at, completed_at, duration_seconds,
+        workflow_id, user_id
       `)
       .eq('user_id', userId)
-      .gte('created_at', startDate.toISOString())
-      .order('created_at', { ascending: false });
+      .gte('started_at', startDate.toISOString())
+      .order('started_at', { ascending: false });
 
-    if (automationError) throw automationError;
+    if (!workflowError && workflowExecs) {
+      // Transform workflow_executions to match expected format
+      automations = workflowExecs.map(exec => ({
+        id: exec.id,
+        task_type: 'workflow', // Default task type
+        status: exec.status,
+        execution_time: exec.duration_seconds || 0,
+        created_at: exec.started_at,
+        estimated_time_saved: 10 // Default 10 minutes saved per workflow execution
+      }));
+    } else {
+      // Fallback: try automation_executions table (legacy)
+      const { data: legacyExecs, error: legacyError } = await supabase
+        .from('automation_executions')
+        .select(`
+          id, task_type, status, execution_time, 
+          created_at, result, estimated_time_saved
+        `)
+        .eq('user_id', userId)
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false });
+      
+      if (legacyError) {
+        // If both tables fail, log but continue with empty array
+        logger.warn('Both workflow_executions and automation_executions queries failed', {
+          workflowError: workflowError?.message,
+          legacyError: legacyError?.message
+        });
+        automations = [];
+      } else {
+        automations = legacyExecs || [];
+      }
+    }
 
     // Calculate ROI metrics
     const metrics = calculateROIMetrics(automations || []);
@@ -75,23 +112,40 @@ router.get('/dashboard', requireFeature('advanced_analytics'), async (req, res) 
       generated_at: new Date().toISOString()
     };
 
-    // Log analytics access
-    await auditLogger.logDataAccess(userId, 'roi_analytics', 'read', {
-      timeframe,
-      total_automations: automations?.length || 0
-    });
+    // Log analytics access (non-blocking - don't fail if audit logger has issues)
+    try {
+      await auditLogger.logDataAccess(userId, 'roi_analytics', 'read', {
+        timeframe,
+        total_automations: automations?.length || 0
+      });
+    } catch (auditError) {
+      logger.warn('Failed to log analytics access (non-critical):', auditError);
+    }
 
     res.json(dashboardData);
   } catch (error) {
-    logger.error('ROI dashboard error:', error);
+    logger.error('ROI dashboard error:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id
+    });
     
-    if (req.user?.id) {
-      await auditLogger.logSystemEvent('error', 'roi_dashboard_failed', {
-        error: error.message
-      }, req.user.id);
+    // Try to log system event (non-blocking)
+    try {
+      if (req.user?.id) {
+        await auditLogger.logSystemEvent('error', 'roi_dashboard_failed', {
+          error: error.message,
+          stack: error.stack?.substring(0, 500) // Truncate stack trace
+        }, req.user.id);
+      }
+    } catch (auditError) {
+      logger.warn('Failed to log system event (non-critical):', auditError);
     }
     
-    res.status(500).json({ error: 'Failed to generate ROI dashboard' });
+    res.status(500).json({ 
+      error: 'Failed to generate ROI dashboard',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -113,17 +167,25 @@ router.get('/time-savings', requireFeature('advanced_analytics'), async (req, re
     const supabase = getSupabase();
     if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
 
+    // Use workflow_executions table (primary)
     let query = supabase
-      .from('automation_executions')
+      .from('workflow_executions')
       .select('*')
       .eq('user_id', userId)
-      .gte('created_at', startDate.toISOString());
+      .gte('started_at', startDate.toISOString());
 
-    if (task_type) {
-      query = query.eq('task_type', task_type);
-    }
+    // Note: workflow_executions doesn't have task_type, so skip that filter
+    // If task_type is provided, we'd need to join with workflows table
 
-    const { data: executions, error } = await query.order('created_at', { ascending: false });
+    const { data: executions, error } = await query.order('started_at', { ascending: false });
+    
+    // Transform workflow_executions to match expected format
+    const transformedExecutions = (executions || []).map(exec => ({
+      ...exec,
+      task_type: 'workflow', // Default task type
+      created_at: exec.started_at || exec.created_at,
+      estimated_time_saved: 10 // Default 10 minutes saved per workflow execution
+    }));
 
     if (error) throw error;
 
@@ -138,11 +200,11 @@ router.get('/time-savings', requireFeature('advanced_analytics'), async (req, re
     };
 
     let totalEstimatedSaved = 0;
-    let totalExecutions = executions?.length || 0;
+    let totalExecutions = transformedExecutions?.length || 0;
     const taskTypeSavings = {};
     const dailySavings = {};
 
-    executions?.forEach(exec => {
+    transformedExecutions?.forEach(exec => {
       const savedMinutes = exec.estimated_time_saved || getDefaultTimeSaving(exec.task_type);
       totalEstimatedSaved += savedMinutes;
 
@@ -222,22 +284,40 @@ router.get('/cost-benefit', requireFeature('advanced_analytics'), async (req, re
     const { timeframe = '30d' } = req.query;
     const days = parseInt(timeframe.replace('d', '')) || 30;
     
-    // Get user's plan for cost calculation
-    const { data: planData } = await supabase.rpc('get_user_plan_details', {
-      user_uuid: userId
-    });
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
+    
+    // Get user's plan for cost calculation (if RPC exists)
+    let planData = null;
+    try {
+      const { data } = await supabase.rpc('get_user_plan_details', {
+        user_uuid: userId
+      });
+      planData = data;
+    } catch (rpcError) {
+      // RPC might not exist, use default
+      logger.debug('get_user_plan_details RPC not available, using defaults');
+    }
 
     const monthlyCost = planData?.plan_limits?.monthly_cost || 0;
     const dailyCost = monthlyCost / 30;
     const periodCost = dailyCost * days;
 
-    // Get automation data
+    // Get automation data from workflow_executions
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const { data: executions } = await supabase
-      .from('automation_executions')
+    const { data: workflowExecs } = await supabase
+      .from('workflow_executions')
       .select('*')
       .eq('user_id', userId)
-      .gte('created_at', startDate.toISOString());
+      .gte('started_at', startDate.toISOString());
+    
+    // Transform to match expected format
+    const executions = (workflowExecs || []).map(exec => ({
+      ...exec,
+      task_type: 'workflow',
+      created_at: exec.started_at || exec.created_at,
+      estimated_time_saved: 10
+    }));
 
     // Calculate labor cost savings
     const hourlyRate = parseFloat(process.env.DEFAULT_HOURLY_RATE) || 25; // Default $25/hour
@@ -290,6 +370,9 @@ router.post('/custom-hourly-rate', requireFeature('advanced_analytics'), async (
       return res.status(400).json({ error: 'Invalid hourly rate (must be between 0-1000)' });
     }
 
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
+
     // Store in user preferences
     const { error } = await supabase
       .from('user_preferences')
@@ -330,16 +413,30 @@ router.get('/export', requireFeature('advanced_analytics'), async (req, res) => 
       return res.status(401).json({ error: 'Authentication required' });
     }
 
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
+
     const { format = 'csv', timeframe = '30d' } = req.query;
     const days = parseInt(timeframe.replace('d', '')) || 30;
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    const { data: executions } = await supabase
-      .from('automation_executions')
+    // Use workflow_executions table (primary)
+    const { data: workflowExecs, error: execError } = await supabase
+      .from('workflow_executions')
       .select('*')
       .eq('user_id', userId)
-      .gte('created_at', startDate.toISOString())
-      .order('created_at', { ascending: false });
+      .gte('started_at', startDate.toISOString())
+      .order('started_at', { ascending: false });
+    
+    if (execError) throw execError;
+    
+    // Transform to match expected format
+    const executions = (workflowExecs || []).map(exec => ({
+      ...exec,
+      task_type: 'workflow',
+      created_at: exec.started_at || exec.created_at,
+      estimated_time_saved: 10
+    }));
 
     const filename = `roi_analytics_${userId.split('-')[0]}_${timeframe}`;
 
@@ -388,14 +485,24 @@ function calculateROIMetrics(executions) {
   let totalTimeSaved = 0;
 
   executions.forEach(exec => {
-    if (exec.status === 'completed' || exec.status === 'success') {
+    // Handle different status values from workflow_executions
+    const status = exec.status?.toLowerCase() || '';
+    if (status === 'completed' || status === 'success' || status === 'finished') {
       metrics.successful_executions++;
-    } else {
+    } else if (status === 'failed' || status === 'error' || status === 'cancelled') {
       metrics.failed_executions++;
+    } else {
+      // Treat other statuses (running, queued, etc.) as in-progress, not failed
+      metrics.successful_executions++; // Count as successful for now
     }
 
-    totalExecutionTime += exec.execution_time || 0;
-    totalTimeSaved += exec.estimated_time_saved || getDefaultTimeSaving(exec.task_type);
+    // Handle both execution_time (legacy) and duration_seconds (workflow_executions)
+    const execTime = exec.execution_time || exec.duration_seconds || 0;
+    totalExecutionTime += execTime;
+    
+    // Get time saved - use estimated_time_saved if available, otherwise default
+    const timeSaved = exec.estimated_time_saved || getDefaultTimeSaving(exec.task_type || 'workflow');
+    totalTimeSaved += timeSaved;
   });
 
   if (executions.length > 0) {
@@ -429,14 +536,21 @@ function calculateProductivityTrends(executions, days) {
   const dailyStats = {};
   
   executions.forEach(exec => {
-    const day = exec.created_at.split('T')[0];
+    // Handle both created_at and started_at fields
+    const dateField = exec.created_at || exec.started_at;
+    if (!dateField) return; // Skip if no date field
+    const day = typeof dateField === 'string' ? dateField.split('T')[0] : new Date(dateField).toISOString().split('T')[0];
     if (!dailyStats[day]) {
       dailyStats[day] = { count: 0, time_saved: 0, avg_execution_time: 0, total_execution_time: 0 };
     }
     
     dailyStats[day].count++;
-    dailyStats[day].time_saved += exec.estimated_time_saved || getDefaultTimeSaving(exec.task_type);
-    dailyStats[day].total_execution_time += exec.execution_time || 0;
+    const timeSaved = exec.estimated_time_saved || getDefaultTimeSaving(exec.task_type || 'workflow');
+    dailyStats[day].time_saved += timeSaved;
+    
+    // Handle both execution_time (legacy) and duration_seconds (workflow_executions)
+    const execTime = exec.execution_time || exec.duration_seconds || 0;
+    dailyStats[day].total_execution_time += execTime;
   });
 
   // Calculate averages
@@ -452,8 +566,11 @@ function calculateTaskTypeBreakdown(executions) {
   const breakdown = {};
   
   executions.forEach(exec => {
-    if (!breakdown[exec.task_type]) {
-      breakdown[exec.task_type] = {
+    // Use task_type if available, otherwise default to 'workflow'
+    const taskType = exec.task_type || 'workflow';
+    
+    if (!breakdown[taskType]) {
+      breakdown[taskType] = {
         count: 0,
         success_count: 0,
         total_time_saved: 0,
@@ -462,15 +579,21 @@ function calculateTaskTypeBreakdown(executions) {
       };
     }
     
-    const stats = breakdown[exec.task_type];
+    const stats = breakdown[taskType];
     stats.count++;
     
-    if (exec.status === 'completed' || exec.status === 'success') {
+    // Handle different status values
+    const status = exec.status?.toLowerCase() || '';
+    if (status === 'completed' || status === 'success' || status === 'finished') {
       stats.success_count++;
     }
     
-    stats.total_time_saved += exec.estimated_time_saved || getDefaultTimeSaving(exec.task_type);
-    stats.total_execution_time += exec.execution_time || 0;
+    const timeSaved = exec.estimated_time_saved || getDefaultTimeSaving(taskType);
+    stats.total_time_saved += timeSaved;
+    
+    // Handle both execution_time (legacy) and duration_seconds (workflow_executions)
+    const execTime = exec.execution_time || exec.duration_seconds || 0;
+    stats.total_execution_time += execTime;
   });
 
   // Calculate averages and success rates

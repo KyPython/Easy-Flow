@@ -43,6 +43,7 @@ module.exports = {
         SUPABASE_BUCKET: process.env.SUPABASE_BUCKET,
         DEV_BYPASS_TOKEN: process.env.DEV_BYPASS_TOKEN,
         DEV_USER_ID: process.env.DEV_USER_ID,
+        RAG_SERVICE_URL: process.env.RAG_SERVICE_URL || 'http://localhost:3002',
       },
     },
     {

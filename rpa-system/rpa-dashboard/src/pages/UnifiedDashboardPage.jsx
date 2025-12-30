@@ -22,7 +22,9 @@ const TOOL_CATEGORIES = {
     name: 'Productivity',
     tools: [
       { id: 'google_sheets', name: 'Google Sheets', icon: '📊', color: '#0F9D58' },
+      { id: 'google_drive', name: 'Google Drive', icon: '📁', color: '#4285F4' },
       { id: 'google_meet', name: 'Google Meet', icon: '🎥', color: '#00832D' },
+      { id: 'google_calendar', name: 'Google Calendar', icon: '📅', color: '#4285F4' },
       { id: 'notion', name: 'Notion', icon: '📝', color: '#000000' }
     ]
   }

@@ -38,6 +38,8 @@ const AuthPage = lazy(() => import('./pages/AuthPage'));
 const ResetLanding = lazy(() => import('./pages/ResetLanding'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
 const SharedFilePage = lazy(() => import('./pages/SharedFilePage'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
+const TermsPage = lazy(() => import('./pages/TermsPage'));
 
 // Protected Pages (loaded only for authenticated users)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -148,11 +150,20 @@ function Protected({ children }) {
   const location = useLocation();
   
   if (loading) return null; // or a spinner component
+  
+  // Public routes that don't require authentication
+  const publicRoutes = ['/auth', '/', '/pricing', '/privacy', '/terms', '/shared'];
+  const isPublicRoute = publicRoutes.some(route => location.pathname === route || location.pathname.startsWith(route + '/'));
+  
+  // If it's a public route, allow access even without session
+  if (isPublicRoute) {
+    return children;
+  }
+  
+  // For protected routes, require session
   if (!session) {
     // ✅ SMART REDIRECT: Save intended path before redirecting to login
-    if (location.pathname !== '/auth' && location.pathname !== '/') {
-      sessionStorage.setItem('intended_path', location.pathname + location.search);
-    }
+    sessionStorage.setItem('intended_path', location.pathname + location.search);
     return <Navigate to="/auth" replace />;
   }
   return children;
@@ -312,6 +323,8 @@ function Shell() {
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/auth/reset" element={<ResetLanding />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
             {/* Public shared file access - no authentication required */}
             <Route path="/shared/:token" element={<SharedFilePage />} />
             {/* Public landing page at root for unauthenticated users */}

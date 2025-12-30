@@ -60,13 +60,26 @@ const initializeFirebaseAdmin = () => {
     // Frontend expects: easyflow-77db9 (from firebaseConfig.js)
     const EXPECTED_PROJECT_ID = 'easyflow-77db9';
     if (projectId && projectId !== EXPECTED_PROJECT_ID) {
-      logger.error('🔥 CRITICAL: Firebase Project ID mismatch!', {
+      const errorMessage = `🔥 CRITICAL: Firebase Project ID mismatch!\n` +
+        `Backend uses: '${projectId}'\n` +
+        `Frontend expects: '${EXPECTED_PROJECT_ID}'\n` +
+        `Impact: This will cause 401 authentication failures, FCM failures, and cascade to Supabase real-time instability\n` +
+        `Fix: Set FIREBASE_PROJECT_ID=${EXPECTED_PROJECT_ID} in backend .env file`;
+      
+      logger.error(errorMessage, {
         backend_project_id: projectId,
         frontend_expected_project_id: EXPECTED_PROJECT_ID,
         error: 'Backend and frontend must use the same Firebase project',
-        fix: `Set FIREBASE_PROJECT_ID=${EXPECTED_PROJECT_ID} in backend .env file`
+        fix: `Set FIREBASE_PROJECT_ID=${EXPECTED_PROJECT_ID} in backend .env file`,
+        cascade_impact: '401 auth failures → FCM failures → Supabase instability → Polling fallback'
       });
-      // Don't fail initialization, but log the critical error
+      
+      // ✅ CRITICAL: In development, fail initialization to prevent cascade
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev') {
+        throw new Error(errorMessage);
+      }
+      // In production, log but continue (to avoid breaking production if config is temporarily wrong)
+      // But this will cause authentication failures
     } else if (projectId === EXPECTED_PROJECT_ID) {
       logger.info('✅ Firebase Project ID matches frontend configuration', {
         project_id: projectId

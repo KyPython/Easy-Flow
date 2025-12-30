@@ -12,8 +12,19 @@ const ScheduleList = React.lazy(() => import('../ScheduleBuilder/ScheduleList'))
 const ScheduleEditor = React.lazy(() => import('../ScheduleBuilder/ScheduleEditor'));
 import styles from './WorkflowPage.module.css';
 
+// UUID validation regex (matches Supabase UUID format)
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Validate workflowId is a valid UUID (not a route segment like "executions")
+const isValidWorkflowId = (id) => {
+  if (!id) return false;
+  return uuidRegex.test(id);
+};
+
 const WorkflowPage = () => {
-  const { workflowId } = useParams();
+  const { workflowId: rawWorkflowId } = useParams();
+  // Filter out invalid workflowId values (like "executions", "templates", etc.)
+  const workflowId = rawWorkflowId && isValidWorkflowId(rawWorkflowId) ? rawWorkflowId : null;
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
