@@ -38,6 +38,7 @@
     "ship": "./scripts/ship-to-production.sh",
     "setup:cicd": "./scripts/setup-cicd.sh",
     "setup:protection": "./scripts/setup-branch-protection.sh",
+    "verify:cicd": "./scripts/verify-cicd-integration.sh",
     "assess:features": "./scripts/assess-feature-readiness.sh",
     "ship:features": "./scripts/ship-features.sh",
     "infra:init": "./scripts/terraform-init.sh",
