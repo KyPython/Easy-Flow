@@ -36,6 +36,8 @@
     "logs": "./scripts/watch-logs.sh",
     "vercel:check": "./scripts/check-vercel-config.sh",
     "ship": "./scripts/ship-to-production.sh",
+    "setup:cicd": "./scripts/setup-cicd.sh",
+    "setup:protection": "./scripts/setup-branch-protection.sh",
     "assess:features": "./scripts/assess-feature-readiness.sh",
     "ship:features": "./scripts/ship-features.sh",
     "infra:init": "./scripts/terraform-init.sh",

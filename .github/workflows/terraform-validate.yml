@@ -29,10 +29,28 @@ jobs:
         with:
           terraform_version: "1.6.0"
 
+      - name: Determine branch and validation mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Terraform Format Check
         run: |
           cd infrastructure
-          terraform fmt -check -recursive || (echo "❌ Terraform files need formatting. Run 'terraform fmt' to fix." && exit 1)
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            terraform fmt -check -recursive || (echo "❌ Terraform files need formatting. Run 'terraform fmt' to fix." && exit 1)
+          else
+            terraform fmt -check -recursive || echo "⚠️ Terraform files need formatting (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
       - name: Terraform Init
         run: |
@@ -42,7 +60,12 @@ jobs:
       - name: Terraform Validate
         run: |
           cd infrastructure
-          terraform validate -no-color
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            terraform validate -no-color || (echo "❌ Terraform validation failed - infrastructure must be valid before production deployment" && exit 1)
+          else
+            terraform validate -no-color || echo "⚠️ Terraform validation issues (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
       - name: Terraform Security Scan (Checkov)
         continue-on-error: true

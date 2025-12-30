@@ -291,7 +291,7 @@ jobs:
       - name: Run backend integration tests
         if: steps.check_services.outputs.backend_healthy == 'true'
         working-directory: rpa-system
-        run: npm run test:backend -- --testTimeout=10000 --passWithNoTests
+        run: npm run test:backend -- --testTimeout=10000 --passWithNoTests || (echo "❌ Backend integration tests failed - tests must pass before production deployment" && exit 1)
         env:
           NODE_ENV: test
 
@@ -307,7 +307,7 @@ jobs:
       - name: Run frontend integration tests
         if: steps.check_services.outputs.backend_healthy == 'true'
         working-directory: rpa-system/rpa-dashboard
-        run: CI=true npm test -- --watchAll=false --testTimeout=15000 --passWithNoTests
+        run: CI=true npm test -- --watchAll=false --testTimeout=15000 --passWithNoTests || (echo "❌ Frontend integration tests failed - tests must pass before production deployment" && exit 1)
 
       - name: Run frontend integration tests (without services)
         if: steps.check_services.outputs.backend_healthy != 'true'

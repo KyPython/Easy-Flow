@@ -101,10 +101,15 @@
    ```
    Should show: `google-site-verification=wPQXazSqRb1yTJci7SjYTRshIgurMkyA3CGw5w31auM`
 
-2. **Try Google Search Console Verification Again:**
-   - Wait 10-30 minutes after DNS record was added
-   - Go to Search Console and click "Verify"
-   - If it fails, use URL prefix method instead
+2. **Add DNS TXT Record for Domain Verification:**
+   - Go to your domain registrar (where you bought tryeasyflow.com)
+   - Add a TXT record:
+     - **Name/Host:** `@` or `tryeasyflow.com` (or leave blank, depends on registrar)
+     - **Type:** `TXT`
+     - **Value:** `google-site-verification=0luN2b45mX9jAJnbvGhKK6jCF2fnN1cpcomZqW9hafw`
+   - Save the DNS record
+   - Wait 10-30 minutes for DNS propagation
+   - Go back to Google Search Console and click "Verify"
 
 3. **Request Branding Re-Verification:**
    - After domain verification succeeds
@@ -120,11 +125,12 @@
 
 ## Notes
 
-- **DNS TXT Record:** Already added and visible (`dig TXT tryeasyflow.com` confirms it)
-- **Privacy Policy Link:** Added to landing page header and footer
-- **Terms of Use Link:** Added to landing page footer
+- **DNS TXT Record:** Needs to be added with new verification token
+- **Privacy Policy Link:** ✅ Added to landing page header and footer (in production)
+- **Terms of Use Link:** ✅ Added to landing page footer (in production)
 - **Domain:** tryeasyflow.com
-- **Verification Token:** `wPQXazSqRb1yTJci7SjYTRshIgurMkyA3CGw5w31auM`
+- **Current Verification Token:** `0luN2b45mX9jAJnbvGhKK6jCF2fnN1cpcomZqW9hafw`
+- **Previous Token (if exists):** `wPQXazSqRb1yTJci7SjYTRshIgurMkyA3CGw5w31auM` (may need to be replaced)
 
 ---
 

@@ -9,19 +9,19 @@
 CURRENT_BRANCH=$(git branch --show-current)
 
 if [ "$CURRENT_BRANCH" = "main" ]; then
-    echo "🚀 Running pre-push validation for PRODUCTION (main branch)..."
-    echo "⚠️  Strict checks required for production deployment"
-    npm run test:all
-    
-    # Terraform validation for infrastructure changes
-    if git diff origin/main --name-only | grep -q "infrastructure/.*\.tf$" || [ -d "infrastructure" ]; then
-        echo "🔍 Validating Terraform configuration..."
-        if [ -f "infrastructure/main.tf" ]; then
-            cd infrastructure
-            ../scripts/terraform-validate.sh || (echo "❌ Terraform validation failed" && exit 1)
-            cd ..
-        fi
-    fi
+    echo "❌ ERROR: Direct pushes to 'main' branch are BLOCKED for production safety"
+    echo ""
+    echo "🔒 Production deployments must go through the proper workflow:"
+    echo "   1. Work on 'dev' branch"
+    echo "   2. Run: npm run ship"
+    echo "   3. The ship script will:"
+    echo "      - Run all tests and validations"
+    echo "      - Merge dev → main"
+    echo "      - Push to main (triggers production deployment)"
+    echo ""
+    echo "💡 This prevents non-production-ready code from reaching users"
+    echo ""
+    exit 1
 elif [ "$CURRENT_BRANCH" = "dev" ]; then
     echo "💾 Running light pre-push checks for dev branch (work-in-progress)..."
     echo "ℹ️  Full checks will run when you ship to production (npm run ship)"

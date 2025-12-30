@@ -78,7 +78,7 @@ jobs:
       - name: Run comprehensive test suite
         run: |
           chmod +x scripts/test-all.sh scripts/lint-and-test.sh scripts/code-quality-check.sh
-          ./scripts/test-all.sh || echo "⚠️ Some tests failed (continuing with CI tests)"
+          ./scripts/test-all.sh || (echo "❌ Test suite failed - tests must pass before production deployment" && exit 1)
 
       - name: Run code quality check
         run: |
@@ -102,7 +102,7 @@ jobs:
             echo "🔍 Validating Terraform configuration..."
             chmod +x scripts/terraform-validate.sh
             cd infrastructure
-            ../scripts/terraform-validate.sh || echo "⚠️ Terraform validation issues (non-blocking)"
+            ../scripts/terraform-validate.sh || (echo "❌ Terraform validation failed - infrastructure must be valid before production deployment" && exit 1)
           else
             echo "○ No infrastructure changes detected, skipping Terraform validation"
           fi
