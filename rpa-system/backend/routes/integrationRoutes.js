@@ -33,7 +33,8 @@ router.get('/usage', requireAuth, requireFeature('custom_integrations'), async (
       google_drive: ['drive_upload', 'drive_create_folder'],
       google_calendar: ['calendar_read', 'calendar_create', 'calendar_update', 'calendar_delete'],
       whatsapp: ['whatsapp_send'],
-      notion: ['notion_create_page', 'notion_read_page', 'notion_update_page', 'notion_query_database']
+      notion: ['notion_create_page', 'notion_read_page', 'notion_update_page', 'notion_query_database'],
+      reddit: ['reddit_monitor', 'reddit_analyze', 'reddit_generate_insights', 'reddit_generate_blog_topics']
     };
 
     // Get all workflows for this user

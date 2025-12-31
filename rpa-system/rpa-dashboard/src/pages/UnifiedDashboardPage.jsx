@@ -27,6 +27,12 @@ const TOOL_CATEGORIES = {
       { id: 'google_calendar', name: 'Google Calendar', icon: '📅', color: '#4285F4' },
       { id: 'notion', name: 'Notion', icon: '📝', color: '#000000' }
     ]
+  },
+  research: {
+    name: 'Research & Analytics',
+    tools: [
+      { id: 'reddit', name: 'Reddit', icon: '📱', color: '#FF4500' }
+    ]
   }
 };
 

@@ -11,6 +11,7 @@ const GoogleSheetsIntegration = require('./integrations/googleSheetsIntegration'
 const GoogleMeetIntegration = require('./integrations/googleMeetIntegration');
 const WhatsAppIntegration = require('./integrations/whatsappIntegration');
 const MultiChannelCollectionService = require('./multiChannelCollectionService');
+const RedditIntegration = require('./integrations/redditIntegration');
 
 /**
  * Execute Slack actions
@@ -401,12 +402,125 @@ async function executeMultiChannelAction(config, inputData, execution) {
   }
 }
 
+/**
+ * Execute Reddit actions
+ * Note: Reddit uses public API, no OAuth required
+ */
+async function executeRedditAction(actionType, config, inputData, execution) {
+  try {
+    switch (actionType) {
+      case 'reddit_monitor':
+        const monitorResult = await RedditIntegration.searchPosts({
+          keywords: config.keywords || [],
+          subreddits: config.subreddits || [],
+          limit: config.limit || 25
+        });
+
+        // Optionally get comments for each post
+        let postsWithComments = monitorResult.posts;
+        if (config.includeComments && monitorResult.posts.length > 0) {
+          postsWithComments = await Promise.all(
+            monitorResult.posts.slice(0, 10).map(async (post) => {
+              try {
+                const commentsResult = await RedditIntegration.getPostComments(post.permalink);
+                return {
+                  ...post,
+                  comments: commentsResult.comments || []
+                };
+              } catch (error) {
+                logger.warn('[WorkflowExecutor] Failed to get comments for post', {
+                  postId: post.id,
+                  error: error.message
+                });
+                return post;
+              }
+            })
+          );
+        }
+
+        return {
+          success: true,
+          data: {
+            posts: postsWithComments,
+            count: postsWithComments.length
+          },
+          message: `Found ${postsWithComments.length} Reddit posts matching keywords`
+        };
+
+      case 'reddit_analyze':
+        const content = config.content || inputData.content || inputData;
+        if (!content) {
+          throw new Error('Content is required for Reddit analysis');
+        }
+
+        const analyzeResult = await RedditIntegration.analyzeContent(content, {
+          businessContext: config.businessContext || {}
+        });
+
+        return {
+          success: true,
+          data: analyzeResult.analysis,
+          message: `Analyzed content: ${analyzeResult.analysis.sentiment} sentiment, ${analyzeResult.analysis.topic} topic`
+        };
+
+      case 'reddit_generate_insights':
+        const analyses = config.analyses || inputData.analyses || [];
+        if (!Array.isArray(analyses) || analyses.length === 0) {
+          throw new Error('Analyses array is required for insight generation');
+        }
+
+        const insightsResult = await RedditIntegration.generateInsights(analyses, {
+          product: config.businessContext?.product || '',
+          marketing: config.businessContext?.marketing || '',
+          sales: config.businessContext?.sales || '',
+          support: config.businessContext?.support || ''
+        });
+
+        return {
+          success: true,
+          data: insightsResult.insights,
+          summary: insightsResult.summary,
+          message: `Generated insights for ${Object.keys(insightsResult.insights).length} teams`
+        };
+
+      case 'reddit_generate_blog_topics':
+        const insights = config.insights || inputData.insights || {};
+        if (!insights || Object.keys(insights).length === 0) {
+          throw new Error('Insights object is required for blog topic generation');
+        }
+
+        const topicsResult = await RedditIntegration.generateBlogTopics(
+          insights,
+          config.count || 5
+        );
+
+        return {
+          success: true,
+          data: {
+            topics: topicsResult.topics
+          },
+          message: `Generated ${topicsResult.topics.length} blog topic suggestions`
+        };
+
+      default:
+        throw new Error(`Unknown Reddit action: ${actionType}`);
+    }
+  } catch (error) {
+    logger.error(`[WorkflowExecutor] Reddit action failed (${actionType}):`, error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
 module.exports = {
   executeSlackAction,
   executeGmailAction,
   executeSheetsAction,
   executeMeetAction,
   executeWhatsAppAction,
-  executeMultiChannelAction
+  executeMultiChannelAction,
+  executeRedditAction
 };
 

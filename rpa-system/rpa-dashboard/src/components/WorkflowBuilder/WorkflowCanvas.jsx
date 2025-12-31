@@ -418,6 +418,34 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
       icon: '🏁',
       description: 'Workflow completion',
       category: 'control'
+    },
+    {
+      id: 'reddit_monitor',
+      label: 'Monitor Reddit',
+      icon: '📱',
+      description: 'Search Reddit for posts matching keywords',
+      category: 'data'
+    },
+    {
+      id: 'reddit_analyze',
+      label: 'Analyze Reddit Content',
+      icon: '🔍',
+      description: 'Analyze sentiment and classify topics',
+      category: 'data'
+    },
+    {
+      id: 'reddit_generate_insights',
+      label: 'Generate Team Insights',
+      icon: '💡',
+      description: 'Generate insights for product, marketing, sales, support',
+      category: 'data'
+    },
+    {
+      id: 'reddit_generate_blog_topics',
+      label: 'Generate Blog Topics',
+      icon: '✍️',
+      description: 'Generate blog post topics from Reddit discussions',
+      category: 'data'
     }
   ], []);
 
@@ -664,7 +692,11 @@ function getNodeLabel(nodeType) {
     email: 'Send Email',
     file_upload: 'Upload File',
     delay: 'Delay',
-    end: 'End'
+    end: 'End',
+    reddit_monitor: 'Monitor Reddit',
+    reddit_analyze: 'Analyze Reddit Content',
+    reddit_generate_insights: 'Generate Team Insights',
+    reddit_generate_blog_topics: 'Generate Blog Topics'
   };
   return labels[nodeType] || 'Unknown';
 }
@@ -703,6 +735,25 @@ function getDefaultConfig(nodeType) {
       to: [],
       subject: '',
       template: ''
+    },
+    reddit_monitor: {
+      keywords: [],
+      subreddits: [],
+      limit: 25,
+      includeComments: false
+    },
+    reddit_analyze: {
+      content: null,
+      businessContext: {}
+    },
+    reddit_generate_insights: {
+      analyses: [],
+      teams: ['product', 'marketing', 'sales', 'support'],
+      businessContext: {}
+    },
+    reddit_generate_blog_topics: {
+      insights: {},
+      count: 5
     },
     file_upload: {
   destination: '',

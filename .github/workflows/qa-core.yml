@@ -90,6 +90,31 @@ jobs:
           chmod +x scripts/validate-all.sh scripts/validate-srp.sh scripts/validate-dynamic-code.sh scripts/validate-theme-consistency.sh scripts/validate-logging-integration.sh
           ./scripts/validate-all.sh || (echo "❌ Code validation failed - SRP, dynamic code, theme consistency, or logging integration issues found" && exit 1)
 
+      - name: Run accessibility checks - CRITICAL
+        run: |
+          echo "🔍 Running accessibility tests..."
+          cd rpa-system/rpa-dashboard
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+          npm run build
+          npx serve -s build -l 3000 > /dev/null 2>&1 &
+          SERVER_PID=$!
+          sleep 5
+          # Wait for server
+          for i in {1..30}; do
+            if curl -f http://localhost:3000 >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          mkdir -p results
+          npx pa11y-ci --config .pa11yci.json || (kill $SERVER_PID 2>/dev/null || true; echo "❌ Accessibility tests failed - WCAG2AA violations found" && exit 1)
+          npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --exit --save results/axe-report.json || (kill $SERVER_PID 2>/dev/null || true; echo "❌ Axe-core accessibility tests failed" && exit 1)
+          kill $SERVER_PID 2>/dev/null || true
+
       - name: Validate RAG Knowledge Base - CRITICAL
         run: |
           chmod +x scripts/validate-rag-knowledge.sh

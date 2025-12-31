@@ -1,0 +1,57 @@
+{
+  "defaults": {
+    "timeout": 10000,
+    "wait": 2000,
+    "standard": "WCAG2AA",
+    "threshold": 0,
+    "ignore": [
+      "notice",
+      "warning"
+    ],
+    "chromeLaunchConfig": {
+      "args": [
+        "--no-sandbox",
+        "--disable-setuid-sandbox"
+      ]
+    }
+  },
+  "urls": [
+    {
+      "url": "http://localhost:3000",
+      "name": "Landing Page"
+    },
+    {
+      "url": "http://localhost:3000/app/dashboard",
+      "name": "Dashboard"
+    },
+    {
+      "url": "http://localhost:3000/app/integrations",
+      "name": "Integrations Page"
+    },
+    {
+      "url": "http://localhost:3000/app/workflows",
+      "name": "Workflows Page"
+    },
+    {
+      "url": "http://localhost:3000/app/analytics",
+      "name": "Analytics Dashboard"
+    },
+    {
+      "url": "http://localhost:3000/app/teams",
+      "name": "Teams Page"
+    },
+    {
+      "url": "http://localhost:3000/app/settings",
+      "name": "Settings Page"
+    },
+    {
+      "url": "http://localhost:3000/privacy",
+      "name": "Privacy Policy"
+    },
+    {
+      "url": "http://localhost:3000/terms",
+      "name": "Terms of Use"
+    }
+  ]
+}
+

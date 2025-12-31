@@ -42,7 +42,10 @@
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject",
-    "postinstall": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('child_process').execSync('npx patch-package', { stdio: 'inherit' }); } catch(e) { process.exit(0); } }\""
+    "postinstall": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('child_process').execSync('npx patch-package', { stdio: 'inherit' }); } catch(e) { process.exit(0); } }\"",
+    "accessibility:test": "npm run build && npx serve -s build -l 3000 & sleep 5 && npx pa11y-ci --config .pa11yci.json",
+    "accessibility:axe": "npm run build && npx serve -s build -l 3000 & sleep 5 && npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --save results/axe-report.json",
+    "accessibility:all": "npm run accessibility:test && npm run accessibility:axe"
   },
   "browserslist": {
     "production": [
@@ -57,6 +60,7 @@
     ]
   },
   "devDependencies": {
+    "@axe-core/cli": "^4.9.0",
     "@eslint/js": "^9.34.0",
     "ajv": "^8.17.1",
     "ajv-keywords": "^5.1.0",
@@ -69,12 +73,15 @@
     "globals": "^16.3.0",
     "http-proxy-middleware": "^3.0.5",
     "os-browserify": "^0.3.0",
+    "pa11y": "^7.0.0",
+    "pa11y-ci": "^3.0.1",
     "patch-package": "^8.0.1",
     "path-browserify": "^1.0.1",
     "process": "^0.11.10",
     "prop-types": "^15.8.1",
     "querystring-es3": "^0.2.1",
     "react-app-rewired": "^2.2.1",
+    "serve": "^14.2.1",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",
     "typescript": "^4.9.5",

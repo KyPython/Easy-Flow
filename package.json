@@ -31,6 +31,7 @@
     "validate:logging": "./scripts/validate-logging-integration.sh",
     "validate:rag": "./scripts/validate-rag-knowledge.sh",
     "validate:all": "./scripts/validate-all.sh",
+    "accessibility:test": "./scripts/run-accessibility-tests.sh",
     "fix": "./scripts/auto-fix-code.sh",
     "client:template": "./scripts/create-client-workflow-template.sh",
     "logs": "./scripts/watch-logs.sh",

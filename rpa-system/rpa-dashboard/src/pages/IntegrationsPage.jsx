@@ -74,6 +74,14 @@ const INTEGRATIONS = [
     icon: '📝',
     color: '#000000',
     oauthSupported: true
+  },
+  {
+    id: 'reddit',
+    name: 'Reddit',
+    description: 'Monitor subreddits, analyze sentiment, generate insights and blog topics',
+    icon: '📱',
+    color: '#FF4500',
+    oauthSupported: false
   }
 ];
 
@@ -161,6 +169,25 @@ const IntegrationsPage = () => {
       setSuccess('');
 
       const integration = INTEGRATIONS.find(i => i.id === service);
+      
+      // Reddit uses public API - no OAuth or API keys needed, just test connection
+      if (service === 'reddit') {
+        const response = await api.post(`/api/integrations/${service}/test`);
+        if (response.data.success) {
+          setSuccess(getEnvMessage({
+            dev: 'Reddit connection test successful - ready to use in workflows',
+            prod: 'Reddit is now available in your workflows!'
+          }));
+          loadIntegrations();
+        } else {
+          setError(getEnvMessage({
+            dev: 'Reddit connection test failed',
+            prod: 'Failed to connect to Reddit. Please try again.'
+          }));
+        }
+        setConnecting(null);
+        return;
+      }
       
       if (integration.oauthSupported) {
         // Start OAuth flow

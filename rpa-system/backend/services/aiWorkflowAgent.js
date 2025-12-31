@@ -264,6 +264,48 @@ const WORKFLOW_STEPS = {
       channels: { type: 'object', description: 'Channel configuration (slack, gmail, whatsapp, meet)' },
       includeTranscriptions: { type: 'boolean', default: false, description: 'Include Meet transcriptions' }
     }
+  },
+  reddit_monitor: {
+    id: 'reddit_monitor',
+    label: 'Monitor Reddit',
+    description: 'Search Reddit for posts matching keywords and extract threads',
+    icon: '📱',
+    configSchema: {
+      keywords: { type: 'array', description: 'Keywords to search for (e.g., ["product name", "competitor"])' },
+      subreddits: { type: 'array', description: 'Subreddits to search (leave empty to search all of Reddit)' },
+      limit: { type: 'number', default: 25, description: 'Maximum posts to retrieve per keyword' },
+      includeComments: { type: 'boolean', default: false, description: 'Include comment threads' }
+    }
+  },
+  reddit_analyze: {
+    id: 'reddit_analyze',
+    label: 'Analyze Reddit Content',
+    description: 'Analyze sentiment, classify topics, and extract insights from Reddit posts/comments',
+    icon: '🔍',
+    configSchema: {
+      content: { type: 'object', description: 'Reddit post or comment data to analyze' },
+      businessContext: { type: 'object', description: 'Business context for better analysis' }
+    }
+  },
+  reddit_generate_insights: {
+    id: 'reddit_generate_insights',
+    label: 'Generate Team Insights',
+    description: 'Generate insights for product, marketing, sales, and support teams',
+    icon: '💡',
+    configSchema: {
+      analyses: { type: 'array', description: 'Array of analyzed Reddit content' },
+      teams: { type: 'array', description: 'Teams to generate insights for (product, marketing, sales, support)' }
+    }
+  },
+  reddit_generate_blog_topics: {
+    id: 'reddit_generate_blog_topics',
+    label: 'Generate Blog Topics',
+    description: 'Generate blog post topic suggestions from Reddit discussions',
+    icon: '✍️',
+    configSchema: {
+      insights: { type: 'object', description: 'Insights from Reddit analysis' },
+      count: { type: 'number', default: 5, description: 'Number of blog topics to generate' }
+    }
   }
 };
 

@@ -14,7 +14,8 @@ const {
   executeSheetsAction,
   executeMeetAction,
   executeWhatsAppAction,
-  executeMultiChannelAction
+  executeMultiChannelAction,
+  executeRedditAction
 } = require('./workflowExecutorIntegrations');
 
 // ✅ OBSERVABILITY: Import OpenTelemetry API for trace propagation and span creation
@@ -982,7 +983,7 @@ class WorkflowExecutor {
               
               // ✅ FIX: Map specific types to action steps with action_type
               // Handle both direct action types and variations
-              const actionTypes = ['email', 'api_call', 'web_scraping', 'web_scrape', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr'];
+              const actionTypes = ['email', 'api_call', 'web_scraping', 'web_scrape', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr', 'reddit_monitor', 'reddit_analyze', 'reddit_generate_insights', 'reddit_generate_blog_topics'];
               
               // Normalize action type names
               let normalizedActionType = stepType;
@@ -1082,7 +1083,7 @@ class WorkflowExecutor {
                 let actionType = null;
                 
                 // Normalize action types
-                const actionTypes = ['email', 'api_call', 'web_scraping', 'web_scrape', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr'];
+                const actionTypes = ['email', 'api_call', 'web_scraping', 'web_scrape', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr', 'reddit_monitor', 'reddit_analyze', 'reddit_generate_insights', 'reddit_generate_blog_topics'];
                 let normalizedActionType = stepType;
                 if (stepType === 'web_scraping') {
                   normalizedActionType = 'web_scrape';
@@ -2026,6 +2027,12 @@ class WorkflowExecutor {
           return await executeWhatsAppAction(action_type, config, inputData, execution);
         case 'multi_channel_collect':
           return await executeMultiChannelAction(config, inputData, execution);
+        // Reddit actions (no credentials needed - public API)
+        case 'reddit_monitor':
+        case 'reddit_analyze':
+        case 'reddit_generate_insights':
+        case 'reddit_generate_blog_topics':
+          return await executeRedditAction(action_type, config, inputData, execution);
         default:
           throw new Error(`Unsupported action type: ${action_type}`);
       }

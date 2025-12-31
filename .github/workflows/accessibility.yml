@@ -1,0 +1,148 @@
+name: Accessibility Checks (Branch-Aware)
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+jobs:
+  accessibility:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: |
+            rpa-system/rpa-dashboard/package-lock.json
+
+      - name: Determine branch and validation mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+          echo "🔍 Branch: ${{ steps.branch-info.outputs.branch }}"
+          echo "🔍 Mode: ${{ steps.branch-info.outputs.mode }}"
+          echo "🔍 Blocking: ${{ steps.branch-info.outputs.blocking }}"
+
+      - name: Install dashboard dependencies
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            echo "⚠️ package-lock.json not found, using npm install"
+            npm install
+          fi
+
+      - name: Build frontend
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          npm run build
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Start local server
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          npx serve -s build -l 3000 &
+          echo "🚀 Started local server on port 3000"
+          sleep 5
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -f http://localhost:3000 >/dev/null 2>&1; then
+              echo "✅ Server is ready!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "⚠️ Server health check timed out"
+            else
+              echo "  Attempt $i/30: Waiting for server..."
+              sleep 2
+            fi
+          done
+        id: start_server
+
+      - name: Run pa11y accessibility tests
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          echo "🔍 Running accessibility tests with pa11y-ci..."
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            npx pa11y-ci --config .pa11yci.json || (echo "❌ Accessibility tests failed - WCAG2AA violations found" && exit 1)
+          else
+            npx pa11y-ci --config .pa11yci.json || echo "⚠️ Accessibility issues found (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Run axe-core accessibility tests (alternative)
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          echo "🔍 Running accessibility tests with axe-core..."
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --exit --save results/axe-report.json || (echo "❌ Axe-core accessibility tests failed" && exit 1)
+          else
+            npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --save results/axe-report.json || echo "⚠️ Axe-core accessibility issues found (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Create results directory
+        run: |
+          mkdir -p rpa-system/rpa-dashboard/results
+
+      - name: Upload accessibility test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-results
+          path: |
+            rpa-system/rpa-dashboard/results/*.json
+            rpa-system/rpa-dashboard/results/*.html
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Accessibility Summary
+        if: always()
+        run: |
+          echo "## Accessibility Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ steps.branch-info.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode**: ${{ steps.branch-info.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            echo "**Status**: Strict validation - failures block merge" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ All accessibility checks must pass before code can be shipped to production" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status**: Permissive validation - warnings only" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Accessibility issues found (non-blocking on dev branch)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Standards Checked" >> $GITHUB_STEP_SUMMARY
+          echo "- **WCAG 2.1 Level AA** compliance" >> $GITHUB_STEP_SUMMARY
+          echo "- **pa11y** automated testing" >> $GITHUB_STEP_SUMMARY
+          echo "- **axe-core** automated testing" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pages Tested" >> $GITHUB_STEP_SUMMARY
+          echo "- Landing Page" >> $GITHUB_STEP_SUMMARY
+          echo "- Dashboard" >> $GITHUB_STEP_SUMMARY
+          echo "- Integrations Page" >> $GITHUB_STEP_SUMMARY
+          echo "- Workflows Page" >> $GITHUB_STEP_SUMMARY
+          echo "- Analytics Dashboard" >> $GITHUB_STEP_SUMMARY
+          echo "- Teams Page" >> $GITHUB_STEP_SUMMARY
+          echo "- Settings Page" >> $GITHUB_STEP_SUMMARY
+          echo "- Privacy Policy" >> $GITHUB_STEP_SUMMARY
+          echo "- Terms of Use" >> $GITHUB_STEP_SUMMARY
+
