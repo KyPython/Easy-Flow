@@ -69,14 +69,9 @@ install_npm_deps() {
         # Check if node_modules exists and has content
         if [ ! -d "$dir/node_modules" ] || [ -z "$(ls -A "$dir/node_modules" 2>/dev/null)" ]; then
             needs_install=true
-        # Check if package.json is newer than node_modules (only if significantly newer, not just touched)
+        # Check if package.json is newer than node_modules
         elif [ "$dir/package.json" -nt "$dir/node_modules" ]; then
-            # Only reinstall if package.json is more than 1 second newer (avoids false positives from file system)
-            local pkg_time=$(stat -f "%m" "$dir/package.json" 2>/dev/null || stat -c "%Y" "$dir/package.json" 2>/dev/null || echo "0")
-            local node_time=$(stat -f "%m" "$dir/node_modules" 2>/dev/null || stat -c "%Y" "$dir/node_modules" 2>/dev/null || echo "0")
-            if [ "$pkg_time" -gt "$((node_time + 1))" ]; then
-                needs_install=true
-            fi
+            needs_install=true
         # Check for required packages if specified
         elif [ -n "$required_packages" ]; then
             IFS=',' read -ra PACKAGES <<< "$required_packages"
@@ -92,21 +87,25 @@ install_npm_deps() {
             echo -e "${YELLOW}  Installing $name dependencies...${NC}"
             if [ -d "$dir" ]; then
                 # Use npm ci if package-lock.json exists (faster, more reliable)
+                # ✅ FIX: Handle interruptions gracefully and continue script execution
+                local install_result=0
                 if [ -f "$dir/package-lock.json" ]; then
-                    (cd "$dir" && npm ci --silent 2>/dev/null)
+                    (cd "$dir" && npm ci --silent 2>/dev/null) || install_result=$?
                 else
-                    (cd "$dir" && npm install --silent 2>/dev/null)
+                    (cd "$dir" && npm install --silent 2>/dev/null) || install_result=$?
                 fi
-                if [ $? -eq 0 ]; then
+                if [ $install_result -eq 0 ]; then
                     echo -e "${GREEN}  ✓ $name dependencies installed${NC}"
                 else
-                    echo -e "${RED}  ✗ Failed to install $name dependencies${NC}"
-                    echo -e "${YELLOW}     You may need to run: cd $dir && npm install${NC}"
-                    return 1
+                    echo -e "${YELLOW}  ⚠ Failed to install $name dependencies (exit code: $install_result)${NC}"
+                    echo -e "${YELLOW}     Continuing anyway - dependencies may be partially installed${NC}"
+                    echo -e "${YELLOW}     To retry manually: cd $dir && npm install${NC}"
+                    # ✅ FIX: Don't return error - continue script execution
+                    return 0
                 fi
             else
                 echo -e "${YELLOW}  ⚠ Directory $dir not found, skipping${NC}"
-                return 1
+                return 0
             fi
         else
             echo -e "${GREEN}  ✓ $name dependencies already installed${NC}"
@@ -166,10 +165,12 @@ if [ $? -ne 0 ]; then
 fi
 
 # Install backend dependencies
-install_npm_deps "rpa-system/backend" "Backend"
+# ✅ FIX: Continue even if install fails (non-critical for startup)
+install_npm_deps "rpa-system/backend" "Backend" || echo -e "${YELLOW}  ⚠ Backend dependencies install had issues, continuing...${NC}"
 
 # Install frontend dependencies
-install_npm_deps "rpa-system/rpa-dashboard" "Frontend"
+# ✅ FIX: Continue even if install fails (non-critical for startup)
+install_npm_deps "rpa-system/rpa-dashboard" "Frontend" || echo -e "${YELLOW}  ⚠ Frontend dependencies install had issues, continuing...${NC}"
 
 # Install automation service Python dependencies
 install_python_deps "rpa-system/automation/automation-service" "Automation Service" "rpa-system/automation/automation-service/requirements.txt"
@@ -185,22 +186,13 @@ set -e
 echo -e "${GREEN}✓ All dependencies checked${NC}"
 echo ""
 
-# Start RAG service (required for AI Agent knowledge base)
-echo -e "${YELLOW}Starting RAG service...${NC}"
+# ✅ FIX: RAG service is now included in ecosystem.config.js for automatic startup
+# Just check/install dependencies here - the service will start with other PM2 services
+echo -e "${YELLOW}Preparing RAG service...${NC}"
 RAG_DIR="/Users/ky/rag-node-ts"
 RAG_PORT=${RAG_SERVICE_PORT:-3002}  # Use 3002 to avoid conflict with Grafana (3001)
 
-# Check if RAG service is already running
-if curl -s http://localhost:$RAG_PORT/health > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ RAG service is already running${NC}"
-else
-    # Check if RAG directory exists
-    if [ ! -d "$RAG_DIR" ]; then
-        echo -e "${RED}✗ RAG service directory not found at $RAG_DIR${NC}"
-        echo -e "${YELLOW}  Please ensure the RAG service is set up at the expected location${NC}"
-        exit 1
-    fi
-    
+if [ -d "$RAG_DIR" ]; then
     # Check if RAG service dependencies are installed
     if [ ! -d "$RAG_DIR/node_modules" ]; then
         echo -e "${YELLOW}  Installing RAG service dependencies...${NC}"
@@ -209,54 +201,10 @@ else
             echo -e "${YELLOW}  You may need to run: cd $RAG_DIR && npm install${NC}"
         }
     fi
-    
-    # Start RAG service with PM2
-    echo -e "${YELLOW}  Starting RAG service with PM2...${NC}"
-    
-    # Check if RAG is already in PM2
-    if pm2 list | grep -q "rag-node-ts\|rag-service"; then
-        echo -e "${GREEN}  ✓ RAG service already in PM2, restarting...${NC}"
-        pm2 restart rag-node-ts 2>/dev/null || pm2 restart rag-service 2>/dev/null || true
-    else
-        # Start RAG service - check for common start scripts
-        if [ -f "$RAG_DIR/package.json" ]; then
-            # Try to determine the start command
-            START_CMD=$(cd "$RAG_DIR" && node -e "const pkg=require('./package.json'); console.log(pkg.scripts?.dev || pkg.scripts?.start || 'npm start')" 2>/dev/null || echo "npm run dev")
-            
-            # Set RAG port via environment variable
-            export PORT=$RAG_PORT
-            
-            # Start with PM2
-            (cd "$RAG_DIR" && PORT=$RAG_PORT pm2 start "$START_CMD" --name rag-node-ts --interpreter npm --no-autorestart --update-env 2>/dev/null) || {
-                # Fallback: try npm run dev directly with port
-                (cd "$RAG_DIR" && PORT=$RAG_PORT pm2 start npm --name rag-node-ts -- run dev --update-env 2>/dev/null) || {
-                    echo -e "${YELLOW}  ⚠ Failed to start RAG service with PM2${NC}"
-                    echo -e "${YELLOW}  Attempting to start in background...${NC}"
-                    (cd "$RAG_DIR" && PORT=$RAG_PORT nohup npm run dev > /tmp/rag-service.log 2>&1 &)
-                }
-            }
-        else
-            echo -e "${RED}  ✗ RAG service package.json not found${NC}"
-            exit 1
-        fi
-    fi
-    
-    # Wait for RAG service to be ready (reduced timeout for dev)
-    echo -e "${YELLOW}  Waiting for RAG service to be ready...${NC}"
-    RAG_READY=false
-    for i in {1..15}; do
-        if curl -s http://localhost:$RAG_PORT/health > /dev/null 2>&1; then
-            echo -e "${GREEN}✓ RAG service is ready${NC}"
-            RAG_READY=true
-            break
-        fi
-        sleep 1
-    done
-    
-    if [ "$RAG_READY" = false ]; then
-        echo -e "${YELLOW}⚠ RAG service may still be starting (check http://localhost:$RAG_PORT/health)${NC}"
-        echo -e "${YELLOW}  You can check logs: pm2 logs rag-node-ts${NC}"
-    fi
+    echo -e "${GREEN}✓ RAG service will be started automatically with other services${NC}"
+else
+    echo -e "${YELLOW}⚠ RAG service directory not found at $RAG_DIR${NC}"
+    echo -e "${YELLOW}  RAG service will be skipped (non-critical for core functionality)${NC}"
 fi
 echo ""
 
@@ -265,6 +213,8 @@ echo -e "${YELLOW}Stopping existing PM2 processes...${NC}"
 pm2 delete all 2>/dev/null || true
 
 # Set dynamic ports from environment variables with defaults (before port freeing)
+# Note: Unset PORT if it was set by RAG service to avoid affecting BACKEND_PORT
+unset PORT 2>/dev/null || true
 FRONTEND_PORT=${FRONTEND_PORT:-3000}
 BACKEND_PORT=${PORT:-3030}
 AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
@@ -420,17 +370,57 @@ done
 
 if [ "$DOCKER_READY" = false ]; then
     echo -e "${RED}✗ Docker daemon is not accessible${NC}"
-    echo -e "${YELLOW}  Attempting to diagnose...${NC}"
+    echo -e "${YELLOW}  Attempting to diagnose and fix...${NC}"
     
     # Check if Docker Desktop is installed
-    if [ -d "/Applications/Docker.app" ] || [ -d "$HOME/Applications/Docker.app" ]; then
-        echo -e "${YELLOW}  Docker Desktop is installed but daemon is not responding${NC}"
-        echo -e "${YELLOW}  Please ensure Docker Desktop is running${NC}"
-    else
-        echo -e "${YELLOW}  Docker Desktop may not be installed${NC}"
+    DOCKER_APP_PATH=""
+    if [ -d "/Applications/Docker.app" ]; then
+        DOCKER_APP_PATH="/Applications/Docker.app"
+    elif [ -d "$HOME/Applications/Docker.app" ]; then
+        DOCKER_APP_PATH="$HOME/Applications/Docker.app"
     fi
     
-    # Check common socket paths
+    if [ -n "$DOCKER_APP_PATH" ]; then
+        echo -e "${YELLOW}  Docker Desktop is installed but not running${NC}"
+        echo -e "${GREEN}  🚀 Automatically opening Docker Desktop...${NC}"
+        
+        # Open Docker Desktop
+        open "$DOCKER_APP_PATH" 2>/dev/null || {
+            echo -e "${YELLOW}  ⚠ Could not open Docker Desktop automatically${NC}"
+            echo -e "${YELLOW}  Please open Docker Desktop manually and wait for it to start${NC}"
+        }
+        
+        # Wait for Docker to become ready (with progress indicator)
+        echo -e "${YELLOW}  ⏳ Waiting for Docker Desktop to start (this may take 30-60 seconds)...${NC}"
+        DOCKER_START_WAIT=0
+        DOCKER_START_MAX=60  # Wait up to 60 seconds
+        while [ $DOCKER_START_WAIT -lt $DOCKER_START_MAX ]; do
+            if docker info > /dev/null 2>&1; then
+                echo -e "${GREEN}  ✓ Docker Desktop is now ready!${NC}"
+                DOCKER_READY=true
+                break
+            fi
+            # Show progress every 5 seconds
+            if [ $((DOCKER_START_WAIT % 5)) -eq 0 ] && [ $DOCKER_START_WAIT -gt 0 ]; then
+                echo -e "${YELLOW}    Still waiting... (${DOCKER_START_WAIT}s/${DOCKER_START_MAX}s)${NC}"
+            fi
+            sleep 1
+            DOCKER_START_WAIT=$((DOCKER_START_WAIT + 1))
+        done
+        
+        if [ "$DOCKER_READY" = false ]; then
+            echo -e "${YELLOW}  ⚠ Docker Desktop is starting but not ready yet${NC}"
+            echo -e "${YELLOW}  Continuing anyway (Docker is only needed for Kafka and monitoring stack)${NC}"
+            echo -e "${YELLOW}  Services will start automatically once Docker is ready${NC}"
+        fi
+    else
+        echo -e "${YELLOW}  Docker Desktop may not be installed${NC}"
+        echo -e "${YELLOW}  Install from: https://www.docker.com/products/docker-desktop${NC}"
+        echo -e "${YELLOW}  Continuing anyway (Docker is only needed for Kafka and monitoring stack)${NC}"
+    fi
+    
+    # Check common socket paths for troubleshooting
+    if [ "$DOCKER_READY" = false ]; then
     if [ -S "/var/run/docker.sock" ]; then
         echo -e "${YELLOW}  Found socket at /var/run/docker.sock (checking permissions...)${NC}"
     elif [ -S "$HOME/.docker/run/docker.sock" ]; then
@@ -438,11 +428,10 @@ if [ "$DOCKER_READY" = false ]; then
     else
         echo -e "${YELLOW}  No Docker socket found at common locations${NC}"
     fi
-    
-    echo -e "${YELLOW}  Continuing anyway (Docker is only needed for Kafka and monitoring stack)${NC}"
     echo -e "${YELLOW}  You can start Docker later and run: docker compose up -d${NC}"
+    fi
     echo ""
-    # Don't exit - allow script to continue without Docker (Kafka/monitoring are optional
+    # Don't exit - allow script to continue (Docker services are optional)
 fi
 
 # Stop Docker frontend container if running (it uses frontend port)
@@ -744,10 +733,40 @@ module.exports = {
         SUPABASE_URL: process.env.SUPABASE_URL,
         SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE,
         SUPABASE_KEY: process.env.SUPABASE_KEY,
+        ENV: process.env.ENV || process.env.NODE_ENV || 'development',
+        NODE_ENV: process.env.NODE_ENV || process.env.ENV || 'development',
       },
     },
   ],
 };
+
+// ✅ FIX: Add RAG service to ecosystem config if it exists
+const RAG_DIR = '/Users/ky/rag-node-ts';
+if (fs.existsSync(RAG_DIR) && fs.existsSync(path.join(RAG_DIR, 'package.json'))) {
+  try {
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(RAG_DIR, 'package.json'), 'utf8'));
+    // Determine the start script (prefer 'dev', fallback to 'start')
+    const scriptName = pkgJson.scripts?.dev ? 'dev' : (pkgJson.scripts?.start ? 'start' : 'dev');
+    
+    module.exports.apps.push({
+      name: 'rag-node-ts',
+      script: 'npm',
+      args: 'run ' + scriptName,
+      cwd: RAG_DIR,
+      interpreter: 'npm',
+      error_file: path.join(ROOT_DIR, 'logs/rag-error.log'),
+      out_file: path.join(ROOT_DIR, 'logs/rag.log'),
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      env: {
+        PORT: process.env.RAG_SERVICE_PORT || '3002',
+        NODE_ENV: process.env.NODE_ENV || 'development',
+      },
+    });
+  } catch (e) {
+    // RAG service config failed, continue without it (non-critical)
+  }
+}
 EOL
 
 # Start all services with PM2
@@ -797,6 +816,20 @@ for i in {1..15}; do
     sleep 1
 done
 [ "$AUTO_OK" = false ] && { echo -e "${RED}✗ Automation worker failed to start${NC}"; echo -e "${YELLOW}Error logs:${NC}"; pm2 logs easyflow-automation --err --lines 20 --nostream; }
+
+# Wait for RAG service (non-critical, but check if it was started)
+if pm2 list | grep -q "rag-node-ts"; then
+    RAG_OK=false
+    for i in {1..10}; do
+        if curl -s http://localhost:${RAG_PORT:-3002}/health > /dev/null 2>&1; then
+            echo -e "${GREEN}✓ RAG service is healthy${NC}"
+            RAG_OK=true
+            break
+        fi
+        sleep 1
+    done
+    [ "$RAG_OK" = false ] && echo -e "${YELLOW}⚠ RAG service may still be starting (non-critical)${NC}"
+fi
 
 # Wait for Prometheus to be ready, then reload config to pick up backend metrics
 # Only if Docker is available and observability stack was started
@@ -924,6 +957,5 @@ echo ""
 echo -e "${YELLOW}To stop all services: ./stop-dev.sh${NC}"
 echo ""
 
-# Wait for user input
-read -p "Press Enter to view PM2 logs (Ctrl+C to exit)..."
-pm2 logs
+# ✅ FIX: Log viewing is completely optional - removed automatic log opening
+# Users can view logs manually with: pm2 logs

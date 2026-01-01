@@ -345,6 +345,9 @@ def process_automation_task(task_data):
     task_id = task_data.get('task_id', 'unknown')
     task_type = task_data.get('task_type', 'unknown')
     
+    # ✅ CRITICAL: Log what the worker receives for debugging URL issues
+    logger.info(f"🔍 [process_automation_task] Received task data: task_id={task_id}, task_type={task_type}, has_url={bool(task_data.get('url'))}, url={task_data.get('url')}, has_pdf_url={bool(task_data.get('pdf_url'))}, pdf_url={task_data.get('pdf_url')}, all_keys={list(task_data.keys())}")
+    
     # ✅ FIX: Normalize task_type to handle both hyphen and underscore formats
     # Backend sends 'invoice-download' but worker expects 'invoice_download'
     if task_type == 'invoice-download':
@@ -510,7 +513,12 @@ def process_automation_task(task_data):
 
         # ✅ FIX: Pass run_id from task_data so Kafka consumer can update automation_runs table
         run_id = task_data.get('run_id')
-        send_result_to_kafka(task_id, result, run_id=run_id)
+        # Try to send to Kafka, but don't fail if Kafka is unavailable (for direct HTTP endpoint)
+        try:
+            send_result_to_kafka(task_id, result, run_id=run_id)
+        except Exception as kafka_error:
+            # Log but don't fail - result will be returned in HTTP response for direct endpoint
+            task_logger.warning(f"⚠️ Could not send result to Kafka (may be unavailable): {kafka_error}")
         
         # ✅ INSTRUCTION 3: Record successful task completion with high-cardinality labels (Gap 17)
         if METRICS_AVAILABLE:
@@ -525,12 +533,21 @@ def process_automation_task(task_data):
                     task_type=task_type,
                     workflow_id=workflow_id
                 ).observe(time.time() - start_time)
+        
+        # ✅ FIX: Return result so direct HTTP endpoint can use it
+        return result
 
     except Exception as e:
         task_logger.error(f"❌ Task {task_id} processing failed: {e}")
         # ✅ FIX: Pass run_id from task_data so Kafka consumer can update automation_runs table
         run_id = task_data.get('run_id')
-        send_result_to_kafka(task_id, {'error': str(e)}, status='failed', run_id=run_id)
+        error_result = {'success': False, 'error': str(e)}
+        
+        # Try to send to Kafka, but don't fail if Kafka is unavailable
+        try:
+            send_result_to_kafka(task_id, error_result, status='failed', run_id=run_id)
+        except Exception as kafka_error:
+            task_logger.warning(f"⚠️ Could not send error result to Kafka (may be unavailable): {kafka_error}")
         
         # ✅ INSTRUCTION 3: Record failed task with high-cardinality labels (Gap 17)
         if METRICS_AVAILABLE:
@@ -550,6 +567,9 @@ def process_automation_task(task_data):
                     task_type=task_type,
                     workflow_id=workflow_id
                 ).observe(time.time() - start_time)
+        
+        # ✅ FIX: Return error result so direct HTTP endpoint can use it
+        return error_result
 
 def kafka_consumer_loop():
     """Main Kafka consumer loop that polls for messages with trace context extraction."""
@@ -775,6 +795,7 @@ def direct_automation(task_type=None):
             return jsonify({'error': 'No task data provided'}), 400
 
         task_id = task_data.get('task_id', str(uuid.uuid4()))
+        run_id = task_data.get('run_id')  # Extract run_id if provided
         if task_type:
             task_data['task_type'] = task_type
 
@@ -782,18 +803,33 @@ def direct_automation(task_type=None):
 
         logger.info(f"🔧 Direct automation request: task_id={task_id}, task_type={task_data.get('task_type', 'unknown')}")
 
-        # Process the task directly (synchronously)
-        process_automation_task(task_data)
-
+        # Process the task directly (synchronously) and get the result
+        result = process_automation_task(task_data)
+        
+        # ✅ FIX: Try to send result to Kafka, but if it fails, that's okay for direct endpoint
+        # The result is already returned in the HTTP response
+        if result:
+            try:
+                # Try to send to Kafka for consistency (but don't fail if Kafka is unavailable)
+                send_result_to_kafka(task_id, result, 
+                                    status='completed' if result.get('success') else 'failed',
+                                    run_id=run_id)
+            except Exception as kafka_error:
+                # Log but don't fail - result is already in HTTP response
+                logger.warning(f"⚠️ Could not send result to Kafka (Kafka may be unavailable): {kafka_error}")
+        
+        # Return the actual result in the HTTP response
         return jsonify({
-            'success': True,
-            'message': 'Automation task completed',
-            'task_id': task_id
+            'success': result.get('success', False) if result else False,
+            'result': result,
+            'task_id': task_id,
+            'run_id': run_id,
+            'message': result.get('message', 'Automation task completed') if result else 'Automation task completed'
         }), 200
 
     except Exception as e:
-        logger.error(f"Direct automation error: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Direct automation error: {e}", exc_info=True)
+        return jsonify({'error': str(e), 'success': False}), 500
 
 if __name__ == '__main__':
     # ✅ PART 2.1 & 2.3: Initialize OpenTelemetry before starting the worker

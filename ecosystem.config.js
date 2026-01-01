@@ -88,7 +88,37 @@ module.exports = {
         SUPABASE_URL: process.env.SUPABASE_URL,
         SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE,
         SUPABASE_KEY: process.env.SUPABASE_KEY,
+        ENV: process.env.ENV || process.env.NODE_ENV || 'development',
+        NODE_ENV: process.env.NODE_ENV || process.env.ENV || 'development',
       },
     },
   ],
 };
+
+// ✅ FIX: Add RAG service to ecosystem config if it exists
+const RAG_DIR = '/Users/ky/rag-node-ts';
+if (fs.existsSync(RAG_DIR) && fs.existsSync(path.join(RAG_DIR, 'package.json'))) {
+  try {
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(RAG_DIR, 'package.json'), 'utf8'));
+    // Determine the start script (prefer 'dev', fallback to 'start')
+    const scriptName = pkgJson.scripts?.dev ? 'dev' : (pkgJson.scripts?.start ? 'start' : 'dev');
+    
+    module.exports.apps.push({
+      name: 'rag-node-ts',
+      script: 'npm',
+      args: 'run ' + scriptName,
+      cwd: RAG_DIR,
+      interpreter: 'npm',
+      error_file: path.join(ROOT_DIR, 'logs/rag-error.log'),
+      out_file: path.join(ROOT_DIR, 'logs/rag.log'),
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      env: {
+        PORT: process.env.RAG_SERVICE_PORT || '3002',
+        NODE_ENV: process.env.NODE_ENV || 'development',
+      },
+    });
+  } catch (e) {
+    // RAG service config failed, continue without it (non-critical)
+  }
+}

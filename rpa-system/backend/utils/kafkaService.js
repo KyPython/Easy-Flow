@@ -562,6 +562,83 @@ class KafkaService {
                                             logger.info(`[KafkaService] Setting artifact_url for run ${runRecordId}: ${artifactUrl}`);
                                         }
                                         
+                                        // ✅ FIX: Create file record in files table if automation downloaded a file
+                                        // This ensures files appear automatically in the Files page
+                                        const storagePath = resultData?.data?.storage_path || resultData?.storage_path;
+                                        const downloadPath = resultData?.data?.download_path || resultData?.download_path;
+                                        const fileName = resultData?.data?.filename || resultData?.filename;
+                                        const fileSize = resultData?.data?.file_size || resultData?.file_size;
+                                        
+                                        if (storagePath && dbStatus === 'completed') {
+                                            try {
+                                                // Get user_id from the run record
+                                                const { data: runRecord } = await supabase
+                                                    .from('automation_runs')
+                                                    .select('user_id')
+                                                    .eq('id', runRecordId)
+                                                    .single();
+                                                
+                                                if (runRecord?.user_id) {
+                                                    // Check if file record already exists
+                                                    const { data: existingFile } = await supabase
+                                                        .from('files')
+                                                        .select('id')
+                                                        .eq('storage_path', storagePath)
+                                                        .eq('user_id', runRecord.user_id)
+                                                        .single();
+                                                    
+                                                    if (!existingFile) {
+                                                        // Create file record so it appears in Files page
+                                                        const fileRecord = {
+                                                            user_id: runRecord.user_id,
+                                                            original_name: fileName || storagePath.split('/').pop() || 'automation_file.pdf',
+                                                            display_name: fileName || storagePath.split('/').pop() || 'automation_file.pdf',
+                                                            storage_path: storagePath,
+                                                            storage_bucket: 'user-files',
+                                                            file_size: fileSize || 0,
+                                                            mime_type: 'application/pdf',
+                                                            file_extension: 'pdf',
+                                                            folder_path: '/invoices',
+                                                            tags: ['automation', 'invoice'],
+                                                            metadata: {
+                                                                source: 'automation',
+                                                                task_type: resultData?.data?.task_type || 'invoice_download',
+                                                                run_id: runRecordId
+                                                            }
+                                                        };
+                                                        
+                                                        const { data: newFileRecord, error: fileError } = await supabase
+                                                            .from('files')
+                                                            .insert(fileRecord)
+                                                            .select()
+                                                            .single();
+                                                        
+                                                        if (fileError) {
+                                                            logger.warn(`[KafkaService] Failed to create file record: ${fileError.message}`, {
+                                                                runId: runRecordId,
+                                                                storagePath,
+                                                                error: fileError
+                                                            });
+                                                        } else {
+                                                            logger.info(`[KafkaService] ✅ Created file record in Files page: ${newFileRecord.id}`, {
+                                                                runId: runRecordId,
+                                                                fileId: newFileRecord.id,
+                                                                storagePath
+                                                            });
+                                                        }
+                                                    } else {
+                                                        logger.info(`[KafkaService] File record already exists: ${existingFile.id}`);
+                                                    }
+                                                }
+                                            } catch (fileRecordError) {
+                                                // Don't fail the task if file record creation fails
+                                                logger.warn(`[KafkaService] Error creating file record (non-fatal): ${fileRecordError.message}`, {
+                                                    runId: runRecordId,
+                                                    error: fileRecordError
+                                                });
+                                            }
+                                        }
+                                        
                                         // ✅ AI EXTRACTION: Process AI extraction if enabled and task completed successfully
                                         // Get task parameters from automation_tasks table to check if AI extraction was enabled
                                         if (dbStatus === 'completed' && runRecordId) {

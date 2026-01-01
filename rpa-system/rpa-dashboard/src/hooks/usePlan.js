@@ -67,20 +67,25 @@ export const usePlan = () => {
   // NEW: Track if backend is unreachable to avoid spam
   const [backendStatus, setBackendStatus] = useState('unknown'); // 'unknown' | 'reachable' | 'unreachable'
 
+  // ✅ FIX: Global fetch lock to prevent multiple components from fetching simultaneously
+  if (!window.__planFetchLock) {
+    window.__planFetchLock = { inFlight: false, lastAttempt: 0 };
+  }
+  const globalLock = window.__planFetchLock;
+
   const fetchPlanData = useCallback(async () => {
-    // Prevent concurrent in-flight fetches which can overload backend
-    if (fetchPlanData.inFlight) return;
+    // Prevent concurrent in-flight fetches which can overload backend (global lock)
+    if (globalLock.inFlight) return;
     // Prevent rapid repeat attempts (debounce) - skip if last attempt was very recent
-    if (!fetchPlanData._lastAttempt) fetchPlanData._lastAttempt = 0;
     const nowMs = Date.now();
     const MIN_ATTEMPT_INTERVAL_MS = 3000; // 3s
-    if (nowMs - fetchPlanData._lastAttempt < MIN_ATTEMPT_INTERVAL_MS) return;
-    fetchPlanData._lastAttempt = nowMs;
-    fetchPlanData.inFlight = true;
+    if (nowMs - globalLock.lastAttempt < MIN_ATTEMPT_INTERVAL_MS) return;
+    globalLock.lastAttempt = nowMs;
+    globalLock.inFlight = true;
     
     if (!user?.id) {
       setLoading(false);
-      fetchPlanData.inFlight = false;
+      globalLock.inFlight = false;
       return;
     }
 
@@ -96,7 +101,7 @@ export const usePlan = () => {
         setPlanData(sessionContext.plan);
         setLoading(false);
         setBackendStatus('reachable');
-        fetchPlanData.inFlight = false;
+        globalLock.inFlight = false;
         return;
       }
 
@@ -176,9 +181,9 @@ export const usePlan = () => {
     } finally {
       setLoading(false);
       // Duration logged to backend telemetry if enabled
-      fetchPlanData.inFlight = false;
+      globalLock.inFlight = false;
     }
-  }, [user?.id, backendStatus, planData]);
+  }, [user?.id, backendStatus, sessionContext?.plan, sessionContext?.isLoading]);
 
   useEffect(() => {
     // Fetch plan data on mount and when the user id changes

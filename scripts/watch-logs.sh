@@ -38,16 +38,18 @@ sanitize_path() {
 BACKEND_LOG=$(sanitize_path "${LOG_DIR}/backend.log")
 FRONTEND_LOG=$(sanitize_path "${LOG_DIR}/frontend.log")
 AUTOMATION_LOG=$(sanitize_path "${LOG_DIR}/automation-worker.log")
+RAG_LOG=$(sanitize_path "${LOG_DIR}/rag.log")
 
 # Validate log files exist (create if needed)
 [ -f "$BACKEND_LOG" ] || touch "$BACKEND_LOG"
 [ -f "$FRONTEND_LOG" ] || touch "$FRONTEND_LOG"
 [ -f "$AUTOMATION_LOG" ] || touch "$AUTOMATION_LOG"
+[ -f "$RAG_LOG" ] || touch "$RAG_LOG"
 
 # Cleanup function to kill background processes
 cleanup() {
     echo -e "\n${YELLOW}Stopping log watchers...${NC}"
-    kill $TAIL_PID1 $TAIL_PID2 $TAIL_PID3 2>/dev/null || true
+    kill $TAIL_PID1 $TAIL_PID2 $TAIL_PID3 $TAIL_PID4 2>/dev/null || true
     exit 0
 }
 
@@ -61,7 +63,8 @@ if command -v multitail >/dev/null 2>&1; then
         -cT ansi \
         -l "tail -f $BACKEND_LOG" \
         -l "tail -f $FRONTEND_LOG" \
-        -l "tail -f $AUTOMATION_LOG"
+        -l "tail -f $AUTOMATION_LOG" \
+        -l "tail -f $RAG_LOG"
 else
     # Fallback: use tail with colors (using printf for reliable escape sequences)
     # Store PIDs for cleanup
@@ -71,6 +74,8 @@ else
     TAIL_PID2=$!
     tail -f "$AUTOMATION_LOG" | sed "s/^/$(printf '\033[0;36m')[WORKER]$(printf '\033[0m') /" &
     TAIL_PID3=$!
+    tail -f "$RAG_LOG" | sed "s/^/$(printf '\033[0;35m')[RAG]$(printf '\033[0m') /" &
+    TAIL_PID4=$!
     
     # Wait for all background processes
     wait

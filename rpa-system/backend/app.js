@@ -2255,7 +2255,8 @@ function isValidUrl(url) {
     if (isPrivateIP(parsed.hostname)) return { valid: false, reason: 'private-ip' };
     // Only allow http and https, block ALL others
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return { valid: false, reason: 'protocol' };
-    return { valid: true };
+    // ✅ FIX: Return the normalized URL so it can be used in the payload
+    return { valid: true, url: parsed.href };
   } catch (e) {
     return { valid: false, reason: 'invalid-url' };
   }
@@ -2431,15 +2432,44 @@ async function queueTaskRun(runId, taskData) {
     }
     
     // ✅ SECURITY: Validate URL to prevent SSRF
-    let validatedUrl = null;
-    if (taskData.url) {
-      const urlValidation = isValidUrl(taskData.url);
-      if (!urlValidation.valid) {
-        logger.warn(`[queueTaskRun] Invalid URL rejected: ${taskData.url} (reason: ${urlValidation.reason})`);
-        throw new Error(`Invalid URL: ${urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format'}`);
+    // ✅ FIX: Log taskData structure to debug missing URL
+    logger.info(`[queueTaskRun] Task data received:`, {
+      has_url: !!taskData.url,
+      url: taskData.url,
+      task_type: taskData.task_type,
+      has_parameters: !!taskData.parameters,
+      parameters_keys: taskData.parameters ? Object.keys(taskData.parameters) : [],
+      all_keys: Object.keys(taskData)
+    });
+    
+    // ✅ FIX: Extract URL from multiple possible locations
+    let urlToValidate = taskData.url;
+    if (!urlToValidate && taskData.parameters) {
+      urlToValidate = taskData.parameters.url || taskData.parameters.targetUrl || taskData.parameters.websiteUrl;
+      if (urlToValidate) {
+        logger.info(`[queueTaskRun] URL found in parameters, extracting to top level: ${urlToValidate}`);
+        taskData.url = urlToValidate; // Set it at top level for consistency
       }
-      validatedUrl = urlValidation.url; // Use validated URL
     }
+    
+    // ✅ CRITICAL: URL is required for all automation tasks
+    if (!urlToValidate) {
+      logger.error(`[queueTaskRun] CRITICAL ERROR: No URL found in task data!`, {
+        run_id: runId,
+        taskData_keys: Object.keys(taskData),
+        has_parameters: !!taskData.parameters,
+        parameters_keys: taskData.parameters ? Object.keys(taskData.parameters) : []
+      });
+      throw new Error('URL is required but was not found in task data. Please provide a valid URL.');
+    }
+    
+    let validatedUrl = null;
+    const urlValidation = isValidUrl(urlToValidate);
+    if (!urlValidation.valid) {
+      logger.warn(`[queueTaskRun] Invalid URL rejected: ${urlToValidate} (reason: ${urlValidation.reason})`);
+      throw new Error(`Invalid URL: ${urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format'}`);
+    }
+    validatedUrl = urlValidation.url; // Use validated URL
     
     // Prepare the payload for the automation worker
     const payload = { 
@@ -2477,6 +2507,28 @@ async function queueTaskRun(runId, taskData) {
     
     logger.info(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
     
+    // ✅ CRITICAL: Log the exact payload being sent to worker for debugging
+    logger.info(`[queueTaskRun] Payload being sent to worker:`, {
+      run_id: runId,
+      has_url: !!payload.url,
+      url: payload.url,
+      has_pdf_url: !!payload.pdf_url,
+      pdf_url: payload.pdf_url,
+      task_type: payload.task_type,
+      type: payload.type,
+      all_keys: Object.keys(payload),
+      payload_summary: {
+        url: payload.url,
+        pdf_url: payload.pdf_url,
+        task_type: payload.task_type,
+        type: payload.type,
+        title: payload.title,
+        run_id: payload.run_id,
+        task_id: payload.task_id,
+        user_id: payload.user_id
+      }
+    });
+    
     // ✅ PRIORITY 2: Call automation service with retry logic (3x: 0s, 5s, 15s)
     try {
       let automationResult;
@@ -2493,11 +2545,11 @@ async function queueTaskRun(runId, taskData) {
       normalizedUrl = normalizedUrl.trim();
       
       // Try type-specific endpoints first, then fall back to generic /automate
+      // ✅ FIX: Worker only supports /automate and /automate/<task_type>, not /<task_type>
       const taskTypeSlug = String(payload.type || 'general').toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-');
       const candidates = [
         `/automate/${encodeURIComponent(taskTypeSlug)}`,
-        `/${encodeURIComponent(taskTypeSlug)}`,
-        '/automate'
+        '/automate'  // Fallback to generic endpoint
       ];
 
       // ✅ OBSERVABILITY: Track retry attempts with timing
@@ -2528,11 +2580,11 @@ async function queueTaskRun(runId, taskData) {
           const waitMs = backoffDelays[attempt - 1];
           logger.info(`[queueTaskRun] ⏳ Waiting ${waitMs}ms before retry`, { 
             run_id: runId,
-            wait_ms,
+            wait_ms: waitMs,
             attempt,
             observability: {
               event: 'retry_backoff_wait',
-              wait_ms
+              wait_ms: waitMs
             }
           });
           await new Promise(resolve => setTimeout(resolve, waitMs));
@@ -2558,23 +2610,68 @@ async function queueTaskRun(runId, taskData) {
             const attemptDuration = Date.now() - attemptStartTime;
             const totalDuration = Date.now() - automationStartTime;
             
-            // ✅ OBSERVABILITY: Log successful automation with timing metrics
-            logger.info(`[queueTaskRun] ✅ Automation succeeded on attempt ${attempt}`, {
-              run_id: runId,
-              endpoint: pathSuffix,
-              status: response.status,
-              attempt,
-              attempt_duration_ms: attemptDuration,
-              total_duration_ms: totalDuration,
-              timestamp: new Date().toISOString(),
-              observability: {
-                event: 'automation_success',
-                attempt_number: attempt,
-                duration_ms: attemptDuration,
+            // ✅ FIX: If direct endpoint returns result synchronously (when Kafka unavailable), handle it immediately
+            // Check if the response contains a result (direct endpoint) vs just acknowledgment (Kafka mode)
+            if (automationResult.result || automationResult.success !== undefined) {
+              // Direct endpoint returned the actual result - update status immediately
+              logger.info(`[queueTaskRun] ✅ Direct endpoint returned result (Kafka unavailable)`, {
+                run_id: runId,
+                endpoint: pathSuffix,
+                status: response.status,
+                success: automationResult.success,
+                attempt,
+                attempt_duration_ms: attemptDuration,
                 total_duration_ms: totalDuration
+              });
+              
+              // Update automation run status immediately since we have the result
+              const finalStatus = automationResult.success ? 'completed' : 'failed';
+              const sb2 = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
+              await sb2
+                .from('automation_runs')
+                .update({
+                  status: finalStatus,
+                  ended_at: new Date().toISOString(),
+                  result: JSON.stringify(automationResult.result || automationResult)
+                })
+                .eq('id', runId);
+              
+              // Track usage and send notifications
+              await usageTracker.trackAutomationRun(taskData.user_id, runId, finalStatus);
+              
+              // Send notification if failed
+              if (finalStatus === 'failed') {
+                try {
+                  const taskName = taskData.title || 'Automation Task';
+                  const errorMessage = automationResult.result?.error || automationResult.error || 'Task failed';
+                  const notification = NotificationTemplates.taskFailed(taskName, errorMessage);
+                  await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
+                  logger.info(`🔔 Task failure notification sent to user ${taskData.user_id}`);
+                } catch (notificationError) {
+                  logger.error('🔔 Failed to send task failure notification:', notificationError.message);
+                }
               }
-            });
-            break; // Success - exit both loops
+              
+              break; // Success - exit both loops
+            } else {
+              // Kafka mode - just acknowledgment, result will come via Kafka
+              logger.info(`[queueTaskRun] ✅ Automation succeeded on attempt ${attempt}`, {
+                run_id: runId,
+                endpoint: pathSuffix,
+                status: response.status,
+                attempt,
+                attempt_duration_ms: attemptDuration,
+                total_duration_ms: totalDuration,
+                timestamp: new Date().toISOString(),
+                observability: {
+                  event: 'automation_success',
+                  attempt_number: attempt,
+                  duration_ms: attemptDuration,
+                  total_duration_ms: totalDuration
+                }
+              });
+              break; // Success - exit both loops
+            }
           } catch (err) {
             lastError = err;
             const isRetryable = 
@@ -6987,12 +7084,18 @@ app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req,
 
 // Enhanced task form - Add AI extraction to existing tasks
 app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automationLimiter, async (req, res) => {
-  const { url, title, notes, type, task, username, password, pdf_url, enableAI, extractionTargets } = req.body;
+  // ✅ FIX: Extract URL from multiple possible field names (url, targetUrl, websiteUrl, etc.)
+  const url = req.body.url || req.body.targetUrl || req.body.websiteUrl || req.body.target_url || req.body.website_url;
+  const { title, notes, type, task, username, password, pdf_url, enableAI, extractionTargets } = req.body;
   const user = req.user;
 
   if (!url) {
+    logger.warn(`[run-task-with-ai] Missing URL in request body. Available keys: ${Object.keys(req.body).join(', ')}`);
     return res.status(400).json({ error: 'url is required' });
   }
+  
+  // ✅ FIX: Log URL extraction for debugging
+  logger.info(`[run-task-with-ai] URL extracted:`, { url, url_source: req.body.url ? 'url' : (req.body.targetUrl ? 'targetUrl' : 'other') });
 
   try {
     logger.info(`[run-task-with-ai] Processing AI-enhanced automation for user ${user.id}`);
@@ -7084,69 +7187,179 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
     // Only attempt link discovery if:
     // 1. It's an invoice download task
     // 2. No direct pdf_url was provided
-    // 3. Discovery method is set AND we have credentials
-    const shouldAttemptDiscovery = taskType === 'invoice_download' && 
-                                   !pdf_url && 
-                                   discoveryMethod && 
-                                   username && 
-                                   password;
+    // ✅ FIX: For invoice downloads, ALWAYS attempt link discovery if no pdf_url is provided
+    // EasyFlow should handle finding PDFs automatically - users shouldn't need direct URLs
+    const shouldAttemptDiscovery = taskType === 'invoice_download' && !pdf_url && url;
     
     if (shouldAttemptDiscovery) {
-      logger.info(`[run-task-with-ai] Processing invoice download with link discovery for user ${user.id}`);
+      logger.info(`[run-task-with-ai] Invoice download task - automatically discovering PDF links on page for user ${user.id}`);
+      
+      // ✅ FIX: Check if this is a demo portal (doesn't need credentials)
+      const isDemoPortal = url && (
+        url.includes('/demo') || 
+        url.includes('localhost:3030/demo') ||
+        url.includes('127.0.0.1:3030/demo')
+      );
+      
+      // ✅ FIX: Try discovery without credentials first (for public pages)
+      // Only require credentials if discovery fails due to authentication
+      let credentialsRequired = false;
       
       try {
-
-        // ✅ REMOVED: CSS selector option - not user-friendly, auto-detect works 99% of the time
-
-        if (discoveryMethod === 'text-match' && !discoveryValue) {
+        // ✅ FIX: Always use auto-detect first (most user-friendly)
+        // Only use text-match if user explicitly provided link text
+        const actualDiscoveryMethod = (discoveryMethod && discoveryMethod !== 'auto-detect') ? discoveryMethod : 'auto-detect';
+        
+        if (actualDiscoveryMethod === 'text-match' && !discoveryValue) {
           return res.status(400).json({
-            error: 'Link Text is required when using text-match method'
+            error: 'Link text required',
+            message: 'When using text-match discovery, you must provide the text that appears on the download link.',
+            userMessage: 'Please enter the exact text that appears on the invoice download button/link (e.g., "Download Invoice", "View PDF", etc.)',
+            alternative: 'Or leave the discovery method as "Auto-detect" and EasyFlow will find PDF links automatically'
           });
         }
 
-        logger.info(`[run-task-with-ai] Starting link discovery for ${url} with method: ${discoveryMethod || 'auto-detect'}`);
+        logger.info(`[run-task-with-ai] Starting automatic link discovery for ${url} with method: ${actualDiscoveryMethod}`);
         
         // ✅ SEAMLESS UX: Run link discovery with automatic fallback
         const linkDiscovery = new LinkDiscoveryService();
-        let discoveryResult = await linkDiscovery.discoverPdfLinks({
-          url,
-          username,
-          password,
-          discoveryMethod: discoveryMethod || 'auto-detect',
-          discoveryValue,
-          testMode: false
-        });
         
-        // ✅ SEAMLESS UX: If primary method fails, automatically try auto-detect as fallback
-        if (!discoveryResult.success && discoveryMethod && discoveryMethod !== 'auto-detect') {
-          logger.info(`[run-task-with-ai] Primary discovery method failed, trying auto-detect fallback`);
+        // ✅ FIX: Try without credentials first (for public pages or demo portal)
+        let discoveryResult;
+        if (!username || !password || isDemoPortal) {
+          logger.info(`[run-task-with-ai] Attempting discovery without credentials (public page or demo portal)`);
+          discoveryResult = await linkDiscovery.discoverPdfLinks({
+            url,
+            username: null,
+            password: null,
+            discoveryMethod: actualDiscoveryMethod,
+            discoveryValue: actualDiscoveryMethod === 'text-match' ? discoveryValue : null,
+            testMode: false
+          });
+          
+          // If discovery fails and we don't have credentials, check if it's an auth error
+          if (!discoveryResult.success && !isDemoPortal) {
+            const errorMsg = discoveryResult.error?.toLowerCase() || '';
+            const isAuthError = errorMsg.includes('login') || 
+                              errorMsg.includes('authentication') || 
+                              errorMsg.includes('unauthorized') ||
+                              errorMsg.includes('access denied') ||
+                              errorMsg.includes('forbidden');
+            
+            if (isAuthError) {
+              credentialsRequired = true;
+              logger.info(`[run-task-with-ai] Discovery failed due to authentication, credentials required`);
+            }
+          }
+        } else {
+          // Credentials provided, use them
           discoveryResult = await linkDiscovery.discoverPdfLinks({
             url,
             username,
             password,
+            discoveryMethod: actualDiscoveryMethod,
+            discoveryValue: actualDiscoveryMethod === 'text-match' ? discoveryValue : null,
+            testMode: false
+          });
+        }
+        
+        // ✅ SEAMLESS UX: If primary method fails, automatically try auto-detect as fallback
+        if (!discoveryResult.success && actualDiscoveryMethod !== 'auto-detect' && !credentialsRequired) {
+          logger.info(`[run-task-with-ai] Primary discovery method failed, trying auto-detect fallback`);
+          discoveryResult = await linkDiscovery.discoverPdfLinks({
+            url,
+            username: username || null,
+            password: password || null,
             discoveryMethod: 'auto-detect',
             discoveryValue: null,
             testMode: false
+          });
+        }
+        
+        // ✅ FIX: If credentials are required but not provided, ask for them
+        if (credentialsRequired && (!username || !password)) {
+          return res.status(400).json({
+            error: 'Login credentials required',
+            message: 'This page requires login to access. EasyFlow needs your credentials to find and download invoices.',
+            userMessage: 'Please provide your username and password so EasyFlow can log in and find the invoice download links for you.',
+            guidance: {
+              step1: 'Enter the URL of the page where your invoices are listed (e.g., "https://vendor.com/invoices" or "https://vendor.com/account")',
+              step2: 'Provide your login username and password',
+              step3: 'EasyFlow will automatically log in, find all PDF invoice links, and download them for you',
+              note: 'You don\'t need to find direct PDF URLs - EasyFlow handles that automatically!'
+            }
           });
         }
 
         if (discoveryResult.success && discoveryResult.pdfLinks && discoveryResult.pdfLinks.length > 0) {
           // Use the first discovered PDF link
           finalPdfUrl = discoveryResult.pdfLinks[0].url;
-          logger.info(`[run-task-with-ai] Discovered PDF URL: ${finalPdfUrl}`);
+          logger.info(`[run-task-with-ai] ✅ Successfully discovered PDF URL: ${finalPdfUrl}`);
           
           // Store discovered URL and cookies for the download
           if (discoveryResult.cookies) {
             // Cookies will be included in the task data
           }
         } else {
-          logger.warn(`[run-task-with-ai] Link discovery failed or found no PDF links: ${discoveryResult.error || 'No links found'}`);
-          // Continue with the task - the automation worker will handle the error
+          // ✅ FIX: Fail the task with helpful guidance if no PDF is found
+          const errorMessage = discoveryResult.error || 'No PDF links found on the page';
+          const allLinksFound = discoveryResult.allLinksFound || discoveryResult.diagnosticInfo?.totalLinksOnPage || 0;
+          const pageTitle = discoveryResult.pageTitle || 'Unknown';
+          
+          logger.warn(`[run-task-with-ai] Link discovery failed: ${errorMessage}`, {
+            url,
+            allLinksFound,
+            pageTitle,
+            discoveryMethod: actualDiscoveryMethod
+          });
+          
+          return res.status(400).json({
+            error: 'No invoice PDFs found',
+            message: `EasyFlow couldn't find any PDF invoice links on the page.`,
+            userMessage: `EasyFlow searched the page but couldn't find any PDF download links.`,
+            details: {
+              pageTitle: pageTitle,
+              totalLinksFound: allLinksFound,
+              error: errorMessage
+            },
+            guidance: {
+              step1: 'Make sure you\'re providing the URL of the page that lists your invoices (not a direct PDF link)',
+              step2: 'Verify your login credentials are correct and that you can access the invoice page manually',
+              step3: 'Check that the page actually has invoice download links visible',
+              step4: 'Try using "Text Match" discovery method and enter the exact text on the download button (e.g., "Download", "View PDF", "Invoice")',
+              example: 'Good URLs: "https://vendor.com/invoices", "https://vendor.com/account/billing". Bad URLs: "https://vendor.com/login" (login page, not invoice list)'
+            },
+            suggestion: 'If you know the direct PDF URL, you can provide it in the "PDF URL" field, but EasyFlow should be able to find it automatically on most invoice pages.'
+          });
         }
       } catch (discoveryError) {
-        logger.error(`[run-task-with-ai] Link discovery error: ${discoveryError.message}`);
-        // Continue with the task - the automation worker will handle the error
+        logger.error(`[run-task-with-ai] Link discovery error: ${discoveryError.message}`, discoveryError);
+        
+        // ✅ FIX: Fail with helpful error message instead of continuing
+        return res.status(500).json({
+          error: 'Link discovery failed',
+          message: `EasyFlow encountered an error while trying to find invoice links: ${discoveryError.message}`,
+          userMessage: 'There was an error accessing the invoice page. Please check your URL and login credentials.',
+          guidance: {
+            step1: 'Verify the URL is correct and accessible',
+            step2: 'Double-check your username and password',
+            step3: 'Make sure the page loads correctly when you visit it manually in a browser',
+            step4: 'If the issue persists, try providing a direct PDF URL in the "PDF URL" field as a workaround'
+          }
+        });
       }
+    } else if (taskType === 'invoice_download' && !pdf_url && !url) {
+      // ✅ FIX: Fail early if no URL provided for invoice download
+      return res.status(400).json({
+        error: 'URL required',
+        message: 'For invoice downloads, EasyFlow needs the URL of the page where your invoices are listed.',
+        userMessage: 'Please provide the URL of the invoice page (e.g., "https://vendor.com/invoices"). EasyFlow will automatically find and download the PDFs for you.',
+        guidance: {
+          whatToProvide: 'The URL of the page that shows your list of invoices or account page',
+          whatNotToProvide: 'You don\'t need to find direct PDF URLs - EasyFlow handles that automatically!',
+          example: 'Good: "https://vendor.com/invoices" or "https://vendor.com/account/billing"'
+        }
+      });
     }
     
     // Create automation run
@@ -7182,8 +7395,10 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
         // The actual result (completed/failed) will come via Kafka
         // Status remains 'running' until Kafka delivers the actual result
         // Kafka consumer handles: status update, usage tracking, and notifications
-        const dispatchResult = await queueTaskRun(run.id, {
-          url,
+        // ✅ FIX: Ensure URL is always included in task data
+        // The URL is critical - it must be at the top level for queueTaskRun to find it
+        const taskDataForQueue = {
+          url: url, // ✅ CRITICAL: Always include URL at top level
           title: taskName,
           task_id: taskRecord.id,
           user_id: user.id,
@@ -7193,9 +7408,33 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
             password, 
             pdf_url: finalPdfUrl || pdf_url,
             enableAI: enableAI || false,
-            extractionTargets: extractionTargets || []
+            extractionTargets: extractionTargets || [],
+            // ✅ FIX: Also include URL in parameters as fallback
+            url: url
           }
+        };
+        
+        // ✅ FIX: Validate URL is present before passing to queueTaskRun
+        if (!taskDataForQueue.url) {
+          logger.error(`[run-task-with-ai] CRITICAL: URL is missing from taskDataForQueue!`, {
+            runId: run.id,
+            taskId: taskRecord.id,
+            original_url: url,
+            taskData_keys: Object.keys(taskDataForQueue)
+          });
+          throw new Error('URL is required but was not found in task data');
+        }
+        
+        logger.info(`[run-task-with-ai] Passing task data to queueTaskRun:`, {
+          has_url: !!taskDataForQueue.url,
+          url: taskDataForQueue.url,
+          task_type: taskType,
+          has_pdf_url: !!(finalPdfUrl || pdf_url),
+          pdf_url: finalPdfUrl || pdf_url,
+          run_id: run.id
         });
+        
+        const dispatchResult = await queueTaskRun(run.id, taskDataForQueue);
         
         logger.info(`[run-task-with-ai] ✅ Task ${run.id} dispatched to automation worker`, {
           runId: run.id,
