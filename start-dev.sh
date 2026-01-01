@@ -66,12 +66,17 @@ install_npm_deps() {
     if [ -f "$dir/package.json" ]; then
         local needs_install=false
         
-        # Check if node_modules exists
-        if [ ! -d "$dir/node_modules" ]; then
+        # Check if node_modules exists and has content
+        if [ ! -d "$dir/node_modules" ] || [ -z "$(ls -A "$dir/node_modules" 2>/dev/null)" ]; then
             needs_install=true
-        # Check if package.json is newer than node_modules
+        # Check if package.json is newer than node_modules (only if significantly newer, not just touched)
         elif [ "$dir/package.json" -nt "$dir/node_modules" ]; then
-            needs_install=true
+            # Only reinstall if package.json is more than 1 second newer (avoids false positives from file system)
+            local pkg_time=$(stat -f "%m" "$dir/package.json" 2>/dev/null || stat -c "%Y" "$dir/package.json" 2>/dev/null || echo "0")
+            local node_time=$(stat -f "%m" "$dir/node_modules" 2>/dev/null || stat -c "%Y" "$dir/node_modules" 2>/dev/null || echo "0")
+            if [ "$pkg_time" -gt "$((node_time + 1))" ]; then
+                needs_install=true
+            fi
         # Check for required packages if specified
         elif [ -n "$required_packages" ]; then
             IFS=',' read -ra PACKAGES <<< "$required_packages"
@@ -86,7 +91,12 @@ install_npm_deps() {
         if [ "$needs_install" = true ]; then
             echo -e "${YELLOW}  Installing $name dependencies...${NC}"
             if [ -d "$dir" ]; then
-                (cd "$dir" && npm install --silent 2>/dev/null)
+                # Use npm ci if package-lock.json exists (faster, more reliable)
+                if [ -f "$dir/package-lock.json" ]; then
+                    (cd "$dir" && npm ci --silent 2>/dev/null)
+                else
+                    (cd "$dir" && npm install --silent 2>/dev/null)
+                fi
                 if [ $? -eq 0 ]; then
                     echo -e "${GREEN}  ✓ $name dependencies installed${NC}"
                 else
@@ -231,10 +241,10 @@ else
         fi
     fi
     
-    # Wait for RAG service to be ready
+    # Wait for RAG service to be ready (reduced timeout for dev)
     echo -e "${YELLOW}  Waiting for RAG service to be ready...${NC}"
     RAG_READY=false
-    for i in {1..30}; do
+    for i in {1..15}; do
         if curl -s http://localhost:$RAG_PORT/health > /dev/null 2>&1; then
             echo -e "${GREEN}✓ RAG service is ready${NC}"
             RAG_READY=true
@@ -501,9 +511,9 @@ while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
     WAIT_COUNT=$((WAIT_COUNT + 1))
 done
 
-# Check if Kafka is actually healthy (not just running)
+# Check if Kafka is actually healthy (not just running) - reduced timeout for dev
 echo -e "${YELLOW}  Verifying Kafka health...${NC}"
-MAX_HEALTH_WAIT=30
+MAX_HEALTH_WAIT=15
 HEALTH_WAIT=0
 while [ $HEALTH_WAIT -lt $MAX_HEALTH_WAIT ]; do
     if check_kafka_health; then
@@ -572,10 +582,10 @@ if [ "$DOCKER_READY" = true ]; then
     
     sleep 5
 
-    # Wait for Grafana to be ready (it may restart due to datasource provisioning)
+    # Wait for Grafana to be ready (reduced timeout for dev)
     echo -e "${YELLOW}Waiting for Grafana to be ready...${NC}"
     GRAFANA_READY=false
-    for i in {1..30}; do
+    for i in {1..15}; do
         if curl -s http://localhost:3001/api/health > /dev/null 2>&1; then
             echo -e "${GREEN}✓ Grafana is ready${NC}"
             GRAFANA_READY=true
@@ -764,9 +774,9 @@ fi
 # Check services health
 echo ""
 
-# Wait for Backend (up to 30s)
+# Wait for Backend (reduced timeout for dev)
 BACKEND_OK=false
-for i in {1..30}; do
+for i in {1..15}; do
     if curl -s http://localhost:$BACKEND_PORT/health > /dev/null; then
         echo -e "${GREEN}✓ Backend is healthy${NC}"
         BACKEND_OK=true
@@ -776,9 +786,9 @@ for i in {1..30}; do
 done
 [ "$BACKEND_OK" = false ] && { echo -e "${RED}✗ Backend failed to start${NC}"; pm2 logs easyflow-backend --lines 20 --nostream; }
 
-# Wait for Automation Worker (up to 30s)
+# Wait for Automation Worker (reduced timeout for dev)
 AUTO_OK=false
-for i in {1..30}; do
+for i in {1..15}; do
     if curl -s http://localhost:$AUTOMATION_PORT/health > /dev/null; then
         echo -e "${GREEN}✓ Automation worker is healthy${NC}"
         AUTO_OK=true
@@ -793,7 +803,7 @@ done
 if [ "$DOCKER_READY" = true ]; then
     echo -e "${YELLOW}Waiting for Prometheus to be ready...${NC}"
     PROMETHEUS_READY=false
-    for i in {1..30}; do
+    for i in {1..15}; do
         if curl -s http://localhost:9090/-/healthy > /dev/null 2>&1; then
             echo -e "${GREEN}✓ Prometheus is ready${NC}"
             PROMETHEUS_READY=true
@@ -813,7 +823,7 @@ if [ "$DOCKER_READY" = true ]; then
         
         # Check critical targets first (backend, prometheus, otel-collector - these scrape every 15-30s)
         CRITICAL_TARGETS_UP=false
-        for i in {1..8}; do
+        for i in {1..4}; do
             TARGETS_JSON=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null)
             # Check if critical targets are up (backend, prometheus, otel-collector)
             CRITICAL_UP=$(echo "$TARGETS_JSON" | grep -o '"health":"up"' | wc -l | tr -d ' ')
@@ -825,10 +835,10 @@ if [ "$DOCKER_READY" = true ]; then
             sleep 5
         done
         
-        # Wait a bit more for business metrics (scrapes every 60s)
+        # Wait briefly for business metrics (reduced wait for dev)
         if [ "$CRITICAL_TARGETS_UP" = true ]; then
-            echo -e "${YELLOW}Waiting for business metrics scrape (may take up to 60s)...${NC}"
-            sleep 10
+            echo -e "${YELLOW}Waiting for business metrics scrape...${NC}"
+            sleep 5
             # Final check - count all UP targets
             TARGETS_JSON=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null)
             TOTAL_UP=$(echo "$TARGETS_JSON" | grep -o '"health":"up"' | wc -l | tr -d ' ')
