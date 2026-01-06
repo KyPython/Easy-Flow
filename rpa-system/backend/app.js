@@ -4453,6 +4453,31 @@ async function ensureUserProfile(userId, email) {
       }
       
       // ✅ OBSERVABILITY: Track signup event server-side when profile is created
+      // Look up UTM parameters from signup_sources table
+      let utmParams = {};
+      try {
+        const { data: signupSource } = await supabase
+          .from('signup_sources')
+          .select('source, medium, campaign, referrer, landing_page')
+          .eq('email', email)
+          .order('timestamp', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (signupSource) {
+          utmParams = {
+            utm_source: signupSource.source,
+            utm_medium: signupSource.medium,
+            utm_campaign: signupSource.campaign,
+            referrer: signupSource.referrer,
+            landing_page: signupSource.landing_page
+          };
+          logger.debug(`[ensureUserProfile] Found UTM params for ${email}:`, utmParams);
+        }
+      } catch (utmError) {
+        logger.debug('[ensureUserProfile] Could not fetch UTM params (non-critical):', utmError.message);
+      }
+
       try {
         await supabase.from('marketing_events').insert([{
           user_id: userId,
@@ -4460,11 +4485,12 @@ async function ensureUserProfile(userId, email) {
           properties: {
             email: email,
             source: 'server_profile_creation',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            ...utmParams  // Include UTM parameters in marketing_events
           },
           created_at: new Date().toISOString()
         }]);
-        logger.info(`[ensureUserProfile] Tracked signup event for user ${userId}`);
+        logger.info(`[ensureUserProfile] Tracked signup event for user ${userId} with UTM params:`, utmParams);
       } catch (trackError) {
         logger.warn('[ensureUserProfile] Failed to track signup event:', trackError.message);
       }

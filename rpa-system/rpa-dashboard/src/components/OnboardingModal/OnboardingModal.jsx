@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { triggerCampaign } from '../../utils/api';
+import { trackOnboardingStep } from '../../utils/onboardingTracking';
 import styles from './OnboardingModal.module.css';
 import PropTypes from 'prop-types';
 import { useI18n } from '../../i18n';
@@ -7,8 +8,19 @@ import { useI18n } from '../../i18n';
 const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasTrackedStart, setHasTrackedStart] = useState(false);
 
   const { t } = useI18n();
+
+  // Track tutorial_started when modal opens
+  useEffect(() => {
+    if (isOpen && !hasTrackedStart) {
+      trackOnboardingStep('tutorial_started', { modal_opened: true }).catch(e => 
+        console.debug('Failed to track tutorial_started:', e)
+      );
+      setHasTrackedStart(true);
+    }
+  }, [isOpen, hasTrackedStart]);
   const steps = [
     {
       title: t('onboarding.step1.title','Stop Doing Boring Work!'),
@@ -142,7 +154,15 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
+      const nextStep = currentStep + 1;
+      setCurrentStep(nextStep);
+      
+      // Track step progression (optional - can be used for analytics)
+      trackOnboardingStep('tutorial_step_viewed', {
+        step_number: nextStep + 1,
+        step_name: steps[nextStep]?.title || `step_${nextStep + 1}`,
+        total_steps: steps.length
+      }).catch(e => console.debug('Failed to track tutorial step:', e));
     }
   };
 
@@ -159,6 +179,12 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
   const handleComplete = async () => {
     setIsLoading(true);
     try {
+      // Track tutorial_completed onboarding step
+      await trackOnboardingStep('tutorial_completed', {
+        total_steps: steps.length,
+        completed_at: new Date().toISOString()
+      }).catch(e => console.debug('Failed to track tutorial_completed:', e));
+      
       console.log('Triggering welcome campaign...');
       
       // Make sure we're sending the campaign parameter correctly

@@ -64,6 +64,20 @@ export default function AuthPage() {
         const client = await initSupabase();
         const res = client.auth.onAuthStateChange(async (event, session) => {
           if (event === 'SIGNED_IN' && session?.user) {
+            // Track email_verified if this is from email confirmation
+            if (session?.user?.email_confirmed_at) {
+              try {
+                const { trackOnboardingStep } = await import('../utils/onboardingTracking');
+                await trackOnboardingStep('email_verified', {
+                  user_id: session.user.id,
+                  email: session.user.email,
+                  confirmed_at: session.user.email_confirmed_at
+                }).catch(e => console.debug('Failed to track email_verified:', e));
+              } catch (e) {
+                console.debug('Failed to import/use onboarding tracking:', e);
+              }
+            }
+
             // Complete referral if there's a referral code
             if (referralCode) {
               try {
@@ -80,6 +94,20 @@ export default function AuthPage() {
             }
 
             navigate('/app');
+          }
+          
+          // Track email_verified on TOKEN_REFRESHED event (also indicates confirmation)
+          if (event === 'TOKEN_REFRESHED' && session?.user?.email_confirmed_at) {
+            try {
+              const { trackOnboardingStep } = await import('../utils/onboardingTracking');
+              await trackOnboardingStep('email_verified', {
+                user_id: session.user.id,
+                email: session.user.email,
+                confirmed_at: session.user.email_confirmed_at
+              }).catch(e => console.debug('Failed to track email_verified:', e));
+            } catch (e) {
+              console.debug('Failed to import/use onboarding tracking:', e);
+            }
           }
         });
         if (res && res.data && res.data.subscription) subscription = res.data.subscription;
