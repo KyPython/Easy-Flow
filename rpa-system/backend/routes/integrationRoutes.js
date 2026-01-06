@@ -10,6 +10,7 @@ const integrationCredentialsService = require('../services/integrationCredential
 const { requireAuth } = require('../middleware/auth');
 const { requireFeature } = require('../middleware/planEnforcement');
 const { checkIntegrationLimit } = require('../middleware/comprehensiveRateLimit');
+const { validateUrlForSSRF } = require('../utils/ssrfProtection');
 
 /**
  * GET /api/integrations/usage
@@ -559,6 +560,19 @@ async function exchangeOAuthCode(service, code, redirectUri) {
     const baseUrl = redirectUri || (process.env.API_BASE_URL || 'http://localhost:3030');
     callbackUrl = `${baseUrl}/api/integrations/${service}/oauth/callback`;
   }
+  
+  // ✅ SECURITY: Validate callback URL to prevent SSRF attacks
+  // For OAuth, allow localhost in development but require proper URL format
+  const urlValidation = validateUrlForSSRF(callbackUrl, { allowPrivateIPs: process.env.NODE_ENV !== 'production' });
+  if (!urlValidation.valid) {
+    logger.error('[IntegrationRoutes] Invalid callback URL rejected:', {
+      service,
+      callbackUrl,
+      error: urlValidation.error
+    });
+    throw new Error(`Invalid callback URL: ${urlValidation.error}. OAuth redirect URI must be a valid URL.`);
+  }
+  callbackUrl = urlValidation.url; // Use validated URL
   
   switch (service) {
     case 'slack':
