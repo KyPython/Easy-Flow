@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'infrastructure/**'
-    branches: [main]
+    branches: [main, dev]  # Run on both branches with different validation levels
   workflow_dispatch:
     inputs:
       environment:
@@ -28,6 +28,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Determine branch and validation mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+          echo "🔍 Branch: ${{ steps.branch-info.outputs.branch }}"
+          echo "🔍 Mode: ${{ steps.branch-info.outputs.mode }}"
+          echo "🔍 Blocking: ${{ steps.branch-info.outputs.blocking }}"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -42,12 +58,22 @@ jobs:
       - name: Terraform Format Check
         run: |
           cd infrastructure
-          terraform fmt -check -recursive || (echo "❌ Terraform files need formatting" && exit 1)
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            terraform fmt -check -recursive || (echo "❌ Terraform files need formatting" && exit 1)
+          else
+            terraform fmt -check -recursive || echo "⚠️ Terraform files need formatting (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
       - name: Terraform Validate
         run: |
           cd infrastructure
-          terraform validate -no-color
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            terraform validate -no-color || (echo "❌ Terraform validation failed" && exit 1)
+          else
+            terraform validate -no-color || echo "⚠️ Terraform validation issues (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
       - name: Terraform Plan
         id: plan

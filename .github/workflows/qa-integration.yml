@@ -1,10 +1,10 @@
-name: QA — Integration Tests
+name: QA — Integration Tests (Branch-Aware)
 
 on:
   push:
-    branches: [main]  # Only run strict checks on main branch (removed develop - doesn't exist)
+    branches: [main, dev]  # Run on both branches with different validation levels
   pull_request:
-    branches: [main]  # Only run strict checks on PRs targeting main
+    branches: [main, dev]  # Run on PRs targeting either branch
   schedule:
     - cron: "0 2 * * *" # Daily at 2 AM UTC
   workflow_dispatch:
@@ -28,20 +28,41 @@ jobs:
           clean: true
           fetch-depth: 0
 
+      - name: Determine branch and validation mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+          echo "🔍 Branch: ${{ steps.branch-info.outputs.branch }}"
+          echo "🔍 Mode: ${{ steps.branch-info.outputs.mode }}"
+          echo "🔍 Blocking: ${{ steps.branch-info.outputs.blocking }}"
+
       - name: Check development environment
         run: |
           chmod +x scripts/dev-env-check.sh
           ./scripts/dev-env-check.sh || echo "⚠️ Some optional tools/infrastructure missing (continuing anyway)"
 
-      - name: Run security scan (Snyk) - CRITICAL
+      - name: Run security scan (Snyk)
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           chmod +x scripts/security-scan.sh
           # Install Snyk CLI if not available
           npm install -g snyk || true
-          # Run security scan (blocks on high+ vulnerabilities)
-          ./scripts/security-scan.sh || (echo "❌ Security scan failed - high+ vulnerabilities found" && exit 1)
+          # Run security scan (blocking on main, warning on dev)
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/security-scan.sh || (echo "❌ Security scan failed - high+ vulnerabilities found" && exit 1)
+          else
+            ./scripts/security-scan.sh || echo "⚠️ Security scan found issues (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
       - name: Run lint and test validation
         run: |
@@ -291,7 +312,13 @@ jobs:
       - name: Run backend integration tests
         if: steps.check_services.outputs.backend_healthy == 'true'
         working-directory: rpa-system
-        run: npm run test:backend -- --testTimeout=10000 --passWithNoTests || (echo "❌ Backend integration tests failed - tests must pass before production deployment" && exit 1)
+        run: |
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            npm run test:backend -- --testTimeout=10000 --passWithNoTests || (echo "❌ Backend integration tests failed - tests must pass before production deployment" && exit 1)
+          else
+            npm run test:backend -- --testTimeout=10000 --passWithNoTests || echo "⚠️ Backend integration tests failed (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
         env:
           NODE_ENV: test
 
@@ -307,7 +334,13 @@ jobs:
       - name: Run frontend integration tests
         if: steps.check_services.outputs.backend_healthy == 'true'
         working-directory: rpa-system/rpa-dashboard
-        run: CI=true npm test -- --watchAll=false --testTimeout=15000 --passWithNoTests || (echo "❌ Frontend integration tests failed - tests must pass before production deployment" && exit 1)
+        run: |
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            CI=true npm test -- --watchAll=false --testTimeout=15000 --passWithNoTests || (echo "❌ Frontend integration tests failed - tests must pass before production deployment" && exit 1)
+          else
+            CI=true npm test -- --watchAll=false --testTimeout=15000 --passWithNoTests || echo "⚠️ Frontend integration tests failed (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
       - name: Run frontend integration tests (without services)
         if: steps.check_services.outputs.backend_healthy != 'true'
@@ -360,7 +393,15 @@ jobs:
       - name: Test summary
         if: always()
         run: |
-          echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Integration Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ steps.branch-info.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode**: ${{ steps.branch-info.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            echo "**Status**: Strict validation - failures block merge" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status**: Permissive validation - warnings only" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.check_services.outputs.backend_healthy }}" == "true" ]; then
             echo "✅ All services were available - tests executed" >> $GITHUB_STEP_SUMMARY
           else
