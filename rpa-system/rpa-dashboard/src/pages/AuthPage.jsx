@@ -171,6 +171,7 @@ export default function AuthPage() {
           
           // Track login event and trigger any first-login campaigns
           try { trackEvent({ user_id: user.id, event_name: 'user_login' }); } catch (e) { console.debug('trackEvent failed', e); }
+          try { trackEvent({ user_id: user.id, event_name: 'login_success', properties: { is_new_user: isNewUser } }); } catch (e) { console.debug('trackEvent failed', e); }
           try { triggerCampaign({ user_id: user.id, reason: 'first_login' }); } catch (e) { console.debug('triggerCampaign failed', e); }
           
           // ✅ SMART REDIRECT: New users go to tasks page, existing users go to intended path or dashboard
@@ -190,8 +191,20 @@ export default function AuthPage() {
           sessionStorage.setItem('just_signed_up_pending', 'true');
           // If confirmations are enabled, inform the user
           setSuccess('Sign-up successful! Please check your email to confirm your account.');
-          // Track signup event and trigger welcome campaign after sign-up (server-side will resolve user id when they first login)
-          try { trackEvent({ event_name: 'user_signup', properties: { email } }); } catch (e) { console.debug('trackEvent failed', e); }
+          // ✅ OBSERVABILITY: Track signup event with email for correlation
+          // Note: user_id will be null until first login, but email allows correlation
+          try { 
+            trackEvent({ 
+              event_name: 'user_signup', 
+              properties: { 
+                email: email,
+                timestamp: new Date().toISOString(),
+                source: 'auth_page'
+              } 
+            }); 
+          } catch (e) { 
+            console.error('[Auth] Failed to track signup event:', e); 
+          }
           try { triggerCampaign({ email, reason: 'signup' }); } catch (e) { console.debug('triggerCampaign failed', e); }
       }
     } catch (err) {
@@ -229,6 +242,20 @@ export default function AuthPage() {
         // Fallback to a user-friendly message instead of technical error
         setError('Unable to sign in. Please check your credentials and try again.');
       }
+
+      // ✅ ANALYTICS: Track login failure for diagnostics
+      try {
+        trackEvent({
+          event_name: 'login_failed',
+          properties: {
+            error_type: status ? `http_${status}` : 'unknown',
+            error_category: lower.includes('network') ? 'network' :
+                           lower.includes('credentials') || lower.includes('password') ? 'credentials' :
+                           lower.includes('email') ? 'email' : 'other',
+            mode: mode
+          }
+        });
+      } catch (e) { console.debug('trackEvent failed', e); }
     } finally {
       setLoading(false);
     }

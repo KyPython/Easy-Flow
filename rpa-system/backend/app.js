@@ -1859,16 +1859,62 @@ app.post('/api/auth/login', async (req, res) => {
         
         if (!error && data.user) {
           const duration = Date.now() - startTime;
+          
+          // ✅ OBSERVABILITY: Enhanced login success logging with full context
           logger.info('✅ [Auth] Login successful', {
             user_id: data.user.id,
             email: email.substring(0, 3) + '***',
             duration_ms: duration,
-            request_id: requestId
+            request_id: requestId,
+            auth_provider: 'supabase',
+            email_confirmed: !!data.user.email_confirmed_at,
+            created_at: data.user.created_at,
+            last_sign_in: data.user.last_sign_in_at,
+            timestamp: new Date().toISOString()
           });
+          
           await auditLogger.logAuthEvent(data.user.id, 'login', true, {
             method: 'supabase',
-            duration_ms: duration
+            duration_ms: duration,
+            email_confirmed: !!data.user.email_confirmed_at
           }, req);
+          
+          // ✅ OBSERVABILITY: Track login_success event for analytics
+          if (supabase) {
+            supabase.from('marketing_events').insert([{
+              user_id: data.user.id,
+              event_name: 'login_success',
+              properties: {
+                method: 'supabase',
+                duration_ms: duration,
+                email_confirmed: !!data.user.email_confirmed_at
+              },
+              created_at: new Date().toISOString()
+            }]).catch(err => {
+              logger.warn('[Auth] Failed to track login_success event', { error: err.message });
+            });
+            
+            // ✅ FIX: Update signup event with user_id if it was tracked without user_id
+            // This handles the case where frontend tracked signup before user_id was available
+            try {
+              const signupTime = new Date(data.user.created_at);
+              const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+              
+              // Only update if user was created recently (within 5 minutes)
+              if (signupTime > fiveMinutesAgo) {
+                await supabase
+                  .from('marketing_events')
+                  .update({ user_id: data.user.id })
+                  .eq('event_name', 'user_signup')
+                  .is('user_id', null)
+                  .gte('created_at', signupTime.toISOString())
+                  .like('properties->>email', `%${email.split('@')[0]}%`);
+              }
+            } catch (updateError) {
+              logger.debug('[Auth] Could not update signup event with user_id:', updateError.message);
+            }
+          }
+          
           return res.json({
             user: data.user,
             session: data.session
@@ -1877,19 +1923,43 @@ app.post('/api/auth/login', async (req, res) => {
         
         if (error) {
           const duration = Date.now() - startTime;
+          
+          // ✅ OBSERVABILITY: Enhanced login failure logging with full error context
           logger.warn('❌ [Auth] Login failed: Supabase error', {
             email: email.substring(0, 3) + '***',
             error: error.message,
             error_code: error.status || 'unknown',
+            error_name: error.name || 'unknown',
             duration_ms: duration,
-            request_id: requestId
+            request_id: requestId,
+            timestamp: new Date().toISOString(),
+            ip: req.ip || req.connection?.remoteAddress || 'unknown'
           });
+          
           await auditLogger.logAuthEvent(null, 'login_attempt', false, {
             reason: 'supabase_error',
             error: error.message,
             error_code: error.status || 'unknown',
             email: email.substring(0, 3) + '***'
           }, req);
+          
+          // ✅ OBSERVABILITY: Track login_failed event for analytics
+          if (supabase) {
+            supabase.from('marketing_events').insert([{
+              user_id: null,
+              event_name: 'login_failed',
+              properties: {
+                method: 'supabase',
+                error: error.message,
+                error_code: error.status || 'unknown',
+                duration_ms: duration
+              },
+              created_at: new Date().toISOString()
+            }]).catch(err => {
+              logger.warn('[Auth] Failed to track login_failed event', { error: err.message });
+            });
+          }
+          
           return res.status(401).json({ error: error.message });
         }
       } catch (error) {
@@ -4174,7 +4244,38 @@ app.post('/api/track-event', async (req, res) => {
     }
 
     if (supabase) {
-      await supabase.from('marketing_events').insert([{ user_id: user_id || null, event_name: finalEventName, properties: properties || {}, utm: utm || {}, created_at: new Date().toISOString() }]);
+      try {
+        const insertResult = await supabase.from('marketing_events').insert([{ user_id: user_id || null, event_name: finalEventName, properties: properties || {}, utm: utm || {}, created_at: new Date().toISOString() }]);
+        
+        // ✅ OBSERVABILITY: Log all tracked events for diagnostic purposes
+        if (insertResult.error) {
+          logger.error('[track-event] Failed to insert event', {
+            event_name: finalEventName,
+            user_id: user_id || null,
+            error: insertResult.error.message,
+            error_code: insertResult.error.code
+          });
+        } else {
+          logger.debug('[track-event] Event tracked', {
+            event_name: finalEventName,
+            user_id: user_id || null,
+            has_properties: !!properties,
+            property_keys: properties ? Object.keys(properties) : []
+          });
+        }
+      } catch (dbError) {
+        logger.error('[track-event] Database insert exception', {
+          event_name: finalEventName,
+          user_id: user_id || null,
+          error: dbError.message
+        });
+        throw dbError;
+      }
+    } else {
+      logger.warn('[track-event] Supabase not available, event not tracked', {
+        event_name: finalEventName,
+        user_id: user_id || null
+      });
     }
 
     // Optionally forward to external analytics asynchronously
@@ -4220,13 +4321,26 @@ app.post('/api/track-event/batch', async (req, res) => {
 
       try {
         if (supabase) {
-          await supabase.from('marketing_events').insert([{ 
+          const insertResult = await supabase.from('marketing_events').insert([{ 
             user_id: user_id || null, 
             event_name: finalEventName, 
             properties: properties || {}, 
             utm: utm || {}, 
             created_at: new Date().toISOString() 
           }]);
+          
+          // ✅ OBSERVABILITY: Log batch event tracking
+          if (insertResult.error) {
+            logger.error('[track-event/batch] Failed to insert event', {
+              event_name: finalEventName,
+              user_id: user_id || null,
+              error: insertResult.error.message
+            });
+          }
+        } else {
+          logger.warn('[track-event/batch] Supabase not available', {
+            event_name: finalEventName
+          });
         }
 
         // Optionally forward to external analytics asynchronously
@@ -4318,7 +4432,7 @@ async function ensureUserProfile(userId, email) {
       .eq('id', userId)
       .maybeSingle();
     
-    if (!existingProfile) {
+      if (!existingProfile) {
       logger.info(`[ensureUserProfile] Creating missing profile for user ${userId}, email: ${email}`);
       const { error: insertError } = await supabase
         .from('profiles')
@@ -4332,6 +4446,24 @@ async function ensureUserProfile(userId, email) {
         logger.error('[ensureUserProfile] Failed to create profile:', insertError);
         throw insertError;
       }
+      
+      // ✅ OBSERVABILITY: Track signup event server-side when profile is created
+      try {
+        await supabase.from('marketing_events').insert([{
+          user_id: userId,
+          event_name: 'user_signup',
+          properties: {
+            email: email,
+            source: 'server_profile_creation',
+            timestamp: new Date().toISOString()
+          },
+          created_at: new Date().toISOString()
+        }]);
+        logger.info(`[ensureUserProfile] Tracked signup event for user ${userId}`);
+      } catch (trackError) {
+        logger.warn('[ensureUserProfile] Failed to track signup event:', trackError.message);
+      }
+      
       logger.info(`[ensureUserProfile] Successfully created profile for user ${userId}`);
     }
     return true;

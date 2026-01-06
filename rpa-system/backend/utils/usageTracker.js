@@ -88,6 +88,29 @@ class UsageTracker {
         last_workflow_change_at: new Date().toISOString()
       });
 
+      // ✅ OBSERVABILITY: Track workflow creation as feature usage for analytics
+      if (action === 'created' && this.supabase) {
+        try {
+          // Check if this is user's first workflow for time-to-first-workflow tracking
+          const isFirstWorkflow = count === 1;
+          
+          await this.supabase.from('marketing_events').insert([{
+            user_id: userId,
+            event_name: 'feature_used',
+            properties: {
+              feature: 'workflow_builder',
+              action: 'create',
+              workflow_id: workflowId,
+              is_first_workflow: isFirstWorkflow,
+              total_workflows: count
+            },
+            created_at: new Date().toISOString()
+          }]);
+        } catch (trackError) {
+          logger.warn('[UsageTracker] Failed to track workflow creation event:', trackError.message);
+        }
+      }
+
       logger.info(`[UsageTracker] Tracked workflow ${action} for user ${userId} (${count} total active)`);
     } catch (error) {
       logger.error('[UsageTracker] Error tracking workflow change:', error);
