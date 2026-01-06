@@ -333,5 +333,75 @@ router.get('/stats', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/tracking/signup-source
+ * Store signup source data (UTM parameters, referrer, etc.)
+ */
+router.post('/signup-source', async (req, res) => {
+  try {
+    const { email, utm_source, utm_medium, utm_campaign, referrer, landing_page } = req.body || {};
+    
+    if (!email) {
+      return res.status(400).json({ error: 'email is required' });
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    // Find user by email to get user_id (check profiles table since user might not be authenticated yet)
+    let userId = null;
+    try {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+      
+      userId = profileData?.id || null;
+    } catch (e) {
+      logger.debug('[tracking/signup-source] Could not find user by email (may not be created yet):', e.message);
+    }
+
+    // Insert into signup_sources table
+    const { error: insertError } = await supabase.from('signup_sources').insert([{
+      user_id: userId,
+      email: email,
+      source: utm_source || 'direct',
+      medium: utm_medium || 'none',
+      campaign: utm_campaign || null,
+      referrer: referrer || null,
+      landing_page: landing_page || null,
+      timestamp: new Date().toISOString()
+    }]);
+
+    if (insertError) {
+      logger.error('[tracking/signup-source] Failed to insert signup source', {
+        email,
+        error: insertError.message
+      });
+      return res.status(500).json({ 
+        error: 'Failed to store signup source', 
+        details: insertError.message 
+      });
+    }
+
+    logger.debug('[tracking/signup-source] Signup source stored', {
+      email,
+      source: utm_source || 'direct',
+      has_user_id: !!userId
+    });
+
+    return res.json({ 
+      ok: true,
+      stored: true
+    });
+  } catch (e) {
+    logger.error('[POST /api/tracking/signup-source] Error:', e?.message || e);
+    return res.status(500).json({ error: 'Failed to store signup source', details: e.message });
+  }
+});
+
 module.exports = router;
 

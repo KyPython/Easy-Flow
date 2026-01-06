@@ -1,14 +1,40 @@
 // ...existing code...
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styles from './LandingPage.module.css';
 import { useTheme } from '../utils/ThemeContext';
 import { useI18n } from '../i18n';
 import { UserCountBadge, ActivityCounter, TrustBadges } from '../components/SocialProof';
+import { getABTestVariant, trackABTestView } from '../utils/abTesting';
+import { captureAndStoreUTM } from '../utils/utmCapture';
 
 export default function LandingPage() {
   const { theme, toggle } = useTheme();
   const { t } = useI18n();
+  const [headlineVariant, setHeadlineVariant] = useState('A');
+
+  // Capture UTM parameters and set A/B test variant on mount
+  useEffect(() => {
+    // Capture UTM parameters
+    captureAndStoreUTM();
+    
+    // Get A/B test variant for landing page headline
+    const variant = getABTestVariant('landing_headline');
+    setHeadlineVariant(variant);
+    
+    // Track A/B test view
+    trackABTestView('landing_headline', variant).catch(e => 
+      console.debug('Failed to track A/B test view:', e)
+    );
+  }, []);
+
+  // Headline variants
+  const headlineVariants = {
+    A: '🚀 Stop Doing Boring Work', // Current
+    B: '⚡ Eliminate Manual Logins Forever' // New
+  };
+
+  const headline = headlineVariants[headlineVariant] || headlineVariants.A;
 
   return (
     // apply data-theme for scoped selectors and ensure footer and all children see the current theme
@@ -16,7 +42,7 @@ export default function LandingPage() {
       <div className={styles.hero}>
         <div className={styles.heroContent}>
           <div className={styles.topRow}>
-            <h1 className={styles.title}>🚀 Stop Doing Boring Work</h1>
+            <h1 className={styles.title}>{headline}</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <Link to="/privacy" className={styles.footerLink} style={{ fontSize: 'var(--font-size-sm)', textDecoration: 'underline' }}>Privacy Policy</Link>
               <button

@@ -9,6 +9,7 @@ const DocumentationGuide = lazy(() => import('../DocumentationGuide/Documentatio
 const OnboardingModal = lazy(() => import('../OnboardingModal/OnboardingModal'));
 const UsageTracker = lazy(() => import('../UsageTracker/UsageTracker'));
 const WorkflowCreationPrompt = lazy(() => import('../WorkflowCreationPrompt/WorkflowCreationPrompt'));
+const QuickStartDemo = lazy(() => import('../QuickStartDemo/QuickStartDemo'));
 import { useNotifications } from '../../hooks/useNotifications';
 import PropTypes from 'prop-types';
 
@@ -134,6 +135,15 @@ const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = 
           ))}
         </div>
       </DeferredMount>
+
+      {/* Quick Start Demo Button - Prominent call-to-action for new users */}
+      <Suspense fallback={null}>
+        {workflowsCount === 0 && (
+          <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+            <QuickStartDemo />
+          </div>
+        )}
+      </Suspense>
 
       {/* Workflow Creation Prompt - Show for users with no workflows */}
       <Suspense fallback={null}>

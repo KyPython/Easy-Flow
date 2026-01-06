@@ -4,6 +4,8 @@ import supabase, { initSupabase, signInWithPassword, signUp } from '../utils/sup
 import { useAuth } from '../utils/AuthContext';
 import { trackEvent, triggerCampaign } from '../utils/api';
 import { useNavigate, Link } from 'react-router-dom';
+import { captureAndStoreUTM, getStoredUTMParams } from '../utils/utmCapture';
+import { trackOnboardingStep } from '../utils/onboardingTracking';
 import styles from './AuthPage.module.css';
 
 export default function AuthPage() {
@@ -35,6 +37,9 @@ export default function AuthPage() {
         navigate('/app');
       }
     };
+    
+    // Capture and store UTM parameters on page load
+    captureAndStoreUTM();
     
     // Check for referral code in URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -174,6 +179,11 @@ export default function AuthPage() {
           try { trackEvent({ user_id: user.id, event_name: 'login_success', properties: { is_new_user: isNewUser } }); } catch (e) { console.debug('trackEvent failed', e); }
           try { triggerCampaign({ user_id: user.id, reason: 'first_login' }); } catch (e) { console.debug('triggerCampaign failed', e); }
           
+          // Track onboarding step: first_login
+          if (isNewUser) {
+            try { await trackOnboardingStep('first_login', { user_id: user.id }); } catch (e) { console.debug('trackOnboardingStep failed', e); }
+          }
+          
           // ✅ SMART REDIRECT: New users go to tasks page, existing users go to intended path or dashboard
           const redirectPath = isNewUser ? '/app/tasks' : intendedPath;
           const redirectMessage = isNewUser 
@@ -185,13 +195,32 @@ export default function AuthPage() {
             navigate(redirectPath);
           }, 1500);
         } else {
+          // Capture UTM parameters and send to signup API
+          const utmParams = getStoredUTMParams() || captureAndStoreUTM();
+          
           const { error } = await signUp({ email, password });
           if (error) throw error;
           // Set flag to indicate this was a signup (will be converted to tracking flag on successful auth)
           sessionStorage.setItem('just_signed_up_pending', 'true');
           // If confirmations are enabled, inform the user
           setSuccess('Sign-up successful! Please check your email to confirm your account.');
-          // ✅ OBSERVABILITY: Track signup event with email for correlation
+          
+          // Send UTM parameters to backend signup endpoint
+          try {
+            const { api } = await import('../utils/api');
+            await api.post('/api/tracking/signup-source', {
+              email: email,
+              utm_source: utmParams?.source,
+              utm_medium: utmParams?.medium,
+              utm_campaign: utmParams?.campaign,
+              referrer: utmParams?.referrer,
+              landing_page: utmParams?.landing_page
+            }).catch(e => console.debug('Failed to send UTM params to backend:', e));
+          } catch (e) {
+            console.debug('Failed to send signup source data:', e);
+          }
+          
+          // ✅ OBSERVABILITY: Track signup event with email and UTM for correlation
           // Note: user_id will be null until first login, but email allows correlation
           try { 
             trackEvent({ 
@@ -199,7 +228,12 @@ export default function AuthPage() {
               properties: { 
                 email: email,
                 timestamp: new Date().toISOString(),
-                source: 'auth_page'
+                source: 'auth_page',
+                utm_source: utmParams?.source,
+                utm_medium: utmParams?.medium,
+                utm_campaign: utmParams?.campaign,
+                referrer: utmParams?.referrer,
+                landing_page: utmParams?.landing_page
               } 
             }); 
           } catch (e) { 
