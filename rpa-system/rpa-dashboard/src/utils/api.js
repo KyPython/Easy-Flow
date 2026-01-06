@@ -861,9 +861,47 @@ export async function trackEvent(payload) {
     // Silently fail - tracking should never break the app
     console.debug('[trackEvent] Failed to sanitize payload:', e.message);
   }
-  
+
   // Return a resolved promise immediately (fire-and-forget pattern)
   return Promise.resolve();
+}
+
+/**
+ * Track feature usage for analytics
+ * This helps identify which features are most used and improves the "Most Used Feature" metric
+ * @param {string} featureName - Name of the feature being used (e.g., 'workflow_builder', 'templates', 'integrations')
+ * @param {object} additionalProps - Additional properties to track
+ */
+export async function trackFeatureUsage(featureName, additionalProps = {}) {
+  if (!featureName) return Promise.resolve();
+
+  return trackEvent({
+    event_name: 'feature_used',
+    properties: {
+      feature: featureName,
+      timestamp: new Date().toISOString(),
+      ...additionalProps
+    }
+  });
+}
+
+/**
+ * Track page view for analytics
+ * @param {string} pageName - Name of the page being viewed
+ * @param {object} additionalProps - Additional properties to track
+ */
+export async function trackPageView(pageName, additionalProps = {}) {
+  if (!pageName) return Promise.resolve();
+
+  return trackEvent({
+    event_name: 'page_view',
+    properties: {
+      page: pageName,
+      url: window.location.pathname,
+      timestamp: new Date().toISOString(),
+      ...additionalProps
+    }
+  });
 }
 
 export async function generateReferral(referrerEmail, referredEmail) {

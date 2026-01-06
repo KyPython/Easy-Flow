@@ -41,6 +41,7 @@ import ConfirmDialog from './ConfirmDialog';
 import PlanGate from '../PlanGate/PlanGate';
 import PaywallModal from '../PaywallModal/PaywallModal';
 import { useToast } from './Toast';
+import { trackFeatureUsage } from '../../utils/api';
 
 const WorkflowBuilder = () => {
   const navigate = useNavigate();
@@ -122,7 +123,10 @@ const WorkflowBuilder = () => {
         
         await saveWorkflow(workflowToSave);
         console.log('✅ Workflow saved successfully');
-        
+
+        // ✅ ANALYTICS: Track workflow save for feature usage metrics
+        trackFeatureUsage('workflow_builder', { action: 'save', workflow_id: workflowId });
+
         // ✅ UX: Show success feedback
         showSuccess('✅ Workflow saved successfully!');
         setSaveSuccess(true);
@@ -190,13 +194,20 @@ const WorkflowBuilder = () => {
         
         const newWorkflow = await createWorkflow(newWorkflowData);
         console.log('New workflow created successfully:', newWorkflow);
-        
+
         // Track workflow creation for milestone system
         incrementWorkflowCount();
-        
+
+        // ✅ ANALYTICS: Track first workflow creation for time-to-first-workflow metric
+        trackFeatureUsage('workflow_builder', {
+          action: 'create',
+          workflow_id: newWorkflow.id,
+          is_first_workflow: true // Backend can verify this
+        });
+
         // ✅ UX: Show helpful success message with clear next steps
         showSuccess(`✅ Workflow "${newWorkflow.name}" saved and activated!\n\n👉 Next steps:\n1. Add action steps (Web Scraping, Email, etc.) from the Actions toolbar\n2. Connect the Start step to your first action\n3. Click "🎬 Run" to execute your workflow`);
-        
+
         // Navigate to the new workflow
         navigate(`/app/workflows/builder/${newWorkflow.id}`);
       }
@@ -268,6 +279,10 @@ const WorkflowBuilder = () => {
       setIsExecuting(true);
       setShowExecutionOverlay(true); // Show overlay when execution starts
       setExecutionDetails(null); // Reset previous execution details
+
+      // ✅ ANALYTICS: Track workflow execution for feature usage metrics
+      trackFeatureUsage('workflow_execution', { action: 'run', workflow_id: workflowId, mode: executionMode });
+
       const result = await startExecution({}, 0, executionMode); // ✅ EXECUTION MODES: Pass execution mode
       const execId = result?.execution?.id || result?.id || null;
       if (execId) {

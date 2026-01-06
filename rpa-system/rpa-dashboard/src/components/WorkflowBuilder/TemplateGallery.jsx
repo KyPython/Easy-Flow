@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import styles from './TemplateGallery.module.css';
-import { 
-  FaSearch, 
-  FaFilter, 
-  FaStar, 
-  FaDownload, 
+import {
+  FaSearch,
+  FaFilter,
+  FaStar,
+  FaDownload,
   FaTag,
   FaClock,
   FaUser,
@@ -20,6 +20,7 @@ import TemplateDetails from './TemplateDetails';
 import VirtualizedGrid from '../VirtualizedGrid/VirtualizedGrid';
 import { SkeletonGrid, SkeletonList } from '../Skeleton/Skeleton';
 import LazyImage from '../LazyImage/LazyImage';
+import { trackFeatureUsage } from '../../utils/api';
 
 // Helper moved top-level for reuse in preview modal
 const formatTemplateCategory = (category) => {
@@ -72,9 +73,17 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
       
       // Create the workflow from template
       const newWorkflow = await createFromTemplate(template.id, workflowName);
-      
+
       logger.info('Workflow created successfully from template', { workflow_id: newWorkflow?.id, template_id: template.id });
-      
+
+      // ✅ ANALYTICS: Track template usage for feature metrics
+      trackFeatureUsage('templates', {
+        action: 'use_template',
+        template_id: template.id,
+        template_name: template.name,
+        category: template.category
+      });
+
       // Pass the created workflow back to parent
       onSelectTemplate(newWorkflow);
       

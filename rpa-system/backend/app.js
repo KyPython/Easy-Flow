@@ -989,6 +989,11 @@ app.use('/api', emailCaptureRoutes);
 const feedbackRoutes = require('./routes/feedbackRoutes');
 app.use('/api', feedbackRoutes);
 
+// Mount tracking routes (analytics and event tracking)
+const trackingRoutes = require('./routes/trackingRoutes');
+app.use('/api/tracking', trackingRoutes);
+rootLogger.info('✓ Tracking routes mounted at /api/tracking');
+
 // Internal (dev) routes - accept frontend telemetry and error reports
 // ✅ FIX: Mount at /api/internal to match frontend logger endpoint
 try {

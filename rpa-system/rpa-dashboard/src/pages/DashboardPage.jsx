@@ -10,6 +10,7 @@ import { createLogger } from '../utils/logger';
 import { sanitizeErrorMessage } from '../utils/errorMessages';
 import { getEnvMessage } from '../utils/envAwareMessages';
 import { getConfig } from '../utils/dynamicConfig';
+import { trackFeatureUsage } from '../utils/api';
 
 // Note: Chatbot removed - AI Agent is now available globally via toggle button
 
@@ -30,10 +31,10 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Track trial signup conversion
+  // Track trial signup conversion and dashboard view
   useEffect(() => {
     const justSignedUp = sessionStorage.getItem('just_signed_up');
-    
+
     if (justSignedUp === 'true') {
       if (window.gtag) {
         window.gtag('event', 'trial_signup', {
@@ -43,6 +44,9 @@ const DashboardPage = () => {
       }
       sessionStorage.removeItem('just_signed_up');
     }
+
+    // ✅ ANALYTICS: Track dashboard view for feature usage metrics
+    trackFeatureUsage('dashboard', { action: 'view' });
   }, []);
 
   // Fetch dashboard data via optimized backend API
