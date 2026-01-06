@@ -203,6 +203,149 @@ fi
 
 echo ""
 
+# 8. Check UTM parameter capture
+echo "📊 8. Checking UTM Parameter Capture..."
+echo ""
+
+if [ -f "rpa-system/rpa-dashboard/src/utils/utmCapture.js" ]; then
+    show_success "UTM capture utility exists"
+    
+    # Check if AuthPage uses UTM capture
+    if grep -q "utmCapture\|captureAndStoreUTM\|getStoredUTMParams" rpa-system/rpa-dashboard/src/pages/AuthPage.jsx 2>/dev/null; then
+        show_success "AuthPage captures UTM parameters"
+    else
+        increment_error "AuthPage does not capture UTM parameters"
+    fi
+    
+    # Check if landing page captures UTM
+    if grep -q "captureAndStoreUTM" rpa-system/rpa-dashboard/src/pages/LandingPage.jsx 2>/dev/null; then
+        show_success "LandingPage captures UTM parameters"
+    else
+        increment_warning "LandingPage may not capture UTM parameters"
+    fi
+else
+    increment_error "UTM capture utility (utmCapture.js) not found"
+fi
+
+echo ""
+
+# 9. Check onboarding tracking
+echo "📊 9. Checking Onboarding Tracking..."
+echo ""
+
+if [ -f "rpa-system/rpa-dashboard/src/utils/onboardingTracking.js" ]; then
+    show_success "Onboarding tracking utility exists"
+    
+    # Check if AuthPage uses onboarding tracking
+    if grep -q "trackOnboardingStep\|onboardingTracking" rpa-system/rpa-dashboard/src/pages/AuthPage.jsx 2>/dev/null; then
+        show_success "AuthPage tracks onboarding steps"
+    else
+        increment_warning "AuthPage may not track onboarding steps"
+    fi
+    
+    # Check if WorkflowBuilder tracks first workflow creation
+    if grep -q "trackOnboardingStep.*first_workflow_created\|onboardingTracking" rpa-system/rpa-dashboard/src/components/WorkflowBuilder/WorkflowBuilder.jsx 2>/dev/null; then
+        show_success "WorkflowBuilder tracks onboarding steps"
+    else
+        increment_warning "WorkflowBuilder may not track first workflow creation as onboarding step"
+    fi
+else
+    increment_error "Onboarding tracking utility (onboardingTracking.js) not found"
+fi
+
+echo ""
+
+# 10. Check Quick Start demo button
+echo "📊 10. Checking Quick Start Demo Button..."
+echo ""
+
+if [ -f "rpa-system/rpa-dashboard/src/components/QuickStartDemo/QuickStartDemo.jsx" ]; then
+    show_success "Quick Start demo component exists"
+    
+    # Check if Dashboard includes Quick Start button
+    if grep -q "QuickStartDemo" rpa-system/rpa-dashboard/src/components/Dashboard/Dashboard.jsx 2>/dev/null; then
+        show_success "Dashboard includes Quick Start demo button"
+    else
+        increment_error "Dashboard does not include Quick Start demo button"
+    fi
+    
+    # Check if Quick Start tracks events
+    if grep -q "quick_start_clicked\|demo_workflow_created" rpa-system/rpa-dashboard/src/components/QuickStartDemo/QuickStartDemo.jsx 2>/dev/null; then
+        show_success "Quick Start demo tracks events"
+    else
+        increment_error "Quick Start demo does not track events"
+    fi
+else
+    increment_error "Quick Start demo component not found"
+fi
+
+echo ""
+
+# 11. Check A/B testing implementation
+echo "📊 11. Checking A/B Testing Implementation..."
+echo ""
+
+if [ -f "rpa-system/rpa-dashboard/src/utils/abTesting.js" ]; then
+    show_success "A/B testing utility exists"
+    
+    # Check if LandingPage uses A/B testing
+    if grep -q "getABTestVariant\|trackABTestView\|abTesting" rpa-system/rpa-dashboard/src/pages/LandingPage.jsx 2>/dev/null; then
+        show_success "LandingPage implements A/B testing for headline"
+    else
+        increment_error "LandingPage does not implement A/B testing"
+    fi
+else
+    increment_error "A/B testing utility (abTesting.js) not found"
+fi
+
+echo ""
+
+# 12. Check activation tracking
+echo "📊 12. Checking Activation Tracking..."
+echo ""
+
+# Check if WorkflowBuilder tracks activation
+if grep -q "user_activated\|activation_events\|first_workflow" rpa-system/rpa-dashboard/src/components/WorkflowBuilder/WorkflowBuilder.jsx 2>/dev/null; then
+    show_success "WorkflowBuilder tracks user activation"
+    
+    # Check if it calculates time-to-activate
+    if grep -q "time_to_activate\|timeToActivate" rpa-system/rpa-dashboard/src/components/WorkflowBuilder/WorkflowBuilder.jsx 2>/dev/null; then
+        show_success "Activation tracking calculates time-to-activate"
+    else
+        increment_warning "Activation tracking may not calculate time-to-activate"
+    fi
+else
+    increment_error "WorkflowBuilder does not track user activation"
+fi
+
+echo ""
+
+# 13. Check signup source tracking endpoint
+echo "📊 13. Checking Signup Source Tracking Endpoint..."
+echo ""
+
+if grep -q "/api/tracking/signup-source\|signup-source" rpa-system/backend/routes/trackingRoutes.js 2>/dev/null; then
+    show_success "Signup source tracking endpoint exists"
+    
+    # Check if it stores UTM parameters
+    if grep -q "utm_source\|utm_medium\|utm_campaign" rpa-system/backend/routes/trackingRoutes.js 2>/dev/null; then
+        show_success "Signup source endpoint stores UTM parameters"
+    else
+        increment_error "Signup source endpoint does not store UTM parameters"
+    fi
+    
+    # Check if it stores signup sources in database
+    if grep -q "signup_sources" rpa-system/backend/routes/trackingRoutes.js 2>/dev/null; then
+        show_success "Signup source endpoint stores data in signup_sources table"
+    else
+        increment_error "Signup source endpoint does not store in signup_sources table"
+    fi
+else
+    increment_error "Signup source tracking endpoint not found"
+fi
+
+echo ""
+
 # Summary
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📊 Analytics Tracking Validation Summary"
