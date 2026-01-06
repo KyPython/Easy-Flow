@@ -7,8 +7,11 @@ const express = require('express');
 const router = express.Router();
 const { getSupabase } = require('../utils/supabaseClient');
 const { logger } = require('../utils/logger');
-const { authMiddleware } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const axios = require('axios');
+
+// Alias for consistency
+const authMiddleware = requireAuth;
 
 /**
  * POST /api/tracking/event
