@@ -19,6 +19,7 @@ import { useTheme } from '../../utils/ThemeContext';
 import useUsageTracking from '../../hooks/useUsageTracking';
 import { SearchSuggestions } from '../LazyLoader';
 import PaywallModal from '../PaywallModal/PaywallModal';
+import TaskProgressPanel from '../TaskProgressPanel/TaskProgressPanel';
 import { sanitizeErrorMessage } from '../../utils/errorMessages';
 import { createLogger } from '../../utils/logger';
 import { getEnvMessage } from '../../utils/envAwareMessages';
@@ -88,6 +89,10 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
   // ✅ NEW: Upgrade modal state
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeModalData, setUpgradeModalData] = useState(null);
+  
+  // ✅ NEW: Progress panel state
+  const [activeRunId, setActiveRunId] = useState(null);
+  const [showProgressPanel, setShowProgressPanel] = useState(false);
 
   const taskTypes = [
     { value: 'invoice_download', label: 'Invoice Download' },
@@ -601,7 +606,13 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
         ? ` (ID: ${(completedTask.task_id || completedTask.id).toString().slice(0, 8)}...)`
         : '';
       
-      if (completedTask?.status === 'queued') {
+      // ✅ NEW: Show progress panel if we have a run_id
+      const runId = completedTask?.run_id || completedTask?.id;
+      if (runId) {
+        setActiveRunId(runId);
+        setShowProgressPanel(true);
+        showSuccess(`✅ Task submitted successfully${taskId}! Watch progress in the side panel.`);
+      } else if (completedTask?.status === 'queued') {
         showSuccess(
           `✅ Task submitted successfully${taskId}! ↪️ Redirecting to Automation History in 2 seconds...`
         );
@@ -1355,6 +1366,26 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
           onClose={() => {
             setShowUpgradeModal(false);
             setUpgradeModalData(null);
+          }}
+        />
+      )}
+      
+      {/* ✅ NEW: Real-time Progress Panel */}
+      {showProgressPanel && activeRunId && (
+        <TaskProgressPanel
+          runId={activeRunId}
+          onClose={() => {
+            setShowProgressPanel(false);
+            setActiveRunId(null);
+          }}
+          onComplete={(run) => {
+            logger.info('Task completed', { runId: run.id, status: run.status });
+            // Optionally navigate to history or show completion message
+            setTimeout(() => {
+              setShowProgressPanel(false);
+              setActiveRunId(null);
+              navigate('/app/history');
+            }, 3000);
           }}
         />
       )}

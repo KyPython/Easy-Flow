@@ -745,15 +745,17 @@ const RAG_DIR = '/Users/ky/rag-node-ts';
 if (fs.existsSync(RAG_DIR) && fs.existsSync(path.join(RAG_DIR, 'package.json'))) {
   try {
     const pkgJson = JSON.parse(fs.readFileSync(path.join(RAG_DIR, 'package.json'), 'utf8'));
-    // Determine the start script (prefer 'dev', fallback to 'start')
-    const scriptName = pkgJson.scripts?.dev ? 'dev' : (pkgJson.scripts?.start ? 'start' : 'dev');
+    // Determine the start script (prefer 'start' for production, fallback to 'dev')
+    // Use 'start' if dist exists (built version), otherwise use 'dev'
+    const hasBuilt = fs.existsSync(path.join(RAG_DIR, 'dist', 'index.js'));
+    const scriptName = (hasBuilt && pkgJson.scripts?.start) ? 'start' : (pkgJson.scripts?.dev ? 'dev' : (pkgJson.scripts?.start ? 'start' : 'dev'));
     
     module.exports.apps.push({
       name: 'rag-node-ts',
       script: 'npm',
       args: 'run ' + scriptName,
       cwd: RAG_DIR,
-      interpreter: 'npm',
+      interpreter: 'node',
       error_file: path.join(ROOT_DIR, 'logs/rag-error.log'),
       out_file: path.join(ROOT_DIR, 'logs/rag.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss',

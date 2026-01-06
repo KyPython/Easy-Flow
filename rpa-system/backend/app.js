@@ -3471,6 +3471,78 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/runs/:id - Fetch a single automation run by ID
+app.get('/api/runs/:id', authMiddleware, async (req, res) => {
+  const runId = req.params.id;
+  const startTime = Date.now();
+  
+  logger.info('[GET /api/runs/:id] Request received', {
+    user_id: req.user?.id,
+    run_id: runId,
+    has_user: !!req.user
+  });
+
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
+    }
+
+    if (!supabase) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    // ✅ SECURITY: Validate runId type
+    if (!runId || typeof runId !== 'string') {
+      return res.status(400).json({ error: 'Invalid run ID' });
+    }
+
+    // Fetch the run with task details
+    const { data: run, error } = await supabase
+      .from('automation_runs')
+      .select(`
+        id,
+        status,
+        started_at,
+        ended_at,
+        result,
+        artifact_url,
+        task_id,
+        user_id,
+        automation_tasks (
+          id,
+          name,
+          url,
+          task_type
+        )
+      `)
+      .eq('id', runId)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (error || !run) {
+      logger.warn('[GET /api/runs/:id] Run not found or access denied', {
+        run_id: runId,
+        user_id: req.user.id,
+        error: error?.message
+      });
+      return res.status(404).json({ error: 'Run not found or access denied' });
+    }
+
+    const duration = Date.now() - startTime;
+    logger.info('[GET /api/runs/:id] Success', {
+      user_id: req.user.id,
+      run_id: runId,
+      status: run.status,
+      duration_ms: duration
+    });
+
+    res.json(run);
+  } catch (err) {
+    logger.error('[GET /api/runs/:id] Error', err);
+    res.status(500).json({ error: 'Failed to fetch run', details: err.message });
+  }
+});
+
 // DELETE /api/runs/:id - Delete an automation run
 app.delete('/api/runs/:id', authMiddleware, async (req, res) => {
   const startTime = Date.now();
@@ -4729,34 +4801,93 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
 
         logger.info(`[AutomationExecute] Starting link discovery for ${url} with method: ${discoveryMethod}`);
         
+        // ✅ PROGRESS UPDATES: Update run record with progress
+        const updateProgress = async (message, progress = null) => {
+          if (runRecord?.id && supabase) {
+            try {
+              const result = JSON.parse(runRecord.result || '{}');
+              result.status_message = message;
+              if (progress !== null) result.progress = progress;
+              await supabase
+                .from('automation_runs')
+                .update({
+                  result: JSON.stringify(result),
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', runRecord.id);
+            } catch (e) {
+              // Non-blocking - progress updates shouldn't fail the task
+              logger.debug('[Progress] Failed to update progress:', e.message);
+            }
+          }
+        };
+        
+        // ✅ LEARNING IN ACTION: Fetch learned patterns BEFORE executing
+        const { getUniversalLearningService } = require('./services/UniversalLearningService');
+        const learningService = getUniversalLearningService();
+        const learnedPatterns = await learningService.getLearnedPatterns('web_automation', url, 'invoice_download');
+        
+        if (learnedPatterns.length > 0) {
+          logger.info(`[run-task-with-ai] 🧠 Using ${learnedPatterns.length} learned pattern(s) for this site`, {
+            siteUrl: url,
+            patterns: learnedPatterns.map(p => ({
+              success_count: p.success_count,
+              selectors: p.selectors_used?.length || 0
+            }))
+          });
+          await updateProgress(`🧠 Using ${learnedPatterns.length} learned pattern(s) from previous runs...`, 8);
+        }
+        
+        // ✅ PROGRESS: Notify user that link discovery is starting
+        await updateProgress('🔍 Starting link discovery...', 10);
+        
         // ✅ SEAMLESS UX: Run link discovery with automatic fallback
         const linkDiscovery = new LinkDiscoveryService();
+        
+        // ✅ PROGRESS: Navigating to page
+        await updateProgress('🌐 Navigating to page...', 20);
+        
         let discoveryResult = await linkDiscovery.discoverPdfLinks({
           url,
           username,
           password,
           discoveryMethod,
           discoveryValue,
-          testMode: false
+          testMode: false,
+          runId: runRecord?.id, // ✅ VISUALIZATION: Pass runId for screenshot capture
+          learnedPatterns: learnedPatterns // ✅ LEARNING IN ACTION: Pass learned patterns to use them
         });
+        
+        // ✅ PROGRESS: Link discovery completed
+        if (discoveryResult.success && discoveryResult.discoveredLinks?.length > 0) {
+          await updateProgress(`✅ Found ${discoveryResult.discoveredLinks.length} PDF link(s)!`, 50);
+        } else {
+          await updateProgress('⚠️ No PDF links found, trying fallback...', 30);
+        }
         
         // ✅ SEAMLESS UX: If primary method fails, automatically try auto-detect as fallback
         if (!discoveryResult.success && discoveryMethod !== 'auto-detect') {
           logger.info(`[AutomationExecute] Primary method (${discoveryMethod}) found no links, trying auto-detect fallback...`);
+          await updateProgress('🔄 Trying automatic detection...', 40);
+          
           const fallbackResult = await linkDiscovery.discoverPdfLinks({
             url,
             username,
             password,
             discoveryMethod: 'auto-detect',
             discoveryValue: null,
-            testMode: false
+            testMode: false,
+            runId: runRecord?.id // ✅ VISUALIZATION: Pass runId for screenshot capture
           });
           
           if (fallbackResult.success && fallbackResult.discoveredLinks?.length > 0) {
             logger.info(`[AutomationExecute] Fallback auto-detect succeeded! Found ${fallbackResult.discoveredLinks.length} links`);
+            await updateProgress(`✅ Found ${fallbackResult.discoveredLinks.length} PDF link(s) with auto-detect!`, 50);
             discoveryResult = fallbackResult;
             discoveryResult.fallback_used = true;
             discoveryResult.original_method = discoveryMethod;
+          } else {
+            await updateProgress('⚠️ No PDF links found on the page', 45);
           }
         }
 
@@ -4824,6 +4955,9 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
           }
         
         logger.info(`[AutomationExecute] Using discovered PDF URL: ${bestLink.href.substring(0, 100)}...`);
+        
+        // ✅ PROGRESS: Ready to download
+        await updateProgress(`📥 Ready to download ${discoveryResult.discoveredLinks.length} invoice(s)...`, 60);
         }
         
       } catch (discoveryError) {
@@ -5053,6 +5187,24 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
       // Continue - task will be queued but won't process until Kafka is fixed
     }
 
+    // ✅ PROGRESS: Task queued for processing
+    if (runRecord?.id && supabase) {
+      try {
+        const result = JSON.parse(runRecord.result || '{}');
+        result.status_message = '📤 Task queued for processing...';
+        result.progress = 70;
+        await supabase
+          .from('automation_runs')
+          .update({
+            result: JSON.stringify(result),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', runRecord.id);
+      } catch (e) {
+        logger.debug('[Progress] Failed to update queue status:', e.message);
+      }
+    }
+    
     // Store initial status in Redis/memory
     await taskStatusStore.set(task_id, {
       status: 'queued',
@@ -7291,10 +7443,12 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           });
         }
 
-        if (discoveryResult.success && discoveryResult.pdfLinks && discoveryResult.pdfLinks.length > 0) {
+        // ✅ FIX: Check for discoveredLinks (not pdfLinks) - the service returns discoveredLinks
+        if (discoveryResult.success && discoveryResult.discoveredLinks && discoveryResult.discoveredLinks.length > 0) {
           // Use the first discovered PDF link
-          finalPdfUrl = discoveryResult.pdfLinks[0].url;
-          logger.info(`[run-task-with-ai] ✅ Successfully discovered PDF URL: ${finalPdfUrl}`);
+          const bestLink = discoveryResult.discoveredLinks[0];
+          finalPdfUrl = bestLink.href || bestLink.url;
+          logger.info(`[run-task-with-ai] ✅ Successfully discovered ${discoveryResult.discoveredLinks.length} PDF link(s). Using: ${finalPdfUrl}`);
           
           // Store discovered URL and cookies for the download
           if (discoveryResult.cookies) {

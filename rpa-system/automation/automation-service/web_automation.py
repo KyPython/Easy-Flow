@@ -760,7 +760,7 @@ def download_pdf(pdf_url, task_data):
                                 "file_size": file_size,
                                 "mime_type": "application/pdf",
                                 "file_extension": "pdf",
-                                "checksum_sha256": file_content_hash, # Changed from MD5 to SHA-256 for security
+                                # Note: checksum_sha256 column doesn't exist in files table, removed to prevent errors
                                 "folder_path": "/invoices",
                                 "tags": ["automation", "invoice"],
                                 "metadata": {

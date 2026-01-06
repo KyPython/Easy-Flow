@@ -17,7 +17,7 @@ echo "${BLUE}║     EasyFlow Comprehensive Code Validation Suite         ║${N
 echo "${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}\n"
 
 FAILED=0
-TOTAL_CHECKS=6
+TOTAL_CHECKS=7
 
 # Track which checks passed/failed (using simple variables for compatibility)
 SRP_RESULT=""
@@ -26,6 +26,7 @@ THEME_RESULT=""
 LOGGING_RESULT=""
 ENV_MESSAGES_RESULT=""
 RAG_RESULT=""
+LEARNING_RESULT=""
 
 # Function to run a validation check
 run_check() {
@@ -54,6 +55,7 @@ run_check "Theme Consistency Validation" "validate-theme-consistency.sh" "THEME_
 run_check "Logging Integration Validation" "validate-logging-integration.sh" "LOGGING_RESULT"
 run_check "Environment-Aware Messages Validation" "validate-env-aware-messages.sh" "ENV_MESSAGES_RESULT"
 run_check "RAG Knowledge Base Validation" "validate-rag-knowledge.sh" "RAG_RESULT"
+run_check "Learning System Validation" "validate-learning-system.sh" "LEARNING_RESULT"
 
 # Summary
 echo "\n${BLUE}╔═══════════════════════════════════════════════════════════╗${NC}"
@@ -96,6 +98,12 @@ else
     echo "${RED}❌ RAG Knowledge Base Validation: FAILED${NC}"
 fi
 
+if [ "$LEARNING_RESULT" = "PASSED" ]; then
+    echo "${GREEN}✅ Learning System Validation: PASSED${NC}"
+else
+    echo "${RED}❌ Learning System Validation: FAILED${NC}"
+fi
+
 echo ""
 PASSED=$((TOTAL_CHECKS - FAILED))
 echo "${BLUE}Results: ${GREEN}${PASSED}/${TOTAL_CHECKS} checks passed${NC}"
@@ -114,6 +122,7 @@ else
     echo "  5. Integrate logging (use structured logger)"
     echo "  6. Use environment-aware messages (use getEnvMessage for user-facing messages)"
     echo "  7. Update RAG knowledge (update ragClient.js and aiWorkflowAgent.js)"
+    echo "  8. Ensure learning system is integrated (check UniversalLearningService integration points)"
     echo ""
     exit 1
 fi

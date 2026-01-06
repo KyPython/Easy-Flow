@@ -22,6 +22,7 @@ import { LanguageProvider } from './utils/LanguageContext';
 import { SessionProvider } from './contexts/SessionContext';
 import { AccessibilityProvider } from './contexts/AccessibilityContext.tsx';
 import NetworkStatus from './components/NetworkStatus/NetworkStatus'; // Keep eager (small component)
+import TaskProgressPanelManager from './components/TaskProgressPanel/TaskProgressPanelManager'; // Real-time progress panels
 import logger from './utils/logger'; // Structured logger for observability
 // FIREBASE INITIALIZATION DEFERRED - was blocking main thread
 // import './utils/firebaseConfig';
@@ -432,6 +433,11 @@ function Shell() {
 
       {/* Network Status Indicator - kept eager (small, critical for dev) */}
       <NetworkStatus showDetails={process.env.NODE_ENV === 'development'} />
+      
+      {/* ✅ NEW: Global Task Progress Panels - Shows real-time progress for all running tasks */}
+      {user && (
+        <TaskProgressPanelManager />
+      )}
     </div>
   );
 }

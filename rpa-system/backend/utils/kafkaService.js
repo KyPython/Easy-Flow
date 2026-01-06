@@ -447,6 +447,43 @@ class KafkaService {
                             }
                         });
                         
+                        // ✅ PROGRESS: Update status when task starts processing
+                        if (runId) {
+                            try {
+                                const { getSupabase } = require('./supabaseClient');
+                                const supabase = getSupabase();
+                                if (!supabase) return;
+                                
+                                const { data: runData } = await supabase
+                                    .from('automation_runs')
+                                    .select('result, status')
+                                    .eq('id', runId)
+                                    .single();
+                                
+                                if (runData && (runData.status === 'queued' || runData.status === 'running')) {
+                                    const currentResult = typeof runData.result === 'string' 
+                                        ? JSON.parse(runData.result || '{}') 
+                                        : (runData.result || {});
+                                    
+                                    // Only update if not already processing
+                                    if (!currentResult.status_message || currentResult.status_message.includes('queued')) {
+                                        currentResult.status_message = '⚙️ Processing task...';
+                                        currentResult.progress = 80;
+                                        
+                                        await supabase
+                                            .from('automation_runs')
+                                            .update({
+                                                result: JSON.stringify(currentResult),
+                                                updated_at: new Date().toISOString()
+                                            })
+                                            .eq('id', runId);
+                                    }
+                                }
+                            } catch (progressError) {
+                                logger.debug('[KafkaService] Failed to update processing status:', progressError.message);
+                            }
+                        }
+                        
 
                         // ✅ FIX: Get run_record_id from multiple sources (taskStatusStore, Kafka message, or database lookup)
                         let runRecordId = null;
@@ -735,6 +772,38 @@ class KafkaService {
                                                 database_error: updateError
                                             });
                                         } else {
+                                            // ✅ PROGRESS: Update status message based on result
+                                            let statusMessage = '✅ Task completed';
+                                            let progress = 100;
+                                            
+                                            if (dbStatus === 'completed') {
+                                                if (artifactUrl) {
+                                                    statusMessage = `✅ Downloaded ${resultData?.files_downloaded || 1} file(s) successfully!`;
+                                                } else if (resultData?.success) {
+                                                    statusMessage = '✅ Task completed successfully';
+                                                }
+                                            } else if (dbStatus === 'failed') {
+                                                statusMessage = `❌ Task failed: ${resultData?.error || resultData?.message || 'Unknown error'}`;
+                                                progress = 90;
+                                            }
+                                            
+                                            // Update result with progress message
+                                            try {
+                                                const currentResult = typeof result === 'string' ? JSON.parse(result) : (result || {});
+                                                currentResult.status_message = statusMessage;
+                                                currentResult.progress = progress;
+                                                
+                                                await supabase
+                                                    .from('automation_runs')
+                                                    .update({
+                                                        result: JSON.stringify(currentResult),
+                                                        updated_at: new Date().toISOString()
+                                                    })
+                                                    .eq('id', runRecordId);
+                                            } catch (progressError) {
+                                                logger.debug('[KafkaService] Failed to update progress message:', progressError.message);
+                                            }
+                                            
                                             // ✅ OBSERVABILITY: Log completion with artifact info
                                             logger.info(`[KafkaService] Task ${runRecordId} ${dbStatus}`, {
                                                 runId: runRecordId,
@@ -745,6 +814,61 @@ class KafkaService {
                                                 success: resultData?.success,
                                                 result_status: resultData?.status
                                             });
+                                            
+                                            // ✅ UNIVERSAL LEARNING: Learn from this automation run
+                                            try {
+                                                const { getUniversalLearningService } = require('../services/UniversalLearningService');
+                                                const learningService = getUniversalLearningService();
+                                                
+                                                // Get task details for learning
+                                                const { data: taskRecord } = await supabase
+                                                    .from('automation_tasks')
+                                                    .select('task_type, url, parameters')
+                                                    .eq('id', taskId)
+                                                    .single();
+                                                
+                                                if (taskRecord) {
+                                                    const taskType = taskRecord.task_type || 'general';
+                                                    const siteUrl = taskRecord.url || '';
+                                                    const params = typeof taskRecord.parameters === 'string' 
+                                                        ? JSON.parse(taskRecord.parameters) 
+                                                        : taskRecord.parameters || {};
+                                                    
+                                                    const executionTime = resultData?.execution_time_ms || 
+                                                                         (resultData?.duration ? resultData.duration * 1000 : null);
+                                                    
+                                                    if (dbStatus === 'completed') {
+                                                        // Learn from success
+                                                        await learningService.learnFromAutomationSuccess({
+                                                            automationType: 'web_automation',
+                                                            siteUrl: siteUrl,
+                                                            taskType: taskType,
+                                                            selectorsUsed: resultData?.selectors_used || params.selectors || [],
+                                                            config: params,
+                                                            executionTime: executionTime,
+                                                            resultData: resultData,
+                                                            userId: userId
+                                                        });
+                                                    } else {
+                                                        // Learn from failure
+                                                        await learningService.learnFromAutomationFailure({
+                                                            automationType: 'web_automation',
+                                                            siteUrl: siteUrl,
+                                                            taskType: taskType,
+                                                            errorMessage: resultData?.error || resultData?.message || 'Task failed',
+                                                            attemptedConfig: params,
+                                                            executionTime: executionTime,
+                                                            userId: userId
+                                                        });
+                                                    }
+                                                }
+                                            } catch (learningError) {
+                                                // Don't fail the task if learning fails
+                                                logger.warn('[KafkaService] Error learning from automation (non-fatal):', {
+                                                    error: learningError?.message,
+                                                    runRecordId
+                                                });
+                                            }
                                             
                                             // ✅ FIX: Track usage and send notifications (moved from queueTaskRun)
                                             // Lazy-load services to avoid circular dependencies

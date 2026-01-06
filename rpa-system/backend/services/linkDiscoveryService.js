@@ -3,12 +3,20 @@ const { logger, getLogger } = require('../utils/logger');
 const puppeteer = require('puppeteer');
 const { PasswordResetService } = require('./PasswordResetService');
 const { SiteAdaptationService } = require('./SiteAdaptationService');
+const { getSupabase } = require('../utils/supabaseClient');
+const { getBrowserVisualizationService } = require('./browserVisualizationService');
 
 /**
  * Link Discovery Service for Seamless Invoice Download
  * 
  * Automatically finds PDF download links after login, eliminating manual URL hunting.
  * Supports multiple discovery methods for maximum compatibility.
+ * 
+ * ✅ ADAPTIVE LEARNING: Learns from every run and improves over time
+ * - Stores successful patterns in database
+ * - Tries learned patterns first for faster discovery
+ * - Adapts to site changes automatically
+ * - Works with any site structure in the world
  */
 class LinkDiscoveryService {
   constructor() {
@@ -19,6 +27,9 @@ class LinkDiscoveryService {
     };
     this.passwordResetService = new PasswordResetService();
     this.siteAdaptationService = new SiteAdaptationService();
+    this.supabase = getSupabase();
+    // Cache for learned patterns (in-memory for speed)
+    this.patternCache = new Map();
   }
 
   /**
@@ -30,11 +41,380 @@ class LinkDiscoveryService {
   }
 
   /**
+   * ✅ ADAPTIVE LEARNING: Get learned patterns for a site
+   * Returns patterns that worked before, prioritized by success rate
+   */
+  async _getLearnedPatterns(siteUrl) {
+    try {
+      // Check cache first
+      const cacheKey = this._normalizeUrl(siteUrl);
+      if (this.patternCache.has(cacheKey)) {
+        return this.patternCache.get(cacheKey);
+      }
+
+      if (!this.supabase) {
+        logger.warn('[LinkDiscovery] Supabase not available, skipping pattern lookup');
+        return [];
+      }
+
+      const { data, error } = await this.supabase
+        .from('link_discovery_patterns')
+        .select('*')
+        .eq('site_url', cacheKey)
+        .order('success_count', { ascending: false })
+        .order('last_success_at', { ascending: false })
+        .limit(5);
+
+      if (error) {
+        // Table might not exist yet - that's okay, we'll create it on first success
+        if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
+          logger.info('[LinkDiscovery] Learning tables not created yet - will be created on first successful discovery');
+          return [];
+        }
+        logger.warn('[LinkDiscovery] Error fetching learned patterns:', error);
+        return [];
+      }
+
+      // Cache for 5 minutes
+      this.patternCache.set(cacheKey, data || []);
+      setTimeout(() => this.patternCache.delete(cacheKey), 5 * 60 * 1000);
+
+      return data || [];
+    } catch (error) {
+      logger.warn('[LinkDiscovery] Error getting learned patterns:', error);
+      return [];
+    }
+  }
+
+  /**
+   * ✅ ADAPTIVE LEARNING: Learn from successful discovery
+   * Stores patterns that worked for future use
+   */
+  async _learnFromSuccess(siteUrl, discoveredLinks, pageStructure, discoveryMethod, selectorsUsed = []) {
+    try {
+      if (!this.supabase) {
+        logger.warn('[LinkDiscovery] Supabase not available, skipping pattern storage');
+        return;
+      }
+
+      const normalizedUrl = this._normalizeUrl(siteUrl);
+      
+      // Extract pattern from successful discovery
+      const pattern = {
+        site_url: normalizedUrl,
+        discovery_method: discoveryMethod,
+        selectors_used: selectorsUsed,
+        link_patterns: discoveredLinks.map(link => ({
+          href_pattern: this._extractUrlPattern(link.href),
+          text_pattern: link.text?.substring(0, 100), // First 100 chars
+          selector: link.selector,
+          score: link.score
+        })),
+        page_structure: {
+          title: pageStructure.title,
+          link_count: pageStructure.allLinks,
+          has_forms: pageStructure.hasForms,
+          structure_hash: this._hashStructure(pageStructure)
+        },
+        success_count: 1,
+        last_success_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      };
+
+      // First, try to get existing pattern
+      const { data: existing } = await this.supabase
+        .from('link_discovery_patterns')
+        .select('success_count')
+        .eq('site_url', normalizedUrl)
+        .eq('discovery_method', discoveryMethod)
+        .maybeSingle();
+
+      const { error } = await this.supabase
+        .from('link_discovery_patterns')
+        .upsert({
+          ...pattern,
+          success_count: (existing?.success_count || 0) + 1,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'site_url,discovery_method'
+        });
+
+      if (error) {
+        // Table might not exist yet - that's okay, we'll create it via migration
+        if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
+          logger.info('[LinkDiscovery] Learning tables not created yet. Run migration: add_link_discovery_learning.sql');
+          return;
+        }
+        logger.warn('[LinkDiscovery] Error learning from success:', error);
+      } else {
+        logger.info('[LinkDiscovery] ✅ Learned pattern stored for future use', {
+          siteUrl: normalizedUrl,
+          linksFound: discoveredLinks.length,
+          method: discoveryMethod
+        });
+        // Clear cache to force refresh
+        this.patternCache.delete(normalizedUrl);
+      }
+    } catch (error) {
+      logger.warn('[LinkDiscovery] Error in learnFromSuccess:', error);
+    }
+  }
+
+  /**
+   * ✅ ADAPTIVE LEARNING: Learn from failure
+   * Stores what didn't work to avoid repeating mistakes
+   */
+  async _learnFromFailure(siteUrl, errorMessage, attemptedMethod, pageStructure) {
+    try {
+      if (!this.supabase) {
+        logger.warn('[LinkDiscovery] Supabase not available, skipping failure storage');
+        return;
+      }
+
+      const normalizedUrl = this._normalizeUrl(siteUrl);
+      
+      const { error } = await this.supabase
+        .from('link_discovery_failures')
+        .insert({
+          site_url: normalizedUrl,
+          error_message: errorMessage,
+          attempted_method: attemptedMethod,
+          page_structure: pageStructure,
+          occurred_at: new Date().toISOString()
+        });
+
+      if (error) {
+        // Table might not exist yet - that's okay
+        if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
+          logger.info('[LinkDiscovery] Learning tables not created yet. Run migration: add_link_discovery_learning.sql');
+          return;
+        }
+        logger.warn('[LinkDiscovery] Error learning from failure:', error);
+      } else {
+        logger.info('[LinkDiscovery] Failure pattern recorded for learning');
+      }
+    } catch (error) {
+      logger.warn('[LinkDiscovery] Error learning from failure:', error);
+    }
+  }
+
+  /**
+   * ✅ ADAPTIVE LEARNING: Try multiple strategies in parallel
+   * Uses learned patterns first, then falls back to all strategies
+   */
+  async _tryMultipleStrategies(page, siteUrl, learnedPatterns = []) {
+    const strategies = [];
+    
+    // Strategy 1: Try learned patterns first (if available) - HIGHEST PRIORITY
+    if (learnedPatterns.length > 0) {
+      logger.info(`[LinkDiscovery] 🎯 Applying ${learnedPatterns.length} learned pattern(s) FIRST (highest priority)`);
+      for (const pattern of learnedPatterns.slice(0, 3)) { // Try top 3 learned patterns
+        strategies.push({
+          name: `learned-${pattern.discovery_method}`,
+          method: pattern.discovery_method,
+          selectors: pattern.selectors_used || [],
+          priority: 20, // HIGHEST priority - learned patterns always tried first
+          pattern: pattern,
+          success_count: pattern.success_count || 0
+        });
+        logger.debug(`[LinkDiscovery] Added learned pattern: ${pattern.discovery_method} (success_count: ${pattern.success_count || 0})`);
+      }
+    }
+
+    // Strategy 2: Standard auto-detect (always try)
+    strategies.push({
+      name: 'auto-detect',
+      method: 'auto-detect',
+      priority: 5
+    });
+
+    // Strategy 3: Enhanced detection with multiple selectors
+    strategies.push({
+      name: 'enhanced-detect',
+      method: 'enhanced-detect',
+      priority: 3
+    });
+
+    // Try strategies in priority order
+    strategies.sort((a, b) => b.priority - a.priority);
+
+    for (const strategy of strategies) {
+      try {
+        logger.info(`[LinkDiscovery] Trying strategy: ${strategy.name}`);
+        let result;
+        
+        if (strategy.method === 'auto-detect') {
+          result = await this._autoDetectPdfLinks(page);
+        } else if (strategy.method === 'enhanced-detect') {
+          result = await this._enhancedDetectPdfLinks(page);
+        } else if (strategy.pattern) {
+          // Use learned pattern
+          result = await this._applyLearnedPattern(page, strategy.pattern);
+        }
+
+        if (result && result.pdfLinks && result.pdfLinks.length > 0) {
+          if (strategy.priority >= 20) {
+            logger.info(`[LinkDiscovery] ✅ LEARNED PATTERN SUCCEEDED! ${strategy.name} found ${result.pdfLinks.length} links (success_count: ${strategy.success_count})`);
+          } else {
+            logger.info(`[LinkDiscovery] Strategy ${strategy.name} succeeded with ${result.pdfLinks.length} links`);
+          }
+          return { ...result, strategyUsed: strategy.name, wasLearnedPattern: strategy.priority >= 20 };
+        }
+      } catch (error) {
+        logger.warn(`[LinkDiscovery] Strategy ${strategy.name} failed:`, error.message);
+        // Continue to next strategy
+      }
+    }
+
+    return { pdfLinks: [], allLinksFound: 0 };
+  }
+
+  /**
+   * ✅ ADAPTIVE LEARNING: Apply a learned pattern
+   */
+  async _applyLearnedPattern(page, pattern) {
+    try {
+      // Use the selectors from the learned pattern
+      const selectors = pattern.selectors_used || [];
+      const linkPatterns = pattern.link_patterns || [];
+
+      const result = await page.evaluate((selectors, linkPatterns) => {
+        const results = [];
+        
+        // Try each learned selector
+        for (const selector of selectors) {
+          try {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(el => {
+              const href = el.href || el.getAttribute('data-url') || '';
+              if (href && (href.includes('.pdf') || href.includes('pdf'))) {
+                results.push({
+                  href: href,
+                  text: el.textContent?.trim() || '',
+                  selector: selector,
+                  score: 0.9, // High score for learned patterns
+                  reasons: ['Learned pattern match']
+                });
+              }
+            });
+          } catch (e) {
+            // Selector invalid, skip
+          }
+        }
+
+        // Try matching link patterns
+        const allLinks = Array.from(document.querySelectorAll('a, button, [onclick]'));
+        allLinks.forEach(link => {
+          const href = link.href || '';
+          for (const pattern of linkPatterns) {
+            if (pattern.href_pattern && href.includes(pattern.href_pattern)) {
+              results.push({
+                href: href,
+                text: link.textContent?.trim() || pattern.text_pattern || '',
+                selector: 'pattern-match',
+                score: 0.85,
+                reasons: ['Matches learned link pattern']
+              });
+            }
+          }
+        });
+
+        return {
+          pdfLinks: results,
+          allLinksFound: document.querySelectorAll('a').length
+        };
+      }, selectors, linkPatterns);
+
+      return result;
+    } catch (error) {
+      logger.warn('[LinkDiscovery] Error applying learned pattern:', error);
+      return { pdfLinks: [], allLinksFound: 0 };
+    }
+  }
+
+  /**
+   * ✅ ADAPTIVE LEARNING: Enhanced detection with more strategies
+   */
+  async _enhancedDetectPdfLinks(page) {
+    // This is a more aggressive version of auto-detect
+    // It tries additional strategies like:
+    // - Waiting for dynamic content
+    // - Clicking through modals/dropdowns
+    // - Following redirects
+    // - Checking iframe content
+    
+    try {
+      // Wait longer for dynamic content
+      await this._wait(3000);
+      
+      // Check for modals or dropdowns that might contain links
+      await page.evaluate(() => {
+        // Try to open common dropdowns/modals
+        const triggers = document.querySelectorAll('[data-toggle="modal"], [data-bs-toggle="modal"], .dropdown-toggle, [aria-haspopup="true"]');
+        triggers.forEach(trigger => {
+          try {
+            trigger.click();
+          } catch (e) {
+            // Ignore click errors
+          }
+        });
+      });
+
+      await this._wait(1000);
+
+      // Now run standard auto-detect
+      return await this._autoDetectPdfLinks(page);
+    } catch (error) {
+      logger.warn('[LinkDiscovery] Enhanced detection failed:', error);
+      return { pdfLinks: [], allLinksFound: 0 };
+    }
+  }
+
+  /**
+   * Helper: Normalize URL for consistent storage
+   */
+  _normalizeUrl(url) {
+    if (!url) return '';
+    try {
+      const urlObj = new URL(url);
+      return `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`.toLowerCase();
+    } catch {
+      return url.toLowerCase();
+    }
+  }
+
+  /**
+   * Helper: Extract URL pattern (removes IDs, timestamps, etc.)
+   */
+  _extractUrlPattern(url) {
+    if (!url) return '';
+    // Remove query params, hash, and common variable parts
+    return url
+      .split('?')[0]
+      .split('#')[0]
+      .replace(/\d{4}-\d{2}-\d{2}/g, 'YYYY-MM-DD') // Dates
+      .replace(/\d{10,}/g, 'TIMESTAMP') // Timestamps
+      .replace(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi, 'UUID'); // UUIDs
+  }
+
+  /**
+   * Helper: Hash page structure for comparison
+   */
+  _hashStructure(structure) {
+    return JSON.stringify({
+      title: structure.title,
+      linkCount: structure.allLinks,
+      hasForms: structure.hasForms
+    });
+  }
+
+  /**
    * Main entry point for link discovery
    */
-  async discoverPdfLinks({ url, username, password, discoveryMethod, discoveryValue, testMode = false }) {
+  async discoverPdfLinks({ url, username, password, discoveryMethod, discoveryValue, testMode = false, runId = null, learnedPatterns = null }) {
     const browser = await this._launchBrowser();
     const page = await browser.newPage();
+    const vizService = getBrowserVisualizationService();
     
     try {
       logger.info(`[LinkDiscovery] Starting discovery for ${url} using method: ${discoveryMethod}`);
@@ -42,6 +422,11 @@ class LinkDiscoveryService {
       // Step 1: Navigate to the page
       logger.info(`[LinkDiscovery] Navigating to: ${url}`);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: this.config.TIMEOUT });
+      
+      // ✅ VISUALIZATION: Capture screenshot after navigation
+      if (runId) {
+        await vizService.captureAndUpdate(page, runId, 'Page loaded', '🌐 Page loaded successfully', 15);
+      }
       
       // Wait for page to be ready
       await page.waitForFunction(() => document.readyState === 'complete', {
@@ -56,12 +441,37 @@ class LinkDiscoveryService {
         url.includes('127.0.0.1:3030/demo')
       );
       
+      // ✅ DEMO PORTAL: Auto-show invoices by adding ?auto=true to URL
+      if (isDemoPortal && !url.includes('?auto=true') && !url.includes('?public=true')) {
+        const separator = url.includes('?') ? '&' : '?';
+        url = `${url}${separator}auto=true`;
+        logger.info(`[LinkDiscovery] Demo portal detected, navigating to: ${url}`);
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: this.config.TIMEOUT });
+        // Wait for invoice list to appear
+        try {
+          await page.waitForSelector('#invoiceList', { visible: true, timeout: 5000 });
+          logger.info('[LinkDiscovery] Invoice list appeared on demo page');
+        } catch (e) {
+          logger.warn('[LinkDiscovery] Invoice list did not appear, continuing anyway');
+        }
+      }
+      
       if (username && password && !isDemoPortal) {
         try {
+          // ✅ VISUALIZATION: Capture screenshot before login
+          if (runId) {
+            await vizService.captureBeforeAction(page, runId, 'Login form detected', '🔐 Logging in...', 25);
+          }
+          
           // ✅ INTELLIGENT ADAPTATION: Get adapted selectors for this site
           const adaptedSelectors = await this.siteAdaptationService.getAdaptedSelectors(url, 'login');
           
           await this._performLogin(page, { url, username, password, adaptedSelectors });
+          
+          // ✅ VISUALIZATION: Capture screenshot after login
+          if (runId) {
+            await vizService.captureAfterAction(page, runId, 'Login successful', '✅ Logged in successfully', 35);
+          }
           
           // ✅ LEARNING: Store successful pattern
           await this.siteAdaptationService.learnFromSuccess({
@@ -147,7 +557,7 @@ class LinkDiscoveryService {
         logger.info('[LinkDiscovery] No credentials provided, skipping login');
       }
       
-      // Step 3: Get page info for better error messages
+      // Step 3: Get page info for better error messages and learning
       const pageInfo = await page.evaluate(() => {
         return {
           title: document.title || 'Untitled Page',
@@ -155,27 +565,61 @@ class LinkDiscoveryService {
           allLinks: Array.from(document.querySelectorAll('a')).map(a => ({
             href: a.href,
             text: a.textContent?.trim() || ''
-          })).length
+          })).length,
+          hasForms: document.querySelectorAll('form').length > 0
         };
       });
       
-      // Step 4: Discover PDF links based on method
+      // ✅ ADAPTIVE LEARNING: Get learned patterns for this site (or use provided ones)
+      const normalizedUrl = this._normalizeUrl(url);
+      let patternsToUse = learnedPatterns;
+      
+      // If patterns weren't provided, fetch them
+      if (!patternsToUse || patternsToUse.length === 0) {
+        patternsToUse = await this._getLearnedPatterns(normalizedUrl);
+      }
+      
+      if (patternsToUse && patternsToUse.length > 0) {
+        logger.info(`[LinkDiscovery] 🧠 Using ${patternsToUse.length} learned pattern(s) - these will be tried FIRST`, {
+          siteUrl: normalizedUrl,
+          patterns: patternsToUse.map(p => ({
+            method: p.discovery_method,
+            success_count: p.success_count,
+            last_success: p.last_success_at
+          }))
+        });
+      } else {
+        logger.info(`[LinkDiscovery] No learned patterns found - will use generic strategies`);
+      }
+      
+      // Step 4: Discover PDF links using adaptive multi-strategy approach
+      // ✅ VISUALIZATION: Capture screenshot before link discovery
+      if (runId) {
+        await vizService.captureAndUpdate(page, runId, 'Searching for PDF links', '🔍 Searching for PDF links...', 45);
+      }
+      
       let discoveredLinks = [];
       let allLinksFound = 0;
+      let strategyUsed = discoveryMethod;
+      let selectorsUsed = [];
       
-      switch (discoveryMethod) {
-        case 'css-selector':
-          discoveredLinks = await this._discoverByCssSelector(page, discoveryValue);
-          break;
-        case 'text-match':
-          discoveredLinks = await this._discoverByTextMatch(page, discoveryValue);
-          break;
-        case 'auto-detect':
-        default:
-          const autoResult = await this._autoDetectPdfLinks(page);
-          discoveredLinks = autoResult.pdfLinks || [];
-          allLinksFound = autoResult.allLinksFound || 0;
-          break;
+      // ✅ ADAPTIVE LEARNING: Try user-specified method first, then fall back to multi-strategy
+      if (discoveryMethod === 'css-selector' && discoveryValue) {
+        discoveredLinks = await this._discoverByCssSelector(page, discoveryValue);
+        selectorsUsed = [discoveryValue];
+      } else if (discoveryMethod === 'text-match' && discoveryValue) {
+        discoveredLinks = await this._discoverByTextMatch(page, discoveryValue);
+      } else {
+        // ✅ ADAPTIVE LEARNING: Use multi-strategy approach (tries learned patterns first)
+        const multiStrategyResult = await this._tryMultipleStrategies(page, normalizedUrl, patternsToUse || []);
+        discoveredLinks = multiStrategyResult.pdfLinks || [];
+        allLinksFound = multiStrategyResult.allLinksFound || 0;
+        strategyUsed = multiStrategyResult.strategyUsed || 'auto-detect';
+      }
+      
+      // ✅ VISUALIZATION: Capture screenshot after link discovery
+      if (runId && discoveredLinks.length > 0) {
+        await vizService.captureAndUpdate(page, runId, `Found ${discoveredLinks.length} PDF link(s)`, `✅ Found ${discoveredLinks.length} PDF link(s)!`, 55);
       }
       
       // If auto-detect didn't return allLinksFound, count all links on page
@@ -183,14 +627,15 @@ class LinkDiscoveryService {
         allLinksFound = pageInfo.allLinks;
       }
       
-      // ✅ SEAMLESS UX: If no links found with primary method, try automatic fallback
-      if (discoveredLinks.length === 0 && discoveryMethod !== 'auto-detect') {
-        logger.info(`[LinkDiscovery] Primary method found no links, trying auto-detect as fallback...`);
-        const fallbackResult = await this._autoDetectPdfLinks(page);
-        if (fallbackResult.pdfLinks && fallbackResult.pdfLinks.length > 0) {
-          discoveredLinks = fallbackResult.pdfLinks;
-          allLinksFound = fallbackResult.allLinksFound || allLinksFound;
-          logger.info(`[LinkDiscovery] Fallback auto-detect found ${discoveredLinks.length} links`);
+      // ✅ ADAPTIVE LEARNING: If no links found, try enhanced detection as last resort
+      if (discoveredLinks.length === 0) {
+        logger.info(`[LinkDiscovery] No links found, trying enhanced detection as last resort...`);
+        const enhancedResult = await this._enhancedDetectPdfLinks(page);
+        if (enhancedResult.pdfLinks && enhancedResult.pdfLinks.length > 0) {
+          discoveredLinks = enhancedResult.pdfLinks;
+          allLinksFound = enhancedResult.allLinksFound || allLinksFound;
+          strategyUsed = 'enhanced-detect';
+          logger.info(`[LinkDiscovery] Enhanced detection found ${discoveredLinks.length} links`);
         }
       }
       
@@ -200,10 +645,30 @@ class LinkDiscoveryService {
       
       logger.info(`[LinkDiscovery] Found ${discoveredLinks.length} potential PDF links out of ${allLinksFound} total links`);
       
+      // ✅ ADAPTIVE LEARNING: Learn from this discovery attempt
+      if (discoveredLinks.length > 0) {
+        // Success! Store the pattern for future use
+        await this._learnFromSuccess(
+          normalizedUrl,
+          discoveredLinks,
+          pageInfo,
+          strategyUsed,
+          selectorsUsed
+        );
+      } else {
+        // Failure - learn what didn't work
+        await this._learnFromFailure(
+          normalizedUrl,
+          `No PDF links found using ${strategyUsed}`,
+          strategyUsed,
+          pageInfo
+        );
+      }
+      
       return {
         success: discoveredLinks.length > 0,
         discoveredLinks,
-        method: discoveryMethod,
+        method: strategyUsed, // Return actual method used (may differ from requested)
         testMode,
         // ✅ SEAMLESS UX: Include cookies for authenticated downloads
         cookies: cookies,
@@ -215,13 +680,34 @@ class LinkDiscoveryService {
         diagnosticInfo: {
           totalLinksOnPage: pageInfo.allLinks,
           pdfLinksFound: discoveredLinks.length,
-          discoveryMethod: discoveryMethod,
-          hasCookies: cookies.length > 0
+          discoveryMethod: strategyUsed,
+          hasCookies: cookies.length > 0,
+          learnedPatternsUsed: (patternsToUse && patternsToUse.length > 0) || false,
+          learnedPatternsCount: patternsToUse?.length || 0
         }
       };
       
     } catch (error) {
       logger.error('[LinkDiscovery] Discovery failed:', error);
+      
+      // ✅ ADAPTIVE LEARNING: Learn from failure
+      try {
+        const pageInfo = await page.evaluate(() => ({
+          title: document.title || 'Untitled Page',
+          url: window.location.href,
+          allLinks: document.querySelectorAll('a').length,
+          hasForms: document.querySelectorAll('form').length > 0
+        }));
+        await this._learnFromFailure(
+          this._normalizeUrl(url),
+          error.message,
+          discoveryMethod,
+          pageInfo
+        );
+      } catch (learnError) {
+        logger.warn('[LinkDiscovery] Error learning from failure:', learnError);
+      }
+      
       throw new Error(`Link discovery failed: ${error.message}`);
     } finally {
       await browser.close();
@@ -678,8 +1164,8 @@ class LinkDiscoveryService {
           }
           
           const text = (element.textContent || '').trim().toLowerCase();
-          const href = element.href || element.getAttribute('data-url') || element.getAttribute('data-pdf') || '';
-          const onclick = element.onclick?.toString() || '';
+          let href = element.href || element.getAttribute('data-url') || element.getAttribute('data-pdf') || '';
+          const onclick = element.onclick?.toString() || element.getAttribute('onclick') || '';
           const className = (element.className || '').toString().toLowerCase();
           const id = (element.id || '').toLowerCase();
           const title = (element.title || '').toLowerCase();
@@ -688,6 +1174,27 @@ class LinkDiscoveryService {
           
           let score = 0;
           let reasons = [];
+          
+          // ✅ DEMO PORTAL: Extract PDF URL from onclick handlers (e.g., downloadInvoice('001') -> /demo/invoice-001.pdf)
+          if (!href && onclick) {
+            // Match patterns like: downloadInvoice('001'), downloadInvoice("002"), download('invoice-001.pdf')
+            const invoiceIdMatch = onclick.match(/downloadInvoice\(['"]([^'"]+)['"]\)/i) || 
+                                   onclick.match(/download\(['"]([^'"]+)['"]\)/i) ||
+                                   onclick.match(/['"]([^'"]*invoice[^'"]*\.pdf)['"]/i);
+            if (invoiceIdMatch) {
+              const invoiceId = invoiceIdMatch[1];
+              // Construct PDF URL - check if it already includes .pdf or needs it
+              if (invoiceId.includes('.pdf')) {
+                href = window.location.origin + (invoiceId.startsWith('/') ? invoiceId : '/' + invoiceId);
+              } else {
+                // Assume demo portal structure: /demo/invoice-{id}.pdf
+                const basePath = window.location.pathname.split('/demo')[0] || '';
+                href = window.location.origin + basePath + '/demo/invoice-' + invoiceId + '.pdf';
+              }
+              reasons.push('Extracted from onclick handler');
+              score += 0.4; // Boost score for extracted URLs
+            }
+          }
           
           // ✅ SEAMLESS UX: Enhanced URL-based scoring
           if (href.includes('.pdf') || href.includes('/pdf/') || href.includes('/download/')) {

@@ -1596,6 +1596,29 @@ class WorkflowExecutor {
               duration_ms: duration,
               workflow_name: workflow.name
             });
+            
+            // ✅ UNIVERSAL LEARNING: Learn from successful workflow execution
+            try {
+              const { getUniversalLearningService } = require('./UniversalLearningService');
+              const learningService = getUniversalLearningService();
+              
+              await learningService.learnFromWorkflowSuccess({
+                workflowId: workflow.id,
+                workflowName: workflow.name,
+                steps: workflow.steps || [],
+                executionTime: duration,
+                inputData: inputData || {},
+                resultData: outputData || {},
+                userId: execution.user_id
+              });
+            } catch (learningError) {
+              // Don't fail workflow if learning fails
+              this.logger.warn('Error learning from workflow (non-fatal):', {
+                error: learningError?.message,
+                execution_id: execution.id
+              });
+            }
+            
             await this.completeExecution(execution.id, outputData, actualStepsExecuted, startTime);
           } else {
             // ✅ FIX: If we have partial results, include them in the failure
