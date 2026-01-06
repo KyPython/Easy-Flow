@@ -420,3 +420,4 @@ rpa-system/monitoring/alertmanager.yml
 *.tfplan
 .terraform.lock.hcl
 rpa-system/rpa-dashboard/public/firebase-config.js
+code-quality-report.json
