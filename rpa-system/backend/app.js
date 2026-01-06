@@ -2538,13 +2538,14 @@ async function queueTaskRun(runId, taskData) {
       throw new Error('URL is required but was not found in task data. Please provide a valid URL.');
     }
     
-    let validatedUrl = null;
-    const urlValidation = isValidUrl(urlToValidate);
+    // ✅ SECURITY: Use SSRF protection module for validation
+    const { validateUrlForSSRF } = require('./utils/ssrfProtection');
+    const urlValidation = validateUrlForSSRF(urlToValidate);
     if (!urlValidation.valid) {
-      logger.warn(`[queueTaskRun] Invalid URL rejected: ${urlToValidate} (reason: ${urlValidation.reason})`);
-      throw new Error(`Invalid URL: ${urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format'}`);
+      logger.warn(`[queueTaskRun] Invalid URL rejected: ${urlToValidate} (reason: ${urlValidation.error})`);
+      throw new Error(`Invalid URL: ${urlValidation.error}`);
     }
-    validatedUrl = urlValidation.url; // Use validated URL
+    const validatedUrl = urlValidation.url; // Use validated URL (safe from SSRF)
     
     // Prepare the payload for the automation worker
     const payload = { 

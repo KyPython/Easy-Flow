@@ -99,9 +99,9 @@ if (missingRequired.length > 0) {
   if (isDevelopment && isStart && !isCI) {
     console.error(errorMessage);
     console.error('Current config values:', {
-      apiKey: config.apiKey ? '(present)' : '(missing)',
-      projectId: config.projectId ? '(present)' : '(missing)',
-      authDomain: config.authDomain ? '(present)' : '(missing)',
+      apiKey: config.apiKey ? '(present)' : '(missing)', // nosemgrep: hardcoded-secret - Error message placeholder, not actual secret
+      projectId: config.projectId ? '(present)' : '(missing)', // nosemgrep: hardcoded-secret - Error message placeholder, not actual secret
+      authDomain: config.authDomain ? '(present)' : '(missing)', // nosemgrep: hardcoded-secret - Error message placeholder, not actual secret
       appId: config.appId ? '(present)' : '(missing)'
     });
     process.exit(1); // Exit with error code to fail the start
