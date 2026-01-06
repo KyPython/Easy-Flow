@@ -120,6 +120,11 @@ jobs:
           chmod +x scripts/validate-rag-knowledge.sh
           ./scripts/validate-rag-knowledge.sh || (echo "❌ RAG knowledge validation failed - AI Agent knowledge is outdated or missing. Please update ragClient.js seedEasyFlowKnowledge() and aiWorkflowAgent.js system prompts." && exit 1)
 
+      - name: Validate Analytics Tracking - CRITICAL (Business Metrics)
+        run: |
+          chmod +x scripts/validate-analytics-tracking.sh
+          ./scripts/validate-analytics-tracking.sh || (echo "❌ Analytics tracking validation failed - Feature tracking, signup tracking, or login tracking is missing. This is critical for business metrics." && exit 1)
+
       - name: Terraform Validation (if infrastructure changes)
         if: contains(github.event.head_commit.modified, 'infrastructure/') || contains(github.event.head_commit.added, 'infrastructure/')
         run: |

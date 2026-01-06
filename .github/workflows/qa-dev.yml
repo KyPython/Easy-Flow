@@ -91,6 +91,12 @@ jobs:
           ./scripts/validate-rag-knowledge.sh || echo "⚠️ RAG knowledge may be outdated (non-blocking on dev branch)"
         continue-on-error: true
 
+      - name: Validate Analytics Tracking - WARNING ONLY (Business Metrics)
+        run: |
+          chmod +x scripts/validate-analytics-tracking.sh
+          ./scripts/validate-analytics-tracking.sh || echo "⚠️ Analytics tracking validation found issues (non-blocking on dev branch, but critical for business metrics)"
+        continue-on-error: true
+
       - name: Assess feature readiness (optional)
         if: always()
         continue-on-error: true
