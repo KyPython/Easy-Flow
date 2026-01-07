@@ -49,6 +49,6 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '⚠️ **Study Guide Validation Failed**\n\nThe study guide does not match the codebase. Please update `COMPREHENSIVE_STUDY_GUIDE.md` to reflect the current implementation.\n\nRun `node scripts/validate-study-guide.js` locally to see detailed errors.'
+              body: '⚠️ **Study Guide Validation Failed**\n\nThe study guide does not match the codebase. Please update `docs/guides/COMPREHENSIVE_STUDY_GUIDE.md` to reflect the current implementation.\n\nRun `node scripts/validate-study-guide.js` locally to see detailed errors.'
             })
 

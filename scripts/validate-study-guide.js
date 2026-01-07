@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const STUDY_GUIDE_PATH = path.join(__dirname, '..', 'COMPREHENSIVE_STUDY_GUIDE.md');
+const STUDY_GUIDE_PATH = path.join(__dirname, '..', 'docs', 'guides', 'COMPREHENSIVE_STUDY_GUIDE.md');
 const ROOT_DIR = path.join(__dirname, '..');
 
 // Color codes for terminal output

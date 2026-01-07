@@ -51,6 +51,9 @@ This directory contains all project documentation organized by category.
 - **ENVIRONMENT_AWARE_MIGRATION.md** - Environment-aware migration guide
 - **GOOGLE_OAUTH_VERIFICATION.md** - Google OAuth verification fixes
 
+### Comprehensive Guides (`docs/guides/`)
+- **COMPREHENSIVE_STUDY_GUIDE.md** - Complete system architecture and mastery guide
+
 ### Philosophy & Strategy (`docs/philosophy/`)
 - **SOFTWARE_ENTROPY_PHILOSOPHY.md** - Software entropy philosophy
 - **SOFTWARE_ENTROPY_INTEGRATION_PLAN.md** - Integration plan for software entropy
@@ -62,7 +65,8 @@ This directory contains all project documentation organized by category.
 ## 📖 Main Documentation
 
 - **README.md** (root) - Project overview and quick start
-- **COMPREHENSIVE_STUDY_GUIDE.md** (root) - Complete system architecture guide
+- **docs/README.md** - Documentation hub and navigation guide
+- **COMPREHENSIVE_STUDY_GUIDE.md** (`docs/guides/`) - Complete system architecture guide
 
 ## 📝 Component Documentation
 
@@ -93,7 +97,7 @@ docs/
 ## 🔍 Quick Links
 
 - **Getting Started**: [README.md](../README.md) → [DAILY_DEVELOPER_GUIDE.md](development/DAILY_DEVELOPER_GUIDE.md)
-- **Architecture**: [COMPREHENSIVE_STUDY_GUIDE.md](../COMPREHENSIVE_STUDY_GUIDE.md) → [OBSERVABILITY_ARCHITECTURE.md](architecture/OBSERVABILITY_ARCHITECTURE.md)
+- **Architecture**: [COMPREHENSIVE_STUDY_GUIDE.md](guides/COMPREHENSIVE_STUDY_GUIDE.md) → [OBSERVABILITY_ARCHITECTURE.md](architecture/OBSERVABILITY_ARCHITECTURE.md)
 - **CI/CD**: [BRANCH_AWARE_CI_CD.md](devops/BRANCH_AWARE_CI_CD.md) → [CODE_VALIDATION_SYSTEM.md](devops/CODE_VALIDATION_SYSTEM.md)
 
 ---
