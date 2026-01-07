@@ -63,10 +63,10 @@ def should_process_file(filepath):
  """Check if file should be processed"""
  filepath_str = str(filepath)
  
- # Skip if matches skip patterns
- for pattern in SKIP_PATTERNS:
- if pattern in filepath_str:
- return False
+    # Skip if matches skip patterns
+    for pattern in SKIP_PATTERNS:
+        if pattern in filepath_str:
+            return False
  
  # Only process text files
  return filepath.suffix in TEXT_EXTENSIONS
