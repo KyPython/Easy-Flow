@@ -6,9 +6,11 @@ import { api } from '../utils/api';
 // UUID validation regex (matches Supabase UUID format)
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Validate workflowId is a valid UUID
+// Validate workflowId is a valid UUID or special case "new"
 const isValidWorkflowId = (id) => {
   if (!id) return false;
+  // Allow "new" as a special case for creating new workflows
+  if (id === 'new') return true;
   return uuidRegex.test(id);
 };
 
