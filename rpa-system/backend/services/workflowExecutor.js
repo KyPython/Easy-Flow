@@ -832,14 +832,18 @@ class WorkflowExecutor {
  }
 
  async executeWorkflow(execution, workflow, options = {}) {
- const startTime = Date.now();
- let currentData = execution.input_data || {};
- let stepsExecuted = 0;
- const partialResults = []; // ✅ FIX: Track partial successes
+   const startTime = Date.now();
+   let currentData = execution.input_data || {};
+   let stepsExecuted = 0;
+   const partialResults = []; // ✅ FIX: Track partial successes
 
- // ✅ EXECUTION MODES: Get execution mode and config
- const executionMode = options.executionMode || execution.execution_mode || EXECUTION_MODES.BALANCED;
- const modeConfig = options.modeConfig || this.executionModeService.getExecutionConfig(executionMode);
+   // ✅ CHECKPOINTING: Get checkpointing option (default true for queue-based execution)
+   const enableCheckpointing = options.enableCheckpointing !== undefined ? options.enableCheckpointing : true;
+   const job = options.job; // Bull job for progress updates
+
+   // ✅ EXECUTION MODES: Get execution mode and config
+   const executionMode = options.executionMode || execution.execution_mode || EXECUTION_MODES.BALANCED;
+   const modeConfig = options.modeConfig || this.executionModeService.getExecutionConfig(executionMode);
 
  // ✅ EXECUTION MODES: Apply mode-specific timeout
  const executionTimeout = modeConfig.timeout || 300000; // Default 5 minutes
@@ -889,16 +893,30 @@ class WorkflowExecutor {
  span_id: span.spanContext().spanId
  });
 
- // ✅ FIX: Update status to show progress with detailed info
- await this._updateExecutionStatus(
- execution.id,
- 'running',
- 'Starting workflow execution...',
- {
- steps_total: workflow.workflow_steps?.length || 0,
- steps_executed: 0
- }
- );
+       // ✅ STATE MACHINE: Update to RUNNING state if not already
+       const { STATES } = require('./workflowStateMachine');
+       const currentState = execution.state || STATES.PENDING;
+       if (currentState !== STATES.RUNNING) {
+         await this.supabase
+           .from('workflow_executions')
+           .update({
+             state: STATES.RUNNING,
+             status: 'running',
+             started_at: new Date().toISOString()
+           })
+           .eq('id', execution.id);
+       }
+
+       // ✅ FIX: Update status to show progress with detailed info
+       await this._updateExecutionStatus(
+         execution.id,
+         'running',
+         'Starting workflow execution...',
+         {
+           steps_total: workflow.workflow_steps?.length || 0,
+           steps_executed: 0
+         }
+       );
 
  // Find the start step - check workflow_steps first, then canvas_config
  let steps = workflow.workflow_steps || [];
@@ -1805,6 +1823,16 @@ class WorkflowExecutor {
  // Create step execution record
  const stepExecution = await this.createStepExecution(execution.id, step.id, inputData);
 
+ // ✅ STATE MACHINE: Transition step to RUNNING state
+ const { STATES } = require('./workflowStateMachine');
+ await this.supabase
+   .from('step_executions')
+   .update({
+     state: STATES.RUNNING,
+     status: 'running'
+   })
+   .eq('id', stepExecution.id);
+
  let result = { success: true, data: inputData };
 
  // Execute based on step type
@@ -1845,7 +1873,71 @@ class WorkflowExecutor {
  // ✅ ENHANCED: Update step execution with detailed information
  // Store step start time for duration calculation
  stepExecution._startTime = stepStartTime;
- await this.updateStepExecution(stepExecution, result);
+ 
+ // ✅ CHECKPOINTING: Pass checkpointing option to updateStepExecution
+ await this.updateStepExecution(stepExecution, result, { enableCheckpointing });
+ 
+ // ✅ CHECKPOINTING: Create comprehensive checkpoint for resume capability
+ if (enableCheckpointing && result.success) {
+   try {
+     const { WorkflowCheckpointService } = require('./workflowCheckpointService');
+     const checkpointService = new WorkflowCheckpointService();
+     
+     // Find next step for resume metadata
+     const nextStep = this._findNextStep(workflow, step, currentData, connections);
+     
+     await checkpointService.createCheckpoint({
+       workflowExecutionId: execution.id,
+       stepExecution: stepExecution,
+       workflowStep: step,
+       stateVariables: result.data || currentData,
+       executionContext: {
+         workflowId: workflow.id,
+         userId: execution.user_id,
+         executionMode: executionMode,
+         stepsTotal: workflow.workflow_steps?.length || 0,
+         stepsExecuted: Array.from(visitedSteps).length,
+         triggeredBy: execution.triggered_by || 'manual',
+         triggerData: execution.trigger_data || {},
+         executionMetadata: execution.metadata || {}
+       },
+       resumeMetadata: {
+         nextStepId: nextStep?.id || null,
+         nextStepKey: nextStep?.step_key || null,
+         visitedSteps: Array.from(visitedSteps),
+         branchHistory: this._getBranchHistory(execution, step),
+         loopIterations: this._getLoopIterations(execution, step)
+       }
+     });
+     
+     this.logger.info('Checkpoint created for resume capability', {
+       workflow_execution_id: execution.id,
+       step_execution_id: stepExecution.id,
+       next_step_id: nextStep?.id || null
+     });
+   } catch (checkpointError) {
+     // Log but don't fail execution - checkpointing is best-effort
+     this.logger.warn('Failed to create checkpoint (non-fatal)', {
+       workflow_execution_id: execution.id,
+       step_execution_id: stepExecution.id,
+       error: checkpointError.message
+     });
+   }
+ }
+ 
+ // ✅ CHECKPOINTING: Update job progress if job is available
+ if (job && enableCheckpointing) {
+   const totalSteps = workflow.workflow_steps?.length || 0;
+   const currentStepIndex = Array.from(visitedSteps).length;
+   const progressPercent = Math.min(30 + Math.floor((currentStepIndex / totalSteps) * 70), 99); // 30-99% range
+   await job.progress(progressPercent);
+   this.logger.debug('Updated job progress after step checkpoint', {
+     execution_id: execution.id,
+     step_index: currentStepIndex,
+     total_steps: totalSteps,
+     progress: progressPercent
+   });
+ }
 
  const stepDuration = Date.now() - stepStartTime;
 
@@ -3318,6 +3410,41 @@ class WorkflowExecutor {
  }
  }
 
+ // ✅ CHECKPOINTING: Helper method to find next step for checkpoint metadata
+ _findNextStep(workflow, currentStep, currentData, connections) {
+   // Filter connections from current step (connections param may not be available)
+   const stepConnections = connections || (workflow.workflow_connections || []).filter(
+     conn => conn.source_step_id === currentStep.id
+   );
+
+   if (stepConnections.length === 0) {
+     return null; // End of workflow or no connections
+   }
+
+   // For now, return first connection (sequential execution)
+   // TODO: Handle conditional branches for checkpoint metadata
+   const nextConnection = stepConnections[0];
+   const nextStep = (workflow.workflow_steps || []).find(
+     step => step.id === nextConnection.target_step_id
+   );
+
+   return nextStep || null;
+ }
+
+ // ✅ CHECKPOINTING: Get branch history for deterministic resumption
+ _getBranchHistory(execution, currentStep) {
+   // Extract branch history from execution metadata
+   const metadata = execution.metadata || {};
+   return metadata.branch_history || [];
+ }
+
+ // ✅ CHECKPOINTING: Get loop iterations metadata
+ _getLoopIterations(execution, currentStep) {
+   // Extract loop iterations from execution metadata
+   const metadata = execution.metadata || {};
+   return metadata.loop_iterations || {};
+ }
+
  // Utility methods
  async getNextSteps(currentStep, data, workflow) {
  try {
@@ -3471,18 +3598,21 @@ class WorkflowExecutor {
  throw new Error(`Invalid step ID format: ${stepId}. Expected UUID but got: ${actualStepId}`);
  }
 
+ const { STATES } = require('./workflowStateMachine');
+ 
  const { data, error } = await this.supabase
- .from('step_executions')
- .insert({
- workflow_execution_id: workflowExecutionId,
- step_id: actualStepId,
- status: 'running',
- started_at: new Date().toISOString(),
- input_data: inputData,
- execution_order: 1 // TODO: Calculate proper execution order
- })
- .select()
- .single();
+   .from('step_executions')
+   .insert({
+     workflow_execution_id: workflowExecutionId,
+     step_id: actualStepId,
+     status: 'pending', // Will transition to running when step starts
+     state: STATES.PENDING, // State machine initial state
+     started_at: new Date().toISOString(),
+     input_data: inputData,
+     execution_order: 1 // TODO: Calculate proper execution order
+   })
+   .select()
+   .single();
 
  if (error) {
  this.logger.error('Failed to create step execution', {
@@ -3498,105 +3628,158 @@ class WorkflowExecutor {
  return data;
  }
 
- async updateStepExecution(stepExecution, result) {
- const stepStartTime = stepExecution?.started_at ? new Date(stepExecution.started_at).getTime() : Date.now();
- const stepDuration = Date.now() - stepStartTime;
- const durationSec = (stepDuration / 1000).toFixed(1);
+ async updateStepExecution(stepExecution, result, options = {}) {
+   const { enableCheckpointing = false } = options;
+   const stepStartTime = stepExecution?.started_at ? new Date(stepExecution.started_at).getTime() : Date.now();
+   const stepDuration = Date.now() - stepStartTime;
+   const durationSec = (stepDuration / 1000).toFixed(1);
 
- // Build step details message
- let stepDetails = '';
- if (result.success) {
- // Extract meaningful details from result
- if (result.meta?.stepDetails) {
- stepDetails = result.meta.stepDetails;
- } else if (result.data?.scraped_data) {
- const scraped = result.data.scraped_data;
- if (Array.isArray(scraped)) {
- stepDetails = `Scraped ${scraped.length} record${scraped.length !== 1 ? 's' : ''}`;
- } else {
- stepDetails = 'Scraping completed';
- }
- } else if (result.data?.email_result) {
- stepDetails = result.data.email_result.status === 'queued'
- ? 'Email queued'
- : 'Email sent';
- } else {
- stepDetails = 'Step completed';
- }
- } else {
- // For failed steps, include error category
- stepDetails = result.errorDetails?.reason || result.error || 'Step failed';
- }
+   // Import state machine
+   const { STATES, WorkflowStateMachine } = require('./workflowStateMachine');
 
- const updateData = {
- completed_at: new Date().toISOString(),
- status: result.success ? 'completed' : 'failed',
- output_data: result.data,
- result: {
- ...result,
- step_details: stepDetails // Store in result JSONB instead
- },
- duration_ms: Math.max(0, stepDuration)
- };
+   // Build step details message
+   let stepDetails = '';
+   if (result.success) {
+     // Extract meaningful details from result
+     if (result.meta?.stepDetails) {
+       stepDetails = result.meta.stepDetails;
+     } else if (result.data?.scraped_data) {
+       const scraped = result.data.scraped_data;
+       if (Array.isArray(scraped)) {
+         stepDetails = `Scraped ${scraped.length} record${scraped.length !== 1 ? 's' : ''}`;
+       } else {
+         stepDetails = 'Scraping completed';
+       }
+     } else if (result.data?.email_result) {
+       stepDetails = result.data.email_result.status === 'queued'
+         ? 'Email queued'
+         : 'Email sent';
+     } else {
+       stepDetails = 'Step completed';
+     }
+   } else {
+     // For failed steps, include error category
+     stepDetails = result.errorDetails?.reason || result.error || 'Step failed';
+   }
 
- if (!result.success) {
- // ✅ ENHANCED: Store detailed error information in result JSONB
- const errorDetails = result.errorDetails || {};
- updateData.error_message = result.error;
- updateData.result = {
- ...result,
- step_details: stepDetails,
- error_category: result.errorCategory,
- error_reason: errorDetails.reason,
- error_fix: errorDetails.fix,
- error_timestamp: errorDetails.timestamp || new Date().toLocaleString(),
- retry_available: errorDetails.retry !== false
- };
- }
+   // Determine new state
+   const currentState = stepExecution.state || STATES.PENDING;
+   const newState = result.success ? STATES.COMPLETED : STATES.FAILED;
+   
+   // Validate state transition
+   const transitionValidation = WorkflowStateMachine.validateTransition(currentState, newState);
+   if (!transitionValidation.valid) {
+     this.logger.warn('Invalid step state transition', {
+       step_execution_id: stepExecution.id,
+       current_state: currentState,
+       new_state: newState,
+       error: transitionValidation.error
+     });
+   }
 
- // Add retry metrics if available
- const attempts = result?.meta?.attempts;
- if (typeof attempts === 'number' && attempts >= 1) {
- updateData.retry_count = Math.max(0, attempts - 1);
- }
+   const updateData = {
+     completed_at: new Date().toISOString(),
+     status: result.success ? 'completed' : 'failed',
+     state: newState, // State machine state
+     output_data: result.data,
+     result: {
+       ...result,
+       step_details: stepDetails // Store in result JSONB instead
+     },
+     duration_ms: Math.max(0, stepDuration)
+   };
 
- const { error } = await this.supabase
- .from('step_executions')
- .update(updateData)
- .eq('id', stepExecution.id);
+   // ✅ CHECKPOINTING: Mark step as checkpointed after successful completion
+   if (enableCheckpointing && result.success) {
+     updateData.checkpointed_at = new Date().toISOString();
+     this.logger.info('Step execution checkpointed', {
+       step_execution_id: stepExecution.id,
+       workflow_execution_id: stepExecution.workflow_execution_id,
+       step_id: stepExecution.step_id,
+       checkpointed_at: updateData.checkpointed_at
+     });
+   }
 
- if (error) {
- logger.error('Failed to update step execution:', error);
- }
- }
+   if (!result.success) {
+     // ✅ ENHANCED: Store detailed error information in result JSONB
+     const errorDetails = result.errorDetails || {};
+     updateData.error_message = result.error;
+     updateData.result = {
+       ...result,
+       step_details: stepDetails,
+       error_category: result.errorCategory,
+       error_reason: errorDetails.reason,
+       error_fix: errorDetails.fix,
+       error_timestamp: errorDetails.timestamp || new Date().toLocaleString(),
+       retry_available: errorDetails.retry !== false
+     };
+   }
+
+   // Add retry metrics if available
+   const attempts = result?.meta?.attempts;
+   if (typeof attempts === 'number' && attempts >= 1) {
+     updateData.retry_count = Math.max(0, attempts - 1);
+   }
+
+   const { error } = await this.supabase
+     .from('step_executions')
+     .update(updateData)
+     .eq('id', stepExecution.id);
+
+   if (error) {
+     this.logger.error('Failed to update step execution:', error);
+   } else if (enableCheckpointing && result.success) {
+     // ✅ CHECKPOINTING: Log successful checkpoint
+     this.logger.info('Step checkpoint saved', {
+       step_execution_id: stepExecution.id,
+       state: newState,
+       has_output_data: !!result.data
+     });
+   }
+   }
 
  async completeExecution(executionId, outputData, stepsExecuted, startTime) {
- const duration = Math.floor((Date.now() - startTime) / 1000);
+   const duration = Math.floor((Date.now() - startTime) / 1000);
+   
+   // Import state machine
+   const { STATES, WorkflowStateMachine } = require('./workflowStateMachine');
 
- // Get execution details for metrics
- const { data: execution } = await this.supabase
- .from('workflow_executions')
- .select('workflow_id, user_id, triggered_by, steps_total')
- .eq('id', executionId)
- .single();
+   // Get execution details for metrics
+   const { data: execution } = await this.supabase
+     .from('workflow_executions')
+     .select('workflow_id, user_id, triggered_by, steps_total, state')
+     .eq('id', executionId)
+     .single();
 
- // ✅ FIX: Add actionable next steps guidance in metadata
- const nextSteps = this._generateNextStepsGuidance(outputData, stepsExecuted);
+   // Validate state transition to COMPLETED
+   const currentState = execution?.state || STATES.RUNNING;
+   const transitionValidation = WorkflowStateMachine.validateTransition(currentState, STATES.COMPLETED);
+   if (!transitionValidation.valid) {
+     this.logger.warn('Invalid state transition to COMPLETED', {
+       execution_id: executionId,
+       current_state: currentState,
+       error: transitionValidation.error
+     });
+   }
 
- const { error } = await this.supabase
- .from('workflow_executions')
- .update({
- status: 'completed',
- completed_at: new Date().toISOString(),
- duration_seconds: duration,
- output_data: outputData,
- steps_executed: stepsExecuted,
- metadata: {
- next_steps: nextSteps,
- completion_time: new Date().toISOString(),
- status_message: nextSteps.message
- }
- })
+   // ✅ FIX: Add actionable next steps guidance in metadata
+   const nextSteps = this._generateNextStepsGuidance(outputData, stepsExecuted);
+
+   const { error } = await this.supabase
+     .from('workflow_executions')
+     .update({
+       state: STATES.COMPLETED,
+       status: 'completed',
+       completed_at: new Date().toISOString(),
+       duration_seconds: duration,
+       output_data: outputData,
+       steps_executed: stepsExecuted,
+       metadata: {
+         next_steps: nextSteps,
+         completion_time: new Date().toISOString(),
+         status_message: nextSteps.message
+       }
+     })
  .eq('id', executionId);
 
  if (error) {
@@ -3628,45 +3811,60 @@ class WorkflowExecutor {
  }
 
  async failExecution(executionId, errorMessage, errorStepId = null, errorCategory = null) {
- // Get execution details for metrics
- const { data: execution } = await this.supabase
- .from('workflow_executions')
- .select('workflow_id, user_id, triggered_by, steps_total, started_at')
- .eq('id', executionId)
- .single();
+   // Import state machine
+   const { STATES, WorkflowStateMachine } = require('./workflowStateMachine');
+   
+   // Get execution details for metrics
+   const { data: execution } = await this.supabase
+     .from('workflow_executions')
+     .select('workflow_id, user_id, triggered_by, steps_total, started_at, state')
+     .eq('id', executionId)
+     .single();
 
- // ✅ ENHANCED: Parse error message to extract structured details
- let errorDetails = {};
- let formattedErrorMessage = errorMessage;
+   // Validate state transition to FAILED
+   const currentState = execution?.state || STATES.RUNNING;
+   const transitionValidation = WorkflowStateMachine.validateTransition(currentState, STATES.FAILED);
+   if (!transitionValidation.valid) {
+     this.logger.warn('Invalid state transition to FAILED', {
+       execution_id: executionId,
+       current_state: currentState,
+       error: transitionValidation.error
+     });
+   }
 
- // Try to parse structured error if it's an object or contains structured format
- if (typeof errorMessage === 'object' && errorMessage.errorDetails) {
- errorDetails = errorMessage.errorDetails;
- formattedErrorMessage = errorMessage.formatted || errorMessage.summary || errorMessage.message || JSON.stringify(errorMessage);
- } else if (typeof errorMessage === 'string' && errorMessage.includes('\n')) {
- // Parse multi-line error message
- const lines = errorMessage.split('\n');
- formattedErrorMessage = lines[0] || errorMessage;
- const reasonLine = lines.find(l => l.includes('Reason:'));
- const fixLine = lines.find(l => l.includes('Fix:'));
- if (reasonLine) errorDetails.reason = reasonLine.replace('Reason:', '').trim();
- if (fixLine) errorDetails.fix = fixLine.replace('Fix:', '').trim();
- }
+   // ✅ ENHANCED: Parse error message to extract structured details
+   let errorDetails = {};
+   let formattedErrorMessage = errorMessage;
 
- const timestamp = new Date().toLocaleString('en-US', {
- hour: 'numeric',
- minute: '2-digit',
- hour12: true
- });
+   // Try to parse structured error if it's an object or contains structured format
+   if (typeof errorMessage === 'object' && errorMessage.errorDetails) {
+     errorDetails = errorMessage.errorDetails;
+     formattedErrorMessage = errorMessage.formatted || errorMessage.summary || errorMessage.message || JSON.stringify(errorMessage);
+   } else if (typeof errorMessage === 'string' && errorMessage.includes('\n')) {
+     // Parse multi-line error message
+     const lines = errorMessage.split('\n');
+     formattedErrorMessage = lines[0] || errorMessage;
+     const reasonLine = lines.find(l => l.includes('Reason:'));
+     const fixLine = lines.find(l => l.includes('Fix:'));
+     if (reasonLine) errorDetails.reason = reasonLine.replace('Reason:', '').trim();
+     if (fixLine) errorDetails.fix = fixLine.replace('Fix:', '').trim();
+   }
 
- // ✅ FIX: Build update data with only core columns that exist in DB
- const updateData = {
- status: 'failed',
- completed_at: new Date().toISOString(),
- error_message: formattedErrorMessage,
- error_category: errorCategory || null,
- retry_available: errorDetails.retry !== false
- };
+   const timestamp = new Date().toLocaleString('en-US', {
+     hour: 'numeric',
+     minute: '2-digit',
+     hour12: true
+   });
+
+   // ✅ FIX: Build update data with only core columns that exist in DB
+   const updateData = {
+     state: STATES.FAILED,
+     status: 'failed',
+     completed_at: new Date().toISOString(),
+     error_message: formattedErrorMessage,
+     error_category: errorCategory || null,
+     retry_available: errorDetails.retry !== false
+   };
 
  // Calculate duration if started_at exists
  if (execution?.started_at) {

@@ -338,73 +338,102 @@ function createLogger(namespace = 'app', context = {}) {
 // It's been removed as it's no longer used. All code should use the structured logger directly.
 
 /**
- * Express middleware for request logging with sampling
+ * Express middleware for structured request logging
+ * ✅ PRODUCTION EXCELLENCE: Logs EVERY request as structured JSON for P99 latency analysis
+ * 
+ * Required fields for observability:
+ * - request_method: HTTP method (GET, POST, etc.)
+ * - path: Request path
+ * - status_code: HTTP status code
+ * - duration_ms: Request duration in milliseconds
+ * 
+ * This enables calculation of P99 latency (99th percentile) to identify bottlenecks
+ * that affect 1 in 100 users.
  */
 function requestLoggingMiddleware() {
  return (req, res, next) => {
  const startTime = Date.now();
  const logger = createLogger('http.request');
 
- // Sample info logs (only log every Nth request start)
- const shouldLogStart = shouldSample('http.request', 'info');
+ // ✅ PRODUCTION EXCELLENCE: Log EVERY request (no sampling) for complete observability
+ // This ensures we can calculate P99 latency accurately
+ // Health endpoints are still logged but marked for easy filtering
+ const isHealthEndpoint = req.path === '/health' || req.path === '/metrics' || req.path === '/api/health' || req.path === '/api/health/supabase' || req.path === '/api/health/databases' || req.path === '/api/kafka/health';
 
- // Always log API requests, sample health/metrics endpoints
- const isHealthEndpoint = req.path === '/health' || req.path === '/metrics' || req.path === '/api/health';
-
- if (shouldLogStart && !isHealthEndpoint) {
- logger.info('HTTP request started', {
- http: {
- method: req.method,
- url: req.url,
- path: req.path,
- user_agent: req.get('User-Agent'),
- ip: req.ip,
- content_length: req.get('content-length')
- }
- });
- }
-
- // Capture response end
+ // Capture response end with proper cleanup
  const originalSend = res.send;
- res.send = function(data) {
- const duration = Date.now() - startTime;
+ const originalEnd = res.end;
 
- // Only log 5xx errors always, sample everything else aggressively
- const is5xxError = res.statusCode >= 500;
- const shouldLogEnd = is5xxError || shouldSample('http.request', 'info');
+ // Override both send and end to ensure we capture all response completions
+ const logResponse = () => {
+   const duration = Date.now() - startTime;
+   const durationMs = duration; // Explicitly name for clarity
 
- if (shouldLogEnd && !isHealthEndpoint) {
- // Calculate response size - handle objects, strings, and buffers
- let responseSize = 0;
- if (data) {
- if (typeof data === 'string') {
- responseSize = Buffer.byteLength(data, 'utf8');
- } else if (Buffer.isBuffer(data)) {
- responseSize = data.length;
- } else if (typeof data === 'object') {
- // Convert object to JSON string for size calculation
- try {
- responseSize = Buffer.byteLength(JSON.stringify(data), 'utf8');
- } catch (e) {
- responseSize = 0;
- }
- }
- }
+   // ✅ PRODUCTION EXCELLENCE: Always log every request with required fields
+   // Structured JSON format for easy querying and P99 latency calculation
+   logger.info('HTTP request', {
+     // Required fields for observability and P99 latency calculation
+     request_method: req.method,
+     path: req.path,
+     status_code: res.statusCode,
+     duration_ms: durationMs,
+     
+     // Additional context for debugging and correlation
+     http: {
+       method: req.method,
+       url: req.url,
+       path: req.path,
+       status_code: res.statusCode,
+       duration_ms: durationMs,
+       user_agent: req.get('User-Agent'),
+       ip: req.ip || req.connection?.remoteAddress,
+       content_length: req.get('content-length'),
+       content_type: req.get('content-type')
+     },
+     
+     // Performance metrics for latency analysis
+     performance: {
+       duration_ms: durationMs,
+       duration_seconds: (durationMs / 1000).toFixed(3)
+     },
+     
+     // Categorization for filtering
+     endpoint_type: isHealthEndpoint ? 'health' : 'api',
+     
+     // Request context
+     request_id: req.requestId || req.traceId || req.headers['x-request-id'],
+     trace_id: req.traceId || req.headers['x-trace-id'],
+     
+     // User context (if available)
+     user_id: req.user?.id || null
+   });
 
- logger.info('HTTP request completed', {
- http: {
- method: req.method,
- url: req.url,
- status_code: res.statusCode,
- duration,
- response_size: responseSize
- },
- performance: { duration }
- });
- }
-
- return originalSend.call(this, data);
+   // Mark as logged to prevent double logging
+   res._requestLogged = true;
  };
+
+ // Override res.send
+ res.send = function(data) {
+   if (!res._requestLogged) {
+     logResponse();
+   }
+   return originalSend.call(this, data);
+ };
+
+ // Override res.end (for cases where send isn't called)
+ res.end = function(chunk, encoding) {
+   if (!res._requestLogged) {
+     logResponse();
+   }
+   return originalEnd.call(this, chunk, encoding);
+ };
+
+ // Ensure we log even if connection closes
+ res.on('finish', () => {
+   if (!res._requestLogged) {
+     logResponse();
+   }
+ });
 
  next();
  };

@@ -109,15 +109,44 @@ if (require.main === module) {
  logger.info('[server] RAG auto-seeding disabled (RAG_AUTO_SEED=false)');
  }
 
+ // ✅ WORKFLOW WORKER: Start background worker for async workflow execution
+ let workflowWorker = null;
+ if (process.env.WORKFLOW_WORKER_ENABLED !== 'false') {
+   try {
+     const { WorkflowWorker } = require('./workers/workflowWorker');
+     workflowWorker = new WorkflowWorker();
+     workflowWorker.start();
+     logger.info('[server] ✅ Workflow execution worker started');
+   } catch (workerError) {
+     logger.warn('[server] ⚠️ Failed to start workflow worker (non-critical)', {
+       error: workerError.message,
+       hint: 'Workflow executions may not process. Ensure Redis is running and REDIS_URL is configured.'
+     });
+   }
+ }
+
  // Start server only after database is ready (or confirmed not needed)
  app.listen(PORT, HOST, () => {
- logger.info(`[server] EasyFlow backend listening on http://${HOST}:${PORT}`, {
- port: PORT,
- host: HOST,
- environment: process.env.NODE_ENV || 'development'
- });
- logger.info('[server] Ready to accept requests - database connection established');
- });
+   logger.info(`[server] EasyFlow backend listening on http://${HOST}:${PORT}`, {
+     port: PORT,
+     host: HOST,
+     environment: process.env.NODE_ENV || 'development'
+   });
+   logger.info('[server] Ready to accept requests - database connection established');
+   
+   if (workflowWorker) {
+     logger.info('[server] ✅ Workflow execution worker is running');
+   }
+   });
+   
+   // Graceful shutdown
+   process.on('SIGTERM', async () => {
+     logger.info('[server] SIGTERM received, shutting down gracefully...');
+     if (workflowWorker) {
+       await workflowWorker.stop();
+     }
+     process.exit(0);
+   });
 
  } catch (error) {
  logger.fatal('[server] ❌ Failed to start server', {
