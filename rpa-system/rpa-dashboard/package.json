@@ -49,6 +49,10 @@
     "accessibility:axe": "npm run build && npx serve -s build -l 3000 & sleep 5 && npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --save results/axe-report.json",
     "accessibility:all": "npm run accessibility:test && npm run accessibility:axe"
   },
+  "engines": {
+    "node": "22.x",
+    "npm": ">=9.0.0"
+  },
   "browserslist": {
     "production": [
       ">0.2%",
