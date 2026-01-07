@@ -1734,7 +1734,9 @@ app.get('/api/auth/session', async (req, res) => {
     if (process.env.NODE_ENV !== 'production') {
       try {
         logger.info('[auth/session] headerToken:', !!headerToken, 'cookieToken:', !!cookieToken, 'cookieKeys:', Object.keys(req.cookies || {}).join(','));
-      } catch (e) {}
+      } catch (e) {
+        // Ignore logging errors
+      }
     }
 
     // Development bypass via header or environment DEV_BYPASS_TOKEN
@@ -1769,6 +1771,7 @@ app.get('/api/auth/session', async (req, res) => {
         }
 
         // Check for invalid characters that would cause parsing errors
+        // eslint-disable-next-line no-control-regex
         if (/[\x00-\x1F\x7F]/.test(tokenToVerify)) {
           // Token contains control characters - likely corrupted
           // ✅ OBSERVABILITY: Log with structured logger (sampled automatically)
@@ -3048,7 +3051,9 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
       let paramsObj = {};
       try {
         paramsObj = taskRecord?.parameters ? JSON.parse(taskRecord.parameters) : {};
-      } catch (_) {}
+      } catch (_) {
+        // Ignore JSON parse errors, use empty object
+      }
 
       await queueTaskRun(run.id, {
         url,
@@ -3275,6 +3280,7 @@ app.post('/api/tasks', async (req, res) => {
 app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req, res) => {
   const taskId = req.params.id;
   let runId;
+  let task = null; // Declare outside try block for catch block access
 
   try {
     // Defensive check
@@ -3286,7 +3292,7 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
     // This ensures consistent enforcement across all automation run endpoints
 
     // 1. Fetch the task details
-    const { data: task, error: taskError } = await supabase
+    const { data: taskData, error: taskError } = await supabase
       .from('automation_tasks')
       .select('*')
       .eq('id', taskId)
@@ -3294,7 +3300,8 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
       .single();
 
     if (taskError) throw new Error('Task not found or permission denied.');
-    if (!task) return res.status(404).json({ error: 'Task not found' });
+    if (!taskData) return res.status(404).json({ error: 'Task not found' });
+    task = taskData; // Assign to outer scope variable
 
     // 2. Create a new record in automation_runs
     const { data: runData, error: runError } = await supabase
@@ -6018,6 +6025,7 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
     }
 
     // Validate phone number format if provided
+    // eslint-disable-next-line no-useless-escape
     if (phone_number && !/^\+?[\d\s\-\(\)]+$/.test(phone_number)) {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }

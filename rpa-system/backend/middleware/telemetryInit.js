@@ -268,6 +268,7 @@ function parseHeaders(headerString) {
       value = value.replace(/^["']+/, '').replace(/["']+$/, '');
 
       // Step 2: Remove control characters (newlines, tabs, etc.) but PRESERVE normal spaces
+      // eslint-disable-next-line no-control-regex
       value = value.replace(/[\x00-\x1F\x7F]/g, '');
 
       // Step 3: Final trim
@@ -291,6 +292,7 @@ function parseHeaders(headerString) {
 
           // CRITICAL: Only remove quotes and control characters
           value = value.replace(/^["']+/, '').replace(/["']+$/, '');
+          // eslint-disable-next-line no-control-regex
           value = value.replace(/[\x00-\x1F\x7F]/g, '');
           value = value.trim();
 

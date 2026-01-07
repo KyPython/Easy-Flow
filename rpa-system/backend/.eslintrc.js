@@ -4,6 +4,11 @@ module.exports = {
     es2021: true,
     jest: true
   },
+  globals: {
+    // Puppeteer page.evaluate() runs in browser context
+    document: 'readonly',
+    window: 'readonly'
+  },
   extends: [
     'eslint:recommended'
   ],

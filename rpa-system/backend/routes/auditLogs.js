@@ -401,7 +401,7 @@ async function getSystemStatistics(timeframe) {
     // Get active users
     const supabase = getSupabase();
     if (!supabase) {
-      return res.status(503).json({ error: 'Supabase not configured on server' });
+      throw new Error('Supabase not configured on server');
     }
     const { data: activeUsers } = await supabase
       .from('audit_logs')

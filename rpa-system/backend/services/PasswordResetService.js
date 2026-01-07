@@ -67,6 +67,7 @@ class PasswordResetService {
   async detectPasswordResetNeeded(page, loginError) {
     try {
       // Check for common password reset indicators
+      // eslint-disable-next-line no-undef
       const indicators = await page.evaluate(() => {
         const text = document.body.textContent.toLowerCase();
         const indicators = {

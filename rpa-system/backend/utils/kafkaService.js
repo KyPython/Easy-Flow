@@ -815,6 +815,19 @@ class KafkaService {
                                                 result_status: resultData?.status
                                             });
 
+                                            // Get user_id from automation_runs table (most reliable) - do this first
+                                            let userId = null;
+                                            if (runRecordId) {
+                                                const { data: runData } = await supabase
+                                                    .from('automation_runs')
+                                                    .select('user_id')
+                                                    .eq('id', runRecordId)
+                                                    .single();
+                                                userId = runData?.user_id || resultData?.user_id;
+                                            } else {
+                                                userId = resultData?.user_id;
+                                            }
+
                                             // ✅ UNIVERSAL LEARNING: Learn from this automation run
                                             try {
                                                 const { getUniversalLearningService } = require('../services/UniversalLearningService');
@@ -826,19 +839,6 @@ class KafkaService {
                                                     .select('task_type, url, parameters')
                                                     .eq('id', taskId)
                                                     .single();
-
-                                                // Get user_id from automation_runs table (most reliable) - do this first
-                                                let userId = null;
-                                                if (runRecordId) {
-                                                    const { data: runData } = await supabase
-                                                        .from('automation_runs')
-                                                        .select('user_id')
-                                                        .eq('id', runRecordId)
-                                                        .single();
-                                                    userId = runData?.user_id || resultData?.user_id;
-                                                } else {
-                                                    userId = resultData?.user_id;
-                                                }
 
                                                 if (taskRecord) {
                                                     const taskType = taskRecord.task_type || 'general';
