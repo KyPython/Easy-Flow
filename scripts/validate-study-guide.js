@@ -311,11 +311,11 @@ function validateStudyGuide() {
   
   if (errors.length > 0) {
     log('\n❌ Study guide validation failed!', 'red');
-    log('Please update COMPREHENSIVE_STUDY_GUIDE.md to match the codebase.', 'red');
+    log('Please update docs/guides/COMPREHENSIVE_STUDY_GUIDE.md to match the codebase.', 'red');
     process.exit(1);
   } else if (warnings.length > 0) {
     log('\n⚠️  Study guide has warnings but no critical errors.', 'yellow');
-    log('Consider updating COMPREHENSIVE_STUDY_GUIDE.md to include missing items.', 'yellow');
+    log('Consider updating docs/guides/COMPREHENSIVE_STUDY_GUIDE.md to include missing items.', 'yellow');
     process.exit(0);
   } else {
     log('\n✓ Study guide validation passed!', 'green');

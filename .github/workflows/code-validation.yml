@@ -156,5 +156,5 @@ jobs:
           echo "- **Environment-Aware Messages**: All user-facing messages use getEnvMessage() for dev/prod differentiation" >> $GITHUB_STEP_SUMMARY
           echo "- **RAG Knowledge**: RAG knowledge base is up-to-date with latest features" >> $GITHUB_STEP_SUMMARY
           echo "- **Learning System**: App learns from every automation and workflow execution" >> $GITHUB_STEP_SUMMARY
-          echo "- **Study Guide**: COMPREHENSIVE_STUDY_GUIDE.md matches actual codebase implementation" >> $GITHUB_STEP_SUMMARY
+          echo "- **Study Guide**: docs/guides/COMPREHENSIVE_STUDY_GUIDE.md matches actual codebase implementation" >> $GITHUB_STEP_SUMMARY
 
