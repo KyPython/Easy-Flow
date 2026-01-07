@@ -13,6 +13,12 @@ const errorThrottleCache = new Map(); // userId -> { count, lastLogged, firstSee
 const ERROR_THROTTLE_WINDOW_MS = 60000; // 1 minute
 const MAX_ERRORS_PER_WINDOW = 1; // Only log once per window
 
+// Module-level state for RPC warning/error logging
+const planServiceState = {
+  _rpcWarningLogged: false,
+  _rpcErrorLogged: false
+};
+
 function shouldLogError(userId, errorCode) {
   const now = Date.now();
   const key = `${userId}:${errorCode}`;
@@ -257,13 +263,13 @@ async function getUserPlan(userId) {
                 hint: limitsError.hint
               }
             });
-          } else if (!isSchemaError && !planService._rpcWarningLogged) {
+          } else if (!isSchemaError && !planServiceState._rpcWarningLogged) {
             // Only log once per session to avoid spam for non-schema errors
             logger.warn('Plan limits RPC not available, using defaults. Set ENABLE_PLAN_RPC=true to enable.', {
               userId,
               error_code: limitsError.code
             });
-            planService._rpcWarningLogged = true;
+            planServiceState._rpcWarningLogged = true;
           }
         } else if (limitsResult) {
           limits = limitsResult;
@@ -282,13 +288,13 @@ async function getUserPlan(userId) {
             message: rpcError.message
           }
         });
-      } else if (!isSchemaError && !planService._rpcErrorLogged) {
+      } else if (!isSchemaError && !planServiceState._rpcErrorLogged) {
         // Only log once per session
         logger.warn('RPC call failed, using default limits', {
           userId,
           error: rpcError.message
         });
-        planService._rpcErrorLogged = true;
+        planServiceState._rpcErrorLogged = true;
       }
     }
   } else {

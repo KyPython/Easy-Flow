@@ -307,6 +307,7 @@ class BatchProcessor {
 
   sanitizeFileName(name) {
     return name
+      // eslint-disable-next-line no-useless-escape
       .replace(/[^a-zA-Z0-9_\-\.]/g, '_')
       .replace(/_{2,}/g, '_')
       .toLowerCase();
