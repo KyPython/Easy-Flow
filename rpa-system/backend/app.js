@@ -2614,6 +2614,8 @@ async function queueTaskRun(runId, taskData) {
       let lastError;
       
       // Ensure URL has protocol; accept values like 'localhost:5001' and normalize to 'http://localhost:5001'
+      // ✅ SECURITY: automationUrl comes from process.env.AUTOMATION_URL (trusted server config), not user input
+      // User input URLs are validated via validateUrlForSSRF() at line 2543
       let normalizedUrl = automationUrl;
       if (!/^https?:\/\//i.test(normalizedUrl)) {
         normalizedUrl = `http://${normalizedUrl}`;
