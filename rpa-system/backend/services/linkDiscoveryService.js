@@ -457,6 +457,7 @@ class LinkDiscoveryService {
       }
 
       if (username && password && !isDemoPortal) {
+        let adaptedSelectors = null;
         try {
           // ✅ VISUALIZATION: Capture screenshot before login
           if (runId) {
@@ -464,7 +465,7 @@ class LinkDiscoveryService {
           }
 
           // ✅ INTELLIGENT ADAPTATION: Get adapted selectors for this site
-          const adaptedSelectors = await this.siteAdaptationService.getAdaptedSelectors(url, 'login');
+          adaptedSelectors = await this.siteAdaptationService.getAdaptedSelectors(url, 'login');
 
           await this._performLogin(page, { url, username, password, adaptedSelectors });
 

@@ -102,11 +102,12 @@ class ProxyManager {
             };
           });
         }
-      }
         break;
+      }
 
-      default:
+      default: {
         logger.info('No proxy provider configured - scraping will use direct connections');
+      }
     }
 
     return config;
