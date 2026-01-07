@@ -69,7 +69,7 @@
     "url": "https://github.com/EasyFlow/lead-magnet-automation"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": "22.x",
     "npm": ">=9.0.0"
   },
   "devDependencies": {

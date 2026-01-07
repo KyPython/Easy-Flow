@@ -29,44 +29,47 @@ try:
  from opentelemetry import trace
  from opentelemetry.trace import Status, StatusCode, SpanKind
  OTEL_AVAILABLE = True
- 
+
  # ✅ INSTRUCTION 3: Get tracer for browser automation operations
  tracer = trace.get_tracer('browser.automation')
 except ImportError:
  OTEL_AVAILABLE = False
  tracer = None
- logging.warning("⚠️ OpenTelemetry not available - browser automation spans disabled")
+ logging.warning(
+     "⚠️ OpenTelemetry not available - browser automation spans disabled")
 
 logger = logging.getLogger(__name__)
 
+
 def create_webdriver():
- """✅ INSTRUCTION 3: Create a headless Chrome WebDriver instance with span instrumentation."""
- if not OTEL_AVAILABLE or tracer is None:
- # Fallback without instrumentation
- return _create_webdriver_impl()
- 
- # ✅ INSTRUCTION 3: Create span for WebDriver initialization
- with tracer.start_as_current_span(
- "browser.action.initialize_driver",
- kind=SpanKind.INTERNAL,
- attributes={
- 'browser.type': 'chrome',
- 'browser.headless': True,
- 'browser.window_size': '1920x1080'
- }
- ) as span:
- try:
- driver = _create_webdriver_impl()
- 
- span.set_status(Status(StatusCode.OK))
- span.set_attribute('browser.initialized', driver is not None)
- 
- return driver
- except Exception as e:
- span.record_exception(e)
- span.set_status(Status(StatusCode.ERROR, str(e)))
- span.set_attribute('error', True)
- raise
+    """✅ INSTRUCTION 3: Create a headless Chrome WebDriver instance with span instrumentation."""
+    if not OTEL_AVAILABLE or tracer is None:
+        # Fallback without instrumentation
+        return _create_webdriver_impl()
+
+    # ✅ INSTRUCTION 3: Create span for WebDriver initialization
+    with tracer.start_as_current_span(
+        "browser.action.initialize_driver",
+        kind=SpanKind.INTERNAL,
+        attributes={
+            'browser.type': 'chrome',
+            'browser.headless': True,
+            'browser.window_size': '1920x1080'
+        }
+    ) as span:
+        try:
+            driver = _create_webdriver_impl()
+
+            span.set_status(Status(StatusCode.OK))
+            span.set_attribute('browser.initialized', driver is not None)
+
+            return driver
+        except Exception as e:
+            span.record_exception(e)
+            span.set_status(Status(StatusCode.ERROR, str(e)))
+            span.set_attribute('error', True)
+            raise
+
 
 def _create_webdriver_impl():
  """Internal implementation of WebDriver creation."""
@@ -76,78 +79,84 @@ def _create_webdriver_impl():
  options.add_argument('--disable-dev-shm-usage')
  options.add_argument('--disable-gpu')
  options.add_argument('--window-size=1920,1080')
- 
+
  try:
- service = Service(ChromeDriverManager().install())
- driver = webdriver.Chrome(service=service, options=options)
- return driver
+     service = Service(ChromeDriverManager().install())
+     driver = webdriver.Chrome(service=service, options=options)
+     return driver
  except Exception as e:
- logger.error(f"Failed to create WebDriver: {e}")
- return None
+     logger.error(f"Failed to create WebDriver: {e}")
+     return None
+
 
 def scrape_web_page(url, task_data=None):
- """
- Scrape generic information from a given URL.
- Enhanced to handle various scraping scenarios including API data extraction,
- form interaction, and targeted element extraction.
- """
- if task_data is None:
- task_data = {}
- 
- # Handle API/JSON endpoints
- if task_data.get('extract_json') or task_data.get('method') == 'GET':
- try:
- # ✅ SECURITY: Validate URL to prevent SSRF attacks
- from urllib.parse import urlparse
- parsed_url = urlparse(url)
- if parsed_url.scheme not in ('http', 'https'):
- return {
- 'status': 'error',
- 'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'
- }
- # Block private/internal IP addresses to prevent SSRF
- hostname = parsed_url.hostname
- if hostname:
- # Block localhost and private IP ranges
- blocked_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1']
- if hostname.lower() in blocked_hosts or hostname.startswith('192.168.') or hostname.startswith('10.') or hostname.startswith('172.'):
- return {
- 'status': 'error',
- 'error': 'Access to private/internal IP addresses is not allowed for security reasons.'
- }
- 
- import requests
- response = requests.get(url, timeout=10)
- if response.headers.get('content-type', '').startswith('application/json'):
- data = response.json()
- 
- # Apply filters if specified
- if task_data.get('filters'):
- filters = task_data['filters']
- if isinstance(data, list) and filters.get('limit'):
- data = data[:filters['limit']]
- if filters.get('fields') and isinstance(data, (list, dict)):
- if isinstance(data, list) and data:
- data = [{k: item.get(k) for k in filters['fields']} for item in data if isinstance(item, dict)]
- elif isinstance(data, dict):
- data = {k: data.get(k) for k in filters['fields']}
- 
- return {
- 'status': 'success',
- 'data': data,
- 'url': url,
- 'timestamp': datetime.now().isoformat(),
- 'content_type': response.headers.get('content-type', ''),
- 'response_code': response.status_code
- }
- except Exception as e:
- logger.warning(f"JSON extraction failed, falling back to HTML scraping: {e}")
- 
+    """
+    Scrape generic information from a given URL.
+    Enhanced to handle various scraping scenarios including API data extraction,
+    form interaction, and targeted element extraction.
+    """
+    if task_data is None:
+        task_data = {}
+
+    # Handle API/JSON endpoints
+    if task_data.get('extract_json') or task_data.get('method') == 'GET':
+        try:
+            # ✅ SECURITY: Validate URL to prevent SSRF attacks
+            from urllib.parse import urlparse
+            parsed_url = urlparse(url)
+            if parsed_url.scheme not in ('http', 'https'):
+                return {
+                    'status': 'error',
+                    'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'
+                }
+            # Block private/internal IP addresses to prevent SSRF
+            hostname = parsed_url.hostname
+            if hostname:
+                # Block localhost and private IP ranges
+                blocked_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1']
+                if hostname.lower() in blocked_hosts or hostname.startswith(
+                    '192.168.') or hostname.startswith('10.') or hostname.startswith('172.'):
+                    return {
+                        'status': 'error',
+                        'error': 'Access to private/internal IP addresses is not allowed for security reasons.'
+                    }
+
+            import requests
+            response = requests.get(url, timeout=10)
+            if response.headers.get(
+    'content-type',
+     '').startswith('application/json'):
+                data = response.json()
+
+                # Apply filters if specified
+                if task_data.get('filters'):
+                    filters = task_data['filters']
+                    if isinstance(data, list) and filters.get('limit'):
+    data = data[:filters['limit']]
+    if filters.get('fields') and isinstance(data, (list, dict)):
+    if isinstance(data, list) and data:
+    data = [{k: item.get(k) for k in filters['fields']}
+                         for item in data if isinstance(item, dict)]
+    elif isinstance(data, dict):
+    data = {k: data.get(k) for k in filters['fields']}
+
+    return {
+    'status': 'success',
+    'data': data,
+    'url': url,
+    'timestamp': datetime.now().isoformat(),
+    'content_type': response.headers.get('content-type', ''),
+    'response_code': response.status_code
+    }
+    except Exception as e:
+    logger.warning(
+    f"JSON extraction failed, falling back to HTML scraping: {e}")
+
  # Continue with regular HTML scraping
- driver = create_webdriver()
- if not driver:
- return {"error": "Failed to create WebDriver"}
- 
+    driver = create_webdriver()
+    if not driver:
+    return {"error": "Failed to create WebDriver"}
+
  # ✅ INSTRUCTION 3: Wrap main scraping sequence with span
  if not OTEL_AVAILABLE or tracer is None:
  # Fallback without instrumentation

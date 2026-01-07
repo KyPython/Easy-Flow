@@ -10,7 +10,7 @@ const integrationCredentialsService = require('../services/integrationCredential
 const { requireAuth } = require('../middleware/auth');
 const { requireFeature } = require('../middleware/planEnforcement');
 const { checkIntegrationLimit } = require('../middleware/comprehensiveRateLimit');
-const { validateUrlForSSRF } = require('../utils/ssrfProtection');
+const { validateUrlForSSRF, validateReturnPath } = require('../utils/ssrfProtection');
 
 /**
  * GET /api/integrations/usage
@@ -363,6 +363,7 @@ router.get('/:service/oauth/callback', async (req, res) => {
  ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}`
  : 'http://localhost:3000');
 
+ // ✅ SECURITY: Validate return path to prevent open redirect attacks
  // Try to get return path from state (for error cases before validation)
  // Use peek: true to avoid consuming the state token
  let fallbackReturnPath = '/app/integrations';
@@ -370,47 +371,41 @@ router.get('/:service/oauth/callback', async (req, res) => {
  try {
  const tempState = await integrationCredentialsService.validateOAuthState(state, { peek: true });
  if (tempState?.metadata?.return_path) {
- fallbackReturnPath = tempState.metadata.return_path;
+ const pathValidation = validateReturnPath(tempState.metadata.return_path);
+ fallbackReturnPath = pathValidation.valid ? pathValidation.path : '/app/integrations';
  }
  } catch (e) {
  // Ignore errors when getting return path for error redirects
  }
  }
 
+ // Validate fallback path as well
+ const fallbackValidation = validateReturnPath(fallbackReturnPath);
+ const safeFallbackPath = fallbackValidation.valid ? fallbackValidation.path : '/app/integrations';
+
  if (error) {
- return res.redirect(`${frontendUrl}${fallbackReturnPath}?error=${encodeURIComponent(error)}`);
+ return res.redirect(`${frontendUrl}${safeFallbackPath}?error=${encodeURIComponent(error)}`);
  }
 
  if (!code || !state) {
- return res.redirect(`${frontendUrl}${fallbackReturnPath}?error=missing_code_or_state`);
+ return res.redirect(`${frontendUrl}${safeFallbackPath}?error=missing_code_or_state`);
  }
 
  // Validate state token and get user_id from it (this will consume/delete the token)
  const oauthState = await integrationCredentialsService.validateOAuthState(state);
  if (!oauthState) {
  logger.error('[IntegrationRoutes] Invalid or expired OAuth state token', { state, service });
- return res.redirect(`${frontendUrl}${fallbackReturnPath}?error=invalid_or_expired_state`);
+ return res.redirect(`${frontendUrl}${safeFallbackPath}?error=invalid_or_expired_state`);
  }
 
  const userId = oauthState.user_id;
 
  // Get return path from metadata, default to /app/integrations
- const returnPath = oauthState.metadata?.return_path || '/app/integrations';
+ const rawReturnPath = oauthState.metadata?.return_path || '/app/integrations';
 
- // Validate return path is a valid app route (security)
- const validRoutes = [
- '/app', '/app/tasks', '/app/history', '/app/files', '/app/bulk-processor',
- '/app/settings', '/app/teams', '/app/analytics', '/app/metrics',
- '/app/integrations', '/app/unified-dashboard', '/app/webhooks', '/app/rules',
- '/app/workflows'
- ];
-
- // Check if return path is valid (exact match or starts with valid route)
- const isValidRoute = validRoutes.some(route =>
- returnPath === route || returnPath.startsWith(route + '/')
- );
-
- const finalReturnPath = isValidRoute ? returnPath : '/app/integrations';
+ // ✅ SECURITY: Validate return path to prevent open redirect attacks
+ const pathValidation = validateReturnPath(rawReturnPath);
+ const finalReturnPath = pathValidation.valid ? pathValidation.path : '/app/integrations';
 
  // Exchange code for tokens
  const credentials = await exchangeOAuthCode(service, code, oauthState.redirect_uri);

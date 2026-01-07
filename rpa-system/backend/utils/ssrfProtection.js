@@ -79,8 +79,69 @@ function validateUrlForSSRF(url, options = {}) {
  }
 }
 
+/**
+ * Validate a return path for redirects to prevent open redirect attacks
+ * Only allows relative paths starting with / (no protocol, no hostname)
+ * @param {string} path - The path to validate
+ * @returns {object} - { valid: boolean, path?: string, error?: string }
+ */
+function validateReturnPath(path) {
+  if (!path || typeof path !== 'string') {
+    return { valid: false, error: 'Path is required and must be a string' };
+  }
+
+  // Remove leading/trailing whitespace
+  const trimmed = path.trim();
+
+  // Must start with / (relative path)
+  if (!trimmed.startsWith('/')) {
+    return { valid: false, error: 'Path must be relative and start with /' };
+  }
+
+  // Block protocol-relative URLs (//example.com)
+  if (trimmed.startsWith('//')) {
+    return { valid: false, error: 'Protocol-relative URLs are not allowed' };
+  }
+
+  // Block URLs with protocols (http:, https:, javascript:, etc.)
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+    return { valid: false, error: 'Absolute URLs are not allowed' };
+  }
+
+  // Block path traversal attempts
+  if (trimmed.includes('../') || trimmed.includes('..\\')) {
+    return { valid: false, error: 'Path traversal is not allowed' };
+  }
+
+  // Block null bytes and control characters
+  if (/[\x00-\x1F\x7F]/.test(trimmed)) {
+    return { valid: false, error: 'Invalid characters in path' };
+  }
+
+  // Normalize the path (remove multiple slashes, but keep leading slash)
+  const normalized = '/' + trimmed.split('/').filter(Boolean).join('/');
+
+  // Whitelist of allowed paths (prevent redirects to unexpected locations)
+  const allowedPrefixes = [
+    '/app/',
+    '/auth/',
+    '/login',
+    '/signup',
+    '/',
+  ];
+
+  // Allow root path and paths starting with allowed prefixes
+  if (normalized === '/' || allowedPrefixes.some(prefix => normalized.startsWith(prefix))) {
+    return { valid: true, path: normalized };
+  }
+
+  // Default to /app/integrations for unknown paths
+  return { valid: true, path: '/app/integrations' };
+}
+
 module.exports = {
- validateUrlForSSRF,
- isPrivateIP
+  validateUrlForSSRF,
+  isPrivateIP,
+  validateReturnPath
 };
 
