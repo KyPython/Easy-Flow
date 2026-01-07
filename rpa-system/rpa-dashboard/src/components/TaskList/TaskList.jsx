@@ -67,8 +67,8 @@ const QueueStatusBadge = ({ taskId, queuedAt, timeSinceStart }) => {
       {timeSinceStart < 60 
         ? `Queued ${timeSinceStart}s ago` 
         : `Queued ${Math.floor(timeSinceStart / 60)}m ago`}
-      {position && ` • Position ${position}`}
-      {estimatedWait && ` • ~${estimatedWait}`}
+      {position && ` * Position ${position}`}
+      {estimatedWait && ` * ~${estimatedWait}`}
       {isStuck && ' ⚠️'}
       {queueInfo?.queue_health?.worker_healthy === false && ' 🔴'}
     </span>
@@ -510,7 +510,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                       No file generated
                     </span>
                   ) : (
-                    <span className={styles.muted}>—</span>
+                    <span className={styles.muted}>--</span>
                   )}
                 </td>
                 <td className={styles.date}>
@@ -606,7 +606,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
                           fontWeight: 600
                         }}
                       >
-                        View Full Details →
+                        View Full Details ->
                       </button>
                     </div>
                   </td>

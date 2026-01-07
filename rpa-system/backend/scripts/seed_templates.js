@@ -49,7 +49,7 @@ async function main() {
 
   const templates = [
     {
-      name: 'Slack → Google Sheets',
+      name: 'Slack -> Google Sheets',
       description: 'Automatically sync Slack messages to Google Sheets. Perfect for tracking customer feedback, support requests, or team updates without manual copy/paste.',
       category: 'data_processing',
       tags: ['slack', 'google-sheets', 'data-sync', 'copy-paste-elimination'],
@@ -72,7 +72,7 @@ async function main() {
       }
     },
     {
-      name: 'Email → Notion',
+      name: 'Email -> Notion',
       description: 'Automatically add emails to Notion database. Stop manually copying email content into your notes - let EasyFlow do it for you.',
       category: 'data_processing',
       tags: ['email', 'notion', 'data-collection', 'copy-paste-elimination'],
@@ -95,7 +95,7 @@ async function main() {
       }
     },
     {
-      name: 'Form → CRM',
+      name: 'Form -> CRM',
       description: 'Automatically add form submissions to your CRM. No more copy/pasting customer info from forms to your CRM system.',
       category: 'business_process',
       tags: ['form', 'crm', 'lead-management', 'copy-paste-elimination'],

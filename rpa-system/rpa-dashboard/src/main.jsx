@@ -94,7 +94,7 @@ try {
   const enableOtlp = devMode || runtimeFlag;
 
   if (enableOtlp) {
-    // Dynamic import and init — fire-and-forget. `initPerformanceTracker`
+    // Dynamic import and init -- fire-and-forget. `initPerformanceTracker`
     // itself decides whether to load exporter libs based on NODE_ENV
     // and build-time flags, so this call is safe and non-blocking.
     import('./utils/telemetry').then(mod => {

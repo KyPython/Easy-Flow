@@ -242,7 +242,7 @@ const Message = ({ message, isUser, isTyping, onApplyWorkflow, onAction }) => {
                       <span className={styles.stepIcon}>{getStepIcon(node.data?.stepType)}</span>
                       <span className={styles.stepLabel}>{node.data?.label}</span>
                       {idx < Math.min(message.workflow.nodes.length - 1, 4) && (
-                        <span className={styles.stepArrow}>→</span>
+                        <span className={styles.stepArrow}>-></span>
                       )}
                     </div>
                   ))}
@@ -358,13 +358,13 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
     id: 'welcome',
     content: `Hey! 👋 I'm your Easy-Flow AI Assistant.
 
-⚡ QUICK ACTIONS — Tell me what to do:
+⚡ QUICK ACTIONS -- Tell me what to do:
 "Scrape example.com for prices"
 "Send an email to john@example.com"
 "Show me my tasks"
 "Download invoices from my vendor portal" 📌
 
-🔄 BUILD WORKFLOWS — Describe automations:
+🔄 BUILD WORKFLOWS -- Describe automations:
 "Monitor a website daily and alert me"
 "Pull data from an API and save it"
 
@@ -373,7 +373,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
 🤖 AI Extraction: FREE automatic data extraction from PDFs and web pages
 🎯 Plain English: No more technical jargon - everything is user-friendly!
 
-❓ GET HELP — Ask me anything!
+❓ GET HELP -- Ask me anything!
 
 👇 Click an example below or just type!`,
     isUser: false,
@@ -482,7 +482,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
           // Show success message
           setMessages(prev => [...prev, {
             id: `bookmarklet-copied-${Date.now()}`,
-            content: '✅ Bookmarklet code copied! Right-click your bookmarks bar → "Add page" → Paste the code as the URL → Name it "EasyFlow Automation"',
+            content: '✅ Bookmarklet code copied! Right-click your bookmarks bar -> "Add page" -> Paste the code as the URL -> Name it "EasyFlow Automation"',
             isUser: false,
             timestamp: new Date()
           }]);
@@ -613,9 +613,9 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
 
       default:
         response.content = "I'm here to help! You can ask me to:\n\n" +
-          "• Create automations (\"Scrape prices and email me daily\")\n" +
-          "• Get help with features (\"How do I schedule a workflow?\")\n" +
-          "• Contact support (\"I need help with billing\")";
+          "* Create automations (\"Scrape prices and email me daily\")\n" +
+          "* Get help with features (\"How do I schedule a workflow?\")\n" +
+          "* Contact support (\"I need help with billing\")";
     }
 
     return response;
@@ -975,7 +975,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
           </button>
         </div>
         <div className={styles.inputHint}>
-          Press Enter to send • Shift+Enter for new line
+          Press Enter to send * Shift+Enter for new line
         </div>
       </div>
     </div>

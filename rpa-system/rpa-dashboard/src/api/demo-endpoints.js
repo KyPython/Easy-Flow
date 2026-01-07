@@ -81,13 +81,13 @@ const tracedFetch = async (url, options = {}) => {
     console.log(`[API] Injecting trace context: ${traceHeaders.traceparent}`);
   }
 
-  // Use a safe fetch reference — support SSR/tests where fetch may be polyfilled or missing
+  // Use a safe fetch reference -- support SSR/tests where fetch may be polyfilled or missing
   const fnFetch = (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function')
     ? globalThis.fetch.bind(globalThis)
     : (typeof window !== 'undefined' && typeof window.fetch === 'function' ? window.fetch.bind(window) : null);
 
   if (!fnFetch) {
-    console.warn('[API] fetch() not available in this environment — request aborted');
+    console.warn('[API] fetch() not available in this environment -- request aborted');
     return Promise.reject(new Error('fetch not available in this environment'));
   }
 

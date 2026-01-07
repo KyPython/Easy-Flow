@@ -178,4 +178,3 @@ function getBrowserVisualizationService() {
 module.exports = { BrowserVisualizationService, getBrowserVisualizationService };
 
 
-

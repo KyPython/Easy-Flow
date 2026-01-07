@@ -201,7 +201,7 @@ class TriggerService {
       const scheduledExecution = await smartScheduler.scheduleWorkflow(workflow, context);
 
       // ✅ PHASE 3: Use critical workflow handler for scheduled workflows
-      // (especially "Scheduled Web Scraping → Email Report" type)
+      // (especially "Scheduled Web Scraping -> Email Report" type)
       const isCriticalWorkflow = this._isCriticalWorkflowType(workflow);
 
       if (isCriticalWorkflow) {
@@ -258,7 +258,7 @@ class TriggerService {
   }
 
   /**
-   * Check if workflow is critical type (Scheduled Web Scraping → Email Report)
+   * Check if workflow is critical type (Scheduled Web Scraping -> Email Report)
    */
   _isCriticalWorkflowType(workflow) {
     if (!workflow || !workflow.workflow_steps) return false;

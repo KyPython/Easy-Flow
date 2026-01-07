@@ -178,9 +178,9 @@ class PlanChangeTest {
     if (passedTests === totalTests && totalTests > 0) {
       logger.info('🎉 ALL PLAN CHANGE TESTS PASSED!');
       logger.info('\n✅ Plan change functionality is working correctly:');
-      logger.info('   • Direct database updates work');
-      logger.info('   • Plan changes are persisted correctly');
-      logger.info('   • Real-time propagation is functional');
+      logger.info('   * Direct database updates work');
+      logger.info('   * Plan changes are persisted correctly');
+      logger.info('   * Real-time propagation is functional');
     } else if (passedTests > 0) {
       logger.info('⚠️  SOME TESTS FAILED - Check individual results above');
     } else {
@@ -188,10 +188,10 @@ class PlanChangeTest {
     }
 
     logger.info('\n🔗 Frontend Testing:');
-    logger.info('   • Open http://localhost:3000 in your browser');
-    logger.info('   • Navigate to Settings or Usage/Plan pages');
-    logger.info('   • Verify plan changes are reflected in real-time');
-    logger.info('   • Test paywall triggers at usage limits');
+    logger.info('   * Open http://localhost:3000 in your browser');
+    logger.info('   * Navigate to Settings or Usage/Plan pages');
+    logger.info('   * Verify plan changes are reflected in real-time');
+    logger.info('   * Test paywall triggers at usage limits');
   }
 }
 

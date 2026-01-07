@@ -173,7 +173,7 @@ async function initializeFrontendTelemetry() {
   function ensureXhrSafety() {
     try {
       if (typeof XMLHttpRequest === 'undefined') {
-        console.warn('[Telemetry] XMLHttpRequest is not available in this environment — skipping XHR safety patch.');
+        console.warn('[Telemetry] XMLHttpRequest is not available in this environment -- skipping XHR safety patch.');
         return false;
       }
 
@@ -198,7 +198,7 @@ async function initializeFrontendTelemetry() {
                   // no-op send shim; do nothing if original missing
                 }
               } catch (e) {
-                // swallow any errors — we must not break app
+                // swallow any errors -- we must not break app
               }
             };
             try { proto[name][WRAPPED_FLAG] = true; } catch (e) {}
@@ -299,7 +299,7 @@ async function initializeFrontendTelemetry() {
       instrumentations: [ getWebAutoInstrumentations(autoInstrOptions) ]
     });
   } catch (e) {
-    // Fail-safe: instrumentation registration can fail if environment is exotic — log and continue
+    // Fail-safe: instrumentation registration can fail if environment is exotic -- log and continue
     console.warn('[Telemetry] registerInstrumentations failed, continuing without auto-instrumentations:', e && e.message ? e.message : e);
   }
 

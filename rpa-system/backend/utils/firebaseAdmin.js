@@ -71,7 +71,7 @@ const initializeFirebaseAdmin = () => {
         frontend_expected_project_id: EXPECTED_PROJECT_ID,
         error: 'Backend and frontend must use the same Firebase project',
         fix: `Set FIREBASE_PROJECT_ID=${EXPECTED_PROJECT_ID} in backend .env file`,
-        cascade_impact: '401 auth failures → FCM failures → Supabase instability → Polling fallback'
+        cascade_impact: '401 auth failures -> FCM failures -> Supabase instability -> Polling fallback'
       });
 
       // ✅ CRITICAL: In development, fail initialization to prevent cascade

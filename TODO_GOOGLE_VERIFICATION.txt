@@ -1,5 +1,5 @@
  PENDING: Google OAuth Verification
-=====================================
+---
 
  Quick Reminder:
 - DNS TXT record is already added (verified with dig command)

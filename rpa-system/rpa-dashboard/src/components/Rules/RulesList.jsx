@@ -13,9 +13,9 @@ const RulesList = ({ rules, onEdit, onDelete }) => {
         <p>Create your first business rule to get started.</p>
         <p className={styles.emptyExamples}>
           <strong>Examples:</strong><br />
-          • VIP client = contract value &gt; $5,000<br />
-          • High-value lead = form submission with budget &gt; $10,000<br />
-          • Churn risk = user inactive &gt; 30 days
+          * VIP client = contract value &gt; $5,000<br />
+          * High-value lead = form submission with budget &gt; $10,000<br />
+          * Churn risk = user inactive &gt; 30 days
         </p>
       </div>
     );

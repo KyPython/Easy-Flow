@@ -28,7 +28,7 @@ export default function ResetLanding() {
   const onContinue = async () => {
     setError('');
     if (!accessToken && !refreshToken) {
-      // nothing to do — just navigate
+      // nothing to do -- just navigate
       window.location.href = continueUrl;
       return;
     }
@@ -54,7 +54,7 @@ export default function ResetLanding() {
 
       <div className={styles.actions}>
         <button onClick={onContinue} disabled={loading || done} className={styles.button}>
-          {loading ? t('reset.signing_in','Signing in…') : done ? t('reset.signed_in_continuing','Signed in — continuing…') : t('reset.continue','Continue to app')}
+          {loading ? t('reset.signing_in','Signing in...') : done ? t('reset.signed_in_continuing','Signed in -- continuing...') : t('reset.continue','Continue to app')}
         </button>
       </div>
 

@@ -93,7 +93,7 @@ const NetworkStatus = ({ showDetails = false }) => {
                 <div>Cached Data:</div>
                 {status.cachedEndpoints.map(endpoint => (
                   <div key={endpoint} style={{ marginLeft: 8, opacity: 0.8 }}>
-                    • {endpoint}
+                    * {endpoint}
                   </div>
                 ))}
               </div>

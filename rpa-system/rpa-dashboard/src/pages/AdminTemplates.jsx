@@ -82,7 +82,7 @@ const AdminTemplates = () => {
         </div>
       </div>
 
-      {loading && <div className={styles.status}>Loading…</div>}
+      {loading && <div className={styles.status}>Loading...</div>}
       {error && <div className={styles.error}>Error: {error}</div>}
 
       <div className={styles.list}>

@@ -80,7 +80,7 @@ async function checkAnalyticsHealth() {
     if (data.signup_health.recent_signups?.length > 0) {
       console.log(`      - Recent signups (last 5):`);
       data.signup_health.recent_signups.forEach(s => {
-        console.log(`        • ${s.id} - ${s.created_at} (confirmed: ${s.email_confirmed})`);
+        console.log(`        * ${s.id} - ${s.created_at} (confirmed: ${s.email_confirmed})`);
       });
     }
 
@@ -92,7 +92,7 @@ async function checkAnalyticsHealth() {
     if (data.feature_tracking.most_used_features?.length > 0) {
       console.log(`      - Most used features:`);
       data.feature_tracking.most_used_features.forEach(f => {
-        console.log(`        • ${f.feature}: ${f.count} uses`);
+        console.log(`        * ${f.feature}: ${f.count} uses`);
       });
     }
 
@@ -104,7 +104,7 @@ async function checkAnalyticsHealth() {
     if (data.login_health.days_with_failures?.length > 0) {
       console.log(`      - Days with failures:`);
       data.login_health.days_with_failures.forEach(d => {
-        console.log(`        • ${d.date}: ${d.success_rate} success rate (${d.failed} failed, ${d.success} success)`);
+        console.log(`        * ${d.date}: ${d.success_rate} success rate (${d.failed} failed, ${d.success} success)`);
       });
     }
 
@@ -238,7 +238,7 @@ async function checkFeatureTracking() {
     } else {
       console.log(`   Top features:`);
       data.features.slice(0, 5).forEach(f => {
-        console.log(`      • ${f.feature}: ${f.total_uses} uses (${f.unique_users} users)`);
+        console.log(`      * ${f.feature}: ${f.total_uses} uses (${f.unique_users} users)`);
       });
     }
 

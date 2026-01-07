@@ -104,7 +104,7 @@ class ExecutionModeService {
     const triggeredBy = context.triggeredBy || 'manual';
 
     if (triggeredBy === 'user' || triggeredBy === 'manual') {
-      // User wants immediate results → real-time
+      // User wants immediate results -> real-time
       logger.debug('Auto-detected real-time mode: user-triggered', {
         workflow_id: workflow.id,
         triggeredBy
@@ -113,7 +113,7 @@ class ExecutionModeService {
     }
 
     if (triggeredBy === 'schedule') {
-      // Scheduled workflows can wait → eco mode
+      // Scheduled workflows can wait -> eco mode
       logger.debug('Auto-detected eco mode: scheduled workflow', {
         workflow_id: workflow.id,
         triggeredBy
@@ -129,7 +129,7 @@ class ExecutionModeService {
       const oneHour = 3600000; // 1 hour in ms
 
       if (timeUntilDeadline > 0 && timeUntilDeadline < oneHour) {
-        // Approaching deadline → switch to real-time
+        // Approaching deadline -> switch to real-time
         logger.debug('Auto-detected real-time mode: approaching deadline', {
           workflow_id: workflow.id,
           timeUntilDeadline: timeUntilDeadline / 1000 / 60, // minutes

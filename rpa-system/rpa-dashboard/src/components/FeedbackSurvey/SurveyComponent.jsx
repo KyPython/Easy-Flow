@@ -1,6 +1,6 @@
 /*
 In-App Feedback Survey Component
-===============================
+---
 
 FUNCTIONALITY:
 - Collects user feedback on pain points and feature priorities

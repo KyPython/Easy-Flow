@@ -25,16 +25,16 @@ Branch protection rules **require status checks to pass** before allowing:
 
 Configure these workflows as **required status checks** in GitHub:
 
-1. **QA — core feature tests** (`qa-core.yml`)
-   - Workflow name: `QA — core feature tests`
+1. **QA -- core feature tests** (`qa-core.yml`)
+   - Workflow name: `QA -- core feature tests`
    - Status check name: `qa`
 
-2. **QA — Integration Tests** (`qa-integration.yml`)
-   - Workflow name: `QA — Integration Tests`
+2. **QA -- Integration Tests** (`qa-integration.yml`)
+   - Workflow name: `QA -- Integration Tests`
    - Status check name: `integration`
 
-3. **Code Validation — SRP, Dynamic, Theme, Logging** (`code-validation.yml`)
-   - Workflow name: `Code Validation — SRP, Dynamic, Theme, Logging (Branch-Aware)`
+3. **Code Validation -- SRP, Dynamic, Theme, Logging** (`code-validation.yml`)
+   - Workflow name: `Code Validation -- SRP, Dynamic, Theme, Logging (Branch-Aware)`
    - Status check name: `validate`
 
 4. **Terraform Validation** (`terraform-validate.yml`)
@@ -69,9 +69,9 @@ Configure these workflows as **required status checks** in GitHub:
 **Require status checks to pass before merging**
 - Require branches to be up to date before merging
 - **Status checks that are required:**
-  - `qa` (from `QA — core feature tests`)
-  - `integration` (from `QA — Integration Tests`)
-  - `validate` (from `Code Validation — SRP, Dynamic, Theme, Logging (Branch-Aware)`)
+  - `qa` (from `QA -- core feature tests`)
+  - `integration` (from `QA -- Integration Tests`)
+  - `validate` (from `Code Validation -- SRP, Dynamic, Theme, Logging (Branch-Aware)`)
   - `terraform` (from `Terraform Validation`)
   - **DO NOT** add `Monitor Email Queue` - it's monitoring only, not a blocker
 
@@ -124,7 +124,7 @@ To find the exact status check names:
 
 **Status check names format:**
 - `{workflow-name} / {job-name}`
-- Example: `QA — core feature tests / qa`
+- Example: `QA -- core feature tests / qa`
 
 ---
 

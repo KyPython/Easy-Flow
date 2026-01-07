@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 
-// Load .env.local file for local development
+// ✅ CRITICAL: Load .env.local file for local development
 // React's build system loads .env.local, but Node scripts don't automatically
 try {
   // Try to load dotenv if available (it's in the root package.json)
@@ -68,7 +68,7 @@ fs.writeFileSync(outputPath, template, 'utf8');
 
 console.log('✓ Generated firebase-config.js');
 
-// Validate that required values are set
+// ✅ CRITICAL: Validate that required values are set
 // Only fail in development when running `npm start` (not during builds or CI)
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const isCI = process.env.CI === 'true' || process.env.VERCEL === 'true' || process.env.GITHUB_ACTIONS === 'true';

@@ -1421,7 +1421,7 @@ const WorkflowBuilder = () => {
                             <span className={styles.statusDot} /> Running...
                             {timeRemaining && (
                               <span className={styles.timeEstimate}>
-                                • Estimated time remaining: {timeRemaining}
+                                * Estimated time remaining: {timeRemaining}
                               </span>
                             )}
                             {(() => {
@@ -1431,7 +1431,7 @@ const WorkflowBuilder = () => {
                                 if (stepElapsed > 0) {
                                   return (
                                     <span className={styles.stepElapsed}>
-                                      • Running for {stepElapsed < 60 ? `${stepElapsed}s` : `${Math.floor(stepElapsed / 60)}m ${stepElapsed % 60}s`}
+                                      * Running for {stepElapsed < 60 ? `${stepElapsed}s` : `${Math.floor(stepElapsed / 60)}m ${stepElapsed % 60}s`}
                                     </span>
                                   );
                                 }
@@ -1445,7 +1445,7 @@ const WorkflowBuilder = () => {
                             <span className={styles.statusDot} /> Completed
                             {currentStep.duration_ms && (
                               <span className={styles.stepDuration}>
-                                • Took {currentStep.duration_ms < 1000 
+                                * Took {currentStep.duration_ms < 1000 
                                   ? `${currentStep.duration_ms}ms` 
                                   : `${(currentStep.duration_ms / 1000).toFixed(1)}s`}
                               </span>
@@ -1480,7 +1480,7 @@ const WorkflowBuilder = () => {
                             <span className={styles.statusDot} /> Running...
                             {timeRemaining && (
                               <span className={styles.timeEstimate}>
-                                • Estimated time remaining: {timeRemaining}
+                                * Estimated time remaining: {timeRemaining}
                               </span>
                             )}
                           </div>
@@ -1586,12 +1586,12 @@ const WorkflowBuilder = () => {
                           <span className={styles.statusDot} /> Active
                           {timeRemaining && (
                             <span className={styles.timeEstimate}>
-                              • Estimated time remaining: {timeRemaining}
+                              * Estimated time remaining: {timeRemaining}
                             </span>
                           )}
                           {elapsed > 0 && (
                             <span className={styles.stepElapsed}>
-                              • Running for {elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`}
+                              * Running for {elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`}
                             </span>
                           )}
                         </div>
@@ -1734,7 +1734,7 @@ const WorkflowBuilder = () => {
                 Workflow is running in the background
                 {executionDetails && executionDetails.steps_total > 0 && (
                   <span className={styles.minimizedProgress}>
-                    {' '}• Step {executionDetails.steps_executed || 0} of {executionDetails.steps_total}
+                    {' '}* Step {executionDetails.steps_executed || 0} of {executionDetails.steps_total}
                   </span>
                 )}
               </span>

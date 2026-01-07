@@ -656,7 +656,7 @@ AI EXTRACTION: Available for ALL task types, FREE. Enable checkbox, specify targ
 
 LINK DISCOVERY: Click "Find Available Buttons" to see all clickable links. Each shown as clickable button. Clicking auto-fills "Link Text" field. Always uses auto-detect to show ALL links.
 
-TASK SUBMISSION: User configures → Clicks "Run Automation" → App validates → Submits → Creates records → Queues to worker → Shows success → Auto-redirects to history after 2 seconds → Task appears with status: queued → running → completed/failed.
+TASK SUBMISSION: User configures -> Clicks "Run Automation" -> App validates -> Submits -> Creates records -> Queues to worker -> Shows success -> Auto-redirects to history after 2 seconds -> Task appears with status: queued -> running -> completed/failed.
 
 HOW TO HELP: 1) Identify task type, 2) Get URL (suggest bookmarklet for vendor portals), 3) Check if login needed, 4) For invoices: recommend auto-detect, suggest "Find Available Buttons" if fails, 5) For scraping: ask what data, suggest selectors, 6) Suggest AI extraction if they want structured data, 7) Explain format: "field_name: description", 8) Confirm details, 9) ALWAYS use plain English, avoid jargon.
 
@@ -841,7 +841,7 @@ TASK SUBMISSION FLOW:
 6. Queues task to automation worker via Kafka
 7. Shows success message with task ID
 8. Auto-redirects to /app/history after 2 seconds
-9. Task appears in Automation History with status: "queued" → "running" → "completed" or "failed"
+9. Task appears in Automation History with status: "queued" -> "running" -> "completed" or "failed"
 10. Users can view results, download artifacts (PDFs), see AI-extracted data if enabled
 
 HOW TO HELP USERS CONFIGURE TASKS:

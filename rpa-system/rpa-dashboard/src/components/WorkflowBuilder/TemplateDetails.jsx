@@ -82,7 +82,7 @@ const TemplateDetails = ({ templateId, onBack, onUse }) => {
                     <span className={styles.version}>v{v.version}</span>
                     <span className={styles.date}>{new Date(v.created_at).toLocaleString()}</span>
                   </div>
-                  <pre className={styles.changelog}>{v.changelog || '—'}</pre>
+                  <pre className={styles.changelog}>{v.changelog || '--'}</pre>
                 </li>
               ))}
             </ul>

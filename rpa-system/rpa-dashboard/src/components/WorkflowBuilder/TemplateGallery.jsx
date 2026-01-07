@@ -141,7 +141,7 @@ const TemplateGallery = ({ onSelectTemplate, onClose }) => {
     complexity: t.complexity || 'Easy',
     author: t.author || (t.created_by ? 'KyJahn Smith' : 'Unknown'),
     usageCount: t.usageCount ?? t.usage_count ?? 0,
-    estimatedTime: t.estimatedTime ?? t.estimated_time ?? '—',
+    estimatedTime: t.estimatedTime ?? t.estimated_time ?? '--',
     createdAt: t.createdAt ?? t.created_at ?? t.updated_at ?? new Date().toISOString(),
     updatedAt: t.updatedAt ?? t.updated_at ?? t.created_at ?? new Date().toISOString(),
     tags: Array.isArray(t.tags) ? t.tags.filter(tag => tag && typeof tag === 'string') : [],

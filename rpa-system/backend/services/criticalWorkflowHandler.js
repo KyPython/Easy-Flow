@@ -1,5 +1,5 @@
 // Critical Workflow Handler
-// Specialized handler for "Scheduled Web Scraping → Email Report" workflow
+// Specialized handler for "Scheduled Web Scraping -> Email Report" workflow
 // This is the ONE workflow type that needs to work 99%+ of the time
 
 const { WorkflowExecutor } = require('./workflowExecutor');
@@ -16,7 +16,7 @@ class CriticalWorkflowHandler {
 
   /**
    * Execute critical workflow with enhanced reliability
-   * Designed for: Scheduled Web Scraping → Email Report
+   * Designed for: Scheduled Web Scraping -> Email Report
    */
   async executeCriticalWorkflow(execution, workflow) {
     const startTime = Date.now();

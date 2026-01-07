@@ -365,7 +365,7 @@ const UnifiedDashboardPage = () => {
                       className={styles.activityBtn}
                       onClick={() => navigate('/app/workflows')}
                     >
-                      View Workflows →
+                      View Workflows ->
                     </button>
                   </div>
                 );

@@ -325,7 +325,7 @@ const PaywallModal = ({
           {/* Trial Notice */}
           <div className={styles.trialNotice}>
             <FiZap className={styles.trialIcon} />
-            <span>Start with a 14-day free trial • Cancel anytime</span>
+            <span>Start with a 14-day free trial * Cancel anytime</span>
           </div>
           </div>
         </div>

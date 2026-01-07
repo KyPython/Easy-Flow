@@ -19,7 +19,7 @@ async function onUserSignup(user) {
     await axios.post(
         EMAIL_WORKER_ENDPOINT,
         {
-            subject: "Welcome to EasyFlow — Let’s Get Started!",
+            subject: "Welcome to EasyFlow -- Let’s Get Started!",
             to: user.email,
             message: `
                 Hi ${firstName},

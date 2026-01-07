@@ -238,9 +238,9 @@
 **Total Score:** 69/70
 
 **Scoring Guide:**
-- **60–70:** Strong YES 
-- **45–59:** Conditional yes
-- **30–44:** Weak, rethink
+- **60-70:** Strong YES 
+- **45-59:** Conditional yes
+- **30-44:** Weak, rethink
 - **Below 30:** No
 
 **Red Flags:**
@@ -345,7 +345,7 @@ Can you get this in <1 week?  Yes - Deploy and collect data
 6. **Innovation:** We're leading with Unified Dashboard concept
 7. **Control:** All our IP, no dependencies
 
-**If Proceeding — Next Actions:**
+**If Proceeding -- Next Actions:**
 - **Responsible:** Development team
 - **Timeline:** Deploy today
 - **Success Metric:** 

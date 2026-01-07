@@ -216,7 +216,7 @@ const DashboardPage = () => {
       let client = null;
 
       const startRealtime = () => {
-        // Keep the effect sync entrypoint stable — run async work inside.
+        // Keep the effect sync entrypoint stable -- run async work inside.
         (async () => {
           try {
             // Start by fetching dashboard data once
@@ -273,7 +273,7 @@ const DashboardPage = () => {
               }
             }
           } catch (e) {
-            // Don't crash the app if realtime setup fails — log and continue
+            // Don't crash the app if realtime setup fails -- log and continue
             logger.warn('Realtime init failed', {
               error: e?.message || e,
               user_id: user.id,

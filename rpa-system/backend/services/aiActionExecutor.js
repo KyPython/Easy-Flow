@@ -1012,8 +1012,8 @@ Return a JSON object with this structure:
 }
 
 IMPORTANT:
-- Extract URLs from the description (e.g., "amazon.com" → "https://amazon.com")
-- Extract price thresholds (e.g., "below $50" → use in condition step)
+- Extract URLs from the description (e.g., "amazon.com" -> "https://amazon.com")
+- Extract price thresholds (e.g., "below $50" -> use in condition step)
 - Extract email addresses or use notification_email
 - For price monitoring: add a condition step to check if price < threshold
 - For email: extract subject and body from description

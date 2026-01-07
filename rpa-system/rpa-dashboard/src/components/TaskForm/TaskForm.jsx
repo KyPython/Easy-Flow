@@ -914,7 +914,7 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
               name="password"
               value={form.password}
               onChange={handleChange}
-              placeholder="••••••••"
+              placeholder="**"
               className={styles.input}
               title="If the website needs a password, enter it here."
             />

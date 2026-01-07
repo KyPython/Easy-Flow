@@ -239,7 +239,7 @@ class MultiChannelCollectionService {
   }
 
   /**
-   * Complete workflow: Collect → Compile → Summarize
+   * Complete workflow: Collect -> Compile -> Summarize
    * @param {Object} params - Full collection and compilation parameters
    */
   async collectAndCompile(params) {

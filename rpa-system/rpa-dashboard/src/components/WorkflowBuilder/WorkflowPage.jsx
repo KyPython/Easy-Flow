@@ -68,7 +68,6 @@ const WorkflowPage = () => {
   }, [user, authLoading, navigate]);
 
 
-
   // Determine what to show based on path and workflow ID
   const getCurrentView = () => {
     const path = location.pathname;

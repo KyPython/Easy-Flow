@@ -224,7 +224,7 @@ export default class ErrorBoundary extends React.Component {
                 )}
               </pre>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
-                Error #{this.state.errorCount} • {new Date(this.state.lastErrorTime).toLocaleString()}
+                Error #{this.state.errorCount} * {new Date(this.state.lastErrorTime).toLocaleString()}
               </div>
             </details>
           )}

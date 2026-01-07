@@ -724,9 +724,9 @@ const HistoryPage = () => {
           📍 Your Automation Journey
         </h3>
         <div style={{ fontSize: '14px', lineHeight: '1.6', opacity: 0.95 }}>
-          <strong>Step 1:</strong> Submit tasks from <strong>Task Management</strong> → 
-          <strong>Step 2:</strong> Track progress here in <strong>Automation History</strong> → 
-          <strong>Step 3:</strong> View results by clicking 👁️ → 
+          <strong>Step 1:</strong> Submit tasks from <strong>Task Management</strong> -> 
+          <strong>Step 2:</strong> Track progress here in <strong>Automation History</strong> -> 
+          <strong>Step 3:</strong> View results by clicking 👁️ -> 
           <strong>Step 4:</strong> Download files or find them in <strong>Files</strong> page
         </div>
       </div>

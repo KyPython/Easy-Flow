@@ -27,8 +27,8 @@ This CI/CD system is **100% automated** - no manual GitHub configuration require
 
 ### 3. GitHub Workflows (`.github/workflows/`)
 **Run after push, block if configured**
--  QA — core feature tests (blocks on failure)
--  QA — Integration Tests (blocks on failure)
+-  QA -- core feature tests (blocks on failure)
+-  QA -- Integration Tests (blocks on failure)
 -  Code Validation (blocks on failure)
 -  Terraform Validation (blocks on failure)
 

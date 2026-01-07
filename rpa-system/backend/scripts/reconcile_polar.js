@@ -96,7 +96,7 @@ async function main() {
     logger.info(`[reconcile] Finished Polar cross-check. Updated ${updatedCount} records.`);
 
   } else {
-    logger.info('[reconcile] POLAR_API_KEY not set — skipping Polar cross-check');
+    logger.info('[reconcile] POLAR_API_KEY not set -- skipping Polar cross-check');
   }
 
   logger.info('[reconcile] done');

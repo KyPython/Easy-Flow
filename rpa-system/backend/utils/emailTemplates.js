@@ -62,7 +62,7 @@ function getAutomationTipsEmail(data = {}) {
               <div style="margin: 0 0 30px; padding: 20px; background-color: #f9fafb; border-left: 4px solid #10b981; border-radius: 4px;">
                 <h3 style="margin: 0 0 10px; color: #1f2937; font-size: 18px; font-weight: 600;">⚡ Tip #2: Use Workflow Builder</h3>
                 <p style="margin: 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
-                  Our visual workflow builder makes it easy to connect multiple steps. Create workflows like: "Scrape website → Extract data → Send email → Update spreadsheet" all in one flow.
+                  Our visual workflow builder makes it easy to connect multiple steps. Create workflows like: "Scrape website -> Extract data -> Send email -> Update spreadsheet" all in one flow.
                 </p>
               </div>
               
@@ -78,7 +78,7 @@ function getAutomationTipsEmail(data = {}) {
               <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 30px 0;">
                 <tr>
                   <td align="center" style="padding: 20px 0;">
-                    <a href="${appUrl}/app/workflows/builder" style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Create Your First Workflow →</a>
+                    <a href="${appUrl}/app/workflows/builder" style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Create Your First Workflow -></a>
                   </td>
                 </tr>
               </table>
@@ -121,7 +121,7 @@ Thanks for joining EasyFlow! We're excited to help you automate your workflows a
 Begin with one repetitive task you do daily. For example, extracting data from a website or sending a weekly report. Once you see the time savings, you'll want to automate more!
 
 ⚡ Tip #2: Use Workflow Builder
-Our visual workflow builder makes it easy to connect multiple steps. Create workflows like: "Scrape website → Extract data → Send email → Update spreadsheet" all in one flow.
+Our visual workflow builder makes it easy to connect multiple steps. Create workflows like: "Scrape website -> Extract data -> Send email -> Update spreadsheet" all in one flow.
 
 📅 Tip #3: Schedule Your Automations
 Set your workflows to run automatically on a schedule. Daily reports, weekly data syncs, or monthly summaries - set it once and forget it!

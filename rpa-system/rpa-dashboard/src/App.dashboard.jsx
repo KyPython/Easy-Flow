@@ -3,7 +3,7 @@
  *
  * WHY: The app was loading all 20+ pages upfront (~40,000+ lines)
  * WHAT: Lazy load all pages and heavy components using React.lazy()
- * IMPACT: Reduces initial bundle by 60-70% (~2-3 MB → ~800 KB)
+ * IMPACT: Reduces initial bundle by 60-70% (~2-3 MB -> ~800 KB)
  * HOW: Components load on-demand when user navigates to their routes
  * METRICS: Time to Interactive improved from 3-5s to <2s on 4G
  * REVERT: Replace lazy() with direct imports and remove Suspense wrappers
@@ -201,7 +201,7 @@ function Shell() {
         try {
           const mod = await import('./utils/firebaseConfig');
           if (mod && mod.initFirebase) {
-            // In development, re-throw configuration errors to crash the app
+            // ✅ CRITICAL: In development, re-throw configuration errors to crash the app
             // This prevents silent fallback to polling that floods the backend
             try {
               await mod.initFirebase();

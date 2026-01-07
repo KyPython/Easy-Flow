@@ -752,7 +752,7 @@ export default function SettingsPage() {
               >
                 {plans.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name.charAt(0).toUpperCase() + p.name.slice(1)} — 
+                    {p.name.charAt(0).toUpperCase() + p.name.slice(1)} -- 
                     {p.price_cents === 0 ? '$0/month' : `$${(p.price_cents / 100).toFixed(2)}/${p.billing_interval}`}
                   </option>
                 ))}

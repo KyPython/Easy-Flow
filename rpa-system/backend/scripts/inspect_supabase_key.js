@@ -1,6 +1,6 @@
 
 const { logger, getLogger } = require('../utils/logger');
-logger.info('dotenv path →', require('path').resolve(__dirname, '..', '.env'));
+logger.info('dotenv path ->', require('path').resolve(__dirname, '..', '.env'));
 
 const fs = require('fs');
 const path = require('path');
@@ -24,7 +24,7 @@ require('dotenv').config({ path: chosen });
 function mask(k){ if(!k) return '<missing>'; if(k.length<=12) return k; return `${k.slice(0,6)}...${k.slice(-4)}`; }
 
 const key = process.env.SUPABASE_SERVICE_ROLE;
-logger.info('Using .env path →', chosen);
+logger.info('Using .env path ->', chosen);
 logger.info('Loaded SUPABASE_SERVICE_ROLE (masked):', mask(key));
 if (!key) {
   logger.error('Missing SUPABASE_SERVICE_ROLE in the chosen .env');

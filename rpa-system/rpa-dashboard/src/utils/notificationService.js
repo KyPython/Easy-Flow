@@ -208,7 +208,7 @@ class NotificationService {
         code: errorCode,
         userId: user.id,
         email: user.email,
-        cascade_impact: 'This failure will cascade: FCM → Supabase → Polling fallback',
+        cascade_impact: 'This failure will cascade: FCM -> Supabase -> Polling fallback',
         likely_cause: is401 
           ? 'Project ID mismatch between backend and frontend Firebase configs'
           : 'Invalid credentials or configuration',

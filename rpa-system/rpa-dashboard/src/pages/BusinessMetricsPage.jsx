@@ -161,7 +161,7 @@ const BusinessMetricsPage = () => {
           value={`${metrics.conversionRate.toFixed(1)}%`}
           icon="🎯"
           trend="up"
-          subtitle="Visit → Signup"
+          subtitle="Visit -> Signup"
         />
       );
     }
@@ -204,7 +204,7 @@ const BusinessMetricsPage = () => {
       {metrics && (
         <div className={styles.footer}>
           <p className={styles.footerText}>
-            Auto-updates every 5 min • 
+            Auto-updates every 5 min * 
             {metrics.source === 'cached' 
               ? ' Data from daily batch (easyflow-metrics)' 
               : ' Real-time data'}

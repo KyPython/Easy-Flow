@@ -40,7 +40,7 @@
 - Custom API integrations
 - OAuth configuration
 - Complex multi-step logic
-- Then charge $150–$500 for setup
+- Then charge $150-$500 for setup
 
 ---
 
@@ -90,13 +90,13 @@ One-time $[X] setup. After that, you own it and can change it yourself in EasyFl
   - They build it, you guide them
   - Goal: They see how easy it is, then build the rest themselves
 
-- **Complex Setup**: $150–$300 (1–2 hours)
+- **Complex Setup**: $150-$300 (1-2 hours)
   - Custom API integrations
   - OAuth configuration
   - Technical setup only
   - Then they can modify it themselves
 
-- **Enterprise Custom**: $300–$500 (2–4 hours)
+- **Enterprise Custom**: $300-$500 (2-4 hours)
   - Full custom automation
   - Multiple integrations
   - Documentation and training
@@ -119,12 +119,12 @@ One-time $[X] setup. After that, you own it and can change it yourself in EasyFl
 ## Daily Checklist (Reframed)
 
 **Morning (30 mins):**
-- [ ] Reach out to 3–5 existing users
+- [ ] Reach out to 3-5 existing users
 - [ ] Offer "Concierge Onboarding"
 - [ ] Schedule 15-minute calls
 
 **Afternoon (60 mins):**
-- [ ] Run 3–4 onboarding calls (15 mins each)
+- [ ] Run 3-4 onboarding calls (15 mins each)
 - [ ] Help them use the AI Agent
 - [ ] Guide them to build their first workflow
 - [ ] Show them how easy it is

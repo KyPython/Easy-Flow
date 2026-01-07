@@ -18,7 +18,7 @@ const WhatsAppIntegration = require('./integrations/whatsappIntegration');
  */
 class IntegrationFramework {
   constructor() {
-    // Supabase is optional for tests/local runs — only initialize when configured
+    // Supabase is optional for tests/local runs -- only initialize when configured
     this.supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE)
       ? createInstrumentedSupabaseClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE)
       : null;

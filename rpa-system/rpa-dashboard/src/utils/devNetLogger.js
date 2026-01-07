@@ -288,7 +288,7 @@ if (typeof window !== 'undefined') {
                 return protoOpen.apply(xhr, [method, url, ...rest]);
               };
             } else {
-              // Nothing we can do safely — attach a no-op that preserves behavior
+              // Nothing we can do safely -- attach a no-op that preserves behavior
               xhr.open = function() {
                 try { console.warn('[devNetLogger] XHR open not available to wrap; skipping instrumentation for this instance.'); } catch (e) {}
               };

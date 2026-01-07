@@ -27,7 +27,7 @@
 - Custom integrations
 - Multi-step workflows with conditional logic
 - API setup and configuration
-- Price: $150–$500 based on complexity
+- Price: $150-$500 based on complexity
 
 ---
 
@@ -37,7 +37,7 @@
 
 **Upwork Search Strategy:**
 - Search: `"Zapier"`, `"Data Entry"`, `"Lead List"`, `"PDF to Excel"`
-- Filter: Entry Level, Fixed Price ($50–$300)
+- Filter: Entry Level, Fixed Price ($50-$300)
 - Action: Send 2 proposals per day
 
 **Reddit Search Strategy:**
@@ -186,18 +186,18 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
 - They build it, you guide them
 - Goal: They see how easy it is, then build the rest themselves
 
-**Complex Setup ($150–$300):**
+**Complex Setup ($150-$300):**
 - Custom API integrations
 - OAuth configuration
 - Multi-step workflows with complex logic
-- 1–2 hours of technical setup
+- 1-2 hours of technical setup
 - Then they can modify it themselves
 
-**Enterprise Custom ($300–$500):**
+**Enterprise Custom ($300-$500):**
 - Full custom automation
 - Multiple integrations
 - Documentation and training
-- 2–4 hours total
+- 2-4 hours total
 - They own it and can modify it
 
 ### Value Proposition (Updated)
@@ -287,7 +287,7 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
    - Message: "I'll help you build your first workflow in 15 minutes"
 
 2. **Schedule onboarding calls** (15 mins)
-   - Book 3–4 calls this week
+   - Book 3-4 calls this week
    - 15 minutes each
    - Help them use the AI Agent
 

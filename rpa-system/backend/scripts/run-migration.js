@@ -49,7 +49,7 @@ async function runMigration(migrationFile) {
           if (queryError && queryError.code === 'PGRST116') {
             // Table doesn't exist, try executing via raw query
             console.log('⚠️  Note: Some constraints may need to be run directly in Supabase SQL Editor');
-            console.log('   Please run this migration in Supabase Dashboard → SQL Editor');
+            console.log('   Please run this migration in Supabase Dashboard -> SQL Editor');
             console.log('\nSQL to run:');
             console.log('─'.repeat(60));
             console.log(sql);
@@ -72,7 +72,7 @@ async function runMigration(migrationFile) {
     console.log('\n✅ Migration completed successfully!');
   } catch (error) {
     console.error('\n❌ Migration failed:', error.message);
-    console.error('\n📋 Please run this SQL manually in Supabase Dashboard → SQL Editor:');
+    console.error('\n📋 Please run this SQL manually in Supabase Dashboard -> SQL Editor:');
     console.log('─'.repeat(60));
     console.log(sql);
     console.log('─'.repeat(60));

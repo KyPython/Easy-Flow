@@ -451,7 +451,7 @@ export default function AuthPage() {
               disabled={loading}
               style={{ fontSize: '0.9rem', padding: '8px 16px' }}
             >
-              {loading ? t('action.sending','Sending…') : t('auth.resend_verification','Resend verification')}
+              {loading ? t('action.sending','Sending...') : t('auth.resend_verification','Resend verification')}
             </button>
           </div>
         )}
@@ -477,7 +477,7 @@ export default function AuthPage() {
     )}
           <div className={styles.actions}>
             <button type="submit" className={styles.submitButton} disabled={loading}>
-              {loading ? t('auth.please_wait','Please wait…') : (mode === 'login' ? t('auth.sign_in','Sign In') : t('auth.sign_up','Sign Up'))}
+              {loading ? t('auth.please_wait','Please wait...') : (mode === 'login' ? t('auth.sign_in','Sign In') : t('auth.sign_up','Sign Up'))}
             </button>
             <button
               type="button"

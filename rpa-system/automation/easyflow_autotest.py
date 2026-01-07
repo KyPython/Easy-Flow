@@ -66,7 +66,7 @@ if not access_token:
     print('ERR: no access token; token response first 400 chars:')
     print(body2[:400])
     sys.exit(3)
-print('got access token tail (masked): *****'+access_token[-6:])
+print('got access token tail (masked): **'+access_token[-6:])
 
 # call backend protected endpoint
 prot_out='/tmp/prot.json'

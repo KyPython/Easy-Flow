@@ -58,7 +58,7 @@ export default function LandingPage() {
 
           <p className={styles.lead}>
             <strong>Stop Copy/Pasting Between Tools</strong><br/><br/>
-            <strong>Before:</strong> Copy data from Slack → paste into Google Sheets. Copy from email → paste into Notion. Copy from forms → paste into CRM. Hours wasted every week.<br/><br/>
+            <strong>Before:</strong> Copy data from Slack -> paste into Google Sheets. Copy from email -> paste into Notion. Copy from forms -> paste into CRM. Hours wasted every week.<br/><br/>
             <strong>After:</strong> Connect your tools once. EasyFlow automatically moves data between them. No more manual copy/paste. No coding required.<br/><br/>
             <strong>Zero-infrastructure automation</strong> - No servers, no DevOps. Just connect and go.
           </p>
@@ -150,15 +150,15 @@ export default function LandingPage() {
         <div className={styles.featuresGrid}>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>💬</div>
-            <h3 className={styles.featureTitle}>Slack → Google Sheets</h3>
+            <h3 className={styles.featureTitle}>Slack -> Google Sheets</h3>
             <p className={styles.featureText}>
               <strong>Before:</strong> Manually copy customer feedback from Slack messages into your tracking spreadsheet (30 min daily)<br/><br/>
-              <strong>After:</strong> New Slack message → Automatically added to Google Sheets. One-click template setup.
+              <strong>After:</strong> New Slack message -> Automatically added to Google Sheets. One-click template setup.
             </p>
           </div>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>📧</div>
-            <h3 className={styles.featureTitle}>Email → Notion</h3>
+            <h3 className={styles.featureTitle}>Email -> Notion</h3>
             <p className={styles.featureText}>
               <strong>Before:</strong> Copy important emails into your Notion workspace manually (20 min daily)<br/><br/>
               <strong>After:</strong> Important emails automatically saved to Notion database. No copy/paste needed.
@@ -166,10 +166,10 @@ export default function LandingPage() {
           </div>
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>📝</div>
-            <h3 className={styles.featureTitle}>Form → CRM</h3>
+            <h3 className={styles.featureTitle}>Form -> CRM</h3>
             <p className={styles.featureText}>
               <strong>Before:</strong> Check forms, copy contact info, paste into CRM, assign to team (45 min daily)<br/><br/>
-              <strong>After:</strong> Form submitted → Contact automatically added to CRM → Team notified. Zero manual work.
+              <strong>After:</strong> Form submitted -> Contact automatically added to CRM -> Team notified. Zero manual work.
             </p>
           </div>
         </div>
@@ -180,7 +180,7 @@ export default function LandingPage() {
           </h3>
           <p style={{ marginBottom: '16px', fontSize: '16px', lineHeight: '1.6' }}>
             Don't build from scratch. Choose a template, connect your accounts, and you're done.
-            <br/>Popular templates: <strong>Slack→Sheets</strong>, <strong>Email→Notion</strong>, <strong>Form→CRM</strong>
+            <br/>Popular templates: <strong>Slack->Sheets</strong>, <strong>Email->Notion</strong>, <strong>Form->CRM</strong>
           </p>
         </div>
 

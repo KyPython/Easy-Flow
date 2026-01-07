@@ -328,7 +328,7 @@ const WorkflowsList = () => {
         onConfirm={confirmDelete}
         title="Delete workflow"
         message="This will permanently delete the workflow and its data. This action cannot be undone."
-        confirmText={deleting ? 'Deleting…' : 'Delete'}
+        confirmText={deleting ? 'Deleting...' : 'Delete'}
         cancelText="Cancel"
         variant="danger"
         loading={deleting}
