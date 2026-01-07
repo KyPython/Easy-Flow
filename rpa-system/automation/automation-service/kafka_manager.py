@@ -143,7 +143,7 @@ class KafkaManager:
                     logger.info(
                         f"⏱️ Retrying in {delay:.1f} seconds with exponential backoff...")
                     await asyncio.sleep(delay)
-            except Exception as e:
+                except Exception as e:
                 logger.error(f"❌ Producer initialization error: {e}")
                 if attempt < self.retry_attempts - 1:
                     delay = self._calculate_backoff_delay(attempt)
@@ -184,7 +184,7 @@ class KafkaManager:
                     logger.info(
                         f"⏱️ Retrying in {delay:.1f} seconds with exponential backoff...")
                     await asyncio.sleep(delay)
-            except Exception as e:
+                except Exception as e:
                 logger.error(f"❌ Consumer initialization error: {e}")
                 if attempt < self.retry_attempts - 1:
                     delay = self._calculate_backoff_delay(attempt)
@@ -206,10 +206,8 @@ class KafkaManager:
 
 
         if not self.kafka_enabled or not self.consumer:
-
-        logger.info("🔇 Consumer loop skipped - Kafka disabled or not initialized")
-
-        return
+            logger.info("🔇 Consumer loop skipped - Kafka disabled or not initialized")
+            return
 
 
         logger.info(f"👂 Starting consumer loop for topic: {self.task_topic}")
@@ -410,7 +408,7 @@ class KafkaManager:
                           status: str,
                           trace_context: Optional[Dict[str,
                                                        Any]] = None) -> bool:
-        """Send automation result back through Kafka with trace context"""
+                                                           """Send automation result back through Kafka with trace context"""
 
 
         if not self.kafka_enabled:
