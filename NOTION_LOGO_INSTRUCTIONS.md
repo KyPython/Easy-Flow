@@ -9,9 +9,9 @@ Your EasyFlow logo is located at: `rpa-system/rpa-dashboard/src/logo.svg`
 1. Go to: https://cloudconvert.com/svg-to-png
 2. Upload: `rpa-system/rpa-dashboard/src/logo.svg`
 3. Set conversion settings:
-   - **Width:** 1024 pixels
-   - **Height:** 1024 pixels (square)
-   - **Background:** Transparent
+ - **Width:** 1024 pixels
+ - **Height:** 1024 pixels (square)
+ - **Background:** Transparent
 4. Click "Convert"
 5. Download the PNG file
 6. Save it as: `rpa-system/rpa-dashboard/public/logo-notion.png`

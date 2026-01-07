@@ -19,10 +19,10 @@
 - In the **"Host Records"** section, find the **"TXT Records"** area
 - Click **"Add New Record"** button
 - Fill in:
-  - **Type:** Select `TXT Record`
-  - **Host:** `@` (this means the root domain)
-  - **Value:** `google-site-verification=0luN2b45mX9jAJnbvGhKK6jCF2fnN1cpcomZqW9hafw`
-  - **TTL:** `Automatic` (or `30 min`)
+ - **Type:** Select `TXT Record`
+ - **Host:** `@` (this means the root domain)
+ - **Value:** `google-site-verification=0luN2b45mX9jAJnbvGhKK6jCF2fnN1cpcomZqW9hafw`
+ - **TTL:** `Automatic` (or `30 min`)
 - Click the **green checkmark** to save
 
 ### 5. Verify the Record

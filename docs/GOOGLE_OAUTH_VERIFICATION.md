@@ -96,30 +96,30 @@
 ## Next Steps (When You Return)
 
 1. **Check DNS Verification:**
-   ```bash
-   dig TXT tryeasyflow.com
-   ```
-   Should show: `google-site-verification=wPQXazSqRb1yTJci7SjYTRshIgurMkyA3CGw5w31auM`
+ ```bash
+ dig TXT tryeasyflow.com
+ ```
+ Should show: `google-site-verification=wPQXazSqRb1yTJci7SjYTRshIgurMkyA3CGw5w31auM`
 
 2. **Add DNS TXT Record for Domain Verification:**
-   - Go to your domain registrar (where you bought tryeasyflow.com)
-   - Add a TXT record:
-     - **Name/Host:** `@` or `tryeasyflow.com` (or leave blank, depends on registrar)
-     - **Type:** `TXT`
-     - **Value:** `google-site-verification=0luN2b45mX9jAJnbvGhKK6jCF2fnN1cpcomZqW9hafw`
-   - Save the DNS record
-   - Wait 10-30 minutes for DNS propagation
-   - Go back to Google Search Console and click "Verify"
+ - Go to your domain registrar (where you bought tryeasyflow.com)
+ - Add a TXT record:
+ - **Name/Host:** `@` or `tryeasyflow.com` (or leave blank, depends on registrar)
+ - **Type:** `TXT`
+ - **Value:** `google-site-verification=0luN2b45mX9jAJnbvGhKK6jCF2fnN1cpcomZqW9hafw`
+ - Save the DNS record
+ - Wait 10-30 minutes for DNS propagation
+ - Go back to Google Search Console and click "Verify"
 
 3. **Request Branding Re-Verification:**
-   - After domain verification succeeds
-   - Go to OAuth consent screen
-   - Click "I have fixed the issues"
-   - Request re-verification
+ - After domain verification succeeds
+ - Go to OAuth consent screen
+ - Click "I have fixed the issues"
+ - Request re-verification
 
 4. **Wait for Google Review:**
-   - 24-48 hours for branding verification
-   - You'll get an email when complete
+ - 24-48 hours for branding verification
+ - You'll get an email when complete
 
 ---
 

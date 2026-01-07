@@ -1,6 +1,6 @@
 # Week 2 Learning Application: Energy per Inference -> EasyFlow Cost Optimization
 
-##  Core Connection
+## Core Connection
 
 **Week 2 Learning:** Energy per Inference = Power × Time = V² × f × t
 
@@ -8,7 +8,7 @@
 
 ---
 
-##  Key Insight Translation
+## Key Insight Translation
 
 ### Hardware -> Software Mapping
 
@@ -29,7 +29,7 @@
 
 ---
 
-##  Competitive Advantage
+## Competitive Advantage
 
 ### What Competitors Do (Zapier, Make)
 
@@ -45,7 +45,7 @@
 
 ---
 
-##  Implementation Details
+## Implementation Details
 
 ### Priority Tiers
 
@@ -145,7 +145,7 @@ Cost = Compute × Duration = (WorkerPool × CostRate) × ExecutionTime
 ```javascript
 // Auto-detect mode based on context
 const mode = executionModeService.determineExecutionMode(workflow, {
-  triggeredBy: 'schedule' // -> Eco mode (20% discount)
+ triggeredBy: 'schedule' // -> Eco mode (20% discount)
 });
 
 // Calculate cost
@@ -191,29 +191,29 @@ Smart Behavior: Automatically prioritizes when needed
 ### Week 2 Key Concepts Applied
 
 1. **Energy per Inference**
-   - **Learning:** P = V² × f, reducing voltage saves power
-   - **Application:** Reducing worker pool size saves compute cost
-   - **Result:** 20% cost savings for background workflows
+ - **Learning:** P = V² × f, reducing voltage saves power
+ - **Application:** Reducing worker pool size saves compute cost
+ - **Result:** 20% cost savings for background workflows
 
 2. **Latency vs Throughput Trade-off**
-   - **Learning:** Low power = better efficiency, worse latency
-   - **Application:** Eco mode = lower cost, acceptable latency for batch
-   - **Result:** Users save money on non-urgent workflows
+ - **Learning:** Low power = better efficiency, worse latency
+ - **Application:** Eco mode = lower cost, acceptable latency for batch
+ - **Result:** Users save money on non-urgent workflows
 
 3. **Voltage Squared Effect**
-   - **Learning:** Small voltage reduction = large power savings
-   - **Application:** Small latency increase = significant cost savings
-   - **Result:** 20% discount with 2x latency (acceptable for batch)
+ - **Learning:** Small voltage reduction = large power savings
+ - **Application:** Small latency increase = significant cost savings
+ - **Result:** 20% discount with 2x latency (acceptable for batch)
 
 ---
 
-##  Implementation Status
+## Implementation Status
 
 ### Completed
--  Execution mode service with auto-detection
--  Cost calculation and savings tracking
--  Priority tier system (Instant vs Scheduled)
--  Cost transparency features
+- Execution mode service with auto-detection
+- Cost calculation and savings tracking
+- Priority tier system (Instant vs Scheduled)
+- Cost transparency features
 
 ### Next Steps
 - [ ] Smart scheduling for off-peak execution
@@ -223,7 +223,7 @@ Smart Behavior: Automatically prioritizes when needed
 
 ---
 
-##  Strategic Value
+## Strategic Value
 
 ### For Users
 - **Save 20%+ on compute costs** for background workflows

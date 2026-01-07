@@ -26,25 +26,25 @@ Branch protection rules **require status checks to pass** before allowing:
 Configure these workflows as **required status checks** in GitHub:
 
 1. **QA -- core feature tests** (`qa-core.yml`)
-   - Workflow name: `QA -- core feature tests`
-   - Status check name: `qa`
+ - Workflow name: `QA -- core feature tests`
+ - Status check name: `qa`
 
 2. **QA -- Integration Tests** (`qa-integration.yml`)
-   - Workflow name: `QA -- Integration Tests`
-   - Status check name: `integration`
+ - Workflow name: `QA -- Integration Tests`
+ - Status check name: `integration`
 
 3. **Code Validation -- SRP, Dynamic, Theme, Logging** (`code-validation.yml`)
-   - Workflow name: `Code Validation -- SRP, Dynamic, Theme, Logging (Branch-Aware)`
-   - Status check name: `validate`
+ - Workflow name: `Code Validation -- SRP, Dynamic, Theme, Logging (Branch-Aware)`
+ - Status check name: `validate`
 
 4. **Terraform Validation** (`terraform-validate.yml`)
-   - Workflow name: `Terraform Validation`
-   - Status check name: `terraform`
+ - Workflow name: `Terraform Validation`
+ - Status check name: `terraform`
 
 5. **Monitor Email Queue** (`monitor-email-queue.yml`)
-   - **NOTE: This is a MONITORING workflow only - do NOT add as required status check**
-   - This workflow monitors email queue health and creates alerts
-   - Failures should not block production deployments
+ - **NOTE: This is a MONITORING workflow only - do NOT add as required status check**
+ - This workflow monitors email queue health and creates alerts
+ - Failures should not block production deployments
 
 ---
 
@@ -69,11 +69,11 @@ Configure these workflows as **required status checks** in GitHub:
 **Require status checks to pass before merging**
 - Require branches to be up to date before merging
 - **Status checks that are required:**
-  - `qa` (from `QA -- core feature tests`)
-  - `integration` (from `QA -- Integration Tests`)
-  - `validate` (from `Code Validation -- SRP, Dynamic, Theme, Logging (Branch-Aware)`)
-  - `terraform` (from `Terraform Validation`)
-  - **DO NOT** add `Monitor Email Queue` - it's monitoring only, not a blocker
+ - `qa` (from `QA -- core feature tests`)
+ - `integration` (from `QA -- Integration Tests`)
+ - `validate` (from `Code Validation -- SRP, Dynamic, Theme, Logging (Branch-Aware)`)
+ - `terraform` (from `Terraform Validation`)
+ - **DO NOT** add `Monitor Email Queue` - it's monitoring only, not a blocker
 
 **Require conversation resolution before merging**
 
@@ -94,21 +94,21 @@ Click **Create** (or **Save changes** if editing)
 After setting up branch protection:
 
 1. **Try to push directly to `main`:**
-   ```bash
-   git checkout main
-   git commit --allow-empty -m "test: verify branch protection"
-   git push origin main
-   ```
-   **Expected:** Push should be **blocked** if workflows haven't run or failed
+ ```bash
+ git checkout main
+ git commit --allow-empty -m "test: verify branch protection"
+ git push origin main
+ ```
+ **Expected:** Push should be **blocked** if workflows haven't run or failed
 
 2. **Try to merge `dev` -> `main` via PR:**
-   - Create a PR from `dev` to `main`
-   - **Expected:** PR cannot be merged until all required status checks pass
+ - Create a PR from `dev` to `main`
+ - **Expected:** PR cannot be merged until all required status checks pass
 
 3. **Verify workflows are required:**
-   - Go to the PR
-   - Look for "Required" label on status checks
-   - All 5 workflows should show as "Required"
+ - Go to the PR
+ - Look for "Required" label on status checks
+ - All 5 workflows should show as "Required"
 
 ---
 
@@ -133,9 +133,9 @@ To find the exact status check names:
 1. **Workflows must run at least once** before they appear in the status check list
 2. **Status check names are case-sensitive**
 3. **Branch protection only works for:**
-   - Pull requests (merges)
-   - Direct pushes (if enabled)
-   - Force pushes (if blocked)
+ - Pull requests (merges)
+ - Direct pushes (if enabled)
+ - Force pushes (if blocked)
 
 4. **The `ship-to-production.sh` script** will still run local checks, but GitHub branch protection provides an additional safety net
 
@@ -146,9 +146,9 @@ To find the exact status check names:
 If you don't see the status checks in the list:
 
 1. **Trigger the workflows manually:**
-   - Go to **Actions** tab
-   - Select each workflow
-   - Click **"Run workflow"** -> Select `main` branch -> **Run workflow**
+ - Go to **Actions** tab
+ - Select each workflow
+ - Click **"Run workflow"** -> Select `main` branch -> **Run workflow**
 
 2. **Wait for workflows to complete** (they must run at least once)
 
@@ -165,14 +165,14 @@ If you prefer to configure via API:
 ```bash
 # Set branch protection (requires GitHub CLI or curl)
 gh api repos/:owner/:repo/branches/main/protection \
-  --method PUT \
-  --field required_status_checks[contexts][]="qa" \
-  --field required_status_checks[contexts][]="integration" \
-  --field required_status_checks[contexts][]="validate" \
-  --field required_status_checks[contexts][]="terraform" \
-  # NOTE: DO NOT add monitor-email-queue - it's monitoring only, not a blocker
-  --field enforce_admins=true \
-  --field required_pull_request_reviews[required_approving_review_count]=1
+ --method PUT \
+ --field required_status_checks[contexts][]="qa" \
+ --field required_status_checks[contexts][]="integration" \
+ --field required_status_checks[contexts][]="validate" \
+ --field required_status_checks[contexts][]="terraform" \
+ # NOTE: DO NOT add monitor-email-queue - it's monitoring only, not a blocker
+ --field enforce_admins=true \
+ --field required_pull_request_reviews[required_approving_review_count]=1
 ```
 
 ---

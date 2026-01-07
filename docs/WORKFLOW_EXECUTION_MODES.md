@@ -58,9 +58,9 @@ Just like hardware power optimization (P = V² × f), workflow execution has a s
 **Use Case:** Most workflows, standard operations
 
 **Characteristics:**
--  Balanced latency and cost
--  Standard execution
--  Normal priority
+- Balanced latency and cost
+- Standard execution
+- Normal priority
 
 ## 🏗️ Architecture Design
 
@@ -70,12 +70,12 @@ Add `execution_mode` field to workflows:
 
 ```javascript
 {
-  id: "workflow-123",
-  name: "Daily Invoice Download",
-  execution_mode: "eco", // "real-time" | "eco" | "balanced"
-  deadline: null, // Optional: ISO timestamp for hard deadline
-  cost_priority: "low", // "low" | "normal" | "high"
-  // ... existing fields
+ id: "workflow-123",
+ name: "Daily Invoice Download",
+ execution_mode: "eco", // "real-time" | "eco" | "balanced"
+ deadline: null, // Optional: ISO timestamp for hard deadline
+ cost_priority: "low", // "low" | "normal" | "high"
+ // ... existing fields
 }
 ```
 
@@ -84,27 +84,27 @@ Add `execution_mode` field to workflows:
 ```javascript
 // In workflowExecutor.js
 function determineExecutionMode(workflow, context) {
-  // 1. Explicit mode from workflow
-  if (workflow.execution_mode) {
-    return workflow.execution_mode;
-  }
-  
-  // 2. Auto-detect from context
-  if (context.triggeredBy === 'user' || context.triggeredBy === 'manual') {
-    return 'real-time'; // User wants immediate results
-  }
-  
-  if (context.triggeredBy === 'schedule') {
-    return 'eco'; // Scheduled = can wait, save cost
-  }
-  
-  // 3. Check deadline
-  if (workflow.deadline && isNearDeadline(workflow.deadline)) {
-    return 'real-time'; // Approaching deadline, need speed
-  }
-  
-  // 4. Default
-  return 'balanced';
+ // 1. Explicit mode from workflow
+ if (workflow.execution_mode) {
+ return workflow.execution_mode;
+ }
+ 
+ // 2. Auto-detect from context
+ if (context.triggeredBy === 'user' || context.triggeredBy === 'manual') {
+ return 'real-time'; // User wants immediate results
+ }
+ 
+ if (context.triggeredBy === 'schedule') {
+ return 'eco'; // Scheduled = can wait, save cost
+ }
+ 
+ // 3. Check deadline
+ if (workflow.deadline && isNearDeadline(workflow.deadline)) {
+ return 'real-time'; // Approaching deadline, need speed
+ }
+ 
+ // 4. Default
+ return 'balanced';
 }
 ```
 
@@ -131,37 +131,37 @@ balanced_executor = ThreadPoolExecutor(max_workers=BALANCED_MAX_WORKERS)
 ```javascript
 // Priority-based queue with execution mode
 class WorkflowQueue {
-  constructor() {
-    this.realtimeQueue = new PriorityQueue(); // High priority
-    this.balancedQueue = new PriorityQueue(); // Normal priority
-    this.ecoQueue = new PriorityQueue(); // Low priority, can batch
-  }
-  
-  enqueue(workflow, executionMode) {
-    const queue = this.getQueue(executionMode);
-    const priority = this.calculatePriority(workflow, executionMode);
-    queue.enqueue(workflow, priority);
-  }
-  
-  getNextJob() {
-    // 1. Check real-time queue first
-    if (!this.realtimeQueue.isEmpty()) {
-      return this.realtimeQueue.dequeue();
-    }
-    
-    // 2. Check balanced queue
-    if (!this.balancedQueue.isEmpty()) {
-      return this.balancedQueue.dequeue();
-    }
-    
-    // 3. Check eco queue (can batch multiple)
-    if (!this.ecoQueue.isEmpty()) {
-      // In eco mode, can batch multiple tasks
-      return this.batchEcoJobs();
-    }
-    
-    return null;
-  }
+ constructor() {
+ this.realtimeQueue = new PriorityQueue(); // High priority
+ this.balancedQueue = new PriorityQueue(); // Normal priority
+ this.ecoQueue = new PriorityQueue(); // Low priority, can batch
+ }
+ 
+ enqueue(workflow, executionMode) {
+ const queue = this.getQueue(executionMode);
+ const priority = this.calculatePriority(workflow, executionMode);
+ queue.enqueue(workflow, priority);
+ }
+ 
+ getNextJob() {
+ // 1. Check real-time queue first
+ if (!this.realtimeQueue.isEmpty()) {
+ return this.realtimeQueue.dequeue();
+ }
+ 
+ // 2. Check balanced queue
+ if (!this.balancedQueue.isEmpty()) {
+ return this.balancedQueue.dequeue();
+ }
+ 
+ // 3. Check eco queue (can batch multiple)
+ if (!this.ecoQueue.isEmpty()) {
+ // In eco mode, can batch multiple tasks
+ return this.batchEcoJobs();
+ }
+ 
+ return null;
+ }
 }
 ```
 
@@ -190,22 +190,22 @@ Savings: 60% reduction in compute cost
 ```javascript
 // In workflowExecutor.js
 async executeWorkflow(workflow, context) {
-  const executionMode = determineExecutionMode(workflow, context);
-  
-  const executionConfig = {
-    mode: executionMode,
-    timeout: executionMode === 'eco' ? 300000 : 60000, // 5min vs 1min
-    workerPool: executionMode === 'real-time' ? 'realtime' : 'eco',
-    priority: executionMode === 'real-time' ? 'high' : 'low',
-    batchable: executionMode === 'eco' // Can batch with other eco jobs
-  };
-  
-  // Route to appropriate queue
-  await this.queueManager.enqueue(workflow, executionConfig);
+ const executionMode = determineExecutionMode(workflow, context);
+ 
+ const executionConfig = {
+ mode: executionMode,
+ timeout: executionMode === 'eco' ? 300000 : 60000, // 5min vs 1min
+ workerPool: executionMode === 'real-time' ? 'realtime' : 'eco',
+ priority: executionMode === 'real-time' ? 'high' : 'low',
+ batchable: executionMode === 'eco' // Can batch with other eco jobs
+ };
+ 
+ // Route to appropriate queue
+ await this.queueManager.enqueue(workflow, executionConfig);
 }
 ```
 
-##  Real-World Application
+## Real-World Application
 
 ### Scenario 1: User Clicks "Run Now"
 ```javascript
@@ -225,25 +225,25 @@ executionMode = 'eco';
 ```javascript
 // Workflow has deadline in 1 hour
 if (timeUntilDeadline < 3600000) {
-  executionMode = 'real-time'; // Switch to fast mode
+ executionMode = 'real-time'; // Switch to fast mode
 }
 ```
 
 ## 📈 Metrics to Track
 
 1. **Cost Savings**
-   - Compute hours saved by eco mode
-   - Cost per workflow execution by mode
+ - Compute hours saved by eco mode
+ - Cost per workflow execution by mode
 
 2. **Performance Impact**
-   - Average latency by mode
-   - User satisfaction (for real-time)
+ - Average latency by mode
+ - User satisfaction (for real-time)
 
 3. **Resource Utilization**
-   - Worker pool utilization
-   - Queue depth by mode
+ - Worker pool utilization
+ - Queue depth by mode
 
-##  Implementation Plan
+## Implementation Plan
 
 ### Phase 1: Metadata & Detection
 - [ ] Add `execution_mode` field to workflows table
@@ -265,22 +265,22 @@ if (timeUntilDeadline < 3600000) {
 - [ ] Report savings to users
 - [ ] Optimize mode selection
 
-##  Key Takeaways
+## Key Takeaways
 
 1. **Voltage Squared Effect**: Small voltage reduction = large power savings
-   - Applied: Small latency increase = large cost savings
+ - Applied: Small latency increase = large cost savings
 
 2. **Latency vs Throughput**: Not all workflows need speed
-   - Batch jobs: Can wait -> Use eco mode
-   - User-facing: Need speed -> Use real-time mode
+ - Batch jobs: Can wait -> Use eco mode
+ - User-facing: Need speed -> Use real-time mode
 
 3. **Smart Defaults**: Auto-detect mode from context
-   - User-triggered -> Real-time
-   - Scheduled -> Eco
-   - Has deadline -> Real-time
+ - User-triggered -> Real-time
+ - Scheduled -> Eco
+ - Has deadline -> Real-time
 
 4. **Cost Transparency**: Show users the trade-off
-   - "Run now: $0.10, Run overnight: $0.04"
+ - "Run now: $0.10, Run overnight: $0.04"
 
 ---
 

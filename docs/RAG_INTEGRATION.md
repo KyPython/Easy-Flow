@@ -1,6 +1,6 @@
 # RAG Integration - Full Implementation Guide
 
-##  Integration Status
+## Integration Status
 
 EasyFlow now has **full integration** with the `rag-node-ts` RAG service for knowledge-powered AI assistance.
 
@@ -8,7 +8,7 @@ EasyFlow now has **full integration** with the `rag-node-ts` RAG service for kno
 
 ## 📦 What's Integrated
 
-### 1.  RAG Client (`rpa-system/backend/services/ragClient.js`)
+### 1. RAG Client (`rpa-system/backend/services/ragClient.js`)
 - **Query**: Retrieve relevant knowledge passages or full RAG answers
 - **Ingest**: Add new knowledge to the RAG knowledge base
 - **Batch Ingest**: Bulk knowledge ingestion
@@ -16,34 +16,34 @@ EasyFlow now has **full integration** with the `rag-node-ts` RAG service for kno
 - **Clear Namespace**: Reset knowledge base (for re-indexing)
 - **Seed Knowledge**: Pre-populate with EasyFlow app knowledge
 
-### 2.  AI Workflow Agent Integration (`rpa-system/backend/services/aiWorkflowAgent.js`)
+### 2. AI Workflow Agent Integration (`rpa-system/backend/services/aiWorkflowAgent.js`)
 - Uses RAG for knowledge retrieval in workflow generation
 - Uses RAG for conversation responses
 - Automatically seeds knowledge on initialization
 - Gracefully handles RAG service unavailability
 
-### 3.  Backend Routes (`rpa-system/backend/routes/ragRoutes.js`)
+### 3. Backend Routes (`rpa-system/backend/routes/ragRoutes.js`)
 - `GET /api/rag/health` - Check RAG service health
 - `POST /api/rag/seed` - Seed knowledge base
 - `POST /api/rag/ingest` - Ingest custom knowledge
 
-### 4.  Automatic Knowledge Seeding
+### 4. Automatic Knowledge Seeding
 - Knowledge base is automatically seeded on backend startup
 - Includes comprehensive EasyFlow app knowledge:
-  - Workflow steps and configuration
-  - Task configuration guides
-  - App features and navigation
-  - Troubleshooting guides
-  - Integration information
-  - New features (2025)
+ - Workflow steps and configuration
+ - Task configuration guides
+ - App features and navigation
+ - Troubleshooting guides
+ - Integration information
+ - New features (2025)
 
-### 5.  Integration Knowledge (`rpa-system/backend/services/addIntegrationKnowledge.js`)
+### 5. Integration Knowledge (`rpa-system/backend/services/addIntegrationKnowledge.js`)
 - Automatically adds integration knowledge (Slack, Gmail, Google Sheets, etc.)
 - Called during knowledge initialization
 
 ---
 
-##  Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -51,39 +51,39 @@ Add these to your `rpa-system/backend/.env`:
 
 ```bash
 # RAG Service Configuration
-RAG_SERVICE_URL=http://localhost:3001  # URL of rag-node-ts service
-RAG_API_KEY=sk_rag_easyflow_dev        # API key for authentication
-RAG_TIMEOUT=30000                      # Request timeout in ms (default: 30000)
-RAG_AUTO_SEED=true                     # Auto-seed knowledge on startup (default: true)
+RAG_SERVICE_URL=http://localhost:3001 # URL of rag-node-ts service
+RAG_API_KEY=sk_rag_easyflow_dev # API key for authentication
+RAG_TIMEOUT=30000 # Request timeout in ms (default: 30000)
+RAG_AUTO_SEED=true # Auto-seed knowledge on startup (default: true)
 ```
 
 ### RAG Service Setup
 
 1. **Start the RAG service** (from `/Users/ky/rag-node-ts`):
-   ```bash
-   cd /Users/ky/rag-node-ts
-   npm install
-   npm run build
-   npm run dev
-   ```
+ ```bash
+ cd /Users/ky/rag-node-ts
+ npm install
+ npm run build
+ npm run dev
+ ```
 
 2. **Configure RAG service** (in `rag-node-ts/.env`):
-   ```bash
-   OPENAI_API_KEY=your_openai_key
-   PINECONE_API_KEY=your_pinecone_key
-   PINECONE_INDEX_NAME=your_index_name
-   RAG_API_KEY=sk_rag_easyflow_dev  # Must match RAG_API_KEY in EasyFlow backend
-   PORT=3001
-   ```
+ ```bash
+ OPENAI_API_KEY=your_openai_key
+ PINECONE_API_KEY=your_pinecone_key
+ PINECONE_INDEX_NAME=your_index_name
+ RAG_API_KEY=sk_rag_easyflow_dev # Must match RAG_API_KEY in EasyFlow backend
+ PORT=3001
+ ```
 
 3. **Verify connection**:
-   ```bash
-   curl http://localhost:3001/health
-   ```
+ ```bash
+ curl http://localhost:3001/health
+ ```
 
 ---
 
-##  Usage
+## Usage
 
 ### Automatic (Recommended)
 
@@ -96,34 +96,34 @@ If you need to manually seed or re-seed knowledge:
 ```bash
 # Via API endpoint (requires authentication)
 curl -X POST http://localhost:3030/api/rag/seed \
-  -H "Authorization: Bearer YOUR_TOKEN"
+ -H "Authorization: Bearer YOUR_TOKEN"
 
 # Or via AI Agent endpoint
 curl -X POST http://localhost:3030/api/ai-agent/initialize-knowledge \
-  -H "Authorization: Bearer YOUR_TOKEN"
+ -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### Check RAG Service Health
 
 ```bash
 curl http://localhost:3030/api/rag/health \
-  -H "Authorization: Bearer YOUR_TOKEN"
+ -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### Ingest Custom Knowledge
 
 ```bash
 curl -X POST http://localhost:3030/api/rag/ingest \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "Your knowledge content here...",
-    "source": "custom:knowledge:source",
-    "metadata": {
-      "category": "custom",
-      "version": "1.0"
-    }
-  }'
+ -H "Authorization: Bearer YOUR_TOKEN" \
+ -H "Content-Type: application/json" \
+ -d '{
+ "text": "Your knowledge content here...",
+ "source": "custom:knowledge:source",
+ "metadata": {
+ "category": "custom",
+ "version": "1.0"
+ }
+ }'
 ```
 
 ---
@@ -172,12 +172,12 @@ The RAG knowledge base includes:
 
 ---
 
-##  How It Works
+## How It Works
 
 ### 1. Query Flow
 ```
 User Query -> AI Agent -> RAG Client -> rag-node-ts Service -> Pinecone -> OpenAI Embeddings
-                                                                    ↓
+ ↓
 User Response ← AI Agent ← Enhanced Context ← Retrieved Passages ← Vector Search
 ```
 
@@ -189,12 +189,12 @@ Knowledge Text -> RAG Client -> rag-node-ts Service -> Text Chunking -> OpenAI E
 ### 3. Startup Flow
 ```
 Backend Startup -> Database Warm-up -> RAG Auto-Seed (async) -> Server Ready
-                                              ↓
-                                    Check RAG Health
-                                              ↓
-                                    Seed EasyFlow Knowledge
-                                              ↓
-                                    Seed Integration Knowledge
+ ↓
+ Check RAG Health
+ ↓
+ Seed EasyFlow Knowledge
+ ↓
+ Seed Integration Knowledge
 ```
 
 ---
@@ -204,27 +204,27 @@ Backend Startup -> Database Warm-up -> RAG Auto-Seed (async) -> Server Ready
 ### Testing RAG Integration
 
 1. **Start RAG service**:
-   ```bash
-   cd /Users/ky/rag-node-ts
-   npm run dev
-   ```
+ ```bash
+ cd /Users/ky/rag-node-ts
+ npm run dev
+ ```
 
 2. **Start EasyFlow backend**:
-   ```bash
-   cd /Users/ky/Easy-Flow/rpa-system/backend
-   npm run dev
-   ```
+ ```bash
+ cd /Users/ky/Easy-Flow/rpa-system/backend
+ npm run dev
+ ```
 
 3. **Check logs** for RAG initialization:
-   ```
-   [server] 🧠 Initializing RAG knowledge base...
-   [server]  RAG knowledge base initialized
-   ```
+ ```
+ [server] 🧠 Initializing RAG knowledge base...
+ [server] RAG knowledge base initialized
+ ```
 
 4. **Test AI Agent** with a query that should use RAG knowledge:
-   ```
-   "How do I configure an invoice download task?"
-   ```
+ ```
+ "How do I configure an invoice download task?"
+ ```
 
 ### Disabling RAG (for testing)
 
@@ -232,7 +232,7 @@ Set `RAG_AUTO_SEED=false` in `.env` to skip automatic seeding on startup.
 
 ---
 
-##  Monitoring
+## Monitoring
 
 ### Health Checks
 
@@ -308,9 +308,9 @@ const ragClient = require('./services/ragClient');
 
 // Query for knowledge
 const result = await ragClient.query('How do I create a workflow?', {
-  topK: 5,
-  mode: 'retrieval', // or 'answer'
-  useCache: true
+ topK: 5,
+ mode: 'retrieval', // or 'answer'
+ useCache: true
 });
 
 // Ingest knowledge
@@ -318,8 +318,8 @@ await ragClient.ingestText('Knowledge content...', 'source:name', { metadata });
 
 // Batch ingest
 await ragClient.ingestBatch([
-  { text: 'Content 1', source: 'source1' },
-  { text: 'Content 2', source: 'source2' }
+ { text: 'Content 1', source: 'source1' },
+ { text: 'Content 2', source: 'source2' }
 ]);
 
 // Health check
@@ -331,7 +331,7 @@ await ragClient.seedEasyFlowKnowledge();
 
 ---
 
-##  Next Steps
+## Next Steps
 
 1. **Monitor RAG Usage**: Track query patterns to improve knowledge base
 2. **Expand Knowledge**: Add more app-specific knowledge as features grow
@@ -349,5 +349,5 @@ await ragClient.seedEasyFlowKnowledge();
 ---
 
 **Last Updated**: 2025-01-XX
-**Status**:  Fully Integrated
+**Status**: Fully Integrated
 

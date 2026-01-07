@@ -8,77 +8,77 @@ EasyFlow uses a **comprehensive observability stack** that integrates logs, trac
 
 ```
 +─────────────────────────────────────────────────────────────────+
-|                    FRONTEND (React)                             |
-|  +──────────────────────────────────────────────────────────+  |
-|  | FrontendLogger (logger.js)                                |  |
-|  |  - Creates trace context (traceId, spanId, requestId)    |  |
-|  |  - Sends logs to /api/internal/front-logs                 |  |
-|  |  - Includes: level, component, message, trace, user       |  |
-|  +──────────────────────────────────────────────────────────+  |
-|                           |                                      |
-|                           | POST /api/internal/front-logs       |
-|                           v                                      |
+| FRONTEND (React) |
+| +──────────────────────────────────────────────────────────+ |
+| | FrontendLogger (logger.js) | |
+| | - Creates trace context (traceId, spanId, requestId) | |
+| | - Sends logs to /api/internal/front-logs | |
+| | - Includes: level, component, message, trace, user | |
+| +──────────────────────────────────────────────────────────+ |
+| | |
+| | POST /api/internal/front-logs |
+| v |
 +─────────────────────────────────────────────────────────────────+
-                              |
-                              |
+ |
+ |
 +─────────────────────────────────────────────────────────────────+
-|                    BACKEND (Node.js/Express)                    |
-|  +──────────────────────────────────────────────────────────+  |
-|  | Structured Logger (structuredLogging.js)                  |  |
-|  |  - Pino JSON logger                                        |  |
-|  |  - Auto-injects trace context into every log              |  |
-|  |  - Writes to stdout (Docker captures)                      |  |
-|  +──────────────────────────────────────────────────────────+  |
-|  +──────────────────────────────────────────────────────────+  |
-|  | OpenTelemetry (telemetryInit.js)                          |  |
-|  |  - Traces -> OTLP Exporter -> Tempo/Grafana Cloud          |  |
-|  |  - Metrics -> Prometheus + OTLP -> Grafana                  |  |
-|  |  - 10% sampling (configurable)                            |  |
-|  +──────────────────────────────────────────────────────────+  |
-|  +──────────────────────────────────────────────────────────+  |
-|  | Database Instrumentation (databaseInstrumentation.js)     |  |
-|  |  - Wraps Supabase client                                  |  |
-|  |  - Logs: operation, table, duration, filters              |  |
-|  |  - Auto-injects trace context                             |  |
-|  +──────────────────────────────────────────────────────────+  |
-|                           |                                      |
-|                           | stdout/stderr                       |
-|                           v                                      |
+| BACKEND (Node.js/Express) |
+| +──────────────────────────────────────────────────────────+ |
+| | Structured Logger (structuredLogging.js) | |
+| | - Pino JSON logger | |
+| | - Auto-injects trace context into every log | |
+| | - Writes to stdout (Docker captures) | |
+| +──────────────────────────────────────────────────────────+ |
+| +──────────────────────────────────────────────────────────+ |
+| | OpenTelemetry (telemetryInit.js) | |
+| | - Traces -> OTLP Exporter -> Tempo/Grafana Cloud | |
+| | - Metrics -> Prometheus + OTLP -> Grafana | |
+| | - 10% sampling (configurable) | |
+| +──────────────────────────────────────────────────────────+ |
+| +──────────────────────────────────────────────────────────+ |
+| | Database Instrumentation (databaseInstrumentation.js) | |
+| | - Wraps Supabase client | |
+| | - Logs: operation, table, duration, filters | |
+| | - Auto-injects trace context | |
+| +──────────────────────────────────────────────────────────+ |
+| | |
+| | stdout/stderr |
+| v |
 +─────────────────────────────────────────────────────────────────+
-                              |
-                              | Docker Logging Driver
-                              v
+ |
+ | Docker Logging Driver
+ v
 +─────────────────────────────────────────────────────────────────+
-|                    PROMTAIL (Log Collector)                     |
-|  - Collects logs from Docker containers                        |
-|  - Parses JSON logs                                             |
-|  - Extracts trace IDs for correlation                           |
-|  - Ships to Loki                                                |
+| PROMTAIL (Log Collector) |
+| - Collects logs from Docker containers |
+| - Parses JSON logs |
+| - Extracts trace IDs for correlation |
+| - Ships to Loki |
 +─────────────────────────────────────────────────────────────────+
-                              |
-                              |
+ |
+ |
 +─────────────────────────────────────────────────────────────────+
-|                    LOKI (Log Aggregation)                       |
-|  - Stores all logs (frontend + backend + workers)               |
-|  - Indexed by: timestamp, level, service, traceId               |
-|  - Queryable via LogQL                                          |
+| LOKI (Log Aggregation) |
+| - Stores all logs (frontend + backend + workers) |
+| - Indexed by: timestamp, level, service, traceId |
+| - Queryable via LogQL |
 +─────────────────────────────────────────────────────────────────+
-                              |
-                              |
+ |
+ |
 +─────────────────────────────────────────────────────────────────+
-|                    TEMPO (Trace Storage)                         |
-|  - Stores distributed traces                                   |
-|  - Correlates spans across services                             |
-|  - Queryable by traceId                                         |
+| TEMPO (Trace Storage) |
+| - Stores distributed traces |
+| - Correlates spans across services |
+| - Queryable by traceId |
 +─────────────────────────────────────────────────────────────────+
-                              |
-                              |
+ |
+ |
 +─────────────────────────────────────────────────────────────────+
-|                    GRAFANA (Visualization)                       |
-|  - Unified view of logs, traces, metrics                        |
-|  - Trace-to-logs correlation (click trace -> see logs)          |
-|  - Log-to-traces correlation (click log -> see trace)            |
-|  - Dashboards for SLOs, performance, errors                     |
+| GRAFANA (Visualization) |
+| - Unified view of logs, traces, metrics |
+| - Trace-to-logs correlation (click trace -> see logs) |
+| - Log-to-traces correlation (click log -> see trace) |
+| - Dashboards for SLOs, performance, errors |
 +─────────────────────────────────────────────────────────────────+
 ```
 
@@ -101,37 +101,37 @@ Example from your logs:
 Every log entry includes:
 ```json
 {
-  "trace": {
-    "traceId": "3352610ed5a5f506ae701901c2818fed",
-    "spanId": "001b0d262ac449cb",
-    "parentSpanId": null,
-    "requestId": "req_3352610ed5a5",
-    "traceparent": "00-3352610ed5a5f506ae701901c2818fed-001b0d262ac449cb-01"
-  }
+ "trace": {
+ "traceId": "3352610ed5a5f506ae701901c2818fed",
+ "spanId": "001b0d262ac449cb",
+ "parentSpanId": null,
+ "requestId": "req_3352610ed5a5",
+ "traceparent": "00-3352610ed5a5f506ae701901c2818fed-001b0d262ac449cb-01"
+ }
 }
 ```
 
 ### How It Works
 
 1. **Frontend Request:**
-   - Frontend generates `traceId` and `spanId`
-   - Sends `traceparent` header with API request
-   - Logs include trace context
+ - Frontend generates `traceId` and `spanId`
+ - Sends `traceparent` header with API request
+ - Logs include trace context
 
 2. **Backend Receives:**
-   - Extracts `traceparent` from headers
-   - Creates child span (new `spanId`, same `traceId`)
-   - All backend logs include this trace context
+ - Extracts `traceparent` from headers
+ - Creates child span (new `spanId`, same `traceId`)
+ - All backend logs include this trace context
 
 3. **Database Operations:**
-   - Database instrumentation wraps Supabase
-   - Logs include trace context automatically
-   - Can correlate DB queries with HTTP requests
+ - Database instrumentation wraps Supabase
+ - Logs include trace context automatically
+ - Can correlate DB queries with HTTP requests
 
 4. **Kafka Messages:**
-   - Trace context propagated in Kafka headers
-   - Python workers extract and continue trace
-   - End-to-end trace across services
+ - Trace context propagated in Kafka headers
+ - Python workers extract and continue trace
+ - End-to-end trace across services
 
 ## Log Structure
 
@@ -139,36 +139,36 @@ Every log entry includes:
 
 ```json
 {
-  "level": "info",
-  "time": 1766826702297,
-  "service": "rpa-system-backend",
-  "version": "0.0.0",
-  "environment": "development",
-  "logger": "database.supabase",
-  "database": {
-    "operation": "rpc",
-    "hasFilters": false
-  },
-  "performance": {
-    "duration": 952
-  },
-  "trace": {
-    "traceId": "3352610ed5a5f506ae701901c2818fed",
-    "spanId": "001b0d262ac449cb",
-    "parentSpanId": null,
-    "requestId": "req_3352610ed5a5",
-    "traceparent": "00-3352610ed5a5f506ae701901c2818fed-001b0d262ac449cb-01",
-    "userId": null,
-    "userTier": "unknown",
-    "method": "GET",
-    "path": "/api/user/session",
-    "userAgent": "Mozilla/5.0...",
-    "ip": "127.0.0.1",
-    "timestamp": "2025-12-27T09:11:40.339Z"
-  },
-  "business": {},
-  "timestamp": "2025-12-27T09:11:42.297Z",
-  "msg": "RPC function call completed: get_user_storage_total"
+ "level": "info",
+ "time": 1766826702297,
+ "service": "rpa-system-backend",
+ "version": "0.0.0",
+ "environment": "development",
+ "logger": "database.supabase",
+ "database": {
+ "operation": "rpc",
+ "hasFilters": false
+ },
+ "performance": {
+ "duration": 952
+ },
+ "trace": {
+ "traceId": "3352610ed5a5f506ae701901c2818fed",
+ "spanId": "001b0d262ac449cb",
+ "parentSpanId": null,
+ "requestId": "req_3352610ed5a5",
+ "traceparent": "00-3352610ed5a5f506ae701901c2818fed-001b0d262ac449cb-01",
+ "userId": null,
+ "userTier": "unknown",
+ "method": "GET",
+ "path": "/api/user/session",
+ "userAgent": "Mozilla/5.0...",
+ "ip": "127.0.0.1",
+ "timestamp": "2025-12-27T09:11:40.339Z"
+ },
+ "business": {},
+ "timestamp": "2025-12-27T09:11:42.297Z",
+ "msg": "RPC function call completed: get_user_storage_total"
 }
 ```
 
@@ -176,22 +176,22 @@ Every log entry includes:
 
 ```json
 {
-  "level": "error",
-  "component": "TaskForm",
-  "message": "Task submission failed",
-  "data": {
-    "error": "Network error",
-    "task_id": "abc123"
-  },
-  "trace": {
-    "traceId": "3352610ed5a5f506ae701901c2818fed",
-    "spanId": "001b0d262ac449cb",
-    "requestId": "req_3352610ed5a5"
-  },
-  "user": {
-    "id": "1196aa93-a166-43f7-8d21-16676a82436e"
-  },
-  "timestamp": "2025-12-27T09:11:42.297Z"
+ "level": "error",
+ "component": "TaskForm",
+ "message": "Task submission failed",
+ "data": {
+ "error": "Network error",
+ "task_id": "abc123"
+ },
+ "trace": {
+ "traceId": "3352610ed5a5f506ae701901c2818fed",
+ "spanId": "001b0d262ac449cb",
+ "requestId": "req_3352610ed5a5"
+ },
+ "user": {
+ "id": "1196aa93-a166-43f7-8d21-16676a82436e"
+ },
+ "timestamp": "2025-12-27T09:11:42.297Z"
 }
 ```
 
@@ -228,34 +228,34 @@ Every log entry includes:
 ### Components
 
 1. **OpenTelemetry (OTel)**
-   - Distributed tracing
-   - Metrics collection
-   - Automatic instrumentation
-   - 10% sampling (configurable)
+ - Distributed tracing
+ - Metrics collection
+ - Automatic instrumentation
+ - 10% sampling (configurable)
 
 2. **Pino (Structured Logging)**
-   - Fast JSON logger
-   - Automatic trace injection
-   - Log sampling (configurable per level)
+ - Fast JSON logger
+ - Automatic trace injection
+ - Log sampling (configurable per level)
 
 3. **Promtail**
-   - Log collector
-   - Extracts trace IDs
-   - Ships to Loki
+ - Log collector
+ - Extracts trace IDs
+ - Ships to Loki
 
 4. **Loki**
-   - Log aggregation
-   - Indexed by traceId, level, service
-   - LogQL queries
+ - Log aggregation
+ - Indexed by traceId, level, service
+ - LogQL queries
 
 5. **Tempo**
-   - Trace storage
-   - Distributed trace correlation
+ - Trace storage
+ - Distributed trace correlation
 
 6. **Grafana**
-   - Unified visualization
-   - Trace-to-logs correlation
-   - Dashboards and alerts
+ - Unified visualization
+ - Trace-to-logs correlation
+ - Dashboards and alerts
 
 ## Configuration
 
@@ -263,20 +263,20 @@ Every log entry includes:
 
 ```bash
 # Observability
-OTEL_TRACE_SAMPLING_RATIO=0.1  # 10% sampling
+OTEL_TRACE_SAMPLING_RATIO=0.1 # 10% sampling
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 DISABLE_TELEMETRY=false
 
 # Logging
 LOG_LEVEL=info
-TRACE_LOG_SAMPLE_RATE=1000  # 0.1% of trace logs
-DEBUG_LOG_SAMPLE_RATE=100   # 1% of debug logs
-INFO_LOG_SAMPLE_RATE=1      # 100% (always log)
-WARN_LOG_SAMPLE_RATE=1      # 100% (always log)
+TRACE_LOG_SAMPLE_RATE=1000 # 0.1% of trace logs
+DEBUG_LOG_SAMPLE_RATE=100 # 1% of debug logs
+INFO_LOG_SAMPLE_RATE=1 # 100% (always log)
+WARN_LOG_SAMPLE_RATE=1 # 100% (always log)
 
 # Frontend Observability
 REACT_APP_OBSERVABILITY_ENABLED=true
-REACT_APP_LOG_SAMPLE_RATE=100  # 1% in prod, 100% in dev
+REACT_APP_LOG_SAMPLE_RATE=100 # 1% in prod, 100% in dev
 REACT_APP_FRONT_LOGS_ENDPOINT=/api/internal/front-logs
 ```
 
@@ -313,28 +313,28 @@ REACT_APP_FRONT_LOGS_ENDPOINT=/api/internal/front-logs
 ## Example: Following a Request
 
 1. **User clicks "Run Workflow"** (Frontend)
-   - Log: `TaskForm: Submitting workflow`
-   - Trace ID: `3352610ed5a5f506ae701901c2818fed`
+ - Log: `TaskForm: Submitting workflow`
+ - Trace ID: `3352610ed5a5f506ae701901c2818fed`
 
 2. **Backend receives request** (Backend)
-   - Log: `HTTP request started: POST /api/workflows/run`
-   - Same trace ID, new span ID
+ - Log: `HTTP request started: POST /api/workflows/run`
+ - Same trace ID, new span ID
 
 3. **Database query** (Backend)
-   - Log: `Database SELECT query: automation_runs`
-   - Same trace ID, child span ID
+ - Log: `Database SELECT query: automation_runs`
+ - Same trace ID, child span ID
 
 4. **Kafka message** (Backend -> Worker)
-   - Trace context in Kafka headers
-   - Worker continues same trace
+ - Trace context in Kafka headers
+ - Worker continues same trace
 
 5. **Worker processes** (Python Worker)
-   - Log: `Processing automation task`
-   - Same trace ID, new span ID
+ - Log: `Processing automation task`
+ - Same trace ID, new span ID
 
 6. **All logs correlated** in Grafana
-   - Click trace -> see all 5 logs
-   - See full request flow end-to-end
+ - Click trace -> see all 5 logs
+ - See full request flow end-to-end
 
 ## Current Status
 

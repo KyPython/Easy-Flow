@@ -72,9 +72,9 @@ If validation reports a missing step (e.g., `file_upload`):
 
 ```javascript
 {
-  text: `The File Upload step saves files to storage. Configure: Destination - storage location, Source Field - data field containing file, Filename - output filename. Files are stored in Supabase Storage.`,
-  source: 'easyflow:help:file-upload-step',
-  metadata: { category: 'workflow_steps', step: 'file_upload' },
+ text: `The File Upload step saves files to storage. Configure: Destination - storage location, Source Field - data field containing file, Filename - output filename. Files are stored in Supabase Storage.`,
+ source: 'easyflow:help:file-upload-step',
+ metadata: { category: 'workflow_steps', step: 'file_upload' },
 },
 ```
 
@@ -88,9 +88,9 @@ If validation reports a missing task type (e.g., `data_processing`):
 
 ```javascript
 {
-  text: `Task Type - Data Processing: EasyFlow supports data processing tasks that transform and analyze data. Configure with: Input source, Processing rules, Output format.`,
-  source: 'easyflow:help:task-config-data-processing',
-  metadata: { category: 'task_configuration', task_type: 'data_processing' },
+ text: `Task Type - Data Processing: EasyFlow supports data processing tasks that transform and analyze data. Configure with: Input source, Processing rules, Output format.`,
+ source: 'easyflow:help:task-config-data-processing',
+ metadata: { category: 'task_configuration', task_type: 'data_processing' },
 },
 ```
 
@@ -101,8 +101,8 @@ If validation reports features not in RAG:
 1. Open `rpa-system/backend/services/aiWorkflowAgent.js`
 2. Find the system prompt sections
 3. Ensure features are documented in both:
-   - System prompts (for immediate AI context)
-   - RAG knowledge (for long-term knowledge base)
+ - System prompts (for immediate AI context)
+ - RAG knowledge (for long-term knowledge base)
 
 ## Validation Script Details
 
@@ -122,9 +122,9 @@ The validation runs in `.github/workflows/qa-core.yml`:
 
 ```yaml
 - name: Validate RAG Knowledge Base - CRITICAL
-  run: |
-    chmod +x scripts/validate-rag-knowledge.sh
-    ./scripts/validate-rag-knowledge.sh || (echo " RAG knowledge validation failed..." && exit 1)
+ run: |
+ chmod +x scripts/validate-rag-knowledge.sh
+ ./scripts/validate-rag-knowledge.sh || (echo " RAG knowledge validation failed..." && exit 1)
 ```
 
 **Position**: After code validation, before tests
@@ -137,7 +137,7 @@ The validation runs in `scripts/pre-commit.sh`:
 ```bash
 # RAG knowledge validation (non-blocking warning)
 if [ -f "scripts/validate-rag-knowledge.sh" ]; then
-  ./scripts/validate-rag-knowledge.sh || echo " RAG knowledge may be outdated"
+ ./scripts/validate-rag-knowledge.sh || echo " RAG knowledge may be outdated"
 fi
 ```
 
@@ -165,17 +165,17 @@ fi
  Comparing codebase vs RAG knowledge...
 
  Workflow Steps:
-   All workflow steps documented in RAG
+ All workflow steps documented in RAG
 
  Task Types:
-   All task types documented in RAG
+ All task types documented in RAG
 
  Integrations:
-   Found 5 integrations: Slack, Gmail, Google Sheets, Google Meet, WhatsApp
-  ℹ️ Integration knowledge is managed separately in addIntegrationKnowledge.js
+ Found 5 integrations: Slack, Gmail, Google Sheets, Google Meet, WhatsApp
+ ℹ️ Integration knowledge is managed separately in addIntegrationKnowledge.js
 
  System Prompt Features:
-   Found 6 features in system prompt
+ Found 6 features in system prompt
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  VALIDATION PASSED: RAG knowledge is up-to-date
@@ -215,5 +215,5 @@ If validation reports missing knowledge that actually exists:
 ---
 
 **Last Updated**: 2025-01-XX
-**Status**:  Active in CI/CD
+**Status**: Active in CI/CD
 

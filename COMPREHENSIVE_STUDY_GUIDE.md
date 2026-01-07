@@ -51,49 +51,49 @@ EasyFlow is an **RPA (Robotic Process Automation) platform** that allows users t
 
 ```
 +-------------------------------------------------------------+
-|                    FRONTEND LAYER                           |
-|  React (rpa-dashboard/)                                     |
-|  - Pages: Dashboard, Workflows, Tasks, History, etc.       |
-|  - Components: WorkflowBuilder, TaskForm, etc.               |
-|  - State: AuthContext, ThemeContext, SessionContext        |
-|  - Observability: Frontend logs -> Backend -> Loki          |
+| FRONTEND LAYER |
+| React (rpa-dashboard/) |
+| - Pages: Dashboard, Workflows, Tasks, History, etc. |
+| - Components: WorkflowBuilder, TaskForm, etc. |
+| - State: AuthContext, ThemeContext, SessionContext |
+| - Observability: Frontend logs -> Backend -> Loki |
 +-------------------------------------------------------------+
-                            |
-                            | HTTP/REST API
-                            | (W3C Trace Context)
-                            v
+ |
+ | HTTP/REST API
+ | (W3C Trace Context)
+ v
 +-------------------------------------------------------------+
-|                    BACKEND LAYER                            |
-|  Node.js/Express (backend/)                                 |
-|  - API Routes: /api/tasks, /api/workflows, etc.            |
-|  - Services: workflowExecutor, aiWorkflowAgent, etc.        |
-|  - Middleware: auth, rateLimit, structuredLogging          |
-|  - Observability: Structured logs -> Loki, Traces -> Tempo  |
+| BACKEND LAYER |
+| Node.js/Express (backend/) |
+| - API Routes: /api/tasks, /api/workflows, etc. |
+| - Services: workflowExecutor, aiWorkflowAgent, etc. |
+| - Middleware: auth, rateLimit, structuredLogging |
+| - Observability: Structured logs -> Loki, Traces -> Tempo |
 +-------------------------------------------------------------+
-                            |
-                    +-------+-------+
-                    |               |
-                    v               v
-        +------------------+  +------------------+
-        |   DATABASE       |  |   KAFKA QUEUE    |
-        |   (Supabase)     |  |   (Task Queue)   |
-        |                  |  |                  |
-        |  - PostgreSQL    |  |  - Task messages |
-        |  - RLS Policies |  |  - Trace context |
-        |  - Realtime     |  +------------------+
-        +------------------+           |
-                                       |
-                                       v
-                        +--------------------------+
-                        |   WORKER LAYER           |
-                        |   Python (automation/)  |
-                        |                          |
-                        |  - Puppeteer automation  |
-                        |  - Web scraping          |
-                        |  - Form submission       |
-                        |  - File downloads        |
-                        |  - Observability: Logs   |
-                        +--------------------------+
+ |
+ +-------+-------+
+ | |
+ v v
+ +------------------+ +------------------+
+ | DATABASE | | KAFKA QUEUE |
+ | (Supabase) | | (Task Queue) |
+ | | | |
+ | - PostgreSQL | | - Task messages |
+ | - RLS Policies | | - Trace context |
+ | - Realtime | +------------------+
+ +------------------+ |
+ |
+ v
+ +--------------------------+
+ | WORKER LAYER |
+ | Python (automation/) |
+ | |
+ | - Puppeteer automation |
+ | - Web scraping |
+ | - Form submission |
+ | - File downloads |
+ | - Observability: Logs |
+ +--------------------------+
 ```
 
 ### Key Architectural Principles
@@ -124,9 +124,9 @@ EasyFlow is an **RPA (Robotic Process Automation) platform** that allows users t
 - **Message Queue**: Kafka (for task distribution)
 - **Authentication**: Firebase Auth + Supabase Auth
 - **Observability**: 
-  - OpenTelemetry (traces)
-  - Pino (structured logging)
-  - Prometheus (metrics)
+ - OpenTelemetry (traces)
+ - Pino (structured logging)
+ - Prometheus (metrics)
 - **HTTP Client**: Axios (instrumented with trace propagation)
 
 ### Workers (`automation/automation-service/`)
@@ -174,30 +174,30 @@ EasyFlow is an **RPA (Robotic Process Automation) platform** that allows users t
 
 #### **Core Services** (`backend/services/`)
 1. **`workflowExecutor.js`** (4085 lines) - THE HEART
-   - Executes workflows step-by-step
-   - Handles: web_scrape, api_call, data_transform, condition, email, delay
-   - Manages execution state, retries, timeouts
-   - Integrates with integration services
+ - Executes workflows step-by-step
+ - Handles: web_scrape, api_call, data_transform, condition, email, delay
+ - Manages execution state, retries, timeouts
+ - Integrates with integration services
 
 2. **`aiWorkflowAgent.js`** - AI Assistant
-   - Generates workflows from natural language
-   - Handles user conversations
-   - Creates automated workflows (generate + schedule)
+ - Generates workflows from natural language
+ - Handles user conversations
+ - Creates automated workflows (generate + schedule)
 
 3. **`executionModeService.js`** - Cost Optimization
-   - Determines execution mode (real-time, balanced, eco)
-   - Auto-detects from context (user-triggered -> real-time, scheduled -> eco)
-   - Manages cost/performance trade-offs
+ - Determines execution mode (real-time, balanced, eco)
+ - Auto-detects from context (user-triggered -> real-time, scheduled -> eco)
+ - Manages cost/performance trade-offs
 
 4. **`smartScheduler.js`** - Workflow Scheduling
-   - Cron-based scheduling
-   - Handles recurring executions
-   - Timezone-aware
+ - Cron-based scheduling
+ - Handles recurring executions
+ - Timezone-aware
 
 5. **`integrationFramework.js`** - Integration Management
-   - OAuth flow management
-   - Credential storage (encrypted)
-   - Service-specific integrations
+ - OAuth flow management
+ - Credential storage (encrypted)
+ - Service-specific integrations
 
 #### **Integration Services** (`backend/services/integrations/`)
 - `slackIntegration.js` - Slack API wrapper
@@ -215,34 +215,34 @@ EasyFlow is an **RPA (Robotic Process Automation) platform** that allows users t
 ### 4.3 Middleware (`backend/middleware/`)
 
 1. **`auth.js`** - Authentication
-   - Verifies Firebase tokens
-   - Extracts user ID
-   - Requires auth for protected routes
+ - Verifies Firebase tokens
+ - Extracts user ID
+ - Requires auth for protected routes
 
 2. **`structuredLogging.js`** - Logging
-   - Pino JSON logger
-   - Auto-injects trace context
-   - Request/response logging
+ - Pino JSON logger
+ - Auto-injects trace context
+ - Request/response logging
 
 3. **`telemetryInit.js`** - OpenTelemetry
-   - Initializes tracing
-   - Configures exporters (Tempo, Grafana Cloud)
-   - Sets sampling rates
+ - Initializes tracing
+ - Configures exporters (Tempo, Grafana Cloud)
+ - Sets sampling rates
 
 4. **`planEnforcement.js`** - Plan Limits
-   - Checks user plan limits
-   - Enforces workflow/task/storage limits
-   - Returns appropriate errors
+ - Checks user plan limits
+ - Enforces workflow/task/storage limits
+ - Returns appropriate errors
 
 5. **`comprehensiveRateLimit.js`** - Rate Limiting
-   - Per-user rate limits
-   - Plan-based limits
-   - Protects against abuse
+ - Per-user rate limits
+ - Plan-based limits
+ - Protects against abuse
 
 6. **`databaseInstrumentation.js`** - DB Observability
-   - Wraps Supabase client
-   - Logs all queries with duration
-   - Injects trace context
+ - Wraps Supabase client
+ - Logs all queries with duration
+ - Injects trace context
 
 ---
 
@@ -252,108 +252,108 @@ EasyFlow is an **RPA (Robotic Process Automation) platform** that allows users t
 
 ```
 1. USER ACTION
-   User fills TaskForm (URL, credentials, selectors)
-   ↓
+ User fills TaskForm (URL, credentials, selectors)
+ ↓
 2. FRONTEND SUBMISSION
-   POST /api/automation/execute
-   Headers: { Authorization: Bearer token, traceparent: ... }
-   ↓
+ POST /api/automation/execute
+ Headers: { Authorization: Bearer token, traceparent: ... }
+ ↓
 3. BACKEND RECEIVES
-   - authMiddleware: Verifies token, extracts userId
-   - structuredLogging: Logs request with trace context
-   - planEnforcement: Checks plan limits
-   ↓
+ - authMiddleware: Verifies token, extracts userId
+ - structuredLogging: Logs request with trace context
+ - planEnforcement: Checks plan limits
+ ↓
 4. TASK CREATION
-   - Creates record in automation_tasks table
-   - Creates record in automation_runs table (status: 'queued')
-   ↓
+ - Creates record in automation_tasks table
+ - Creates record in automation_runs table (status: 'queued')
+ ↓
 5. KAFKA MESSAGE
-   - Publishes task to Kafka queue
-   - Includes: taskId, userId, trace context in headers
-   ↓
+ - Publishes task to Kafka queue
+ - Includes: taskId, userId, trace context in headers
+ ↓
 6. WORKER CONSUMES
-   - Python worker polls Kafka
-   - Extracts trace context, continues trace
-   - Executes automation (Puppeteer)
-   ↓
+ - Python worker polls Kafka
+ - Extracts trace context, continues trace
+ - Executes automation (Puppeteer)
+ ↓
 7. STATUS UPDATES
-   - Worker updates automation_runs.status: 'running' -> 'completed'
-   - Stores results (artifacts, extracted data)
-   ↓
+ - Worker updates automation_runs.status: 'running' -> 'completed'
+ - Stores results (artifacts, extracted data)
+ ↓
 8. FRONTEND POLLS
-   - Frontend polls /api/automation/runs/:id
-   - Displays status updates in real-time
+ - Frontend polls /api/automation/runs/:id
+ - Displays status updates in real-time
 ```
 
 ### 5.2 User Executes a Workflow
 
 ```
 1. USER ACTION
-   User clicks "Run Workflow" in WorkflowBuilder
-   ↓
+ User clicks "Run Workflow" in WorkflowBuilder
+ ↓
 2. FRONTEND SUBMISSION
-   POST /api/workflows/execute
-   Body: { workflowId, inputData, executionMode }
-   ↓
+ POST /api/workflows/execute
+ Body: { workflowId, inputData, executionMode }
+ ↓
 3. BACKEND RECEIVES
-   - authMiddleware: Verifies user
-   - planEnforcement: Checks workflow execution limits
-   ↓
+ - authMiddleware: Verifies user
+ - planEnforcement: Checks workflow execution limits
+ ↓
 4. WORKFLOW EXECUTOR
-   - WorkflowExecutor.startExecution()
-   - Determines execution mode (real-time/balanced/eco)
-   - Creates workflow_execution record
-   ↓
+ - WorkflowExecutor.startExecution()
+ - Determines execution mode (real-time/balanced/eco)
+ - Creates workflow_execution record
+ ↓
 5. STEP-BY-STEP EXECUTION
-   For each step in workflow.config.nodes:
-     - Execute step (web_scrape, api_call, etc.)
-     - Store step result
-     - Pass output to next step (via {{stepName.field}})
-   ↓
+ For each step in workflow.config.nodes:
+ - Execute step (web_scrape, api_call, etc.)
+ - Store step result
+ - Pass output to next step (via {{stepName.field}})
+ ↓
 6. INTEGRATION ACTIONS
-   - If step.type === 'slack_send': executeSlackAction()
-   - If step.type === 'gmail_send': executeGmailAction()
-   - If step.type === 'sheets_write': executeSheetsAction()
-   ↓
+ - If step.type === 'slack_send': executeSlackAction()
+ - If step.type === 'gmail_send': executeGmailAction()
+ - If step.type === 'sheets_write': executeSheetsAction()
+ ↓
 7. EXECUTION COMPLETE
-   - Updates workflow_execution.status: 'completed'
-   - Stores final output
-   - Sends notification (if configured)
-   ↓
+ - Updates workflow_execution.status: 'completed'
+ - Stores final output
+ - Sends notification (if configured)
+ ↓
 8. FRONTEND UPDATES
-   - Real-time status updates via polling/WebSocket
-   - Shows results in execution history
+ - Real-time status updates via polling/WebSocket
+ - Shows results in execution history
 ```
 
 ### 5.3 AI Generates a Workflow
 
 ```
 1. USER REQUEST
-   User: "Monitor Reddit daily for my product mentions"
-   ↓
+ User: "Monitor Reddit daily for my product mentions"
+ ↓
 2. AI AGENT PROCESSES
-   - aiWorkflowAgent.handleMessage()
-   - Calls OpenAI with system prompt (capabilities, examples)
-   - OpenAI returns: { action: 'create_automated_workflow', ... }
-   ↓
+ - aiWorkflowAgent.handleMessage()
+ - Calls OpenAI with system prompt (capabilities, examples)
+ - OpenAI returns: { action: 'create_automated_workflow', ... }
+ ↓
 3. WORKFLOW GENERATION
-   - generateFullyConfiguredWorkflow()
-   - Creates nodes: [start, reddit_monitor, reddit_analyze, email]
-   - Configures each step (keywords, schedule, email template)
-   ↓
+ - generateFullyConfiguredWorkflow()
+ - Creates nodes: [start, reddit_monitor, reddit_analyze, email]
+ - Configures each step (keywords, schedule, email template)
+ ↓
 4. WORKFLOW CREATION
-   - Inserts into workflows table
-   - Stores canvas_config (nodes, edges)
-   ↓
+ - Inserts into workflows table
+ - Stores canvas_config (nodes, edges)
+ ↓
 5. SCHEDULING
-   - If trigger_type === 'schedule': smartScheduler.schedule()
-   - Creates cron job
-   - Sets execution_mode: 'eco' (scheduled = cost-optimized)
-   ↓
+ - If trigger_type === 'schedule': smartScheduler.schedule()
+ - Creates cron job
+ - Sets execution_mode: 'eco' (scheduled = cost-optimized)
+ ↓
 6. EXECUTION
-   - Cron triggers at scheduled time
-   - WorkflowExecutor runs workflow
-   - Results stored in workflow_execution
+ - Cron triggers at scheduled time
+ - WorkflowExecutor runs workflow
+ - Results stored in workflow_execution
 ```
 
 ---
@@ -419,16 +419,16 @@ EasyFlow is an **RPA (Robotic Process Automation) platform** that allows users t
 
 ```
 users (auth.users)
-  +─ profiles (1:1)
-  |   +─ plans (many:1)
-  +─ workflows (1:many)
-  |   +─ workflow_executions (1:many)
-  +─ automation_tasks (1:many)
-  |   +─ automation_runs (1:many)
-  +─ integration_credentials (1:many)
-  +─ subscriptions (1:many)
-      +─ subscription_usage_checks (1:many)
-      +─ subscription_alerts (1:many)
+ +─ profiles (1:1)
+ | +─ plans (many:1)
+ +─ workflows (1:many)
+ | +─ workflow_executions (1:many)
+ +─ automation_tasks (1:many)
+ | +─ automation_runs (1:many)
+ +─ integration_credentials (1:many)
+ +─ subscriptions (1:many)
+ +─ subscription_usage_checks (1:many)
+ +─ subscription_alerts (1:many)
 ```
 
 ### 6.3 Row-Level Security (RLS)
@@ -446,16 +446,16 @@ All tables have RLS policies:
 
 ```
 App.js
-  +─ Router (React Router)
-      +─ /auth -> AuthPage
-      +─ /app -> App.dashboard.jsx
-      |   +─ Header (Navigation)
-      |   +─ DashboardPage
-      |   +─ WorkflowBuilder (ReactFlow)
-      |   +─ TasksPage
-      |   +─ HistoryPage
-      |   +─ SettingsPage
-      +─ / (Landing) -> LandingPage
+ +─ Router (React Router)
+ +─ /auth -> AuthPage
+ +─ /app -> App.dashboard.jsx
+ | +─ Header (Navigation)
+ | +─ DashboardPage
+ | +─ WorkflowBuilder (ReactFlow)
+ | +─ TasksPage
+ | +─ HistoryPage
+ | +─ SettingsPage
+ +─ / (Landing) -> LandingPage
 ```
 
 ### 7.2 State Management
@@ -468,17 +468,17 @@ App.js
 ### 7.3 API Communication
 
 - **`utils/devNetLogger.js`**: `fetchWithAuth()` wrapper
-  - Auto-adds auth headers
-  - Handles errors
-  - Logs to observability system
-  - Includes trace context
+ - Auto-adds auth headers
+ - Handles errors
+ - Logs to observability system
+ - Includes trace context
 
 ### 7.4 Observability Integration
 
 - **`utils/logger.js`**: Frontend logger
-  - Creates trace context (traceId, spanId, requestId)
-  - Sends logs to `/api/internal/front-logs`
-  - All logs include: level, component, message, trace, user
+ - Creates trace context (traceId, spanId, requestId)
+ - Sends logs to `/api/internal/front-logs`
+ - All logs include: level, component, message, trace, user
 
 ---
 
@@ -505,22 +505,22 @@ App.js
 **Step Execution Flow**:
 ```javascript
 for (const step of workflow.steps) {
-  // 1. Substitute variables: {{previousStep.field}}
-  const config = _substituteVariables(step.config, stepResults);
-  
-  // 2. Execute step based on type
-  switch (step.type) {
-    case 'web_scrape':
-      result = await _executeWebScrape(config);
-    case 'api_call':
-      result = await _executeApiCall(config);
-    case 'slack_send':
-      result = await executeSlackAction(config, userId);
-    // ... etc
-  }
-  
-  // 3. Store result for next step
-  stepResults[step.id] = result;
+ // 1. Substitute variables: {{previousStep.field}}
+ const config = _substituteVariables(step.config, stepResults);
+ 
+ // 2. Execute step based on type
+ switch (step.type) {
+ case 'web_scrape':
+ result = await _executeWebScrape(config);
+ case 'api_call':
+ result = await _executeApiCall(config);
+ case 'slack_send':
+ result = await executeSlackAction(config, userId);
+ // ... etc
+ }
+ 
+ // 3. Store result for next step
+ stepResults[step.id] = result;
 }
 ```
 
@@ -546,18 +546,18 @@ for (const step of workflow.steps) {
 
 **Execution Modes**:
 1. **Real-Time** ($0.004/workflow)
-   - User-triggered, immediate execution
-   - High priority queue
-   - Fast response time
+ - User-triggered, immediate execution
+ - High priority queue
+ - Fast response time
 
 2. **Balanced** ($0.0035/workflow)
-   - Default mode
-   - Standard priority
+ - Default mode
+ - Standard priority
 
 3. **Eco/Scheduled** ($0.003/workflow, 25% savings)
-   - Scheduled workflows
-   - Lower priority
-   - Can batch multiple jobs
+ - Scheduled workflows
+ - Lower priority
+ - Can batch multiple jobs
 
 **Auto-Detection Logic**:
 ```javascript
@@ -595,19 +595,19 @@ return 'balanced';
 ```javascript
 // 1. Initiate OAuth (GET /api/integrations/oauth-url)
 app.get('/api/integrations/:service/oauth-url', async (req, res) => {
-  const state = generateStateToken();
-  const oauthUrl = buildOAuthUrl(service, state);
-  // Store state in integration_oauth_states table
-  return res.json({ url: oauthUrl });
+ const state = generateStateToken();
+ const oauthUrl = buildOAuthUrl(service, state);
+ // Store state in integration_oauth_states table
+ return res.json({ url: oauthUrl });
 });
 
 // 2. OAuth Callback (GET /api/integrations/oauth/callback)
 app.get('/api/integrations/oauth/callback', async (req, res) => {
-  const { code, state } = req.query;
-  // Verify state token
-  // Exchange code for access_token
-  // Store encrypted credentials
-  // Redirect to frontend success page
+ const { code, state } = req.query;
+ // Verify state token
+ // Exchange code for access_token
+ // Store encrypted credentials
+ // Redirect to frontend success page
 });
 ```
 
@@ -617,22 +617,22 @@ Workflow steps can call integrations:
 ```javascript
 // In workflowExecutorIntegrations.js
 async function executeSlackAction(stepConfig, userId) {
-  // 1. Get user's Slack credentials
-  const credentials = await getIntegrationCredentials(userId, 'slack');
-  
-  // 2. Decrypt credentials
-  const { access_token } = decrypt(credentials.credentials_encrypted);
-  
-  // 3. Call Slack API
-  const response = await axios.post('https://slack.com/api/chat.postMessage', {
-    channel: stepConfig.channel,
-    text: stepConfig.message
-  }, {
-    headers: { Authorization: `Bearer ${access_token}` }
-  });
-  
-  // 4. Return result for next step
-  return { success: true, messageId: response.data.ts };
+ // 1. Get user's Slack credentials
+ const credentials = await getIntegrationCredentials(userId, 'slack');
+ 
+ // 2. Decrypt credentials
+ const { access_token } = decrypt(credentials.credentials_encrypted);
+ 
+ // 3. Call Slack API
+ const response = await axios.post('https://slack.com/api/chat.postMessage', {
+ channel: stepConfig.channel,
+ text: stepConfig.message
+ }, {
+ headers: { Authorization: `Bearer ${access_token}` }
+ });
+ 
+ // 4. Return result for next step
+ return { success: true, messageId: response.data.ts };
 }
 ```
 
@@ -641,13 +641,13 @@ async function executeSlackAction(stepConfig, userId) {
 Workflow steps can make generic API calls:
 ```javascript
 case 'api_call':
-  const response = await axios({
-    method: stepConfig.method, // GET, POST, PUT, DELETE
-    url: stepConfig.url,
-    headers: stepConfig.headers,
-    data: stepConfig.body
-  });
-  return { status: response.status, data: response.data };
+ const response = await axios({
+ method: stepConfig.method, // GET, POST, PUT, DELETE
+ url: stepConfig.url,
+ headers: stepConfig.headers,
+ data: stepConfig.body
+ });
+ return { status: response.status, data: response.data };
 ```
 
 ---
@@ -747,17 +747,17 @@ const span = tracer.startSpan('execute_workflow');
 ```javascript
 // executionModeService.js
 determineExecutionMode(workflow, context) {
-  // 1. Explicit mode
-  if (workflow.execution_mode) return workflow.execution_mode;
-  
-  // 2. User-triggered -> Real-time
-  if (context.triggeredBy === 'user') return 'real-time';
-  
-  // 3. Scheduled -> Eco (save costs)
-  if (context.triggeredBy === 'schedule') return 'eco';
-  
-  // 4. Default
-  return 'balanced';
+ // 1. Explicit mode
+ if (workflow.execution_mode) return workflow.execution_mode;
+ 
+ // 2. User-triggered -> Real-time
+ if (context.triggeredBy === 'user') return 'real-time';
+ 
+ // 3. Scheduled -> Eco (save costs)
+ if (context.triggeredBy === 'schedule') return 'eco';
+ 
+ // 4. Default
+ return 'balanced';
 }
 ```
 
@@ -784,17 +784,17 @@ const { createLogger } = require('../middleware/structuredLogging');
 const logger = createLogger('serviceName');
 
 async function doSomething(params) {
-  try {
-    logger.info('Starting operation', { params });
-    
-    // Business logic
-    
-    logger.info('Operation completed', { result });
-    return { success: true, data: result };
-  } catch (error) {
-    logger.error('Operation failed', { error: error.message, params });
-    return { success: false, error: error.message };
-  }
+ try {
+ logger.info('Starting operation', { params });
+ 
+ // Business logic
+ 
+ logger.info('Operation completed', { result });
+ return { success: true, data: result };
+ } catch (error) {
+ logger.error('Operation failed', { error: error.message, params });
+ return { success: false, error: error.message };
+ }
 }
 
 module.exports = { doSomething };
@@ -805,23 +805,23 @@ module.exports = { doSomething };
 **All routes follow this pattern**:
 ```javascript
 app.post('/api/my-endpoint', authMiddleware, async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-    
-    // Validate input
-    const { data } = req.body;
-    if (!data) return res.status(400).json({ error: 'Missing data' });
-    
-    // Call service
-    const result = await myService.doSomething(userId, data);
-    
-    // Return response
-    return res.json(result);
-  } catch (error) {
-    logger.error('Endpoint error', { error: error.message });
-    return res.status(500).json({ error: error.message });
-  }
+ try {
+ const userId = req.user?.id;
+ if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+ 
+ // Validate input
+ const { data } = req.body;
+ if (!data) return res.status(400).json({ error: 'Missing data' });
+ 
+ // Call service
+ const result = await myService.doSomething(userId, data);
+ 
+ // Return response
+ return res.json(result);
+ } catch (error) {
+ logger.error('Endpoint error', { error: error.message });
+ return res.status(500).json({ error: error.message });
+ }
 });
 ```
 
@@ -836,16 +836,16 @@ import { createLogger } from '../utils/logger';
 const logger = createLogger('ComponentName');
 
 function MyComponent() {
-  const { user } = useAuth();
-  const { theme } = useTheme();
-  
-  // Component logic
-  
-  return (
-    <div data-theme={theme}>
-      {/* JSX */}
-    </div>
-  );
+ const { user } = useAuth();
+ const { theme } = useTheme();
+ 
+ // Component logic
+ 
+ return (
+ <div data-theme={theme}>
+ {/* JSX */}
+ </div>
+ );
 }
 ```
 
@@ -854,14 +854,14 @@ function MyComponent() {
 **Structured Errors**:
 ```javascript
 try {
-  // Operation
+ // Operation
 } catch (error) {
-  logger.error('Operation failed', {
-    error: error.message,
-    stack: error.stack,
-    context: { userId, workflowId }
-  });
-  throw error; // Re-throw or return error response
+ logger.error('Operation failed', {
+ error: error.message,
+ stack: error.stack,
+ context: { userId, workflowId }
+ });
+ throw error; // Re-throw or return error response
 }
 ```
 
@@ -874,15 +874,15 @@ try {
 **Jest Test Pattern**:
 ```javascript
 describe('MyService', () => {
-  beforeEach(() => {
-    // Mock Supabase
-    global.supabase.from.mockImplementation(...);
-  });
-  
-  it('should do something', async () => {
-    const result = await myService.doSomething();
-    expect(result.success).toBe(true);
-  });
+ beforeEach(() => {
+ // Mock Supabase
+ global.supabase.from.mockImplementation(...);
+ });
+ 
+ it('should do something', async () => {
+ const result = await myService.doSomething();
+ expect(result.success).toBe(true);
+ });
 });
 ```
 
@@ -898,8 +898,8 @@ describe('MyService', () => {
 import { render, screen } from '@testing-library/react';
 
 test('renders component', () => {
-  render(<MyComponent />);
-  expect(screen.getByText('Expected Text')).toBeInTheDocument();
+ render(<MyComponent />);
+ expect(screen.getByText('Expected Text')).toBeInTheDocument();
 });
 ```
 
@@ -908,8 +908,8 @@ test('renders component', () => {
 **Pytest Pattern**:
 ```python
 def test_scraper_initialization():
-    scraper = GenericScraper()
-    assert scraper is not None
+ scraper = GenericScraper()
+ assert scraper is not None
 ```
 
 ### 13.4 CI/CD Tests
@@ -928,30 +928,30 @@ def test_scraper_initialization():
 
 ```
 1. Developer commits to dev branch
-   ↓
+ ↓
 2. GitHub Actions runs:
-   - Linting
-   - Tests
-   - Security scan (Snyk)
-   - Build verification
-   ↓
+ - Linting
+ - Tests
+ - Security scan (Snyk)
+ - Build verification
+ ↓
 3. Developer: npm run ship
-   - Merges dev -> main
-   - Runs all validations (blocking)
-   - Pushes to main
-   ↓
+ - Merges dev -> main
+ - Runs all validations (blocking)
+ - Pushes to main
+ ↓
 4. Vercel (Frontend):
-   - Auto-deploys from main branch
-   - Builds React app
-   - Deploys to CDN
-   ↓
+ - Auto-deploys from main branch
+ - Builds React app
+ - Deploys to CDN
+ ↓
 5. Backend (Render/Other):
-   - Manual or auto-deploy
-   - Runs Node.js server
-   ↓
+ - Manual or auto-deploy
+ - Runs Node.js server
+ ↓
 6. Workers (Docker):
-   - Deployed separately
-   - Kafka consumer for tasks
+ - Deployed separately
+ - Kafka consumer for tasks
 ```
 
 ### 14.2 Environment Variables
@@ -1006,32 +1006,32 @@ REACT_APP_FIREBASE_API_KEY=xxx
 
 ```
 1. WORKFLOW CREATION
-   - User builds workflow in ReactFlow
-   - Saves to database (workflows table)
-   - canvas_config stores nodes + edges
+ - User builds workflow in ReactFlow
+ - Saves to database (workflows table)
+ - canvas_config stores nodes + edges
 
 2. WORKFLOW EXECUTION REQUEST
-   - User clicks "Run" or scheduled trigger
-   - POST /api/workflows/execute
-   - executionMode determined
+ - User clicks "Run" or scheduled trigger
+ - POST /api/workflows/execute
+ - executionMode determined
 
 3. EXECUTION INITIALIZATION
-   - WorkflowExecutor.startExecution()
-   - Creates workflow_execution record
-   - Loads workflow + steps from DB
+ - WorkflowExecutor.startExecution()
+ - Creates workflow_execution record
+ - Loads workflow + steps from DB
 
 4. STEP EXECUTION LOOP
-   - For each step in order:
-     a. Substitute variables: {{previousStep.field}}
-     b. Execute step based on type
-     c. Store result in stepResults map
-     d. Pass to next step
+ - For each step in order:
+ a. Substitute variables: {{previousStep.field}}
+ b. Execute step based on type
+ c. Store result in stepResults map
+ d. Pass to next step
 
 5. COMPLETION
-   - All steps complete
-   - Final output stored
-   - Status: 'completed'
-   - Notification sent (if configured)
+ - All steps complete
+ - Final output stored
+ - Status: 'completed'
+ - Notification sent (if configured)
 ```
 
 ### 15.2 Variable Substitution
@@ -1045,8 +1045,8 @@ result: { title: "Hello", price: "$10" }
 
 // Step 2: api_call uses result
 config: {
-  url: "https://api.example.com",
-  body: { title: "{{step1.title}}", cost: "{{step1.price}}" }
+ url: "https://api.example.com",
+ body: { title: "{{step1.title}}", cost: "{{step1.price}}" }
 }
 // Becomes: { title: "Hello", cost: "$10" }
 ```
@@ -1054,9 +1054,9 @@ config: {
 **Implementation**:
 ```javascript
 function _substituteVariables(template, stepResults) {
-  return template.replace(/\{\{(\w+)\.(\w+)\}\}/g, (match, stepId, field) => {
-    return stepResults[stepId]?.[field] || match;
-  });
+ return template.replace(/\{\{(\w+)\.(\w+)\}\}/g, (match, stepId, field) => {
+ return stepResults[stepId]?.[field] || match;
+ });
 }
 ```
 
@@ -1108,90 +1108,90 @@ function _substituteVariables(template, stepResults) {
 ### Phase 1: Foundation (Week 1)
 
 1. **Understand the Architecture**
-   - Read this study guide
-   - Explore `README.md` and `DAILY_DEVELOPER_GUIDE.md`
-   - Understand frontend ↔ backend ↔ worker flow
+ - Read this study guide
+ - Explore `README.md` and `DAILY_DEVELOPER_GUIDE.md`
+ - Understand frontend ↔ backend ↔ worker flow
 
 2. **Set Up Development Environment**
-   ```bash
-   ./start-dev.sh
-   # Access: http://localhost:3000 (frontend)
-   # Access: http://localhost:3030 (backend)
-   ```
+ ```bash
+ ./start-dev.sh
+ # Access: http://localhost:3000 (frontend)
+ # Access: http://localhost:3030 (backend)
+ ```
 
 3. **Explore Key Files**
-   - `rpa-system/backend/app.js` - Route registration
-   - `rpa-system/backend/services/workflowExecutor.js` - Core engine
-   - `rpa-system/rpa-dashboard/src/App.dashboard.jsx` - Frontend router
+ - `rpa-system/backend/app.js` - Route registration
+ - `rpa-system/backend/services/workflowExecutor.js` - Core engine
+ - `rpa-system/rpa-dashboard/src/App.dashboard.jsx` - Frontend router
 
 ### Phase 2: Core Components (Week 2)
 
 1. **Workflow Execution**
-   - Study `workflowExecutor.js` (lines 536-832: startExecution)
-   - Understand step execution loop
-   - Trace a simple workflow execution
+ - Study `workflowExecutor.js` (lines 536-832: startExecution)
+ - Understand step execution loop
+ - Trace a simple workflow execution
 
 2. **Frontend Workflow Builder**
-   - Study `rpa-dashboard/src/components/WorkflowBuilder/`
-   - Understand ReactFlow integration
-   - See how workflows are saved/loaded
+ - Study `rpa-dashboard/src/components/WorkflowBuilder/`
+ - Understand ReactFlow integration
+ - See how workflows are saved/loaded
 
 3. **Database Schema**
-   - Read `docs/database/master_schema.sql`
-   - Understand key tables: workflows, workflow_executions, automation_tasks
-   - Query database directly (Supabase dashboard)
+ - Read `docs/database/master_schema.sql`
+ - Understand key tables: workflows, workflow_executions, automation_tasks
+ - Query database directly (Supabase dashboard)
 
 ### Phase 3: Integrations (Week 3)
 
 1. **OAuth Flow**
-   - Study `backend/routes/integrationRoutes.js`
-   - Trace: User clicks "Connect Slack" -> OAuth -> Credential storage
-   - Test with a real integration
+ - Study `backend/routes/integrationRoutes.js`
+ - Trace: User clicks "Connect Slack" -> OAuth -> Credential storage
+ - Test with a real integration
 
 2. **Integration Actions**
-   - Study `backend/services/workflowExecutorIntegrations.js`
-   - See how Slack/Gmail/Sheets actions work
-   - Create a workflow using integrations
+ - Study `backend/services/workflowExecutorIntegrations.js`
+ - See how Slack/Gmail/Sheets actions work
+ - Create a workflow using integrations
 
 3. **External APIs**
-   - Study `api_call` step execution
-   - Make API calls from workflows
-   - Handle authentication
+ - Study `api_call` step execution
+ - Make API calls from workflows
+ - Handle authentication
 
 ### Phase 4: Advanced Features (Week 4)
 
 1. **AI Workflow Generation**
-   - Study `backend/services/aiWorkflowAgent.js`
-   - Understand system prompt structure
-   - Test AI assistant conversations
+ - Study `backend/services/aiWorkflowAgent.js`
+ - Understand system prompt structure
+ - Test AI assistant conversations
 
 2. **Execution Modes**
-   - Study `backend/services/executionModeService.js`
-   - Understand cost optimization
-   - Create scheduled workflows (eco mode)
+ - Study `backend/services/executionModeService.js`
+ - Understand cost optimization
+ - Create scheduled workflows (eco mode)
 
 3. **Observability**
-   - Set up Grafana: http://localhost:3001
-   - Query logs in Loki
-   - Follow a trace end-to-end
-   - Understand trace context propagation
+ - Set up Grafana: http://localhost:3001
+ - Query logs in Loki
+ - Follow a trace end-to-end
+ - Understand trace context propagation
 
 ### Phase 5: Mastery (Ongoing)
 
 1. **Read All Service Files**
-   - Go through each service in `backend/services/`
-   - Understand responsibilities
-   - See how they interact
+ - Go through each service in `backend/services/`
+ - Understand responsibilities
+ - See how they interact
 
 2. **Build Features**
-   - Add a new workflow step type
-   - Add a new integration
-   - Create a new API endpoint
+ - Add a new workflow step type
+ - Add a new integration
+ - Create a new API endpoint
 
 3. **Debug Production Issues**
-   - Use Grafana to trace issues
-   - Query logs for errors
-   - Understand error flows
+ - Use Grafana to trace issues
+ - Query logs for errors
+ - Understand error flows
 
 ---
 

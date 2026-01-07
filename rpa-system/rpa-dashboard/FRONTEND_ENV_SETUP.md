@@ -37,13 +37,13 @@ REACT_APP_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 4. Scroll down to "Your apps" section
 5. If you don't have a web app, click "Add app" -> Web (</> icon)
 6. Copy the config values:
-   - `apiKey` -> `REACT_APP_FIREBASE_API_KEY`
-   - `authDomain` -> `REACT_APP_FIREBASE_AUTH_DOMAIN`
-   - `databaseURL` -> `REACT_APP_FIREBASE_DATABASE_URL`
-   - `projectId` -> `REACT_APP_FIREBASE_PROJECT_ID` (must be `easyflow-77db9`)
-   - `storageBucket` -> `REACT_APP_FIREBASE_STORAGE_BUCKET`
-   - `messagingSenderId` -> `REACT_APP_FIREBASE_MESSAGING_SENDER_ID`
-   - `appId` -> `REACT_APP_FIREBASE_APP_ID`
+ - `apiKey` -> `REACT_APP_FIREBASE_API_KEY`
+ - `authDomain` -> `REACT_APP_FIREBASE_AUTH_DOMAIN`
+ - `databaseURL` -> `REACT_APP_FIREBASE_DATABASE_URL`
+ - `projectId` -> `REACT_APP_FIREBASE_PROJECT_ID` (must be `easyflow-77db9`)
+ - `storageBucket` -> `REACT_APP_FIREBASE_STORAGE_BUCKET`
+ - `messagingSenderId` -> `REACT_APP_FIREBASE_MESSAGING_SENDER_ID`
+ - `appId` -> `REACT_APP_FIREBASE_APP_ID`
 
 ### 2. Supabase Configuration (REQUIRED)
 
@@ -60,8 +60,8 @@ REACT_APP_SUPABASE_ANON_KEY=your-anon-key-here
 2. Select your project
 3. Go to Settings -> API
 4. Copy:
-   - `Project URL` -> `REACT_APP_SUPABASE_URL`
-   - `anon public` key -> `REACT_APP_SUPABASE_ANON_KEY` (NOT the service_role key!)
+ - `Project URL` -> `REACT_APP_SUPABASE_URL`
+ - `anon public` key -> `REACT_APP_SUPABASE_ANON_KEY` (NOT the service_role key!)
 
 ### 3. API Configuration (Optional)
 
@@ -87,20 +87,20 @@ REACT_APP_API_BASE_URL=http://localhost:3030
 After setting up your `.env.local` file:
 
 1. **Check configuration:**
-   ```bash
-   cd rpa-system/rpa-dashboard
-   ./check_frontend_env.sh
-   ```
+ ```bash
+ cd rpa-system/rpa-dashboard
+ ./check_frontend_env.sh
+ ```
 
 2. **Start the frontend:**
-   ```bash
-   npm start
-   ```
+ ```bash
+ npm start
+ ```
 
 3. **Check browser console:**
-   - Should NOT see Firebase 400/401 errors
-   - Should see: ` Firebase initialized successfully`
-   - Should see: ` Supabase client initialized`
+ - Should NOT see Firebase 400/401 errors
+ - Should see: ` Firebase initialized successfully`
+ - Should see: ` Supabase client initialized`
 
 **Expected output if configured correctly:**
 ```
@@ -130,7 +130,7 @@ The `.env.local` file must be located at:
 
 | Frontend (.env.local) | Backend (.env) | Must Match |
 |----------------------|---------------|------------|
-| `REACT_APP_FIREBASE_PROJECT_ID` | `FIREBASE_PROJECT_ID` |  YES (both: `easyflow-77db9`) |
-| `REACT_APP_FIREBASE_DATABASE_URL` | `FIREBASE_DATABASE_URL` |  YES (same URL) |
+| `REACT_APP_FIREBASE_PROJECT_ID` | `FIREBASE_PROJECT_ID` | YES (both: `easyflow-77db9`) |
+| `REACT_APP_FIREBASE_DATABASE_URL` | `FIREBASE_DATABASE_URL` | YES (same URL) |
 
 If these don't match, you'll get 401 authentication errors!

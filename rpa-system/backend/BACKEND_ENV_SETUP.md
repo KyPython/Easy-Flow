@@ -27,9 +27,9 @@ FIREBASE_DATABASE_URL=https://easyflow-77db9-default-rtdb.firebaseio.com/
 4. Click "Generate New Private Key"
 5. Download the JSON file
 6. Extract:
-   - `project_id` -> `FIREBASE_PROJECT_ID`
-   - `client_email` -> `FIREBASE_CLIENT_EMAIL`
-   - `private_key` -> `FIREBASE_PRIVATE_KEY` (keep the `\n` characters)
+ - `project_id` -> `FIREBASE_PROJECT_ID`
+ - `client_email` -> `FIREBASE_CLIENT_EMAIL`
+ - `private_key` -> `FIREBASE_PRIVATE_KEY` (keep the `\n` characters)
 
 ### 2. Supabase Configuration (REQUIRED)
 
@@ -67,24 +67,24 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Select your project (or create one)
 3. ** CRITICAL: Enable required APIs first:**
-   - **Gmail API**: https://console.cloud.google.com/apis/library/gmail.googleapis.com
-     - Click "Enable" button
-   - **Google Sheets API**: https://console.cloud.google.com/apis/library/sheets.googleapis.com
-     - Click "Enable" button
-   - **Google Drive API**: https://console.cloud.google.com/apis/library/drive.googleapis.com
-     - Click "Enable" button
-   - **Google Meet API**: https://console.cloud.google.com/apis/library/meet.googleapis.com
-     - Click "Enable" button
-   - **Google Calendar API** (for Meet): https://console.cloud.google.com/apis/library/calendar-json.googleapis.com
-     - Click "Enable" button
+ - **Gmail API**: https://console.cloud.google.com/apis/library/gmail.googleapis.com
+ - Click "Enable" button
+ - **Google Sheets API**: https://console.cloud.google.com/apis/library/sheets.googleapis.com
+ - Click "Enable" button
+ - **Google Drive API**: https://console.cloud.google.com/apis/library/drive.googleapis.com
+ - Click "Enable" button
+ - **Google Meet API**: https://console.cloud.google.com/apis/library/meet.googleapis.com
+ - Click "Enable" button
+ - **Google Calendar API** (for Meet): https://console.cloud.google.com/apis/library/calendar-json.googleapis.com
+ - Click "Enable" button
 4. Go to APIs & Services -> Credentials
 5. Click "Create Credentials" -> "OAuth client ID"
 6. Choose "Web application"
 7. Add authorized redirect URIs:
-   - `http://localhost:3030/api/integrations/gmail/oauth/callback`
-   - `http://localhost:3030/api/integrations/google_sheets/oauth/callback`
-   - `http://localhost:3030/api/integrations/google_drive/oauth/callback`
-   - `http://localhost:3030/api/integrations/google_meet/oauth/callback`
+ - `http://localhost:3030/api/integrations/gmail/oauth/callback`
+ - `http://localhost:3030/api/integrations/google_sheets/oauth/callback`
+ - `http://localhost:3030/api/integrations/google_drive/oauth/callback`
+ - `http://localhost:3030/api/integrations/google_meet/oauth/callback`
 8. Copy the Client ID and Client Secret to your `.env` file
 
 ##### WhatsApp OAuth (Meta/Facebook) - Optional
@@ -123,8 +123,8 @@ NOTION_CLIENT_SECRET=your-notion-client-secret
 5. Copy the "Internal Integration Token" (this is your client secret)
 6. For OAuth, you'll need to create an OAuth app at https://www.notion.so/my-integrations
 7. Add authorized redirect URIs:
-   - `http://localhost:3030/api/integrations/notion/oauth/callback` (for development)
-   - `https://easyflow-backend-ad8e.onrender.com/api/integrations/notion/oauth/callback` (for production)
+ - `http://localhost:3030/api/integrations/notion/oauth/callback` (for development)
+ - `https://easyflow-backend-ad8e.onrender.com/api/integrations/notion/oauth/callback` (for production)
 8. Copy the Client ID and Client Secret to your `.env` file
 
 ##### Slack OAuth
@@ -140,24 +140,24 @@ SLACK_CLIENT_SECRET=your-slack-client-secret
 3. Name your app and select your workspace
 4. Go to "OAuth & Permissions" in the sidebar
 5. Scroll to "Redirect URLs" and add:
-   - ** IMPORTANT: Slack requires HTTPS for redirect URIs**
-   - **Option 1 (Local Dev with ngrok):** Use ngrok to create HTTPS tunnel:
-     ```bash
-     # Install ngrok: https://ngrok.com/download
-     ngrok http 3030
-     # Copy the HTTPS URL (e.g., https://abc123.ngrok.io)
-     # Add to Slack: https://abc123.ngrok.io/api/integrations/slack/oauth/callback
-     # Set in .env: API_BASE_URL=https://abc123.ngrok.io
-     ```
-   - **Option 2 (Production):** Use your production URL:
-     - `https://easyflow-backend-ad8e.onrender.com/api/integrations/slack/oauth/callback`
+ - ** IMPORTANT: Slack requires HTTPS for redirect URIs**
+ - **Option 1 (Local Dev with ngrok):** Use ngrok to create HTTPS tunnel:
+ ```bash
+ # Install ngrok: https://ngrok.com/download
+ ngrok http 3030
+ # Copy the HTTPS URL (e.g., https://abc123.ngrok.io)
+ # Add to Slack: https://abc123.ngrok.io/api/integrations/slack/oauth/callback
+ # Set in .env: API_BASE_URL=https://abc123.ngrok.io
+ ```
+ - **Option 2 (Production):** Use your production URL:
+ - `https://easyflow-backend-ad8e.onrender.com/api/integrations/slack/oauth/callback`
 6. Scroll to "Scopes" -> "Bot Token Scopes" and add:
-   - `chat:write` - Send messages
-   - `channels:read` - View basic channel information
-   - `channels:history` - View message history
-   - `files:write` - Upload files
+ - `chat:write` - Send messages
+ - `channels:read` - View basic channel information
+ - `channels:history` - View message history
+ - `files:write` - Upload files
 7. Scroll to "User Token Scopes" and add (if needed):
-   - `channels:read` - View basic channel information
+ - `channels:read` - View basic channel information
 8. Click "Install to Workspace" (you'll need workspace admin approval)
 9. Copy the "Client ID" and "Client Secret" from "App Credentials" to your `.env` file
 

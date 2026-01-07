@@ -4,7 +4,7 @@
 
 ---
 
-##  Reframed Strategy: "Activation & Complex Workflows"
+## Reframed Strategy: "Activation & Complex Workflows"
 
 **Key Insight**: EasyFlow is designed to be easy - users can build workflows with natural language. But some people need:
 1. **Help getting started** (first workflow to see how easy it is)
@@ -13,7 +13,7 @@
 
 ---
 
-##  Two Revenue Streams (Updated)
+## Two Revenue Streams (Updated)
 
 ### 1. "Concierge Onboarding" (Primary - Warm Leads)
 **Goal**: Help users build their FIRST workflow so they see how easy EasyFlow is
@@ -31,7 +31,7 @@
 
 ---
 
-##  Step-by-Step Process
+## Step-by-Step Process
 
 ### Step 1: Find Opportunities
 
@@ -102,22 +102,22 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
 **The EasyFlow Way - Show them how easy it is:**
 
 1. **15-Minute Onboarding Call:**
-   - Ask: "What's one task you do manually that you'd like to automate?"
-   - Use EasyFlow's AI Agent: "Build me a workflow that [their task]"
-   - Watch the AI Agent create it in real-time
-   - Show them: "See? That's how easy it is!"
+ - Ask: "What's one task you do manually that you'd like to automate?"
+ - Use EasyFlow's AI Agent: "Build me a workflow that [their task]"
+ - Watch the AI Agent create it in real-time
+ - Show them: "See? That's how easy it is!"
 
 2. **Let Them Build It:**
-   - Guide them through using the AI Agent
-   - Help them refine the workflow
-   - Show them how to modify it later
+ - Guide them through using the AI Agent
+ - Help them refine the workflow
+ - Show them how to modify it later
 
 3. **For Complex Workflows:**
-   - Only build manually if it requires:
-     - Custom API integrations
-     - Complex conditional logic
-     - OAuth setup
-   - Otherwise, let the AI Agent do it!
+ - Only build manually if it requires:
+ - Custom API integrations
+ - Complex conditional logic
+ - OAuth setup
+ - Otherwise, let the AI Agent do it!
 
 **Key Principle**: Don't build FOR them - show them how to build it themselves
 
@@ -210,27 +210,27 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
 
 ---
 
-##  Daily Workflow (Reframed)
+## Daily Workflow (Reframed)
 
 ### Morning (30 mins): "Activation Outreach"
 
 1. **Reach out to existing users** (30 mins)
-   - Email your 23 inactive signups
-   - Offer "Concierge Onboarding"
-   - Message: "I'll help you build your first workflow in 15 minutes"
+ - Email your 23 inactive signups
+ - Offer "Concierge Onboarding"
+ - Message: "I'll help you build your first workflow in 15 minutes"
 
 ### Afternoon (60 mins): "Onboarding Calls"
 
 1. **15-minute onboarding calls** (15 mins each)
-   - Help them use the AI Agent
-   - Guide them to build their first workflow
-   - Show them how easy it is
-   - Goal: They build it themselves (with your guidance)
+ - Help them use the AI Agent
+ - Guide them to build their first workflow
+ - Show them how easy it is
+ - Goal: They build it themselves (with your guidance)
 
 2. **Complex setups** (if needed)
-   - Only for workflows that need technical setup
-   - API keys, OAuth, custom integrations
-   - Then they can modify it themselves
+ - Only for workflows that need technical setup
+ - API keys, OAuth, custom integrations
+ - Then they can modify it themselves
 
 **Key Difference**: You're not building FOR them - you're showing them how to build it themselves
 
@@ -241,15 +241,15 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
 **When showing client their automation:**
 
 1. **Problem** (10 sec)
-   - "You're currently doing [manual task]"
+ - "You're currently doing [manual task]"
 
 2. **Solution** (30 sec)
-   - "Here's how EasyFlow automates it"
-   - Show the workflow running
+ - "Here's how EasyFlow automates it"
+ - Show the workflow running
 
 3. **Result** (10 sec)
-   - "Saves you [X] hours per week"
-   - "One-time setup, lifetime use"
+ - "Saves you [X] hours per week"
+ - "One-time setup, lifetime use"
 
 **Total: 50 seconds**
 
@@ -277,28 +277,28 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
 
 ---
 
-##  Quick Start (Reframed)
+## Quick Start (Reframed)
 
 ### Today's Action Plan
 
 1. **Reach out to existing users** (30 mins)
-   - Email your 23 inactive signups
-   - Offer "Concierge Onboarding"
-   - Message: "I'll help you build your first workflow in 15 minutes"
+ - Email your 23 inactive signups
+ - Offer "Concierge Onboarding"
+ - Message: "I'll help you build your first workflow in 15 minutes"
 
 2. **Schedule onboarding calls** (15 mins)
-   - Book 3-4 calls this week
-   - 15 minutes each
-   - Help them use the AI Agent
+ - Book 3-4 calls this week
+ - 15 minutes each
+ - Help them use the AI Agent
 
 3. **Guide them to build** (not build for them)
-   - Show them how to use natural language
-   - Let the AI Agent create the workflow
-   - They build it, you guide them
+ - Show them how to use natural language
+ - Let the AI Agent create the workflow
+ - They build it, you guide them
 
 ---
 
-##  Pro Tips (Reframed)
+## Pro Tips (Reframed)
 
 1. **Don't Build FOR Them**: Show them how to use the AI Agent - that's the value
 2. **15-Minute Calls**: Quick onboarding calls, not hours of building

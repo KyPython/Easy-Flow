@@ -8,9 +8,9 @@ EasyFlow uses a **branch-aware CI/CD pipeline** that enforces different validati
 - **Main Branch**: Strict (all checks must pass, blocking)
 
 This ensures:
--  **No code loss**: Dev branch allows commits even if checks fail
--  **Production quality**: Main branch enforces strict validation
--  **Fully automated**: No manual verification needed
+- **No code loss**: Dev branch allows commits even if checks fail
+- **Production quality**: Main branch enforces strict validation
+- **Fully automated**: No manual verification needed
 
 ---
 
@@ -53,12 +53,12 @@ This ensures:
 **Triggers**: Pushes/PRs to `dev` branch
 
 **Checks** (all non-blocking):
--  Development environment check
--  Security scan (Snyk) - warning only
--  Test suite - warning only
--  Code quality - warning only
--  Code validation (SRP, Dynamic, Theme, Logging) - warning only
--  RAG knowledge validation - warning only
+- Development environment check
+- Security scan (Snyk) - warning only
+- Test suite - warning only
+- Code quality - warning only
+- Code validation (SRP, Dynamic, Theme, Logging) - warning only
+- RAG knowledge validation - warning only
 
 **Result**: Always passes (warnings logged)
 
@@ -66,14 +66,14 @@ This ensures:
 **Triggers**: Pushes/PRs to `main` branch only
 
 **Checks** (all blocking):
--  Development environment check
--  Security scan (Snyk) - **BLOCKS on high+ vulnerabilities**
--  Test suite - **BLOCKS on failures**
--  Code quality - warning only
--  Code validation (SRP, Dynamic, Theme, Logging) - **BLOCKS on failures**
--  RAG knowledge validation - **BLOCKS on failures**
--  Terraform validation - **BLOCKS on failures**
--  Full test suite with services - **BLOCKS on failures**
+- Development environment check
+- Security scan (Snyk) - **BLOCKS on high+ vulnerabilities**
+- Test suite - **BLOCKS on failures**
+- Code quality - warning only
+- Code validation (SRP, Dynamic, Theme, Logging) - **BLOCKS on failures**
+- RAG knowledge validation - **BLOCKS on failures**
+- Terraform validation - **BLOCKS on failures**
+- Full test suite with services - **BLOCKS on failures**
 
 **Result**: Fails if any blocking check fails
 
@@ -130,29 +130,29 @@ This ensures:
 **Process** (fully automated, no manual steps):
 
 1. **Validate on Dev Branch**:
-   - Run full test suite
-   - Run security scan
-   - Run comprehensive code validation
-   - Validate RAG knowledge
-   - Validate Terraform (if applicable)
+ - Run full test suite
+ - Run security scan
+ - Run comprehensive code validation
+ - Validate RAG knowledge
+ - Validate Terraform (if applicable)
 
 2. **Push Dev Branch**:
-   - Ensure dev is pushed to remote
+ - Ensure dev is pushed to remote
 
 3. **Switch to Main Branch**:
-   - Checkout main
-   - Pull latest main
+ - Checkout main
+ - Pull latest main
 
 4. **Merge Dev into Main**:
-   - Merge dev into main (no-ff)
-   - Handle conflicts (if any)
+ - Merge dev into main (no-ff)
+ - Handle conflicts (if any)
 
 5. **Final Validation on Main**:
-   - Run full test suite on main
-   - Verify everything works
+ - Run full test suite on main
+ - Verify everything works
 
 6. **Push to Main**:
-   - Push to main (triggers production deployment)
+ - Push to main (triggers production deployment)
 
 **All steps are automated** - no manual verification needed!
 
@@ -164,29 +164,29 @@ This ensures:
 
 | Check | Dev Branch Behavior |
 |-------|-------------------|
-| Security Scan |  Warning only |
-| Tests |  Warning only |
-| Code Quality |  Warning only |
-| SRP Validation |  Warning only |
-| Dynamic Code |  Warning only |
-| Theme Consistency |  Warning only |
-| Logging Integration |  Warning only |
-| RAG Knowledge |  Warning only |
-| Terraform |  Warning only |
+| Security Scan | Warning only |
+| Tests | Warning only |
+| Code Quality | Warning only |
+| SRP Validation | Warning only |
+| Dynamic Code | Warning only |
+| Theme Consistency | Warning only |
+| Logging Integration | Warning only |
+| RAG Knowledge | Warning only |
+| Terraform | Warning only |
 
 ### Strict (Main Branch)
 
 | Check | Main Branch Behavior |
 |-------|-------------------|
-| Security Scan |  **BLOCKS** on high+ vulnerabilities |
-| Tests |  **BLOCKS** on failures |
-| Code Quality |  Warning only |
-| SRP Validation |  **BLOCKS** on failures |
-| Dynamic Code |  **BLOCKS** on failures |
-| Theme Consistency |  **BLOCKS** on failures |
-| Logging Integration |  **BLOCKS** on failures |
-| RAG Knowledge |  **BLOCKS** on failures |
-| Terraform |  **BLOCKS** on failures |
+| Security Scan | **BLOCKS** on high+ vulnerabilities |
+| Tests | **BLOCKS** on failures |
+| Code Quality | Warning only |
+| SRP Validation | **BLOCKS** on failures |
+| Dynamic Code | **BLOCKS** on failures |
+| Theme Consistency | **BLOCKS** on failures |
+| Logging Integration | **BLOCKS** on failures |
+| RAG Knowledge | **BLOCKS** on failures |
+| Terraform | **BLOCKS** on failures |
 
 ---
 
@@ -194,25 +194,25 @@ This ensures:
 
 ```
 +─────────────────────────────────────────────────────────────+
-|                    Developer Workflow                       |
+| Developer Workflow |
 +─────────────────────────────────────────────────────────────+
 
 1. Work on Dev Branch
-   +─ Commit code (pre-commit: non-blocking)
-   +─ Push to dev (qa-dev.yml: warnings only)
-   +─ Continue development
+ +─ Commit code (pre-commit: non-blocking)
+ +─ Push to dev (qa-dev.yml: warnings only)
+ +─ Continue development
 
 2. Ready for Production
-   +─ Run: npm run ship
-   +─ Script validates on dev
-   +─ Script merges dev -> main
-   +─ Script validates on main
-   +─ Script pushes to main (triggers deployment)
+ +─ Run: npm run ship
+ +─ Script validates on dev
+ +─ Script merges dev -> main
+ +─ Script validates on main
+ +─ Script pushes to main (triggers deployment)
 
 3. Main Branch
-   +─ qa-core.yml runs (strict validation)
-   +─ All checks must pass
-   +─ Production deployment triggered
+ +─ qa-core.yml runs (strict validation)
+ +─ All checks must pass
+ +─ Production deployment triggered
 ```
 
 ---
@@ -347,5 +347,5 @@ npm run test:all
 ---
 
 **Last Updated**: 2025-01-XX
-**Status**:  Fully Automated & Branch-Aware
+**Status**: Fully Automated & Branch-Aware
 

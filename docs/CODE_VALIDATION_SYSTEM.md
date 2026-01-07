@@ -29,10 +29,10 @@ EasyFlow's comprehensive code validation system ensures all code meets quality s
 
 **Example violations:**
 ```javascript
-//  BAD: File with 25 functions (multiple responsibilities)
+// BAD: File with 25 functions (multiple responsibilities)
 // app.js - handles routing, auth, database, business logic
 
-//  GOOD: Split into focused modules
+// GOOD: Split into focused modules
 // routes.js - only routing
 // auth.js - only authentication
 // database.js - only database operations
@@ -56,11 +56,11 @@ EasyFlow's comprehensive code validation system ensures all code meets quality s
 
 **Example violations:**
 ```javascript
-//  BAD: Hardcoded values
+// BAD: Hardcoded values
 const API_URL = 'https://api.example.com';
 const API_KEY = 'sk_live_1234567890';
 
-//  GOOD: Dynamic configuration
+// GOOD: Dynamic configuration
 const API_URL = process.env.API_URL || 'https://api.example.com';
 const API_KEY = process.env.API_KEY;
 ```
@@ -82,10 +82,10 @@ const API_KEY = process.env.API_KEY;
 
 **Example violations:**
 ```jsx
-//  BAD: Hardcoded colors, no theme
+// BAD: Hardcoded colors, no theme
 <div style={{ color: '#2563eb', backgroundColor: '#ffffff' }}>
 
-//  GOOD: Uses theme context
+// GOOD: Uses theme context
 const { theme } = useTheme();
 <div className={styles.container} data-theme={theme}>
 ```
@@ -107,10 +107,10 @@ const { theme } = useTheme();
 
 **Example violations:**
 ```javascript
-//  BAD: console.log (not integrated with observability)
+// BAD: console.log (not integrated with observability)
 console.log('User logged in', userId);
 
-//  GOOD: Structured logger (integrated with observability)
+// GOOD: Structured logger (integrated with observability)
 const logger = createLogger('auth');
 logger.info('User logged in', { userId });
 ```
@@ -329,10 +329,10 @@ Validation scripts are designed to be fast:
 ## Summary
 
 The code validation system ensures:
--  **SRP compliance** - Code is maintainable and focused
--  **Dynamic code** - Code is flexible and configurable
--  **Theme consistency** - UI is consistent and themable
--  **Logging integration** - All logs are observable
+- **SRP compliance** - Code is maintainable and focused
+- **Dynamic code** - Code is flexible and configurable
+- **Theme consistency** - UI is consistent and themable
+- **Logging integration** - All logs are observable
 
 All validations are **blocking** in CI/CD and production deployment, ensuring code quality before shipping.
 

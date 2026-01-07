@@ -25,28 +25,28 @@ All routes are registered in `app.js`. See [CODEBASE_NAVIGATION.md](../../CODEBA
 
 ```
 backend/
-+── app.js              # Express app (route registration)
-+── server.js           # HTTP server
-+── routes/             # API endpoints
-|   +── tasks.js
-|   +── executionRoutes.js
-|   +── ...
-+── services/           # Business logic
-|   +── workflowExecutor.js
-|   +── aiWorkflowAgent.js
-|   +── ...
-+── middleware/         # Express middleware
-|   +── auth.js
-|   +── structuredLogging.js
-|   +── ...
-+── utils/              # Utilities
-|   +── logger.js
-|   +── ...
-+── controllers/        # Request controllers
-    +── TaskController.ts
++── app.js # Express app (route registration)
++── server.js # HTTP server
++── routes/ # API endpoints
+| +── tasks.js
+| +── executionRoutes.js
+| +── ...
++── services/ # Business logic
+| +── workflowExecutor.js
+| +── aiWorkflowAgent.js
+| +── ...
++── middleware/ # Express middleware
+| +── auth.js
+| +── structuredLogging.js
+| +── ...
++── utils/ # Utilities
+| +── logger.js
+| +── ...
++── controllers/ # Request controllers
+ +── TaskController.ts
 ```
 
-##  Key Services
+## Key Services
 
 | Service | Purpose |
 |---------|---------|

@@ -4,5 +4,5 @@ import DashboardApp from './App.dashboard';
 import './App.css';
 
 export default function App() {
-  return <DashboardApp />;
+ return <DashboardApp />;
 }

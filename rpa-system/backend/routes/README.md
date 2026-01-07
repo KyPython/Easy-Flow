@@ -39,7 +39,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { someService } = require('../services/someService');
 
 router.get('/endpoint', authMiddleware, async (req, res) => {
-  // Handler logic
+ // Handler logic
 });
 
 module.exports = router;
@@ -64,7 +64,7 @@ app.use('/api/tasks', tasksRoutes);
 1. Create `newRoutes.js` in this directory
 2. Define routes using Express router
 3. Register in `app.js`:
-   ```javascript
-   const newRoutes = require('./routes/newRoutes');
-   app.use('/api/new', newRoutes);
-   ```
+ ```javascript
+ const newRoutes = require('./routes/newRoutes');
+ app.use('/api/new', newRoutes);
+ ```

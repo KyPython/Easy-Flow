@@ -4,7 +4,7 @@
 
 ---
 
-##  Today's Action Plan
+## Today's Action Plan
 
 ### Step 1: Reach Out to Existing Users (30 mins)
 
@@ -19,20 +19,20 @@
 **When someone says yes:**
 
 1. **Schedule 15-minute call**
-   - Use Calendly or similar
-   - Block 15 minutes (not hours!)
+ - Use Calendly or similar
+ - Block 15 minutes (not hours!)
 
 2. **During the call:**
-   - Ask: "What's one task you do manually?"
-   - Show them: Use EasyFlow's AI Agent
-   - Say: "Build me a workflow that [their task]"
-   - Watch the AI Agent create it
-   - Show them: "See? That's how easy it is!"
+ - Ask: "What's one task you do manually?"
+ - Show them: Use EasyFlow's AI Agent
+ - Say: "Build me a workflow that [their task]"
+ - Watch the AI Agent create it
+ - Show them: "See? That's how easy it is!"
 
 3. **After the call:**
-   - They now know how to use EasyFlow
-   - They can build the rest themselves
-   - Invoice for $97 (one-time onboarding)
+ - They now know how to use EasyFlow
+ - They can build the rest themselves
+ - Invoice for $97 (one-time onboarding)
 
 ### Step 3: Complex Workflows (Only When Needed)
 
@@ -44,7 +44,7 @@
 
 ---
 
-##  Copy-Paste Ready Scripts
+## Copy-Paste Ready Scripts
 
 ### For Existing Users (Primary - Concierge Onboarding)
 
@@ -85,21 +85,21 @@ One-time $[X] setup. After that, you own it and can change it yourself in EasyFl
 ## 💰 Pricing Guide (Reframed)
 
 - **Concierge Onboarding**: $97 (15-minute call)
-  - Help them build their FIRST workflow
-  - Show them how EasyFlow's AI Agent works
-  - They build it, you guide them
-  - Goal: They see how easy it is, then build the rest themselves
+ - Help them build their FIRST workflow
+ - Show them how EasyFlow's AI Agent works
+ - They build it, you guide them
+ - Goal: They see how easy it is, then build the rest themselves
 
 - **Complex Setup**: $150-$300 (1-2 hours)
-  - Custom API integrations
-  - OAuth configuration
-  - Technical setup only
-  - Then they can modify it themselves
+ - Custom API integrations
+ - OAuth configuration
+ - Technical setup only
+ - Then they can modify it themselves
 
 - **Enterprise Custom**: $300-$500 (2-4 hours)
-  - Full custom automation
-  - Multiple integrations
-  - Documentation and training
+ - Full custom automation
+ - Multiple integrations
+ - Documentation and training
 
 **Sell the empowerment:**
 - "I'll help you get started, then you can build the rest yourself"

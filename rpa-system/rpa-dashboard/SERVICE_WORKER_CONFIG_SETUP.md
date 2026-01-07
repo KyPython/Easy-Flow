@@ -46,13 +46,13 @@ Copy values from `.env.local` and create the file:
 ```javascript
 // public/firebase-config.js
 const FIREBASE_CONFIG = {
-  apiKey: "your-api-key-from-env-local",
-  authDomain: "easyflow-77db9.firebaseapp.com",
-  databaseURL: "https://easyflow-77db9-default-rtdb.firebaseio.com",
-  projectId: "easyflow-77db9",
-  storageBucket: "easyflow-77db9.firebasestorage.app",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id"
+ apiKey: "your-api-key-from-env-local",
+ authDomain: "easyflow-77db9.firebaseapp.com",
+ databaseURL: "https://easyflow-77db9-default-rtdb.firebaseio.com",
+ projectId: "easyflow-77db9",
+ storageBucket: "easyflow-77db9.firebasestorage.app",
+ messagingSenderId: "your-sender-id",
+ appId: "your-app-id"
 };
 ```
 
@@ -72,13 +72,13 @@ All values must match your `.env.local`:
 
 | Config Field | .env.local Variable | Required |
 |-------------|---------------------|----------|
-| `apiKey` | `REACT_APP_FIREBASE_API_KEY` |  Yes |
-| `authDomain` | `REACT_APP_FIREBASE_AUTH_DOMAIN` |  Yes |
-| `databaseURL` | `REACT_APP_FIREBASE_DATABASE_URL` |  Yes |
-| `projectId` | `REACT_APP_FIREBASE_PROJECT_ID` |  Yes |
-| `storageBucket` | `REACT_APP_FIREBASE_STORAGE_BUCKET` |  Yes |
-| `messagingSenderId` | `REACT_APP_FIREBASE_MESSAGING_SENDER_ID` |  Yes |
-| `appId` | `REACT_APP_FIREBASE_APP_ID` |  Yes |
+| `apiKey` | `REACT_APP_FIREBASE_API_KEY` | Yes |
+| `authDomain` | `REACT_APP_FIREBASE_AUTH_DOMAIN` | Yes |
+| `databaseURL` | `REACT_APP_FIREBASE_DATABASE_URL` | Yes |
+| `projectId` | `REACT_APP_FIREBASE_PROJECT_ID` | Yes |
+| `storageBucket` | `REACT_APP_FIREBASE_STORAGE_BUCKET` | Yes |
+| `messagingSenderId` | `REACT_APP_FIREBASE_MESSAGING_SENDER_ID` | Yes |
+| `appId` | `REACT_APP_FIREBASE_APP_ID` | Yes |
 
 **CRITICAL:** `projectId` must be `easyflow-77db9` to match backend.
 
@@ -87,26 +87,26 @@ All values must match your `.env.local`:
 After generating the file:
 
 1. **Check file exists:**
-   ```bash
-   ls public/firebase-config.js
-   ```
+ ```bash
+ ls public/firebase-config.js
+ ```
 
 2. **Verify format:**
-   ```bash
-   cat public/firebase-config.js
-   ```
+ ```bash
+ cat public/firebase-config.js
+ ```
 
 3. **Check browser console:**
-   - Should NOT see: ` CRITICAL: Could not load firebase-config.js`
-   - Should see: ` Firebase initialized successfully`
+ - Should NOT see: ` CRITICAL: Could not load firebase-config.js`
+ - Should see: ` Firebase initialized successfully`
 
 ## When to Regenerate
 
 Regenerate this file when:
--  You update `.env.local` Firebase values
--  You switch between environments (dev/prod)
--  You clone the repo to a new machine
--  After pulling changes that update `.env.example`
+- You update `.env.local` Firebase values
+- You switch between environments (dev/prod)
+- You clone the repo to a new machine
+- After pulling changes that update `.env.example`
 
 ## Troubleshooting
 
@@ -128,13 +128,13 @@ The file must export a `FIREBASE_CONFIG` constant:
 
 ```javascript
 const FIREBASE_CONFIG = {
-  apiKey: "...",
-  authDomain: "...",
-  databaseURL: "...",
-  projectId: "...",
-  storageBucket: "...",
-  messagingSenderId: "...",
-  appId: "..."
+ apiKey: "...",
+ authDomain: "...",
+ databaseURL: "...",
+ projectId: "...",
+ storageBucket: "...",
+ messagingSenderId: "...",
+ appId: "..."
 };
 ```
 
@@ -142,7 +142,7 @@ const FIREBASE_CONFIG = {
 
 ## Security Note
 
-  **This file contains PUBLIC API keys** (not secrets):
+ **This file contains PUBLIC API keys** (not secrets):
 - Firebase API keys are public by design
 - They're restricted by domain in Firebase Console
 - Still, this file is git-ignored to avoid exposing keys in repos

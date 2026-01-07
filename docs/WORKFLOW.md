@@ -22,7 +22,7 @@ git checkout dev
 
 ### Ship to Production
 ```bash
-npm run ship  # Fully automated: validates -> merges -> deploys
+npm run ship # Fully automated: validates -> merges -> deploys
 ```
 
 ### Evening: Stop Development
@@ -45,16 +45,16 @@ npm run ship  # Fully automated: validates -> merges -> deploys
 
 ```bash
 # Development
-./start-dev.sh              # Start all services
-./stop-dev.sh                # Stop all services
-npm run logs                 # Watch logs
+./start-dev.sh # Start all services
+./stop-dev.sh # Stop all services
+npm run logs # Watch logs
 
 # Validation
-npm run validate:all        # All validations
-npm run validate:rag        # RAG knowledge validation
+npm run validate:all # All validations
+npm run validate:rag # RAG knowledge validation
 
 # Deployment
-npm run ship                # Ship to production
+npm run ship # Ship to production
 ```
 
 **See**: [DAILY_DEVELOPER_GUIDE.md](../DAILY_DEVELOPER_GUIDE.md) for complete command reference

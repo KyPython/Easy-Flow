@@ -7,25 +7,25 @@ The startup script performs several sequential operations that can take 2-4 minu
 ### Main Bottlenecks
 
 1. **Kafka Health Check** (up to 30s)
-   - Waits for Kafka broker to be fully ready
-   - Includes retry logic for stale Zookeeper nodes
+ - Waits for Kafka broker to be fully ready
+ - Includes retry logic for stale Zookeeper nodes
 
 2. **Grafana Startup** (up to 60s)
-   - Waits for Grafana API to be ready
-   - 30 iterations × 2s = 60s max
+ - Waits for Grafana API to be ready
+ - 30 iterations × 2s = 60s max
 
 3. **Prometheus Scraping** (up to 85s)
-   - Waits for Prometheus to be ready (30s)
-   - Waits for critical targets (40s)
-   - Waits for business metrics scrape (10s + up to 60s)
+ - Waits for Prometheus to be ready (30s)
+ - Waits for critical targets (40s)
+ - Waits for business metrics scrape (10s + up to 60s)
 
 4. **Backend/Automation Health** (up to 60s total)
-   - Backend: up to 30s
-   - Automation: up to 30s
+ - Backend: up to 30s
+ - Automation: up to 30s
 
 5. **Dependency Installation** (variable)
-   - npm installs if packages are missing/outdated
-   - Usually fast if dependencies are cached
+ - npm installs if packages are missing/outdated
+ - Usually fast if dependencies are cached
 
 ### Total Time Breakdown
 
@@ -68,7 +68,7 @@ npm config set cache ~/.npm
 If you're restarting frequently, keep containers running:
 ```bash
 # Don't stop containers between restarts
-docker compose -f rpa-system/docker-compose.monitoring.yml stop  # Instead of down
+docker compose -f rpa-system/docker-compose.monitoring.yml stop # Instead of down
 ```
 
 ### 5. Reduce Health Check Timeouts

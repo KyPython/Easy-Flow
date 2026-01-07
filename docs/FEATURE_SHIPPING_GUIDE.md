@@ -125,13 +125,13 @@ ls -la .features/shipping-report-*.txt
 
 ```
 .features/
-+── features.json          # Feature manifest (all features)
-+── readiness-report.txt   # Latest readiness assessment
-+── shipping-report-*.txt   # Shipping reports (timestamped)
++── features.json # Feature manifest (all features)
++── readiness-report.txt # Latest readiness assessment
++── shipping-report-*.txt # Shipping reports (timestamped)
 
 scripts/
-+── assess-feature-readiness.sh  # Assessment script
-+── ship-features.sh              # Shipping script
++── assess-feature-readiness.sh # Assessment script
++── ship-features.sh # Shipping script
 ```
 
 ---
@@ -140,15 +140,15 @@ scripts/
 
 ```json
 {
-  "name": "Feature Name",
-  "commit": "abc123",
-  "status": "ready|draft|shipped",
-  "has_tests": true,
-  "validation_passed": true,
-  "date_created": "2025-01-15T10:00:00Z",
-  "date_ready": "2025-01-16T14:30:00Z",
-  "date_shipped": null,
-  "reasons": []
+ "name": "Feature Name",
+ "commit": "abc123",
+ "status": "ready|draft|shipped",
+ "has_tests": true,
+ "validation_passed": true,
+ "date_created": "2025-01-15T10:00:00Z",
+ "date_ready": "2025-01-16T14:30:00Z",
+ "date_shipped": null,
+ "reasons": []
 }
 ```
 
