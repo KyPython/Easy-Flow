@@ -82,7 +82,7 @@ router.post('/front-errors', fileSystemLimiter, async (req, res) => {
       fs.mkdirSync(repoDiagnostics, { recursive: true });
     } catch (e) {
       diagDir = localDiagnostics;
-      try { fs.mkdirSync(localDiagnostics, { recursive: true }); } catch (e) {}
+      try { fs.mkdirSync(localDiagnostics, { recursive: true }); } catch (_e) { /* ignore */ }
     }
     const filename = path.join(diagDir, `${ts}-frontend-error.json`);
     const meta = {

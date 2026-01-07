@@ -92,12 +92,20 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
     let retentionDays = 30; // Default fallback
     try {
       // Use backend supabase client
-      const { data: planData } = await supabase.rpc('get_user_plan_details', { user_uuid: userId });
-      if (planData && planData.plan_limits && planData.plan_limits.full_logging_days) {
-        retentionDays = planData.plan_limits.full_logging_days;
+      const supabase = getSupabase();
+      if (!supabase) {
+        logger.warn('Supabase not configured, using default retention');
+      } else {
+        const { data: planData } = await supabase.rpc('get_user_plan_details', { user_uuid: userId });
+        if (planData && planData.plan_limits && planData.plan_limits.full_logging_days) {
+          retentionDays = planData.plan_limits.full_logging_days;
+        }
       }
+    } catch (error) {
+      logger.warn('Failed to fetch plan retention policy', { error: error?.message });
+    }
 
-      logger.debug('Plan retention policy applied', {
+    logger.debug('Plan retention policy applied', {
         business: {
           user: { user_id: userId },
           operation: { retention_days: retentionDays, plan_name: planData?.plan_name }
@@ -399,6 +407,10 @@ async function getSystemStatistics(timeframe) {
 
   try {
     // Get active users
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.status(503).json({ error: 'Supabase not configured on server' });
+    }
     const { data: activeUsers } = await supabase
       .from('audit_logs')
       .select('user_id')

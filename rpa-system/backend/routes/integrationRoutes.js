@@ -468,7 +468,7 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
   }
 
   switch (service) {
-    case 'slack':
+    case 'slack': {
       const slackClientId = process.env.SLACK_CLIENT_ID;
       if (!slackClientId) {
         const error = new Error('SLACK_CLIENT_ID not configured');
@@ -478,12 +478,13 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
 
       const slackScopes = 'chat:write,channels:read,channels:history,files:write';
       return `https://slack.com/oauth/v2/authorize?client_id=${slackClientId}&scope=${slackScopes}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${stateToken}`;
+    }
 
     case 'gmail':
     case 'google_sheets':
     case 'google_meet':
     case 'google_drive':
-    case 'google_calendar':
+    case 'google_calendar': {
       const googleClientId = process.env.GOOGLE_CLIENT_ID;
       if (!googleClientId) {
         const error = new Error('GOOGLE_CLIENT_ID not configured');
@@ -509,8 +510,9 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
       });
 
       return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${stateToken}`;
+    }
 
-    case 'notion':
+    case 'notion': {
       const notionClientId = process.env.NOTION_CLIENT_ID;
       if (!notionClientId) {
         const error = new Error('NOTION_CLIENT_ID not configured');
@@ -519,10 +521,10 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
       }
 
       // Notion OAuth 2.0
-      const notionScopes = 'read write';
       return `https://api.notion.com/v1/oauth/authorize?client_id=${notionClientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&owner=user&state=${stateToken}`;
+    }
 
-    case 'whatsapp':
+    case 'whatsapp': {
       // Meta WhatsApp Business API OAuth (via Facebook Login)
       const facebookAppId = process.env.FACEBOOK_APP_ID;
       if (!facebookAppId) {
@@ -537,6 +539,7 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
       // - business_management: Manage business assets
       const whatsappScopes = 'whatsapp_business_management,whatsapp_business_messaging,business_management';
       return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=${whatsappScopes}&response_type=code&state=${stateToken}`;
+    }
 
     default:
       throw new Error(`OAuth not supported for service: ${service}`);
@@ -575,7 +578,7 @@ async function exchangeOAuthCode(service, code, redirectUri) {
   callbackUrl = urlValidation.url; // Use validated URL
 
   switch (service) {
-    case 'slack':
+    case 'slack': {
       const slackClientId = process.env.SLACK_CLIENT_ID;
       const slackClientSecret = process.env.SLACK_CLIENT_SECRET;
 
@@ -603,12 +606,13 @@ async function exchangeOAuthCode(service, code, redirectUri) {
         accessToken: slackResponse.data.access_token,
         botToken: slackResponse.data.bot?.bot_access_token || slackResponse.data.access_token
       };
+    }
 
     case 'gmail':
     case 'google_sheets':
     case 'google_meet':
     case 'google_drive':
-    case 'google_calendar':
+    case 'google_calendar': {
       const googleClientId = process.env.GOOGLE_CLIENT_ID;
       const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
@@ -629,8 +633,9 @@ async function exchangeOAuthCode(service, code, redirectUri) {
         clientSecret: googleClientSecret,
         expiresAt: new Date(Date.now() + googleResponse.data.expires_in * 1000).toISOString()
       };
+    }
 
-    case 'notion':
+    case 'notion': {
       const notionClientId = process.env.NOTION_CLIENT_ID;
       const notionClientSecret = process.env.NOTION_CLIENT_SECRET;
 
@@ -659,8 +664,9 @@ async function exchangeOAuthCode(service, code, redirectUri) {
         workspaceId: notionResponse.data.workspace_id,
         workspaceName: notionResponse.data.workspace_name
       };
+    }
 
-    case 'whatsapp':
+    case 'whatsapp': {
       // Meta WhatsApp Business API OAuth token exchange
       const facebookAppId = process.env.FACEBOOK_APP_ID;
       const facebookAppSecret = process.env.FACEBOOK_APP_SECRET;
@@ -727,6 +733,7 @@ async function exchangeOAuthCode(service, code, redirectUri) {
           ? new Date(Date.now() + facebookTokenResponse.data.expires_in * 1000).toISOString()
           : null
       };
+    }
 
     default:
       throw new Error(`OAuth exchange not supported for service: ${service}`);

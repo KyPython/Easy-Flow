@@ -344,6 +344,7 @@ async function startEmailWorker() {
   }
   logger.info('[email_worker] starting (embedded=', !(require.main === module), ') poll interval', POLL_INTERVAL_MS, 'ms');
   let lastHeartbeat = Date.now();
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const ok = await processOne();

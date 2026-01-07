@@ -170,7 +170,7 @@ router.get('/:executionId/recovery-options', requireFeature('workflow_executions
           ? JSON.parse(execution.metadata)
           : execution.metadata;
         partialResults = metadata.partial_results || [];
-      } catch (_) {}
+      } catch (_e) { /* ignore */ }
     }
 
     res.json({

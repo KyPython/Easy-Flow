@@ -11,11 +11,11 @@ function getLogger(namespace = 'app', context = {}) {
   } catch (e) {
     // Fallback to rootLogger to avoid crashing logging paths
     return {
-      info: (...args) => { try { rootLogger.info(...args); } catch {} },
-      warn: (...args) => { try { rootLogger.warn(...args); } catch {} },
-      error: (...args) => { try { rootLogger.error(...args); } catch {} },
-      debug: (...args) => { try { rootLogger.debug(...args); } catch {} },
-      trace: (...args) => { try { rootLogger.trace(...args); } catch {} }
+      info: (...args) => { try { rootLogger.info(...args); } catch (_e) { /* ignore */ } },
+      warn: (...args) => { try { rootLogger.warn(...args); } catch (_e) { /* ignore */ } },
+      error: (...args) => { try { rootLogger.error(...args); } catch (_e) { /* ignore */ } },
+      debug: (...args) => { try { rootLogger.debug(...args); } catch (_e) { /* ignore */ } },
+      trace: (...args) => { try { rootLogger.trace(...args); } catch (_e) { /* ignore */ } }
     };
   }
 }

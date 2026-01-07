@@ -31,7 +31,7 @@ router.get('/', requireAuth, contextLoggerMiddleware, async (req, res) => {
   try {
     const planData = await getUserPlan(userId);
     const comprehensiveUsage = await getComprehensiveUsage(userId);
-    const scrapingUsage = await getScrapingUsageFromScraping(userId);
+    const scrapingUsage = await getScrapingUsage(userId);
 
     const usage = {
       // Automation runs

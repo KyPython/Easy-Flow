@@ -107,7 +107,7 @@ main().catch(e => {
   logger.error('[reconcile] fatal', e?.message || e);
   process.exit(11);
 });
-dotenv.config({ path: new URL('../rpa-system/.env', import.meta.url).pathname });
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
 const POLAR_API_KEY = process.env.POLAR_API_KEY;
 const POLAR_WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET;

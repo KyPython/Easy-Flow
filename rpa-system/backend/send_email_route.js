@@ -29,7 +29,7 @@ const getFromAddress = () => {
 };
 
 if (SENDGRID_API_KEY) {
-	try { sgMail.setApiKey(SENDGRID_API_KEY); } catch (_) {}
+	try { sgMail.setApiKey(SENDGRID_API_KEY); } catch (_e) { /* ignore */ }
 }
 
 // Health check

@@ -1,8 +1,8 @@
-import express, { Router, Request, Response } from 'express';
-import { body, validationResult, param } from 'express-validator';
-import { TaskController } from '../controllers/TaskController';
+const express = require('express');
+const { body, validationResult, param } = require('express-validator');
+const { TaskController } = require('../controllers/TaskController');
 
-const router: Router = express.Router();
+const router = express.Router();
 const taskController = new TaskController();
 
 // Validation rules
@@ -43,13 +43,13 @@ const taskValidationRules = [
   body('labels')
     .optional()
     .isArray()
-    .withMessage('labels must be an array'),
+    .withMessage('labels must be an array')
 ];
 
 const idValidationRule = [
   param('id')
     .isUUID()
-    .withMessage('Invalid task ID format'),
+    .withMessage('Invalid task ID format')
 ];
 
 // Routes
@@ -59,5 +59,5 @@ router.post('/tasks', taskValidationRules, taskController.createTask.bind(taskCo
 router.put('/tasks/:id', [...idValidationRule, ...taskValidationRules], taskController.updateTask.bind(taskController));
 router.delete('/tasks/:id', idValidationRule, taskController.deleteTask.bind(taskController));
 
-export default router;
+module.exports = router;
 

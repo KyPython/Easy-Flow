@@ -181,10 +181,9 @@ async function main() {
         continue;
       }
       inserted = ins;
-    }
-    if (terr) {
-      logger.error('Insert template error:', terr.message || terr);
-      continue;
+    } else {
+      // Template already exists, use existing
+      inserted = existing;
     }
 
     // Check for existing same version
@@ -212,10 +211,6 @@ async function main() {
         continue;
       }
       ver = v;
-    }
-    if (verr) {
-      logger.error('Insert version error:', verr.message || verr);
-      continue;
     }
 
     await supabase
