@@ -201,7 +201,11 @@ class WorkflowExecutor {
         }
       } finally {
         // best-effort: abort controller on failure path if still active
-        try { controller?.abort?.(); } catch (_) {}
+        try {
+          controller?.abort?.();
+        } catch (_) {
+          // Ignore abort errors - this is best-effort cleanup
+        }
       }
     }
     throw lastErr || new Error('Unknown backoff error');
@@ -537,13 +541,14 @@ class WorkflowExecutor {
       userId,
       triggeredBy = 'manual',
       triggerData = {},
-      inputData = {},
+      inputData: inputDataParam = {},
       resumeFromExecutionId = null, // ✅ PHASE 3: Resume from previous execution
       executionMode = null // ✅ EXECUTION MODES: Explicit mode override
     } = config;
 
     // ✅ PHASE 3: If resuming, get data from previous execution
     let resumeData = null;
+    let inputData = inputDataParam;
     if (resumeFromExecutionId) {
       try {
         const { data: previousExecution } = await this.supabase
@@ -562,7 +567,7 @@ class WorkflowExecutor {
           if (successfulSteps.length > 0) {
             resumeData = successfulSteps[0].output_data || previousExecution.output_data;
             // Merge with provided input data
-            inputData = { ...resumeData, ...inputData };
+            inputData = { ...resumeData, ...inputDataParam };
           }
 
           // Get partial results from metadata if available
@@ -575,7 +580,9 @@ class WorkflowExecutor {
                 inputData._resumed_from = resumeFromExecutionId;
                 inputData._partial_results = metadata.partial_results;
               }
-            } catch (_) {}
+            } catch (_) {
+              // Ignore errors when resuming from previous execution - optional enhancement
+            }
           }
         }
       } catch (resumeError) {
@@ -1607,7 +1614,7 @@ class WorkflowExecutor {
                 workflowName: workflow.name,
                 steps: workflow.steps || [],
                 executionTime: duration,
-                inputData: inputData || {},
+                inputData: currentData || execution.input_data || {},
                 resultData: outputData || {},
                 userId: execution.user_id
               });
@@ -2235,7 +2242,7 @@ class WorkflowExecutor {
           });
 
           scrapedData = response.data;
-          const scrapeDuration = (Date.now() - scrapeStartTime) / 1000;
+          const scrapeDuration = (Date.now() - stepStartTime) / 1000;
 
           // ✅ OBSERVABILITY: Log successful scraping with metrics
           this.logger.info(`[WorkflowExecutor] ✅ Scraping succeeded on attempt ${attempt}`, {
@@ -2407,8 +2414,8 @@ class WorkflowExecutor {
           stepDetails: stepDetails || 'Scraping completed',
           duration: durationDisplay,
           recordsCount,
-          connectionTime: (connectionTime / 1000).toFixed(1),
-          scrapeTime: scrapeDuration.toFixed(1)
+          connectionTime: (stepStartTime ? ((Date.now() - stepStartTime) / 1000) : 0).toFixed(1),
+          scrapeTime: stepDuration.toFixed(1)
         }
       };
 
@@ -2490,7 +2497,11 @@ class WorkflowExecutor {
       const backoff = await this._withBackoff(async ({ controller }) => {
         const cancelTimer = setInterval(async () => {
           if (execution && await this._isCancelled(execution.id)) {
-            try { controller?.abort?.(); } catch (_) {}
+            try {
+              controller?.abort?.();
+            } catch (_) {
+              // Ignore abort errors - this is best-effort cancellation
+            }
           }
         }, 500);
         try {
@@ -2666,7 +2677,11 @@ class WorkflowExecutor {
 
           if (dbError) {
             // best-effort cleanup to keep idempotency before retry
-            try { await this.supabase.storage.from('user-files').remove([storagePath]); } catch (_) {}
+            try {
+              await this.supabase.storage.from('user-files').remove([storagePath]);
+            } catch (_) {
+              // Ignore cleanup errors - this is best-effort to maintain idempotency
+            }
             const e = new Error(`Failed to save file metadata: ${dbError.message}`);
             e._db = true;
             throw e;
@@ -3087,7 +3102,11 @@ class WorkflowExecutor {
       const backoff = await this._withBackoff(async ({ controller }) => {
         const cancelTimer = setInterval(async () => {
           if (execution && await this._isCancelled(execution.id)) {
-            try { controller?.abort?.(); } catch (_) {}
+            try {
+              controller?.abort?.();
+            } catch (_) {
+              // Ignore abort errors - this is best-effort cancellation
+            }
           }
         }, 500);
 
@@ -3218,7 +3237,11 @@ class WorkflowExecutor {
       const backoff = await this._withBackoff(async ({ controller }) => {
         const cancelTimer = setInterval(async () => {
           if (execution && await this._isCancelled(execution.id)) {
-            try { controller?.abort?.(); } catch (_) {}
+            try {
+              controller?.abort?.();
+            } catch (_) {
+              // Ignore abort errors - this is best-effort cancellation
+            }
           }
         }, 500);
 
@@ -3656,7 +3679,9 @@ class WorkflowExecutor {
       try {
         const duration = Math.floor((Date.now() - new Date(execution.started_at).getTime()) / 1000);
         updateData.duration_seconds = duration;
-      } catch (_) {}
+      } catch (_) {
+        // Ignore duration calculation errors - optional field
+      }
     }
 
     // ✅ FIX: Only set error_step_id if it's a valid UUID that exists in workflow_steps
@@ -3753,9 +3778,10 @@ class WorkflowExecutor {
         return array.length;
       case 'sum':
         return array.reduce((sum, item) => sum + (item[operation.field] || 0), 0);
-      case 'average':
+      case 'average': {
         const sum = array.reduce((sum, item) => sum + (item[operation.field] || 0), 0);
         return array.length > 0 ? sum / array.length : 0;
+      }
       default:
         return array;
     }

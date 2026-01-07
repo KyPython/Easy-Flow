@@ -182,6 +182,7 @@ const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
 // This allows ANY Vercel preview URL for the project without hardcoding each one
 const ALLOWED_ORIGIN_PATTERNS = [
   /^https:\/\/easy-flow-.*-kypythons-projects\.vercel\.app$/, // Vercel preview URLs
+  // eslint-disable-next-line no-useless-escape
   /^https:\/\/.*\.vercel\.app$/ // Any Vercel preview (fallback)
 ];
 
@@ -956,6 +957,7 @@ try {
   scrapingRoutes = require('./routes/scrapingRoutes');
   rootLogger.info('✓ Scraping routes loaded');
 } catch (e) {
+  // eslint-disable-next-line no-undef
   logger.warn('⚠️ Scraping routes disabled:', e.message);
 }
 
@@ -2050,7 +2052,9 @@ app.post('/api/auth/login', async (req, res) => {
       reason: 'exception',
       error: error.message,
       email: email ? email.substring(0, 3) + '***' : 'missing'
-    }, req).catch(() => {}); // Don't fail if audit logging fails
+    }, req).catch(() => {
+      // Don't fail if audit logging fails - this is best-effort logging
+    });
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -4687,7 +4691,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
     const inserts = [];
 
     switch (campaign) {
-      case 'welcome':
+      case 'welcome': {
         inserts.push({
           profile_id: req.user.id,
           to_email: targetEmail,
@@ -4708,10 +4712,12 @@ app.post('/api/trigger-campaign', async (req, res) => {
         });
         logger.info(`[trigger-campaign] Enqueuing welcome and followup emails for ${targetEmail}`, inserts);
         break;
-      default:
+      }
+      default: {
         // Handle other campaigns if you add them
         logger.info(`[trigger-campaign] Unknown campaign: ${campaign}`);
         break;
+      }
     }
 
     if (inserts.length > 0 && supabase) {

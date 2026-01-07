@@ -181,7 +181,7 @@ class LeadScoringService {
 
     jobPostings.forEach(job => {
       const seniority = job.seniority || 'mid';
-      if (seniorityCounts.hasOwnProperty(seniority)) {
+      if (Object.prototype.hasOwnProperty.call(seniorityCounts, seniority)) {
         seniorityCounts[seniority]++;
       }
     });

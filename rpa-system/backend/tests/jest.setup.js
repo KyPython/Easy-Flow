@@ -163,7 +163,9 @@ console.log = (...args) => {
 // Polyfills for Node environment used by some integrations
 try {
   global.FormData = global.FormData || require('form-data');
-} catch {}
+} catch (_) {
+  // Ignore FormData polyfill errors if form-data is not available
+}
 // minimal Blob polyfill
 global.Blob = global.Blob || class Blob {
   constructor(parts = [], opts = {}) { this._parts = parts; this.type = opts.type; }

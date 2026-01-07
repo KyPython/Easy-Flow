@@ -243,14 +243,16 @@ class WorkflowMetricsService {
         case 'day':
           key = date.toISOString().split('T')[0]; // YYYY-MM-DD
           break;
-        case 'week':
+        case 'week': {
           const weekStart = new Date(date);
           weekStart.setDate(date.getDate() - date.getDay());
           key = weekStart.toISOString().split('T')[0];
           break;
-        case 'month':
+        }
+        case 'month': {
           key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
           break;
+        }
         default:
           key = date.toISOString().split('T')[0];
       }

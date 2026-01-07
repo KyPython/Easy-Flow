@@ -223,6 +223,7 @@ class JobParserService {
     // Extract company name from URL or page
     data.companyName = $('.company-name').text().trim() ||
                        $('meta[property="og:site_name"]').attr('content') ||
+                       // eslint-disable-next-line no-useless-escape
                        url.match(/boards\.greenhouse\.io\/([^\/]+)/)?.[1];
 
     data.sourceUrl = url;
@@ -257,6 +258,7 @@ class JobParserService {
     data.postingDate = this._extractDate($('.posted-date').text());
 
     // Extract company name from URL
+    // eslint-disable-next-line no-useless-escape
     const urlMatch = url.match(/jobs\.lever\.co\/([^\/]+)/);
     data.companyName = urlMatch ? urlMatch[1] : $('.company-name').text().trim();
 

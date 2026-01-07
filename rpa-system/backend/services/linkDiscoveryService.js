@@ -500,7 +500,7 @@ class LinkDiscoveryService {
                 siteUrl: url,
                 taskType: 'login',
                 errorMessage: loginError.message,
-                attemptedSelectors: adaptedSelectors || [],
+                attemptedSelectors: [], // Selector adaptation not yet implemented
                 pageStructure: await this._getPageStructure(page)
               });
 
@@ -949,14 +949,18 @@ class LinkDiscoveryService {
             for (const text of textVariations) {
               if (buttonText.includes(text.toLowerCase())) {
                 // Generate a valid CSS selector for this button
+                // eslint-disable-next-line no-undef
                 if (button.id) {
+                  // eslint-disable-next-line no-undef
                   return `#${CSS.escape(button.id)}`;
                 } else if (button.className && typeof button.className === 'string' && button.className.trim()) {
                   // Use first class name (escape special characters)
                   const firstClass = button.className.trim().split(/\s+/)[0];
+                  // eslint-disable-next-line no-undef
                   return `.${CSS.escape(firstClass)}`;
                 } else if (button.name) {
                   // Use name attribute if available
+                  // eslint-disable-next-line no-undef
                   return `${button.tagName.toLowerCase()}[name="${CSS.escape(button.name)}"]`;
                 } else if (button.type === 'submit') {
                   // Use type attribute

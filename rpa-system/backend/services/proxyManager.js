@@ -86,7 +86,7 @@ class ProxyManager {
         };
         break;
 
-      case 'custom':
+      case 'custom': {
         // Load custom proxy list from environment or file
         const customProxies = process.env.CUSTOM_PROXY_LIST;
         if (customProxies) {
@@ -102,6 +102,7 @@ class ProxyManager {
             };
           });
         }
+      }
         break;
 
       default:
