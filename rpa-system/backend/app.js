@@ -3174,6 +3174,98 @@ app.post('/api/notifications/create', authMiddleware, requireFeature('priority_s
   }
 });
 
+// --- Subscription Monitoring API ---
+const subscriptionMonitoringService = require('./services/subscriptionMonitoringService');
+
+// GET /api/subscriptions - Get all subscriptions for user
+app.get('/api/subscriptions', authMiddleware, async (req, res) => {
+  try {
+    const { company_name, service_name } = req.query;
+    const result = await subscriptionMonitoringService.getUserSubscriptions(req.user.id, {
+      company_name,
+      service_name
+    });
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json(result.subscriptions);
+  } catch (error) {
+    logger.error('[GET /api/subscriptions] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// POST /api/subscriptions - Create new subscription
+app.post('/api/subscriptions', authMiddleware, async (req, res) => {
+  try {
+    const result = await subscriptionMonitoringService.createSubscription(req.user.id, req.body);
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json(result.subscription);
+  } catch (error) {
+    logger.error('[POST /api/subscriptions] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// GET /api/subscriptions/export - Export subscriptions data for spreadsheet
+app.get('/api/subscriptions/export', authMiddleware, async (req, res) => {
+  try {
+    const { company } = req.query;
+    const result = await subscriptionMonitoringService.getExportData(req.user.id, company);
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json(result.data);
+  } catch (error) {
+    logger.error('[GET /api/subscriptions/export] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// POST /api/subscriptions/:id/usage-check - Record usage check result
+app.post('/api/subscriptions/:id/usage-check', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { usage_data, execution_id } = req.body;
+
+    const result = await subscriptionMonitoringService.recordUsageCheck(id, usage_data, execution_id);
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json(result.check);
+  } catch (error) {
+    logger.error('[POST /api/subscriptions/:id/usage-check] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// POST /api/subscriptions/alerts/:id/acknowledge - Acknowledge an alert
+app.post('/api/subscriptions/alerts/:id/acknowledge', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await subscriptionMonitoringService.acknowledgeAlert(id, req.user.id);
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('[POST /api/subscriptions/alerts/:id/acknowledge] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // --- Task Management API ---
 
 // GET /api/tasks - Fetch all automation tasks for the user

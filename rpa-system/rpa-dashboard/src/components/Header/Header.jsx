@@ -185,6 +185,16 @@ const Header = ({ user }) => {
               {t('nav.teams','Teams')}
               {(!planData?.plan || ['Hobbyist', 'Starter'].includes(planData.plan.name)) && <span className={styles.proIcon}>✨</span>}
             </Link>
+
+            {/* Subscription Monitoring */}
+            <Link
+              to="/app/subscriptions"
+              className={`${styles.navLink} ${
+                isActive('/app/subscriptions') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.subscriptions','Subscriptions')}
+            </Link>
           </nav>
         )}
 

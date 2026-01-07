@@ -71,6 +71,29 @@ if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
     cd ../..
 fi
 
+# Step 4: Validate subscription monitoring feature
+echo "\n${BLUE}Validating subscription monitoring feature...${NC}"
+if [ -f "rpa-system/backend/services/subscriptionMonitoringService.js" ]; then
+    if [ -f "rpa-system/backend/tests/subscriptionMonitoringService.test.js" ]; then
+        echo "  ${GREEN}✓ Subscription monitoring service tests found${NC}"
+    else
+        echo "  ${YELLOW}⚠ Warning: subscriptionMonitoringService.js exists but has no test file${NC}"
+    fi
+    
+    if [ -f "rpa-system/rpa-dashboard/src/pages/SubscriptionMonitoringPage.jsx" ]; then
+        echo "  ${GREEN}✓ Subscription monitoring UI page found${NC}"
+        
+        # Check if page uses ThemeContext
+        if grep -q "useTheme" "rpa-system/rpa-dashboard/src/pages/SubscriptionMonitoringPage.jsx" 2>/dev/null; then
+            echo "  ${GREEN}✓ Subscription page uses ThemeContext${NC}"
+        else
+            echo "  ${YELLOW}⚠ Warning: Subscription page does not use ThemeContext${NC}"
+        fi
+    else
+        echo "  ${YELLOW}⚠ Warning: Subscription monitoring service exists but UI page not found${NC}"
+    fi
+fi
+
 echo "\n${BLUE}=== Summary ===${NC}"
 
 if [ $FAILED -eq 0 ]; then

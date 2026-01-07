@@ -58,6 +58,7 @@ const AdminTemplates = lazy(() => import('./pages/AdminTemplates'));
 const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'));
 const UsageDebugPage = lazy(() => import('./pages/debug/UsageDebugPage'));
 const BusinessMetricsPage = lazy(() => import('./pages/BusinessMetricsPage'));
+const SubscriptionMonitoringPage = lazy(() => import('./pages/SubscriptionMonitoringPage'));
 
 // Heavy Feature Components (loaded only when specific features are accessed)
 const WorkflowPage = lazy(() => import('./components/WorkflowBuilder/WorkflowPage'));
@@ -345,6 +346,7 @@ function Shell() {
             <Route path="/app/unified-dashboard" element={<Protected><UnifiedDashboardPage /></Protected>} />
             <Route path="/app/webhooks" element={<Protected><WebhooksPage /></Protected>} />
             <Route path="/app/rules" element={<Protected><RulesPage /></Protected>} />
+            <Route path="/app/subscriptions" element={<Protected><SubscriptionMonitoringPage /></Protected>} />
 
             {/* Workflow Routes - Lazy loaded (saves ~10,000+ lines from initial bundle) */}
             <Route path="/app/workflows" element={<Protected><WorkflowPage /></Protected>} />
