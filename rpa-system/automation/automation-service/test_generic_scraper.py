@@ -42,8 +42,8 @@ class TestWebAutomation:
     """Test cases for web automation functionality"""
 
     def test_placeholder(self):
-    """Placeholder test - replace with actual tests"""
-    assert True
+        """Placeholder test - replace with actual tests"""
+        assert True
 
 
 if __name__ == '__main__':

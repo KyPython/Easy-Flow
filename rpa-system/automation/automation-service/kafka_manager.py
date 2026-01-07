@@ -60,13 +60,12 @@ class KafkaManager:
         logger.info(f"🔧 KafkaManager initialized - Enabled: {self.kafka_enabled}")
 
         if self.kafka_enabled:
-
-        logger.info(
-            f"📡 Bootstrap servers: {
-                ', '.join(
-                    self.bootstrap_servers)}")
-        logger.info(f"📋 Task topic: {self.task_topic}")
-        logger.info(f"📤 Result topic: {self.result_topic}")
+            logger.info(
+                f"📡 Bootstrap servers: {
+                    ', '.join(
+                        self.bootstrap_servers)}")
+            logger.info(f"📋 Task topic: {self.task_topic}")
+            logger.info(f"📤 Result topic: {self.result_topic}")
 
     async def initialize(self):
         """Initialize Kafka connections with retry logic"""

@@ -130,13 +130,13 @@ def scrape_web_page(url, task_data=None):
                 if task_data.get('filters'):
                     filters = task_data['filters']
                     if isinstance(data, list) and filters.get('limit'):
-    data = data[:filters['limit']]
-    if filters.get('fields') and isinstance(data, (list, dict)):
-    if isinstance(data, list) and data:
-    data = [{k: item.get(k) for k in filters['fields']}
-                         for item in data if isinstance(item, dict)]
-    elif isinstance(data, dict):
-    data = {k: data.get(k) for k in filters['fields']}
+                        data = data[:filters['limit']]
+                    if filters.get('fields') and isinstance(data, (list, dict)):
+                        if isinstance(data, list) and data:
+                            data = [{k: item.get(k) for k in filters['fields']}
+                                    for item in data if isinstance(item, dict)]
+                        elif isinstance(data, dict):
+                            data = {k: data.get(k) for k in filters['fields']}
 
     return {
     'status': 'success',
