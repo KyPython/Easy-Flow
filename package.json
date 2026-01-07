@@ -28,6 +28,7 @@
     "validate:srp": "./scripts/validate-srp.sh",
     "validate:dynamic": "./scripts/validate-dynamic-code.sh",
     "validate:theme": "./scripts/validate-theme-consistency.sh",
+    "validate:study-guide": "node scripts/validate-study-guide.js",
     "validate:logging": "./scripts/validate-logging-integration.sh",
     "validate:rag": "./scripts/validate-rag-knowledge.sh",
     "validate:all": "./scripts/validate-all.sh",

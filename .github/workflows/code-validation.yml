@@ -124,6 +124,17 @@ jobs:
           fi
         continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
+      - name: Validate Study Guide
+        run: |
+          echo "📚 Checking that study guide matches codebase..."
+          chmod +x scripts/validate-study-guide.js
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            node scripts/validate-study-guide.js || (echo "❌ Study guide validation failed" && exit 1)
+          else
+            node scripts/validate-study-guide.js || echo "⚠️ Study guide may need updates (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
       - name: Validation Summary
         if: always()
         run: |
@@ -145,4 +156,5 @@ jobs:
           echo "- **Environment-Aware Messages**: All user-facing messages use getEnvMessage() for dev/prod differentiation" >> $GITHUB_STEP_SUMMARY
           echo "- **RAG Knowledge**: RAG knowledge base is up-to-date with latest features" >> $GITHUB_STEP_SUMMARY
           echo "- **Learning System**: App learns from every automation and workflow execution" >> $GITHUB_STEP_SUMMARY
+          echo "- **Study Guide**: COMPREHENSIVE_STUDY_GUIDE.md matches actual codebase implementation" >> $GITHUB_STEP_SUMMARY
 

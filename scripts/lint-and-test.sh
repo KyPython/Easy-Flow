@@ -46,8 +46,20 @@ if [ -f "rpa-system/backend/package.json" ]; then
     cd ../..
 fi
 
-# Step 3: Run Tests
-echo "\n${BLUE}Running tests...${NC}"
+# Step 3.5: Validate Study Guide
+echo "\n${BLUE}Step 3.5: Validating Study Guide...${NC}"
+if [ -f "scripts/validate-study-guide.js" ]; then
+    if node scripts/validate-study-guide.js 2>/dev/null; then
+        echo "  ${GREEN}✓ Study guide validation passed${NC}"
+    else
+        echo "  ${YELLOW}⚠ Study guide may need updates (non-blocking)${NC}"
+    fi
+else
+    echo "  ${YELLOW}○ Study guide validation script not found${NC}"
+fi
+
+# Step 4: Run Tests
+echo "\n${BLUE}Step 4: Running tests...${NC}"
 
 # Backend tests
 if [ -f "rpa-system/backend/package.json" ]; then
