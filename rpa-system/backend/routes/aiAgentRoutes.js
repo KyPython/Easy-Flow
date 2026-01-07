@@ -1,8 +1,8 @@
 /**
  * AI Workflow Agent API Routes
- * 
+ *
  * Endpoints for the natural language workflow generation system.
- * 
+ *
  * OBSERVABILITY:
  * - All routes use structured logging with request context
  * - Performance metrics tracked for each endpoint
@@ -33,7 +33,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.id || req.ip,
-  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
+  skip: () => isDevelopment || isTest // Skip entirely in dev/test
 });
 
 // Authentication middleware - validates JWT token
@@ -74,17 +74,17 @@ const RATE_LIMIT_MAX = 20; // 20 requests per minute
 function checkRateLimit(userId) {
   const now = Date.now();
   const userLimit = localRateLimitStore.get(userId) || { count: 0, resetTime: now + RATE_LIMIT_WINDOW };
-  
+
   if (now > userLimit.resetTime) {
     userLimit.count = 0;
     userLimit.resetTime = now + RATE_LIMIT_WINDOW;
   }
-  
+
   userLimit.count++;
   localRateLimitStore.set(userId, userLimit);
-  
+
   const allowed = userLimit.count <= RATE_LIMIT_MAX;
-  
+
   // Log rate limit events
   if (!allowed) {
     logger.security('ai.rate_limit_exceeded', 'blocked', {
@@ -94,24 +94,24 @@ function checkRateLimit(userId) {
       resetTime: new Date(userLimit.resetTime).toISOString()
     });
   }
-  
+
   return allowed;
 }
 
 /**
  * POST /api/ai-agent/message
  * Main endpoint for AI agent interactions
- * 
+ *
  * NOW WITH FULL APP CONTROL:
  * The AI can now execute actions like scraping, emailing, API calls,
  * task management, workflow creation, and more - all via natural language!
- * 
+ *
  * OBSERVABILITY: Full request logging with performance tracking
  */
 router.post('/message', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
-  
+
   if (!userId) {
     return res.status(401).json({
       success: false,
@@ -120,7 +120,7 @@ router.post('/message', authMiddleware, contextLoggerMiddleware, async (req, res
     });
   }
   const userEmail = req.user?.email;
-  
+
   // Create request-scoped logger
   const reqLogger = logger
     .withUser({ id: userId, email: userEmail })
@@ -153,9 +153,9 @@ router.post('/message', authMiddleware, contextLoggerMiddleware, async (req, res
       });
     }
 
-    reqLogger.info('Processing AI message', { 
+    reqLogger.info('Processing AI message', {
       messageLength: message.length,
-      hasContext: !!context.previousMessages 
+      hasContext: !!context.previousMessages
     });
 
     // Enrich context with user information for action execution
@@ -183,7 +183,7 @@ router.post('/message', authMiddleware, contextLoggerMiddleware, async (req, res
         success: result.success,
         duration
       });
-      
+
       reqLogger.metric('ai.route.action_executed', 1, 'count', {
         action: result.action,
         success: result.success
@@ -194,11 +194,11 @@ router.post('/message', authMiddleware, contextLoggerMiddleware, async (req, res
 
   } catch (error) {
     const duration = Date.now() - startTime;
-    
+
     reqLogger.error('Error processing AI message', error, {
       duration
     });
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to process your request',
@@ -214,7 +214,7 @@ router.post('/message', authMiddleware, contextLoggerMiddleware, async (req, res
 router.post('/generate-workflow', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -222,7 +222,7 @@ router.post('/generate-workflow', authMiddleware, contextLoggerMiddleware, async
         message: 'Please sign in to generate workflows.'
       });
     }
-    
+
     if (!checkRateLimit(userId)) {
       return res.status(429).json({
         success: false,
@@ -271,7 +271,7 @@ router.post('/generate-workflow', authMiddleware, contextLoggerMiddleware, async
 router.post('/refine-workflow', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -279,7 +279,7 @@ router.post('/refine-workflow', authMiddleware, contextLoggerMiddleware, async (
         message: 'Please sign in to refine workflows.'
       });
     }
-    
+
     if (!checkRateLimit(userId)) {
       return res.status(429).json({
         success: false,
@@ -318,9 +318,9 @@ router.post('/refine-workflow', authMiddleware, contextLoggerMiddleware, async (
 router.get('/suggestions', async (req, res) => {
   try {
     const { q } = req.query;
-    
+
     const suggestions = await aiAgent.getSuggestions(q || '');
-    
+
     res.json({
       success: true,
       suggestions
@@ -381,12 +381,12 @@ router.get('/health', async (req, res) => {
   try {
     // Check if OpenAI API key is configured
     const hasApiKey = !!process.env.OPENAI_API_KEY;
-    
+
     res.json({
       status: hasApiKey ? 'healthy' : 'degraded',
       aiEnabled: hasApiKey,
-      message: hasApiKey 
-        ? 'AI Workflow Agent is ready' 
+      message: hasApiKey
+        ? 'AI Workflow Agent is ready'
         : 'OpenAI API key not configured. AI features are limited.'
     });
   } catch (error) {
@@ -525,7 +525,7 @@ router.post('/send-support-email', authMiddleware, contextLoggerMiddleware, asyn
   try {
     const userId = req.user?.id;
     const userEmail = req.user?.email;
-    
+
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -579,9 +579,9 @@ router.post('/send-support-email', authMiddleware, contextLoggerMiddleware, asyn
 
     await sgMail.send(msg);
 
-    logger.info('[AI Agent Route] Support email sent', { 
-      userId, 
-      subject: String(subject).slice(0, 50) 
+    logger.info('[AI Agent Route] Support email sent', {
+      userId,
+      subject: String(subject).slice(0, 50)
     });
 
     res.json({
@@ -701,7 +701,7 @@ const actionExecutor = require('../services/aiActionExecutor');
 router.get('/actions', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
     const actions = actionExecutor.getAvailableActions();
-    
+
     // Group by category
     const grouped = actions.reduce((acc, action) => {
       const category = action.category || 'other';
@@ -734,14 +734,14 @@ router.get('/actions', authMiddleware, contextLoggerMiddleware, async (req, res)
 /**
  * POST /api/ai-agent/execute
  * Execute an action directly (without AI interpretation)
- * 
+ *
  * OBSERVABILITY: Direct action execution tracking
  */
 router.post('/execute', authMiddleware, contextLoggerMiddleware, apiLimiter, async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
   const userEmail = req.user?.email;
-  
+
   const reqLogger = logger
     .withUser({ id: userId, email: userEmail })
     .withOperation('ai.route.execute', { requestId: req.requestId });
@@ -766,7 +766,7 @@ router.post('/execute', authMiddleware, contextLoggerMiddleware, apiLimiter, asy
       userEmail,
       timezone: req.headers['x-timezone'] || 'UTC'
     });
-    
+
     const duration = Date.now() - startTime;
 
     reqLogger.performance('ai.route.execute', duration, {

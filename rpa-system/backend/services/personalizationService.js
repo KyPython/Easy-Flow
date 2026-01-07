@@ -1,6 +1,6 @@
 /**
  * Personalization Service
- * 
+ *
  * Generates personalized email content using LLM:
  * - Extract signals from job postings
  * - Generate personalized snippets
@@ -16,7 +16,7 @@ const logger = createLogger('service.personalization');
 
 class PersonalizationService {
   constructor() {
-    this.openai = process.env.OPENAI_API_KEY 
+    this.openai = process.env.OPENAI_API_KEY
       ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
       : null;
   }
@@ -64,8 +64,8 @@ class PersonalizationService {
         model: options.model || 'gpt-4o-mini'
       };
     } catch (error) {
-      logger.error('Failed to generate personalized snippet', error, { 
-        jobPostingId: jobPosting?.id 
+      logger.error('Failed to generate personalized snippet', error, {
+        jobPostingId: jobPosting?.id
       });
       return {
         success: false,
@@ -87,34 +87,34 @@ class PersonalizationService {
     const contactTitle = contactInfo.title || '';
 
     let prompt = `Generate a personalized 2-3 sentence email snippet for ${contactName}`;
-    
+
     if (contactTitle) {
       prompt += `, who is ${contactTitle}`;
     }
-    
+
     prompt += ` at ${companyName}. `;
-    
+
     if (department) {
       prompt += `They're hiring in the ${department} department. `;
     }
-    
+
     prompt += `The job posting is for: ${jobTitle}`;
-    
+
     if (location) {
       prompt += ` in ${location}`;
     }
-    
+
     if (techStack.length > 0) {
       prompt += `. They're using: ${techStack.join(', ')}`;
     }
-    
-    prompt += `. `;
-    
+
+    prompt += '. ';
+
     if (options.productContext) {
       prompt += `Our product helps with: ${options.productContext}. `;
     }
-    
-    prompt += `Write a snippet that shows I've researched their hiring needs and can provide value. Be specific and reference the job posting details.`;
+
+    prompt += 'Write a snippet that shows I\'ve researched their hiring needs and can provide value. Be specific and reference the job posting details.';
 
     return prompt;
   }
@@ -124,7 +124,7 @@ class PersonalizationService {
    */
   _extractTemplateVariables(text) {
     const variables = {};
-    
+
     // Extract common patterns
     const patterns = {
       companyName: /{{company_name}}|{company}|\[COMPANY\]/gi,

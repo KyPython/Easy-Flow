@@ -18,13 +18,13 @@ class NotionIntegration {
    */
   async authenticate(credentials) {
     const { accessToken } = credentials;
-    
+
     if (!accessToken) {
       throw new Error('Notion access token is required');
     }
-    
+
     this.accessToken = accessToken;
-    
+
     // Verify authentication by getting user info
     try {
       const response = await axios.get(`${this.baseUrl}/users/me`, {
@@ -33,7 +33,7 @@ class NotionIntegration {
           'Notion-Version': '2022-06-28'
         }
       });
-      
+
       logger.info('[NotionIntegration] Authenticated successfully', {
         userId: response.data.id
       });
@@ -53,7 +53,7 @@ class NotionIntegration {
    */
   async createPage(params) {
     const { parentId, title, content, properties = {} } = params;
-    
+
     const pageData = {
       parent: {
         page_id: parentId
@@ -71,7 +71,7 @@ class NotionIntegration {
         ...properties
       }
     };
-    
+
     // Add content if provided
     if (content) {
       pageData.children = [
@@ -91,7 +91,7 @@ class NotionIntegration {
         }
       ];
     }
-    
+
     const response = await axios.post(`${this.baseUrl}/pages`, pageData, {
       headers: {
         'Authorization': `Bearer ${this.accessToken}`,
@@ -99,7 +99,7 @@ class NotionIntegration {
         'Content-Type': 'application/json'
       }
     });
-    
+
     return {
       success: true,
       pageId: response.data.id,
@@ -113,14 +113,14 @@ class NotionIntegration {
    */
   async readPage(params) {
     const { pageId } = params;
-    
+
     const response = await axios.get(`${this.baseUrl}/pages/${pageId}`, {
       headers: {
         'Authorization': `Bearer ${this.accessToken}`,
         'Notion-Version': '2022-06-28'
       }
     });
-    
+
     return {
       success: true,
       page: response.data
@@ -133,12 +133,12 @@ class NotionIntegration {
    */
   async updatePage(params) {
     const { pageId, properties, content } = params;
-    
+
     const updateData = {};
     if (properties) {
       updateData.properties = properties;
     }
-    
+
     const response = await axios.patch(`${this.baseUrl}/pages/${pageId}`, updateData, {
       headers: {
         'Authorization': `Bearer ${this.accessToken}`,
@@ -146,7 +146,7 @@ class NotionIntegration {
         'Content-Type': 'application/json'
       }
     });
-    
+
     return {
       success: true,
       pageId: response.data.id,
@@ -160,11 +160,11 @@ class NotionIntegration {
    */
   async queryDatabase(params) {
     const { databaseId, filter, sorts } = params;
-    
+
     const queryData = {};
     if (filter) queryData.filter = filter;
     if (sorts) queryData.sorts = sorts;
-    
+
     const response = await axios.post(`${this.baseUrl}/databases/${databaseId}/query`, queryData, {
       headers: {
         'Authorization': `Bearer ${this.accessToken}`,
@@ -172,7 +172,7 @@ class NotionIntegration {
         'Content-Type': 'application/json'
       }
     });
-    
+
     return {
       success: true,
       results: response.data.results,

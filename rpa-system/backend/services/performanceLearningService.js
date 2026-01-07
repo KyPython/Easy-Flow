@@ -1,6 +1,6 @@
 /**
  * Performance Learning Service
- * 
+ *
  * Tracks and learns from campaign performance:
  * - Reply rate tracking by signal type
  * - Signal correlation analysis
@@ -118,11 +118,11 @@ class PerformanceLearningService {
   _calculateCorrelation(leadScores, signalName) {
     // Simplified correlation calculation
     // In production, use proper statistical correlation (Pearson, etc.)
-    
-    const withSignal = leadScores.filter(ls => 
+
+    const withSignal = leadScores.filter(ls =>
       ls.signals?.[signalName] && ls.signals[signalName] > 0.5
     );
-    const withoutSignal = leadScores.filter(ls => 
+    const withoutSignal = leadScores.filter(ls =>
       !ls.signals?.[signalName] || ls.signals[signalName] <= 0.5
     );
 
@@ -162,7 +162,7 @@ class PerformanceLearningService {
         departmentSignals: parseFloat(process.env.LEAD_SCORE_WEIGHT_DEPARTMENT || '0.15'),
         companyGrowth: parseFloat(process.env.LEAD_SCORE_WEIGHT_COMPANY_GROWTH || '0.15')
       };
-      
+
       const newWeights = { ...baseWeights };
 
       // Boost weights for signals with higher correlation

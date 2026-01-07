@@ -2,7 +2,7 @@
 const { logger, getLogger } = require('../utils/logger');
 /**
  * Data Retention Service for EasyFlow
- * 
+ *
  * Implements comprehensive data retention policies with automatic purging
  * for audit logs, execution data, sensitive payloads, and user data.
  * Ensures compliance with GDPR, CCPA, and enterprise data governance.
@@ -14,7 +14,7 @@ const { auditLogger } = require('../utils/auditLogger');
 class DataRetentionService {
   constructor() {
     this.supabase = getSupabase();
-    
+
     // Default retention periods (can be overridden by environment variables)
     this.retentionPolicies = {
       audit_logs: {
@@ -50,7 +50,7 @@ class DataRetentionService {
 
     this.isRunning = false;
     this.scheduledJobs = new Map();
-    
+
     // Start automatic scheduling
     this.startScheduledCleanup();
   }
@@ -60,7 +60,7 @@ class DataRetentionService {
    */
   startScheduledCleanup() {
     if (this.isRunning) return;
-    
+
     this.isRunning = true;
     logger.info('🚀 Starting Data Retention Service with automated cleanup...');
 
@@ -119,16 +119,16 @@ class DataRetentionService {
     try {
       // Audit logs cleanup
       results.audit_logs = await this.cleanupAuditLogs();
-      
+
       // Execution data cleanup
       results.executions = await this.cleanupExecutionData();
-      
+
       // Step execution cleanup
       results.step_executions = await this.cleanupStepExecutions();
-      
+
       // User data cleanup
       results.user_data = await this.cleanupUserData();
-      
+
       // Temporary files cleanup
       results.temp_files = await this.cleanupTemporaryFiles();
 
@@ -154,12 +154,12 @@ class DataRetentionService {
 
     } catch (error) {
       logger.error('❌ Data retention cleanup failed:', error);
-      
+
       await auditLogger.logSystemEvent('error', 'data_retention_cleanup_failed', {
         error: error.message,
         stack: error.stack
       });
-      
+
       throw error;
     }
   }
@@ -169,7 +169,7 @@ class DataRetentionService {
    */
   async cleanupAuditLogs() {
     logger.info('🧹 Cleaning up audit logs...');
-    
+
     try {
       const results = {
         security_events: 0,
@@ -181,43 +181,43 @@ class DataRetentionService {
       const securityCutoff = new Date(
         Date.now() - this.retentionPolicies.audit_logs.security_events * 24 * 60 * 60 * 1000
       );
-      
+
       const { count: securityCleaned } = await this.supabase
         .from('audit_logs')
         .delete()
         .eq('action_type', 'security_event')
         .lt('timestamp', securityCutoff.toISOString());
-      
+
       results.security_events = securityCleaned || 0;
 
       // Clean authentication events
       const authCutoff = new Date(
         Date.now() - this.retentionPolicies.audit_logs.authentication * 24 * 60 * 60 * 1000
       );
-      
+
       const { count: authCleaned } = await this.supabase
         .from('audit_logs')
         .delete()
         .eq('action_type', 'authentication')
         .lt('timestamp', authCutoff.toISOString());
-      
+
       results.authentication = authCleaned || 0;
 
       // Clean general audit logs
       const generalCutoff = new Date(
         Date.now() - this.retentionPolicies.audit_logs.default * 24 * 60 * 60 * 1000
       );
-      
+
       const { count: generalCleaned } = await this.supabase
         .from('audit_logs')
         .delete()
         .not('action_type', 'in', '(security_event,authentication)')
         .lt('timestamp', generalCutoff.toISOString());
-      
+
       results.general = generalCleaned || 0;
 
       const totalCleaned = results.security_events + results.authentication + results.general;
-      
+
       logger.info(`✅ Cleaned ${totalCleaned} audit log entries`);
       logger.info(`   Security events: ${results.security_events}`);
       logger.info(`   Authentication: ${results.authentication}`);
@@ -244,7 +244,7 @@ class DataRetentionService {
    */
   async cleanupExecutionData() {
     logger.info('🧹 Cleaning up workflow execution data...');
-    
+
     try {
       const results = {
         completed_executions: 0,
@@ -274,30 +274,30 @@ class DataRetentionService {
       const completedCutoff = new Date(
         Date.now() - this.retentionPolicies.workflow_executions.completed * 24 * 60 * 60 * 1000
       );
-      
+
       const { count: completedCleaned } = await this.supabase
         .from('workflow_executions')
         .delete()
         .eq('status', 'completed')
         .lt('started_at', completedCutoff.toISOString());
-      
+
       results.completed_executions = completedCleaned || 0;
 
       // Cleanup failed executions (longer retention for debugging)
       const failedCutoff = new Date(
         Date.now() - this.retentionPolicies.workflow_executions.failed * 24 * 60 * 60 * 1000
       );
-      
+
       const { count: failedCleaned } = await this.supabase
         .from('workflow_executions')
         .delete()
         .eq('status', 'failed')
         .lt('started_at', failedCutoff.toISOString());
-      
+
       results.failed_executions = failedCleaned || 0;
 
       const totalCleaned = results.completed_executions + results.failed_executions;
-      
+
       logger.info(`✅ Cleaned ${totalCleaned} workflow executions`);
       logger.info(`   Completed executions: ${results.completed_executions}`);
       logger.info(`   Failed executions: ${results.failed_executions}`);
@@ -325,7 +325,7 @@ class DataRetentionService {
    */
   async cleanupStepExecutions() {
     logger.info('🧹 Cleaning up step execution data...');
-    
+
     try {
       const results = {
         normal_steps: 0,
@@ -336,30 +336,30 @@ class DataRetentionService {
       const errorCutoff = new Date(
         Date.now() - this.retentionPolicies.step_executions.error_logs * 24 * 60 * 60 * 1000
       );
-      
+
       const { count: errorCleaned } = await this.supabase
         .from('step_executions')
         .delete()
         .not('error_message', 'is', null)
         .lt('started_at', errorCutoff.toISOString());
-      
+
       results.error_steps = errorCleaned || 0;
 
       // Clean normal step executions
       const normalCutoff = new Date(
         Date.now() - this.retentionPolicies.step_executions.default * 24 * 60 * 60 * 1000
       );
-      
+
       const { count: normalCleaned } = await this.supabase
         .from('step_executions')
         .delete()
         .is('error_message', null)
         .lt('started_at', normalCutoff.toISOString());
-      
+
       results.normal_steps = normalCleaned || 0;
 
       const totalCleaned = results.normal_steps + results.error_steps;
-      
+
       logger.info(`✅ Cleaned ${totalCleaned} step executions`);
       logger.info(`   Normal steps: ${results.normal_steps}`);
       logger.info(`   Error steps: ${results.error_steps}`);
@@ -384,7 +384,7 @@ class DataRetentionService {
    */
   async cleanupUserData() {
     logger.info('🧹 Cleaning up user data...');
-    
+
     try {
       const results = {
         inactive_users: 0,
@@ -413,7 +413,7 @@ class DataRetentionService {
    */
   async cleanupTemporaryFiles() {
     logger.info('🧹 Cleaning up temporary files...');
-    
+
     try {
       const results = {
         temp_uploads: 0,
@@ -453,46 +453,46 @@ class DataRetentionService {
       const { count: totalAuditLogs } = await this.supabase
         .from('audit_logs')
         .select('*', { count: 'exact', head: true });
-      
+
       stats.audit_logs.total = totalAuditLogs || 0;
 
       // Get audit logs older than retention period
       const auditCutoff = new Date(
         Date.now() - this.retentionPolicies.audit_logs.default * 24 * 60 * 60 * 1000
       );
-      
+
       const { count: expiredAuditLogs } = await this.supabase
         .from('audit_logs')
         .select('*', { count: 'exact', head: true })
         .lt('timestamp', auditCutoff.toISOString());
-      
+
       stats.audit_logs.expired = expiredAuditLogs || 0;
 
       // Workflow executions stats
       const { count: totalExecutions } = await this.supabase
         .from('workflow_executions')
         .select('*', { count: 'exact', head: true });
-      
+
       stats.workflow_executions.total = totalExecutions || 0;
 
       // Get executions with sensitive data
       const payloadCutoff = new Date(
         Date.now() - this.retentionPolicies.workflow_executions.sensitive_payload * 24 * 60 * 60 * 1000
       );
-      
+
       const { count: executionsWithSensitiveData } = await this.supabase
         .from('workflow_executions')
         .select('*', { count: 'exact', head: true })
         .not('input_data', 'is', null)
         .lt('started_at', payloadCutoff.toISOString());
-      
+
       stats.workflow_executions.with_expired_sensitive_data = executionsWithSensitiveData || 0;
 
       // Step executions stats
       const { count: totalStepExecutions } = await this.supabase
         .from('step_executions')
         .select('*', { count: 'exact', head: true });
-      
+
       stats.step_executions.total = totalStepExecutions || 0;
 
       return stats;

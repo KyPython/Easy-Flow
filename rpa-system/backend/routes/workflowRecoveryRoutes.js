@@ -42,8 +42,8 @@ router.post('/:executionId/resume', requireFeature('workflow_executions'), async
     }
 
     if (failedExecution.status !== 'failed') {
-      return res.status(400).json({ 
-        error: `Cannot resume execution with status: ${failedExecution.status}` 
+      return res.status(400).json({
+        error: `Cannot resume execution with status: ${failedExecution.status}`
       });
     }
 
@@ -53,8 +53,8 @@ router.post('/:executionId/resume', requireFeature('workflow_executions'), async
       .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
 
     if (successfulSteps.length === 0) {
-      return res.status(400).json({ 
-        error: 'No successful steps found to resume from' 
+      return res.status(400).json({
+        error: 'No successful steps found to resume from'
       });
     }
 
@@ -64,8 +64,8 @@ router.post('/:executionId/resume', requireFeature('workflow_executions'), async
     // Get workflow
     const workflow = failedExecution.workflow;
     if (!workflow || workflow.status !== 'active') {
-      return res.status(400).json({ 
-        error: 'Workflow is not active' 
+      return res.status(400).json({
+        error: 'Workflow is not active'
       });
     }
 
@@ -110,8 +110,8 @@ router.post('/:executionId/resume', requireFeature('workflow_executions'), async
 
   } catch (error) {
     logger.error('[WorkflowRecovery] Resume error:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to resume workflow' 
+    res.status(500).json({
+      error: error.message || 'Failed to resume workflow'
     });
   }
 });
@@ -166,11 +166,11 @@ router.get('/:executionId/recovery-options', requireFeature('workflow_executions
     let partialResults = [];
     if (execution.metadata) {
       try {
-        const metadata = typeof execution.metadata === 'string' 
-          ? JSON.parse(execution.metadata) 
+        const metadata = typeof execution.metadata === 'string'
+          ? JSON.parse(execution.metadata)
           : execution.metadata;
         partialResults = metadata.partial_results || [];
-      } catch (_) {}
+      } catch (_e) { /* ignore */ }
     }
 
     res.json({
@@ -193,8 +193,8 @@ router.get('/:executionId/recovery-options', requireFeature('workflow_executions
       partial_results: partialResults,
       error_category: execution.metadata ? (() => {
         try {
-          const meta = typeof execution.metadata === 'string' 
-            ? JSON.parse(execution.metadata) 
+          const meta = typeof execution.metadata === 'string'
+            ? JSON.parse(execution.metadata)
             : execution.metadata;
           return meta.error_category || null;
         } catch {
@@ -205,8 +205,8 @@ router.get('/:executionId/recovery-options', requireFeature('workflow_executions
 
   } catch (error) {
     logger.error('[WorkflowRecovery] Recovery options error:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to get recovery options' 
+    res.status(500).json({
+      error: error.message || 'Failed to get recovery options'
     });
   }
 });

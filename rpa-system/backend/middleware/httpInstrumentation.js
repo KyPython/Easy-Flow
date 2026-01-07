@@ -9,19 +9,19 @@ const { getCurrentTraceContext, createContextLogger } = require('../middleware/t
 class InstrumentedAxiosClient {
   constructor(baseConfig = {}) {
     this.logger = createContextLogger('http.client');
-    
+
     // Create axios instance with instrumentation
     this.client = axios.create({
       ...baseConfig,
-      timeout: baseConfig.timeout || 30000,
+      timeout: baseConfig.timeout || 30000
     });
-    
+
     // Add request interceptor for trace propagation
     this.client.interceptors.request.use(
       (config) => this._instrumentRequest(config),
       (error) => this._handleRequestError(error)
     );
-    
+
     // Add response interceptor for timing and logging
     this.client.interceptors.response.use(
       (response) => this._instrumentResponse(response),
@@ -35,10 +35,10 @@ class InstrumentedAxiosClient {
   _instrumentRequest(config) {
     const startTime = Date.now();
     const traceContext = getCurrentTraceContext();
-    
+
     // Add trace headers for external service correlation
     if (!config.headers) config.headers = {};
-    
+
     if (traceContext.traceparent) {
       config.headers['traceparent'] = traceContext.traceparent;
     }
@@ -55,7 +55,7 @@ class InstrumentedAxiosClient {
     // Store timing and context for response handling
     config._instrumentationStart = startTime;
     config._traceContext = traceContext;
-    
+
     // Log request start
     this.logger.info('HTTP request started', {
       http: {
@@ -95,7 +95,7 @@ class InstrumentedAxiosClient {
   _instrumentResponse(response) {
     const duration = Date.now() - (response.config._instrumentationStart || Date.now());
     const traceContext = response.config._traceContext || {};
-    
+
     this.logger.info('HTTP request completed', {
       http: {
         method: response.config.method?.toUpperCase() || 'GET',
@@ -121,12 +121,12 @@ class InstrumentedAxiosClient {
    * Handle HTTP response errors
    */
   _handleResponseError(error) {
-    const duration = error.config 
+    const duration = error.config
       ? Date.now() - (error.config._instrumentationStart || Date.now())
       : 0;
-    
+
     const traceContext = error.config?._traceContext || {};
-    
+
     this.logger.error('HTTP request failed', {
       http: {
         method: error.config?.method?.toUpperCase() || 'UNKNOWN',
@@ -158,7 +158,7 @@ class InstrumentedAxiosClient {
    */
   _sanitizeUrl(url) {
     if (!url) return 'unknown';
-    
+
     try {
       const urlObj = new URL(url);
       // Remove query parameters that might contain sensitive data
@@ -181,7 +181,7 @@ class InstrumentedAxiosClient {
     try {
       const fullUrl = baseURL ? `${baseURL}${url}` : url;
       const hostname = new URL(fullUrl).hostname;
-      
+
       // Map common services to readable names
       const serviceMap = {
         'api.openai.com': 'openai',
@@ -195,7 +195,7 @@ class InstrumentedAxiosClient {
         'sandbox-quickbooks.api.intuit.com': 'quickbooks-sandbox',
         'api.quickbooks.com': 'quickbooks'
       };
-      
+
       return serviceMap[hostname] || hostname || 'unknown';
     } catch {
       return 'unknown';
@@ -208,7 +208,7 @@ class InstrumentedAxiosClient {
   _getResponseSize(response) {
     const contentLength = response.headers['content-length'];
     if (contentLength) return parseInt(contentLength, 10);
-    
+
     // Estimate size if content-length not available
     if (response.data) {
       if (typeof response.data === 'string') return response.data.length;

@@ -26,7 +26,7 @@ class BatchProcessor {
    */
   async processBulkInvoices(batchConfig) {
     const { userId, vendors, outputPath, namingPattern } = batchConfig;
-    
+
     try {
       // Create batch execution record
       const { data: batch, error: batchError } = await this.supabase
@@ -45,7 +45,7 @@ class BatchProcessor {
 
       const results = [];
       const chunks = this.chunkArray(vendors, this.maxConcurrent);
-      
+
       // Create bulk operation span for tracking progress
       const bulkSpan = new BulkOperationSpan('bulk_vendor_processing', vendors.length, {
         batchId: batch.id,
@@ -57,18 +57,18 @@ class BatchProcessor {
       let processedCount = 0;
 
       for (const chunk of chunks) {
-        const promises = chunk.map(vendor => 
+        const promises = chunk.map(vendor =>
           this.processVendorInvoices(vendor, outputPath, namingPattern, batch.id)
         );
-        
+
         const chunkResults = await Promise.allSettled(promises);
         results.push(...chunkResults);
-        
+
         // Update progress tracking
         processedCount += chunk.length;
         const failedCount = results.filter(r => r.status === 'rejected').length;
         bulkSpan.recordProgress(processedCount, failedCount);
-        
+
         // Update database progress
         await this.updateBatchProgress(batch.id, results.length, vendors.length);
       }
@@ -110,7 +110,7 @@ class BatchProcessor {
    */
   async processVendorInvoices(vendor, outputPath, namingPattern, batchId) {
     const { name, loginUrl, username, password, invoiceSelector, dateRange } = vendor;
-    
+
     try {
       // Create automation task for this vendor
       const taskData = {
@@ -132,19 +132,19 @@ class BatchProcessor {
       for (let attempt = 1; attempt <= this.retryAttempts; attempt++) {
         try {
           const result = await this.executeVendorAutomation(taskData, batchId);
-          
+
           // Process and rename downloaded files
           if (result.success && result.downloadedFiles) {
             await this.processDownloadedFiles(result.downloadedFiles, vendor, namingPattern);
           }
-          
+
           return {
             vendor: name,
             success: true,
             filesProcessed: result.downloadedFiles?.length || 0,
             result: result
           };
-          
+
         } catch (error) {
           lastError = error;
           if (attempt < this.retryAttempts) {
@@ -152,9 +152,9 @@ class BatchProcessor {
           }
         }
       }
-      
+
       throw lastError;
-      
+
     } catch (error) {
       logger.error(`[BatchProcessor] Vendor ${name} processing failed:`, error);
       return {
@@ -182,10 +182,10 @@ class BatchProcessor {
         });
 
         const newPath = path.join(path.dirname(file.path), newName);
-        
+
         if (fs.existsSync(file.path)) {
           fs.renameSync(file.path, newPath);
-          
+
           // Update file record in database
           await this.supabase
             .from('user_files')
@@ -196,7 +196,7 @@ class BatchProcessor {
             })
             .eq('file_path', file.path);
         }
-        
+
       } catch (error) {
         logger.error('[BatchProcessor] File processing error:', error);
       }
@@ -214,9 +214,9 @@ class BatchProcessor {
       // - Amount
       // - Invoice number
       // - Vendor details
-      
+
       const stats = fs.statSync(filePath);
-      
+
       return {
         date: stats.mtime.toISOString().split('T')[0],
         amount: null, // To be extracted by AI
@@ -224,7 +224,7 @@ class BatchProcessor {
         fileSize: stats.size,
         extractedAt: new Date().toISOString()
       };
-      
+
     } catch (error) {
       logger.error('[BatchProcessor] Metadata extraction failed:', error);
       return {};
@@ -236,7 +236,7 @@ class BatchProcessor {
    */
   generateFileName(pattern, data) {
     let fileName = pattern;
-    
+
     // Replace placeholders with actual data
     fileName = fileName
       .replace('{vendor}', this.sanitizeFileName(data.vendor))
@@ -259,7 +259,7 @@ class BatchProcessor {
   async executeVendorAutomation(taskData, batchId) {
     // This would call the existing automation service
     // Enhanced to handle vendor-specific login flows and invoice collection
-    
+
     const response = await this.http.post(`${process.env.AUTOMATION_URL}/automate`, {
       ...taskData,
       batch_id: batchId,
@@ -283,7 +283,7 @@ class BatchProcessor {
    */
   async updateBatchProgress(batchId, completed, total) {
     const progress = Math.round((completed / total) * 100);
-    
+
     await this.supabase
       .from('batch_executions')
       .update({

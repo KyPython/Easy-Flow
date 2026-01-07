@@ -19,7 +19,7 @@ router.get('/:executionId', requireFeature('workflow_executions'), async (req, r
     executionId: req.params.executionId,
     operation: 'get_execution_details'
   });
-  
+
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -52,17 +52,17 @@ router.get('/:executionId', requireFeature('workflow_executions'), async (req, r
       logger.warn('Execution not found', { executionId, error: error?.message });
       return res.status(404).json({ error: 'Execution not found' });
     }
-    
+
     if (execution.user_id !== userId) {
-      logger.warn('Access denied - execution belongs to different user', { 
-        executionId, 
+      logger.warn('Access denied - execution belongs to different user', {
+        executionId,
         executionUserId: execution.user_id,
-        requestUserId: userId 
+        requestUserId: userId
       });
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    logger.info('Execution details retrieved successfully', { 
+    logger.info('Execution details retrieved successfully', {
       executionId,
       stepCount: execution.step_executions?.length || 0,
       status: execution.status
@@ -99,7 +99,7 @@ router.get('/:executionId/steps', requireFeature('workflow_executions'), async (
 
     const { data: steps, error } = await supabase
       .from('step_executions')
-      .select(`*`)
+      .select('*')
       .eq('workflow_execution_id', executionId)
       .order('execution_order', { ascending: true });
     if (error) throw error;
@@ -182,12 +182,12 @@ router.post('/test-link-discovery', requireFeature('workflow_executions'), async
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const { 
-      url, 
-      username, 
-      password, 
-      discoveryMethod = 'auto-detect', 
-      discoveryValue 
+    const {
+      url,
+      username,
+      password,
+      discoveryMethod = 'auto-detect',
+      discoveryValue
     } = req.body;
 
     // Validate required fields
@@ -210,7 +210,7 @@ router.post('/test-link-discovery', requireFeature('workflow_executions'), async
     });
 
     const linkDiscovery = new LinkDiscoveryService();
-    
+
     // Run discovery in test mode
     const discoveryResult = await linkDiscovery.discoverPdfLinks({
       url,
@@ -221,7 +221,7 @@ router.post('/test-link-discovery', requireFeature('workflow_executions'), async
       testMode: true
     });
 
-    logger.info(`[TestLinkDiscovery] Discovery completed:`, {
+    logger.info('[TestLinkDiscovery] Discovery completed:', {
       success: discoveryResult.success,
       linksFound: discoveryResult.discoveredLinks?.length || 0
     });
@@ -253,7 +253,7 @@ router.get('/analytics/summary', requireFeature('workflow_executions'), async (r
 
     const { days = 30, workflowId } = req.query;
     const metricsService = new WorkflowMetricsService();
-    
+
     const analytics = await metricsService.getWorkflowAnalytics(userId, {
       workflowId: workflowId || null,
       days: parseInt(days, 10),
@@ -277,7 +277,7 @@ router.get('/analytics/errors', requireFeature('workflow_executions'), async (re
 
     const { days = 30 } = req.query;
     const metricsService = new WorkflowMetricsService();
-    
+
     const breakdown = await metricsService.getErrorBreakdown(userId, parseInt(days, 10));
 
     res.json({ error_breakdown: breakdown });
@@ -297,7 +297,7 @@ router.get('/analytics/success-rates', requireFeature('workflow_executions'), as
 
     const { days = 30 } = req.query;
     const metricsService = new WorkflowMetricsService();
-    
+
     const successRates = await metricsService.getSuccessRateByWorkflow(userId, parseInt(days, 10));
 
     res.json({ success_rates: successRates });

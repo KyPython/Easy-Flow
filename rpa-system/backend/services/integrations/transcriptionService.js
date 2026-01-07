@@ -13,7 +13,7 @@ class TranscriptionService {
     this.apiKey = process.env.OPENAI_API_KEY;
     this.baseUrl = 'https://api.openai.com/v1';
     this.http = createInstrumentedHttpClient();
-    
+
     if (!this.apiKey) {
       logger.warn('[TranscriptionService] OPENAI_API_KEY not set - transcription will fail');
     }
@@ -28,9 +28,9 @@ class TranscriptionService {
     if (!this.apiKey) {
       throw new Error('OPENAI_API_KEY not configured');
     }
-    
+
     const { language = null, prompt = null, responseFormat = 'json' } = options;
-    
+
     const formData = new FormData();
     formData.append('file', file.buffer, {
       filename: file.name,
@@ -38,10 +38,10 @@ class TranscriptionService {
     });
     formData.append('model', 'whisper-1');
     formData.append('response_format', responseFormat);
-    
+
     if (language) formData.append('language', language);
     if (prompt) formData.append('prompt', prompt);
-    
+
     try {
       const response = await this.http.post(
         `${this.baseUrl}/audio/transcriptions`,
@@ -54,7 +54,7 @@ class TranscriptionService {
           timeout: 300000 // 5 minutes for large files
         }
       );
-      
+
       return {
         success: true,
         text: responseFormat === 'json' ? response.data.text : response.data,
@@ -74,10 +74,10 @@ class TranscriptionService {
    */
   async transcribeMeetRecording(params) {
     const { driveFileId, driveIntegration } = params;
-    
+
     // Download file from Google Drive
     const fileBuffer = await driveIntegration.downloadFile(driveFileId);
-    
+
     // Transcribe
     return this.transcribe({
       buffer: fileBuffer,
@@ -96,9 +96,9 @@ class TranscriptionService {
     if (!this.apiKey) {
       throw new Error('OPENAI_API_KEY not configured');
     }
-    
+
     const { focus = 'customer feedback', maxInsights = 10 } = options;
-    
+
     const prompt = `Extract key insights and feedback from the following transcription. Focus on: ${focus}
 
 Transcription:
@@ -131,9 +131,9 @@ Limit to ${maxInsights} most important insights.`;
           }
         }
       );
-      
+
       const content = JSON.parse(response.data.choices[0].message.content);
-      
+
       return {
         success: true,
         insights: content.insights || [],

@@ -1,11 +1,11 @@
 /**
  * Scraping Rate Limiting Middleware
- * 
+ *
  * Enforces plan-based rate limits for scraping operations:
  * - Domains per month limit
  * - Scrape jobs per month limit
  * - Per-domain rate limiting
- * 
+ *
  * Automatically checks user's plan and enforces limits based on feature_flags.
  */
 
@@ -32,10 +32,10 @@ const checkScrapingDomainLimit = async (req, res, next) => {
     }
 
     const planData = await getUserPlan(userId);
-    
+
     // Check if lead generation is enabled
     const leadGenValue = planData.limits?.lead_generation;
-    const hasLeadGen = typeof leadGenValue === 'string' 
+    const hasLeadGen = typeof leadGenValue === 'string'
       ? leadGenValue.toLowerCase() !== 'no' && leadGenValue !== ''
       : !!leadGenValue;
 
@@ -60,7 +60,7 @@ const checkScrapingDomainLimit = async (req, res, next) => {
 
     // Get domains limit from plan
     const domainsLimit = planData.limits?.scraping_domains_per_month;
-    
+
     // Unlimited (-1) means no limit
     if (domainsLimit === -1) {
       req.planData = planData;
@@ -98,7 +98,7 @@ const checkScrapingDomainLimit = async (req, res, next) => {
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
-      
+
       // Count distinct domains scraped this month
       const { data: executions } = await supabase
         .from('scrape_executions')
@@ -109,7 +109,7 @@ const checkScrapingDomainLimit = async (req, res, next) => {
 
       const uniqueDomains = new Set(executions?.map(e => e.domain) || []);
       const domainsUsed = uniqueDomains.size;
-      
+
       canScrape = domainsUsed < domainsLimit;
     }
 
@@ -157,10 +157,10 @@ const checkScrapingJobLimit = async (req, res, next) => {
     }
 
     const planData = await getUserPlan(userId);
-    
+
     // Check if lead generation is enabled
     const leadGenValue = planData.limits?.lead_generation;
-    const hasLeadGen = typeof leadGenValue === 'string' 
+    const hasLeadGen = typeof leadGenValue === 'string'
       ? leadGenValue.toLowerCase() !== 'no' && leadGenValue !== ''
       : !!leadGenValue;
 
@@ -177,7 +177,7 @@ const checkScrapingJobLimit = async (req, res, next) => {
 
     // Get jobs limit from plan
     const jobsLimit = planData.limits?.scraping_jobs_per_month;
-    
+
     // Unlimited (-1) means no limit
     if (jobsLimit === -1) {
       req.planData = planData;
@@ -215,7 +215,7 @@ const checkScrapingJobLimit = async (req, res, next) => {
         .from('scrape_jobs')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId);
-      
+
       canCreate = (count || 0) < jobsLimit;
     }
 

@@ -18,26 +18,26 @@ class GoogleDriveIntegration {
    */
   async authenticate(credentials) {
     const { accessToken, refreshToken, clientId, clientSecret } = credentials;
-    
+
     this.oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
       'urn:ietf:wg:oauth:2.0:oob'
     );
-    
+
     this.oauth2Client.setCredentials({
       access_token: accessToken,
       refresh_token: refreshToken
     });
-    
+
     // Refresh token if needed
     if (!accessToken && refreshToken) {
       const { credentials: newCredentials } = await this.oauth2Client.refreshAccessToken();
       this.oauth2Client.setCredentials(newCredentials);
     }
-    
+
     this.drive = google.drive({ version: 'v3', auth: this.oauth2Client });
-    
+
     logger.info('[GoogleDriveIntegration] Authenticated successfully');
   }
 
@@ -47,23 +47,23 @@ class GoogleDriveIntegration {
    */
   async uploadFile(params) {
     const { file, folderId, fileName } = params;
-    
+
     const fileMetadata = {
       name: fileName || file.name || `file_${Date.now()}`,
       ...(folderId && { parents: [folderId] })
     };
-    
+
     const media = {
       mimeType: file.mimeType || 'application/octet-stream',
       body: file.buffer || file.data || file
     };
-    
+
     const response = await this.drive.files.create({
       requestBody: fileMetadata,
       media: media,
       fields: 'id, name, webViewLink, webContentLink'
     });
-    
+
     return {
       success: true,
       fileId: response.data.id,
@@ -79,10 +79,10 @@ class GoogleDriveIntegration {
    */
   async sendData(params) {
     const { data, folderId, fileName } = params;
-    
+
     const jsonContent = JSON.stringify(data, null, 2);
     const fileNameToUse = fileName || `automation_data_${Date.now()}.json`;
-    
+
     return await this.uploadFile({
       file: {
         buffer: Buffer.from(jsonContent),
@@ -99,18 +99,18 @@ class GoogleDriveIntegration {
    */
   async createFolder(params) {
     const { folderName, parentFolderId } = params;
-    
+
     const fileMetadata = {
       name: folderName,
       mimeType: 'application/vnd.google-apps.folder',
       ...(parentFolderId && { parents: [parentFolderId] })
     };
-    
+
     const response = await this.drive.files.create({
       requestBody: fileMetadata,
       fields: 'id, name, webViewLink'
     });
-    
+
     return {
       success: true,
       folderId: response.data.id,
@@ -125,20 +125,20 @@ class GoogleDriveIntegration {
    */
   async listFiles(params) {
     const { folderId, query } = params;
-    
+
     let searchQuery = query || '';
     if (folderId) {
-      searchQuery = searchQuery 
+      searchQuery = searchQuery
         ? `${searchQuery} and '${folderId}' in parents`
         : `'${folderId}' in parents`;
     }
-    
+
     const response = await this.drive.files.list({
       q: searchQuery || undefined,
       fields: 'files(id, name, mimeType, webViewLink, createdTime, modifiedTime)',
       pageSize: 100
     });
-    
+
     return {
       success: true,
       files: response.data.files || []
@@ -151,11 +151,11 @@ class GoogleDriveIntegration {
    */
   async deleteFile(params) {
     const { fileId } = params;
-    
+
     await this.drive.files.delete({
       fileId
     });
-    
+
     return {
       success: true,
       fileId

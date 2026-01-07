@@ -2,7 +2,7 @@
 const { logger, getLogger } = require('../utils/logger');
 /**
  * Workflow Versioning Service for EasyFlow
- * 
+ *
  * Implements comprehensive workflow versioning with full history tracking,
  * version comparison, and rollback capabilities.
  */
@@ -55,7 +55,7 @@ class WorkflowVersioningService {
         steps: currentWorkflow.workflow_steps,
         connections: currentWorkflow.workflow_connections
       };
-      
+
       const contentHash = this.calculateContentHash(workflowContent);
 
       // Check if content has actually changed
@@ -238,7 +238,7 @@ class WorkflowVersioningService {
       }
 
       const workflowData = targetVersionData.workflow_data;
-      
+
       // Start transaction-like operation
       // 1. Create a new version before rollback (for safety)
       await this.createVersion(workflowId, userId, `Pre-rollback backup to v${targetVersion}`, 'rollback');
@@ -307,9 +307,9 @@ class WorkflowVersioningService {
 
       // 7. Create rollback version
       const rollbackVersion = await this.createVersion(
-        workflowId, 
-        userId, 
-        rollbackComment || `Rolled back to version ${targetVersion}`, 
+        workflowId,
+        userId,
+        rollbackComment || `Rolled back to version ${targetVersion}`,
         'rollback'
       );
 
@@ -326,7 +326,7 @@ class WorkflowVersioningService {
       );
 
       logger.info(`✅ Rolled back workflow ${workflowId} to version ${targetVersion}`);
-      
+
       return {
         success: true,
         target_version: targetVersion,
@@ -336,7 +336,7 @@ class WorkflowVersioningService {
 
     } catch (error) {
       logger.error('Failed to rollback workflow version:', error);
-      
+
       await auditLogger.logUserAction(
         userId,
         'rollback_workflow_version_failed',
@@ -346,7 +346,7 @@ class WorkflowVersioningService {
           error: error.message
         }
       );
-      
+
       throw error;
     }
   }
@@ -375,7 +375,7 @@ class WorkflowVersioningService {
 
       versions.forEach(version => {
         // Count by change type
-        stats.by_change_type[version.change_type] = 
+        stats.by_change_type[version.change_type] =
           (stats.by_change_type[version.change_type] || 0) + 1;
 
         // Track latest version
@@ -482,7 +482,7 @@ class WorkflowVersioningService {
     // Compare steps
     const fromSteps = fromData.steps || [];
     const toSteps = toData.steps || [];
-    
+
     const fromStepIds = new Set(fromSteps.map(s => s.step_key));
     const toStepIds = new Set(toSteps.map(s => s.step_key));
 
@@ -515,7 +515,7 @@ class WorkflowVersioningService {
     // Compare connections (similar logic)
     const fromConnections = fromData.connections || [];
     const toConnections = toData.connections || [];
-    
+
     const fromConnIds = new Set(fromConnections.map(c => `${c.source_step_id}-${c.target_step_id}`));
     const toConnIds = new Set(toConnections.map(c => `${c.source_step_id}-${c.target_step_id}`));
 
@@ -554,12 +554,12 @@ class WorkflowVersioningService {
   calculateComplexity(workflowData) {
     const steps = workflowData.workflow_steps || [];
     const connections = workflowData.workflow_connections || [];
-    
+
     // Simple complexity calculation based on steps, connections, and branching
     const stepCount = steps.length;
     const connectionCount = connections.length;
     const branchingFactor = connectionCount > 0 ? connectionCount / stepCount : 0;
-    
+
     return Math.round((stepCount * 2 + connectionCount + branchingFactor * 10) * 10) / 10;
   }
 
@@ -568,7 +568,7 @@ class WorkflowVersioningService {
    */
   generateAutoChangeComment(changeContext) {
     const { action, stepType, stepName, details } = changeContext;
-    
+
     switch (action) {
       case 'add_step':
         return `Added ${stepType} step: ${stepName}`;
@@ -577,11 +577,11 @@ class WorkflowVersioningService {
       case 'modify_step':
         return `Modified ${stepType} step: ${stepName}`;
       case 'add_connection':
-        return `Added connection between steps`;
+        return 'Added connection between steps';
       case 'remove_connection':
-        return `Removed connection between steps`;
+        return 'Removed connection between steps';
       case 'workflow_update':
-        return `Updated workflow configuration`;
+        return 'Updated workflow configuration';
       default:
         return `Automatic version created: ${action || 'workflow modified'}`;
     }
@@ -593,10 +593,10 @@ class WorkflowVersioningService {
   async cleanupOldVersions(workflowId, retentionPolicy = { keepLast: 50, keepDays: 365 }) {
     try {
       const { keepLast, keepDays } = retentionPolicy;
-      
+
       // Get versions to potentially delete
       const cutoffDate = new Date(Date.now() - keepDays * 24 * 60 * 60 * 1000);
-      
+
       const { data: allVersions } = await this.supabase
         .from('workflow_versions')
         .select('id, version_number, created_at, change_type')
@@ -613,7 +613,7 @@ class WorkflowVersioningService {
 
       // From candidates, only delete those older than cutoff date
       // but never delete rollback versions (keep for audit trail)
-      const versionsToDelete = candidatesForDeletion.filter(v => 
+      const versionsToDelete = candidatesForDeletion.filter(v =>
         new Date(v.created_at) < cutoffDate && v.change_type !== 'rollback'
       );
 
@@ -622,7 +622,7 @@ class WorkflowVersioningService {
       }
 
       const idsToDelete = versionsToDelete.map(v => v.id);
-      
+
       const { error } = await this.supabase
         .from('workflow_versions')
         .delete()
@@ -631,7 +631,7 @@ class WorkflowVersioningService {
       if (error) throw error;
 
       logger.info(`🧹 Cleaned up ${versionsToDelete.length} old workflow versions for workflow ${workflowId}`);
-      
+
       return {
         cleaned: versionsToDelete.length,
         kept: allVersions.length - versionsToDelete.length

@@ -1,6 +1,6 @@
 /**
  * Consumer-Friendly Error Messages
- * 
+ *
  * Maps technical error categories to user-friendly messages that:
  * - Are clear and actionable
  * - Don't expose internal implementation details
@@ -173,23 +173,23 @@ const CONSUMER_FRIENDLY_ERRORS = {
  */
 function getConsumerError(errorCategory, context = {}) {
   const errorConfig = CONSUMER_FRIENDLY_ERRORS[errorCategory] || CONSUMER_FRIENDLY_ERRORS['DEFAULT'];
-  
+
   return {
     // Consumer-facing message (safe to show in UI)
     message: errorConfig.message,
-    
+
     // Optional actionable guidance
     action: errorConfig.userAction,
-    
+
     // HTTP status code
     statusCode: errorConfig.statusCode,
-    
+
     // Whether the operation can be retried
     retryable: errorConfig.retryable,
-    
+
     // Execution ID for support tickets (safe to expose)
     executionId: context.executionId,
-    
+
     // Timestamp (safe to expose)
     timestamp: new Date().toISOString()
   };
@@ -203,7 +203,7 @@ function getConsumerError(errorCategory, context = {}) {
  */
 function formatErrorResponse(errorCategory, context = {}) {
   const consumerError = getConsumerError(errorCategory, context);
-  
+
   return {
     error: {
       message: consumerError.message,
@@ -218,7 +218,7 @@ function formatErrorResponse(errorCategory, context = {}) {
 /**
  * Map technical error message to consumer-friendly version
  * while preserving full technical details for logging
- * 
+ *
  * @param {string} technicalError - Technical error message
  * @param {string} errorCategory - Error category
  * @param {object} context - Additional context
@@ -226,7 +226,7 @@ function formatErrorResponse(errorCategory, context = {}) {
  */
 function mapError(technicalError, errorCategory, context = {}) {
   const consumerError = getConsumerError(errorCategory, context);
-  
+
   return {
     // For logs (full technical details)
     technical: {
@@ -234,7 +234,7 @@ function mapError(technicalError, errorCategory, context = {}) {
       category: errorCategory,
       context
     },
-    
+
     // For API response (consumer-friendly)
     consumer: {
       message: consumerError.message,
@@ -242,7 +242,7 @@ function mapError(technicalError, errorCategory, context = {}) {
       executionId: context.executionId,
       retryable: consumerError.retryable
     },
-    
+
     // HTTP status code
     statusCode: consumerError.statusCode
   };

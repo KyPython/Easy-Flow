@@ -18,11 +18,11 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !SUPABASE_ANON_KEY) {
   const url = `${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`;
   const resp = await fetch(url, {
     method: 'GET',
-    headers: { 
+    headers: {
       Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
       apikey: SUPABASE_ANON_KEY,
       'Content-Type': 'application/json'
-    },
+    }
   });
   const text = await resp.text();
   logger.info('status', resp.status);

@@ -44,7 +44,7 @@ function chainableQuery(result = { data: [], error: null }) {
     or: (...args) => chain, // used by InstrumentedQuery
     single: async () => result,
     maybeSingle: async () => result,
-    then: undefined, // so it's not treated as a Promise
+    then: undefined // so it's not treated as a Promise
   };
   return chain;
 }
@@ -69,7 +69,7 @@ const createStub = () => {
       ...chainableQuery({ data: { id: 1, ...((args && args[0]) || {}) }, error: null })
     }),
     delete: (...args) => chainableQuery({ data: [], error: null }),
-    maybeSingle: async () => ({ data: null, error: null }),
+    maybeSingle: async () => ({ data: null, error: null })
   });
   const storage = {
     from: () => ({

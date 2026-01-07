@@ -1,13 +1,13 @@
 /**
  * Company Enrichment Service
- * 
+ *
  * Enriches company profiles with additional data:
  * - Industry classification
  * - Headcount
  * - Funding stage
  * - Location
  * - Tech stack
- * 
+ *
  * Integrates with:
  * - Clearbit API (if available)
  * - Manual enrichment
@@ -69,7 +69,7 @@ class CompanyEnrichmentService {
 
       // Try to extract from domain/URL
       const basicData = this._extractBasicInfo(domain);
-      
+
       return {
         success: true,
         data: basicData,
@@ -110,8 +110,8 @@ class CompanyEnrichmentService {
           industry: data.category?.industry || data.industry || null,
           headcount: data.metrics?.employees || data.employees || null,
           fundingStage: this._determineFundingStage(data),
-          location: data.geo?.city && data.geo?.state 
-            ? `${data.geo.city}, ${data.geo.state}` 
+          location: data.geo?.city && data.geo?.state
+            ? `${data.geo.city}, ${data.geo.state}`
             : data.location || null,
           description: data.description || null,
           website: data.domain ? `https://${data.domain}` : null,

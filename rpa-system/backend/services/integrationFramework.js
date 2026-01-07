@@ -23,7 +23,7 @@ class IntegrationFramework {
       ? createInstrumentedSupabaseClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE)
       : null;
     this.http = createInstrumentedHttpClient();
-    
+
     this.integrations = {
       quickbooks: new QuickBooksIntegration(this.http),
       dropbox: new DropboxIntegration(this.http),
@@ -43,7 +43,7 @@ class IntegrationFramework {
    */
   async uploadToExternalService(files, integrationConfig) {
     const { service, credentials, settings } = integrationConfig;
-    
+
     try {
       const integration = this.integrations[service];
       if (!integration) {
@@ -51,7 +51,7 @@ class IntegrationFramework {
       }
 
       await integration.authenticate(credentials);
-      
+
       const results = [];
       for (const file of files) {
         try {
@@ -72,7 +72,7 @@ class IntegrationFramework {
       }
 
       return results;
-      
+
     } catch (error) {
       logger.error('[IntegrationFramework] Upload failed:', error);
       throw error;
@@ -84,7 +84,7 @@ class IntegrationFramework {
    */
   async sendDataToExternalSystem(data, integrationConfig) {
     const { service, credentials, mapping } = integrationConfig;
-    
+
     try {
       const integration = this.integrations[service];
       if (!integration) {
@@ -92,18 +92,18 @@ class IntegrationFramework {
       }
 
       await integration.authenticate(credentials);
-      
+
       // Transform data according to mapping rules
       const transformedData = this.transformData(data, mapping);
-      
+
       const result = await integration.sendData(transformedData);
-      
+
       return {
         success: true,
         externalId: result.id,
         message: `Data sent to ${service} successfully`
       };
-      
+
     } catch (error) {
       logger.error('[IntegrationFramework] Data send failed:', error);
       return {
@@ -120,14 +120,14 @@ class IntegrationFramework {
     // Wrap transformation in performance span
     return withPerformanceSpanSync('data_transformation', () => {
       const transformed = {};
-      
+
       for (const [sourceField, targetField] of Object.entries(mapping)) {
         const value = this.getNestedValue(data, sourceField);
         if (value !== undefined) {
           this.setNestedValue(transformed, targetField, value);
         }
       }
-      
+
       return transformed;
     }, {
       mappingCount: Object.keys(mapping).length,
@@ -141,14 +141,14 @@ class IntegrationFramework {
    */
   _countFields(obj, count = 0) {
     if (typeof obj !== 'object' || obj === null) return count;
-    
+
     for (const value of Object.values(obj)) {
       count++;
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         count += this._countFields(value, 0);
       }
     }
-    
+
     return count;
   }
 
@@ -187,7 +187,7 @@ class QuickBooksIntegration {
     // Upload invoice to QuickBooks
     const formData = new FormData();
     formData.append('file', file.buffer, file.name);
-    
+
     const response = await this.http.post(
       `${this.baseUrl}/${this.companyId}/upload`,
       formData,
@@ -198,7 +198,7 @@ class QuickBooksIntegration {
         }
       }
     );
-    
+
     return response.data;
   }
 
@@ -214,7 +214,7 @@ class QuickBooksIntegration {
         }
       }
     );
-    
+
     return response.data;
   }
 }
@@ -259,7 +259,7 @@ class DropboxIntegration {
     // Create a JSON file with the data
     const jsonContent = JSON.stringify(data, null, 2);
     const fileName = `automation_data_${Date.now()}.json`;
-    
+
     return await this.uploadFile({
       name: fileName,
       buffer: Buffer.from(jsonContent)
@@ -310,7 +310,7 @@ class GoogleDriveIntegration {
   async sendData(data) {
     const jsonContent = JSON.stringify(data, null, 2);
     const fileName = `automation_data_${Date.now()}.json`;
-    
+
     return await this.uploadFile({
       name: fileName,
       buffer: Buffer.from(jsonContent)
@@ -387,7 +387,7 @@ class ZapierIntegration {
         'Content-Type': 'application/json'
       }
     });
-    
+
     return response.data;
   }
 
@@ -400,7 +400,7 @@ class ZapierIntegration {
       content: file.buffer.toString('base64'),
       ...settings
     };
-    
+
     return await this.sendData(fileData);
   }
 }

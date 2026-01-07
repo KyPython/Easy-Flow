@@ -4,10 +4,10 @@ const { logger, getLogger } = require('./utils/logger');
 
 /**
  * Test script for Plan Change Functionality
- * 
+ *
  * This script tests the dynamic plan change functionality in EasyFlow:
  * 1. Tests direct plan updates via Supabase
- * 2. Verifies feature limit changes 
+ * 2. Verifies feature limit changes
  * 3. Tests real-time plan propagation
  * 4. Validates paywall enforcement
  */
@@ -50,10 +50,10 @@ class PlanChangeTest {
   async updateUserPlan(newPlanId) {
     try {
       logger.info(`🔄 Updating plan from "${this.currentPlan}" to "${newPlanId}"`);
-      
+
       const { data, error } = await supabase
         .from('profiles')
-        .update({ 
+        .update({
           plan_id: newPlanId,
           plan_changed_at: new Date().toISOString()
         })
@@ -61,7 +61,7 @@ class PlanChangeTest {
         .select();
 
       if (error) throw error;
-      
+
       this.currentPlan = newPlanId;
       logger.info(`✅ Plan updated successfully to: ${newPlanId}`);
       return true;
@@ -74,11 +74,11 @@ class PlanChangeTest {
   async testPlanAPI(planId) {
     try {
       logger.info(`🧪 Testing plan API for plan: ${planId}`);
-      
+
       // We'll use curl to test the API since we need auth
-      const testCommand = `curl -s "http://localhost:3030/health"`;
+      const testCommand = 'curl -s "http://localhost:3030/health"';
       logger.info(`📡 API Health Check: ${testCommand}`);
-      
+
       // For now, just validate the plan was stored correctly
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -87,13 +87,13 @@ class PlanChangeTest {
         .single();
 
       if (error) throw error;
-      
+
       const isCorrect = profile.plan_id === planId;
       logger.info(`${isCorrect ? '✅' : '❌'} Database verification: Plan stored as "${profile.plan_id}"`);
-      
+
       return isCorrect;
     } catch (error) {
-      logger.error(`❌ Plan API test failed:`, error.message);
+      logger.error('❌ Plan API test failed:', error.message);
       return false;
     }
   }
@@ -119,7 +119,7 @@ class PlanChangeTest {
     // Test plan progression
     for (let i = 0; i < PLAN_PROGRESSION.length; i++) {
       const targetPlan = PLAN_PROGRESSION[i];
-      
+
       if (targetPlan === this.currentPlan) {
         logger.info(`⏭️  Skipping "${targetPlan}" (already current plan)`);
         continue;
@@ -140,13 +140,13 @@ class PlanChangeTest {
 
       // 3. Test API reflects changes
       const apiSuccess = await this.testPlanAPI(targetPlan);
-      
+
       // 4. Record result
-      this.testResults.push({ 
-        plan: targetPlan, 
-        success: updateSuccess && apiSuccess, 
+      this.testResults.push({
+        plan: targetPlan,
+        success: updateSuccess && apiSuccess,
         updateSuccess,
-        apiSuccess 
+        apiSuccess
       });
 
       logger.info(`${updateSuccess && apiSuccess ? '✅' : '❌'} Plan change test for "${targetPlan}" completed\n`);
@@ -162,7 +162,7 @@ class PlanChangeTest {
   printResults() {
     logger.info('\n📋 TEST RESULTS SUMMARY');
     logger.info('=' .repeat(50));
-    
+
     let passedTests = 0;
     let totalTests = this.testResults.length;
 
@@ -174,7 +174,7 @@ class PlanChangeTest {
 
     logger.info('\n' + '='.repeat(50));
     logger.info(`📊 Overall Results: ${passedTests}/${totalTests} tests passed`);
-    
+
     if (passedTests === totalTests && totalTests > 0) {
       logger.info('🎉 ALL PLAN CHANGE TESTS PASSED!');
       logger.info('\n✅ Plan change functionality is working correctly:');

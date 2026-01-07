@@ -2,7 +2,7 @@
 const { logger, getLogger } = require('../utils/logger');
 /**
  * Data Retention API Routes
- * 
+ *
  * Admin endpoints for managing data retention policies and running cleanup operations
  */
 
@@ -22,11 +22,11 @@ const requireDataRetention = requireFeature('data_retention');
 router.get('/status', requireDataRetention, async (req, res) => {
   try {
     const status = dataRetentionService.getServiceStatus();
-    
+
     await auditLogger.logUserAction(
-      req.user.id, 
-      'view_data_retention_status', 
-      { endpoint: '/status' }, 
+      req.user.id,
+      'view_data_retention_status',
+      { endpoint: '/status' },
       req
     );
 
@@ -50,11 +50,11 @@ router.get('/status', requireDataRetention, async (req, res) => {
 router.get('/statistics', requireDataRetention, async (req, res) => {
   try {
     const stats = await dataRetentionService.getRetentionStatistics();
-    
+
     await auditLogger.logUserAction(
-      req.user.id, 
-      'view_retention_statistics', 
-      { endpoint: '/statistics' }, 
+      req.user.id,
+      'view_retention_statistics',
+      { endpoint: '/statistics' },
       req
     );
 
@@ -83,48 +83,48 @@ router.post('/cleanup', requireDataRetention, async (req, res) => {
     if (type && type !== 'all') {
       // Run specific cleanup
       result = await dataRetentionService.runSpecificCleanup(type);
-      
+
       await auditLogger.logUserAction(
-        req.user.id, 
-        'run_specific_data_cleanup', 
-        { 
+        req.user.id,
+        'run_specific_data_cleanup',
+        {
           cleanup_type: type,
           result: result
-        }, 
+        },
         req
       );
     } else {
       // Run full cleanup
       result = await dataRetentionService.runFullCleanup();
-      
+
       await auditLogger.logUserAction(
-        req.user.id, 
-        'run_full_data_cleanup', 
-        { 
+        req.user.id,
+        'run_full_data_cleanup',
+        {
           total_cleaned: result.total_cleaned,
           duration_ms: result.duration_ms
-        }, 
+        },
         req
       );
     }
 
     res.json({
       success: true,
-      message: type && type !== 'all' 
+      message: type && type !== 'all'
         ? `${type} cleanup completed successfully`
         : 'Full data cleanup completed successfully',
       data: result
     });
   } catch (error) {
     logger.error('Data cleanup failed:', error);
-    
+
     await auditLogger.logUserAction(
-      req.user.id, 
-      'data_cleanup_failed', 
-      { 
+      req.user.id,
+      'data_cleanup_failed',
+      {
         error: error.message,
         cleanup_type: req.body.type
-      }, 
+      },
       req
     );
 
@@ -157,16 +157,16 @@ router.put('/policy', requireDataRetention, async (req, res) => {
     }
 
     dataRetentionService.setRetentionPolicy(dataType, subType, retentionDays);
-    
+
     await auditLogger.logUserAction(
-      req.user.id, 
-      'update_retention_policy', 
-      { 
+      req.user.id,
+      'update_retention_policy',
+      {
         data_type: dataType,
         sub_type: subType,
         retention_days: retentionDays,
         previous_policy: dataRetentionService.retentionPolicies[dataType]
-      }, 
+      },
       req
     );
 
@@ -196,11 +196,11 @@ router.put('/policy', requireDataRetention, async (req, res) => {
 router.post('/start', requireDataRetention, async (req, res) => {
   try {
     dataRetentionService.startScheduledCleanup();
-    
+
     await auditLogger.logUserAction(
-      req.user.id, 
-      'start_retention_scheduler', 
-      { endpoint: '/start' }, 
+      req.user.id,
+      'start_retention_scheduler',
+      { endpoint: '/start' },
       req
     );
 
@@ -224,11 +224,11 @@ router.post('/start', requireDataRetention, async (req, res) => {
 router.post('/stop', requireDataRetention, async (req, res) => {
   try {
     dataRetentionService.stopScheduledCleanup();
-    
+
     await auditLogger.logUserAction(
-      req.user.id, 
-      'stop_retention_scheduler', 
-      { endpoint: '/stop' }, 
+      req.user.id,
+      'stop_retention_scheduler',
+      { endpoint: '/stop' },
       req
     );
 
@@ -252,11 +252,11 @@ router.post('/stop', requireDataRetention, async (req, res) => {
 router.get('/policies', requireDataRetention, async (req, res) => {
   try {
     const policies = dataRetentionService.retentionPolicies;
-    
+
     await auditLogger.logUserAction(
-      req.user.id, 
-      'view_retention_policies', 
-      { endpoint: '/policies' }, 
+      req.user.id,
+      'view_retention_policies',
+      { endpoint: '/policies' },
       req
     );
 
@@ -306,18 +306,18 @@ router.get('/policies', requireDataRetention, async (req, res) => {
 router.post('/preview', requireDataRetention, async (req, res) => {
   try {
     const { type } = req.body;
-    
+
     // This would need to be implemented in the service to return counts without deletion
     // For now, return the current statistics as a preview
     const stats = await dataRetentionService.getRetentionStatistics();
-    
+
     await auditLogger.logUserAction(
-      req.user.id, 
-      'preview_data_cleanup', 
-      { 
+      req.user.id,
+      'preview_data_cleanup',
+      {
         cleanup_type: type || 'all',
         endpoint: '/preview'
-      }, 
+      },
       req
     );
 

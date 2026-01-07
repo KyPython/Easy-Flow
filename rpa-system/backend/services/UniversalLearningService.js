@@ -1,9 +1,9 @@
 /**
  * Universal Learning Service
- * 
+ *
  * Makes EasyFlow learn from every automation, workflow, and user interaction.
  * The system gets smarter with every run, adapting to changes and improving performance.
- * 
+ *
  * Features:
  * - Learns from successful automations
  * - Adapts to site changes automatically
@@ -176,7 +176,7 @@ class UniversalLearningService {
   async getLearnedPatterns(automationType, siteUrl, taskType) {
     try {
       const cacheKey = `${automationType}:${this._normalizeUrl(siteUrl)}:${taskType}`;
-      
+
       // Check cache first
       if (this.patternCache.has(cacheKey)) {
         return this.patternCache.get(cacheKey);
@@ -295,13 +295,13 @@ class UniversalLearningService {
   async getOptimizedSelectors(siteUrl, taskType, automationType = 'web_automation') {
     try {
       const cacheKey = `selectors:${this._normalizeUrl(siteUrl)}:${taskType}`;
-      
+
       if (this.selectorCache.has(cacheKey)) {
         return this.selectorCache.get(cacheKey);
       }
 
       const patterns = await this.getLearnedPatterns(automationType, siteUrl, taskType);
-      
+
       if (patterns.length === 0) {
         return [];
       }
@@ -384,14 +384,14 @@ class UniversalLearningService {
   async getPatternSuccessRate(automationType, siteUrl, taskType) {
     try {
       const patterns = await this.getLearnedPatterns(automationType, siteUrl, taskType);
-      
+
       if (patterns.length === 0) {
         return 0;
       }
 
       const pattern = patterns[0];
       const total = (pattern.success_count || 0) + (pattern.failure_count || 0);
-      
+
       if (total === 0) {
         return 0;
       }

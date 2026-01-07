@@ -17,13 +17,13 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !SUPABASE_ANON_KEY) {
 
 (async () => {
   const listUrl = `${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`;
-  const listResp = await fetch(listUrl, { 
-    method: 'GET', 
-    headers: { 
+  const listResp = await fetch(listUrl, {
+    method: 'GET',
+    headers: {
       Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
       apikey: SUPABASE_ANON_KEY,
       'Content-Type': 'application/json'
-    } 
+    }
   });
   const listBody = await listResp.json();
   if (!Array.isArray(listBody) || listBody.length === 0) {
@@ -39,9 +39,9 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !SUPABASE_ANON_KEY) {
     headers: {
       Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
       apikey: SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ password: NEW_PW }),
+    body: JSON.stringify({ password: NEW_PW })
   });
   const updateText = await updateResp.text();
   logger.info('update status', updateResp.status);

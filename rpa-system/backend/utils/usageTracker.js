@@ -93,7 +93,7 @@ class UsageTracker {
         try {
           // Check if this is user's first workflow for time-to-first-workflow tracking
           const isFirstWorkflow = count === 1;
-          
+
           await this.supabase.from('marketing_events').insert([{
             user_id: userId,
             event_name: 'feature_used',
@@ -236,7 +236,7 @@ class UsageTracker {
 
   async refreshAllUserUsage(userId) {
     logger.info(`[UsageTracker] Refreshing all usage data for user ${userId}`);
-    
+
     try {
       // Get user's billing period
       const { data: billingPeriod, error: billingError } = await this.supabase

@@ -40,7 +40,7 @@ const initializeFirebaseAdmin = () => {
   if (process.env.NODE_ENV === 'development') {
     logger.info('🔍 Initializing Firebase Admin...');
   }
-  
+
   try {
     // Check if Firebase is already initialized
     if (firebaseApp) {
@@ -55,17 +55,17 @@ const initializeFirebaseAdmin = () => {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
     const databaseURL = process.env.FIREBASE_DATABASE_URL;
-    
+
     // ✅ CRITICAL: Validate project ID matches frontend configuration
     // Frontend expects: easyflow-77db9 (from firebaseConfig.js)
     const EXPECTED_PROJECT_ID = 'easyflow-77db9';
     if (projectId && projectId !== EXPECTED_PROJECT_ID) {
-      const errorMessage = `🔥 CRITICAL: Firebase Project ID mismatch!\n` +
+      const errorMessage = '🔥 CRITICAL: Firebase Project ID mismatch!\n' +
         `Backend uses: '${projectId}'\n` +
         `Frontend expects: '${EXPECTED_PROJECT_ID}'\n` +
-        `Impact: This will cause 401 authentication failures, FCM failures, and cascade to Supabase real-time instability\n` +
+        'Impact: This will cause 401 authentication failures, FCM failures, and cascade to Supabase real-time instability\n' +
         `Fix: Set FIREBASE_PROJECT_ID=${EXPECTED_PROJECT_ID} in backend .env file`;
-      
+
       logger.error(errorMessage, {
         backend_project_id: projectId,
         frontend_expected_project_id: EXPECTED_PROJECT_ID,
@@ -73,7 +73,7 @@ const initializeFirebaseAdmin = () => {
         fix: `Set FIREBASE_PROJECT_ID=${EXPECTED_PROJECT_ID} in backend .env file`,
         cascade_impact: '401 auth failures → FCM failures → Supabase instability → Polling fallback'
       });
-      
+
       // ✅ CRITICAL: In development, fail initialization to prevent cascade
       if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev') {
         throw new Error(errorMessage);
@@ -85,7 +85,7 @@ const initializeFirebaseAdmin = () => {
         project_id: projectId
       });
     }
-    
+
     // Debug output for troubleshooting
     logger.info('🔍 [DEBUG] Firebase environment variables check:', {
       NODE_ENV: process.env.NODE_ENV,
@@ -98,7 +98,7 @@ const initializeFirebaseAdmin = () => {
     });
 
     // Check if service account key file exists
-    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
                               path.join(__dirname, '../config/firebase-service-account.json');
 
     let credential;
@@ -121,7 +121,7 @@ const initializeFirebaseAdmin = () => {
           FIREBASE_DATABASE_URL: databaseURL ? 'set' : 'missing'
         });
       }
-      
+
       if (projectId && clientEmail && privateKey) {
         try {
           credential = admin.credential.cert({
@@ -279,13 +279,13 @@ class FirebaseNotificationService {
 
     } catch (error) {
       // Handle expected errors gracefully (user not registered for push notifications)
-      if (error.code === 'messaging/registration-token-not-registered' || 
+      if (error.code === 'messaging/registration-token-not-registered' ||
           error.code === 'messaging/invalid-registration-token') {
         // This is expected - user hasn't registered for push notifications
         // Don't log as error, just return quietly
         return { success: false, error: error.message, expected: true };
       }
-      
+
       // Log unexpected errors
       logger.error('🔥 Error sending push notification:', error);
       return { success: false, error: error.message };
@@ -354,12 +354,12 @@ class FirebaseNotificationService {
   // Helper: Process a batch of notifications
   async processBatch(batch) {
     const results = await Promise.allSettled(
-      batch.map(({ userId, notification }) => 
+      batch.map(({ userId, notification }) =>
         this.sendAndStoreNotification(userId, notification)
       )
     );
 
-    const successful = results.filter(r => 
+    const successful = results.filter(r =>
       r.status === 'fulfilled' && r.value.push?.success
     ).length;
     const failed = results.length - successful;
@@ -472,7 +472,7 @@ class FirebaseNotificationService {
   async handleCriticalNotificationFallback(userId, notification) {
     try {
       logger.warn(`🔥 Critical notification push failed for user ${userId}, attempting email fallback`);
-      
+
       // Get user email from Supabase
       const { createClient } = require('@supabase/supabase-js');
       const SUPABASE_URL = getSanitizedEnv('SUPABASE_URL');
@@ -574,7 +574,7 @@ class FirebaseNotificationService {
   async getHealthStatus() {
   await this.ensureInitialized();
   const status = this.getStatus();
-    
+
     // Test Firebase connection
     let databaseHealth = false;
     let messagingHealth = false;
@@ -672,7 +672,7 @@ class FirebaseNotificationService {
       const projectId = firebaseAdminApp?.options?.projectId || process.env.FIREBASE_PROJECT_ID;
       const EXPECTED_PROJECT_ID = 'easyflow-77db9';
       const projectMismatch = projectId && projectId !== EXPECTED_PROJECT_ID;
-      
+
       logger.error('🔥 Error generating custom token:', {
         error: error.message,
         code: error.code,
@@ -684,13 +684,13 @@ class FirebaseNotificationService {
         project_id_mismatch: projectMismatch,
         stack: error.stack
       });
-      
+
       // Provide more specific error messages
       let errorMessage = error.message;
       if (error.code === 'auth/invalid-uid') {
         errorMessage = 'Invalid user ID format for Firebase';
       } else if (error.code === 'app/invalid-credential') {
-        errorMessage = projectMismatch 
+        errorMessage = projectMismatch
           ? `Firebase Admin credentials belong to project '${projectId}' but frontend expects '${EXPECTED_PROJECT_ID}'. Update FIREBASE_PROJECT_ID in backend .env to match frontend configuration.`
           : 'Firebase Admin credentials are invalid or expired. Verify FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY belong to the correct Firebase project.';
       } else if (error.code === 'app/invalid-argument') {
@@ -699,7 +699,7 @@ class FirebaseNotificationService {
         // Add project mismatch warning even if error code doesn't indicate it
         errorMessage = `Project ID mismatch: Backend uses '${projectId}' but frontend expects '${EXPECTED_PROJECT_ID}'. This will cause 401 authentication failures.`;
       }
-      
+
       return {
         success: false,
         error: errorMessage,
@@ -822,9 +822,9 @@ class FirebaseNotificationService {
   // Determine configuration method
   getConfigurationMethod() {
     const fs = require('fs');
-    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
                               path.join(__dirname, '../config/firebase-service-account.json');
-    
+
     if (fs.existsSync(serviceAccountPath)) {
       return 'service_account_file';
     } else if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
@@ -844,10 +844,10 @@ const { getUserErrorMessage, getTaskStatusMessage, getSystemAlertMessage, IS_DEV
 // ✅ ENVIRONMENT-AWARE: All messages adapt based on environment (dev shows more detail, prod shows user-friendly)
 const NotificationTemplates = {
   taskCompleted: (taskName) => {
-    const body = IS_DEVELOPMENT 
+    const body = IS_DEVELOPMENT
       ? `Your task "${taskName}" has completed successfully`
       : 'Task completed successfully';
-    
+
     return {
       title: 'Task Completed ✅',
       body,
@@ -858,15 +858,15 @@ const NotificationTemplates = {
   },
 
   taskFailed: (taskName, error) => {
-    const errorMessage = getUserErrorMessage(error, { 
+    const errorMessage = getUserErrorMessage(error, {
       context: 'notification.taskFailed',
-      logError: true 
+      logError: true
     });
-    
+
     const body = IS_DEVELOPMENT
       ? `Your task "${taskName}" failed: ${errorMessage}`
       : `Task failed. ${errorMessage}`;
-    
+
     return {
       title: 'Task Failed ❌',
       body,
@@ -880,7 +880,7 @@ const NotificationTemplates = {
     const body = IS_DEVELOPMENT
       ? `Your task "${taskName}" has started`
       : 'Task has started';
-    
+
     return {
       title: 'Task Started 🚀',
       body,
@@ -894,7 +894,7 @@ const NotificationTemplates = {
     const body = IS_DEVELOPMENT
       ? `${emailType} email sent to ${recipient}`
       : 'Email sent successfully';
-    
+
     return {
       title: 'Email Sent 📧',
       body,
@@ -909,11 +909,11 @@ const NotificationTemplates = {
       context: 'notification.emailFailed',
       logError: true
     });
-    
+
     const body = IS_DEVELOPMENT
       ? `Failed to send ${emailType} email to ${recipient}: ${errorMessage}`
       : `Failed to send email. ${errorMessage}`;
-    
+
     return {
       title: 'Email Failed 📧❌',
       body,

@@ -7,7 +7,7 @@ const logger = createLogger('service.businessRules');
 /**
  * Business Rules Service
  * Manages reusable business rules that can be applied across multiple workflows
- * 
+ *
  * Rules are defined in plain English and can be reused:
  * - "VIP client = contract value > $5,000"
  * - "High-value lead = form submission with budget > $10,000"
@@ -136,8 +136,8 @@ class BusinessRulesService {
       if (ruleData.name !== undefined) updateData.name = ruleData.name;
       if (ruleData.description !== undefined) updateData.description = ruleData.description;
       if (ruleData.condition !== undefined) {
-        updateData.condition = typeof ruleData.condition === 'string' 
-          ? JSON.parse(ruleData.condition) 
+        updateData.condition = typeof ruleData.condition === 'string'
+          ? JSON.parse(ruleData.condition)
           : ruleData.condition;
       }
       if (ruleData.action !== undefined) updateData.action = ruleData.action;
@@ -259,32 +259,32 @@ class BusinessRulesService {
         switch (condition.operator) {
           case '>':
             matches = fieldValue > ruleValue;
-            reason = matches 
-              ? `${condition.field} (${fieldValue}) > ${ruleValue}` 
+            reason = matches
+              ? `${condition.field} (${fieldValue}) > ${ruleValue}`
               : `${condition.field} (${fieldValue}) <= ${ruleValue}`;
             break;
           case '<':
             matches = fieldValue < ruleValue;
-            reason = matches 
-              ? `${condition.field} (${fieldValue}) < ${ruleValue}` 
+            reason = matches
+              ? `${condition.field} (${fieldValue}) < ${ruleValue}`
               : `${condition.field} (${fieldValue}) >= ${ruleValue}`;
             break;
           case '>=':
             matches = fieldValue >= ruleValue;
-            reason = matches 
-              ? `${condition.field} (${fieldValue}) >= ${ruleValue}` 
+            reason = matches
+              ? `${condition.field} (${fieldValue}) >= ${ruleValue}`
               : `${condition.field} (${fieldValue}) < ${ruleValue}`;
             break;
           case '<=':
             matches = fieldValue <= ruleValue;
-            reason = matches 
-              ? `${condition.field} (${fieldValue}) <= ${ruleValue}` 
+            reason = matches
+              ? `${condition.field} (${fieldValue}) <= ${ruleValue}`
               : `${condition.field} (${fieldValue}) > ${ruleValue}`;
             break;
           case '==':
             matches = fieldValue == ruleValue;
-            reason = matches 
-              ? `${condition.field} (${fieldValue}) == ${ruleValue}` 
+            reason = matches
+              ? `${condition.field} (${fieldValue}) == ${ruleValue}`
               : `${condition.field} (${fieldValue}) != ${ruleValue}`;
             break;
           default:

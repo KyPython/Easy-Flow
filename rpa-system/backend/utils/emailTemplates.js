@@ -11,13 +11,13 @@ function getAutomationTipsEmail(data = {}) {
   const { email, source = 'session_modal', userPlan = 'hobbyist' } = data;
   const firstName = email?.split('@')[0] || 'there';
   // Get app URL from environment, with fallback to production URL
-  const appUrl = process.env.REACT_APP_PUBLIC_URL || 
-                 process.env.PUBLIC_URL || 
+  const appUrl = process.env.REACT_APP_PUBLIC_URL ||
+                 process.env.PUBLIC_URL ||
                  process.env.VITE_PUBLIC_URL ||
                  (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
-  
+
   const subject = '🚀 Your Free Automation Tips - Get Started with EasyFlow';
-  
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -111,7 +111,7 @@ function getAutomationTipsEmail(data = {}) {
 </body>
 </html>
   `.trim();
-  
+
   const text = `
 Hi ${firstName},
 
@@ -135,7 +135,7 @@ EasyFlow - Automate Your Workflows, Save Your Time
 You're receiving this because you signed up for automation tips.
 Unsubscribe: ${appUrl}/unsubscribe?email=${encodeURIComponent(email)}
   `.trim();
-  
+
   return { subject, html, text };
 }
 
@@ -166,7 +166,7 @@ function getEmailTemplate(templateName, data = {}) {
 function getSuccessEmail(data = {}) {
   const { message, workflow_name, execution_id } = data;
   const subject = '✅ Your EasyFlow Workflow Completed Successfully';
-  
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -196,9 +196,9 @@ function getSuccessEmail(data = {}) {
 </body>
 </html>
   `.trim();
-  
+
   const text = `✅ Workflow Completed!\n\n${workflow_name ? `${workflow_name}\n\n` : ''}${message || 'Your workflow has completed successfully.'}\n\nCheck your EasyFlow dashboard for details.`;
-  
+
   return { subject, html, text };
 }
 

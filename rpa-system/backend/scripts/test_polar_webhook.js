@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
  * Test script for Polar webhook endpoint
- * 
+ *
  * Usage:
  *   node scripts/test_polar_webhook.js [webhook_type] [user_email]
- * 
+ *
  * Examples:
  *   node scripts/test_polar_webhook.js subscription.created user@example.com
  *   node scripts/test_polar_webhook.js subscription.updated user@example.com
  *   node scripts/test_polar_webhook.js subscription.canceled user@example.com
- * 
+ *
  * Environment variables:
  *   - BACKEND_URL: Backend URL (default: http://localhost:3030)
  *   - POLAR_WEBHOOK_SECRET: Webhook secret for signature generation (optional for dev)
@@ -114,7 +114,7 @@ async function testWebhook() {
 
   // Convert payload to JSON string
   const body = JSON.stringify(payload);
-  
+
   // Generate signature
   const signature = generateSignature(body, WEBHOOK_SECRET);
 
@@ -136,7 +136,7 @@ async function testWebhook() {
 
     if (response.status === 200 || response.status === 201) {
       console.log('\n✅ Webhook processed successfully!');
-      
+
       if (response.data.userId) {
         console.log(`   User ID: ${response.data.userId}`);
       }

@@ -1,6 +1,9 @@
 import axios from 'axios';
 import supabase, { initSupabase } from './supabaseClient';
 import { apiErrorHandler } from './errorHandler';
+import { createLogger } from './logger';
+
+const logger = createLogger('api');
 
 // Trace context management for frontend
 class TraceContext {
@@ -126,8 +129,7 @@ api.defaults.withCredentials = true;
 if (typeof window !== 'undefined') {
   if (!window._api) {
     Object.defineProperty(window, '_api', { value: api, writable: false, configurable: false });
-    // eslint-disable-next-line no-console
-    console.info('[api] baseURL (init)', api.defaults.baseURL || '(empty)');
+    logger.info('API baseURL initialized', { baseURL: api.defaults.baseURL || '(empty)' });
   }
 }
 
@@ -214,9 +216,9 @@ api.interceptors.request.use(
             // DEV: show which storage key provided the token (never log the token itself)
             if (process.env.NODE_ENV === 'development') {
               if (tokenKeyFound) {
-                console.debug(`[api] Using token from localStorage key: ${tokenKeyFound}`);
+                logger.debug('Using token from localStorage', { tokenKey: tokenKeyFound });
               } else {
-                console.debug('[api] No token found in localStorage for request - Authorization header will not be set');
+                logger.debug('No token found in localStorage for request');
               }
             }
       } catch (e) {
@@ -225,19 +227,16 @@ api.interceptors.request.use(
 
       // Log API request initiation (structured) - sample to reduce volume
       if (process.env.NODE_ENV === 'development' && shouldLogApiCall()) {
-        console.log(JSON.stringify({
-          level: 'debug',
-          message: 'API request initiated',
+        logger.debug('API request initiated', {
           method: config.method?.toUpperCase(),
           url: config.url,
           traceId: traceHeaders['x-trace-id'],
-          requestId: traceHeaders['x-request-id'],
-          timestamp: new Date().toISOString()
-        }));
+          requestId: traceHeaders['x-request-id']
+        });
       }
 
     } catch (error) {
-      console.warn('[api] Failed to get auth token:', error.message);
+      logger.warn('Failed to get auth token', { error: error.message });
       // Try development/local tokens as fallback (defensive)
       try {
         const fallback = [process.env.REACT_APP_DEV_TOKEN, localStorage.getItem('dev_token'), localStorage.getItem('authToken'), localStorage.getItem('token')]
@@ -277,16 +276,13 @@ api.interceptors.response.use(
       
       // Log successful API response with correlation (structured JSON) - sample to reduce volume
       if (process.env.NODE_ENV === 'development' && shouldLogApiCall()) {
-        console.log(JSON.stringify({
-          level: 'info',
-          message: 'API response received',
+        logger.info('API response received', {
           method: response.config.method?.toUpperCase(),
           url: response.config.url,
           status: response.status,
           duration_ms: duration,
-          ...traceHeaders,
-          timestamp: new Date().toISOString()
-        }));
+          ...traceHeaders
+        });
       }
       
       // Track UX metrics for monitoring (could integrate with analytics)
@@ -352,7 +348,7 @@ api.interceptors.response.use(
         if (cached && cached.count > 1) {
           errorData.throttled_count = cached.count - 1;
         }
-        console.error(JSON.stringify(errorData));
+        logger.error('API request failed', errorData);
       }
       
       // Track error metrics
@@ -382,7 +378,7 @@ api.interceptors.response.use(
       if (shouldLogError(errorKey)) {
         const cached = errorThrottleCache.get(errorKey);
         const throttleNote = cached && cached.count > 1 ? ` (repeated ${cached.count - 1} times)` : '';
-        console.warn(`[api] ${method} ${url} failed${throttleNote}`, { status: code, message: error?.message });
+        logger.warn(`API request failed${throttleNote}`, { method, url, status: code, message: error?.message });
       }
     }
 
@@ -390,14 +386,14 @@ api.interceptors.response.use(
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
       const errorKey = `timeout:${error.config?.url || 'unknown'}`;
       if (shouldLogError(errorKey)) {
-        console.warn('[api] Request timeout detected');
+        logger.warn('Request timeout detected', { url: error.config?.url });
       }
     }
     
     if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
       const errorKey = `network:${error.config?.url || 'unknown'}`;
       if (shouldLogError(errorKey)) {
-        console.warn('[api] Network error detected');
+        logger.warn('Network error detected', { url: error.config?.url });
       }
     }
 
@@ -409,14 +405,14 @@ api.interceptors.response.use(
     // Surface backend diagnostic header if present
     const reason = error?.response?.headers?.['x-auth-reason'];
     if (reason) {
-      console.warn('[api] 401 x-auth-reason:', reason, 'url:', error.config?.url);
+      logger.warn('401 x-auth-reason received', { reason, url: error.config?.url });
     }
 
     const original = error.config || {};
 
     // If the request already had an auth header and the endpoint is user/preferences, don't spam refresh.
     if (original?.url?.includes('/api/user/preferences')) {
-      console.warn('[api] 401 on /api/user/preferences - skipping token refresh retry (likely auth mismatch or backend rejection)');
+      logger.warn('401 on /api/user/preferences - skipping token refresh retry', { reason: 'likely auth mismatch or backend rejection' });
       return Promise.reject(error);
     }
 
@@ -438,7 +434,7 @@ api.interceptors.response.use(
           const { data: refreshData, error: refreshError } = await client.auth.refreshSession();
           
           if (refreshError || !refreshData?.session) {
-            console.warn('Token refresh failed:', refreshError?.message || 'No session returned');
+            logger.warn('Token refresh failed', { error: refreshError?.message || 'No session returned' });
             isRefreshing = false;
             queued.forEach(fn => fn());
             queued = [];
@@ -456,7 +452,7 @@ api.interceptors.response.use(
           return api.request(error.config);
           
         } catch (e) {
-          console.error('Token refresh error:', e?.message || e);
+          logger.error('Token refresh error', { error: e?.message || e });
           isRefreshing = false;
           queued.forEach(fn => fn(null)); // Resolve queued with null to fail them
           queued = [];
@@ -757,7 +753,7 @@ class EventBatcher {
       );
     } catch (e) {
       // Silently fail - tracking should never break the app
-      console.debug('[trackEvent] Batch send failed:', e);
+      logger.debug('Batch send failed', { error: e });
     } finally {
       this.isFlushing = false;
 
@@ -859,7 +855,7 @@ export async function trackEvent(payload) {
     eventBatcher.add(sanitizedPayload);
   } catch (e) {
     // Silently fail - tracking should never break the app
-    console.debug('[trackEvent] Failed to sanitize payload:', e.message);
+    logger.debug('Failed to sanitize payload', { error: e.message });
   }
 
   // Return a resolved promise immediately (fire-and-forget pattern)
@@ -971,13 +967,12 @@ export const getFiles = async (options = {}) => {
     if (options.limit) params.append('limit', options.limit);
     if (options.offset) params.append('offset', options.offset);
 
-    console.log('[getFiles] Making API call:', `/api/files?${params.toString()}`);
+    logger.debug('Making API call to getFiles', { url: `/api/files?${params.toString()}` });
     const { data } = await api.get(`/api/files?${params.toString()}`);
-    console.log('[getFiles] API response:', data);
+    logger.debug('API response received', { data });
     return data;
   } catch (error) {
-    console.error('[getFiles] API error:', error);
-    console.error('[getFiles] Error response:', error.response?.data);
+    logger.error('API error in getFiles', { error, responseData: error.response?.data });
     // Re-throw to let FileManager handle it
     throw error;
   }
@@ -1038,7 +1033,7 @@ export async function requestWithRetry(requestConfig, options = {}) {
         // Throttle retry logs - only log first retry attempt
         const retryKey = `retry:${err.config?.url || 'unknown'}:${err.code || 'unknown'}`;
         if (attempt === 0 && shouldLogError(retryKey)) {
-          console.warn(`[api] retrying request (${attempt + 1}/${retries}) after ${wait}ms due to error:`, err.message || err.code || status);
+          logger.warn(`Retrying request (${attempt + 1}/${retries})`, { waitMs: wait, error: err.message || err.code || status, url: err.config?.url });
         }
       }
       await new Promise((res) => setTimeout(res, wait));
@@ -1162,14 +1157,13 @@ export const logWithTraceContext = (level, message, additionalData = {}) => {
     timestamp: new Date().toISOString()
   };
   
-  // Use console methods - they will be sampled by the global wrapper in main.jsx
+  // Use structured logger instead of console methods
   if (level === 'error') {
-    console.error(JSON.stringify(logEntry));
+    logger.error(logEntry.message || 'Log entry', logEntry);
   } else if (level === 'warn') {
-    console.warn(JSON.stringify(logEntry));
+    logger.warn(logEntry.message || 'Log entry', logEntry);
   } else {
-    // INFO/DEBUG levels will be sampled by console wrapper
-    console.log(JSON.stringify(logEntry));
+    logger.info(logEntry.message || 'Log entry', logEntry);
   }
 };
 

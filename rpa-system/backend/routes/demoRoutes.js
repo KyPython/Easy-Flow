@@ -16,7 +16,7 @@ const fileOperationLimiter = rateLimit({
   message: 'Too many file operations, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
+  skip: () => isDevelopment || isTest // Skip entirely in dev/test
 });
 
 // Serve demo portal page
@@ -32,9 +32,9 @@ router.get('/demo', (req, res) => {
 // Generate PDF invoice with observability
 router.get('/demo/invoice-:id.pdf', fileOperationLimiter, (req, res) => {
   const { id } = req.params;
-  
+
   logger.info('[Demo] PDF requested', { invoiceId: id, ip: req.ip });
-  
+
   const pdfContent = `%PDF-1.4
 1 0 obj
 <<

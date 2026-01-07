@@ -1,6 +1,6 @@
 /**
  * Anti-Bot Service
- * 
+ *
  * Provides anti-bot measures for web scraping:
  * - User-agent rotation
  * - Header rotation
@@ -107,7 +107,7 @@ class AntiBotService {
   getRotatedHeaders(customHeaders = {}) {
     const template = this.headerTemplates[Math.floor(Math.random() * this.headerTemplates.length)];
     const userAgent = this.getRandomUserAgent();
-    
+
     return {
       ...template,
       'User-Agent': userAgent,
@@ -284,7 +284,7 @@ class AntiBotService {
   }
 
   _getRandomTimezone() {
-    const timezones = ['America/New_York', 'America/Los_Angeles', 'America/Chicago', 
+    const timezones = ['America/New_York', 'America/Los_Angeles', 'America/Chicago',
                        'Europe/London', 'Europe/Paris', 'Asia/Tokyo', 'Australia/Sydney'];
     return timezones[Math.floor(Math.random() * timezones.length)];
   }

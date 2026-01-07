@@ -18,26 +18,26 @@ class GoogleCalendarIntegration {
    */
   async authenticate(credentials) {
     const { accessToken, refreshToken, clientId, clientSecret } = credentials;
-    
+
     this.oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
       'urn:ietf:wg:oauth:2.0:oob'
     );
-    
+
     this.oauth2Client.setCredentials({
       access_token: accessToken,
       refresh_token: refreshToken
     });
-    
+
     // Refresh token if needed
     if (!accessToken && refreshToken) {
       const { credentials: newCredentials } = await this.oauth2Client.refreshAccessToken();
       this.oauth2Client.setCredentials(newCredentials);
     }
-    
+
     this.calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
-    
+
     // Verify authentication
     try {
       const calendarList = await this.calendar.calendarList.list({ maxResults: 1 });
@@ -61,7 +61,7 @@ class GoogleCalendarIntegration {
    */
   async listEvents(params = {}) {
     const { calendarId = 'primary', timeMin, timeMax, maxResults = 10 } = params;
-    
+
     const response = await this.calendar.events.list({
       calendarId,
       timeMin: timeMin || new Date().toISOString(),
@@ -70,7 +70,7 @@ class GoogleCalendarIntegration {
       singleEvents: true,
       orderBy: 'startTime'
     });
-    
+
     return response.data.items || [];
   }
 
@@ -80,7 +80,7 @@ class GoogleCalendarIntegration {
    */
   async createEvent(params) {
     const { summary, description, start, end, attendees, location } = params;
-    
+
     const event = {
       summary,
       description,
@@ -94,16 +94,16 @@ class GoogleCalendarIntegration {
         timeZone: 'UTC'
       }
     };
-    
+
     if (attendees && attendees.length > 0) {
       event.attendees = attendees.map(email => ({ email }));
     }
-    
+
     const response = await this.calendar.events.insert({
       calendarId: 'primary',
       resource: event
     });
-    
+
     return response.data;
   }
 
@@ -113,12 +113,12 @@ class GoogleCalendarIntegration {
    */
   async getEvent(params) {
     const { eventId, calendarId = 'primary' } = params;
-    
+
     const response = await this.calendar.events.get({
       calendarId,
       eventId
     });
-    
+
     return response.data;
   }
 
@@ -128,22 +128,22 @@ class GoogleCalendarIntegration {
    */
   async updateEvent(params) {
     const { eventId, calendarId = 'primary', updates } = params;
-    
+
     // First get the existing event
     const existingEvent = await this.getEvent({ eventId, calendarId });
-    
+
     // Merge updates
     const updatedEvent = {
       ...existingEvent,
       ...updates
     };
-    
+
     const response = await this.calendar.events.update({
       calendarId,
       eventId,
       resource: updatedEvent
     });
-    
+
     return response.data;
   }
 
@@ -153,12 +153,12 @@ class GoogleCalendarIntegration {
    */
   async deleteEvent(params) {
     const { eventId, calendarId = 'primary' } = params;
-    
+
     await this.calendar.events.delete({
       calendarId,
       eventId
     });
-    
+
     return { success: true };
   }
 

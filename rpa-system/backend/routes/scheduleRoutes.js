@@ -170,7 +170,7 @@ router.post('/', requireFeature('scheduled_automations'), checkScheduledAutomati
       // Check webhook limit before creating
       const planData = req.planData || await getUserPlan(userId);
       const webhookValue = planData.limits?.webhook_integrations || planData.limits?.webhook_management;
-      const hasWebhooks = typeof webhookValue === 'string' 
+      const hasWebhooks = typeof webhookValue === 'string'
         ? webhookValue.toLowerCase() !== 'no' && webhookValue !== ''
         : !!webhookValue;
 
@@ -224,7 +224,7 @@ router.post('/', requireFeature('scheduled_automations'), checkScheduledAutomati
         secret: webhookSecret
       };
       const webhookResult = await triggerService.createWebhookSchedule(workflowId, userId, webhookConfig);
-      
+
       // Get the created schedule
       const { data: createdSchedule, error } = await supabase
         .from('workflow_schedules')
@@ -245,7 +245,7 @@ router.post('/', requireFeature('scheduled_automations'), checkScheduledAutomati
       };
     } else {
       schedule = await triggerService.createSchedule(scheduleConfig);
-      
+
       // Fetch complete schedule data
       const { data: completeSchedule, error } = await supabase
         .from('workflow_schedules')
@@ -259,7 +259,7 @@ router.post('/', requireFeature('scheduled_automations'), checkScheduledAutomati
       if (error) {
         throw new Error(`Failed to fetch complete schedule: ${error.message}`);
       }
-      
+
       schedule = completeSchedule;
     }
 
@@ -420,12 +420,12 @@ router.post('/:scheduleId/trigger', requireFeature('scheduled_automations'), asy
     // Execute workflow manually
     const { WorkflowExecutor } = require('../services/workflowExecutor');
     const workflowExecutor = new WorkflowExecutor();
-    
+
     const execution = await workflowExecutor.startExecution({
       workflowId: schedule.workflow_id,
       userId: schedule.user_id,
       triggeredBy: 'manual',
-      triggerData: { 
+      triggerData: {
         scheduleId: schedule.id,
         manualTrigger: true
       }
@@ -454,9 +454,10 @@ router.get('/:scheduleId/executions', requireFeature('scheduled_automations'), a
       return res.status(401).json({ error: 'Authentication required' });
     }
 
+    const { createClient } = require('@supabase/supabase-js');
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE
     );
 
     // Verify schedule ownership

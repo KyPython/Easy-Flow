@@ -116,7 +116,7 @@ export const AuthProvider = ({ children }) => {
           const client = await initSupabase();
           const { data: { session: sbSession }, error } = await client.auth.getSession();
           if (!error && sbSession) {
-            console.log('[Auth] Found existing Supabase session for:', sbSession.user?.email);
+            logger.debug('Found existing Supabase session', { email: sbSession.user?.email });
             // Store token so fetchWithAuth will include Authorization header
             if (sbSession.access_token) {
               try { localStorage.setItem('dev_token', sbSession.access_token); } catch (e) {}
@@ -124,12 +124,12 @@ export const AuthProvider = ({ children }) => {
             setSession(sbSession);
             setUser(sbSession?.user ?? null);
           } else if (error) {
-            console.warn('[Auth] Supabase getSession error:', error.message);
+            logger.warn('Supabase getSession error', { error: error.message });
           } else {
-            console.log('[Auth] No existing Supabase session found');
+            logger.debug('No existing Supabase session found');
           }
         } catch (supabaseError) {
-          console.warn('[Auth] Supabase not available:', supabaseError.message);
+          logger.warn('Supabase not available', { error: supabaseError.message });
         }
 
         // Ensure token is read from storage (or session) and passed explicitly to avoid races
@@ -139,9 +139,9 @@ export const AuthProvider = ({ children }) => {
 
         // Then try backend auth (will accept Authorization header or cookie if present)
         await checkBackendAuth(startupToken);
-        console.log('[Auth] Initialization complete, user:', user?.email || 'none');
+        logger.debug('Initialization complete', { email: user?.email || 'none' });
       } catch (error) {
-        console.error('[Auth] Initialization error:', error);
+        logger.error('Initialization error', { error });
       } finally {
         setLoading(false);
       }
@@ -156,14 +156,14 @@ export const AuthProvider = ({ children }) => {
         const client = await initSupabase();
         const res = client.auth.onAuthStateChange((event, nextSession) => {
           if (event === 'INITIAL_SESSION') return;
-          console.log('Auth state changed:', event, nextSession?.user?.email || 'no user');
+          logger.debug('Auth state changed', { event, email: nextSession?.user?.email || 'no user' });
           setSession(nextSession);
           setUser(nextSession?.user ?? null);
           setLoading(false);
         });
         subscription = (res && res.data && res.data.subscription) ? res.data.subscription : null;
       } catch (error) {
-        console.warn('Could not set up auth listener:', error && error.message ? error.message : error);
+        logger.warn('Could not set up auth listener', { error: error?.message || error });
       }
     })();
 
@@ -182,7 +182,7 @@ export const AuthProvider = ({ children }) => {
       try {
         const hasCookie = (typeof document !== 'undefined' && document.cookie && document.cookie.length > 0);
         const loginUrl = '/api/auth/login';
-        console.log('[Auth] Attempting backend login', { 
+        logger.debug('Attempting backend login', { 
           url: loginUrl, 
           email: email ? email.substring(0, 3) + '***' : 'missing',
           hasCookie 
@@ -194,7 +194,7 @@ export const AuthProvider = ({ children }) => {
           credentials: hasCookie ? 'include' : 'omit'
         });
         
-        console.log('[Auth] Backend login response', { 
+        logger.debug('Backend login response', { 
           status: response.status, 
           ok: response.ok,
           url: response.url 
@@ -202,7 +202,7 @@ export const AuthProvider = ({ children }) => {
         
         if (response.ok) {
           const { user, session } = await response.json();
-          console.log('[Auth] Backend login successful', { 
+          logger.debug('Backend login successful', { 
             userId: user?.id, 
             hasSession: !!session 
           });
@@ -221,7 +221,7 @@ export const AuthProvider = ({ children }) => {
         } else {
           // Backend returned error - parse and throw
           const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-          console.warn('[Auth] Backend login returned error', { 
+          logger.warn('Backend login returned error', { 
             status: response.status, 
             error: errorData 
           });
@@ -231,11 +231,10 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (backendError) {
         // Log backend error for observability
-        console.warn('[Auth] Backend login failed, trying Supabase fallback:', {
+        logger.warn('Backend login failed, trying Supabase fallback', {
           message: backendError.message,
           status: backendError.status,
-          isNetworkError: backendError instanceof TypeError || backendError.message?.includes('Failed to fetch'),
-          stack: backendError.stack
+          isNetworkError: backendError instanceof TypeError || backendError.message?.includes('Failed to fetch')
         });
         
         // If it's a network error reaching backend, try Supabase
@@ -286,10 +285,9 @@ export const AuthProvider = ({ children }) => {
         throw err;
       }
     } catch (error) {
-      console.error('[Auth] Error signing in:', {
+      logger.error('Error signing in', {
         message: error.message,
-        status: error.status,
-        stack: error.stack
+        status: error.status
       });
       throw error;
     } finally {
@@ -312,7 +310,7 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
       return data;
     } catch (error) {
-      console.error('Error signing up:', error);
+      logger.error('Error signing up', { error });
       throw error;
     } finally {
       setLoading(false);
@@ -331,7 +329,7 @@ export const AuthProvider = ({ children }) => {
           credentials: hasCookie ? 'include' : 'omit'
         });
       } catch (error) {
-        console.warn('Backend logout failed:', error.message);
+        logger.warn('Backend logout failed', { error: error.message });
       }
       
       // Supabase logout
@@ -339,10 +337,10 @@ export const AuthProvider = ({ children }) => {
         const client = await initSupabase();
         const { error } = await client.auth.signOut();
         if (error) {
-          console.warn('Supabase logout failed:', error.message);
+          logger.warn('Supabase logout failed', { error: error.message });
         }
       } catch (e) {
-        console.warn('Supabase logout failed:', e?.message || e);
+        logger.warn('Supabase logout failed', { error: e?.message || e });
       }
       
       // Clear local state regardless of backend/Supabase results
@@ -351,7 +349,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('dev_token');
       
     } catch (error) {
-      console.error('Error signing out:', error);
+      logger.error('Error signing out', { error });
       // Clear state even if logout fails
       setUser(null);
       setSession(null);
@@ -369,7 +367,7 @@ export const AuthProvider = ({ children }) => {
       });
       if (error) throw error;
     } catch (error) {
-      console.error('Error resetting password:', error);
+      logger.error('Error resetting password', { error });
       throw error;
     }
   };
@@ -382,7 +380,7 @@ export const AuthProvider = ({ children }) => {
       });
       if (error) throw error;
     } catch (error) {
-      console.error('Error updating password:', error);
+      logger.error('Error updating password', { error });
       throw error;
     }
   };
@@ -395,7 +393,7 @@ export const AuthProvider = ({ children }) => {
       });
       if (error) throw error;
     } catch (error) {
-      console.error('Error updating profile:', error);
+      logger.error('Error updating profile', { error });
       throw error;
     }
   };

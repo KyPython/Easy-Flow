@@ -18,7 +18,7 @@ async function run() {
     await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'test-api@local.dev', password: 'TestPass123!' }),
+      body: JSON.stringify({ email: 'test-api@local.dev', password: 'TestPass123!' })
     });
   } catch (e) {
     // ignore network/errors for create step
@@ -28,7 +28,7 @@ async function run() {
   const resp = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'test-api@local.dev', password: 'TestPass123!' }),
+    body: JSON.stringify({ email: 'test-api@local.dev', password: 'TestPass123!' })
   });
 
   const body = await resp.text();

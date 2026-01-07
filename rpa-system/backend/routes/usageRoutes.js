@@ -8,6 +8,7 @@ const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
 const { getUserPlan } = require('../middleware/planEnforcement');
 const { getComprehensiveUsage } = require('../middleware/comprehensiveRateLimit');
+const { getScrapingUsage } = require('../middleware/scrapingRateLimit');
 const { createLogger } = require('../middleware/structuredLogging');
 const { traceContextMiddleware } = require('../middleware/traceContext');
 
@@ -23,16 +24,16 @@ router.get('/', requireAuth, contextLoggerMiddleware, async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
   const userEmail = req.user?.email;
-  
+
   const reqLogger = logger
     .withUser({ id: userId, email: userEmail })
     .withOperation('usage.route.get_usage', { requestId: req.requestId });
-  
+
   try {
     const planData = await getUserPlan(userId);
     const comprehensiveUsage = await getComprehensiveUsage(userId);
-    const scrapingUsage = await getScrapingUsageFromScraping(userId);
-    
+    const scrapingUsage = await getScrapingUsage(userId);
+
     const usage = {
       // Automation runs
       automation_runs: {
@@ -40,14 +41,14 @@ router.get('/', requireAuth, contextLoggerMiddleware, async (req, res) => {
         limit: planData.limits?.automation_runs || 0,
         unlimited: planData.limits?.automation_runs === -1
       },
-      
+
       // Storage
       storage: {
         used_gb: comprehensiveUsage.storage_gb_used || 0,
         limit_gb: planData.limits?.storage_gb || 0,
         unlimited: planData.limits?.storage_gb === -1
       },
-      
+
       // Webhooks
       webhooks: {
         created: comprehensiveUsage.webhooks_created || 0,
@@ -66,7 +67,7 @@ router.get('/', requireAuth, contextLoggerMiddleware, async (req, res) => {
           return typeof webhookValue === 'string' && webhookValue.toLowerCase().includes('unlimited');
         })()
       },
-      
+
       // Scheduled automations
       scheduled_automations: {
         today: comprehensiveUsage.scheduled_automations_today || 0,
@@ -85,7 +86,7 @@ router.get('/', requireAuth, contextLoggerMiddleware, async (req, res) => {
           return typeof scheduledValue === 'string' && scheduledValue.toLowerCase().includes('unlimited');
         })()
       },
-      
+
       // Integrations
       integrations: {
         created: comprehensiveUsage.integrations_created || 0,
@@ -104,14 +105,14 @@ router.get('/', requireAuth, contextLoggerMiddleware, async (req, res) => {
           return typeof integrationValue === 'string' && integrationValue.toLowerCase().includes('unlimited');
         })()
       },
-      
+
       // Workflows
       workflows: {
         created: comprehensiveUsage.workflows_created || 0,
         limit: planData.limits?.workflows || -1,
         unlimited: planData.limits?.workflows === -1 || planData.limits?.automation_workflows === 'Unlimited'
       },
-      
+
       // Scraping (if available)
       scraping: scrapingUsage ? {
         domains_this_month: scrapingUsage.domains_scraped_this_month || 0,
@@ -121,7 +122,7 @@ router.get('/', requireAuth, contextLoggerMiddleware, async (req, res) => {
         jobs_limit: planData.limits?.scraping_jobs_per_month || 0,
         enabled: planData.limits?.lead_generation && planData.limits?.lead_generation !== 'No'
       } : null,
-      
+
       // Plan info
       plan: {
         name: planData.plan.name,
@@ -134,13 +135,13 @@ router.get('/', requireAuth, contextLoggerMiddleware, async (req, res) => {
         }
       }
     };
-    
+
     const duration = Date.now() - startTime;
     reqLogger.performance('usage.route.get_usage', duration, {
       category: 'api_endpoint',
       success: true
     });
-    
+
     res.json({
       success: true,
       usage

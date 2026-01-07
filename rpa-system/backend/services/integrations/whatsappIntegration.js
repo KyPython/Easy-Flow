@@ -1,7 +1,7 @@
 /**
  * WhatsApp Integration for EasyFlow
  * Handles reading messages and collecting feedback from WhatsApp
- * 
+ *
  * Note: WhatsApp Business API requires approval from Meta.
  * This integration supports:
  * - WhatsApp Business API (official, requires approval)
@@ -28,7 +28,7 @@ class WhatsAppIntegration {
   async authenticate(credentials) {
     this.credentials = credentials;
     this.provider = credentials.provider || 'twilio';
-    
+
     if (this.provider === 'twilio') {
       // Verify Twilio credentials
       if (!credentials.accountSid || !credentials.authToken) {
@@ -52,7 +52,7 @@ class WhatsAppIntegration {
    */
   async sendMessage(data) {
     const { to, message, mediaUrl = null } = data;
-    
+
     if (this.provider === 'twilio') {
       return this._sendViaTwilio(to, message, mediaUrl);
     } else if (this.provider === 'meta') {
@@ -66,15 +66,15 @@ class WhatsAppIntegration {
    */
   async _sendViaTwilio(to, message, mediaUrl) {
     const { accountSid, authToken, fromNumber } = this.credentials;
-    
+
     const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    
+
     const formData = new URLSearchParams();
     formData.append('From', `whatsapp:${fromNumber}`);
     formData.append('To', `whatsapp:${to}`);
     formData.append('Body', message);
     if (mediaUrl) formData.append('MediaUrl', mediaUrl);
-    
+
     const response = await this.http.post(url, formData, {
       auth: {
         username: accountSid,
@@ -84,7 +84,7 @@ class WhatsAppIntegration {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
     });
-    
+
     return {
       success: true,
       messageId: response.data.sid,
@@ -98,16 +98,16 @@ class WhatsAppIntegration {
    */
   async _sendViaMeta(to, message, mediaUrl) {
     const { accessToken, phoneNumberId } = this.credentials;
-    
+
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
-    
+
     const payload = {
       messaging_product: 'whatsapp',
       to: to.replace(/[^0-9]/g, ''), // Remove non-digits
       type: mediaUrl ? 'template' : 'text',
       text: mediaUrl ? undefined : { body: message }
     };
-    
+
     if (mediaUrl) {
       payload.template = {
         name: 'text_message',
@@ -118,14 +118,14 @@ class WhatsAppIntegration {
         }]
       };
     }
-    
+
     const response = await this.http.post(url, payload, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       }
     });
-    
+
     return {
       success: true,
       messageId: response.data.messages[0]?.id,
@@ -174,11 +174,11 @@ class WhatsAppIntegration {
     const changes = entry?.changes?.[0];
     const value = changes?.value;
     const message = value?.messages?.[0];
-    
+
     if (!message) {
       return { success: false, error: 'No message in webhook payload' };
     }
-    
+
     return {
       success: true,
       message: {
@@ -200,7 +200,7 @@ class WhatsAppIntegration {
    */
   async collectFeedback(messages, options = {}) {
     const { keywords = ['feedback', 'suggestion', 'improve', 'issue', 'problem', 'love', 'hate'] } = options;
-    
+
     const feedback = messages
       .filter(msg => {
         const text = (msg.body || '').toLowerCase();
@@ -213,7 +213,7 @@ class WhatsAppIntegration {
         timestamp: msg.timestamp,
         source: 'whatsapp'
       }));
-    
+
     return {
       success: true,
       feedback,

@@ -1,9 +1,14 @@
 name: Auto-Fix Code Formatting
 
 on:
+  push:
+    branches: [main, dev]
   pull_request:
     branches: [main, dev]
   workflow_dispatch:
+  schedule:
+    # Run daily at 2 AM UTC to auto-fix any accumulated issues
+    - cron: '0 2 * * *'
 
 permissions:
   contents: write
@@ -59,7 +64,15 @@ jobs:
             cd rpa-system/backend
             if grep -q '"lint"' package.json || grep -q '"lint:fix"' package.json; then
               echo "🔧 Running ESLint auto-fix on backend..."
-              npm run lint:fix 2>/dev/null || npx eslint . --ext .js --fix 2>/dev/null || echo "⚠️ ESLint fix not available"
+              # Run multiple times to catch cascading fixes
+              for i in 1 2 3; do
+                npm run lint:fix 2>&1 | tee /tmp/lint-output.log
+                if ! grep -q "error\|Error" /tmp/lint-output.log; then
+                  echo "✅ ESLint fixes complete after $i pass(es)"
+                  break
+                fi
+                echo "🔄 Running ESLint fix pass $i/3..."
+              done || npx eslint . --ext .js --fix 2>/dev/null || echo "⚠️ ESLint fix not available"
             fi
             cd ../..
           fi
@@ -116,7 +129,13 @@ jobs:
       - name: Push fixes
         if: steps.changes.outputs.changed == 'true'
         run: |
-          git push origin HEAD:${{ github.head_ref }} || echo "⚠️ Could not push fixes (may need manual merge)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # For PRs, push to the PR branch
+            git push origin HEAD:${{ github.head_ref }} || echo "⚠️ Could not push fixes (may need manual merge)"
+          else
+            # For pushes, push directly to the branch
+            git push origin ${{ github.ref_name }} || echo "⚠️ Could not push fixes"
+          fi
 
       - name: Comment on PR
         if: steps.changes.outputs.changed == 'true'

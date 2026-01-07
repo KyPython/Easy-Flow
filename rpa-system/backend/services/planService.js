@@ -17,7 +17,7 @@ function shouldLogError(userId, errorCode) {
   const now = Date.now();
   const key = `${userId}:${errorCode}`;
   const cached = errorThrottleCache.get(key);
-  
+
   if (!cached) {
     errorThrottleCache.set(key, {
       count: 1,
@@ -26,10 +26,10 @@ function shouldLogError(userId, errorCode) {
     });
     return true;
   }
-  
+
   const timeSinceFirst = now - cached.firstSeen;
   const timeSinceLast = now - cached.lastLogged;
-  
+
   // Reset if outside window
   if (timeSinceFirst > ERROR_THROTTLE_WINDOW_MS) {
     cached.count = 1;
@@ -37,14 +37,14 @@ function shouldLogError(userId, errorCode) {
     cached.lastLogged = now;
     return true;
   }
-  
+
   // Check if we should log BEFORE incrementing (prevents race conditions)
   if (timeSinceLast < ERROR_THROTTLE_WINDOW_MS) {
     // Still within throttle window - don't log
     cached.count++;
     return false;
   }
-  
+
   // Enough time has passed - reset and log
   cached.count = 1;
   cached.firstSeen = now;
@@ -73,8 +73,8 @@ async function getUserPlan(userId) {
     return {
       plan: { id: 'free', name: 'Free Plan', features: {} },
       usage: { automationsThisMonth: 0, storageUsed: 0 },
-      limits: { 
-        maxAutomations: 10, 
+      limits: {
+        maxAutomations: 10,
         maxStorage: 100,
         workflow_executions: true,
         has_workflows: true,
@@ -89,35 +89,35 @@ async function getUserPlan(userId) {
   // 1. Get the user's profile (query separately to avoid PostgREST FK requirement)
   let userProfile;
   let userError;
-  
+
   try {
     const profileResult = await supabase
       .from('profiles')
       .select('plan_id')
       .eq('id', userId)
       .maybeSingle();
-    
+
     userProfile = profileResult.data;
     userError = profileResult.error;
   } catch (err) {
     userError = err;
     userProfile = null;
   }
-  
+
   // ✅ FIX: If profile doesn't exist, create one with default plan
   if (userError || !userProfile) {
     // Check if it's a schema/relationship error vs actual missing profile
-    const isSchemaError = userError?.message?.includes('relationship') || 
+    const isSchemaError = userError?.message?.includes('relationship') ||
                          userError?.message?.includes('foreign key') ||
                          userError?.code === 'PGRST200';
-    
+
     if (isSchemaError) {
       // Schema issue - try to work around it by querying plan_id directly
       logger.warn('Database schema relationship issue detected, attempting workaround', {
         userId,
         error: userError?.message
       });
-      
+
       // Try to get plan_id directly without join
       try {
         const directResult = await supabase
@@ -125,7 +125,7 @@ async function getUserPlan(userId) {
           .select('plan_id')
           .eq('id', userId)
           .single();
-        
+
         if (directResult.data) {
           userProfile = directResult.data;
           userError = null;
@@ -138,7 +138,7 @@ async function getUserPlan(userId) {
         });
       }
     }
-    
+
     // If still no profile, return default plan instead of throwing
     if (!userProfile) {
       if (shouldLogError(userId, 'USER_PROFILE_NOT_FOUND')) {
@@ -148,13 +148,13 @@ async function getUserPlan(userId) {
           fallback_plan: 'free'
         });
       }
-      
+
       // Return default plan instead of throwing
       return {
         plan: { id: 'free', name: 'Free Plan', features: {} },
         usage: { automationsThisMonth: 0, storageUsed: 0 },
-        limits: { 
-          maxAutomations: 10, 
+        limits: {
+          maxAutomations: 10,
           maxStorage: 100,
           workflow_executions: true,
           has_workflows: true,
@@ -166,13 +166,13 @@ async function getUserPlan(userId) {
 
   // 2. Get the plan details separately (avoids PostgREST FK relationship requirement)
   const planId = userProfile.plan_id || 'free';
-  
+
   // ✅ FIX: Only query by id if planId is a valid UUID, otherwise query by name/slug
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(planId);
-  const orQuery = isUuid 
+  const orQuery = isUuid
     ? `id.eq.${planId},name.eq.${planId},slug.eq.${planId}`
     : `name.eq.${planId},slug.eq.${planId}`;
-  
+
   const { data: planData, error: planError } = await supabase
     .from('plans')
     .select('*')
@@ -197,7 +197,7 @@ async function getUserPlan(userId) {
   // 2. Get usage from SQL function (with fallback for dev)
   logger.info('Fetching monthly usage', { userId });
   let usage = { automationsThisMonth: 0, storageUsed: 0 };
-  
+
   // ✅ FIX: Check supabase and rpc function exist before calling
   try {
     if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
@@ -210,15 +210,15 @@ async function getUserPlan(userId) {
         usage = usageResult;
       }
     } else {
-      logger.debug('Supabase RPC not available, using default usage', { 
+      logger.debug('Supabase RPC not available, using default usage', {
         userId,
         has_supabase: !!supabase,
         has_rpc: supabase && !!supabase.rpc
       });
     }
   } catch (rpcError) {
-    logger.warn('RPC call failed, using default usage', { 
-      userId, 
+    logger.warn('RPC call failed, using default usage', {
+      userId,
       error: rpcError.message,
       stack: rpcError.stack
     });
@@ -233,10 +233,10 @@ async function getUserPlan(userId) {
     maxAutomations: 10,
     maxStorage: 100
   };
-  
+
   // ✅ FIX: Skip RPC call if function doesn't exist (development mode)
   const skipRpcInDev = process.env.NODE_ENV === 'development' && !process.env.ENABLE_PLAN_RPC;
-  
+
   if (!skipRpcInDev) {
     try {
       if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
@@ -247,7 +247,7 @@ async function getUserPlan(userId) {
           const isSchemaError = limitsError.code === '42703' || // undefined_column
                                limitsError.message?.includes('owner_id') ||
                                limitsError.message?.includes('does not exist');
-          
+
           if (isSchemaError && shouldLogError(userId, 'SCHEMA_ERROR')) {
             logger.warn('Failed to fetch usage data, using defaults', {
               userId,
@@ -259,9 +259,9 @@ async function getUserPlan(userId) {
             });
           } else if (!isSchemaError && !planService._rpcWarningLogged) {
             // Only log once per session to avoid spam for non-schema errors
-            logger.warn('Plan limits RPC not available, using defaults. Set ENABLE_PLAN_RPC=true to enable.', { 
-              userId, 
-              error_code: limitsError.code 
+            logger.warn('Plan limits RPC not available, using defaults. Set ENABLE_PLAN_RPC=true to enable.', {
+              userId,
+              error_code: limitsError.code
             });
             planService._rpcWarningLogged = true;
           }
@@ -273,7 +273,7 @@ async function getUserPlan(userId) {
       // ✅ FIX: Handle schema errors gracefully
       const isSchemaError = rpcError.message?.includes('owner_id') ||
                            rpcError.message?.includes('does not exist');
-      
+
       if (isSchemaError && shouldLogError(userId, 'SCHEMA_ERROR')) {
         logger.warn('Failed to fetch usage data, using defaults', {
           userId,
@@ -284,8 +284,8 @@ async function getUserPlan(userId) {
         });
       } else if (!isSchemaError && !planService._rpcErrorLogged) {
         // Only log once per session
-        logger.warn('RPC call failed, using default limits', { 
-          userId, 
+        logger.warn('RPC call failed, using default limits', {
+          userId,
           error: rpcError.message
         });
         planService._rpcErrorLogged = true;

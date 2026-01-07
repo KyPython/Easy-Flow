@@ -23,13 +23,13 @@ router.post('/trigger/:token', async (req, res) => {
   // ✅ INSTRUCTION 2: Check for incoming trace headers and extract or create new root span
   let extractedContext = context.active();
   let isExternalTrace = false;
-  
+
   // Try to extract existing trace context from headers
   const carrier = {};
   if (headers.traceparent) carrier.traceparent = headers.traceparent;
   if (headers.tracestate) carrier.tracestate = headers.tracestate;
   if (headers['x-trace-id']) carrier.traceid = headers['x-trace-id'];
-  
+
   if (Object.keys(carrier).length > 0) {
     try {
       extractedContext = propagation.extract(context.active(), carrier);
@@ -38,7 +38,7 @@ router.post('/trigger/:token', async (req, res) => {
         logger.info(`[WebhookRoutes] Extracted trace context from webhook: ${carrier.traceparent || carrier.traceid}`);
       }
     } catch (err) {
-      logger.warn(`[WebhookRoutes] Failed to extract trace context:`, err.message);
+      logger.warn('[WebhookRoutes] Failed to extract trace context:', err.message);
     }
   }
 
@@ -68,7 +68,7 @@ router.post('/trigger/:token', async (req, res) => {
             span.setStatus({ code: SpanStatusCode.ERROR, message: 'Invalid token format' });
             span.setAttribute('error', true);
             span.setAttribute('error.type', 'INVALID_TOKEN');
-            
+
             res.status(400).json({
               error: 'Invalid webhook token format',
               code: 'INVALID_TOKEN'
@@ -79,19 +79,19 @@ router.post('/trigger/:token', async (req, res) => {
 
           // Execute webhook trigger (this will inherit the current span as parent)
           const result = await triggerService.executeWebhookTrigger(token, payload, headers);
-          
+
           const duration = Date.now() - startTime;
-          
+
           // Add result attributes to span
           span.setAttribute('webhook.execution_id', result.executionId);
           span.setAttribute('webhook.workflow_name', result.workflowName);
           span.setAttribute('webhook.duration_ms', duration);
           span.setStatus({ code: SpanStatusCode.OK });
-          
+
           // ✅ INSTRUCTION 2: Include trace ID in response headers
           res.set('X-Trace-ID', span.spanContext().traceId);
           res.set('X-Span-ID', span.spanContext().spanId);
-          
+
           res.status(200).json({
             success: true,
             execution_id: result.executionId,
@@ -103,24 +103,24 @@ router.post('/trigger/:token', async (req, res) => {
 
         } catch (error) {
           const duration = Date.now() - startTime;
-          
+
           // Record exception in span
           span.recordException(error);
           span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
           span.setAttribute('error', true);
           span.setAttribute('error.type', error.constructor.name);
           span.setAttribute('webhook.duration_ms', duration);
-          
-          logger.error(`[WebhookRoutes] Webhook execution failed:`, error);
-          
+
+          logger.error('[WebhookRoutes] Webhook execution failed:', error);
+
           // Don't expose internal errors to external callers
           const isInternalError = error.message.includes('Database') || error.message.includes('Internal');
           const errorMessage = isInternalError ? 'Webhook execution failed' : error.message;
-          
+
           // ✅ INSTRUCTION 2: Include trace ID in error response
           res.set('X-Trace-ID', span.spanContext().traceId);
           res.set('X-Span-ID', span.spanContext().spanId);
-          
+
           res.status(400).json({
             success: false,
             error: errorMessage,
@@ -144,7 +144,7 @@ router.get('/schedule/:scheduleId/webhook', requireFeature('webhook_integrations
   try {
     const { scheduleId } = req.params;
     const userId = req.user?.id;
-    
+
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }

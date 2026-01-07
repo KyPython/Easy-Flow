@@ -1,20 +1,15 @@
 
 const { logger, getLogger } = require('./utils/logger');
 // --- Initialize OpenTelemetry first for comprehensive instrumentation ---
-// ✅ OBSERVABILITY: Always enable telemetry - use sampling to control volume, not disable
+// ✅ OBSERVABILITY: Telemetry is ALWAYS enabled - use sampling to control volume, not disable
 // Sampling is configured in telemetryInit.js (default 10% via OTEL_TRACE_SAMPLING_RATIO)
-if (process.env.DISABLE_TELEMETRY === 'true') {
-  logger.warn('⚠️ [Observability] Telemetry disabled via DISABLE_TELEMETRY=true');
-  logger.warn('⚠️ [Observability] Consider using OTEL_TRACE_SAMPLING_RATIO=0.1 (10%) instead of disabling');
-  logger.warn('⚠️ [Observability] Disabling telemetry removes visibility into application behavior');
-} else {
-  try {
-    require('./middleware/telemetryInit');
-    logger.info('✅ [Observability] OpenTelemetry initialized - all logs integrated with traces');
-  } catch (e) {
-    logger.error('❌ [Observability] telemetryInit failed to load:', e?.message || e);
-    logger.error('   Application will continue but observability will be limited');
-  }
+// DISABLE_TELEMETRY is ignored - telemetry is critical for observability
+try {
+  require('./middleware/telemetryInit');
+  logger.info('✅ [Observability] OpenTelemetry initialized - all logs integrated with traces');
+} catch (e) {
+  logger.error('❌ [Observability] telemetryInit failed to load:', e?.message || e);
+  logger.error('   Application will continue but observability will be limited');
 }
 
 // --- Initialize structured logging after telemetry ---
@@ -62,7 +57,7 @@ try {
 } catch (healthCheckError) {
   // If health check module fails to load, log but continue (to avoid breaking if file is missing)
   logger.warn('⚠️ Configuration health check not available:', healthCheckError.message);
-  
+
   // Fallback: Still validate Firebase config
   try {
     const { validateFirebaseConfig } = require('./utils/firebaseConfigValidator');
@@ -153,28 +148,28 @@ const getDefaultDevOrigins = () => {
   const frontendPort = process.env.FRONTEND_PORT || '3000';
   const backendPort = process.env.PORT || '3030';
   const vitePort = process.env.VITE_PORT || '5173';
-  
+
   return [
     `http://localhost:${frontendPort}`,
     `http://127.0.0.1:${frontendPort}`,
     `http://localhost:${vitePort}`,
     `http://127.0.0.1:${vitePort}`,
     `http://localhost:${backendPort}`,
-    `http://127.0.0.1:${backendPort}`,
+    `http://127.0.0.1:${backendPort}`
   ];
 };
 const DEFAULT_DEV_ORIGINS = getDefaultDevOrigins();
 const DEFAULT_PROD_ORIGINS = [
   'https://www.tryeasyflow.com',
   'https://tryeasyflow.com',
-  'https://easy-flow-lac.vercel.app', // Legacy/fallback
+  'https://easy-flow-lac.vercel.app' // Legacy/fallback
 ];
 // In development, always include dev origins even if ALLOWED_ORIGINS env var is set
 // This ensures localhost works in dev mode
-const envOrigins = process.env.ALLOWED_ORIGINS 
+const envOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
   : [];
-  
+
 const ALLOWED_ORIGINS = process.env.NODE_ENV === 'production'
   ? (envOrigins.length > 0 ? envOrigins : DEFAULT_PROD_ORIGINS)
   : [...new Set([...DEFAULT_DEV_ORIGINS, ...DEFAULT_PROD_ORIGINS, ...envOrigins])]; // Merge and dedupe
@@ -187,7 +182,7 @@ const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
 // This allows ANY Vercel preview URL for the project without hardcoding each one
 const ALLOWED_ORIGIN_PATTERNS = [
   /^https:\/\/easy-flow-.*-kypythons-projects\.vercel\.app$/, // Vercel preview URLs
-  /^https:\/\/.*\.vercel\.app$/, // Any Vercel preview (fallback)
+  /^https:\/\/.*\.vercel\.app$/ // Any Vercel preview (fallback)
 ];
 
 // Debug logging for CORS configuration (quiet in production)
@@ -195,7 +190,7 @@ if (process.env.NODE_ENV !== 'production') {
   rootLogger.info('🔧 CORS Debug Info (app.js):', {
     ALLOWED_ORIGINS_env: process.env.ALLOWED_ORIGINS,
     parsed_allowed_origins: ALLOWED_ORIGINS,
-    NODE_ENV: process.env.NODE_ENV,
+    NODE_ENV: process.env.NODE_ENV
   });
   logger.debug('🔧 CORS Configuration:', {
     ALLOWED_ORIGINS,
@@ -222,11 +217,11 @@ const corsOptions = {
       }
       return cb(null, origin);
     }
-    
+
     // Debug: Log why origin was rejected
     if (process.env.NODE_ENV !== 'production') {
-      logger.debug('🔍 CORS: Checking origin', { 
-        origin, 
+      logger.debug('🔍 CORS: Checking origin', {
+        origin,
         allowed_origins: ALLOWED_ORIGINS,
         origin_allowed: ALLOWED_ORIGINS.includes(origin)
       });
@@ -258,7 +253,7 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'x-request-id', 'x-trace-id', 'traceparent', 'apikey'],
   credentials: true, // CRITICAL: Must be true to allow cookies/credentials
   optionsSuccessStatus: 204,
-  exposedHeaders: ['Content-Disposition'],
+  exposedHeaders: ['Content-Disposition']
 };
 
 // Apply CORS FIRST - before any other middleware
@@ -279,10 +274,10 @@ app.options('*', cors(corsOptions));
 // ✅ FIX: Use same logic as main CORS middleware to support Vercel preview URLs
 app.options('/*', (req, res) => {
   const origin = req.headers.origin;
-  
+
   // Use the same ALLOWED_ORIGINS, ALLOWED_ORIGIN_PATTERNS, and ALLOWED_SUFFIXES logic as main CORS middleware
   let corsOrigin = null;
-  
+
   if (!origin) {
     // Allow requests without origin (webhooks, server-to-server)
     corsOrigin = '*';
@@ -299,7 +294,7 @@ app.options('/*', (req, res) => {
     // Dev fallback: permissive when not explicitly configured
     corsOrigin = origin;
   }
-  
+
   if (corsOrigin) {
     res.header('Access-Control-Allow-Origin', corsOrigin);
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -572,9 +567,9 @@ const automationLimiter = rateLimit({
       `http://localhost:${frontendPort}`,
       `http://127.0.0.1:${frontendPort}`,
       `http://localhost:${backendPort}`,
-      `http://127.0.0.1:${backendPort}`,
+      `http://127.0.0.1:${backendPort}`
     ];
-    
+
     devOrigins.forEach(origin => {
       if (!directives.scriptSrc.includes(origin)) directives.scriptSrc.push(origin);
       if (!directives.connectSrc.includes(origin)) directives.connectSrc.push(origin);
@@ -611,7 +606,7 @@ const automationLimiter = rateLimit({
     // CRITICAL: Disable Helmet's CORS handling - we handle it explicitly with cors() middleware
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: false,
-    crossOriginResourcePolicy: false,
+    crossOriginResourcePolicy: false
   }));
 })();
 
@@ -769,7 +764,7 @@ try {
   const { prometheusMetricsExporter } = require('./utils/prometheusMetrics');
   // Start periodic updates
   prometheusMetricsExporter.start();
-  
+
   // Expose business metrics in Prometheus format
   app.get('/metrics/business', async (req, res) => {
     try {
@@ -824,7 +819,7 @@ if (fileUpload) {
     useTempFiles: true,
     tempFileDir: '/tmp/',
     safeFileNames: true,
-    preserveExtension: true,
+    preserveExtension: true
   }));
 } else {
   // Basic fallback to avoid breaking routes that mount `/api/files`
@@ -863,7 +858,7 @@ app.get('/api/csrf-token', (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     return res.json({ csrfToken: null, message: 'CSRF disabled in production' });
   }
-  
+
   csrfProtection(req, res, (err) => {
     if (err) return res.status(500).json({ error: 'Failed to generate CSRF token' });
     res.json({ csrfToken: req.csrfToken() });
@@ -883,7 +878,7 @@ app.get('/api/plans', async (_req, res) => {
   }
 });
 
-// Fetch recent logs - requires audit logs feature  
+// Fetch recent logs - requires audit logs feature
 app.get('/api/logs', authMiddleware, requireFeature('audit_logs'), async (req, res) => {
   try {
     if (!supabase) return res.json([]);
@@ -911,8 +906,8 @@ if (process.env.NODE_ENV === 'test') {
 } else if (process.env.NODE_ENV !== 'production') {
   // Staging/other: enable with exceptions
   app.use('/api', (req, res, next) => {
-    if (req.method === 'GET' || 
-        req.url.includes('/polar-webhook') || 
+    if (req.method === 'GET' ||
+        req.url.includes('/polar-webhook') ||
         req.url.includes('/checkout/') ||
         req.url.includes('/workflows/execute') ||
         req.url.includes('/automation/execute') ||
@@ -1028,7 +1023,7 @@ app.get('/api/user/preferences', async (req, res, next) => {
         shortcuts: {},
         featureFlags: {
           enableNewBuilder: (process.env.DEV_ENABLE_NEW_BUILDER || 'false') === 'true',
-          enableBetaActions: (process.env.DEV_ENABLE_BETA_ACTIONS || 'false') === 'true',
+          enableBetaActions: (process.env.DEV_ENABLE_BETA_ACTIONS || 'false') === 'true'
         },
         clock: new Date().toISOString()
       });
@@ -1188,7 +1183,7 @@ try {
   const executionRoutes = require('./routes/executionRoutes');
   // ✅ INSTRUCTION 1: Apply context logger middleware after auth
   // Apply apiLimiter only in production
-  const executionMiddleware = isProduction 
+  const executionMiddleware = isProduction
     ? [authMiddleware, contextLoggerMiddleware, apiLimiter, executionRoutes]
     : [authMiddleware, contextLoggerMiddleware, executionRoutes];
   app.use('/api/executions', ...executionMiddleware);
@@ -1212,7 +1207,7 @@ try {
     const referer = req.get('Referer') || '';
     const originalUrl = req.originalUrl || req.url || '';
     const traceId = req.traceId || req.headers['x-trace-id'] || 'unknown';
-    
+
     // ✅ BLOCK METHOD 1: Check referer header
     if (referer.includes('/api/firebase/token') || originalUrl.includes('/firebase/token')) {
       logger.error('[POST /api/workflows/execute] ⚠️ BLOCKED: Workflow execution triggered from Firebase token endpoint (referer check)', {
@@ -1230,12 +1225,12 @@ try {
         trace_id: traceId
       });
     }
-    
+
     // ✅ REMOVED: Trace-ID-based blocking removed for better UX
     // The Firebase token endpoint already has defensive checks that prevent workflow execution
     // The referer check above is sufficient to catch direct calls from the Firebase endpoint
     // Removing trace-ID blocking allows workflows to execute immediately without artificial delays
-    
+
     // ✅ DEFENSIVE: Log route entry with full context to diagnose incorrect calls
     logger.info('[POST /api/workflows/execute] Route handler called', {
       userId: req.user?.id,
@@ -1249,7 +1244,7 @@ try {
       traceId: traceId,
       stackTrace: new Error().stack?.split('\n').slice(0, 5).join('\n') // Capture call stack
     });
-    
+
     try {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -1257,10 +1252,10 @@ try {
       if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
 
       const executor = new WorkflowExecutor();
-      
+
       // ✅ EXECUTION MODES: Get execution mode from request or auto-detect
       const { executionMode } = req.body || {};
-      
+
       logger.info('[API] execute request', { userId, workflowId, triggeredBy, executionMode, traceId });
       let execution;
       try {
@@ -1303,9 +1298,9 @@ try {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
       const { executionId } = req.params;
-      
+
       const executor = new WorkflowExecutor();
-      
+
       // Get the original execution
       const { data: originalExecution, error: fetchError } = await executor.supabase
         .from('workflow_executions')
@@ -1313,15 +1308,15 @@ try {
         .eq('id', executionId)
         .eq('user_id', userId)
         .single();
-      
+
       if (fetchError || !originalExecution) {
         return res.status(404).json({ error: 'Execution not found' });
       }
-      
+
       if (originalExecution.status !== 'failed') {
         return res.status(400).json({ error: 'Can only retry failed executions' });
       }
-      
+
       // Start new execution with same input data
       const newExecution = await executor.startExecution({
         workflowId: originalExecution.workflow_id,
@@ -1333,14 +1328,14 @@ try {
         },
         inputData: originalExecution.input_data || {}
       });
-      
+
       logger.info('[API] Retry execution created', {
         original_execution_id: executionId,
         new_execution_id: newExecution.id,
         userId
       });
-      
-      return res.json({ 
+
+      return res.json({
         execution: newExecution,
         retry_of: executionId,
         message: 'Workflow retry started successfully'
@@ -1437,7 +1432,7 @@ app.get('/api/health/supabase', async (_req, res) => {
     const { isSupabaseConfigured, getSupabase } = require('./utils/supabaseClient');
     const configured = isSupabaseConfigured();
     const client = getSupabase();
-    
+
     if (!configured) {
       return res.status(503).json({
         status: 'not_configured',
@@ -1447,7 +1442,7 @@ app.get('/api/health/supabase', async (_req, res) => {
         has_key: !!(process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY)
       });
     }
-    
+
     if (!client) {
       return res.status(503).json({
         status: 'initialization_failed',
@@ -1455,13 +1450,13 @@ app.get('/api/health/supabase', async (_req, res) => {
         configured: true
       });
     }
-    
+
     // Test database connectivity with a simple query
     const { data, error } = await client
       .from('automation_tasks')
       .select('id')
       .limit(1);
-    
+
     if (error) {
       return res.status(503).json({
         status: 'connection_failed',
@@ -1471,7 +1466,7 @@ app.get('/api/health/supabase', async (_req, res) => {
         hint: error.hint
       });
     }
-    
+
     return res.json({
       status: 'healthy',
       message: 'Supabase connection successful',
@@ -1532,7 +1527,7 @@ app.get('/api/health/databases', async (_req, res) => {
     // Overall health
     const supabaseHealthy = health.services.supabase.status === 'healthy';
     const firebaseHealthy = health.services.firebase.health?.overall === true;
-    
+
     health.overall = {
       status: supabaseHealthy && firebaseHealthy ? 'healthy' : 'degraded',
       supabase: supabaseHealthy,
@@ -1577,12 +1572,12 @@ app.get('/', (_req, res) => {
 if ((process.env.ENABLE_EMAIL_WORKER || 'true').toLowerCase() === 'true') {
   // Fire and forget; any errors are logged inside the worker loop
   startEmailWorker();
-  
+
   // ✅ FIX: Start periodic cleanup of stuck executions
   const { WorkflowExecutor } = require('./services/workflowExecutor');
   const CLEANUP_INTERVAL_MS = (process.env.STUCK_EXECUTION_CLEANUP_INTERVAL_MINUTES || 10) * 60 * 1000;
   const MAX_AGE_MINUTES = process.env.STUCK_EXECUTION_MAX_AGE_MINUTES || 10;
-  
+
   // Run cleanup immediately on startup (after 30 seconds to let server stabilize)
   setTimeout(async () => {
     try {
@@ -1597,7 +1592,7 @@ if ((process.env.ENABLE_EMAIL_WORKER || 'true').toLowerCase() === 'true') {
       rootLogger.error('Failed to run initial stuck execution cleanup:', error);
     }
   }, 30000);
-  
+
   // Schedule periodic cleanup
   setInterval(async () => {
     try {
@@ -1609,7 +1604,7 @@ if ((process.env.ENABLE_EMAIL_WORKER || 'true').toLowerCase() === 'true') {
       rootLogger.error('Failed to run periodic stuck execution cleanup:', error);
     }
   }, CLEANUP_INTERVAL_MS);
-  
+
   rootLogger.info(`✅ Stuck execution cleanup scheduled (every ${CLEANUP_INTERVAL_MS / 60000} minutes, max age: ${MAX_AGE_MINUTES} minutes)`);
 }
 
@@ -1654,7 +1649,7 @@ app.get('/auth', (_req, res) => {
 app.get('/api/auth/session', async (req, res) => {
   // ✅ OBSERVABILITY: Use structured logger that integrates with OpenTelemetry traces
   const authLogger = createLogger('auth.session');
-  
+
   try {
     // Diagnostic: prefer Authorization header but also accept cookies (signed or unsigned)
     const headerToken = req.headers.authorization?.replace('Bearer ', '') || null;
@@ -1739,7 +1734,9 @@ app.get('/api/auth/session', async (req, res) => {
     if (process.env.NODE_ENV !== 'production') {
       try {
         logger.info('[auth/session] headerToken:', !!headerToken, 'cookieToken:', !!cookieToken, 'cookieKeys:', Object.keys(req.cookies || {}).join(','));
-      } catch (e) {}
+      } catch (e) {
+        // Ignore logging errors
+      }
     }
 
     // Development bypass via header or environment DEV_BYPASS_TOKEN
@@ -1772,8 +1769,9 @@ app.get('/api/auth/session', async (req, res) => {
           });
           return res.status(401).json({ error: 'Invalid token format' });
         }
-        
+
         // Check for invalid characters that would cause parsing errors
+        // eslint-disable-next-line no-control-regex
         if (/[\x00-\x1F\x7F]/.test(tokenToVerify)) {
           // Token contains control characters - likely corrupted
           // ✅ OBSERVABILITY: Log with structured logger (sampled automatically)
@@ -1783,7 +1781,7 @@ app.get('/api/auth/session', async (req, res) => {
           });
           return res.status(401).json({ error: 'Invalid token format' });
         }
-        
+
         const { data: { user }, error } = await supabase.auth.getUser(tokenToVerify);
         if (!error && user) {
           return res.json({ user, access_token: tokenToVerify, expires_at: Date.now() + 3600000 });
@@ -1815,7 +1813,7 @@ app.get('/api/auth/session', async (req, res) => {
       error_type: error?.constructor?.name || 'UnknownError'
     });
     // Always return JSON, never HTML
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Session check failed',
       message: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
@@ -1826,7 +1824,7 @@ app.post('/api/auth/login', async (req, res) => {
   const startTime = Date.now();
   const email = req.body?.email;
   const requestId = req.headers['x-request-id'] || auditLogger.generateRequestId();
-  
+
   // Log login attempt with observability
   logger.info('🔐 [Auth] Login attempt', {
     // ✅ SECURITY: Validate type before using string methods
@@ -1839,7 +1837,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       logger.warn('🔐 [Auth] Login failed: missing credentials', {
         // ✅ SECURITY: Validate type before using string methods
@@ -1861,10 +1859,10 @@ app.post('/api/auth/login', async (req, res) => {
           email,
           password
         });
-        
+
         if (!error && data.user) {
           const duration = Date.now() - startTime;
-          
+
           // ✅ OBSERVABILITY: Enhanced login success logging with full context
           logger.info('✅ [Auth] Login successful', {
             user_id: data.user.id,
@@ -1877,13 +1875,13 @@ app.post('/api/auth/login', async (req, res) => {
             last_sign_in: data.user.last_sign_in_at,
             timestamp: new Date().toISOString()
           });
-          
+
           await auditLogger.logAuthEvent(data.user.id, 'login', true, {
             method: 'supabase',
             duration_ms: duration,
             email_confirmed: !!data.user.email_confirmed_at
           }, req);
-          
+
           // ✅ OBSERVABILITY: Track login_success event for analytics
           if (supabase) {
             supabase.from('marketing_events').insert([{
@@ -1898,13 +1896,13 @@ app.post('/api/auth/login', async (req, res) => {
             }]).catch(err => {
               logger.warn('[Auth] Failed to track login_success event', { error: err.message });
             });
-            
+
             // ✅ FIX: Update signup event with user_id if it was tracked without user_id
             // This handles the case where frontend tracked signup before user_id was available
             try {
               const signupTime = new Date(data.user.created_at);
               const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-              
+
               // Only update if user was created recently (within 5 minutes)
               if (signupTime > fiveMinutesAgo) {
                 await supabase
@@ -1919,16 +1917,16 @@ app.post('/api/auth/login', async (req, res) => {
               logger.debug('[Auth] Could not update signup event with user_id:', updateError.message);
             }
           }
-          
+
           return res.json({
             user: data.user,
             session: data.session
           });
         }
-        
+
         if (error) {
           const duration = Date.now() - startTime;
-          
+
           // ✅ OBSERVABILITY: Enhanced login failure logging with full error context
           logger.warn('❌ [Auth] Login failed: Supabase error', {
             email: email.substring(0, 3) + '***',
@@ -1940,14 +1938,14 @@ app.post('/api/auth/login', async (req, res) => {
             timestamp: new Date().toISOString(),
             ip: req.ip || req.connection?.remoteAddress || 'unknown'
           });
-          
+
           await auditLogger.logAuthEvent(null, 'login_attempt', false, {
             reason: 'supabase_error',
             error: error.message,
             error_code: error.status || 'unknown',
             email: email.substring(0, 3) + '***'
           }, req);
-          
+
           // ✅ OBSERVABILITY: Track login_failed event for analytics
           if (supabase) {
             supabase.from('marketing_events').insert([{
@@ -1964,7 +1962,7 @@ app.post('/api/auth/login', async (req, res) => {
               logger.warn('[Auth] Failed to track login_failed event', { error: err.message });
             });
           }
-          
+
           return res.status(401).json({ error: error.message });
         }
       } catch (error) {
@@ -1997,7 +1995,7 @@ app.post('/api/auth/login', async (req, res) => {
         email: email,
         user_metadata: { name: 'Developer User' }
       };
-      
+
       logger.info('🔧 [Auth] Dev mode login (bypass)', {
         email: email.substring(0, 3) + '***',
         user_id: devUser.id,
@@ -2008,11 +2006,11 @@ app.post('/api/auth/login', async (req, res) => {
         method: 'dev_bypass',
         duration_ms: duration
       }, req);
-      
+
       // Use a configured dev bypass token when available; otherwise generate a secure ephemeral token.
       // Note: Generated tokens are ephemeral and intended for local development only.
       const devAccessToken = process.env.DEV_BYPASS_TOKEN || crypto.randomBytes(24).toString('hex');
-      
+
       return res.json({
         user: devUser,
         session: {
@@ -2067,7 +2065,7 @@ app.post('/api/auth/logout', async (req, res) => {
         logger.warn('Supabase logout failed:', error.message);
       }
     }
-    
+
     res.json({ success: true });
   } catch (error) {
     logger.error('Logout error:', error);
@@ -2115,7 +2113,7 @@ app.get('/api/plans', async (_req, res) => {
   }
 });
 
-// Fetch recent logs - requires audit logs feature  
+// Fetch recent logs - requires audit logs feature
 app.get('/api/logs', authMiddleware, requireFeature('audit_logs'), async (req, res) => {
   try {
     if (!supabase) return res.json([]);
@@ -2150,13 +2148,13 @@ const PUBLIC_ENDPOINTS = [
 const apiAuthMiddleware = async (req, res, next) => {
   const startTime = Date.now();
   const minDelay = 100; // Minimum delay in ms to prevent timing attacks
-  
+
   // Skip auth for public endpoints (check both req.path and req.originalUrl)
   const pathToCheck = req.path || req.originalUrl;
   if (PUBLIC_ENDPOINTS.some(ep => pathToCheck === ep || req.originalUrl === ep)) {
     return next();
   }
-  
+
   try {
     // ✅ SECURITY: Check dev bypass first (only works in development, disabled in production)
     if (process.env.NODE_ENV !== 'production') {
@@ -2179,7 +2177,7 @@ const apiAuthMiddleware = async (req, res, next) => {
     const authHeader = (req.get('authorization') || '').trim();
     const parts = authHeader.split(' ');
     const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
-    
+
     if (!token) {
       // Add artificial delay for consistent timing
       await new Promise(resolve => setTimeout(resolve, Math.max(0, minDelay - (Date.now() - startTime))));
@@ -2233,7 +2231,7 @@ app.get('/api/workflows', authMiddleware, async (req, res) => {
 
     const limit = parseInt(req.query.limit || '100', 10);
     const supabase = getSupabase();
-    
+
     if (!supabase) {
       return res.status(503).json({ error: 'Database not available' });
     }
@@ -2261,7 +2259,7 @@ app.get('/api/workflows', authMiddleware, async (req, res) => {
 try {
   const aiAgentRoutes = require('./routes/aiAgentRoutes');
   app.use('/api/ai-agent', aiAgentRoutes);
-  
+
   // RAG service routes
   const ragRoutes = require('./routes/ragRoutes');
   app.use('/api/rag', ragRoutes);
@@ -2274,7 +2272,7 @@ try {
 try {
   const integrationRoutes = require('./routes/integrationRoutes');
   app.use('/api/integrations', integrationRoutes);
-  
+
   // Usage statistics routes
   const usageRoutes = require('./routes/usageRoutes');
   app.use('/api/usage', usageRoutes);
@@ -2296,7 +2294,7 @@ try {
 try {
   const teamRoutes = require('./routes/teamRoutes');
   // Apply rate limiting: moderate limits for team management
-  const teamMiddleware = isProduction 
+  const teamMiddleware = isProduction
     ? [authMiddleware, apiLimiter, teamRoutes]
     : [authMiddleware, teamRoutes];
   app.use('/api/team', ...teamMiddleware);
@@ -2309,7 +2307,7 @@ try {
 try {
   const adminAnalyticsRoutes = require('./routes/adminAnalyticsRoutes');
   // Apply rate limiting: moderate limits for admin analytics (admin-only but still need protection)
-  const adminAnalyticsMiddleware = isProduction 
+  const adminAnalyticsMiddleware = isProduction
     ? [authMiddleware, apiLimiter, adminAnalyticsRoutes]
     : [authMiddleware, adminAnalyticsRoutes];
   app.use('/api/admin/analytics', ...adminAnalyticsMiddleware);
@@ -2341,26 +2339,26 @@ function isValidUrl(url) {
 function isPrivateIP(hostname) {
   const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
   const match = hostname.match(ipv4Regex);
-  
+
   if (match) {
     const [, a, b, c, d] = match.map(Number);
-    
+
     // 10.0.0.0/8
     if (a === 10) return true;
-    
+
     // 172.16.0.0/12
     if (a === 172 && b >= 16 && b <= 31) return true;
-    
+
     // 192.168.0.0/16
     if (a === 192 && b === 168) return true;
-    
+
     // 127.0.0.0/8
     if (a === 127) return true;
-    
+
     // 169.254.0.0/16 (link-local)
     if (a === 169 && b === 254) return true;
   }
-  
+
   return false;
 }
 
@@ -2369,13 +2367,13 @@ const { getUserErrorMessage } = require('./utils/environmentAwareMessages');
 
 function sanitizeError(error, isDevelopment = false) {
   if (!error) return 'Unknown error occurred';
-  
+
   // ✅ OBSERVABILITY: Log error through structured logging
   logger.error('[sanitizeError] Sanitizing error for API response', error instanceof Error ? error : new Error(String(error)), {
     is_development: isDevelopment,
     environment: process.env.NODE_ENV
   });
-  
+
   // Use environment-aware error message utility
   return getUserErrorMessage(error, {
     context: 'api.error_response',
@@ -2389,7 +2387,7 @@ function sanitizeError(error, isDevelopment = false) {
 async function queueTaskRun(runId, taskData) {
   try {
     logger.info(`[queueTaskRun] Queueing automation run ${runId}`);
-    
+
     // Get the automation worker URL from environment
     const automationUrl = process.env.AUTOMATION_URL;
     if (!automationUrl) {
@@ -2397,7 +2395,7 @@ async function queueTaskRun(runId, taskData) {
       logger.error(`[queueTaskRun] ${errorMessage}`);
       throw new Error(errorMessage);
     }
-    
+
     // ✅ PRIORITY 1: Health check before execution with retry scheduling + OBSERVABILITY
     const healthCheckStartTime = Date.now();
     let healthCheckPassed = false;
@@ -2406,26 +2404,26 @@ async function queueTaskRun(runId, taskData) {
       if (!/^https?:\/\//i.test(normalizedUrl)) {
         normalizedUrl = `http://${normalizedUrl}`;
       }
-      
+
       // ✅ OBSERVABILITY: Log health check attempt
       logger.info(`[queueTaskRun] 🔍 Health check: ${normalizedUrl}`, {
         run_id: runId,
         automation_url: normalizedUrl,
         timestamp: new Date().toISOString()
       });
-      
+
       // Quick health check
       const axios = require('axios');
       await axios.get(`${normalizedUrl}/health`, { timeout: 5000 }).catch(() => {
         // Try root endpoint if /health doesn't exist
         return axios.get(normalizedUrl, { timeout: 5000, validateStatus: () => true });
       });
-      
+
       const healthCheckDuration = Date.now() - healthCheckStartTime;
       healthCheckPassed = true;
-      
+
       // ✅ OBSERVABILITY: Log successful health check
-      logger.info(`[queueTaskRun] ✅ Health check passed`, {
+      logger.info('[queueTaskRun] ✅ Health check passed', {
         run_id: runId,
         automation_url: normalizedUrl,
         duration_ms: healthCheckDuration,
@@ -2433,10 +2431,10 @@ async function queueTaskRun(runId, taskData) {
       });
     } catch (healthError) {
       const healthCheckDuration = Date.now() - healthCheckStartTime;
-      
+
       // ✅ PRIORITY 1: Schedule retry in 5 minutes instead of failing immediately
       // ✅ OBSERVABILITY: Log health check failure with full context
-      logger.warn(`[queueTaskRun] ⚠️ Automation service health check failed, scheduling retry in 5 minutes`, {
+      logger.warn('[queueTaskRun] ⚠️ Automation service health check failed, scheduling retry in 5 minutes', {
         run_id: runId,
         error: healthError.message,
         error_code: healthError.code,
@@ -2450,7 +2448,7 @@ async function queueTaskRun(runId, taskData) {
           retry_delay_seconds: 300
         }
       });
-      
+
       // Update run status to show retry scheduled
       try {
         await supabase
@@ -2467,9 +2465,9 @@ async function queueTaskRun(runId, taskData) {
           })
           .eq('id', runId);
       } catch (updateErr) {
-        logger.error(`[queueTaskRun] Failed to update run status for retry:`, updateErr.message);
+        logger.error('[queueTaskRun] Failed to update run status for retry:', updateErr.message);
       }
-      
+
       // Schedule retry in 5 minutes
       setTimeout(async () => {
         logger.info(`[queueTaskRun] 🔄 Retrying automation run ${runId} after health check failure`);
@@ -2492,23 +2490,23 @@ async function queueTaskRun(runId, taskData) {
               })
               .eq('id', runId);
           } catch (finalErr) {
-            logger.error(`[queueTaskRun] Failed to mark run as failed after retry:`, finalErr.message);
+            logger.error('[queueTaskRun] Failed to mark run as failed after retry:', finalErr.message);
           }
         }
       }, 5 * 60 * 1000); // 5 minutes
-      
+
       // Don't throw - let the retry happen in background
-      return { 
-        success: false, 
+      return {
+        success: false,
         retry_scheduled: true,
         message: 'Service unavailable, retrying in 5 min',
         retry_at: new Date(Date.now() + 5 * 60 * 1000).toISOString()
       };
     }
-    
+
     // ✅ SECURITY: Validate URL to prevent SSRF
     // ✅ FIX: Log taskData structure to debug missing URL
-    logger.info(`[queueTaskRun] Task data received:`, {
+    logger.info('[queueTaskRun] Task data received:', {
       has_url: !!taskData.url,
       url: taskData.url,
       task_type: taskData.task_type,
@@ -2516,7 +2514,7 @@ async function queueTaskRun(runId, taskData) {
       parameters_keys: taskData.parameters ? Object.keys(taskData.parameters) : [],
       all_keys: Object.keys(taskData)
     });
-    
+
     // ✅ FIX: Extract URL from multiple possible locations
     let urlToValidate = taskData.url;
     if (!urlToValidate && taskData.parameters) {
@@ -2526,10 +2524,10 @@ async function queueTaskRun(runId, taskData) {
         taskData.url = urlToValidate; // Set it at top level for consistency
       }
     }
-    
+
     // ✅ CRITICAL: URL is required for all automation tasks
     if (!urlToValidate) {
-      logger.error(`[queueTaskRun] CRITICAL ERROR: No URL found in task data!`, {
+      logger.error('[queueTaskRun] CRITICAL ERROR: No URL found in task data!', {
         run_id: runId,
         taskData_keys: Object.keys(taskData),
         has_parameters: !!taskData.parameters,
@@ -2537,7 +2535,7 @@ async function queueTaskRun(runId, taskData) {
       });
       throw new Error('URL is required but was not found in task data. Please provide a valid URL.');
     }
-    
+
     // ✅ SECURITY: Use SSRF protection module for validation
     const { validateUrlForSSRF } = require('./utils/ssrfProtection');
     const urlValidation = validateUrlForSSRF(urlToValidate);
@@ -2546,9 +2544,9 @@ async function queueTaskRun(runId, taskData) {
       throw new Error(`Invalid URL: ${urlValidation.error}`);
     }
     const validatedUrl = urlValidation.url; // Use validated URL (safe from SSRF)
-    
+
     // Prepare the payload for the automation worker
-    const payload = { 
+    const payload = {
       url: validatedUrl, // Use validated URL instead of raw input
       title: taskData.title || 'Untitled Task',
       run_id: runId,
@@ -2558,7 +2556,7 @@ async function queueTaskRun(runId, taskData) {
       task_type: taskData.task_type || taskData.type || 'general', // ✅ FIX: Also send task_type for worker compatibility
       parameters: taskData.parameters || {}
     };
-    
+
     // ✅ For invoice downloads, extract pdf_url from parameters to top level for automation worker
     // The automation worker expects pdf_url at top level: task_data.get('pdf_url') or task_data.get('url')
     if (payload.type === 'invoice_download' || payload.type === 'invoice-download') {
@@ -2580,11 +2578,11 @@ async function queueTaskRun(runId, taskData) {
         });
       }
     }
-    
+
     logger.info(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
-    
+
     // ✅ CRITICAL: Log the exact payload being sent to worker for debugging
-    logger.info(`[queueTaskRun] Payload being sent to worker:`, {
+    logger.info('[queueTaskRun] Payload being sent to worker:', {
       run_id: runId,
       has_url: !!payload.url,
       url: payload.url,
@@ -2604,7 +2602,7 @@ async function queueTaskRun(runId, taskData) {
         user_id: payload.user_id
       }
     });
-    
+
     // ✅ PRIORITY 2: Call automation service with retry logic (3x: 0s, 5s, 15s)
     try {
       let automationResult;
@@ -2612,7 +2610,7 @@ async function queueTaskRun(runId, taskData) {
       const maxRetries = 3;
       const backoffDelays = [0, 5000, 15000]; // 0s, 5s, 15s
       let lastError;
-      
+
       // Ensure URL has protocol; accept values like 'localhost:5001' and normalize to 'http://localhost:5001'
       // ✅ SECURITY: automationUrl comes from process.env.AUTOMATION_URL (trusted server config), not user input
       // User input URLs are validated via validateUrlForSSRF() at line 2543
@@ -2621,7 +2619,7 @@ async function queueTaskRun(runId, taskData) {
         normalizedUrl = `http://${normalizedUrl}`;
       }
       normalizedUrl = normalizedUrl.trim();
-      
+
       // Try type-specific endpoints first, then fall back to generic /automate
       // ✅ FIX: Worker only supports /automate and /automate/<task_type>, not /<task_type>
       const taskTypeSlug = String(payload.type || 'general').toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-');
@@ -2632,12 +2630,12 @@ async function queueTaskRun(runId, taskData) {
 
       // ✅ OBSERVABILITY: Track retry attempts with timing
       const automationStartTime = Date.now();
-      
+
       // Retry loop with exponential backoff
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         lastError = null;
         const attemptStartTime = Date.now();
-        
+
         // ✅ OBSERVABILITY: Log each retry attempt with full context
         logger.info(`[queueTaskRun] 🔄 Automation attempt ${attempt}/${maxRetries}`, {
           run_id: runId,
@@ -2652,11 +2650,11 @@ async function queueTaskRun(runId, taskData) {
             total_attempts: maxRetries
           }
         });
-        
+
         // Wait before retry (except first attempt)
         if (attempt > 1) {
           const waitMs = backoffDelays[attempt - 1];
-          logger.info(`[queueTaskRun] ⏳ Waiting ${waitMs}ms before retry`, { 
+          logger.info(`[queueTaskRun] ⏳ Waiting ${waitMs}ms before retry`, {
             run_id: runId,
             wait_ms: waitMs,
             attempt,
@@ -2667,32 +2665,32 @@ async function queueTaskRun(runId, taskData) {
           });
           await new Promise(resolve => setTimeout(resolve, waitMs));
         }
-        
+
         // Try each endpoint candidate
         for (const pathSuffix of candidates) {
           const base = normalizedUrl.replace(/\/$/, '');
           const fullAutomationUrl = `${base}${pathSuffix}`;
-          
+
           try {
             const headers = { 'Content-Type': 'application/json' };
             if (process.env.AUTOMATION_API_KEY) {
               headers['Authorization'] = `Bearer ${process.env.AUTOMATION_API_KEY}`;
             }
-            
+
             response = await axios.post(fullAutomationUrl, payload, {
               timeout: 30000,
               headers
             });
-            
+
             automationResult = response.data || { message: 'Execution completed with no data returned' };
             const attemptDuration = Date.now() - attemptStartTime;
             const totalDuration = Date.now() - automationStartTime;
-            
+
             // ✅ FIX: If direct endpoint returns result synchronously (when Kafka unavailable), handle it immediately
             // Check if the response contains a result (direct endpoint) vs just acknowledgment (Kafka mode)
             if (automationResult.result || automationResult.success !== undefined) {
               // Direct endpoint returned the actual result - update status immediately
-              logger.info(`[queueTaskRun] ✅ Direct endpoint returned result (Kafka unavailable)`, {
+              logger.info('[queueTaskRun] ✅ Direct endpoint returned result (Kafka unavailable)', {
                 run_id: runId,
                 endpoint: pathSuffix,
                 status: response.status,
@@ -2701,7 +2699,7 @@ async function queueTaskRun(runId, taskData) {
                 attempt_duration_ms: attemptDuration,
                 total_duration_ms: totalDuration
               });
-              
+
               // Update automation run status immediately since we have the result
               const finalStatus = automationResult.success ? 'completed' : 'failed';
               const sb2 = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
@@ -2713,10 +2711,10 @@ async function queueTaskRun(runId, taskData) {
                   result: JSON.stringify(automationResult.result || automationResult)
                 })
                 .eq('id', runId);
-              
+
               // Track usage and send notifications
               await usageTracker.trackAutomationRun(taskData.user_id, runId, finalStatus);
-              
+
               // Send notification if failed
               if (finalStatus === 'failed') {
                 try {
@@ -2729,7 +2727,7 @@ async function queueTaskRun(runId, taskData) {
                   logger.error('🔔 Failed to send task failure notification:', notificationError.message);
                 }
               }
-              
+
               break; // Success - exit both loops
             } else {
               // Kafka mode - just acknowledgment, result will come via Kafka
@@ -2752,9 +2750,9 @@ async function queueTaskRun(runId, taskData) {
             }
           } catch (err) {
             lastError = err;
-            const isRetryable = 
-              err.code === 'ECONNRESET' || 
-              err.code === 'ETIMEDOUT' || 
+            const isRetryable =
+              err.code === 'ECONNRESET' ||
+              err.code === 'ETIMEDOUT' ||
               err.code === 'ENOTFOUND' ||
               err.code === 'EAI_AGAIN' ||
               (err.response?.status >= 500) ||
@@ -2762,7 +2760,7 @@ async function queueTaskRun(runId, taskData) {
               (err.response?.status === 429) ||
               err.message?.toLowerCase().includes('timeout') ||
               err.message?.toLowerCase().includes('network');
-            
+
             logger.warn(`[queueTaskRun] ⚠️ Endpoint ${pathSuffix} failed (attempt ${attempt})`, {
               run_id: runId,
               status: err?.response?.status,
@@ -2770,19 +2768,19 @@ async function queueTaskRun(runId, taskData) {
               is_retryable: isRetryable,
               attempt
             });
-            
+
             // If not retryable, don't try other endpoints
             if (!isRetryable) {
               break;
             }
           }
         }
-        
+
         // If we got a result, exit retry loop
         if (automationResult) {
           break;
         }
-        
+
         // If last attempt and still no result, throw
         if (attempt === maxRetries && lastError) {
           const totalDuration = Date.now() - automationStartTime;
@@ -2805,16 +2803,16 @@ async function queueTaskRun(runId, taskData) {
           throw lastError;
         }
       }
-      
+
       if (!automationResult) {
         throw new Error('Automation service returned no result after all retries');
       }
-      
+
       // ✅ FIX: queueTaskRun should ONLY dispatch the task, NOT update final status
       // The HTTP 200 response is just an acknowledgment that the task was queued/received
       // The actual result (completed/failed) comes later via Kafka
       // Kafka consumer (kafkaService.js) handles the final status update
-      
+
       logger.info(`[queueTaskRun] ✅ Task ${runId} successfully dispatched to automation worker`, {
         runId,
         worker_response_status: response?.status,
@@ -2826,10 +2824,10 @@ async function queueTaskRun(runId, taskData) {
       // ✅ DO NOT track usage here - Kafka consumer will handle it
       // ✅ DO NOT send notifications here - Kafka consumer will handle it
       // ✅ Status remains 'running' until Kafka delivers the actual result
-      
+
       // Return acknowledgment that task was dispatched
-      return { 
-        success: true, 
+      return {
+        success: true,
         message: 'Task dispatched to automation worker',
         run_id: runId,
         queued: true,
@@ -2837,8 +2835,8 @@ async function queueTaskRun(runId, taskData) {
         worker_response: automationResult
       };
     } catch (error) {
-      logger.error(`[queueTaskRun] Automation service error:`, error.message);
-      
+      logger.error('[queueTaskRun] Automation service error:', error.message);
+
       // Update the run with the error
   const sb2 = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
   await sb2
@@ -2846,7 +2844,7 @@ async function queueTaskRun(runId, taskData) {
         .update({
           status: 'failed',
           ended_at: new Date().toISOString(),
-          result: JSON.stringify({ 
+          result: JSON.stringify({
             error: 'Automation execution failed',
             message: error.message || 'Unknown error'
           })
@@ -2865,12 +2863,12 @@ async function queueTaskRun(runId, taskData) {
       } catch (notificationError) {
         logger.error('🔔 Failed to send task failure notification:', notificationError.message);
       }
-        
+
       throw error;
     }
   } catch (error) {
     logger.error(`[queueTaskRun] Error: ${error.message || error}`);
-    
+
     // Make sure the run is marked as failed if we get an unexpected error
     try {
       await supabase
@@ -2884,7 +2882,7 @@ async function queueTaskRun(runId, taskData) {
     } catch (updateError) {
       logger.error(`[queueTaskRun] Failed to update run status: ${updateError.message}`);
     }
-    
+
     throw error;
   }
 }
@@ -2897,7 +2895,7 @@ function sanitizeInput(input) {
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     // Remove javascript: protocol
     .replace(/javascript:/gi, '')
-    // Remove vbscript: protocol  
+    // Remove vbscript: protocol
     .replace(/vbscript:/gi, '')
     // Remove data: protocol (can contain scripts)
     .replace(/data:/gi, '')
@@ -2977,8 +2975,8 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
     const urlValidation = isValidUrl(url);
     if (!urlValidation.valid) {
       logger.warn(`[POST /api/run-task] Invalid URL rejected: ${url} (reason: ${urlValidation.reason})`);
-      return res.status(400).json({ 
-        error: urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format' 
+      return res.status(400).json({
+        error: urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format'
       });
     }
   }
@@ -2988,15 +2986,15 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
     const pdfUrlValidation = isValidUrl(pdf_url);
     if (!pdfUrlValidation.valid) {
       logger.warn(`[POST /api/run-task] Invalid PDF URL rejected: ${pdf_url} (reason: ${pdfUrlValidation.reason})`);
-      return res.status(400).json({ 
-        error: pdfUrlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid PDF URL format' 
+      return res.status(400).json({
+        error: pdfUrlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid PDF URL format'
       });
     }
   }
 
   try {
     logger.info(`[run-task] Processing automation for user ${user.id}`);
-    
+
     // First, create or find a task in automation_tasks
   // ✅ SECURITY: Validate type before using string methods
   const safeType = typeof type === 'string' ? type : String(type || '');
@@ -3004,7 +3002,7 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
   const taskName = title || (safeType && safeType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || (safeTask && safeTask.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 'Automation Task';
   // ✅ SECURITY: Ensure safeType/safeTask are strings before calling toLowerCase
   const taskType = (typeof safeType === 'string' ? safeType : typeof safeTask === 'string' ? safeTask : 'general').toLowerCase();
-    
+
     const { data: taskRecord, error: taskError } = await supabase
       .from('automation_tasks')
       .insert([{
@@ -3013,8 +3011,8 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
         description: notes || '',
         url: url,
         task_type: taskType,
-        parameters: JSON.stringify({ 
-          notes: notes || '', 
+        parameters: JSON.stringify({
+          notes: notes || '',
           username: username || '',
           password: password || '',
           pdf_url: pdf_url || ''
@@ -3022,12 +3020,12 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
       }])
       .select()
       .single();
-    
+
     if (taskError) {
       logger.error('[run-task] Error creating automation task:', taskError);
       return res.status(500).json({ error: 'Failed to create automation task' });
     }
-    
+
     // Now create a run record in automation_runs
     const { data: run, error: runError } = await supabase
       .from('automation_runs')
@@ -3040,12 +3038,12 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
       }])
       .select()
       .single();
-    
+
     if (runError) {
       logger.error('[run-task] Error creating automation run:', runError);
       return res.status(500).json({ error: 'Failed to create automation run' });
     }
-    
+
   // Queue the task processing - await it to ensure it's dispatched before responding
     // This prevents tasks from getting stuck in "running" state
     try {
@@ -3053,8 +3051,10 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
       let paramsObj = {};
       try {
         paramsObj = taskRecord?.parameters ? JSON.parse(taskRecord.parameters) : {};
-      } catch (_) {}
-      
+      } catch (_) {
+        // Ignore JSON parse errors, use empty object
+      }
+
       await queueTaskRun(run.id, {
         url,
         title: taskName,
@@ -3063,7 +3063,7 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
         task_type: taskType,
         parameters: paramsObj
       });
-      
+
       logger.info(`[run-task] Successfully queued task ${run.id} for processing`);
     } catch (error) {
       logger.error('[run-task] Error queueing task:', error?.message || error);
@@ -3076,8 +3076,8 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
           result: JSON.stringify({ error: 'Failed to queue task', message: error?.message || String(error) })
         })
         .eq('id', run.id);
-      
-      return res.status(500).json({ 
+
+      return res.status(500).json({
         error: 'Failed to queue task for processing',
         details: error?.message || String(error)
       });
@@ -3088,7 +3088,7 @@ app.post('/api/run-task', authMiddleware, requireAutomationRun, automationLimite
       status: 'queued',
       message: 'Task queued for processing'
     });
-    
+
   } catch (error) {
     logger.error('[run-task] Unhandled error:', error.message || error);
     return res.status(500).json({ error: 'Failed to process request' });
@@ -3101,7 +3101,7 @@ app.get('/api/health/automation', async (_req, res) => {
   if (!automationUrl) {
     return res.status(500).json({ ok: false, error: 'AUTOMATION_URL not configured' });
   }
-  
+
   try {
     // Health probe on automation worker
     const url = (automationUrl.startsWith('http') ? automationUrl : `http://${automationUrl}`).replace(/\/$/, '') + '/health';
@@ -3258,8 +3258,8 @@ app.post('/api/tasks', async (req, res) => {
           name,
           description,
           url,
-          parameters: parameters || {},
-        },
+          parameters: parameters || {}
+        }
       ])
       .select();
 
@@ -3280,6 +3280,7 @@ app.post('/api/tasks', async (req, res) => {
 app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req, res) => {
   const taskId = req.params.id;
   let runId;
+  let task = null; // Declare outside try block for catch block access
 
   try {
     // Defensive check
@@ -3291,7 +3292,7 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
     // This ensures consistent enforcement across all automation run endpoints
 
     // 1. Fetch the task details
-    const { data: task, error: taskError } = await supabase
+    const { data: taskData, error: taskError } = await supabase
       .from('automation_tasks')
       .select('*')
       .eq('id', taskId)
@@ -3299,7 +3300,8 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
       .single();
 
     if (taskError) throw new Error('Task not found or permission denied.');
-    if (!task) return res.status(404).json({ error: 'Task not found' });
+    if (!taskData) return res.status(404).json({ error: 'Task not found' });
+    task = taskData; // Assign to outer scope variable
 
     // 2. Create a new record in automation_runs
     const { data: runData, error: runError } = await supabase
@@ -3308,7 +3310,7 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
         task_id: taskId,
         user_id: req.user.id,
         status: 'running',
-        started_at: new Date().toISOString(),
+        started_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -3326,8 +3328,8 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
       const urlValidation = isValidUrl(task.url);
       if (!urlValidation.valid) {
         logger.warn(`[POST /api/tasks/${taskId}/run] Invalid URL rejected: ${task.url} (reason: ${urlValidation.reason})`);
-        return res.status(400).json({ 
-          error: urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format' 
+        return res.status(400).json({
+          error: urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format'
         });
       }
     }
@@ -3335,19 +3337,19 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
       const pdfUrlValidation = isValidUrl(task.parameters.pdf_url);
       if (!pdfUrlValidation.valid) {
         logger.warn(`[POST /api/tasks/${taskId}/run] Invalid PDF URL rejected: ${task.parameters.pdf_url} (reason: ${pdfUrlValidation.reason})`);
-        return res.status(400).json({ 
-          error: pdfUrlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid PDF URL format' 
+        return res.status(400).json({
+          error: pdfUrlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid PDF URL format'
         });
       }
     }
-    
-    const payload = { 
-      url: task.url, 
-      username: task.parameters?.username, 
+
+    const payload = {
+      url: task.url,
+      username: task.parameters?.username,
       password: task.parameters?.password,
       pdf_url: task.parameters?.pdf_url
     };
-    
+
     const response = await axios.post(automationUrl, payload, { timeout: 120000 });
     const result = response.data?.result ?? null;
 
@@ -3360,7 +3362,7 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
       .update({
         status: 'completed',
         ended_at: new Date().toISOString(),
-        result: { message: 'Execution finished.', output: result }, // The result from the automation service is saved here
+        result: { message: 'Execution finished.', output: result } // The result from the automation service is saved here
       })
       .eq('id', runId);
 
@@ -3371,9 +3373,9 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
 
     // Send task completion notification
     try {
-      const notification = NotificationTemplates.taskCompleted(taskData.name);
+      const notification = NotificationTemplates.taskCompleted(task.name || taskId);
       await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
-      logger.info(`🔔 Task completion notification sent for task ${taskData.name} to user ${req.user.id}`);
+      logger.info(`🔔 Task completion notification sent for task ${task.name || taskId} to user ${req.user.id}`);
     } catch (notificationError) {
       logger.error('🔔 Failed to send task completion notification:', notificationError.message);
     }
@@ -3391,14 +3393,14 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
         const errorPayload = {
           error: 'Task execution failed.',
           message: err.message,
-          details: err.response?.data || null, // Capture details from axios error response if available.
+          details: err.response?.data || null // Capture details from axios error response if available.
         };
         await supabase
           .from('automation_runs')
           .update({
             status: 'failed',
             ended_at: new Date().toISOString(),
-            result: errorPayload,
+            result: errorPayload
           })
           .eq('id', runId);
 
@@ -3407,9 +3409,9 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
 
         // Send task failure notification
         try {
-          const notification = NotificationTemplates.taskFailed(taskData.name, err.message);
+          const notification = NotificationTemplates.taskFailed(task.name || taskId, err.message);
           await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
-          logger.info(`🔔 Task failure notification sent for task ${taskData.name} to user ${req.user.id}`);
+          logger.info(`🔔 Task failure notification sent for task ${task.name || taskId} to user ${req.user.id}`);
         } catch (notificationError) {
           logger.error('🔔 Failed to send task failure notification:', notificationError.message);
         }
@@ -3418,7 +3420,7 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
         logger.error(`[POST /api/tasks/${taskId}/run] DB error update failed:`, dbErr);
       }
     }
-    
+
     // Return a more structured error response to the client.
     res.status(500).json({ error: 'Failed to run task', details: err.message, runId: runId || null });
   }
@@ -3472,12 +3474,12 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       .eq('user_id', req.user.id)
       .order('started_at', { ascending: false })
       .limit(100);
-    
+
     if (error) {
       logger.error('[GET /api/runs] Database query error:', error);
       throw error;
     }
-    
+
     const queryDuration = Date.now() - queryStartTime;
     if (queryDuration > 2000) {
       logger.warn('[GET /api/runs] Slow query detected', {
@@ -3487,19 +3489,19 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
         message: 'Consider adding database indexes: idx_automation_runs_user_id_started_at'
       });
     }
-    
+
     // Fetch task details separately to avoid slow join
     // This is more efficient than a JOIN when we have proper indexes
     const taskIds = [...new Set((runsData || []).filter(r => r.task_id).map(r => r.task_id))];
     let tasksMap = {};
-    
+
     if (taskIds.length > 0) {
       const taskQueryStart = Date.now();
       const { data: tasks, error: tasksError } = await supabase
         .from('automation_tasks')
         .select('id, name, url, task_type')
         .in('id', taskIds);
-      
+
       if (tasksError) {
         logger.warn('[GET /api/runs] Error fetching tasks (non-critical):', tasksError);
         // Don't fail the request if tasks can't be fetched
@@ -3509,7 +3511,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
           return acc;
         }, {});
       }
-      
+
       const taskQueryDuration = Date.now() - taskQueryStart;
       if (taskQueryDuration > 1000) {
         logger.warn('[GET /api/runs] Slow task query detected', {
@@ -3518,7 +3520,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
         });
       }
     }
-    
+
     // Merge task data into runs
     const data = runsData.map(run => ({
       id: run.id,
@@ -3529,7 +3531,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       artifact_url: run.artifact_url,
       automation_tasks: run.task_id ? tasksMap[run.task_id] || null : null
     }));
-    
+
     const duration = Date.now() - startTime;
     logger.info('[GET /api/runs] Success', {
       user_id: req.user.id,
@@ -3553,7 +3555,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
 app.get('/api/runs/:id', authMiddleware, async (req, res) => {
   const runId = req.params.id;
   const startTime = Date.now();
-  
+
   logger.info('[GET /api/runs/:id] Request received', {
     user_id: req.user?.id,
     run_id: runId,
@@ -3625,7 +3627,7 @@ app.get('/api/runs/:id', authMiddleware, async (req, res) => {
 app.delete('/api/runs/:id', authMiddleware, async (req, res) => {
   const startTime = Date.now();
   const runId = req.params.id;
-  
+
   logger.info('[DELETE /api/runs/:id] Request received', {
     user_id: req.user?.id,
     run_id: runId,
@@ -3711,7 +3713,7 @@ app.delete('/api/runs/:id', authMiddleware, async (req, res) => {
 app.get('/api/queue/status', authMiddleware, async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
-  
+
   logger.info('📋 [Queue] Status request received', {
     user_id: userId
   });
@@ -3749,7 +3751,7 @@ app.get('/api/queue/status', authMiddleware, async (req, res) => {
     const { getKafkaService } = require('./utils/kafkaService');
     const kafkaService = getKafkaService();
     const kafkaConnected = kafkaService?.isConnected || false;
-    
+
     // Check worker health (automation service)
     let workerHealthy = false;
     let workerResponseTime = null;
@@ -3778,18 +3780,18 @@ app.get('/api/queue/status', authMiddleware, async (req, res) => {
       const waitTimeMs = Date.now() - queuedAt.getTime();
       const waitTimeMinutes = Math.floor(waitTimeMs / 60000);
       const waitTimeSeconds = Math.floor((waitTimeMs % 60000) / 1000);
-      
+
       // Estimate processing time (average 30 seconds per task, 3 workers = ~10 seconds per task)
       const avgProcessingTimeSeconds = 10;
       const tasksAhead = index;
       const estimatedWaitSeconds = tasksAhead * avgProcessingTimeSeconds;
-      
+
       return {
         task_id: task.id,
         position: index + 1,
         queued_at: task.started_at,
         wait_time_seconds: Math.floor(waitTimeMs / 1000),
-        wait_time_display: waitTimeMinutes > 0 
+        wait_time_display: waitTimeMinutes > 0
           ? `${waitTimeMinutes}m ${waitTimeSeconds}s`
           : `${waitTimeSeconds}s`,
         estimated_wait_seconds: estimatedWaitSeconds,
@@ -3819,7 +3821,7 @@ app.get('/api/queue/status', authMiddleware, async (req, res) => {
       },
       tasks: queueInfo,
       estimated_processing_rate: '~10 seconds per task (3 workers)',
-      message: actuallyQueued.length === 0 
+      message: actuallyQueued.length === 0
         ? 'No tasks in queue'
         : workerHealthy && kafkaConnected
           ? `${actuallyQueued.length} task(s) queued and processing`
@@ -3841,7 +3843,7 @@ app.get('/api/queue/status', authMiddleware, async (req, res) => {
 app.get('/api/dashboard', authMiddleware, async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
-  
+
   logger.info('📊 [Dashboard] Request received', {
     user_id: userId,
     has_user: !!req.user,
@@ -3867,7 +3869,7 @@ app.get('/api/dashboard', authMiddleware, async (req, res) => {
     // ✅ PERFORMANCE: Optimize query - fetch without expensive join first
     // Then fetch task details separately if needed (similar to /api/runs)
     const queryStartTime = Date.now();
-    
+
     // Perform all queries in parallel for efficiency
     const [tasksCount, runsCount, recentRunsData] = await Promise.all([
       supabase.from('automation_tasks').select('id', { count: 'exact', head: true }).eq('user_id', userId),
@@ -3882,17 +3884,17 @@ app.get('/api/dashboard', authMiddleware, async (req, res) => {
     if (tasksCount.error) throw tasksCount.error;
     if (runsCount.error) throw runsCount.error;
     if (recentRunsData.error) throw recentRunsData.error;
-    
+
     // Fetch task details separately to avoid slow join
     const taskIds = [...new Set((recentRunsData.data || []).filter(r => r.task_id).map(r => r.task_id))];
     let tasksMap = {};
-    
+
     if (taskIds.length > 0) {
       const { data: tasks, error: tasksError } = await supabase
         .from('automation_tasks')
         .select('id, name, url, task_type')
         .in('id', taskIds);
-      
+
       if (!tasksError && tasks) {
         tasksMap = tasks.reduce((acc, task) => {
           acc[task.id] = { name: task.name, url: task.url, task_type: task.task_type };
@@ -3900,7 +3902,7 @@ app.get('/api/dashboard', authMiddleware, async (req, res) => {
         }, {});
       }
     }
-    
+
     // Merge task data into runs
     const recentRuns = (recentRunsData.data || []).map(run => ({
       id: run.id,
@@ -3910,10 +3912,10 @@ app.get('/api/dashboard', authMiddleware, async (req, res) => {
       artifact_url: run.artifact_url,
       automation_tasks: tasksMap[run.task_id] || null
     }));
-    
+
     const queryDuration = Date.now() - queryStartTime;
     const totalDuration = Date.now() - startTime;
-    
+
     logger.info('✅ [Dashboard] Data fetched successfully', {
       user_id: userId,
       query_duration_ms: queryDuration,
@@ -3922,7 +3924,7 @@ app.get('/api/dashboard', authMiddleware, async (req, res) => {
       totalRuns: runsCount.count,
       recentRuns_count: recentRuns.length
     });
-    
+
     // Log performance warning if query is slow
     if (queryDuration > 2000) {
       logger.warn('⚠️ [Dashboard] Slow query detected', {
@@ -3935,7 +3937,7 @@ app.get('/api/dashboard', authMiddleware, async (req, res) => {
     res.json({
       totalTasks: tasksCount.count || 0,
       totalRuns: runsCount.count || 0,
-      recentRuns: recentRuns,
+      recentRuns: recentRuns
     });
 
   } catch (err) {
@@ -3994,12 +3996,12 @@ app.get('/api/usage/debug', authMiddleware, requireFeature('advanced_analytics')
         .select('*')
         .eq('user_id', req.user.id)
         .single();
-      
+
       tableExists = !usageError || usageError.code !== '42P01';
       logger.info(`[DEBUG] user_usage table exists: ${tableExists}`);
-      logger.info(`[DEBUG] Current usage record:`, usageData);
+      logger.info('[DEBUG] Current usage record:', usageData);
     } catch (e) {
-      logger.info(`[DEBUG] user_usage table check error:`, e.message);
+      logger.info('[DEBUG] user_usage table check error:', e.message);
     }
 
     // Check automation runs
@@ -4072,7 +4074,7 @@ app.post('/api/usage/refresh', authMiddleware, requireFeature('advanced_analytic
         .eq('user_id', req.user.id)
         .eq('status', 'completed')
         .gte('created_at', startOfMonth.toISOString()),
-      
+
       // Count active workflows
       supabase
         .from('automation_tasks')
@@ -4101,7 +4103,7 @@ app.post('/api/usage/refresh', authMiddleware, requireFeature('advanced_analytic
 
     // Also use the usage tracker for future
     await usageTracker.refreshAllUserUsage(req.user.id);
-    
+
     res.json({
       success: true,
       usage: {
@@ -4149,7 +4151,7 @@ app.get('/api/subscription', async (req, res) => {
       subscription,
       usage: {
         tasks: tasksCount.count || 0,
-        runs: runsCount.count || 0,
+        runs: runsCount.count || 0
       }
     });
 
@@ -4192,18 +4194,18 @@ app.get('/api/schedules', authMiddleware, requireFeature('scheduled_automations'
 
     if (error) {
       logger.error('[GET /api/schedules] Database error:', error);
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Failed to fetch schedules',
-        details: error.message 
+        details: error.message
       });
     }
 
     res.json(schedules || []);
   } catch (err) {
     logger.error('[GET /api/schedules] Error:', err.message);
-    res.status(500).json({ 
-      error: 'Failed to fetch schedules', 
-      details: err.message 
+    res.status(500).json({
+      error: 'Failed to fetch schedules',
+      details: err.message
     });
   }
 });
@@ -4230,10 +4232,10 @@ app.post('/api/track-event', async (req, res) => {
           frontend_user: user_id || null,
           frontend_timestamp: properties.timestamp
         };
-        
+
         // ✅ SECURITY: Validate type before using string methods
         const safeLevel = typeof level === 'string' ? level : String(level || 'info');
-        
+
         // Route to appropriate log level
         switch (safeLevel.toLowerCase()) {
           case 'error':
@@ -4254,7 +4256,7 @@ app.post('/api/track-event', async (req, res) => {
     if (supabase) {
       try {
         const insertResult = await supabase.from('marketing_events').insert([{ user_id: user_id || null, event_name: finalEventName, properties: properties || {}, utm: utm || {}, created_at: new Date().toISOString() }]);
-        
+
         // ✅ OBSERVABILITY: Log all tracked events for diagnostic purposes
         if (insertResult.error) {
           logger.error('[track-event] Failed to insert event', {
@@ -4293,7 +4295,7 @@ app.post('/api/track-event', async (req, res) => {
           // Basic Mixpanel HTTP ingestion (lite) - non-blocking
           const mp = {
             event: finalEventName,
-            properties: Object.assign({ token: process.env.MIXPANEL_TOKEN, distinct_id: user_id || null, time: Math.floor(Date.now() / 1000) }, properties || {}, { utm: utm || {} }),
+            properties: Object.assign({ token: process.env.MIXPANEL_TOKEN, distinct_id: user_id || null, time: Math.floor(Date.now() / 1000) }, properties || {}, { utm: utm || {} })
           };
           await axios.post('https://api.mixpanel.com/track', { data: Buffer.from(JSON.stringify([mp])).toString('base64') }, { timeout: 3000 });
         }
@@ -4329,14 +4331,14 @@ app.post('/api/track-event/batch', async (req, res) => {
 
       try {
         if (supabase) {
-          const insertResult = await supabase.from('marketing_events').insert([{ 
-            user_id: user_id || null, 
-            event_name: finalEventName, 
-            properties: properties || {}, 
-            utm: utm || {}, 
-            created_at: new Date().toISOString() 
+          const insertResult = await supabase.from('marketing_events').insert([{
+            user_id: user_id || null,
+            event_name: finalEventName,
+            properties: properties || {},
+            utm: utm || {},
+            created_at: new Date().toISOString()
           }]);
-          
+
           // ✅ OBSERVABILITY: Log batch event tracking
           if (insertResult.error) {
             logger.error('[track-event/batch] Failed to insert event', {
@@ -4357,14 +4359,14 @@ app.post('/api/track-event/batch', async (req, res) => {
             try {
               const mp = {
                 event: finalEventName,
-                properties: Object.assign({ 
-                  token: process.env.MIXPANEL_TOKEN, 
-                  distinct_id: user_id || null, 
-                  time: Math.floor(Date.now() / 1000) 
-                }, properties || {}, { utm: utm || {} }),
+                properties: Object.assign({
+                  token: process.env.MIXPANEL_TOKEN,
+                  distinct_id: user_id || null,
+                  time: Math.floor(Date.now() / 1000)
+                }, properties || {}, { utm: utm || {} })
               };
-              await axios.post('https://api.mixpanel.com/track', { 
-                data: Buffer.from(JSON.stringify([mp])).toString('base64') 
+              await axios.post('https://api.mixpanel.com/track', {
+                data: Buffer.from(JSON.stringify([mp])).toString('base64')
               }, { timeout: 3000 });
             } catch (e) {
               logger.warn('[track-event/batch] Mixpanel forward failed', e?.message || e);
@@ -4383,11 +4385,11 @@ app.post('/api/track-event/batch', async (req, res) => {
     const successful = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
     const failed = results.length - successful;
 
-    return res.json({ 
-      ok: true, 
+    return res.json({
+      ok: true,
       processed: results.length,
       successful,
-      failed 
+      failed
     });
   } catch (e) {
     logger.error('[POST /api/track-event/batch] error', e?.message || e);
@@ -4411,7 +4413,7 @@ app.post('/api/enqueue-email', async (req, res) => {
       data: data || {},
       scheduled_at: when,
       status: 'pending',
-      created_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
     };
 
     const { error } = await supabase.from('email_queue').insert([emailData]);
@@ -4439,7 +4441,7 @@ async function ensureUserProfile(userId, email) {
       .select('id')
       .eq('id', userId)
       .maybeSingle();
-    
+
       if (!existingProfile) {
       logger.info(`[ensureUserProfile] Creating missing profile for user ${userId}, email: ${email}`);
       const { error: insertError } = await supabase
@@ -4449,12 +4451,12 @@ async function ensureUserProfile(userId, email) {
           email: email,
           created_at: new Date().toISOString()
         }]);
-      
+
       if (insertError) {
         logger.error('[ensureUserProfile] Failed to create profile:', insertError);
         throw insertError;
       }
-      
+
       // ✅ OBSERVABILITY: Track signup event server-side when profile is created
       // Look up UTM parameters from signup_sources table
       let utmParams = {};
@@ -4466,7 +4468,7 @@ async function ensureUserProfile(userId, email) {
           .order('timestamp', { ascending: false })
           .limit(1)
           .maybeSingle();
-        
+
         if (signupSource) {
           utmParams = {
             utm_source: signupSource.source,
@@ -4497,7 +4499,7 @@ async function ensureUserProfile(userId, email) {
       } catch (trackError) {
         logger.warn('[ensureUserProfile] Failed to track signup event:', trackError.message);
       }
-      
+
       logger.info(`[ensureUserProfile] Successfully created profile for user ${userId}`);
     }
     return true;
@@ -4526,7 +4528,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
     let targetEmail = to_email || null;
     if (!targetEmail) {
       logger.info('[trigger-campaign] Looking up user email - trying multiple sources...');
-      
+
       // Strategy 1: Try profiles table (existing logic)
       try {
         if (supabase) {
@@ -4548,13 +4550,13 @@ app.post('/api/trigger-campaign', async (req, res) => {
         logger.warn('[trigger-campaign] profile lookup failed', e?.message || e);
       }
     }
-    
+
     // Strategy 2: Try auth.users table if still no email
     if (!targetEmail && supabase) {
       try {
         logger.info('[trigger-campaign] Trying auth.users table...');
         const { data: authUser, error: authErr } = await supabase.auth.admin.getUserById(req.user.id);
-        
+
         if (authUser && authUser.user && authUser.user.email) {
           targetEmail = authUser.user.email;
           logger.info('[trigger-campaign] Found email in auth.users:', targetEmail);
@@ -4565,13 +4567,13 @@ app.post('/api/trigger-campaign', async (req, res) => {
         logger.info('[trigger-campaign] Auth.users lookup failed:', e.message);
       }
     }
-    
+
     // Strategy 3: Try req.user.email directly
     if (!targetEmail && req.user.email) {
       targetEmail = req.user.email;
       logger.info('[trigger-campaign] Using email from req.user:', targetEmail);
     }
-    
+
     // Strategy 4: Try user_metadata
     if (!targetEmail && req.user.user_metadata && req.user.user_metadata.email) {
       targetEmail = req.user.user_metadata.email;
@@ -4592,7 +4594,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
 
     if (!targetEmail) {
       logger.info('[trigger-campaign] Target email not found after all strategies');
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'target email not found',
         debug: 'User authenticated but no email address found in profiles, auth.users, or user object'
       });
@@ -4602,7 +4604,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
   await ensureUserProfile(req.user.id, targetEmail);
 } catch (profileError) {
   logger.error('[trigger-campaign] Failed to ensure user profile:', profileError);
-  return res.status(500).json({ 
+  return res.status(500).json({
     error: 'Failed to prepare user profile for email campaign',
     note: 'User profile creation failed'
   });
@@ -4618,8 +4620,8 @@ app.post('/api/trigger-campaign', async (req, res) => {
             properties: {
               email: targetEmail,
               lifecyclestage: 'lead',
-              record_source: 'EasyFlow SaaS',
-            },
+              record_source: 'EasyFlow SaaS'
+            }
           };
           logger.info(`[trigger-campaign] Creating contact in HubSpot: ${targetEmail}`, hubspotPayload);
           const hubspotRes = await axios.post(
@@ -4628,8 +4630,8 @@ app.post('/api/trigger-campaign', async (req, res) => {
             {
               headers: {
                 'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
-                'Content-Type': 'application/json',
-              },
+                'Content-Type': 'application/json'
+              }
             }
           );
           logger.info(`[trigger-campaign] Successfully created contact ${targetEmail} in HubSpot. Response:`, hubspotRes.status, hubspotRes.data);
@@ -4649,8 +4651,8 @@ app.post('/api/trigger-campaign', async (req, res) => {
                 const updatePayload = {
                   properties: {
                     lifecyclestage: 'lead',
-                    record_source: 'EasyFlow SaaS',
-                  },
+                    record_source: 'EasyFlow SaaS'
+                  }
                 };
                 logger.info(`[trigger-campaign] Updating contact in HubSpot: ${contactId}`, updatePayload);
                 const updateRes = await axios.patch(
@@ -4659,8 +4661,8 @@ app.post('/api/trigger-campaign', async (req, res) => {
                   {
                     headers: {
                       'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
-                      'Content-Type': 'application/json',
-                    },
+                      'Content-Type': 'application/json'
+                    }
                   }
                 );
                 logger.info(`[trigger-campaign] Successfully updated contact ${targetEmail} in HubSpot. Response:`, updateRes.status, updateRes.data);
@@ -4693,7 +4695,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
           data: { profile_id: req.user.id },
           scheduled_at: now.toISOString(),
           status: 'pending',
-          created_at: now.toISOString(),
+          created_at: now.toISOString()
         });
         inserts.push({
           profile_id: req.user.id,
@@ -4702,7 +4704,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
           data: { profile_id: req.user.id },
           scheduled_at: followup.toISOString(),
           status: 'pending',
-          created_at: now.toISOString(),
+          created_at: now.toISOString()
         });
         logger.info(`[trigger-campaign] Enqueuing welcome and followup emails for ${targetEmail}`, inserts);
         break;
@@ -4722,7 +4724,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
         return res.status(500).json({ error: 'Failed to enqueue emails.', note: 'Failed to enqueue emails.' });
       }
       logger.info(`[trigger-campaign] Successfully enqueued ${inserts.length} emails for campaign ${campaign}`);
-      
+
       // Send welcome notification
       if (campaign === 'welcome') {
         try {
@@ -4732,7 +4734,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
             .select('email')
             .eq('id', req.user.id)
             .single();
-            
+
           const userName = profile?.email?.split('@')[0] || 'there';
           const notification = NotificationTemplates.welcome(userName);
           await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
@@ -4790,14 +4792,14 @@ app.get('/api/kafka/health', async (req, res) => {
 app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req, res) => {
   try {
     const taskData = req.body;
-    
+
     if (!taskData || !taskData.task_type) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'task_type is required',
         accepted_types: ['web_automation', 'form_submission', 'data_extraction', 'file_download', 'invoice_download']
       });
     }
-    
+
     // Add user context to task
     const enrichedTask = {
       ...taskData,
@@ -4805,16 +4807,16 @@ app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req,
       created_at: new Date().toISOString(),
       source: 'backend-api'
     };
-    
+
     const result = await kafkaService.sendAutomationTask(enrichedTask);
-    
+
     res.status(202).json({
       success: true,
       task_id: result.taskId,
       message: 'Task queued successfully',
       status: 'queued'
     });
-    
+
   } catch (error) {
     logger.error('[POST /api/automation/queue] error:', error);
     res.status(500).json({
@@ -4845,7 +4847,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
     timestamp: new Date().toISOString(),
     operation: 'automation_execute'
   });
-  
+
   try {
     const taskData = req.body;
 
@@ -4891,33 +4893,33 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
     // ✅ SEAMLESS UX: Handle Invoice Download with Link Discovery (automatic fallback)
     // Only require credentials if discoveryMethod is actually set to a valid value
     const discoveryMethod = taskData.discoveryMethod;
-    const hasValidDiscoveryMethod = discoveryMethod && 
+    const hasValidDiscoveryMethod = discoveryMethod &&
                                     typeof discoveryMethod === 'string' &&
                                     discoveryMethod.trim() !== '' &&
                                     discoveryMethod !== 'none' &&
                                     ['auto-detect', 'text-match'].includes(discoveryMethod);
-    
+
     if (taskData.task_type === 'invoice_download' && hasValidDiscoveryMethod) {
       logger.info(`[AutomationExecute] Processing invoice download with link discovery for user ${req.user.id}`, {
         discoveryMethod,
         has_username: !!taskData.username,
         has_password: !!taskData.password
       });
-      
+
       try {
         // Validate required fields for discovery
         const { url, username, password, discoveryValue } = taskData;
-        
+
         // ✅ DEMO PORTAL: Make credentials optional for demo portal (it's a test site)
         // ✅ DYNAMIC: Check for demo portal using dynamic backend port
         const backendPort = process.env.PORT || '3030';
         const isDemoPortal = url && (
-          url.includes('/demo') || 
+          url.includes('/demo') ||
           url.includes(`localhost:${backendPort}/demo`) ||
           url.includes('demo@useeasyflow.com') ||
           url.includes('demo portal')
         );
-        
+
         // Only require credentials for non-demo sites (real-world invoice portals need login)
         if (!isDemoPortal && (!username || !password)) {
           // ✅ ENVIRONMENT-AWARE: Use environment-aware error messages
@@ -4929,18 +4931,18 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
               userMessage: 'Please provide your login credentials to use link discovery'
             }
           );
-          
+
           logger.warn('[AutomationExecute] Missing credentials for link discovery', {
             has_username: !!username,
             has_password: !!password,
             discoveryMethod
           });
-          
+
           // ✅ FIX: Return structured error response so frontend can prompt for credentials
           // Use clean userMessage without dev details in the structured response
           const { IS_PRODUCTION } = require('./utils/environmentAwareMessages');
           const cleanMessage = 'Please provide your login credentials to use link discovery';
-          
+
           return res.status(400).json({
             error: errorMsg, // Full error message for logging (includes dev details in dev mode)
             requiresCredentials: true,
@@ -4966,7 +4968,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
         }
 
         logger.info(`[AutomationExecute] Starting link discovery for ${url} with method: ${discoveryMethod}`);
-        
+
         // ✅ PROGRESS UPDATES: Update run record with progress
         const updateProgress = async (message, progress = null) => {
           if (runRecord?.id && supabase) {
@@ -4987,12 +4989,12 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
             }
           }
         };
-        
+
         // ✅ LEARNING IN ACTION: Fetch learned patterns BEFORE executing
         const { getUniversalLearningService } = require('./services/UniversalLearningService');
         const learningService = getUniversalLearningService();
         const learnedPatterns = await learningService.getLearnedPatterns('web_automation', url, 'invoice_download');
-        
+
         if (learnedPatterns.length > 0) {
           logger.info(`[run-task-with-ai] 🧠 Using ${learnedPatterns.length} learned pattern(s) for this site`, {
             siteUrl: url,
@@ -5003,16 +5005,16 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
           });
           await updateProgress(`🧠 Using ${learnedPatterns.length} learned pattern(s) from previous runs...`, 8);
         }
-        
+
         // ✅ PROGRESS: Notify user that link discovery is starting
         await updateProgress('🔍 Starting link discovery...', 10);
-        
+
         // ✅ SEAMLESS UX: Run link discovery with automatic fallback
         const linkDiscovery = new LinkDiscoveryService();
-        
+
         // ✅ PROGRESS: Navigating to page
         await updateProgress('🌐 Navigating to page...', 20);
-        
+
         let discoveryResult = await linkDiscovery.discoverPdfLinks({
           url,
           username,
@@ -5023,19 +5025,19 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
           runId: runRecord?.id, // ✅ VISUALIZATION: Pass runId for screenshot capture
           learnedPatterns: learnedPatterns // ✅ LEARNING IN ACTION: Pass learned patterns to use them
         });
-        
+
         // ✅ PROGRESS: Link discovery completed
         if (discoveryResult.success && discoveryResult.discoveredLinks?.length > 0) {
           await updateProgress(`✅ Found ${discoveryResult.discoveredLinks.length} PDF link(s)!`, 50);
         } else {
           await updateProgress('⚠️ No PDF links found, trying fallback...', 30);
         }
-        
+
         // ✅ SEAMLESS UX: If primary method fails, automatically try auto-detect as fallback
         if (!discoveryResult.success && discoveryMethod !== 'auto-detect') {
           logger.info(`[AutomationExecute] Primary method (${discoveryMethod}) found no links, trying auto-detect fallback...`);
           await updateProgress('🔄 Trying automatic detection...', 40);
-          
+
           const fallbackResult = await linkDiscovery.discoverPdfLinks({
             url,
             username,
@@ -5045,7 +5047,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
             testMode: false,
             runId: runRecord?.id // ✅ VISUALIZATION: Pass runId for screenshot capture
           });
-          
+
           if (fallbackResult.success && fallbackResult.discoveredLinks?.length > 0) {
             logger.info(`[AutomationExecute] Fallback auto-detect succeeded! Found ${fallbackResult.discoveredLinks.length} links`);
             await updateProgress(`✅ Found ${fallbackResult.discoveredLinks.length} PDF link(s) with auto-detect!`, 50);
@@ -5065,15 +5067,15 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
             'reqres.in'
           ];
           const isTestSite = testSitePatterns.some(pattern => url.includes(pattern));
-          
+
           // Get what WAS found (even if not PDFs) to help user understand what happened
           const foundLinks = discoveryResult.discoveredLinks || [];
           const allLinksFound = discoveryResult.allLinksFound || discoveryResult.diagnosticInfo?.totalLinksOnPage || 0;
           const pageTitle = discoveryResult.pageTitle || 'the page';
-          
+
           let errorMessage;
           let suggestion;
-          
+
           if (isTestSite) {
             errorMessage = 'No PDF download links found. Test sites (like JSON Placeholder, HttpBin, ReqRes) typically don\'t contain PDF files.';
             suggestion = 'For testing, you can provide a direct PDF URL in the "PDF URL" field instead of using link discovery.';
@@ -5086,11 +5088,11 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
             errorMessage = 'No downloadable links found on the page. This could mean: the page structure is different than expected, login didn\'t complete successfully, or the page loaded incorrectly.';
             suggestion = 'Try: 1) Verifying your login credentials work, 2) Checking that you\'re on the right page (one that should have download links), 3) Using text match discovery method, or 4) Providing a direct PDF URL.';
           }
-          
+
           // ✅ UX IMPROVEMENT: Don't block - allow fallback to direct PDF URL
           // BUT: Still create database record so task appears in history
           // We'll continue with the normal flow but mark it as a warning
-          logger.warn(`[AutomationExecute] Link discovery failed but continuing to create database record`);
+          logger.warn('[AutomationExecute] Link discovery failed but continuing to create database record');
           taskData.link_discovery_failed = true;
           taskData.link_discovery_error = errorMessage;
           taskData.link_discovery_warning = true;
@@ -5112,20 +5114,20 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
         taskData.pdf_url = bestLink.href;
         taskData.discovered_links = discoveryResult.discoveredLinks;
         taskData.discovery_method_used = discoveryMethod;
-          
+
           // ✅ SEAMLESS UX: Pass cookies for authenticated PDF downloads
           if (discoveryResult.cookies && discoveryResult.cookies.length > 0) {
             taskData.auth_cookies = discoveryResult.cookies;
             taskData.cookie_string = discoveryResult.cookieString;
             logger.info(`[AutomationExecute] Extracted ${discoveryResult.cookies.length} cookies for authenticated download`);
           }
-        
+
         logger.info(`[AutomationExecute] Using discovered PDF URL: ${bestLink.href.substring(0, 100)}...`);
-        
+
         // ✅ PROGRESS: Ready to download
         await updateProgress(`📥 Ready to download ${discoveryResult.discoveredLinks.length} invoice(s)...`, 60);
         }
-        
+
       } catch (discoveryError) {
         logger.error('[AutomationExecute] Link discovery failed with exception:', discoveryError);
         // ✅ FIX: Don't return early - continue to create database record
@@ -5153,16 +5155,16 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
     // ✅ OBSERVABILITY: Log database insert attempt with trace context
     // ✅ FIX: Declare taskType before using it in logger
     const taskType = (taskData.task_type || 'general').toLowerCase();
-    const taskName = taskData.title || 
-                     (taskData.task_type && taskData.task_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) || 
+    const taskName = taskData.title ||
+                     (taskData.task_type && taskData.task_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) ||
                      'Automation Task';
-    
+
     logger.debug('Starting database insert for automation task', {
       supabase_configured: !!supabase,
       user_id: req.user?.id,
       task_type: taskType
     });
-    
+
     // Create automation_tasks record
     const taskParams = {
       url: taskData.url || '',
@@ -5174,11 +5176,11 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
       enableAI: taskData.enableAI || false,
       extractionTargets: taskData.extractionTargets || []
     };
-    
+
     let taskRecord = null;
     let runRecord = null;
     let dbError = null;
-    
+
     // ✅ FIX: Check if Supabase is configured before attempting database operations
     if (!supabase) {
       dbError = 'Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE environment variables.';
@@ -5205,7 +5207,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
           task_name: taskName,
           task_type: taskType
         });
-        
+
         const insertResult = await supabase
           .from('automation_tasks')
           .insert([{
@@ -5219,11 +5221,11 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
           }])
           .select()
           .single();
-        
+
         // ✅ OBSERVABILITY: Log insert result (already logged above)
-        
+
         const { data: task, error: taskError } = insertResult;
-        
+
         if (taskError) {
           // ✅ OBSERVABILITY: Log task insert error with full context
           logger.error('Failed to insert automation task', taskError, {
@@ -5250,7 +5252,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
         } else {
           taskRecord = task;
           logger.info(`[AutomationExecute] ✅ Created automation task ${task.id} for user ${req.user.id}`);
-          
+
           // Create automation_runs record
           // ✅ FIX: Valid statuses are 'running', 'completed', 'failed' - NOT 'queued'
           // We use 'running' initially (even though task is queued) because that's what the constraint allows
@@ -5262,7 +5264,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
               user_id: req.user.id,
               status: 'running',  // DB constraint only allows: 'running', 'completed', 'failed'
               started_at: new Date().toISOString(),
-              result: JSON.stringify({ 
+              result: JSON.stringify({
                 status: 'queued',  // Actual status in result metadata
                 message: 'Task queued for processing',
                 queue_status: 'pending'  // Additional metadata for UI display
@@ -5270,7 +5272,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
             }])
             .select()
             .single();
-          
+
           if (runError) {
             // ✅ FIX: Log the FULL error object so we can see what's wrong
             const errorDetails = {
@@ -5300,7 +5302,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
         dbError = `Unexpected database error: ${dbException.message || String(dbException)}`;
       }
     }
-    
+
     // ✅ OBSERVABILITY: Log final database error status
     if (dbError) {
       logger.error('Database insert failed for automation task', new Error(dbError), {
@@ -5316,7 +5318,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
         },
         user_id: req.user?.id
       });
-      
+
       logger.error(`[AutomationExecute] ❌ Database insert FAILED: ${dbError}`);
       logger.error(`[AutomationExecute] ❌ Supabase client status: ${supabase ? 'initialized' : 'NULL/UNDEFINED'}`);
       logger.error(`[AutomationExecute] ❌ Environment check: SUPABASE_URL=${!!process.env.SUPABASE_URL}, SUPABASE_SERVICE_ROLE=${!!process.env.SUPABASE_SERVICE_ROLE}, SUPABASE_SERVICE_ROLE_KEY=${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
@@ -5370,7 +5372,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
         logger.debug('[Progress] Failed to update queue status:', e.message);
       }
     }
-    
+
     // Store initial status in Redis/memory
     await taskStatusStore.set(task_id, {
       status: 'queued',
@@ -5384,7 +5386,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
     });
 
     const dbRecorded = !!runRecord;
-    
+
     logger.debug('[AutomationExecute] 🔍 BEFORE BUILDING RESPONSE', {
       dbRecorded,
       hasRunRecord: !!runRecord,
@@ -5392,7 +5394,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
       hasDbError: !!dbError,
       dbErrorValue: dbError
     });
-    
+
     // ✅ FIX: Always include db_error_details if database insert failed
     const response = {
       success: true,
@@ -5406,7 +5408,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
       db_recorded: dbRecorded,
       db_warning: dbError || (dbRecorded ? null : 'Database record creation failed - no error details available')
     };
-    
+
     // ✅ FIX: ALWAYS include db_error_details if db_recorded is false OR if there's an error
     // This is CRITICAL - we MUST include error details so frontend can show what went wrong
     if (!dbRecorded || dbError) {
@@ -5431,10 +5433,10 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
           dbRecorded_value: dbRecorded
         }
       };
-      
+
       // ✅ CRITICAL: Force set the property - don't rely on conditional
       response.db_error_details = errorDetails;
-      
+
       logger.error('[AutomationExecute] ❌ INCLUDING ERROR DETAILS IN RESPONSE', null, {
         error_details: errorDetails,
         has_db_error_details: !!response.db_error_details,
@@ -5445,7 +5447,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
       // ✅ SAFETY: Even if dbRecorded is true, log that we're NOT including error details
       logger.debug('[AutomationExecute] ✅ Database insert succeeded - NOT including error details');
     }
-    
+
     // ✅ CRITICAL SAFETY CHECK: Force include error details if db_recorded is false, regardless of any other condition
     if (!response.db_recorded && !response.db_error_details) {
       logger.error('[AutomationExecute] ⚠️ SAFETY CHECK: db_recorded is false but db_error_details missing! Adding it now...');
@@ -5468,7 +5470,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
         }
       };
     }
-    
+
     logger.debug('[AutomationExecute] 🔍 FINAL RESPONSE BEFORE SENDING', {
       success: response.success,
       task_id: response.task_id,
@@ -5478,7 +5480,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
       db_warning: response.db_warning,
       response_keys: Object.keys(response)
     });
-    
+
     // ✅ CRITICAL: Verify the response before sending (debug only - sampled)
     const responseString = JSON.stringify(response);
     logger.debug('[AutomationExecute] 🔍 Response verification', {
@@ -5486,7 +5488,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
       includes_db_error_details: responseString.includes('db_error_details'),
       first_1000_chars: responseString.substring(0, 1000)
     });
-    
+
     // ✅ FIX: If link discovery failed, include that info in the response
     if (taskData.link_discovery_failed) {
       response.link_discovery_warning = true;
@@ -5497,9 +5499,9 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
         response.discovery_info = taskData.discovery_info;
       }
     }
-    
+
     logger.debug('[AutomationExecute] 📤 SENDING RESPONSE NOW');
-    
+
     res.status(202).json(response);
 
   } catch (error) {
@@ -5519,7 +5521,7 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
 app.post('/api/trigger-automation', authMiddleware, automationLimiter, async (req, res) => {
   try {
     const taskData = req.body;
-    
+
     // Convert legacy format to new Kafka format
     const kafkaTask = {
       task_type: taskData.action || 'web_automation',
@@ -5529,9 +5531,9 @@ app.post('/api/trigger-automation', authMiddleware, automationLimiter, async (re
       created_at: new Date().toISOString(),
       source: 'legacy-api'
     };
-    
+
     const result = await kafkaService.sendAutomationTask(kafkaTask);
-    
+
     // Return legacy-compatible response
     res.status(202).json({
       success: true,
@@ -5540,7 +5542,7 @@ app.post('/api/trigger-automation', authMiddleware, automationLimiter, async (re
       kafka_partition: result.result[0]?.partition,
       kafka_offset: result.result[0]?.offset
     });
-    
+
   } catch (error) {
     logger.error('[POST /api/trigger-automation] error:', error);
     res.status(500).json({
@@ -5564,7 +5566,7 @@ app.get('/api/user/session', authMiddleware, async (req, res) => {
     hasWorkflowId: !!req.body?.workflowId,
     hasExecuteParam: !!req.query?.execute
   });
-  
+
   // ✅ DEFENSIVE: Reject any attempt to execute workflows from this route
   if (req.body?.workflowId || req.query?.execute || req.body?.triggerExecution) {
     logger.error('[GET /api/user/session] ⚠️ BLOCKED: Attempt to execute workflow from session endpoint', {
@@ -5573,15 +5575,15 @@ app.get('/api/user/session', authMiddleware, async (req, res) => {
       body: Object.keys(req.body || {}),
       query: Object.keys(req.query || {})
     });
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Workflow execution not allowed from session endpoint',
       message: 'Use POST /api/workflows/execute to execute workflows'
     });
   }
-  
+
   try {
     const userId = req.user.id;
-    
+
     // Fetch all data in parallel for better performance
     const [planResult, preferencesResult, notificationsResult] = await Promise.allSettled([
       // Fetch plan data
@@ -5595,7 +5597,7 @@ app.get('/api/user/session', authMiddleware, async (req, res) => {
           return { success: false, error: error?.message };
         }
       })(),
-      
+
       // Fetch preferences
       (async () => {
         try {
@@ -5604,11 +5606,11 @@ app.get('/api/user/session', authMiddleware, async (req, res) => {
             .select('*')
             .eq('user_id', userId)
             .single();
-          
+
           if (error && error.code !== 'PGRST116') {
             throw error;
           }
-          
+
           const preferences = data ? {
             notification_preferences: {
               email_notifications: data.email_notifications ?? true,
@@ -5656,14 +5658,14 @@ app.get('/api/user/session', authMiddleware, async (req, res) => {
             fcm_token: null,
             phone_number: null
           };
-          
+
           return { success: true, preferences };
         } catch (error) {
           logger.warn('[GET /api/user/session] Preferences fetch failed:', error?.message);
           return { success: false, error: error?.message };
         }
       })(),
-      
+
       // Fetch notifications
       (async () => {
         try {
@@ -5672,11 +5674,11 @@ app.get('/api/user/session', authMiddleware, async (req, res) => {
             .select('*')
             .eq('user_id', userId)
             .single();
-          
+
           if (error && error.code !== 'PGRST116') {
             throw error;
           }
-          
+
           const notificationSettings = data ? {
             preferences: {
               email_notifications: data.email_notifications ?? true,
@@ -5714,7 +5716,7 @@ app.get('/api/user/session', authMiddleware, async (req, res) => {
             can_receive_sms: false,
             can_receive_push: false
           };
-          
+
           return { success: true, notifications: notificationSettings };
         } catch (error) {
           logger.warn('[GET /api/user/session] Notifications fetch failed:', error?.message);
@@ -5722,12 +5724,12 @@ app.get('/api/user/session', authMiddleware, async (req, res) => {
         }
       })()
     ]);
-    
+
     // Extract results (handle both fulfilled and rejected promises)
     const plan = planResult.status === 'fulfilled' ? planResult.value : { success: false, error: planResult.reason?.message };
     const preferences = preferencesResult.status === 'fulfilled' ? preferencesResult.value : { success: false, error: preferencesResult.reason?.message };
     const notifications = notificationsResult.status === 'fulfilled' ? notificationsResult.value : { success: false, error: notificationsResult.reason?.message };
-    
+
     // Build consolidated response
     const response = {
       success: true,
@@ -5745,15 +5747,15 @@ app.get('/api/user/session', authMiddleware, async (req, res) => {
         notifications: !notifications.success
       }
     };
-    
+
     // Set cache headers
     res.set('Cache-Control', 'private, max-age=300'); // 5 minutes
-    
+
     res.json(response);
-    
+
   } catch (error) {
     logger.error('[GET /api/user/session] Unexpected error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal server error',
       details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
@@ -5846,7 +5848,7 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
 
     // Prepare update data by converting API format to database format
     const updateData = {};
-    
+
     if (notification_preferences) {
       updateData.email_notifications = notification_preferences.email_notifications;
       updateData.weekly_reports = notification_preferences.weekly_reports;
@@ -5891,7 +5893,7 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
         details: error.details,
         hint: error.hint
       });
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Failed to update preferences',
         code: error.code,
         details: error.details || error.message
@@ -5899,10 +5901,10 @@ app.put('/api/user/preferences', authMiddleware, async (req, res) => {
     }
 
     logger.info(`[PUT /api/user/preferences] Updated preferences for user ${req.user.id}`);
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Preferences updated successfully',
-      preferences: updateData 
+      preferences: updateData
     });
 
   } catch (error) {
@@ -5918,7 +5920,7 @@ app.get('/api/user/notifications', authMiddleware, async (req, res) => {
       logger.warn('[GET /api/user/notifications] missing authenticated user');
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    
+
     if (!supabase) {
       logger.error('[GET /api/user/notifications] Supabase client not initialized');
       return res.status(500).json({ error: 'Database connection not available' });
@@ -6011,7 +6013,7 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
       logger.warn('[PUT /api/user/notifications] missing authenticated user');
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    
+
     if (!supabase) {
       logger.error('[PUT /api/user/notifications] Supabase client not initialized');
       return res.status(500).json({ error: 'Database connection not available' });
@@ -6023,6 +6025,7 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
     }
 
     // Validate phone number format if provided
+    // eslint-disable-next-line no-useless-escape
     if (phone_number && !/^\+?[\d\s\-\(\)]+$/.test(phone_number)) {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
@@ -6064,9 +6067,9 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
     }
 
     logger.info(`[PUT /api/user/notifications] Updated notification preferences for user ${req.user.id}`);
-    res.json({ 
-      success: true, 
-      message: 'Notification preferences updated successfully' 
+    res.json({
+      success: true,
+      message: 'Notification preferences updated successfully'
     });
 
   } catch (error) {
@@ -6080,9 +6083,9 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
 // Get user plan data
 /**
  * GET /api/user/plan
- * 
+ *
  * Returns user's plan, usage, limits, and features.
- * 
+ *
  * REFACTOR PLAN (implemented):
  * 1. Extract plan resolution to userPlanResolver service (single responsibility)
  * 2. Centralize default Hobbyist plan definition (DRY principle)
@@ -6090,35 +6093,35 @@ app.put('/api/user/notifications', authMiddleware, async (req, res) => {
  * 4. Implement proper ETag-based caching (only 304 when effective plan unchanged)
  * 5. Reduce production logging (only log metadata, not full JSON)
  * 6. Add validation for all plan fields
- * 
+ *
  * Response includes metadata about fallback usage (visible in dev, hidden in prod).
  */
 app.get('/api/user/plan', authMiddleware, async (req, res) => {
   const { resolveUserPlan, generatePlanETag } = require('./services/userPlanResolver');
-  
+
   try {
     const userId = req.user.id;
     logger.info('[GET /api/user/plan] Fetching plan data', { userId });
-    
+
     // Resolve plan with fallback handling
     // Set normalizeMissingPlan=true to auto-fix invalid plan_ids (optional)
     const { planData, metadata } = await resolveUserPlan(userId, {
       normalizeMissingPlan: false // TODO: Set to true to auto-normalize invalid plans
     });
-    
+
     // Generate ETag based on effective plan state
     const etag = generatePlanETag(planData);
-    
+
     // Check if client has current version (HTTP 304 Not Modified)
     const clientETag = req.headers['if-none-match'];
     if (clientETag && clientETag === etag) {
-      logger.info('[GET /api/user/plan] Client has current plan (304)', { 
+      logger.info('[GET /api/user/plan] Client has current plan (304)', {
         userId,
-        etag 
+        etag
       });
       return res.status(304).end();
     }
-    
+
     // Log summary (not full JSON in production)
     if (process.env.NODE_ENV === 'production') {
       logger.info('[GET /api/user/plan] Plan resolved', {
@@ -6136,13 +6139,13 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
         metadata: JSON.stringify(metadata)
       });
     }
-    
+
     // Build response
     const response = {
       success: true,
       planData
     };
-    
+
     // In development, include metadata about fallback
     if (process.env.NODE_ENV !== 'production' && metadata.used_fallback) {
       response._metadata = {
@@ -6151,21 +6154,21 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
         stored_plan_id: metadata.stored_plan_id
       };
     }
-    
+
     // Set ETag header for caching
     res.set('ETag', etag);
     res.set('Cache-Control', 'private, max-age=300'); // 5 minutes
-    
+
     res.json(response);
-    
+
   } catch (error) {
-    logger.error('[GET /api/user/plan] Unexpected error', error, { 
+    logger.error('[GET /api/user/plan] Unexpected error', error, {
       userId: req.user?.id,
       error_code: error.code || 'UNKNOWN',
       error_message: error.message
     });
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: 'Internal server error',
       details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
@@ -6177,15 +6180,15 @@ app.get('/api/user/plan', authMiddleware, async (req, res) => {
 // than /api/user/plan (which includes full usage stats and ETag caching)
 app.get('/api/plans/current', authMiddleware, async (req, res) => {
   const { resolveUserPlan } = require('./services/userPlanResolver');
-  
+
   try {
     const userId = req.user.id;
-    
+
     // Resolve plan with fallback handling
     const { planData } = await resolveUserPlan(userId, {
       normalizeMissingPlan: false
     });
-    
+
     // Return simplified format expected by frontend
     // Format: { plan: {...}, limits: {...}, features: [...] }
     res.json({
@@ -6194,15 +6197,15 @@ app.get('/api/plans/current', authMiddleware, async (req, res) => {
       features: planData.features || [],
       usage: planData.usage // Include usage for completeness
     });
-    
+
   } catch (error) {
-    logger.error('[GET /api/plans/current] Error', error, { 
+    logger.error('[GET /api/plans/current] Error', error, {
       userId: req.user?.id,
       error_code: error.code || 'UNKNOWN',
       error_message: error.message
     });
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: 'Failed to fetch current plan',
       details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
@@ -6213,15 +6216,15 @@ app.get('/api/plans/current', authMiddleware, async (req, res) => {
 const adminAuthMiddleware = (req, res, next) => {
   const adminSecret = req.headers['x-admin-secret'];
   const expectedSecret = process.env.ADMIN_API_SECRET;
-  
+
   if (!expectedSecret) {
     return res.status(500).json({ error: 'ADMIN_API_SECRET not configured' });
   }
-  
+
   if (!adminSecret || adminSecret !== expectedSecret) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin secret' });
   }
-  
+
   next();
 };
 
@@ -6231,10 +6234,10 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
   // Set a flag on the request object to prevent any downstream code from triggering workflows
   req._firebaseTokenEndpoint = true;
   req._workflowExecutionBlocked = true; // Global flag to block workflow execution
-  
+
   // ✅ DEFENSIVE: Log entry to track this endpoint and prevent workflow execution
   const firebaseTokenTraceId = req.traceId || req.headers['x-trace-id'] || 'unknown';
-  
+
   logger.info('[POST /api/firebase/token] Route handler called - WORKFLOW EXECUTION BLOCKED', {
     userId: req.user?.id,
     method: req.method,
@@ -6255,15 +6258,15 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
     // This endpoint is ONLY for Firebase token generation - workflow execution is NOT allowed
     // Check multiple possible ways workflow execution might be triggered
     const hasWorkflowParams = req.body && (
-      req.body.workflowId || 
-      req.body.executionId || 
+      req.body.workflowId ||
+      req.body.executionId ||
       req.body.triggerExecution ||
       req.body.workflow_id ||
       req.body.execute ||
       req.query?.workflowId ||
       req.query?.execute
     );
-    
+
     if (hasWorkflowParams) {
       logger.error('[POST /api/firebase/token] ⚠️ BLOCKED: Attempt to execute workflow from Firebase token endpoint', {
         userId: req.user?.id,
@@ -6278,7 +6281,7 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
         query_params: JSON.stringify(req.query),
         stackTrace: new Error().stack?.split('\n').slice(0, 10).join('\n')
       });
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Workflow execution is not allowed via this endpoint.',
         code: 'INVALID_ENDPOINT',
         message: 'Use POST /api/workflows/execute to execute workflows',
@@ -6289,7 +6292,7 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
     // ✅ DEFENSIVE: Ensure no workflow execution code is called from this handler
     // This is a read-only endpoint for token generation - no side effects allowed
     const userId = req.user?.id;
-    
+
     // Validate userId before proceeding
     if (!userId || typeof userId !== 'string' || userId.length === 0) {
       logger.error('🔥 Invalid user ID for Firebase token generation:', { userId, type: typeof userId });
@@ -6299,7 +6302,7 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
         message: 'User ID must be a non-empty string'
       });
     }
-    
+
     if (userId.length > 128) {
       logger.error('🔥 User ID too long for Firebase token:', { userId, length: userId.length });
       return res.status(400).json({
@@ -6308,7 +6311,7 @@ app.post('/api/firebase/token', authMiddleware, async (req, res) => {
         message: 'User ID must be 128 characters or less'
       });
     }
-    
+
     const { additionalClaims } = req.body || {};
 
     logger.info(`🔥 Generating Firebase custom token for user: ${userId}`);
@@ -6397,7 +6400,7 @@ app.post('/api/firebase/verify-token', authMiddleware, async (req, res) => {
     const result = await firebaseNotificationService.verifyCustomToken(idToken);
 
     if (!result.success) {
-      logger.error(`🔥 Token verification failed:`, result.error);
+      logger.error('🔥 Token verification failed:', result.error);
       return res.status(401).json({
         error: 'Invalid Firebase token',
         details: result.error,
@@ -6482,22 +6485,22 @@ app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
       .select('status')
       .then(({ data, error }) => {
         if (error) return { data: null, error };
-        
+
         // Count by status
         const counts = data.reduce((acc, row) => {
           const status = row.status || 'unknown';
           acc[status] = (acc[status] || 0) + 1;
           return acc;
         }, {});
-        
+
         return { data: counts, error: null };
       });
 
     if (error) {
       logger.error('[admin/email-queue-stats] Database error:', error.message);
-      return res.status(500).json({ 
-        error: 'Database error', 
-        message: error.message 
+      return res.status(500).json({
+        error: 'Database error',
+        message: error.message
       });
     }
 
@@ -6519,9 +6522,9 @@ app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
 
   } catch (e) {
     logger.error('[admin/email-queue-stats] Unexpected error:', e?.message || e);
-    res.status(500).json({ 
-      error: 'Internal server error', 
-      message: e?.message || 'Unknown error' 
+    res.status(500).json({
+      error: 'Internal server error',
+      message: e?.message || 'Unknown error'
     });
   }
 });
@@ -6534,10 +6537,10 @@ app.get('/admin/email-queue-stats', adminAuthMiddleware, async (req, res) => {
 app.get('/api/files/debug/buckets', authMiddleware, async (req, res) => {
   try {
     logger.info('[DEBUG] Checking Supabase storage buckets');
-    
+
     // Try to list buckets
     const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-    
+
     if (bucketsError) {
       logger.error('[DEBUG] Error listing buckets:', bucketsError);
       return res.json({
@@ -6546,12 +6549,12 @@ app.get('/api/files/debug/buckets', authMiddleware, async (req, res) => {
         message: 'Check if Supabase storage is configured correctly'
       });
     }
-    
+
     // Try to list files in user-files bucket
     const { data: files, error: filesError } = await supabase.storage
       .from('user-files')
       .list(req.user.id, { limit: 5 });
-    
+
     res.json({
       buckets: buckets || [],
       userFilesBucket: {
@@ -6579,14 +6582,14 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
     const file = req.files.file;
     const userId = req.user.id;
     logger.info(`[FILE UPLOAD] File: ${file.name}, Size: ${file.size}, User: ${userId}`);
-    
+
     // Generate unique file path
     const timestamp = Date.now();
     const fileExt = path.extname(file.name).toLowerCase();
     const baseName = path.basename(file.name, fileExt);
     const safeName = baseName.replace(/[^a-zA-Z0-9\-_]/g, '_');
     const filePath = `${userId}/${timestamp}_${safeName}${fileExt}`;
-    
+
     // Upload to Supabase storage
     logger.info(`[FILE UPLOAD] Uploading to Supabase storage: ${filePath}`);
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -6595,16 +6598,16 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
         contentType: file.mimetype,
         upsert: false
       });
-      
+
     if (uploadError) {
       logger.error('[FILE UPLOAD] Storage upload error:', uploadError);
       return res.status(500).json({ error: 'Failed to upload file to storage' });
     }
     logger.info(`[FILE UPLOAD] Storage upload successful: ${uploadData?.path}`);
-    
+
     // ✅ SECURITY: Use SHA-256 instead of MD5 for checksum (MD5 is cryptographically broken)
     const checksum = crypto.createHash('sha256').update(file.data).digest('hex');
-    
+
     // Save metadata to files table
     logger.info(`[FILE UPLOAD] Saving metadata to database for file: ${file.name}`);
     const fileMetadata = {
@@ -6621,14 +6624,14 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
       tags: req.body.tags ? (Array.isArray(req.body.tags) ? req.body.tags : req.body.tags.split(',')) : [],
       metadata: req.body.category ? { category: req.body.category } : {}
     };
-    logger.info(`[FILE UPLOAD] Metadata object:`, JSON.stringify(fileMetadata, null, 2));
-    
+    logger.info('[FILE UPLOAD] Metadata object:', JSON.stringify(fileMetadata, null, 2));
+
     const { data: fileRecord, error: dbError } = await supabase
       .from('files')
       .insert(fileMetadata)
       .select()
       .single();
-      
+
     if (dbError) {
       logger.error('[FILE UPLOAD] Database insert error:', dbError);
       logger.error('[FILE UPLOAD] Database error details:', {
@@ -6652,7 +6655,7 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
       ...fileRecord,
       message: 'File uploaded successfully'
     });
-    
+
   } catch (err) {
     logger.error('[FILE UPLOAD] Unexpected error:', err);
     logger.error('[FILE UPLOAD] Stack trace:', err.stack);
@@ -6664,14 +6667,14 @@ app.post('/api/files/upload', authMiddleware, checkStorageLimit, async (req, res
 app.get('/api/files', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
     // ✅ SECURITY: Validate req.query is an object before destructuring
     if (!req.query || typeof req.query !== 'object') {
       return res.status(400).json({ error: 'Invalid query parameters' });
     }
-    
+
     const { folder, limit, offset, search, tags, category } = req.query;
-    
+
     // ✅ SECURITY: Validate types before using (prevent type confusion attacks)
     const safeLimit = typeof limit === 'string' ? parseInt(limit, 10) : (typeof limit === 'number' ? limit : 50);
     const safeOffset = typeof offset === 'string' ? parseInt(offset, 10) : (typeof offset === 'number' ? offset : 0);
@@ -6680,7 +6683,7 @@ app.get('/api/files', authMiddleware, async (req, res) => {
     const safeFolder = typeof folder === 'string' ? folder : (folder && typeof folder === 'object' ? undefined : (folder ? String(folder) : undefined));
     const safeTags = Array.isArray(tags) ? tags : (typeof tags === 'string' ? [tags] : (tags && typeof tags === 'object' ? undefined : undefined));
     const safeCategory = typeof category === 'string' ? category : (category && typeof category === 'object' ? undefined : (category ? String(category) : undefined));
-    
+
     logger.info(`[GET /api/files] Fetching files for user ${userId}`, {
       folder: safeFolder,
       limit: safeLimit,
@@ -6690,7 +6693,7 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       category: safeCategory,
       userAuthenticated: !!req.user
     });
-    
+
     let query = supabase
       .from('files')
       .select('*')
@@ -6718,7 +6721,7 @@ app.get('/api/files', authMiddleware, async (req, res) => {
     const { data, error } = await query
       .order('created_at', { ascending: false })
       .range(safeOffset, safeOffset + safeLimit - 1);
-      
+
     if (error) {
       logger.error('[GET /api/files] Files query error:', error);
       logger.error('[GET /api/files] Error details:', {
@@ -6735,9 +6738,9 @@ app.get('/api/files', authMiddleware, async (req, res) => {
       hasFiles: (data?.length || 0) > 0,
       firstFileHasId: data?.[0]?.id ? true : false
     });
-    
+
     res.json({ files: data || [] });
-    
+
   } catch (err) {
     logger.error('[GET /api/files] Unexpected error:', err);
     logger.error('[GET /api/files] Stack trace:', err.stack);
@@ -6754,17 +6757,17 @@ app.get('/api/files/:id/download', authMiddleware, async (req, res) => {
       .eq('id', req.params.id)
       .eq('user_id', req.user.id)
       .single();
-      
+
     if (error || !file) {
       logger.error('[GET /api/files/:id/download] File not found:', { fileId: req.params.id, userId: req.user.id, error });
       return res.status(404).json({ error: 'File not found' });
     }
 
-    logger.info('[GET /api/files/:id/download] Attempting download:', { 
-      fileId: file.id, 
-      bucket: file.storage_bucket, 
+    logger.info('[GET /api/files/:id/download] Attempting download:', {
+      fileId: file.id,
+      bucket: file.storage_bucket,
       path: file.storage_path,
-      fileName: file.original_name 
+      fileName: file.original_name
     });
 
     const { data: signedUrl, error: urlError } = await supabase.storage
@@ -6772,8 +6775,8 @@ app.get('/api/files/:id/download', authMiddleware, async (req, res) => {
       .createSignedUrl(file.storage_path, 3600);
 
     if (urlError) {
-      logger.error('[GET /api/files/:id/download] Signed URL error:', { 
-        bucket: file.storage_bucket, 
+      logger.error('[GET /api/files/:id/download] Signed URL error:', {
+        bucket: file.storage_bucket,
         path: file.storage_path,
         error: urlError,
         errorDetails: JSON.stringify(urlError),
@@ -6784,7 +6787,7 @@ app.get('/api/files/:id/download', authMiddleware, async (req, res) => {
         }
       });
       // Return the actual Supabase error to help debug
-      return res.status(urlError.statusCode || 500).json({ 
+      return res.status(urlError.statusCode || 500).json({
         error: 'Failed to generate download URL',
         message: urlError.message || 'Storage error',
         statusCode: urlError.statusCode,
@@ -6795,7 +6798,7 @@ app.get('/api/files/:id/download', authMiddleware, async (req, res) => {
 
     await supabase
       .from('files')
-      .update({ 
+      .update({
         download_count: (file.download_count || 0) + 1,
         last_accessed: new Date().toISOString()
       })
@@ -6807,7 +6810,7 @@ app.get('/api/files/:id/download', authMiddleware, async (req, res) => {
       size: file.file_size,
       mime_type: file.mime_type
     });
-    
+
   } catch (err) {
     logger.error('[GET /api/files/:id/download] Error:', err.message);
     res.status(500).json({ error: 'Failed to generate download URL' });
@@ -6823,7 +6826,7 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
       .eq('id', req.params.id)
       .eq('user_id', req.user.id)
       .single();
-      
+
     if (fetchError || !file) {
       return res.status(404).json({ error: 'File not found' });
     }
@@ -6831,20 +6834,20 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
     await supabase.storage
       .from(file.storage_bucket)
       .remove([file.storage_path]);
-    
+
     const { error: deleteError } = await supabase
       .from('files')
       .delete()
       .eq('id', req.params.id)
       .eq('user_id', req.user.id);
-      
+
     if (deleteError) {
       logger.error('Database deletion error:', deleteError);
       return res.status(500).json({ error: 'Failed to delete file record' });
     }
 
     res.json({ message: 'File deleted successfully' });
-    
+
   } catch (err) {
     logger.error('[DELETE /api/files/:id] Error:', err.message);
     res.status(500).json({ error: 'Failed to delete file' });
@@ -6857,7 +6860,7 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
 
 // GET /api/files/shares - Get all shares for the current user
 // Apply rate limiting: moderate limits for file sharing operations
-const fileSharesGetMiddleware = isProduction 
+const fileSharesGetMiddleware = isProduction
   ? [authMiddleware, apiLimiter]
   : [authMiddleware];
 app.get('/api/files/shares', ...fileSharesGetMiddleware, async (req, res) => {
@@ -6893,7 +6896,7 @@ app.get('/api/files/shares', ...fileSharesGetMiddleware, async (req, res) => {
 
 // GET /api/files/:fileId/shares - Get shares for a specific file
 // Apply rate limiting: moderate limits for file sharing operations
-const fileSharesByIdGetMiddleware = isProduction 
+const fileSharesByIdGetMiddleware = isProduction
   ? [authMiddleware, apiLimiter]
   : [authMiddleware];
 app.get('/api/files/:fileId/shares', ...fileSharesByIdGetMiddleware, async (req, res) => {
@@ -6934,16 +6937,16 @@ app.get('/api/files/:fileId/shares', ...fileSharesByIdGetMiddleware, async (req,
 
 // POST /api/files/shares - Create a new share link
 // Apply rate limiting: moderate limits for file sharing operations
-const fileSharesPostMiddleware = isProduction 
+const fileSharesPostMiddleware = isProduction
   ? [authMiddleware, apiLimiter]
   : [authMiddleware];
 app.post('/api/files/shares', ...fileSharesPostMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { 
-      fileId, 
-      permission = 'view', 
-      requirePassword = false, 
+    const {
+      fileId,
+      permission = 'view',
+      requirePassword = false,
       password = null,
       expiresAt = null,
       allowAnonymous = true,
@@ -6965,7 +6968,7 @@ app.post('/api/files/shares', ...fileSharesPostMiddleware, async (req, res) => {
 
     // Generate unique share token
     const shareToken = crypto.randomBytes(32).toString('hex');
-    
+
     // Hash password if provided
     let hashedPassword = null;
     if (requirePassword && password) {
@@ -6998,8 +7001,8 @@ app.post('/api/files/shares', ...fileSharesPostMiddleware, async (req, res) => {
     }
 
     // ✅ DYNAMIC: Generate share URL using environment variable with dynamic port fallback
-    const frontendUrl = process.env.FRONTEND_URL || 
-      (process.env.NODE_ENV === 'development' 
+    const frontendUrl = process.env.FRONTEND_URL ||
+      (process.env.NODE_ENV === 'development'
         ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}`
         : 'http://localhost:3000');
     const shareUrl = `${frontendUrl}/shared/${shareToken}`;
@@ -7066,7 +7069,7 @@ app.get('/api/files/:id/shares', authMiddleware, async (req, res) => {
 
 // PUT /api/files/shares/:shareId - Update share settings
 // Apply rate limiting: moderate limits for file sharing operations
-const fileSharesPutMiddleware = isProduction 
+const fileSharesPutMiddleware = isProduction
   ? [authMiddleware, apiLimiter]
   : [authMiddleware];
 app.put('/api/files/shares/:shareId', ...fileSharesPutMiddleware, async (req, res) => {
@@ -7116,7 +7119,7 @@ app.put('/api/files/shares/:shareId', ...fileSharesPutMiddleware, async (req, re
 
 // DELETE /api/files/shares/:shareId - Delete share
 // Apply rate limiting: moderate limits for file sharing operations
-const fileSharesDeleteMiddleware = isProduction 
+const fileSharesDeleteMiddleware = isProduction
   ? [authMiddleware, apiLimiter]
   : [authMiddleware];
 app.delete('/api/files/shares/:shareId', ...fileSharesDeleteMiddleware, async (req, res) => {
@@ -7213,7 +7216,7 @@ app.post('/api/shared/access', async (req, res) => {
     // Update download count
     await supabase
       .from('file_shares')
-      .update({ 
+      .update({
         download_count: share.download_count + 1,
         updated_at: new Date().toISOString()
       })
@@ -7254,7 +7257,7 @@ try {
   const { BatchProcessor } = require('./services/batchProcessor');
   const { IntegrationFramework } = require('./services/integrationFramework');
   const { AIDataExtractor } = require('./services/aiDataExtractor');
-  
+
   batchProcessor = new BatchProcessor();
   integrationFramework = new IntegrationFramework();
   aiDataExtractor = new AIDataExtractor();
@@ -7276,7 +7279,7 @@ app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req,
     // Handle fileId: fetch file from database and download from storage
     let fileBuffer = file?.buffer;
     let fileName = file?.originalname;
-    
+
     if (fileId && !file) {
       // Fetch file metadata from database
       const { data: fileRecord, error: fileError } = await supabase
@@ -7320,7 +7323,7 @@ app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req,
     let extractionResult;
 
     // Determine extraction type if 'auto'
-    const actualExtractionType = extractionType === 'auto' 
+    const actualExtractionType = extractionType === 'auto'
       ? (fileBuffer && (fileName?.toLowerCase().endsWith('.pdf') || fileName?.match(/\.(jpg|jpeg|png|gif|bmp|tiff)$/i)) ? 'invoice' : 'webpage')
       : extractionType;
 
@@ -7376,11 +7379,11 @@ app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req,
 
   } catch (error) {
     logger.error('[extract-data] Error:', error);
-    
+
     // Handle specific error types
     let statusCode = 500;
     let errorMessage = error.message || 'Failed to extract data';
-    
+
     // Check if it's a rate limit error from OpenAI
     if (error.response?.status === 429 || error.message?.includes('rate limit') || error.message?.includes('429')) {
       statusCode = 429;
@@ -7392,7 +7395,7 @@ app.post('/api/extract-data', authMiddleware, upload.single('file'), async (req,
       statusCode = 400;
       errorMessage = error.message || 'Invalid file format or extraction request.';
     }
-    
+
     res.status(statusCode).json({
       success: false,
       error: errorMessage
@@ -7411,33 +7414,33 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
     logger.warn(`[run-task-with-ai] Missing URL in request body. Available keys: ${Object.keys(req.body).join(', ')}`);
     return res.status(400).json({ error: 'url is required' });
   }
-  
+
   // ✅ FIX: Log URL extraction for debugging
-  logger.info(`[run-task-with-ai] URL extracted:`, { url, url_source: req.body.url ? 'url' : (req.body.targetUrl ? 'targetUrl' : 'other') });
+  logger.info('[run-task-with-ai] URL extracted:', { url, url_source: req.body.url ? 'url' : (req.body.targetUrl ? 'targetUrl' : 'other') });
 
   try {
     logger.info(`[run-task-with-ai] Processing AI-enhanced automation for user ${user.id}`);
-    
+
     // Create automation task (reuse existing logic)
     // ✅ SECURITY: Validate type before using string methods
     const safeType = typeof type === 'string' ? type : String(type || '');
     const safeTask = typeof task === 'string' ? task : String(task || '');
-    
+
     // Generate a descriptive task name with better fallbacks
     // Priority: title > formatted task type > formatted task value > URL-based > default
     // ✅ SECURITY: Validate title is a string before calling trim
     let taskName = (typeof title === 'string' ? title : String(title || '')).trim();
-    
+
     if (!taskName && safeType) {
       // Format task type: "invoice_download" -> "Invoice Download"
       taskName = safeType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
-    
+
     if (!taskName && safeTask) {
       // Format task value: "invoice_download" -> "Invoice Download"
       taskName = safeTask.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
-    
+
     if (!taskName && url) {
       // Extract domain from URL as fallback
       try {
@@ -7457,21 +7460,21 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
         taskName = 'Automation Task';
       }
     }
-    
+
     if (!taskName) {
       taskName = 'Automation Task';
     }
-    
+
     // ✅ SECURITY: Validate type before using string methods
     const safeTaskName = typeof taskName === 'string' ? taskName : String(taskName || '');
-    
+
     // Add AI indicator if AI is enabled (but don't duplicate if already in name)
     if (enableAI && !safeTaskName.toLowerCase().includes('ai') && !safeTaskName.toLowerCase().includes('enhanced')) {
       taskName = `${safeTaskName} (AI-Enhanced)`;
     }
-    
+
     const taskType = (safeType || safeTask || 'general').toLowerCase();
-    
+
     const { data: taskRecord, error: taskError } = await supabase
       .from('automation_tasks')
       .insert([{
@@ -7496,38 +7499,38 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
       logger.error('[run-task-with-ai] Error creating automation task:', taskError);
       return res.status(500).json({ error: 'Failed to create automation task' });
     }
-    
+
     // ✅ SEAMLESS UX: Handle Invoice Download with Link Discovery (automatic fallback)
     // For invoice downloads from demo portal or other sites, we need to discover PDF links first
     const { discoveryMethod, discoveryValue } = req.body;
     let finalPdfUrl = pdf_url;
-    
+
     // Only attempt link discovery if:
     // 1. It's an invoice download task
     // 2. No direct pdf_url was provided
     // ✅ FIX: For invoice downloads, ALWAYS attempt link discovery if no pdf_url is provided
     // EasyFlow should handle finding PDFs automatically - users shouldn't need direct URLs
     const shouldAttemptDiscovery = taskType === 'invoice_download' && !pdf_url && url;
-    
+
     if (shouldAttemptDiscovery) {
       logger.info(`[run-task-with-ai] Invoice download task - automatically discovering PDF links on page for user ${user.id}`);
-      
+
       // ✅ FIX: Check if this is a demo portal (doesn't need credentials)
       const isDemoPortal = url && (
-        url.includes('/demo') || 
+        url.includes('/demo') ||
         url.includes('localhost:3030/demo') ||
         url.includes('127.0.0.1:3030/demo')
       );
-      
+
       // ✅ FIX: Try discovery without credentials first (for public pages)
       // Only require credentials if discovery fails due to authentication
       let credentialsRequired = false;
-      
+
       try {
         // ✅ FIX: Always use auto-detect first (most user-friendly)
         // Only use text-match if user explicitly provided link text
         const actualDiscoveryMethod = (discoveryMethod && discoveryMethod !== 'auto-detect') ? discoveryMethod : 'auto-detect';
-        
+
         if (actualDiscoveryMethod === 'text-match' && !discoveryValue) {
           return res.status(400).json({
             error: 'Link text required',
@@ -7538,14 +7541,14 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
         }
 
         logger.info(`[run-task-with-ai] Starting automatic link discovery for ${url} with method: ${actualDiscoveryMethod}`);
-        
+
         // ✅ SEAMLESS UX: Run link discovery with automatic fallback
         const linkDiscovery = new LinkDiscoveryService();
-        
+
         // ✅ FIX: Try without credentials first (for public pages or demo portal)
         let discoveryResult;
         if (!username || !password || isDemoPortal) {
-          logger.info(`[run-task-with-ai] Attempting discovery without credentials (public page or demo portal)`);
+          logger.info('[run-task-with-ai] Attempting discovery without credentials (public page or demo portal)');
           discoveryResult = await linkDiscovery.discoverPdfLinks({
             url,
             username: null,
@@ -7554,19 +7557,19 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
             discoveryValue: actualDiscoveryMethod === 'text-match' ? discoveryValue : null,
             testMode: false
           });
-          
+
           // If discovery fails and we don't have credentials, check if it's an auth error
           if (!discoveryResult.success && !isDemoPortal) {
             const errorMsg = discoveryResult.error?.toLowerCase() || '';
-            const isAuthError = errorMsg.includes('login') || 
-                              errorMsg.includes('authentication') || 
+            const isAuthError = errorMsg.includes('login') ||
+                              errorMsg.includes('authentication') ||
                               errorMsg.includes('unauthorized') ||
                               errorMsg.includes('access denied') ||
                               errorMsg.includes('forbidden');
-            
+
             if (isAuthError) {
               credentialsRequired = true;
-              logger.info(`[run-task-with-ai] Discovery failed due to authentication, credentials required`);
+              logger.info('[run-task-with-ai] Discovery failed due to authentication, credentials required');
             }
           }
         } else {
@@ -7580,10 +7583,10 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
             testMode: false
           });
         }
-        
+
         // ✅ SEAMLESS UX: If primary method fails, automatically try auto-detect as fallback
         if (!discoveryResult.success && actualDiscoveryMethod !== 'auto-detect' && !credentialsRequired) {
-          logger.info(`[run-task-with-ai] Primary discovery method failed, trying auto-detect fallback`);
+          logger.info('[run-task-with-ai] Primary discovery method failed, trying auto-detect fallback');
           discoveryResult = await linkDiscovery.discoverPdfLinks({
             url,
             username: username || null,
@@ -7593,7 +7596,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
             testMode: false
           });
         }
-        
+
         // ✅ FIX: If credentials are required but not provided, ask for them
         if (credentialsRequired && (!username || !password)) {
           return res.status(400).json({
@@ -7615,7 +7618,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           const bestLink = discoveryResult.discoveredLinks[0];
           finalPdfUrl = bestLink.href || bestLink.url;
           logger.info(`[run-task-with-ai] ✅ Successfully discovered ${discoveryResult.discoveredLinks.length} PDF link(s). Using: ${finalPdfUrl}`);
-          
+
           // Store discovered URL and cookies for the download
           if (discoveryResult.cookies) {
             // Cookies will be included in the task data
@@ -7625,18 +7628,18 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           const errorMessage = discoveryResult.error || 'No PDF links found on the page';
           const allLinksFound = discoveryResult.allLinksFound || discoveryResult.diagnosticInfo?.totalLinksOnPage || 0;
           const pageTitle = discoveryResult.pageTitle || 'Unknown';
-          
+
           logger.warn(`[run-task-with-ai] Link discovery failed: ${errorMessage}`, {
             url,
             allLinksFound,
             pageTitle,
             discoveryMethod: actualDiscoveryMethod
           });
-          
+
           return res.status(400).json({
             error: 'No invoice PDFs found',
-            message: `EasyFlow couldn't find any PDF invoice links on the page.`,
-            userMessage: `EasyFlow searched the page but couldn't find any PDF download links.`,
+            message: 'EasyFlow couldn\'t find any PDF invoice links on the page.',
+            userMessage: 'EasyFlow searched the page but couldn\'t find any PDF download links.',
             details: {
               pageTitle: pageTitle,
               totalLinksFound: allLinksFound,
@@ -7654,7 +7657,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
         }
       } catch (discoveryError) {
         logger.error(`[run-task-with-ai] Link discovery error: ${discoveryError.message}`, discoveryError);
-        
+
         // ✅ FIX: Fail with helpful error message instead of continuing
         return res.status(500).json({
           error: 'Link discovery failed',
@@ -7681,7 +7684,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
         }
       });
     }
-    
+
     // Create automation run
     const { data: run, error: runError } = await supabase
       .from('automation_runs')
@@ -7694,7 +7697,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
       }])
       .select()
       .single();
-    
+
     if (runError) {
       logger.error('[run-task-with-ai] Error creating automation run:', runError);
       return res.status(500).json({ error: 'Failed to create automation run' });
@@ -7710,7 +7713,7 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           hasPdfUrl: !!(finalPdfUrl || pdf_url),
           aiEnabled: enableAI
         });
-        
+
         // ✅ FIX: queueTaskRun now only dispatches the task (returns acknowledgment, not result)
         // The actual result (completed/failed) will come via Kafka
         // Status remains 'running' until Kafka delivers the actual result
@@ -7723,9 +7726,9 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           task_id: taskRecord.id,
           user_id: user.id,
           task_type: taskType,
-          parameters: { 
-            username, 
-            password, 
+          parameters: {
+            username,
+            password,
             pdf_url: finalPdfUrl || pdf_url,
             enableAI: enableAI || false,
             extractionTargets: extractionTargets || [],
@@ -7733,10 +7736,10 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
             url: url
           }
         };
-        
+
         // ✅ FIX: Validate URL is present before passing to queueTaskRun
         if (!taskDataForQueue.url) {
-          logger.error(`[run-task-with-ai] CRITICAL: URL is missing from taskDataForQueue!`, {
+          logger.error('[run-task-with-ai] CRITICAL: URL is missing from taskDataForQueue!', {
             runId: run.id,
             taskId: taskRecord.id,
             original_url: url,
@@ -7744,8 +7747,8 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           });
           throw new Error('URL is required but was not found in task data');
         }
-        
-        logger.info(`[run-task-with-ai] Passing task data to queueTaskRun:`, {
+
+        logger.info('[run-task-with-ai] Passing task data to queueTaskRun:', {
           has_url: !!taskDataForQueue.url,
           url: taskDataForQueue.url,
           task_type: taskType,
@@ -7753,16 +7756,16 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           pdf_url: finalPdfUrl || pdf_url,
           run_id: run.id
         });
-        
+
         const dispatchResult = await queueTaskRun(run.id, taskDataForQueue);
-        
+
         logger.info(`[run-task-with-ai] ✅ Task ${run.id} dispatched to automation worker`, {
           runId: run.id,
           taskId: taskRecord.id,
           dispatched: dispatchResult.queued === true,
           message: 'Task queued - final result will be delivered via Kafka'
         });
-        
+
         // ✅ NOTE: AI extraction and status updates are now handled by Kafka consumer
         // when the actual result arrives. This ensures correct status (completed/failed)
         // based on the actual automation execution, not just the HTTP acknowledgment.
@@ -7775,13 +7778,13 @@ app.post('/api/run-task-with-ai', authMiddleware, requireAutomationRun, automati
           taskId: taskRecord?.id,
           userId: user.id
         });
-        
+
         await supabase
           .from('automation_runs')
           .update({
             status: 'failed',
             ended_at: new Date().toISOString(),
-            result: JSON.stringify({ 
+            result: JSON.stringify({
               error: 'AI-enhanced automation execution failed',
               message: error?.message || 'Unknown error'
             })
@@ -7989,14 +7992,14 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
     }
 
     logger.info('Looking up plan with ID:', planId);
-    
+
     // Fetch plan details - try by id first, then by name
     let { data: plan, error: planError } = await supabase
       .from('plans')
       .select('*')
       .eq('id', planId)
       .single();
-      
+
     // If not found by ID, try by name (in case frontend sends name instead of UUID)
     if (planError && planError.code === 'PGRST116') {
       logger.info('Plan not found by ID, trying by name...');
@@ -8005,7 +8008,7 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
         .select('*')
         .eq('name', planId)
         .single();
-      
+
       if (!nameError && planByName) {
         plan = planByName;
         planError = null;
@@ -8042,7 +8045,7 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
 
     // Log for debugging
     logger.info('Creating Polar checkout with data:', JSON.stringify(checkoutData, null, 2));
-    
+
     const response = await axios.post('https://api.polar.sh/v1/checkouts/', checkoutData, {
       headers: {
         'Authorization': `Bearer ${polarApiKey}`,
@@ -8052,8 +8055,8 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
 
     logger.info('Polar checkout response:', response.data);
     const checkoutUrl = response.data.url;
-    
-    res.json({ 
+
+    res.json({
       checkout_url: checkoutUrl,
       trial_days: 14,
       plan_name: plan.name
@@ -8064,7 +8067,7 @@ app.post('/api/checkout/polar', authMiddleware, async (req, res) => {
     if (error.response) {
       logger.error('Polar API Error:', error.response.data);
     }
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to create checkout session',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });

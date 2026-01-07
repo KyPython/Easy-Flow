@@ -110,7 +110,7 @@ EasyFlow supports collecting feedback from multiple channels simultaneously:
 async function addIntegrationKnowledge() {
   try {
     logger.info('[IntegrationKnowledge] Adding integration knowledge to RAG service...');
-    
+
     const result = await ragClient.ingestText(
       INTEGRATION_KNOWLEDGE.content,
       `easyflow:${INTEGRATION_KNOWLEDGE.category}:${INTEGRATION_KNOWLEDGE.title.toLowerCase().replace(/\s+/g, '-')}`,
@@ -120,7 +120,7 @@ async function addIntegrationKnowledge() {
         keywords: INTEGRATION_KNOWLEDGE.keywords
       }
     );
-    
+
     if (result.success) {
       logger.info('[IntegrationKnowledge] Successfully added integration knowledge to RAG');
       return { success: true, message: 'Integration knowledge added to AI assistant' };
@@ -139,7 +139,7 @@ if (require.main === module) {
   // ✅ OBSERVABILITY: Use structured logger for CLI output
   const { createLogger } = require('../middleware/structuredLogging');
   const logger = createLogger('integration.knowledge');
-  
+
   addIntegrationKnowledge()
     .then(result => {
       if (result.success) {

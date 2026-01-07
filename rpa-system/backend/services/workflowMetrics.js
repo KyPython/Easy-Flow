@@ -66,7 +66,7 @@ class WorkflowMetricsService {
     try {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
-      
+
       let query = this.supabase
         .from('workflow_executions')
         .select('id, status, error_category, duration_seconds, created_at, workflow_id')
@@ -117,8 +117,8 @@ class WorkflowMetricsService {
 
       const breakdown = {};
       (executions || []).forEach(exec => {
-        const category = exec.error_category || 
-                        this._extractErrorCategory(exec.metadata) || 
+        const category = exec.error_category ||
+                        this._extractErrorCategory(exec.metadata) ||
                         'UNKNOWN_ERROR';
         breakdown[category] = (breakdown[category] || 0) + 1;
       });

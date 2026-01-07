@@ -1,6 +1,6 @@
 /**
  * Cost Savings Calculator
- * 
+ *
  * Calculates potential cost savings from execution mode optimization
  * Based on quantization analysis: 21% savings on background workflows
  */
@@ -14,7 +14,7 @@ class CostSavingsCalculator {
 
   /**
    * Calculate monthly cost savings for a user
-   * 
+   *
    * @param {number} totalWorkflows - Total workflows per month
    * @param {number} backgroundPercentage - Percentage that are background (0-100)
    * @returns {Object} Cost breakdown and savings
@@ -86,7 +86,7 @@ class CostSavingsCalculator {
 
   /**
    * Calculate aggregate savings across all users
-   * 
+   *
    * @param {Array} users - Array of { totalWorkflows, backgroundPercentage }
    * @returns {Object} Aggregate savings
    */
@@ -101,7 +101,7 @@ class CostSavingsCalculator {
         user.totalWorkflows,
         user.backgroundPercentage || 50
       );
-      
+
       totalCurrentCost += result.costs.current;
       totalOptimizedCost += result.costs.optimized;
       totalWorkflows += result.totalWorkflows;

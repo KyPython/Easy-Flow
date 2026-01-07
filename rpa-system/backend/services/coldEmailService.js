@@ -1,10 +1,10 @@
 /**
  * Cold Email Service
- * 
+ *
  * Integrates with cold email platforms:
  * - Instantly API
  * - Smartlead API
- * 
+ *
  * Features:
  * - Campaign creation
  * - Email sending

@@ -1,16 +1,16 @@
 /**
  * AI Action Executor Service
- * 
+ *
  * Executes actions requested by the AI Agent. This turns the AI into a full
  * app copilot that can do anything the user can do via natural language.
- * 
+ *
  * Available Action Categories:
  * - TASKS: Create, run, list, delete tasks
  * - WORKFLOWS: Create, run, schedule, pause, list workflows
  * - AUTOMATIONS: One-off scrape, email, API calls
  * - ACCOUNT: Check status, usage, plan info
  * - SUPPORT: Contact support, report issues
- * 
+ *
  * OBSERVABILITY:
  * - All logs flow through structured logging with trace context
  * - Performance metrics tracked for each action
@@ -64,8 +64,8 @@ const AVAILABLE_ACTIONS = {
       properties: {
         name: { type: 'string', description: 'Name of the task' },
         description: { type: 'string', description: 'What the task does' },
-        task_type: { 
-          type: 'string', 
+        task_type: {
+          type: 'string',
           enum: ['web_scrape', 'api_call', 'email', 'data_transform'],
           description: 'Type of task to create'
         },
@@ -114,13 +114,13 @@ const AVAILABLE_ACTIONS = {
       properties: {
         name: { type: 'string', description: 'Name of the workflow' },
         description: { type: 'string', description: 'What the workflow does' },
-        nodes: { 
-          type: 'array', 
+        nodes: {
+          type: 'array',
           description: 'Workflow nodes configuration',
           items: { type: 'object' }
         },
-        edges: { 
-          type: 'array', 
+        edges: {
+          type: 'array',
           description: 'Connections between nodes',
           items: { type: 'object' }
         }
@@ -167,8 +167,8 @@ const AVAILABLE_ACTIONS = {
       properties: {
         workflow_id: { type: 'string', description: 'ID of the workflow' },
         workflow_name: { type: 'string', description: 'Name (if ID not known)' },
-        schedule_type: { 
-          type: 'string', 
+        schedule_type: {
+          type: 'string',
           enum: ['once', 'daily', 'weekly', 'monthly', 'cron'],
           description: 'Type of schedule'
         },
@@ -188,17 +188,17 @@ const AVAILABLE_ACTIONS = {
       properties: {
         name: { type: 'string', description: 'Name for the workflow' },
         description: { type: 'string', description: 'What the workflow should do' },
-        trigger_type: { 
+        trigger_type: {
           type: 'string',
           enum: ['manual', 'hourly', 'daily', 'weekly', 'monthly'],
           description: 'How often to run: manual (one-time), hourly, daily, weekly, or monthly'
         },
         trigger_time: { type: 'string', description: 'When to run (e.g., "9:00 AM", "Monday 8:00 AM")' },
         notification_email: { type: 'string', description: 'Email to notify when workflow completes' },
-        steps: { 
-          type: 'array', 
+        steps: {
+          type: 'array',
           items: { type: 'object' },
-          description: 'Workflow steps (e.g., scrape, transform, notify)' 
+          description: 'Workflow steps (e.g., scrape, transform, notify)'
         }
       },
       required: ['name', 'description']
@@ -215,8 +215,8 @@ const AVAILABLE_ACTIONS = {
       type: 'object',
       properties: {
         url: { type: 'string', description: 'URL to scrape - use specific pages for better results' },
-        selectors: { 
-          type: 'array', 
+        selectors: {
+          type: 'array',
           items: { type: 'string' },
           description: 'CSS selectors to extract. For Hacker News headlines: [".titleline > a"]. For Reddit: ["h3"] or [".title"]. For news sites: ["h1", "h2", ".headline"]. If not provided, will auto-detect based on URL.'
         },
@@ -365,7 +365,7 @@ async function runTask(params, context) {
   try {
     // Find the task
     let query = supabase.from('tasks').select('*').eq('user_id', userId);
-    
+
     if (params.task_id) {
       query = query.eq('id', params.task_id);
     } else if (params.task_name) {
@@ -409,8 +409,8 @@ async function runTask(params, context) {
 
     return {
       success: result.success,
-      message: result.success 
-        ? `✅ Task "${task.name}" executed successfully` 
+      message: result.success
+        ? `✅ Task "${task.name}" executed successfully`
         : `❌ Task failed: ${result.error}`,
       data: result.data
     };
@@ -424,7 +424,7 @@ async function listTasks(params, context) {
   const supabase = getSupabase();
   const userId = context.userId;
   const startTime = Date.now();
-  const actionLogger = logger.withOperation('ai.action.list_tasks', { 
+  const actionLogger = logger.withOperation('ai.action.list_tasks', {
     userId,
     status: params.status,
     limit: params.limit
@@ -465,15 +465,15 @@ async function listTasks(params, context) {
     query = query.limit(limit);
 
     const { data, error } = await query;
-    
+
     if (error) {
-      actionLogger.warn('Error querying automation_tasks', { 
-        error: error.message, 
+      actionLogger.warn('Error querying automation_tasks', {
+        error: error.message,
         code: error.code,
         details: error.details,
         hint: error.hint
       });
-      
+
       // If automation_tasks doesn't exist, try accessibleos_tasks as fallback
       if (error.code === '42P01' || error.message.includes('does not exist') || error.message.includes('relation') || error.message.includes('table')) {
         actionLogger.info('automation_tasks table not found, trying accessibleos_tasks');
@@ -484,14 +484,14 @@ async function listTasks(params, context) {
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .limit(limit);
-          
+
           const { data: fallbackData, error: fallbackError } = await fallbackQuery;
-          
+
           if (fallbackError) {
             actionLogger.error('Fallback query also failed', fallbackError);
             throw fallbackError;
           }
-          
+
           const duration = Date.now() - startTime;
           actionLogger.performance('ai.action.list_tasks', duration, {
             category: 'tasks',
@@ -502,7 +502,7 @@ async function listTasks(params, context) {
 
           return {
             success: true,
-            message: fallbackData.length === 0 
+            message: fallbackData.length === 0
               ? "You don't have any tasks yet. Want me to help you create one? 😊"
               : `Found ${fallbackData.length} task${fallbackData.length === 1 ? '' : 's'}`,
             data: {
@@ -533,7 +533,7 @@ async function listTasks(params, context) {
 
     return {
       success: true,
-      message: data.length === 0 
+      message: data.length === 0
         ? "You don't have any tasks yet. Want me to help you create one? 😊"
         : `Found ${data.length} task${data.length === 1 ? '' : 's'}`,
       data: {
@@ -544,7 +544,7 @@ async function listTasks(params, context) {
   } catch (error) {
     const duration = Date.now() - startTime;
     actionLogger.error('List tasks failed', error, { duration });
-    
+
     // Log the full error for debugging
     actionLogger.error('List tasks failed with error', error, {
       errorCode: error.code,
@@ -553,10 +553,10 @@ async function listTasks(params, context) {
       errorHint: error.hint,
       userId
     });
-    
+
     // Provide user-friendly error messages
     let userMessage = "I couldn't fetch your tasks right now.";
-    
+
     if (error.message.includes('does not exist') || error.message.includes('relation') || error.message.includes('table')) {
       userMessage = "You don't have any tasks yet! Would you like me to help you create one? 😊";
       // Return success with empty list instead of error for missing table
@@ -571,7 +571,7 @@ async function listTasks(params, context) {
     } else if (error.message.includes('permission') || error.message.includes('RLS') || error.message.includes('policy')) {
       userMessage = "I don't have permission to access your tasks. This might be a database configuration issue.";
     } else if (error.message.includes('timeout') || error.message.includes('connection')) {
-      userMessage = "The database connection timed out. Please try again in a moment.";
+      userMessage = 'The database connection timed out. Please try again in a moment.';
     } else {
       // For any other error, return empty list with friendly message
       userMessage = "You don't have any tasks set up yet. Want me to help you create your first one? 😊";
@@ -584,9 +584,9 @@ async function listTasks(params, context) {
         }
       };
     }
-    
-    return { 
-      success: false, 
+
+    return {
+      success: false,
       error: error.message,
       message: userMessage
     };
@@ -650,7 +650,7 @@ async function runWorkflow(params, context) {
   try {
     // Find the workflow
     let query = supabase.from('workflows').select('*').eq('user_id', userId);
-    
+
     if (params.workflow_id) {
       query = query.eq('id', params.workflow_id);
     } else if (params.workflow_name) {
@@ -744,7 +744,7 @@ async function scheduleWorkflow(params, context) {
         .eq('user_id', userId)
         .ilike('name', `%${params.workflow_name}%`)
         .limit(1);
-      
+
       if (data && data.length > 0) {
         workflowId = data[0].id;
       }
@@ -797,7 +797,7 @@ async function createAutomatedWorkflow(params, context) {
   const userId = context.userId;
   const startTime = Date.now();
 
-  const actionLogger = logger.withOperation('ai.action.create_automated_workflow', { 
+  const actionLogger = logger.withOperation('ai.action.create_automated_workflow', {
     name: params.name,
     trigger_type: params.trigger_type,
     userId
@@ -813,9 +813,9 @@ async function createAutomatedWorkflow(params, context) {
   }
 
   try {
-    actionLogger.info('Creating automated workflow', { 
+    actionLogger.info('Creating automated workflow', {
       description: params.description,
-      trigger_type: params.trigger_type 
+      trigger_type: params.trigger_type
     });
 
     // Step 1: Generate fully configured workflow nodes using AI
@@ -855,11 +855,11 @@ async function createAutomatedWorkflow(params, context) {
       try {
         const { getUserPlan } = require('../services/planService');
         const planData = await getUserPlan(userId);
-        
+
         // Check for both 'schedules' and 'scheduled_automations' feature flags
-        const hasScheduleAccess = planData.limits?.schedules === true || 
+        const hasScheduleAccess = planData.limits?.schedules === true ||
                                   planData.limits?.scheduled_automations === true;
-        
+
         if (!hasScheduleAccess) {
           actionLogger.info('User does not have schedule access, creating workflow without schedule', {
             currentPlan: planData.plan?.name,
@@ -922,9 +922,9 @@ async function createAutomatedWorkflow(params, context) {
       };
       message += `\n\n⏰ It will run ${frequencyText[params.trigger_type] || params.trigger_type}.`;
     } else if (scheduleRestricted && params.trigger_type && params.trigger_type !== 'manual') {
-      message += `\n\n⚠️ I created the workflow, but scheduled automations aren't available on your current plan. You can run it manually, or upgrade to schedule it automatically!`;
+      message += '\n\n⚠️ I created the workflow, but scheduled automations aren\'t available on your current plan. You can run it manually, or upgrade to schedule it automatically!';
     }
-    message += `\n\n🚀 Taking you to your workflows now...`;
+    message += '\n\n🚀 Taking you to your workflows now...';
 
     return {
       success: true,
@@ -939,8 +939,8 @@ async function createAutomatedWorkflow(params, context) {
   } catch (error) {
     const duration = Date.now() - startTime;
     actionLogger.error('Failed to create automated workflow', error, { duration });
-    return { 
-      success: false, 
+    return {
+      success: false,
       error: error.message,
       message: `Sorry, I couldn't create that automation. ${error.message}`
     };
@@ -953,7 +953,7 @@ async function createAutomatedWorkflow(params, context) {
 async function generateFullyConfiguredWorkflow(params, context) {
   const OpenAI = require('openai');
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  
+
   const description = params.description || '';
   const fullPrompt = `${description}
 
@@ -1039,7 +1039,7 @@ IMPORTANT:
     });
 
     const response = JSON.parse(completion.choices[0].message.content);
-    
+
     // Ensure all nodes have proper structure
     const nodes = (response.nodes || []).map((node, index) => ({
       id: node.id || `node-${index}-${Date.now()}`,
@@ -1066,7 +1066,7 @@ IMPORTANT:
     // Validate and fix configurations
     nodes.forEach(node => {
       const { stepType, config } = node.data;
-      
+
       // Ensure required fields are present based on step type
       if (stepType === 'web_scrape') {
         if (!config.url) {
@@ -1132,7 +1132,7 @@ IMPORTANT:
 function generateWorkflowNodes(params) {
   const nodes = [];
   const description = (params.description || '').toLowerCase();
-  
+
   // Start node
   nodes.push({
     id: 'start-1',
@@ -1156,11 +1156,11 @@ function generateWorkflowNodes(params) {
     // Extract URL if mentioned
     const urlMatch = params.description.match(/https?:\/\/[^\s]+|(?:www\.)?[a-zA-Z0-9-]+\.[a-z]{2,}/i);
     const url = urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : '';
-    
+
     // Extract price threshold if mentioned
     const priceMatch = params.description.match(/\$?(\d+)/);
     const priceThreshold = priceMatch ? parseFloat(priceMatch[1]) : null;
-    
+
     nodes.push({
       id: 'scrape-1',
       type: 'customStep',
@@ -1179,7 +1179,7 @@ function generateWorkflowNodes(params) {
       }
     });
     yPos += 150;
-    
+
     // Add condition step if price threshold is mentioned
     if (priceThreshold) {
       nodes.push({
@@ -1210,7 +1210,7 @@ function generateWorkflowNodes(params) {
     // Extract API URL if mentioned
     const apiUrlMatch = params.description.match(/https?:\/\/[^\s]+/i);
     const apiUrl = apiUrlMatch ? apiUrlMatch[0] : '';
-    
+
     nodes.push({
       id: 'api-1',
       type: 'customStep',
@@ -1253,7 +1253,7 @@ function generateWorkflowNodes(params) {
     // Extract email from description or use notification_email
     const emailMatch = params.description.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
     const email = emailMatch ? emailMatch[1] : (params.notification_email || '{{user.email}}');
-    
+
     // Generate subject from description
     let subject = `Update: ${params.name}`;
     if (description.includes('price')) {
@@ -1261,10 +1261,10 @@ function generateWorkflowNodes(params) {
     } else if (description.includes('drop') || description.includes('below')) {
       subject = 'Price Drop Alert';
     }
-    
+
     // Ensure email is always an array
     const emailArray = Array.isArray(email) ? email : (email ? [email] : ['{{user.email}}']);
-    
+
     nodes.push({
       id: 'notify-1',
       type: 'customStep',
@@ -1276,7 +1276,7 @@ function generateWorkflowNodes(params) {
         config: {
           to: emailArray,
           subject: subject,
-          template: description.includes('price') 
+          template: description.includes('price')
             ? 'The price has dropped below your threshold! Current price: {{price}}'
             : 'Your automation has completed. Here are the results: {{data}}'
         },
@@ -1320,16 +1320,16 @@ function generateWorkflowEdges(nodes) {
 async function scrapeWebsite(params, context) {
   const axios = require('axios');
   const startTime = Date.now();
-  const actionLogger = logger.withOperation('ai.action.scrape_website', { 
+  const actionLogger = logger.withOperation('ai.action.scrape_website', {
     url: params.url,
-    userId: context?.userId 
+    userId: context?.userId
   });
 
   try {
     // Auto-detect selectors for common sites if not provided
     let selectors = params.selectors || [];
     const url = params.url.toLowerCase();
-    
+
     if (selectors.length === 0) {
       // Auto-detect selectors for common sites
       if (url.includes('news.ycombinator.com') || url.includes('ycombinator.com')) {
@@ -1346,14 +1346,14 @@ async function scrapeWebsite(params, context) {
         actionLogger.info('Auto-detected GitHub selectors', { selectors });
       }
     }
-    
+
     // Call the automation service
     const { getAutomationUrl, config } = require('../utils/appConfig');
     const automationUrl = getAutomationUrl();
     const scrapeTimeout = params.timeout || config.timeouts.scrapeDefault;
-    
+
     actionLogger.debug('Calling automation service', { automationUrl, selectors });
-    
+
     const response = await axios.post(`${automationUrl}/scrape`, {
       url: params.url,
       selectors: selectors,
@@ -1372,7 +1372,7 @@ async function scrapeWebsite(params, context) {
 
     // Format the response data for better readability
     let formattedData = response.data;
-    
+
     // If we have extracted data with selectors, format it nicely
     if (response.data && response.data.extracted && Array.isArray(response.data.extracted)) {
       formattedData = {
@@ -1382,7 +1382,7 @@ async function scrapeWebsite(params, context) {
         preview: response.data.extracted.slice(0, 10) // First 10 items for preview
       };
     }
-    
+
     return {
       success: true,
       message: `✅ Scraped ${params.url}`,
@@ -1399,7 +1399,7 @@ async function scrapeWebsite(params, context) {
     try {
       const response = await axios.get(params.url, { timeout: 30000 });
       const duration = Date.now() - startTime;
-      
+
       actionLogger.performance('ai.scrape.fallback', duration, {
         category: 'http_request',
         url: params.url,
@@ -1428,9 +1428,9 @@ async function scrapeWebsite(params, context) {
 
 async function sendEmail(params, context) {
   const startTime = Date.now();
-  const actionLogger = logger.withOperation('ai.action.send_email', { 
+  const actionLogger = logger.withOperation('ai.action.send_email', {
     userId: context?.userId,
-    recipient: params.to 
+    recipient: params.to
   });
 
   try {
@@ -1441,9 +1441,9 @@ async function sendEmail(params, context) {
     if (!sendgridKey) {
       actionLogger.warn('SendGrid not configured, returning mailto fallback');
       const mailtoLink = `mailto:${params.to}?subject=${encodeURIComponent(params.subject || 'Hello')}&body=${encodeURIComponent(params.body || '')}`;
-      return { 
+      return {
         success: true, // Return success so AI shows helpful message
-        message: `I've prepared your email! Since email sending isn't fully set up yet, I've created a mailto link for you. Click it to open your email client with the message ready to send.`,
+        message: 'I\'ve prepared your email! Since email sending isn\'t fully set up yet, I\'ve created a mailto link for you. Click it to open your email client with the message ready to send.',
         data: {
           to: params.to,
           subject: params.subject,
@@ -1504,36 +1504,36 @@ async function sendEmail(params, context) {
       statusCode: error.response?.statusCode || error.statusCode,
       errorResponse: error.response?.body
     });
-    
+
     // Always provide mailto fallback
     const mailtoLink = `mailto:${params.to}?subject=${encodeURIComponent(params.subject || 'Hello')}&body=${encodeURIComponent(params.body || '')}`;
-    
+
     // Provide helpful error messages based on error type
-    let userMessage = `I've prepared your email! Since the email service needs configuration, I've created a mailto link for you. Click it to open your email client with the message ready to send.`;
-    
+    let userMessage = 'I\'ve prepared your email! Since the email service needs configuration, I\'ve created a mailto link for you. Click it to open your email client with the message ready to send.';
+
     // Check for 401 Unauthorized (invalid API key)
     if (error.code === 401 || error.response?.statusCode === 401 || error.statusCode === 401 || error.message?.includes('Unauthorized')) {
-      userMessage = `The email service API key needs to be configured or verified. I've prepared a mailto link instead - click it to open your email client with your message ready to send!`;
+      userMessage = 'The email service API key needs to be configured or verified. I\'ve prepared a mailto link instead - click it to open your email client with your message ready to send!';
     }
     // Check for SendGrid-specific errors
     else if (error.response?.body?.errors) {
       const sendgridErrors = error.response.body.errors;
       const firstError = sendgridErrors[0];
-      
+
       if (firstError.field === 'from') {
-        userMessage = `The email sending service needs a verified sender address. I've prepared a mailto link instead - click it to open your email client!`;
+        userMessage = 'The email sending service needs a verified sender address. I\'ve prepared a mailto link instead - click it to open your email client!';
       } else if (firstError.message?.includes('permission') || firstError.message?.includes('unauthorized')) {
-        userMessage = `The email service doesn't have permission to send emails yet. I've prepared a mailto link instead - click it to open your email client!`;
+        userMessage = 'The email service doesn\'t have permission to send emails yet. I\'ve prepared a mailto link instead - click it to open your email client!';
       } else {
         userMessage = `There was an issue sending the email: ${firstError.message}. I've prepared a mailto link instead - click it to open your email client!`;
       }
-    } 
+    }
     // Check for authentication/API key errors
     else if (error.message?.includes('API key') || error.message?.includes('authentication') || error.message?.includes('Unauthorized')) {
-      userMessage = `The email service needs to be configured. I've prepared a mailto link instead - click it to open your email client!`;
+      userMessage = 'The email service needs to be configured. I\'ve prepared a mailto link instead - click it to open your email client!';
     }
-    
-    return { 
+
+    return {
       success: true, // Return success so AI shows helpful message with fallback
       message: userMessage,
       error: error.message,
@@ -1554,16 +1554,16 @@ async function makeApiCall(params, context) {
   const axios = require('axios');
   const { getTraceHeaders } = require('../middleware/traceContext');
   const startTime = Date.now();
-  const actionLogger = logger.withOperation('ai.action.api_call', { 
+  const actionLogger = logger.withOperation('ai.action.api_call', {
     userId: context?.userId,
     method: params.method || 'GET',
-    url: params.url 
+    url: params.url
   });
 
   try {
     // Propagate trace context to outbound requests
     const traceHeaders = getTraceHeaders();
-    
+
     const config = {
       method: params.method || 'GET',
       url: params.url,
@@ -1612,16 +1612,16 @@ async function makeApiCall(params, context) {
     };
   } catch (error) {
     const duration = Date.now() - startTime;
-    
+
     actionLogger.error('API call failed', error, {
       method: params.method || 'GET',
       url: params.url,
       status: error.response?.status,
       duration
     });
-    
-    return { 
-      success: false, 
+
+    return {
+      success: false,
       error: error.message,
       data: {
         status: error.response?.status,
@@ -1749,7 +1749,7 @@ async function contactSupport(params, context) {
   try {
     const sgMail = require('@sendgrid/mail');
     const sendgridKey = process.env.SENDGRID_API_KEY;
-    
+
     if (!sendgridKey) {
       // Return mailto fallback
       return {
@@ -1763,7 +1763,7 @@ async function contactSupport(params, context) {
     }
 
     sgMail.setApiKey(sendgridKey);
-    
+
     await sgMail.send({
       to: supportEmail,
       from: process.env.SENDGRID_FROM_EMAIL || 'noreply@useeasyflow.com',
@@ -1779,8 +1779,8 @@ async function contactSupport(params, context) {
     };
   } catch (error) {
     logger.error('[AI Executor] Contact support failed:', error);
-    return { 
-      success: false, 
+    return {
+      success: false,
       error: error.message,
       fallback: {
         type: 'mailto',
@@ -1796,13 +1796,13 @@ async function contactSupport(params, context) {
 
 /**
  * Execute an action by name with given parameters
- * 
+ *
  * OBSERVABILITY: Full structured logging with performance tracking
  */
 async function executeAction(actionName, params, context) {
   const startTime = Date.now();
   const action = AVAILABLE_ACTIONS[actionName];
-  
+
   // Create user-scoped logger for this execution
   const execLogger = logger
     .withUser({ id: context.userId, email: context.userEmail })
@@ -1810,7 +1810,7 @@ async function executeAction(actionName, params, context) {
       actionName,
       category: action?.category || 'unknown'
     });
-  
+
   if (!action) {
     execLogger.warn('Unknown action requested', {
       action: actionName,
@@ -1832,14 +1832,14 @@ async function executeAction(actionName, params, context) {
   try {
     const result = await action.execute(params, context);
     const duration = Date.now() - startTime;
-    
+
     // Log performance metric
     execLogger.performance(`ai.action.${actionName}`, duration, {
       category: 'ai_action',
       actionCategory: action.category,
       success: result.success
     });
-    
+
     // Log business metric for analytics
     execLogger.metric('ai.action.executed', 1, 'count', {
       action: actionName,
@@ -1857,7 +1857,7 @@ async function executeAction(actionName, params, context) {
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    
+
     execLogger.error('AI action failed', error, {
       action: actionName,
       category: action.category,

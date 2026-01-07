@@ -37,8 +37,8 @@ const { trace, metrics, context, SpanStatusCode } = require('@opentelemetry/api'
 const { PrometheusExporter } = require('@opentelemetry/exporter-prometheus');
 
 // ✅ INSTRUCTION 1: Import sampling components for trace optimization (Gap 10)
-const { 
-  ParentBasedSampler, 
+const {
+  ParentBasedSampler,
   TraceIdRatioBasedSampler,
   AlwaysOnSampler
 } = require('@opentelemetry/sdk-trace-base');
@@ -68,7 +68,7 @@ const resource = new Resource({
   [SemanticResourceAttributes.SERVICE_VERSION]: process.env.SERVICE_VERSION || '1.0.0',
   [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: deploymentEnvironment,
   [SemanticResourceAttributes.SERVICE_NAMESPACE]: serviceNamespace,
-  
+
   // Business context attributes
   'business.domain': 'rpa-automation',
   'business.tier': 'backend-services',
@@ -95,7 +95,7 @@ const hasValidCredentials = () => {
   // For local testing, headers can be empty (no auth needed)
   // For Grafana Cloud, headers are required
   const headers = process.env.OTEL_EXPORTER_OTLP_HEADERS || '';
-  
+
   // If endpoint is localhost, headers can be empty (local testing)
   if (endpoint.includes('localhost') || endpoint.includes('127.0.0.1')) {
     return true; // Local testing - headers not required
@@ -146,14 +146,14 @@ if (ENABLE_TELEMETRY_DEBUG) {
 // Validate and clean parsed headers
 if (parsedHeaders.Authorization) {
   const authValue = parsedHeaders.Authorization;
-  
+
   if (ENABLE_TELEMETRY_DEBUG) {
     logger.debug('[TELEMETRY DEBUG] Auth value type:', typeof authValue);
     logger.debug('[TELEMETRY DEBUG] Auth value length:', authValue.length);
     logger.debug('[TELEMETRY DEBUG] Auth value first 30 chars:', authValue.substring(0, 30));
     logger.debug('[TELEMETRY DEBUG] Has double quotes?', authValue.includes('"'));
     logger.debug('[TELEMETRY DEBUG] Has single quotes?', authValue.includes("'"));
-    
+
     // Check each character in first 50 chars
     for (let i = 0; i < Math.min(50, authValue.length); i++) {
       const char = authValue[i];
@@ -163,11 +163,11 @@ if (parsedHeaders.Authorization) {
       }
     }
   }
-  
+
   // ALWAYS clean quotes, even if the initial parse tried to remove them
   // The value might have nested or escaped quotes that survived parsing
   const cleaned = authValue.replace(/['"]/g, '').trim();
-  
+
   if (authValue !== cleaned) {
     logger.warn('⚠️ [TELEMETRY] WARNING: Authorization header had quotes - cleaned them');
     if (ENABLE_TELEMETRY_DEBUG) {
@@ -219,25 +219,25 @@ if (ENABLE_TELEMETRY_DEBUG) {
 // ✅ Grafana Cloud OTLP endpoint format: https://otlp-gateway-prod-XX.grafana.net/otlp
 // The endpoint already includes /otlp, so we append /v1/traces or /v1/metrics
 const otlpBaseEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318';
-const tracesEndpoint = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || 
-  (otlpBaseEndpoint.endsWith('/otlp') ? `${otlpBaseEndpoint}/v1/traces` : 
-   otlpBaseEndpoint.includes('/v1/') ? otlpBaseEndpoint : 
+const tracesEndpoint = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ||
+  (otlpBaseEndpoint.endsWith('/otlp') ? `${otlpBaseEndpoint}/v1/traces` :
+   otlpBaseEndpoint.includes('/v1/') ? otlpBaseEndpoint :
    `${otlpBaseEndpoint}/v1/traces`);
-const metricsEndpoint = process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || 
-  (otlpBaseEndpoint.endsWith('/otlp') ? `${otlpBaseEndpoint}/v1/metrics` : 
-   otlpBaseEndpoint.includes('/v1/') ? otlpBaseEndpoint.replace('/traces', '/metrics') : 
+const metricsEndpoint = process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT ||
+  (otlpBaseEndpoint.endsWith('/otlp') ? `${otlpBaseEndpoint}/v1/metrics` :
+   otlpBaseEndpoint.includes('/v1/') ? otlpBaseEndpoint.replace('/traces', '/metrics') :
    `${otlpBaseEndpoint}/v1/metrics`);
 
 const traceExporter = new OTLPTraceExporter({
   url: tracesEndpoint,
   headers: exporterHeaders, // ✅ CRITICAL: Explicitly pass clean headers object
-  timeoutMillis: 10000,
+  timeoutMillis: 10000
 });
 
 const metricExporter = new OTLPMetricExporter({
   url: metricsEndpoint,
   headers: exporterHeaders, // ✅ CRITICAL: Explicitly pass clean headers object
-  timeoutMillis: 10000,
+  timeoutMillis: 10000
 });
 
 if (ENABLE_TELEMETRY_DEBUG) {
@@ -254,30 +254,31 @@ function parseHeaders(headerString) {
     // Handle single Authorization header (most common case for OTLP)
     if (headerString.startsWith('Authorization=')) {
       let value = headerString.substring('Authorization='.length);
-      
+
       // DEBUG: Show raw value before any processing
       logger.info('[Telemetry] RAW Authorization value length:', value.length);
       logger.info('[Telemetry] RAW Authorization value (first 50 chars):', value.substring(0, 50));
       logger.info('[Telemetry] RAW has quotes:', value.includes('"') || value.includes("'"));
-      
+
       // CRITICAL: ONLY remove quotes and control characters - preserve ALL valid characters including spaces
       // HTTP headers CAN contain spaces (e.g., "Basic <token>")
       value = value.trim();
-      
+
       // Step 1: Remove surrounding quotes ONLY (don't touch internal content)
       value = value.replace(/^["']+/, '').replace(/["']+$/, '');
-      
+
       // Step 2: Remove control characters (newlines, tabs, etc.) but PRESERVE normal spaces
+      // eslint-disable-next-line no-control-regex
       value = value.replace(/[\x00-\x1F\x7F]/g, '');
-      
+
       // Step 3: Final trim
       value = value.trim();
-      
+
       headers['Authorization'] = value;
-      
+
       logger.info('[Telemetry] FINAL Authorization header length:', value.length);
       logger.info('[Telemetry] FINAL Authorization header preview:', value.substring(0, 30) + '...');
-      
+
       if (value.length === 0) {
         logger.error('❌ [Telemetry] ERROR: Authorization header is EMPTY after sanitization!');
       }
@@ -288,12 +289,13 @@ function parseHeaders(headerString) {
         if (idx > 0) {
           const key = pair.substring(0, idx).trim();
           let value = pair.substring(idx + 1).trim();
-          
+
           // CRITICAL: Only remove quotes and control characters
           value = value.replace(/^["']+/, '').replace(/["']+$/, '');
+          // eslint-disable-next-line no-control-regex
           value = value.replace(/[\x00-\x1F\x7F]/g, '');
           value = value.trim();
-          
+
           headers[key] = value;
         }
       });
@@ -318,9 +320,9 @@ try {
     endpoint: '/metrics',
     preventServerStart: true  // Don't start server yet - wait for SDK.start() to set MeterProvider
   });
-  logger.info(`✅ [Telemetry] PrometheusExporter created (will start after SDK initialization)`);
+  logger.info('✅ [Telemetry] PrometheusExporter created (will start after SDK initialization)');
 } catch (promError) {
-  logger.error(`[Telemetry] PrometheusExporter creation error:`, promError);
+  logger.error('[Telemetry] PrometheusExporter creation error:', promError);
   if (promError.code === 'EADDRINUSE') {
     logger.warn(`⚠️ [Telemetry] Port ${PROMETHEUS_METRICS_PORT} already in use - Prometheus metrics may not be available`);
   } else {
@@ -332,11 +334,11 @@ try {
 
 // ✅ OBSERVABILITY: Configure trace sampler with environment-aware defaults
 // Uses ParentBasedSampler: preserves all traces initiated by sampled requests
-// 
+//
 // Environment-aware sampling strategy:
 // - Development: AlwaysOnSampler - ensures ALL traces captured for debugging (100% sampling)
 // - Production: Ratio-based sampling (default 10% = 0.1) - balances observability with performance
-// 
+//
 // Override via OTEL_TRACE_SAMPLING_RATIO env var (only applies in production):
 //   - 0.1 = 10% (default production)
 //   - 0.01 = 1% (high volume production)
@@ -350,7 +352,7 @@ const useAlwaysOn = isDevelopment || samplingRatioOverride === 1.0;
 const samplingRatio = samplingRatioOverride || 0.1; // Default 10% for production
 
 const sampler = new ParentBasedSampler({
-  root: useAlwaysOn 
+  root: useAlwaysOn
     ? new AlwaysOnSampler()  // Always sample in development
     : new TraceIdRatioBasedSampler(samplingRatio), // Ratio-based in production
   remoteParentSampled: new AlwaysOnSampler(), // Always sample if parent was sampled
@@ -367,15 +369,15 @@ class SensitiveDataRedactingSpanProcessor {
     this.exporter = exporter;
     this.batchProcessor = new BatchSpanProcessor(exporter);
   }
-  
+
   onStart(span, parentContext) {
     this.batchProcessor.onStart(span, parentContext);
   }
-  
+
   onEnd(span) {
     // ✅ INSTRUCTION 1: Redact sensitive attributes before export (Gap 14)
     const attributes = span.attributes;
-    
+
     // Remove high-cardinality and potentially sensitive HTTP headers
     if (attributes['http.headers']) {
       delete attributes['http.headers'];
@@ -386,7 +388,7 @@ class SensitiveDataRedactingSpanProcessor {
     if (attributes['http.response.header']) {
       delete attributes['http.response.header'];
     }
-    
+
     // Remove sensitive query parameters
     if (attributes['http.url']) {
       // Redact tokens, passwords, keys from URLs
@@ -395,7 +397,7 @@ class SensitiveDataRedactingSpanProcessor {
         .replace(/([?&])(token|password|key|secret|api_key)=[^&]*/gi, '$1$2=REDACTED')
         .replace(/\/api\/[a-f0-9-]{36}/g, '/api/[UUID]'); // Redact UUIDs
     }
-    
+
     // Remove full request/response bodies (keep only size)
     if (attributes['http.request.body']) {
       const bodySize = String(attributes['http.request.body']).length;
@@ -407,21 +409,21 @@ class SensitiveDataRedactingSpanProcessor {
       delete attributes['http.response.body'];
       attributes['http.response.body.size'] = bodySize;
     }
-    
+
     // Redact email addresses
     Object.keys(attributes).forEach(key => {
       if (typeof attributes[key] === 'string' && attributes[key].includes('@')) {
         attributes[key] = attributes[key].replace(/[\w.-]+@[\w.-]+\.\w+/g, '[EMAIL]');
       }
     });
-    
+
     this.batchProcessor.onEnd(span);
   }
-  
+
   async shutdown() {
     return this.batchProcessor.shutdown();
   }
-  
+
   async forceFlush() {
     return this.batchProcessor.forceFlush();
   }
@@ -543,15 +545,15 @@ const sdk = new NodeSDK({
           const userId = request.headers['x-user-id'];
           const workflowId = request.headers['x-workflow-id'];
           const operation = request.headers['x-operation'];
-          
+
           span.setAttributes({
             'http.user_agent': userAgent,
             'business.user_id': userId,
-            'business.workflow_id': workflowId, 
+            'business.workflow_id': workflowId,
             'business.operation': operation,
             'slo.user_transaction': request.method === 'POST' || request.method === 'PUT'
           });
-          
+
           // Tag for SLO tracking
           if (request.url?.includes('/api/workflows')) {
             span.setAttributes({
@@ -568,7 +570,7 @@ const sdk = new NodeSDK({
           });
         }
       },
-      
+
       // Express instrumentation with business context
       '@opentelemetry/instrumentation-express': {
         enabled: true,
@@ -579,23 +581,23 @@ const sdk = new NodeSDK({
           });
         }
       },
-      
+
       // Database instrumentation for transaction tracking
       '@opentelemetry/instrumentation-pg': {
         enabled: true,
         addSqlCommenterAttributes: true
       },
-      
+
       // Redis instrumentation for caching metrics
       '@opentelemetry/instrumentation-redis': {
         enabled: true
       },
-      
+
       // DNS instrumentation for external API tracking
       '@opentelemetry/instrumentation-dns': {
         enabled: true
       },
-      
+
       // Undici instrumentation - disable for OTLP endpoints to prevent header issues
       '@opentelemetry/instrumentation-undici': {
         enabled: true,
@@ -691,7 +693,7 @@ class SLOMetricsProvider {
 // Wrap exporter methods to catch connection errors
 function wrapExporterWithErrorHandler(exporter, exporterName) {
   if (!exporter) return exporter;
-  
+
   // Catch errors in the internal HTTP client
   if (exporter._otlpExporter && exporter._otlpExporter._transport) {
     const transport = exporter._otlpExporter._transport;
@@ -711,7 +713,7 @@ function wrapExporterWithErrorHandler(exporter, exporterName) {
       };
     }
   }
-  
+
   return exporter;
 }
 
@@ -720,9 +722,9 @@ try {
   // Wrap exporters with error handlers
   wrapExporterWithErrorHandler(traceExporter, 'TraceExporter');
   wrapExporterWithErrorHandler(metricExporter, 'MetricExporter');
-  
+
   sdk.start();
-  
+
   // Start Prometheus exporter server - it will read from the global MeterProvider
   // Prometheus scrapes from port 9091, so we need a separate server
   // The Express app also mounts /metrics as an alternative endpoint
@@ -734,38 +736,38 @@ try {
         try {
           const meterProvider = metrics.getMeterProvider();
           if (!meterProvider) {
-            logger.warn(`⚠️ [Telemetry] MeterProvider not set yet, retrying PrometheusExporter start...`);
+            logger.warn('⚠️ [Telemetry] MeterProvider not set yet, retrying PrometheusExporter start...');
             setTimeout(() => {
               prometheusExporter.startServer();
               logger.info(`✅ [Telemetry] Prometheus metrics server started on port ${PROMETHEUS_METRICS_PORT}`);
             }, 500);
             return;
           }
-          
+
           // Create and record a test metric to ensure MeterProvider is working
           const testMeter = meterProvider.getMeter('easyflow-prometheus-test', '1.0.0');
           const testCounter = testMeter.createCounter('easyflow_prometheus_test_total', {
             description: 'Test counter to verify PrometheusExporter is reading metrics'
           });
           testCounter.add(1, { component: 'telemetry_init' });
-          
+
           // Start the PrometheusExporter server - it reads from global MeterProvider automatically
           prometheusExporter.startServer();
           logger.info(`✅ [Telemetry] Prometheus metrics server started on port ${PROMETHEUS_METRICS_PORT}`);
           logger.info(`✅ [Telemetry] Prometheus metrics endpoint: http://localhost:${PROMETHEUS_METRICS_PORT}/metrics`);
         } catch (promError) {
-          logger.error(`[Telemetry] Prometheus exporter server start failed:`, promError);
+          logger.error('[Telemetry] Prometheus exporter server start failed:', promError);
           logger.warn(`⚠️ [Telemetry] Prometheus exporter server start failed: ${promError.message}`);
         }
       }, 500); // Increased delay to ensure SDK is fully initialized
     } catch (promError) {
-      logger.error(`[Telemetry] Prometheus exporter setup failed:`, promError);
+      logger.error('[Telemetry] Prometheus exporter setup failed:', promError);
       logger.warn(`⚠️ [Telemetry] Prometheus exporter setup failed: ${promError.message}`);
     }
   } else {
-    logger.info(`ℹ️ [Telemetry] PrometheusExporter not available - metrics exported via OTLP only`);
+    logger.info('ℹ️ [Telemetry] PrometheusExporter not available - metrics exported via OTLP only');
   }
-  
+
   // ✅ PART 2.3: Verification - Print success message indicating OTEL Exporters are active
   logger.info('✅ [Telemetry] OpenTelemetry backend instrumentation initialized successfully');
   logger.info(`✅ [Telemetry] Service Name: ${serviceName}`);
@@ -776,13 +778,13 @@ try {
   const samplerType = useAlwaysOn ? 'AlwaysOnSampler' : `TraceIdRatioBasedSampler(${(samplingRatio * 100).toFixed(0)}%)`;
   const envLabel = isDevelopment ? ' (development - always sample)' : ' (production)';
   logger.info(`✅ [Telemetry] Trace Sampler: ParentBasedSampler with ${samplerType}${envLabel}`);
-  logger.info(`✅ [Telemetry] Data Redaction: Active (Gap 14 - sensitive data removed)`);
+  logger.info('✅ [Telemetry] Data Redaction: Active (Gap 14 - sensitive data removed)');
   logger.info(`✅ [Telemetry] Prometheus Metrics: http://localhost:${PROMETHEUS_METRICS_PORT}/metrics`);
   logger.info('✅ [Telemetry] OTEL Exporters: ACTIVE - Ready to stream to Grafana Cloud');
-  
+
   // Create global SLO metrics provider
   global.sloMetrics = new SLOMetricsProvider();
-  
+
   // Verify metrics are registered by checking the meter
   const meterProvider = metrics.getMeterProvider();
   const testMeter = meterProvider.getMeter('easyflow-test', '1.0.0');
@@ -790,8 +792,8 @@ try {
     description: 'Number of times telemetry has been initialized'
   });
   testCounter.add(1, { status: 'success' });
-  logger.info(`✅ [Telemetry] Test metric created and recorded - metrics should be visible at /metrics`);
-  
+  logger.info('✅ [Telemetry] Test metric created and recorded - metrics should be visible at /metrics');
+
 } catch (error) {
   logger.error('❌ [Telemetry] Failed to initialize OpenTelemetry:', error);
 }

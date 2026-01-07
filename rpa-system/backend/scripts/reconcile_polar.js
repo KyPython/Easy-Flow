@@ -89,7 +89,7 @@ async function main() {
           logger.error(`  - FAILED to update Sub ID ${sub.id}:`, updateErr.message);
         } else {
           updatedCount++;
-          logger.info(`  - SUCCESS: Updated status in DB.`);
+          logger.info('  - SUCCESS: Updated status in DB.');
         }
       }
     }
@@ -107,7 +107,7 @@ main().catch(e => {
   logger.error('[reconcile] fatal', e?.message || e);
   process.exit(11);
 });
-dotenv.config({ path: new URL('../rpa-system/.env', import.meta.url).pathname });
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
 const POLAR_API_KEY = process.env.POLAR_API_KEY;
 const POLAR_WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET;
@@ -128,8 +128,8 @@ export async function fetchSubscriptions() {
     const response = await axios.get(`${POLAR_API_URL}/subscriptions`, {
       headers: {
         Authorization: `Bearer ${POLAR_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
     logger.info('Subscriptions:', response.data);
     return response.data;

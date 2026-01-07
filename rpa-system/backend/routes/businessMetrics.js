@@ -72,7 +72,7 @@ const requireOwner = async (req, res, next) => {
 
     // Get user email - try multiple sources
     let userEmail = req.user.email;
-    
+
     // If not in req.user, get from Supabase auth
     if (!userEmail) {
       const supabase = getSupabase();
@@ -90,10 +90,10 @@ const requireOwner = async (req, res, next) => {
 
     const OWNER_EMAILS = ['kyjahntsmith@gmail.com', 'kyjahnsmith36@gmail.com'];
     const normalizedUserEmail = (userEmail || '').toLowerCase().trim();
-    const isOwner = OWNER_EMAILS.some(email => 
+    const isOwner = OWNER_EMAILS.some(email =>
       normalizedUserEmail === email.toLowerCase().trim()
     );
-    
+
     if (!isOwner) {
       logger.warn('[BusinessMetrics] Unauthorized access attempt', { email: userEmail, ownerEmails: OWNER_EMAILS });
       return res.status(403).json({ error: 'Access denied - owner only' });
@@ -116,7 +116,7 @@ router.get('/overview', authMiddleware, requireOwner, async (req, res) => {
   try {
     // ✅ INTEGRATION: Try to get metrics from cache first (from easyflow-metrics)
     const cachedMetrics = await metricsCacheService.getMetrics();
-    
+
     if (cachedMetrics) {
       // Use cached metrics (from daily batch collection)
       logger.debug('Using cached metrics from easyflow-metrics');
@@ -169,43 +169,43 @@ router.get('/overview', authMiddleware, requireOwner, async (req, res) => {
       supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true }),
-      
+
       // Active users (last 30 days)
       supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .gte('last_seen_at', startDateISO),
-      
+
       // New signups in timeframe
       supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', startDateISO),
-      
+
       // Activated users (users with at least 1 workflow)
       supabase
         .from('automation_tasks')
         .select('user_id', { count: 'exact' })
         .eq('is_active', true),
-      
+
       // Workflows created in timeframe
       supabase
         .from('automation_tasks')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', startDateISO),
-      
+
       // Workflows run in timeframe
       supabase
         .from('automation_runs')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', startDateISO),
-      
+
       // MRR calculation (from subscriptions)
       supabase
         .from('subscriptions')
         .select('plan_id, status')
         .eq('status', 'active'),
-      
+
       // Conversion rate (signups with at least 1 workflow / total signups)
       supabase
         .from('profiles')
@@ -217,17 +217,17 @@ router.get('/overview', authMiddleware, requireOwner, async (req, res) => {
     const totalUsers = totalUsersResult.status === 'fulfilled' ? (totalUsersResult.value.count || 0) : 0;
     const activeUsers = activeUsersResult.status === 'fulfilled' ? (activeUsersResult.value.count || 0) : 0;
     const newSignups = newSignupsResult.status === 'fulfilled' ? (newSignupsResult.value.count || 0) : 0;
-    
+
     // Activated users (unique user_ids with workflows)
     let activatedUsers = 0;
     if (activatedUsersResult.status === 'fulfilled' && activatedUsersResult.value.data) {
       const uniqueUserIds = new Set(activatedUsersResult.value.data.map(r => r.user_id));
       activatedUsers = uniqueUserIds.size;
     }
-    
+
     const workflowsCreated = workflowsCreatedResult.status === 'fulfilled' ? (workflowsCreatedResult.value.count || 0) : 0;
     const workflowsRun = workflowsRunResult.status === 'fulfilled' ? (workflowsRunResult.value.count || 0) : 0;
-    
+
     // Calculate MRR
     let mrr = 0;
     if (mrrResult.status === 'fulfilled' && mrrResult.value.data) {
@@ -237,22 +237,22 @@ router.get('/overview', authMiddleware, requireOwner, async (req, res) => {
         .from('plans')
         .select('id, price_monthly')
         .in('id', planIds);
-      
+
       const planPricing = {};
       if (plans) {
         plans.forEach(plan => {
           planPricing[plan.id] = plan.price_monthly || 0;
         });
       }
-      
+
       mrrResult.value.data.forEach(sub => {
         mrr += planPricing[sub.plan_id] || 0;
       });
     }
-    
+
     // Calculate activation rate
     const activationRate = newSignups > 0 ? (activatedUsers / newSignups * 100) : 0;
-    
+
     // Calculate conversion rate (signups that created workflows)
     let conversionRate = 0;
     if (conversionRateResult.status === 'fulfilled' && conversionRateResult.value.data) {
@@ -262,7 +262,7 @@ router.get('/overview', authMiddleware, requireOwner, async (req, res) => {
         .select('user_id', { count: 'exact' })
         .in('user_id', signupIds)
         .limit(1);
-      
+
       const usersWithWorkflows = new Set();
       if (workflowsFromSignups > 0) {
         const { data: workflows } = await supabase
@@ -273,7 +273,7 @@ router.get('/overview', authMiddleware, requireOwner, async (req, res) => {
           workflows.forEach(w => usersWithWorkflows.add(w.user_id));
         }
       }
-      
+
       conversionRate = signupIds.length > 0 ? (usersWithWorkflows.size / signupIds.length * 100) : 0;
     }
 
@@ -317,7 +317,7 @@ router.get('/signups', authMiddleware, requireOwner, async (req, res) => {
     const days = parseInt(timeframe.replace('d', '')) || 30;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    
+
     // Get signups grouped by interval
     const { data: signups, error } = await supabase
       .from('profiles')
@@ -393,20 +393,20 @@ router.get('/funnel', authMiddleware, requireOwner, async (req, res) => {
         .select('id', { count: 'exact', head: true })
         .eq('event_name', 'page_view')
         .gte('created_at', startDate.toISOString()),
-      
+
       // Signups
       supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', startDate.toISOString()),
-      
+
       // Activated (users with workflows)
       supabase
         .from('automation_tasks')
         .select('user_id')
         .eq('is_active', true)
         .gte('created_at', startDate.toISOString()),
-      
+
       // Paid (users with active subscriptions)
       supabase
         .from('subscriptions')
@@ -416,12 +416,12 @@ router.get('/funnel', authMiddleware, requireOwner, async (req, res) => {
 
     const visits = visitsResult.status === 'fulfilled' ? (visitsResult.value.count || 0) : 0;
     const signups = signupsResult.status === 'fulfilled' ? (signupsResult.value.count || 0) : 0;
-    
+
     let activated = 0;
     if (activatedResult.status === 'fulfilled' && activatedResult.value.data) {
       activated = new Set(activatedResult.value.data.map(r => r.user_id)).size;
     }
-    
+
     let paid = 0;
     if (paidResult.status === 'fulfilled' && paidResult.value.data) {
       paid = new Set(paidResult.value.data.map(s => s.user_id)).size;
@@ -646,7 +646,7 @@ router.get('/analytics-health', authMiddleware, requireOwner, async (req, res) =
       } else if (e.event_name.startsWith('feature_')) {
         featureName = e.event_name.replace('feature_', '').replace(/_/g, ' ');
       }
-      
+
       // Only count if we have a valid feature name
       if (featureName) {
         featureCounts[featureName] = (featureCounts[featureName] || 0) + 1;

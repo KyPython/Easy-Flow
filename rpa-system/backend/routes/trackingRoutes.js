@@ -21,7 +21,7 @@ router.post('/event', async (req, res) => {
   try {
     const { user_id, event_name, event, properties, utm } = req.body || {};
     const finalEventName = event_name || event;
-    
+
     if (!finalEventName) {
       return res.status(400).json({ error: 'event_name or event is required' });
     }
@@ -49,9 +49,9 @@ router.post('/event', async (req, res) => {
         error: insertResult.error.message,
         error_code: insertResult.error.code
       });
-      return res.status(500).json({ 
-        error: 'Failed to track event', 
-        details: insertResult.error.message 
+      return res.status(500).json({
+        error: 'Failed to track event',
+        details: insertResult.error.message
       });
     }
 
@@ -72,7 +72,7 @@ router.post('/event', async (req, res) => {
               token: process.env.MIXPANEL_TOKEN,
               distinct_id: user_id || null,
               time: Math.floor(Date.now() / 1000)
-            }, properties || {}, { utm: utm || {} }),
+            }, properties || {}, { utm: utm || {} })
           };
           await axios.post('https://api.mixpanel.com/track', {
             data: Buffer.from(JSON.stringify([mp])).toString('base64')
@@ -83,8 +83,8 @@ router.post('/event', async (req, res) => {
       }
     })();
 
-    return res.json({ 
-      ok: true, 
+    return res.json({
+      ok: true,
       event_name: finalEventName,
       tracked_at: new Date().toISOString()
     });
@@ -101,7 +101,7 @@ router.post('/event', async (req, res) => {
 router.post('/events', async (req, res) => {
   try {
     const { events } = req.body || {};
-    
+
     if (!events || !Array.isArray(events) || events.length === 0) {
       return res.status(400).json({ error: 'events array is required' });
     }
@@ -116,7 +116,7 @@ router.post('/events', async (req, res) => {
     const eventPromises = events.map(async (eventData) => {
       const { user_id, event_name, event, properties, utm } = eventData || {};
       const finalEventName = event_name || event;
-      
+
       if (!finalEventName) {
         logger.warn('[tracking/events] Skipping event without event_name:', eventData);
         return null;
@@ -178,7 +178,7 @@ router.post('/events', async (req, res) => {
 router.post('/feature', authMiddleware, async (req, res) => {
   try {
     const { feature, action, ...additionalProps } = req.body || {};
-    
+
     if (!feature) {
       return res.status(400).json({ error: 'feature name is required' });
     }
@@ -208,9 +208,9 @@ router.post('/feature', authMiddleware, async (req, res) => {
         user_id: req.user?.id,
         error: insertResult.error.message
       });
-      return res.status(500).json({ 
-        error: 'Failed to track feature usage', 
-        details: insertResult.error.message 
+      return res.status(500).json({
+        error: 'Failed to track feature usage',
+        details: insertResult.error.message
       });
     }
 
@@ -220,8 +220,8 @@ router.post('/feature', authMiddleware, async (req, res) => {
       user_id: req.user?.id
     });
 
-    return res.json({ 
-      ok: true, 
+    return res.json({
+      ok: true,
       feature,
       tracked_at: new Date().toISOString()
     });
@@ -238,7 +238,7 @@ router.post('/feature', authMiddleware, async (req, res) => {
 router.get('/health', async (req, res) => {
   try {
     const supabase = getSupabase();
-    
+
     const health = {
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -256,7 +256,7 @@ router.get('/health', async (req, res) => {
           .from('marketing_events')
           .select('id')
           .limit(1);
-        
+
         if (error) {
           health.database = 'error';
           health.database_error = error.message;
@@ -271,7 +271,7 @@ router.get('/health', async (req, res) => {
     return res.status(statusCode).json(health);
   } catch (e) {
     logger.error('[GET /api/tracking/health] Error:', e?.message || e);
-    return res.status(500).json({ 
+    return res.status(500).json({
       status: 'error',
       error: e.message,
       timestamp: new Date().toISOString()
@@ -340,7 +340,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
 router.post('/signup-source', async (req, res) => {
   try {
     const { email, utm_source, utm_medium, utm_campaign, referrer, landing_page } = req.body || {};
-    
+
     if (!email) {
       return res.status(400).json({ error: 'email is required' });
     }
@@ -358,7 +358,7 @@ router.post('/signup-source', async (req, res) => {
         .select('id')
         .eq('email', email)
         .maybeSingle();
-      
+
       userId = profileData?.id || null;
     } catch (e) {
       logger.debug('[tracking/signup-source] Could not find user by email (may not be created yet):', e.message);
@@ -381,9 +381,9 @@ router.post('/signup-source', async (req, res) => {
         email,
         error: insertError.message
       });
-      return res.status(500).json({ 
-        error: 'Failed to store signup source', 
-        details: insertError.message 
+      return res.status(500).json({
+        error: 'Failed to store signup source',
+        details: insertError.message
       });
     }
 
@@ -393,7 +393,7 @@ router.post('/signup-source', async (req, res) => {
       has_user_id: !!userId
     });
 
-    return res.json({ 
+    return res.json({
       ok: true,
       stored: true
     });

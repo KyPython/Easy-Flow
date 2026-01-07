@@ -1,6 +1,6 @@
 /**
  * RAG Service Routes
- * 
+ *
  * Provides endpoints for RAG service health checks and management
  * These endpoints allow EasyFlow to check RAG service status and manage knowledge
  */
@@ -21,14 +21,14 @@ const ragClient = require('../services/ragClient');
 router.get('/health', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
     const health = await ragClient.healthCheck();
-    
+
     res.json({
       success: health.success,
       status: health.status,
       timestamp: health.timestamp,
       serviceUrl: ragClient.RAG_SERVICE_URL,
-      message: health.success 
-        ? 'RAG service is healthy' 
+      message: health.success
+        ? 'RAG service is healthy'
         : `RAG service unavailable: ${health.error || 'unknown error'}`
     });
   } catch (error) {
@@ -51,7 +51,7 @@ router.post('/seed', authMiddleware, contextLoggerMiddleware, async (req, res) =
   try {
     const aiAgent = require('../services/aiWorkflowAgent');
     const result = await aiAgent.initializeKnowledge();
-    
+
     res.json({
       success: result.success,
       method: result.method,
@@ -76,23 +76,23 @@ router.post('/seed', authMiddleware, contextLoggerMiddleware, async (req, res) =
 router.post('/ingest', authMiddleware, contextLoggerMiddleware, async (req, res) => {
   try {
     const { text, source, metadata } = req.body;
-    
+
     if (!text || typeof text !== 'string') {
       return res.status(400).json({
         success: false,
         error: 'text field is required and must be a string'
       });
     }
-    
+
     if (!source || typeof source !== 'string') {
       return res.status(400).json({
         success: false,
         error: 'source field is required and must be a string'
       });
     }
-    
+
     const result = await ragClient.ingestText(text, source, metadata || {});
-    
+
     res.json({
       success: result.success,
       chunksProcessed: result.chunksProcessed,

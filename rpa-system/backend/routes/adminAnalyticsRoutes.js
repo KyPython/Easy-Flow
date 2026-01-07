@@ -2,7 +2,7 @@
  * Internal Admin Analytics Routes
  * Provides insights into what ALL users are doing with EasyFlow
  * This addresses Pain Point #4: "Not knowing what users do with your product"
- * 
+ *
  * Access: Admin-only (requires admin role or special permission)
  */
 
@@ -47,13 +47,13 @@ router.get('/overview', async (req, res) => {
     // Get active users (users with runs in last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const { data: activeUsersData } = await supabase
       .from('automation_runs')
       .select('user_id')
       .gte('created_at', thirtyDaysAgo.toISOString())
       .not('user_id', 'is', null);
-    
+
     const activeUserIds = [...new Set((activeUsersData || []).map(r => r.user_id))];
     const activeUsers = activeUserIds.length;
 
@@ -80,7 +80,7 @@ router.get('/overview', async (req, res) => {
       .from('integration_credentials')
       .select('integration_type')
       .not('integration_type', 'is', null);
-    
+
     const integrationCounts = {};
     (integrations || []).forEach(cred => {
       const type = cred.integration_type;

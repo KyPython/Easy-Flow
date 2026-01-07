@@ -28,11 +28,11 @@ for (const [varName, config] of Object.entries(requiredVars)) {
   const value = process.env[varName];
   const isSet = !!value;
   const status = isSet ? '✅ SET' : (config.required ? '❌ MISSING (REQUIRED)' : '⚠️  NOT SET (OPTIONAL)');
-  
+
   console.log(`${status}: ${varName}`);
   console.log(`   Description: ${config.description}`);
   console.log(`   Used in: ${config.usedIn.join(', ')}`);
-  
+
   if (isSet) {
     // Show first few characters for verification (but not full value for security)
     const preview = value.length > 20 ? value.substring(0, 20) + '...' : value.substring(0, value.length);

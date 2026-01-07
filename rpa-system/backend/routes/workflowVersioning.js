@@ -2,7 +2,7 @@
 const { logger, getLogger } = require('../utils/logger');
 /**
  * Workflow Versioning API Routes
- * 
+ *
  * Endpoints for managing workflow versions, comparisons, and rollbacks
  */
 
@@ -65,10 +65,10 @@ router.post('/:workflowId/versions', requireVersioning, async (req, res) => {
 router.get('/:workflowId/versions', requireVersioning, async (req, res) => {
   try {
     const { workflowId } = req.params;
-    const { 
-      limit = 20, 
-      offset = 0, 
-      includeContent = false 
+    const {
+      limit = 20,
+      offset = 0,
+      includeContent = false
     } = req.query;
 
     const result = await workflowVersioningService.getWorkflowVersions(workflowId, {
@@ -80,7 +80,7 @@ router.get('/:workflowId/versions', requireVersioning, async (req, res) => {
     await auditLogger.logUserAction(
       req.user.id,
       'view_workflow_versions',
-      { 
+      {
         workflow_id: workflowId,
         versions_count: result.versions.length
       },
@@ -122,7 +122,7 @@ router.get('/:workflowId/versions/:versionNumber', requireVersioning, async (req
     await auditLogger.logUserAction(
       req.user.id,
       'view_workflow_version',
-      { 
+      {
         workflow_id: workflowId,
         version_number: parseInt(versionNumber)
       },
@@ -159,7 +159,7 @@ router.get('/:workflowId/versions/:fromVersion/compare/:toVersion', requireVersi
     await auditLogger.logUserAction(
       req.user.id,
       'compare_workflow_versions',
-      { 
+      {
         workflow_id: workflowId,
         from_version: parseInt(fromVersion),
         to_version: parseInt(toVersion)
@@ -228,7 +228,7 @@ router.get('/:workflowId/versions/statistics', requireVersioning, async (req, re
     await auditLogger.logUserAction(
       req.user.id,
       'view_version_statistics',
-      { 
+      {
         workflow_id: workflowId,
         total_versions: stats.total_versions
       },
@@ -264,7 +264,7 @@ router.post('/:workflowId/versions/:versionNumber/export', requireVersioning, as
     await auditLogger.logUserAction(
       req.user.id,
       'export_workflow_version',
-      { 
+      {
         workflow_id: workflowId,
         version_number: parseInt(versionNumber)
       },
@@ -308,8 +308,8 @@ router.post('/:workflowId/versions/auto', requireVersioning, async (req, res) =>
 
     res.json({
       success: true,
-      message: newVersion ? 
-        `Auto-version ${newVersion.version_number} created` : 
+      message: newVersion ?
+        `Auto-version ${newVersion.version_number} created` :
         'No changes detected, auto-version not created',
       data: newVersion
     });
@@ -331,9 +331,9 @@ router.post('/:workflowId/versions/auto', requireVersioning, async (req, res) =>
 router.delete('/:workflowId/versions/cleanup', requireVersioning, async (req, res) => {
   try {
     const { workflowId } = req.params;
-    const { 
-      keepLast = 50, 
-      keepDays = 365 
+    const {
+      keepLast = 50,
+      keepDays = 365
     } = req.body;
 
     const result = await workflowVersioningService.cleanupOldVersions(workflowId, {
@@ -344,7 +344,7 @@ router.delete('/:workflowId/versions/cleanup', requireVersioning, async (req, re
     await auditLogger.logUserAction(
       req.user.id,
       'cleanup_workflow_versions',
-      { 
+      {
         workflow_id: workflowId,
         versions_cleaned: result.cleaned,
         versions_kept: result.kept
@@ -385,7 +385,7 @@ router.get('/:workflowId/versions/:versionNumber/preview', requireVersioning, as
     }
 
     const currentVersion = versions[0];
-    
+
     // Compare target version with current
     const comparison = await workflowVersioningService.compareVersions(
       workflowId,
@@ -396,7 +396,7 @@ router.get('/:workflowId/versions/:versionNumber/preview', requireVersioning, as
     await auditLogger.logUserAction(
       req.user.id,
       'preview_rollback',
-      { 
+      {
         workflow_id: workflowId,
         current_version: currentVersion.version_number,
         target_version: parseInt(versionNumber)

@@ -6,7 +6,7 @@ const logger = createLogger('service.decisionLogs');
 /**
  * Decision Log Service
  * Logs decisions made during workflow execution, explaining "why" something happened
- * 
+ *
  * Example logs:
  * - "Routed to Sales team because: Contract value ($6,000) > VIP threshold ($5,000)"
  * - "Sent to accounting@company.com because: Invoice amount ($750) > $500 threshold"
@@ -73,11 +73,11 @@ class DecisionLogService {
         return null;
       }
 
-      logger.debug('Logged decision', { 
-        logId: data.id, 
-        executionId, 
-        decisionType, 
-        reason: reason.substring(0, 50) 
+      logger.debug('Logged decision', {
+        logId: data.id,
+        executionId,
+        decisionType,
+        reason: reason.substring(0, 50)
       });
       return data;
     } catch (error) {

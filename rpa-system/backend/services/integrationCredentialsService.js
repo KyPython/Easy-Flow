@@ -23,13 +23,13 @@ class IntegrationCredentialsService {
   _encrypt(plaintext) {
     const iv = crypto.randomBytes(16);
     const key = Buffer.from(ENCRYPTION_KEY.slice(0, 64), 'hex'); // Use first 32 bytes
-    
+
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
     let encrypted = cipher.update(JSON.stringify(plaintext), 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    
+
     const authTag = cipher.getAuthTag();
-    
+
     return {
       encrypted: encrypted,
       iv: iv.toString('hex'),
@@ -45,13 +45,13 @@ class IntegrationCredentialsService {
     const key = Buffer.from(ENCRYPTION_KEY.slice(0, 64), 'hex');
     const iv = Buffer.from(encryptedData.iv, 'hex');
     const authTag = Buffer.from(encryptedData.authTag, 'hex');
-    
+
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);
-    
+
     let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return JSON.parse(decrypted);
   }
 
@@ -64,10 +64,10 @@ class IntegrationCredentialsService {
    */
   async storeCredentials(userId, service, credentials, options = {}) {
     const { displayName = null, expiresAt = null } = options;
-    
+
     // Encrypt credentials
     const encrypted = this._encrypt(credentials);
-    
+
     // Check if credentials already exist
     const { data: existing } = await this.supabase
       .from('integration_credentials')
@@ -75,7 +75,7 @@ class IntegrationCredentialsService {
       .eq('user_id', userId)
       .eq('service', service)
       .maybeSingle();
-    
+
     const data = {
       user_id: userId,
       service,
@@ -85,7 +85,7 @@ class IntegrationCredentialsService {
       is_active: true,
       updated_at: new Date().toISOString()
     };
-    
+
     let result;
     if (existing) {
       // Update existing
@@ -103,12 +103,12 @@ class IntegrationCredentialsService {
         .select()
         .single();
     }
-    
+
     if (result.error) {
       logger.error('[IntegrationCredentials] Failed to store credentials:', result.error);
       throw new Error(`Failed to store credentials: ${result.error.message}`);
     }
-    
+
     return result.data;
   }
 
@@ -125,19 +125,19 @@ class IntegrationCredentialsService {
       .eq('service', service)
       .eq('is_active', true)
       .maybeSingle();
-    
+
     if (error) {
       logger.error('[IntegrationCredentials] Failed to retrieve credentials:', error);
       throw new Error(`Failed to retrieve credentials: ${error.message}`);
     }
-    
+
     if (!data) {
       return null;
     }
-    
+
     // Decrypt credentials
     const decrypted = this._decrypt(data.credentials_encrypted);
-    
+
     return {
       id: data.id,
       service: data.service,
@@ -162,12 +162,12 @@ class IntegrationCredentialsService {
       .select('id, service, display_name, is_active, last_used_at, last_tested_at, test_status, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-    
+
     if (error) {
       logger.error('[IntegrationCredentials] Failed to list integrations:', error);
       throw new Error(`Failed to list integrations: ${error.message}`);
     }
-    
+
     return data || [];
   }
 
@@ -178,19 +178,19 @@ class IntegrationCredentialsService {
    */
   async testConnection(userId, service) {
     const credentials = await this.getCredentials(userId, service);
-    
+
     if (!credentials) {
       throw new Error(`No credentials found for ${service}`);
     }
-    
+
     try {
       // Import the appropriate integration
       const IntegrationClass = this._getIntegrationClass(service);
       const integration = new IntegrationClass();
-      
+
       // Test authentication
       await integration.authenticate(credentials.credentials);
-      
+
       // Update test status
       await this.supabase
         .from('integration_credentials')
@@ -199,7 +199,7 @@ class IntegrationCredentialsService {
           last_tested_at: new Date().toISOString()
         })
         .eq('id', credentials.id);
-      
+
       return { success: true, message: `Connection to ${service} successful` };
     } catch (error) {
       // Update test status
@@ -210,12 +210,12 @@ class IntegrationCredentialsService {
           last_tested_at: new Date().toISOString()
         })
         .eq('id', credentials.id);
-      
+
       logger.error(`[IntegrationCredentials] Connection test failed for ${service}:`, error);
-      
+
       // Format error message to be more user-friendly
       let errorMessage = error.message;
-      
+
       // Gmail API not enabled
       if (error.message?.includes('Gmail API has not been used') || error.message?.includes('Gmail API') && error.message?.includes('disabled')) {
         const projectIdMatch = error.message.match(/project (\d+)/);
@@ -240,7 +240,7 @@ class IntegrationCredentialsService {
         const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
         errorMessage = `Google Meet API is not enabled. Enable it at: https://console.cloud.google.com/apis/api/meet.googleapis.com/overview?project=${projectId}`;
       }
-      
+
       return { success: false, error: errorMessage };
     }
   }
@@ -256,12 +256,12 @@ class IntegrationCredentialsService {
       .delete()
       .eq('user_id', userId)
       .eq('service', service);
-    
+
     if (error) {
       logger.error('[IntegrationCredentials] Failed to delete credentials:', error);
       throw new Error(`Failed to delete credentials: ${error.message}`);
     }
-    
+
     return { success: true };
   }
 
@@ -291,12 +291,12 @@ class IntegrationCredentialsService {
         whatsapp: require('./integrations/whatsappIntegration'),
         notion: require('./integrations/notionIntegration')
       };
-    
+
     const IntegrationClass = integrations[service];
     if (!IntegrationClass) {
       throw new Error(`Integration not found for service: ${service}`);
     }
-    
+
     return IntegrationClass;
   }
 
@@ -309,7 +309,7 @@ class IntegrationCredentialsService {
    */
   async storeOAuthState(userId, service, redirectUri, metadata = {}) {
     const stateToken = crypto.randomBytes(32).toString('hex');
-    
+
     const { data, error } = await this.supabase
       .from('integration_oauth_states')
       .insert({
@@ -322,12 +322,12 @@ class IntegrationCredentialsService {
       })
       .select()
       .single();
-    
+
     if (error) {
       logger.error('[IntegrationCredentials] Failed to store OAuth state:', error);
       throw new Error(`Failed to store OAuth state: ${error.message}`);
     }
-    
+
     return data.state_token;
   }
 
@@ -338,23 +338,23 @@ class IntegrationCredentialsService {
    */
   async validateOAuthState(stateToken, options = {}) {
     const { peek = false } = options;
-    
+
     const { data, error } = await this.supabase
       .from('integration_oauth_states')
       .select('*')
       .eq('state_token', stateToken)
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
-    
+
     if (error) {
       logger.error('[IntegrationCredentials] Failed to validate OAuth state:', error);
       throw new Error(`Failed to validate OAuth state: ${error.message}`);
     }
-    
+
     if (!data) {
       return null; // Expired or invalid
     }
-    
+
     // Delete used state only if not peeking
     if (!peek) {
       await this.supabase
@@ -362,7 +362,7 @@ class IntegrationCredentialsService {
         .delete()
         .eq('id', data.id);
     }
-    
+
     return data;
   }
 }

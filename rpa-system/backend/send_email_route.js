@@ -29,7 +29,7 @@ const getFromAddress = () => {
 };
 
 if (SENDGRID_API_KEY) {
-	try { sgMail.setApiKey(SENDGRID_API_KEY); } catch (_) {}
+	try { sgMail.setApiKey(SENDGRID_API_KEY); } catch (_e) { /* ignore */ }
 }
 
 // Health check
@@ -63,8 +63,8 @@ router.post('/send', async (req, res) => {
 			// Use the email template from utils if available
 			try {
 				const { getAutomationTipsEmail } = require('./utils/emailTemplates');
-				const emailTemplate = getAutomationTipsEmail({ 
-					email: to_email, 
+				const emailTemplate = getAutomationTipsEmail({
+					email: to_email,
 					source: data?.source || 'unknown',
 					userPlan: data?.userPlan || 'hobbyist'
 				});

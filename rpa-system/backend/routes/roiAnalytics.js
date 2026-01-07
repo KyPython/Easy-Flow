@@ -35,7 +35,7 @@ router.get('/dashboard', requireFeature('advanced_analytics'), async (req, res) 
       '90d': 90,
       '365d': 365
     };
-    
+
     const days = timeframes[timeframe] || 30;
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
@@ -43,7 +43,7 @@ router.get('/dashboard', requireFeature('advanced_analytics'), async (req, res) 
     // Try workflow_executions first (newer table), fallback to automation_executions if it exists
     let automations = [];
     let automationError = null;
-    
+
     // Try workflow_executions table (primary)
     const { data: workflowExecs, error: workflowError } = await supabase
       .from('workflow_executions')
@@ -76,7 +76,7 @@ router.get('/dashboard', requireFeature('advanced_analytics'), async (req, res) 
         .eq('user_id', userId)
         .gte('created_at', startDate.toISOString())
         .order('created_at', { ascending: false });
-      
+
       if (legacyError) {
         // If both tables fail, log but continue with empty array
         logger.warn('Both workflow_executions and automation_executions queries failed', {
@@ -91,13 +91,13 @@ router.get('/dashboard', requireFeature('advanced_analytics'), async (req, res) 
 
     // Calculate ROI metrics
     const metrics = calculateROIMetrics(automations || []);
-    
+
     // Get cost analysis
     const costAnalysis = await calculateCostAnalysis(userId, days);
-    
+
     // Get productivity trends
     const trends = calculateProductivityTrends(automations || [], days);
-    
+
     // Get task type breakdown
     const taskTypeBreakdown = calculateTaskTypeBreakdown(automations || []);
 
@@ -129,7 +129,7 @@ router.get('/dashboard', requireFeature('advanced_analytics'), async (req, res) 
       stack: error.stack,
       userId: req.user?.id
     });
-    
+
     // Try to log system event (non-blocking)
     try {
       if (req.user?.id) {
@@ -141,8 +141,8 @@ router.get('/dashboard', requireFeature('advanced_analytics'), async (req, res) 
     } catch (auditError) {
       logger.warn('Failed to log system event (non-critical):', auditError);
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: 'Failed to generate ROI dashboard',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -178,7 +178,7 @@ router.get('/time-savings', requireFeature('advanced_analytics'), async (req, re
     // If task_type is provided, we'd need to join with workflows table
 
     const { data: executions, error } = await query.order('started_at', { ascending: false });
-    
+
     // Transform workflow_executions to match expected format
     const transformedExecutions = (executions || []).map(exec => ({
       ...exec,
@@ -230,8 +230,8 @@ router.get('/time-savings', requireFeature('advanced_analytics'), async (req, re
 
     timeSavingsAnalysis.total_time_saved_minutes = totalEstimatedSaved;
     timeSavingsAnalysis.total_time_saved_hours = Math.round((totalEstimatedSaved / 60) * 100) / 100;
-    timeSavingsAnalysis.average_time_per_automation = totalExecutions > 0 
-      ? Math.round((totalEstimatedSaved / totalExecutions) * 100) / 100 
+    timeSavingsAnalysis.average_time_per_automation = totalExecutions > 0
+      ? Math.round((totalEstimatedSaved / totalExecutions) * 100) / 100
       : 0;
 
     // Find most time-saving task type
@@ -283,10 +283,10 @@ router.get('/cost-benefit', requireFeature('advanced_analytics'), async (req, re
 
     const { timeframe = '30d' } = req.query;
     const days = parseInt(timeframe.replace('d', '')) || 30;
-    
+
     const supabase = getSupabase();
     if (!supabase) return res.status(503).json({ error: 'Supabase not configured on server' });
-    
+
     // Get user's plan for cost calculation (if RPC exists)
     let planData = null;
     try {
@@ -310,7 +310,7 @@ router.get('/cost-benefit', requireFeature('advanced_analytics'), async (req, re
       .select('*')
       .eq('user_id', userId)
       .gte('started_at', startDate.toISOString());
-    
+
     // Transform to match expected format
     const executions = (workflowExecs || []).map(exec => ({
       ...exec,
@@ -365,7 +365,7 @@ router.post('/custom-hourly-rate', requireFeature('advanced_analytics'), async (
     }
 
     const { hourly_rate } = req.body;
-    
+
     if (!hourly_rate || hourly_rate < 0 || hourly_rate > 1000) {
       return res.status(400).json({ error: 'Invalid hourly rate (must be between 0-1000)' });
     }
@@ -392,9 +392,9 @@ router.post('/custom-hourly-rate', requireFeature('advanced_analytics'), async (
       new_rate: hourly_rate
     }, req);
 
-    res.json({ 
-      success: true, 
-      hourly_rate: hourly_rate 
+    res.json({
+      success: true,
+      hourly_rate: hourly_rate
     });
   } catch (error) {
     logger.error('Failed to update hourly rate:', error);
@@ -427,9 +427,9 @@ router.get('/export', requireFeature('advanced_analytics'), async (req, res) => 
       .eq('user_id', userId)
       .gte('started_at', startDate.toISOString())
       .order('started_at', { ascending: false });
-    
+
     if (execError) throw execError;
-    
+
     // Transform to match expected format
     const executions = (workflowExecs || []).map(exec => ({
       ...exec,
@@ -499,7 +499,7 @@ function calculateROIMetrics(executions) {
     // Handle both execution_time (legacy) and duration_seconds (workflow_executions)
     const execTime = exec.execution_time || exec.duration_seconds || 0;
     totalExecutionTime += execTime;
-    
+
     // Get time saved - use estimated_time_saved if available, otherwise default
     const timeSaved = exec.estimated_time_saved || getDefaultTimeSaving(exec.task_type || 'workflow');
     totalTimeSaved += timeSaved;
@@ -511,7 +511,7 @@ function calculateROIMetrics(executions) {
   }
 
   metrics.total_time_saved_minutes = totalTimeSaved;
-  
+
   // Productivity score (0-100 based on time saved vs execution time)
   if (totalExecutionTime > 0) {
     metrics.productivity_score = Math.min(100, Math.round((totalTimeSaved * 60) / totalExecutionTime));
@@ -534,7 +534,7 @@ async function calculateCostAnalysis(userId, days) {
 
 function calculateProductivityTrends(executions, days) {
   const dailyStats = {};
-  
+
   executions.forEach(exec => {
     // Handle both created_at and started_at fields
     const dateField = exec.created_at || exec.started_at;
@@ -543,11 +543,11 @@ function calculateProductivityTrends(executions, days) {
     if (!dailyStats[day]) {
       dailyStats[day] = { count: 0, time_saved: 0, avg_execution_time: 0, total_execution_time: 0 };
     }
-    
+
     dailyStats[day].count++;
     const timeSaved = exec.estimated_time_saved || getDefaultTimeSaving(exec.task_type || 'workflow');
     dailyStats[day].time_saved += timeSaved;
-    
+
     // Handle both execution_time (legacy) and duration_seconds (workflow_executions)
     const execTime = exec.execution_time || exec.duration_seconds || 0;
     dailyStats[day].total_execution_time += execTime;
@@ -564,11 +564,11 @@ function calculateProductivityTrends(executions, days) {
 
 function calculateTaskTypeBreakdown(executions) {
   const breakdown = {};
-  
+
   executions.forEach(exec => {
     // Use task_type if available, otherwise default to 'workflow'
     const taskType = exec.task_type || 'workflow';
-    
+
     if (!breakdown[taskType]) {
       breakdown[taskType] = {
         count: 0,
@@ -578,19 +578,19 @@ function calculateTaskTypeBreakdown(executions) {
         total_execution_time: 0
       };
     }
-    
+
     const stats = breakdown[taskType];
     stats.count++;
-    
+
     // Handle different status values
     const status = exec.status?.toLowerCase() || '';
     if (status === 'completed' || status === 'success' || status === 'finished') {
       stats.success_count++;
     }
-    
+
     const timeSaved = exec.estimated_time_saved || getDefaultTimeSaving(taskType);
     stats.total_time_saved += timeSaved;
-    
+
     // Handle both execution_time (legacy) and duration_seconds (workflow_executions)
     const execTime = exec.execution_time || exec.duration_seconds || 0;
     stats.total_execution_time += execTime;
@@ -616,18 +616,18 @@ function getDefaultTimeSaving(taskType) {
     'email_automation': 12, // 12 minutes
     'file_processing': 20 // 20 minutes
   };
-  
+
   return defaults[taskType] || 10; // Default 10 minutes
 }
 
 function convertExecutionsToCSV(executions) {
   const headers = [
-    'id', 'task_type', 'status', 'execution_time_seconds', 
+    'id', 'task_type', 'status', 'execution_time_seconds',
     'estimated_time_saved_minutes', 'created_at', 'result_summary'
   ];
-  
+
   const csvRows = [headers.join(',')];
-  
+
   executions.forEach(exec => {
     const row = [
       exec.id || '',
@@ -638,7 +638,7 @@ function convertExecutionsToCSV(executions) {
       exec.created_at || '',
       (exec.result && typeof exec.result === 'object' ? JSON.stringify(exec.result).substring(0, 100) : exec.result || '')
     ];
-    
+
     const escapedRow = row.map(field => {
       const fieldStr = String(field);
       if (fieldStr.includes(',') || fieldStr.includes('"')) {
@@ -646,10 +646,10 @@ function convertExecutionsToCSV(executions) {
       }
       return fieldStr;
     });
-    
+
     csvRows.push(escapedRow.join(','));
   });
-  
+
   return csvRows.join('\n');
 }
 

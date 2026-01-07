@@ -18,26 +18,26 @@ class GmailIntegration {
    */
   async authenticate(credentials) {
     const { accessToken, refreshToken, clientId, clientSecret } = credentials;
-    
+
     this.oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
       'urn:ietf:wg:oauth:2.0:oob' // Redirect URI for installed apps
     );
-    
+
     this.oauth2Client.setCredentials({
       access_token: accessToken,
       refresh_token: refreshToken
     });
-    
+
     // Refresh token if needed
     if (!accessToken && refreshToken) {
       const { credentials: newCredentials } = await this.oauth2Client.refreshAccessToken();
       this.oauth2Client.setCredentials(newCredentials);
     }
-    
+
     this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
-    
+
     // Verify authentication
     try {
       const profile = await this.gmail.users.getProfile({ userId: 'me' });
@@ -47,26 +47,26 @@ class GmailIntegration {
     } catch (error) {
       // Provide helpful error messages for common issues
       let errorMessage = error.message;
-      
+
       if (error.message?.includes('has not been used') || error.message?.includes('is disabled')) {
         // Extract project ID from error message if available
         const projectIdMatch = error.message.match(/project (\d+)/);
         const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
-        
-        errorMessage = `Gmail API is not enabled in your Google Cloud project. ` +
+
+        errorMessage = 'Gmail API is not enabled in your Google Cloud project. ' +
           `Please enable it at: https://console.cloud.google.com/apis/api/gmail.googleapis.com/overview?project=${projectId} ` +
-          `If you just enabled it, wait a few minutes and try again.`;
+          'If you just enabled it, wait a few minutes and try again.';
       } else if (error.message?.includes('invalid_grant') || error.message?.includes('token')) {
-        errorMessage = `Gmail authentication token expired or invalid. Please reconnect the integration.`;
+        errorMessage = 'Gmail authentication token expired or invalid. Please reconnect the integration.';
       } else if (error.message?.includes('insufficient')) {
-        errorMessage = `Insufficient permissions for Gmail. Please reconnect and grant all required permissions.`;
+        errorMessage = 'Insufficient permissions for Gmail. Please reconnect and grant all required permissions.';
       }
-      
+
       logger.error('[GmailIntegration] Authentication failed:', {
         error: error.message,
         code: error.code
       });
-      
+
       throw new Error(`Gmail authentication failed: ${errorMessage}`);
     }
   }
@@ -77,19 +77,19 @@ class GmailIntegration {
    */
   async sendEmail(data) {
     const { to, subject, body, html, attachments = [] } = data;
-    
+
     // Build email message
     const messageParts = [];
-    
+
     // Headers
     messageParts.push(`To: ${Array.isArray(to) ? to.join(', ') : to}`);
     messageParts.push(`Subject: ${subject}`);
     messageParts.push('Content-Type: text/html; charset=utf-8');
     messageParts.push('');
-    
+
     // Body
     messageParts.push(html || body.replace(/\n/g, '<br>'));
-    
+
     // Create message
     const message = messageParts.join('\n');
     const encodedMessage = Buffer.from(message)
@@ -97,14 +97,14 @@ class GmailIntegration {
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
-    
+
     const response = await this.gmail.users.messages.send({
       userId: 'me',
       requestBody: {
         raw: encodedMessage
       }
     });
-    
+
     return {
       success: true,
       id: response.data.id,
@@ -118,7 +118,7 @@ class GmailIntegration {
    */
   async readEmails(params = {}) {
     const { query = '', maxResults = 10, labelIds = ['INBOX'] } = params;
-    
+
     // List messages
     const listResponse = await this.gmail.users.messages.list({
       userId: 'me',
@@ -126,9 +126,9 @@ class GmailIntegration {
       maxResults,
       labelIds
     });
-    
+
     const messages = listResponse.data.messages || [];
-    
+
     // Get full message details
     const emailDetails = await Promise.all(
       messages.map(async (msg) => {
@@ -137,11 +137,11 @@ class GmailIntegration {
           id: msg.id,
           format: 'full'
         });
-        
+
         return this._parseMessage(messageResponse.data);
       })
     );
-    
+
     return {
       success: true,
       emails: emailDetails,
@@ -159,10 +159,10 @@ class GmailIntegration {
       id: messageId,
       format: 'full'
     });
-    
+
     const attachments = [];
     const parts = messageResponse.data.payload?.parts || [];
-    
+
     for (const part of parts) {
       if (part.filename && part.body?.attachmentId) {
         const attachmentResponse = await this.gmail.users.messages.attachments.get({
@@ -170,7 +170,7 @@ class GmailIntegration {
           messageId,
           id: part.body.attachmentId
         });
-        
+
         attachments.push({
           filename: part.filename,
           mimeType: part.mimeType,
@@ -179,7 +179,7 @@ class GmailIntegration {
         });
       }
     }
-    
+
     return {
       success: true,
       attachments,
@@ -193,20 +193,20 @@ class GmailIntegration {
    * @param {Object} params - { keywords?, since?, maxResults? }
    */
   async collectFeedback(params = {}) {
-    const { 
+    const {
       keywords = ['feedback', 'suggestion', 'improve', 'issue', 'problem', 'love', 'hate', 'review'],
       since = null,
       maxResults = 50
     } = params;
-    
+
     // Build query
     let query = keywords.map(k => `"${k}"`).join(' OR ');
     if (since) {
       query += ` after:${Math.floor(new Date(since).getTime() / 1000)}`;
     }
-    
+
     const emailsResult = await this.readEmails({ query, maxResults });
-    
+
     // Extract structured feedback
     const feedback = emailsResult.emails.map(email => ({
       id: email.id,
@@ -217,7 +217,7 @@ class GmailIntegration {
       timestamp: email.timestamp,
       attachments: email.hasAttachments
     }));
-    
+
     return {
       success: true,
       feedback,
@@ -232,12 +232,12 @@ class GmailIntegration {
   _parseMessage(message) {
     const headers = message.payload?.headers || [];
     const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || '';
-    
+
     // Extract body
     let body = '';
     let html = '';
     const parts = message.payload?.parts || [];
-    
+
     const extractBody = (part) => {
       if (part.body?.data) {
         const data = Buffer.from(part.body.data, 'base64').toString('utf-8');
@@ -247,18 +247,18 @@ class GmailIntegration {
           body = data;
         }
       }
-      
+
       if (part.parts) {
         part.parts.forEach(extractBody);
       }
     };
-    
+
     if (message.payload.body?.data) {
       body = Buffer.from(message.payload.body.data, 'base64').toString('utf-8');
     }
-    
+
     parts.forEach(extractBody);
-    
+
     return {
       id: message.id,
       threadId: message.threadId,

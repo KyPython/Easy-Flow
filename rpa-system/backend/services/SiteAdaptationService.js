@@ -10,7 +10,7 @@ const { getSupabase } = require('../utils/supabaseClient');
 class SiteAdaptationService {
   constructor() {
     this.supabase = getSupabase();
-    
+
     // Learning patterns for site changes
     this.adaptationStrategies = {
       selectorVariations: [
@@ -120,12 +120,12 @@ class SiteAdaptationService {
 
       // Try to find alternative selectors based on page structure
       const alternativeSelectors = await this._findAlternativeSelectors(pageStructure);
-      
+
       if (alternativeSelectors.length > 0) {
         logger.info('[SiteAdaptation] Found alternative selectors', {
           count: alternativeSelectors.length
         });
-        
+
         // Store alternatives for next attempt
         await this.supabase
           .from('site_adaptations')
@@ -253,7 +253,7 @@ class SiteAdaptationService {
 
       // Try alternative selectors
       const alternatives = await this._findAlternativeSelectors(pageStructure);
-      
+
       // Try fallback strategies
       const fallbacks = this.adaptationStrategies.fallbackSelectors;
 
@@ -284,7 +284,7 @@ class SiteAdaptationService {
    */
   async _findAlternativeSelectors(pageStructure) {
     const alternatives = [];
-    
+
     // Analyze page structure for potential selectors
     if (pageStructure?.forms) {
       for (const form of pageStructure.forms) {
@@ -311,14 +311,14 @@ class SiteAdaptationService {
    */
   _generateSelectorVariations(originalSelector) {
     const variations = [];
-    
+
     // Try different attribute combinations
     if (originalSelector.includes('#')) {
       const id = originalSelector.replace('#', '');
       variations.push(`[id="${id}"]`);
       variations.push(`input#${id}`);
     }
-    
+
     if (originalSelector.includes('.')) {
       const className = originalSelector.replace('.', '');
       variations.push(`[class*="${className}"]`);
@@ -337,7 +337,7 @@ class SiteAdaptationService {
     // Simple similarity based on key elements
     const keys1 = Object.keys(structure1);
     const keys2 = Object.keys(structure2);
-    
+
     const commonKeys = keys1.filter(k => keys2.includes(k));
     const similarity = commonKeys.length / Math.max(keys1.length, keys2.length);
 

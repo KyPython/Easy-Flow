@@ -4,20 +4,17 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { logger, getLogger } = require('./utils/logger');
 // ✅ OBSERVABILITY: Initialize OpenTelemetry FIRST (before anything else)
 // All telemetry flows through OpenTelemetry -> OTEL Collector -> Prometheus/Tempo/Grafana
-if (process.env.DISABLE_TELEMETRY !== 'true') {
-  try {
-    logger.info('[server] Initializing OpenTelemetry...');
-    require('./middleware/telemetryInit');
-    logger.info('[server] ✅ OpenTelemetry initialized - traces flowing to Tempo, metrics to Prometheus');
-  } catch (e) {
-    logger.error('[server] ❌ OpenTelemetry initialization failed - observability disabled', {
-      error: e?.message,
-      stack: e?.stack,
-      code: e?.code
-    });
-  }
-} else {
-  logger.info('[server] Telemetry disabled via DISABLE_TELEMETRY=true');
+// Telemetry is ALWAYS enabled - DISABLE_TELEMETRY is ignored
+try {
+  logger.info('[server] Initializing OpenTelemetry...');
+  require('./middleware/telemetryInit');
+  logger.info('[server] ✅ OpenTelemetry initialized - traces flowing to Tempo, metrics to Prometheus');
+} catch (e) {
+  logger.error('[server] ❌ OpenTelemetry initialization failed - observability disabled', {
+    error: e?.message,
+    stack: e?.stack,
+    code: e?.code
+  });
 }
 
 // Initialize New Relic monitoring SECOND (if needed)
@@ -42,20 +39,20 @@ if (require.main === module) {
   (async () => {
     try {
       logger.info('[server] Starting database warm-up process...');
-      
+
       const { getSupabase } = require('./utils/supabaseClient');
       const supabase = getSupabase();
-      
+
       if (supabase) {
         logger.info('[server] Warming up database connection before accepting requests...');
-        
+
         // Simple, fast query to wake up the database connection
         // This blocks startup until database is ready, ensuring first request succeeds
         const { error } = await supabase
           .from('workflows')
           .select('id')
           .limit(1);
-        
+
         if (error) {
           logger.error('[server] ❌ Database warm-up failed - server will not start', {
             error: error.message,
@@ -64,25 +61,25 @@ if (require.main === module) {
           });
           process.exit(1); // Fail loudly - don't start in broken state
         }
-        
+
         logger.info('[server] ✅ Database warm-up completed - connection ready');
       } else {
         logger.warn('[server] ⚠️ Supabase not configured - skipping database warm-up');
       }
-      
+
       // ✅ RAG INITIALIZATION: Seed knowledge base on startup (non-blocking)
       // This ensures the AI assistant has access to EasyFlow knowledge
       if (process.env.RAG_AUTO_SEED !== 'false') {
         try {
           const ragClient = require('./services/ragClient');
           const aiAgent = require('./services/aiWorkflowAgent');
-          
+
           // Initialize RAG knowledge asynchronously (don't block server startup)
           setImmediate(async () => {
             try {
               logger.info('[server] 🧠 Initializing RAG knowledge base...');
               const result = await aiAgent.initializeKnowledge();
-              
+
               if (result.success) {
                 logger.info('[server] ✅ RAG knowledge base initialized', {
                   method: result.method,
@@ -111,7 +108,7 @@ if (require.main === module) {
       } else {
         logger.info('[server] RAG auto-seeding disabled (RAG_AUTO_SEED=false)');
       }
-      
+
       // Start server only after database is ready (or confirmed not needed)
       app.listen(PORT, HOST, () => {
         logger.info(`[server] EasyFlow backend listening on http://${HOST}:${PORT}`, {
@@ -119,9 +116,9 @@ if (require.main === module) {
           host: HOST,
           environment: process.env.NODE_ENV || 'development'
         });
-        logger.info(`[server] Ready to accept requests - database connection established`);
+        logger.info('[server] Ready to accept requests - database connection established');
       });
-      
+
     } catch (error) {
       logger.fatal('[server] ❌ Failed to start server', {
         error: error?.message || String(error),

@@ -183,7 +183,7 @@ router.post('/complete-referral', async (req, res) => {
 async function grantReferralReward(userId) {
   try {
     const supabase = getSupabaseClient();
-    
+
     // Get user's current plan
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -199,7 +199,7 @@ async function grantReferralReward(userId) {
     // Calculate new expiration date (extend by 1 month)
     let newExpirationDate;
     const currentExpiration = profile.plan_expires_at ? new Date(profile.plan_expires_at) : new Date();
-    
+
     // If plan already expired or expiring soon, start from now
     if (currentExpiration <= new Date()) {
       newExpirationDate = new Date();

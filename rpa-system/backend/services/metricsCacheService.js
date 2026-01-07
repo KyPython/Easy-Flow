@@ -12,9 +12,9 @@ const logger = createLogger('service.metricsCache');
 class MetricsCacheService {
   constructor() {
     // Path to the metrics file (can be overridden via env var)
-    this.metricsPath = process.env.EASYFLOW_METRICS_PATH || 
+    this.metricsPath = process.env.EASYFLOW_METRICS_PATH ||
       '/Users/ky/easyflow-metrics/latest_metrics.json';
-    
+
     this.cache = null;
     this.cacheTimestamp = 0;
     this.cacheDuration = 60 * 1000; // 1 minute cache
@@ -27,7 +27,7 @@ class MetricsCacheService {
   async getMetrics() {
     try {
       const now = Date.now();
-      
+
       // Return cached version if fresh
       if (this.cache && (now - this.cacheTimestamp) < this.cacheDuration) {
         return this.cache;
@@ -41,7 +41,7 @@ class MetricsCacheService {
       this.cache = metrics;
       this.cacheTimestamp = now;
 
-      logger.debug('Loaded metrics from file', { 
+      logger.debug('Loaded metrics from file', {
         path: this.metricsPath,
         timestamp: new Date(this.cacheTimestamp).toISOString()
       });
@@ -49,14 +49,14 @@ class MetricsCacheService {
       return metrics;
     } catch (error) {
       if (error.code === 'ENOENT') {
-        logger.warn('Metrics file not found, returning null', { 
+        logger.warn('Metrics file not found, returning null', {
           path: this.metricsPath,
           hint: 'Run morning_metrics.py to generate latest_metrics.json'
         });
         return null;
       }
 
-      logger.error('Error loading metrics from file:', { 
+      logger.error('Error loading metrics from file:', {
         error: error.message,
         path: this.metricsPath
       });
@@ -74,7 +74,7 @@ class MetricsCacheService {
 
     const keys = path.split('.');
     let value = metrics;
-    
+
     for (const key of keys) {
       if (value && typeof value === 'object' && key in value) {
         value = value[key];

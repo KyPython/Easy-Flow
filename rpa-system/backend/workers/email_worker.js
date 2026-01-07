@@ -144,7 +144,7 @@ async function handleItem(item) {
     });
     let sent = false;
     let lastError = null;
-    
+
     // Priority 1: Use SendGrid directly if configured
     if (sgMail && SENDGRID_FROM_EMAIL) {
       try {
@@ -180,7 +180,7 @@ async function handleItem(item) {
       } catch (e) {
         lastError = e;
         const errorMsg = e?.response?.body?.errors?.map(err => err.message).join('; ') || e?.message || 'SendGrid send failed';
-        logger.error(`[email_worker] ❌ SendGrid send failed`, {
+        logger.error('[email_worker] ❌ SendGrid send failed', {
           error: errorMsg,
           to_email: item.to_email,
           template: item.template,
@@ -194,7 +194,7 @@ async function handleItem(item) {
       // ✅ FIX: Add retry logic with exponential backoff
       const maxRetries = 3;
       const baseDelay = 1000; // 1 second
-      
+
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           const secret = process.env.SEND_EMAIL_WEBHOOK_SECRET;
@@ -206,7 +206,7 @@ async function handleItem(item) {
           await axios.post(
             SEND_EMAIL_WEBHOOK,
             { to_email: item.to_email, template: item.template, data: item.data },
-            { 
+            {
               // Add retry-specific timeout - longer on later attempts
               timeout: attempt === 1 ? 15000 : 20000,
               headers
@@ -217,12 +217,12 @@ async function handleItem(item) {
           break; // Success - exit retry loop
         } catch (e) {
           lastError = e;
-          const isRetryable = e.code === 'ECONNRESET' || 
-                             e.code === 'ETIMEDOUT' || 
+          const isRetryable = e.code === 'ECONNRESET' ||
+                             e.code === 'ETIMEDOUT' ||
                              e.code === 'ENOTFOUND' ||
                              (e.response && e.response.status >= 500) ||
                              (e.response && e.response.status === 429);
-          
+
           if (!isRetryable || attempt === maxRetries) {
             // Not retryable or max retries reached
             logger.warn(`[email_worker] webhook send failed (attempt ${attempt}/${maxRetries})`, {
@@ -233,7 +233,7 @@ async function handleItem(item) {
             });
             break;
           }
-          
+
           // Calculate exponential backoff delay
           const delay = baseDelay * Math.pow(2, attempt - 1);
           logger.info(`[email_worker] Retrying email send (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`, {
@@ -279,21 +279,21 @@ async function handleItem(item) {
     } else {
       const attempts = (item.attempts || 0) + 1;
       // ✅ FIX: Better error message with details
-      const last_error = lastError 
+      const last_error = lastError
         ? `Send failed: ${lastError.message || lastError} (code: ${lastError.code || 'unknown'})`
         : 'Send failed: Unknown error';
       const status = attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
       const client = getSupabase();
       if (!client) return false;
-      
+
       // ✅ FIX: Store error details for debugging
-      const updateData = { 
-        attempts, 
-        last_error, 
+      const updateData = {
+        attempts,
+        last_error,
         status,
         last_attempted_at: new Date().toISOString()
       };
-      
+
       // Store full error details in metadata if available
       if (lastError) {
         try {
@@ -307,7 +307,7 @@ async function handleItem(item) {
           // Ignore metadata serialization errors
         }
       }
-      
+
       const { data: failData, error: failErr } = await client
         .from('email_queue')
         .update(updateData)
@@ -344,6 +344,7 @@ async function startEmailWorker() {
   }
   logger.info('[email_worker] starting (embedded=', !(require.main === module), ') poll interval', POLL_INTERVAL_MS, 'ms');
   let lastHeartbeat = Date.now();
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const ok = await processOne();
