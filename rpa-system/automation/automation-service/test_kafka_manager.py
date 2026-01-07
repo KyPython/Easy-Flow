@@ -25,8 +25,8 @@ class TestKafkaManager:
         assert KafkaManager is not None
 
     def test_placeholder(self):
-    """Placeholder test - replace with actual tests"""
-    assert True
+        """Placeholder test - replace with actual tests"""
+        assert True
 
 
 if __name__ == '__main__':

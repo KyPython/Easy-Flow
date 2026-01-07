@@ -163,6 +163,7 @@ console.log = (...args) => {
 // Polyfills for Node environment used by some integrations
 try {
  global.FormData = global.FormData || require('form-data');
+// eslint-disable-next-line no-empty
 } catch {}
 // minimal Blob polyfill
 global.Blob = global.Blob || class Blob {

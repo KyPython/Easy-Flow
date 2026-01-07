@@ -114,6 +114,7 @@ function validateReturnPath(path) {
   }
 
   // Block null bytes and control characters
+  // eslint-disable-next-line no-control-regex
   if (/[\x00-\x1F\x7F]/.test(trimmed)) {
     return { valid: false, error: 'Invalid characters in path' };
   }
@@ -127,7 +128,7 @@ function validateReturnPath(path) {
     '/auth/',
     '/login',
     '/signup',
-    '/',
+    '/'
   ];
 
   // Allow root path and paths starting with allowed prefixes

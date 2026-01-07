@@ -29,11 +29,11 @@ class TestGenericScraper:
         assert scraper is not None
 
     def test_scraper_has_methods(self):
-    """Test that scraper has required methods"""
-    if GenericScraper is None:
-    pytest.skip("GenericScraper not available")
+        """Test that scraper has required methods"""
+        if GenericScraper is None:
+            pytest.skip("GenericScraper not available")
 
-    scraper = GenericScraper()
+        scraper = GenericScraper()
     # Check for common scraper methods (adjust based on actual implementation)
     assert hasattr(scraper, '__init__')
 
