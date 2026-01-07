@@ -115,7 +115,7 @@ def scrape_web_page(url, task_data=None):
                 # Block localhost and private IP ranges
                 blocked_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1']
                 if hostname.lower() in blocked_hosts or hostname.startswith(
-                    '192.168.') or hostname.startswith('10.') or hostname.startswith('172.'):
+                        '192.168.') or hostname.startswith('10.') or hostname.startswith('172.'):
                     return {
                         'status': 'error',
                         'error': 'Access to private/internal IP addresses is not allowed for security reasons.'
@@ -138,17 +138,17 @@ def scrape_web_page(url, task_data=None):
                         elif isinstance(data, dict):
                             data = {k: data.get(k) for k in filters['fields']}
 
-    return {
-    'status': 'success',
-    'data': data,
-    'url': url,
-    'timestamp': datetime.now().isoformat(),
-    'content_type': response.headers.get('content-type', ''),
-    'response_code': response.status_code
-    }
-    except Exception as e:
+                return {
+                    'status': 'success',
+                    'data': data,
+                    'url': url,
+                    'timestamp': datetime.now().isoformat(),
+                    'content_type': response.headers.get('content-type', ''),
+                    'response_code': response.status_code
+                }
+        except Exception as e:
     logger.warning(
-    f"JSON extraction failed, falling back to HTML scraping: {e}")
+        f"JSON extraction failed, falling back to HTML scraping: {e}")
 
  # Continue with regular HTML scraping
     driver = create_webdriver()

@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class KafkaManager:
     """Refactored Kafka manager using aiokafka for non-blocking I/O"""
 
+
     def __init__(self):
         # Environment configuration
         self.kafka_enabled = os.getenv(
@@ -61,6 +62,7 @@ class KafkaManager:
 
         if self.kafka_enabled:
             logger.info(
+
                 f"📡 Bootstrap servers: {
                     ', '.join(
                         self.bootstrap_servers)}")
@@ -70,8 +72,10 @@ class KafkaManager:
     async def initialize(self):
         """Initialize Kafka connections with retry logic"""
 
+
         if not self.kafka_enabled:
             logger.info("🔇 Kafka disabled - running in standalone mode")
+
             return True
 
         logger.info("🚀 Initializing Kafka connections...")
@@ -79,15 +83,19 @@ class KafkaManager:
         # Initialize producer
         if await self._initialize_producer():
             logger.info("✅ Kafka producer initialized successfully")
+
         else:
             logger.error("❌ Failed to initialize Kafka producer")
+
             return False
 
         # Initialize consumer
         if await self._initialize_consumer():
             logger.info("✅ Kafka consumer initialized successfully")
+
         else:
             logger.error("❌ Failed to initialize Kafka consumer")
+
             return False
 
         self.is_healthy = True
@@ -97,136 +105,97 @@ class KafkaManager:
     def _calculate_backoff_delay(self, attempt: int) -> float:
         """Calculate exponential backoff delay"""
 
+
         delay = self.initial_retry_delay * (self.retry_multiplier ** attempt)
         return min(delay, self.max_retry_delay)
 
     async def _initialize_producer(self) -> bool:
         """Initialize AIOKafkaProducer with exponential backoff retry logic"""
 
+
         for attempt in range(self.retry_attempts):
+            try:
 
-        try:
+                logger.info(
 
-        logger.info(
+                    f"🔄 Producer initialization attempt {attempt + 1}/{self.retry_attempts}")
 
-        f"🔄 Producer initialization attempt {attempt + 1}/{self.retry_attempts}")
+                self.producer = AIOKafkaProducer(
+                    bootstrap_servers=self.bootstrap_servers,
+                    value_serializer=lambda x: json.dumps(x).encode('utf-8'),
+                    key_serializer=lambda x: x.encode('utf-8') if x else None
+                )
 
-        self.producer = AIOKafkaProducer(
+                await self.producer.start()
 
-        bootstrap_servers=self.bootstrap_servers,
-        value_serializer=lambda x: json.dumps(x).encode('utf-8'),
-        key_serializer=lambda x: x.encode('utf-8') if x else None
-        )
+                # Test connection by fetching metadata
+                # Note: list_topics() is not available on AIOKafkaProducer.
+                # A simple start() and stop() is sufficient for a health check.
+                await self.producer.stop()
+                await self.producer.start()
 
-
-        await self.producer.start()
-
-
-    # Test connection by fetching metadata
-    # Note: list_topics() is not available on AIOKafkaProducer.
-    # A simple start() and stop() is sufficient for a health check.
-        await self.producer.stop()
-
-        await self.producer.start()
-
-
-        return True
-
-        except NoBrokersAvailable:
-
-        logger.warning(
-
-        f"⚠️ No Kafka brokers available at {
-            self.bootstrap_servers}")
-        if attempt < self.retry_attempts - 1:
-
-        delay = self._calculate_backoff_delay(attempt)
-
-        logger.info(
-
-        f"⏱️ Retrying in {
-            delay:.1f} seconds with exponential backoff...")
-        await asyncio.sleep(delay)
-
-        except Exception as e:
-
-        logger.error(f"❌ Producer initialization error: {e}")
-
-        if attempt < self.retry_attempts - 1:
-
-        delay = self._calculate_backoff_delay(attempt)
-
-        logger.info(f"⏱️ Retrying in {delay:.1f} seconds...")
-
-        await asyncio.sleep(delay)
-
+                return True
+            except NoBrokersAvailable:
+                logger.warning(
+                    f"⚠️ No Kafka brokers available at {self.bootstrap_servers}")
+                if attempt < self.retry_attempts - 1:
+                    delay = self._calculate_backoff_delay(attempt)
+                    logger.info(
+                        f"⏱️ Retrying in {delay:.1f} seconds with exponential backoff...")
+                    await asyncio.sleep(delay)
+            except Exception as e:
+                logger.error(f"❌ Producer initialization error: {e}")
+                if attempt < self.retry_attempts - 1:
+                    delay = self._calculate_backoff_delay(attempt)
+                    logger.info(f"⏱️ Retrying in {delay:.1f} seconds...")
+                    await asyncio.sleep(delay)
         return False
 
 
     async def _initialize_consumer(self) -> bool:
         """Initialize AIOKafkaConsumer with exponential backoff retry logic"""
 
+
         for attempt in range(self.retry_attempts):
+            try:
+                logger.info(
+                    f"🔄 Consumer initialization attempt {attempt + 1}/{self.retry_attempts}")
 
-        try:
+                self.consumer = AIOKafkaConsumer(
+                    self.task_topic,
+                    bootstrap_servers=self.bootstrap_servers,
+                    group_id=self.consumer_group,
+                    value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+                    key_deserializer=lambda x: x.decode('utf-8') if x else None,
+                    auto_offset_reset='earliest',
+                )
 
-        logger.info(
+                await self.consumer.start()
 
-        f"🔄 Consumer initialization attempt {attempt + 1}/{self.retry_attempts}")
+                # Test connection by fetching partitions
+                partitions = await self.consumer.partitions_for_topic(self.task_topic)
+                logger.info(f"📋 Topic '{self.task_topic}' partitions: {partitions}")
 
-        self.consumer = AIOKafkaConsumer(
-
-        self.task_topic,
-        bootstrap_servers=self.bootstrap_servers,
-        group_id=self.consumer_group,
-        value_deserializer=lambda x: json.loads(x.decode('utf-8')),
-        key_deserializer=lambda x: x.decode('utf-8') if x else None,
-        auto_offset_reset='earliest',
-        )
-
-
-        await self.consumer.start()
-
-
-    # Test connection by fetching partitions
-        partitions = await self.consumer.partitions_for_topic(self.task_topic)
-
-        logger.info(f"📋 Topic '{self.task_topic}' partitions: {partitions}")
-
-
-        return True
-
-        except KafkaError as e:
-
-        logger.error(f"❌ Consumer initialization Kafka error: {e}")
-
-        if attempt < self.retry_attempts - 1:
-
-        delay = self._calculate_backoff_delay(attempt)
-
-        logger.info(
-
-        f"⏱️ Retrying in {
-            delay:.1f} seconds with exponential backoff...")
-        await asyncio.sleep(delay)
-
-        except Exception as e:
-
-        logger.error(f"❌ Consumer initialization error: {e}")
-
-        if attempt < self.retry_attempts - 1:
-
-        delay = self._calculate_backoff_delay(attempt)
-
-        logger.info(f"⏱️ Retrying in {delay:.1f} seconds...")
-
-        await asyncio.sleep(delay)
-
+                return True
+            except KafkaError as e:
+                logger.error(f"❌ Consumer initialization Kafka error: {e}")
+                if attempt < self.retry_attempts - 1:
+                    delay = self._calculate_backoff_delay(attempt)
+                    logger.info(
+                        f"⏱️ Retrying in {delay:.1f} seconds with exponential backoff...")
+                    await asyncio.sleep(delay)
+            except Exception as e:
+                logger.error(f"❌ Consumer initialization error: {e}")
+                if attempt < self.retry_attempts - 1:
+                    delay = self._calculate_backoff_delay(attempt)
+                    logger.info(f"⏱️ Retrying in {delay:.1f} seconds...")
+                    await asyncio.sleep(delay)
         return False
 
 
     def register_message_handler(self, task_type: str, handler: Callable):
         """Register a message handler for a specific task type"""
+
 
         self.message_handlers[task_type] = handler
         logger.info(f"📝 Registered handler for task type: {task_type}")
@@ -234,6 +203,7 @@ class KafkaManager:
 
     async def start_consumer_loop(self):
         """Start the main consumer loop using async iterator"""
+
 
         if not self.kafka_enabled or not self.consumer:
 
@@ -267,6 +237,7 @@ class KafkaManager:
     async def _process_message(self, message):
         """Process a single Kafka message with comprehensive span instrumentation"""
 
+
         message_start_time = time.time()
 
         trace_context = {}
@@ -296,32 +267,32 @@ class KafkaManager:
     # ✅ Create message processing span context with business attributes
         span_context = {
 
-        'operation': 'kafka_message_processing',
-        'task_id': task_id,
-        'task_type': task_type,
-        'span_start': datetime.now(timezone.utc).isoformat() + "Z",
-        'message_offset': getattr(message, 'offset', None),
-        'message_partition': getattr(message, 'partition', None),
-        # ✅ High-cardinality business attributes for filtering
-        **business_context
+            'operation': 'kafka_message_processing',
+            'task_id': task_id,
+            'task_type': task_type,
+            'span_start': datetime.now(timezone.utc).isoformat() + "Z",
+            'message_offset': getattr(message, 'offset', None),
+            'message_partition': getattr(message, 'partition', None),
+            # ✅ High-cardinality business attributes for filtering
+            **business_context
         }
 
 
     # ✅ Log message processing start with full span context
         print(json.dumps({
 
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "level": "info",
-        "logger": "automation.kafka_manager",
-        "message": "Kafka message processing started",
-        "span": span_context,
-        "kafka": {
-            "topic": getattr(message, 'topic', 'unknown'),
-            "partition": getattr(message, 'partition', None),
-            "offset": getattr(message, 'offset', None),
-            "messageSize": len(str(task_data)) if task_data else 0
-        },
-        "trace": trace_context
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "level": "info",
+            "logger": "automation.kafka_manager",
+            "message": "Kafka message processing started",
+            "span": span_context,
+            "kafka": {
+                "topic": getattr(message, 'topic', 'unknown'),
+                "partition": getattr(message, 'partition', None),
+                "offset": getattr(message, 'offset', None),
+                "messageSize": len(str(task_data)) if task_data else 0
+            },
+            "trace": trace_context
         }))
 
 
@@ -329,18 +300,18 @@ class KafkaManager:
 
         if handler:
 
-        # Execute handler within span context
+            # Execute handler within span context
         handler_start_time = time.time()
 
 
         print(json.dumps({
 
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "level": "info",
-        "logger": "automation.kafka_manager",
-        "message": f"Executing handler for task type: {task_type}",
-        "span": {**span_context, "handler_start": datetime.now(timezone.utc).isoformat() + "Z"},
-        "trace": trace_context
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "level": "info",
+            "logger": "automation.kafka_manager",
+            "message": f"Executing handler for task type: {task_type}",
+            "span": {**span_context, "handler_start": datetime.now(timezone.utc).isoformat() + "Z"},
+            "trace": trace_context
         }))
 
 
@@ -352,17 +323,17 @@ class KafkaManager:
 
         print(json.dumps({
 
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "level": "info",
-        "logger": "automation.kafka_manager",
-        "message": f"Handler execution completed for task type: {task_type}",
-        "span": {
-            **span_context,
-            "handler_duration": handler_duration,
-            "handler_status": "success"
-        },
-        "performance": {"handler_duration": handler_duration},
-        "trace": trace_context
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "level": "info",
+            "logger": "automation.kafka_manager",
+            "message": f"Handler execution completed for task type: {task_type}",
+            "span": {
+                **span_context,
+                "handler_duration": handler_duration,
+                "handler_status": "success"
+            },
+            "performance": {"handler_duration": handler_duration},
+            "trace": trace_context
         }))
 
 
@@ -372,36 +343,36 @@ class KafkaManager:
 
         print(json.dumps({
 
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "level": "warning",
-        "logger": "automation.kafka_manager",
-        "message": f"No handler found for task type: {task_type}",
-        "span": {**span_context, "handler_status": "no_handler_found"},
-        "trace": trace_context
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "level": "warning",
+            "logger": "automation.kafka_manager",
+            "message": f"No handler found for task type: {task_type}",
+            "span": {**span_context, "handler_status": "no_handler_found"},
+            "trace": trace_context
         }))
 
         await self.send_result(task_id,
 
-                           {'error': f'No handler for task type: {task_type}'},
-                           'failed', trace_context)
+                               {'error': f'No handler for task type: {task_type}'},
+                               'failed', trace_context)
 
     # ✅ Log successful message processing completion
         total_duration = time.time() - message_start_time
 
         print(json.dumps({
 
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "level": "info",
-        "logger": "automation.kafka_manager",
-        "message": "Kafka message processing completed successfully",
-        "span": {
-            **span_context,
-            "duration": total_duration,
-            "status": "success",
-            "span_end": datetime.now(timezone.utc).isoformat() + "Z"
-        },
-        "performance": {"total_duration": total_duration},
-        "trace": trace_context
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "level": "info",
+            "logger": "automation.kafka_manager",
+            "message": "Kafka message processing completed successfully",
+            "span": {
+                **span_context,
+                "duration": total_duration,
+                "status": "success",
+                "span_end": datetime.now(timezone.utc).isoformat() + "Z"
+            },
+            "performance": {"total_duration": total_duration},
+            "trace": trace_context
         }))
 
 
@@ -411,21 +382,21 @@ class KafkaManager:
 
         trace_context = self._extract_trace_context(
 
-        message.headers) if hasattr(
-        message, 'headers') else {}
+            message.headers) if hasattr(
+            message, 'headers') else {}
 
     # ✅ Structured error logging with correlation
         logger.error(json.dumps({
 
-        'level': 'error',
-        'message': 'Error processing Kafka message',
-        'error': {
-            'message': str(e),
-            'type': type(e).__name__
-        },
-        'task_id': task_id,
-        'timestamp': time.time(),
-        **trace_context
+            'level': 'error',
+            'message': 'Error processing Kafka message',
+            'error': {
+                'message': str(e),
+                'type': type(e).__name__
+            },
+            'task_id': task_id,
+            'timestamp': time.time(),
+            **trace_context
         }))
 
 
@@ -441,19 +412,20 @@ class KafkaManager:
                                                        Any]] = None) -> bool:
         """Send automation result back through Kafka with trace context"""
 
+
         if not self.kafka_enabled:
 
         print(json.dumps({
 
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "level": "info",
-        "logger": "automation.kafka_manager",
-        "message": "Kafka disabled, skipping result send",
-        "metadata": {
-            "taskId": task_id,
-            "status": status
-        },
-        "trace": trace_context or {}
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "level": "info",
+            "logger": "automation.kafka_manager",
+            "message": "Kafka disabled, skipping result send",
+            "metadata": {
+                "taskId": task_id,
+                "status": status
+            },
+            "trace": trace_context or {}
         }))
 
         return False
@@ -465,15 +437,15 @@ class KafkaManager:
 
         print(json.dumps({
 
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "level": "error",
-        "logger": "automation.kafka_manager",
-        "message": "Kafka producer not initialized",
-        "metadata": {
-            "taskId": task_id,
-            "status": status
-        },
-        "trace": trace_context or {}
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "level": "error",
+            "logger": "automation.kafka_manager",
+            "message": "Kafka producer not initialized",
+            "metadata": {
+                "taskId": task_id,
+                "status": status
+            },
+            "trace": trace_context or {}
         }))
 
         return False
@@ -494,10 +466,10 @@ class KafkaManager:
     # Create structured result message
         result_message = {
 
-        'task_id': task_id,
-        'status': status,
-        'data': result_data,
-        'timestamp': datetime.now(timezone.utc).isoformat() + "Z"
+            'task_id': task_id,
+            'status': status,
+            'data': result_data,
+            'timestamp': datetime.now(timezone.utc).isoformat() + "Z"
         }
 
 
@@ -506,26 +478,26 @@ class KafkaManager:
 
         print(json.dumps({
 
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "level": "info",
-        "logger": "automation.kafka_manager",
-        "message": "Sending result to Kafka topic",
-        "metadata": {
-            "topic": self.result_topic,
-            "taskId": task_id,
-            "status": status,
-            "messageSize": len(message),
-            "headerCount": len(headers)
-        },
-        "trace": trace_context or {}
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "level": "info",
+            "logger": "automation.kafka_manager",
+            "message": "Sending result to Kafka topic",
+            "metadata": {
+                "topic": self.result_topic,
+                "taskId": task_id,
+                "status": status,
+                "messageSize": len(message),
+                "headerCount": len(headers)
+            },
+            "trace": trace_context or {}
         }))
 
 
         await self.producer.send_and_wait(
 
-        self.result_topic,
-        value=message.encode('utf-8'),
-        headers=headers
+            self.result_topic,
+            value=message.encode('utf-8'),
+            headers=headers
         )
 
         return True
@@ -535,19 +507,19 @@ class KafkaManager:
 
         print(json.dumps({
 
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "level": "error",
-        "logger": "automation.kafka_manager",
-        "message": "Failed to send result to Kafka",
-        "metadata": {
-            "taskId": task_id,
-            "status": status
-        },
-        "error": {
-            "type": type(e).__name__,
-            "message": str(e)
-        },
-        "trace": trace_context or {}
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "level": "error",
+            "logger": "automation.kafka_manager",
+            "message": "Failed to send result to Kafka",
+            "metadata": {
+                "taskId": task_id,
+                "status": status
+            },
+            "error": {
+                "type": type(e).__name__,
+                "message": str(e)
+            },
+            "trace": trace_context or {}
         }))
 
         return False
@@ -555,6 +527,7 @@ class KafkaManager:
 
     async def shutdown(self):
         """Graceful shutdown of Kafka connections"""
+
 
         logger.info("🛑 Shutting down Kafka manager...")
 
@@ -582,19 +555,21 @@ class KafkaManager:
     def get_status(self) -> Dict[str, Any]:
         """Get current Kafka manager status"""
 
+
         return {
 
-        'enabled': self.kafka_enabled,
-        'healthy': self.is_healthy,
-        'bootstrap_servers': ', '.join(self.bootstrap_servers),
-        'task_topic': self.task_topic,
-        'result_topic': self.result_topic,
-        'consumer_group': self.consumer_group
+            'enabled': self.kafka_enabled,
+            'healthy': self.is_healthy,
+            'bootstrap_servers': ', '.join(self.bootstrap_servers),
+            'task_topic': self.task_topic,
+            'result_topic': self.result_topic,
+            'consumer_group': self.consumer_group
         }
 
 
     def _extract_business_context(self, task_data) -> Dict[str, Any]:
         """Extract high-cardinality business attributes from task data for span filtering"""
+
 
         business_context = {}
 
@@ -674,6 +649,7 @@ class KafkaManager:
     def _extract_trace_context(self, headers) -> Dict[str, Any]:
         """Extract trace context from Kafka message headers"""
 
+
         if not headers:
 
         return {}
@@ -682,6 +658,7 @@ class KafkaManager:
     # Convert bytes headers to strings
     def get_header(key):
         value = headers.get(key)
+
 
         if value is None:
 
