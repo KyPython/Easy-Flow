@@ -8,6 +8,7 @@ const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
 const { getUserPlan } = require('../middleware/planEnforcement');
 const { getComprehensiveUsage } = require('../middleware/comprehensiveRateLimit');
+const { getScrapingUsage } = require('../middleware/scrapingRateLimit');
 const { createLogger } = require('../middleware/structuredLogging');
 const { traceContextMiddleware } = require('../middleware/traceContext');
 

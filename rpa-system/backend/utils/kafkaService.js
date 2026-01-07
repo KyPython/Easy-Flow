@@ -827,6 +827,19 @@ class KafkaService {
                                                     .eq('id', taskId)
                                                     .single();
 
+                                                // Get user_id from automation_runs table (most reliable) - do this first
+                                                let userId = null;
+                                                if (runRecordId) {
+                                                    const { data: runData } = await supabase
+                                                        .from('automation_runs')
+                                                        .select('user_id')
+                                                        .eq('id', runRecordId)
+                                                        .single();
+                                                    userId = runData?.user_id || resultData?.user_id;
+                                                } else {
+                                                    userId = resultData?.user_id;
+                                                }
+
                                                 if (taskRecord) {
                                                     const taskType = taskRecord.task_type || 'general';
                                                     const siteUrl = taskRecord.url || '';
@@ -877,19 +890,7 @@ class KafkaService {
                                                     usageTracker = require('./usageTracker').default || require('./usageTracker');
                                                 }
 
-                                                // Get user_id from automation_runs table (most reliable)
-                                                // Fallback to statusData or resultData if not available
-                                                let userId = null;
-                                                if (runRecordId) {
-                                                    const { data: runData } = await supabase
-                                                        .from('automation_runs')
-                                                        .select('user_id')
-                                                        .eq('id', runRecordId)
-                                                        .single();
-                                                    userId = runData?.user_id || statusData?.user_id || resultData?.user_id;
-                                                } else {
-                                                    userId = statusData?.user_id || resultData?.user_id;
-                                                }
+                                                // userId already retrieved above
 
                                                 if (userId && usageTracker && usageTracker.trackAutomationRun) {
                                                     // Only track completed runs (failed runs don't count)
@@ -1073,7 +1074,7 @@ class KafkaService {
     async sendAutomationTaskWithCallback(taskData, timeoutMs = 60000) {
         const taskId = taskData.task_id || uuidv4();
 
-        return new Promise(async (resolve, reject) => {
+        return new Promise((resolve, reject) => {
             // Set up timeout
             const timeout = setTimeout(() => {
                 this.resultCallbacks.delete(taskId);
@@ -1086,14 +1087,13 @@ class KafkaService {
                 resolve(result);
             });
 
-            try {
-                // Send the task
-                await this.sendAutomationTask({ ...taskData, task_id: taskId });
-            } catch (error) {
-                clearTimeout(timeout);
-                this.resultCallbacks.delete(taskId);
-                reject(error);
-            }
+            // Send the task
+            this.sendAutomationTask({ ...taskData, task_id: taskId })
+                .catch((error) => {
+                    clearTimeout(timeout);
+                    this.resultCallbacks.delete(taskId);
+                    reject(error);
+                });
         });
     }
 

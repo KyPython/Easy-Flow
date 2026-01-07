@@ -3402,9 +3402,9 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
 
         // Send task failure notification
         try {
-          const notification = NotificationTemplates.taskFailed(taskData.name, err.message);
+          const notification = NotificationTemplates.taskFailed(task.name || taskId, err.message);
           await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
-          logger.info(`🔔 Task failure notification sent for task ${taskData.name} to user ${req.user.id}`);
+          logger.info(`🔔 Task failure notification sent for task ${task.name || taskId} to user ${req.user.id}`);
         } catch (notificationError) {
           logger.error('🔔 Failed to send task failure notification:', notificationError.message);
         }
