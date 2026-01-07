@@ -142,7 +142,7 @@ const appConfig = {
 
   // Feature Flags
   features: {
-    telemetry: !getEnvBoolean('DISABLE_TELEMETRY', false),
+    telemetry: true, // Always enabled - critical for observability
     emailWorker: getEnvBoolean('ENABLE_EMAIL_WORKER', true),
     analytics: getEnvBoolean('ENABLE_ANALYTICS', true),
     debugging: getEnvBoolean('ENABLE_DEBUGGING', getEnv('NODE_ENV') === 'development')

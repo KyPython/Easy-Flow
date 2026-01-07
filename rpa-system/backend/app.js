@@ -1,20 +1,15 @@
 
 const { logger, getLogger } = require('./utils/logger');
 // --- Initialize OpenTelemetry first for comprehensive instrumentation ---
-// ✅ OBSERVABILITY: Always enable telemetry - use sampling to control volume, not disable
+// ✅ OBSERVABILITY: Telemetry is ALWAYS enabled - use sampling to control volume, not disable
 // Sampling is configured in telemetryInit.js (default 10% via OTEL_TRACE_SAMPLING_RATIO)
-if (process.env.DISABLE_TELEMETRY === 'true') {
-  logger.warn('⚠️ [Observability] Telemetry disabled via DISABLE_TELEMETRY=true');
-  logger.warn('⚠️ [Observability] Consider using OTEL_TRACE_SAMPLING_RATIO=0.1 (10%) instead of disabling');
-  logger.warn('⚠️ [Observability] Disabling telemetry removes visibility into application behavior');
-} else {
-  try {
-    require('./middleware/telemetryInit');
-    logger.info('✅ [Observability] OpenTelemetry initialized - all logs integrated with traces');
-  } catch (e) {
-    logger.error('❌ [Observability] telemetryInit failed to load:', e?.message || e);
-    logger.error('   Application will continue but observability will be limited');
-  }
+// DISABLE_TELEMETRY is ignored - telemetry is critical for observability
+try {
+  require('./middleware/telemetryInit');
+  logger.info('✅ [Observability] OpenTelemetry initialized - all logs integrated with traces');
+} catch (e) {
+  logger.error('❌ [Observability] telemetryInit failed to load:', e?.message || e);
+  logger.error('   Application will continue but observability will be limited');
 }
 
 // --- Initialize structured logging after telemetry ---
