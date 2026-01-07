@@ -35,7 +35,7 @@ This will:
 - Run feature assessment
 - Show ready features
 - Confirm shipping (unless in CI mode)
-- Merge dev → main
+- Merge dev -> main
 - Run validation checks
 - Push to main (triggers production deployment)
 - Update feature manifest with shipped status
@@ -54,9 +54,9 @@ Features are automatically detected from commit messages:
 ### Readiness Criteria
 
 A feature is considered "ready" when:
-- ✅ Has associated tests
-- ✅ Passes code quality validation
-- ✅ Passes code validation (SRP, theme, logging, etc.)
+- Has associated tests
+- Passes code quality validation
+- Passes code validation (SRP, theme, logging, etc.)
 
 ### Feature States
 
@@ -125,13 +125,13 @@ ls -la .features/shipping-report-*.txt
 
 ```
 .features/
-├── features.json          # Feature manifest (all features)
-├── readiness-report.txt   # Latest readiness assessment
-└── shipping-report-*.txt   # Shipping reports (timestamped)
++── features.json          # Feature manifest (all features)
++── readiness-report.txt   # Latest readiness assessment
++── shipping-report-*.txt   # Shipping reports (timestamped)
 
 scripts/
-├── assess-feature-readiness.sh  # Assessment script
-└── ship-features.sh              # Shipping script
++── assess-feature-readiness.sh  # Assessment script
++── ship-features.sh              # Shipping script
 ```
 
 ---
@@ -157,9 +157,9 @@ scripts/
 ## Platform Compatibility
 
 ### Supported Platforms
-- ✅ **macOS** - Native bash support
-- ✅ **Linux** - All distributions with bash
-- ✅ **Windows** - Git Bash, WSL, or native bash (Windows 10+)
+- **macOS** - Native bash support
+- **Linux** - All distributions with bash
+- **Windows** - Git Bash, WSL, or native bash (Windows 10+)
 
 ### Requirements
 - **bash** 3.2+ (most systems have this)
@@ -231,7 +231,7 @@ scoop install jq
 ## Integration with Existing Workflows
 
 This process integrates seamlessly with:
-- `npm run ship` - Full dev → main merge (ships everything)
+- `npm run ship` - Full dev -> main merge (ships everything)
 - `npm run ship:features` - Feature-aware shipping (ships only ready features)
 - CI/CD workflows - Automatic assessment on dev branch
 - GitHub Actions - Scheduled and manual assessment

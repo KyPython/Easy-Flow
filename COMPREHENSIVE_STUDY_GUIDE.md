@@ -50,50 +50,50 @@ EasyFlow is an **RPA (Robotic Process Automation) platform** that allows users t
 ## 2. Architecture Layers
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    FRONTEND LAYER                           │
-│  React (rpa-dashboard/)                                     │
-│  - Pages: Dashboard, Workflows, Tasks, History, etc.        │
-│  - Components: WorkflowBuilder, TaskForm, etc.              │
-│  - State: AuthContext, ThemeContext, SessionContext         │
-│  - Observability: Frontend logs → Backend → Loki            │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            │ HTTP/REST API
-                            │ (W3C Trace Context)
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    BACKEND LAYER                            │
-│  Node.js/Express (backend/)                                 │
-│  - API Routes: /api/tasks, /api/workflows, etc.            │
-│  - Services: workflowExecutor, aiWorkflowAgent, etc.        │
-│  - Middleware: auth, rateLimit, structuredLogging          │
-│  - Observability: Structured logs → Loki, Traces → Tempo   │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                    ┌───────┴───────┐
-                    │               │
-                    ▼               ▼
-        ┌──────────────────┐  ┌──────────────────┐
-        │   DATABASE       │  │   KAFKA QUEUE    │
-        │   (Supabase)     │  │   (Task Queue)   │
-        │                  │  │                  │
-        │  - PostgreSQL    │  │  - Task messages │
-        │  - RLS Policies  │  │  - Trace context │
-        │  - Realtime      │  └──────────────────┘
-        └──────────────────┘           │
-                                       │
-                                       ▼
-                        ┌──────────────────────────┐
-                        │   WORKER LAYER           │
-                        │   Python (automation/)   │
-                        │                          │
-                        │  - Puppeteer automation  │
-                        │  - Web scraping          │
-                        │  - Form submission       │
-                        │  - File downloads        │
-                        │  - Observability: Logs   │
-                        └──────────────────────────┘
++-------------------------------------------------------------+
+|                    FRONTEND LAYER                           |
+|  React (rpa-dashboard/)                                     |
+|  - Pages: Dashboard, Workflows, Tasks, History, etc.       |
+|  - Components: WorkflowBuilder, TaskForm, etc.               |
+|  - State: AuthContext, ThemeContext, SessionContext        |
+|  - Observability: Frontend logs -> Backend -> Loki          |
++-------------------------------------------------------------+
+                            |
+                            | HTTP/REST API
+                            | (W3C Trace Context)
+                            v
++-------------------------------------------------------------+
+|                    BACKEND LAYER                            |
+|  Node.js/Express (backend/)                                 |
+|  - API Routes: /api/tasks, /api/workflows, etc.            |
+|  - Services: workflowExecutor, aiWorkflowAgent, etc.        |
+|  - Middleware: auth, rateLimit, structuredLogging          |
+|  - Observability: Structured logs -> Loki, Traces -> Tempo  |
++-------------------------------------------------------------+
+                            |
+                    +-------+-------+
+                    |               |
+                    v               v
+        +------------------+  +------------------+
+        |   DATABASE       |  |   KAFKA QUEUE    |
+        |   (Supabase)     |  |   (Task Queue)   |
+        |                  |  |                  |
+        |  - PostgreSQL    |  |  - Task messages |
+        |  - RLS Policies |  |  - Trace context |
+        |  - Realtime     |  +------------------+
+        +------------------+           |
+                                       |
+                                       v
+                        +--------------------------+
+                        |   WORKER LAYER           |
+                        |   Python (automation/)  |
+                        |                          |
+                        |  - Puppeteer automation  |
+                        |  - Web scraping          |
+                        |  - Form submission       |
+                        |  - File downloads        |
+                        |  - Observability: Logs   |
+                        +--------------------------+
 ```
 
 ### Key Architectural Principles
@@ -186,7 +186,7 @@ EasyFlow is an **RPA (Robotic Process Automation) platform** that allows users t
 
 3. **`executionModeService.js`** - Cost Optimization
    - Determines execution mode (real-time, balanced, eco)
-   - Auto-detects from context (user-triggered → real-time, scheduled → eco)
+   - Auto-detects from context (user-triggered -> real-time, scheduled -> eco)
    - Manages cost/performance trade-offs
 
 4. **`smartScheduler.js`** - Workflow Scheduling
@@ -277,7 +277,7 @@ EasyFlow is an **RPA (Robotic Process Automation) platform** that allows users t
    - Executes automation (Puppeteer)
    ↓
 7. STATUS UPDATES
-   - Worker updates automation_runs.status: 'running' → 'completed'
+   - Worker updates automation_runs.status: 'running' -> 'completed'
    - Stores results (artifacts, extracted data)
    ↓
 8. FRONTEND POLLS
@@ -419,16 +419,16 @@ EasyFlow is an **RPA (Robotic Process Automation) platform** that allows users t
 
 ```
 users (auth.users)
-  ├─ profiles (1:1)
-  │   └─ plans (many:1)
-  ├─ workflows (1:many)
-  │   └─ workflow_executions (1:many)
-  ├─ automation_tasks (1:many)
-  │   └─ automation_runs (1:many)
-  ├─ integration_credentials (1:many)
-  └─ subscriptions (1:many)
-      ├─ subscription_usage_checks (1:many)
-      └─ subscription_alerts (1:many)
+  +─ profiles (1:1)
+  |   +─ plans (many:1)
+  +─ workflows (1:many)
+  |   +─ workflow_executions (1:many)
+  +─ automation_tasks (1:many)
+  |   +─ automation_runs (1:many)
+  +─ integration_credentials (1:many)
+  +─ subscriptions (1:many)
+      +─ subscription_usage_checks (1:many)
+      +─ subscription_alerts (1:many)
 ```
 
 ### 6.3 Row-Level Security (RLS)
@@ -446,16 +446,16 @@ All tables have RLS policies:
 
 ```
 App.js
-  └─ Router (React Router)
-      ├─ /auth → AuthPage
-      ├─ /app → App.dashboard.jsx
-      │   ├─ Header (Navigation)
-      │   ├─ DashboardPage
-      │   ├─ WorkflowBuilder (ReactFlow)
-      │   ├─ TasksPage
-      │   ├─ HistoryPage
-      │   └─ SettingsPage
-      └─ / (Landing) → LandingPage
+  +─ Router (React Router)
+      +─ /auth -> AuthPage
+      +─ /app -> App.dashboard.jsx
+      |   +─ Header (Navigation)
+      |   +─ DashboardPage
+      |   +─ WorkflowBuilder (ReactFlow)
+      |   +─ TasksPage
+      |   +─ HistoryPage
+      |   +─ SettingsPage
+      +─ / (Landing) -> LandingPage
 ```
 
 ### 7.2 State Management
@@ -575,7 +575,7 @@ return 'balanced';
 1. User clicks "Connect Slack"
 2. Backend generates OAuth URL
 3. User authorizes in browser
-4. OAuth callback → Backend exchanges code for tokens
+4. OAuth callback -> Backend exchanges code for tokens
 5. Tokens stored encrypted in `integration_credentials`
 6. User can now use Slack actions in workflows
 
@@ -672,29 +672,29 @@ traceparent: 00-{traceId}-{spanId}-{flags}
 
 ### 10.2 Logging Architecture
 
-**Frontend** → **Backend** → **Loki**:
+**Frontend** -> **Backend** -> **Loki**:
 ```javascript
 // Frontend
 logger.error('Task failed', { error, taskId }, traceContext);
-// → POST /api/internal/front-logs
-// → Backend logs to stdout (Pino JSON)
-// → Promtail collects from Docker
-// → Loki stores and indexes
+// -> POST /api/internal/front-logs
+// -> Backend logs to stdout (Pino JSON)
+// -> Promtail collects from Docker
+// -> Loki stores and indexes
 ```
 
-**Backend** → **Loki**:
+**Backend** -> **Loki**:
 ```javascript
 // Backend
 logger.info('Database query', { operation: 'SELECT', table: 'workflows' }, traceContext);
-// → stdout (Pino JSON)
-// → Promtail → Loki
+// -> stdout (Pino JSON)
+// -> Promtail -> Loki
 ```
 
-**Traces** → **Tempo**:
+**Traces** -> **Tempo**:
 ```javascript
 // OpenTelemetry automatically creates spans
 const span = tracer.startSpan('execute_workflow');
-// → OTLP exporter → Tempo
+// -> OTLP exporter -> Tempo
 ```
 
 ### 10.3 Querying Logs in Grafana
@@ -715,8 +715,8 @@ const span = tracer.startSpan('execute_workflow');
 ```
 
 **Trace-to-Logs Correlation**:
-- Click trace in Grafana → See all related logs
-- Click log in Loki → See full trace
+- Click trace in Grafana -> See all related logs
+- Click log in Loki -> See full trace
 
 ---
 
@@ -750,10 +750,10 @@ determineExecutionMode(workflow, context) {
   // 1. Explicit mode
   if (workflow.execution_mode) return workflow.execution_mode;
   
-  // 2. User-triggered → Real-time
+  // 2. User-triggered -> Real-time
   if (context.triggeredBy === 'user') return 'real-time';
   
-  // 3. Scheduled → Eco (save costs)
+  // 3. Scheduled -> Eco (save costs)
   if (context.triggeredBy === 'schedule') return 'eco';
   
   // 4. Default
@@ -936,7 +936,7 @@ def test_scraper_initialization():
    - Build verification
    ↓
 3. Developer: npm run ship
-   - Merges dev → main
+   - Merges dev -> main
    - Runs all validations (blocking)
    - Pushes to main
    ↓
@@ -1093,7 +1093,7 @@ function _substituteVariables(template, stepResults) {
 - Blocks private IPs, localhost, etc.
 
 **Authentication**:
-- Firebase Auth (frontend) → JWT tokens
+- Firebase Auth (frontend) -> JWT tokens
 - Backend verifies tokens
 - Supabase RLS enforces data access
 
@@ -1145,7 +1145,7 @@ function _substituteVariables(template, stepResults) {
 
 1. **OAuth Flow**
    - Study `backend/routes/integrationRoutes.js`
-   - Trace: User clicks "Connect Slack" → OAuth → Credential storage
+   - Trace: User clicks "Connect Slack" -> OAuth -> Credential storage
    - Test with a real integration
 
 2. **Integration Actions**
@@ -1250,7 +1250,7 @@ npm run logs
 ## Study Tips
 
 1. **Start Small**: Understand one component at a time
-2. **Trace Execution**: Follow a request from frontend → backend → database
+2. **Trace Execution**: Follow a request from frontend -> backend -> database
 3. **Use Observability**: Grafana shows you exactly what's happening
 4. **Read Tests**: Tests show how components are used
 5. **Experiment**: Modify code, see what breaks, understand why
@@ -1260,12 +1260,12 @@ npm run logs
 
 ## Next Steps
 
-1. ✅ Read this study guide completely
-2. ✅ Set up development environment
-3. ✅ Trace a simple workflow execution end-to-end
-4. ✅ Explore Grafana dashboards
-5. ✅ Read core service files
-6. ✅ Build a simple feature
+1. Read this study guide completely
+2. Set up development environment
+3. Trace a simple workflow execution end-to-end
+4. Explore Grafana dashboards
+5. Read core service files
+6. Build a simple feature
 
-**You're ready to master EasyFlow! 🚀**
+You're ready to master EasyFlow!
 

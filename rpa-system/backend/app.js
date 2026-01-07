@@ -45,7 +45,7 @@ const { v4: uuidv4 } = require('uuid');
 // require configuration (Firebase, Supabase, etc.) see the variables on require-time.
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
-// ✅ CRITICAL: Run comprehensive configuration health check BEFORE initializing services
+// Run comprehensive configuration health check BEFORE initializing services
 // This prevents the authentication cascade by catching all config issues early
 try {
   const { runConfigHealthCheck } = require('./utils/configHealthCheck');
@@ -251,7 +251,7 @@ const corsOptions = {
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'x-request-id', 'x-trace-id', 'traceparent', 'apikey'],
-  credentials: true, // CRITICAL: Must be true to allow cookies/credentials
+  credentials: true, // Must be true to allow cookies/credentials
   optionsSuccessStatus: 204,
   exposedHeaders: ['Content-Disposition']
 };
@@ -603,7 +603,7 @@ const automationLimiter = rateLimit({
       microphone: [],
       geolocation: []
     },
-    // CRITICAL: Disable Helmet's CORS handling - we handle it explicitly with cors() middleware
+    // Disable Helmet's CORS handling - we handle it explicitly with cors() middleware
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: false,
     crossOriginResourcePolicy: false
@@ -712,7 +712,7 @@ const DOWNLOADS_DIR_HOST = process.env.DOWNLOADS_DIR_HOST || (process.cwd().incl
 
 // CORS configuration moved to top of file (after app creation) for proper middleware order
 
-// ✅ CRITICAL: Add trace context middleware EARLY in chain
+  // Add trace context middleware EARLY in chain
 // This must come after CORS but before auth/business logic
 app.use(traceContextMiddleware);
 
@@ -922,7 +922,7 @@ if (process.env.NODE_ENV === 'test') {
   });
 } else {
   // Production: CSRF disabled, rely on auth middleware + CORS
-  // ✅ SECURITY NOTE: CSRF protection is intentionally disabled for API endpoints
+  // SECURITY NOTE: CSRF protection is intentionally disabled for API endpoints
   // because we use token-based authentication (authMiddleware) and CORS protection.
   // All state-changing endpoints require valid authentication tokens.
   // This is a common pattern for REST APIs and is secure when combined with:

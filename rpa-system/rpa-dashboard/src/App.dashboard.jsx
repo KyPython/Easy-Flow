@@ -201,7 +201,7 @@ function Shell() {
         try {
           const mod = await import('./utils/firebaseConfig');
           if (mod && mod.initFirebase) {
-            // ✅ CRITICAL: In development, re-throw configuration errors to crash the app
+            // In development, re-throw configuration errors to crash the app
             // This prevents silent fallback to polling that floods the backend
             try {
               await mod.initFirebase();

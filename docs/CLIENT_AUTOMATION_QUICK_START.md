@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 Today's Action Plan
+##  Today's Action Plan
 
 ### Step 1: Reach Out to Existing Users (30 mins)
 
@@ -44,7 +44,7 @@
 
 ---
 
-## 📋 Copy-Paste Ready Scripts
+##  Copy-Paste Ready Scripts
 
 ### For Existing Users (Primary - Concierge Onboarding)
 
@@ -116,7 +116,7 @@ One-time $[X] setup. After that, you own it and can change it yourself in EasyFl
 
 ---
 
-## ✅ Daily Checklist (Reframed)
+## Daily Checklist (Reframed)
 
 **Morning (30 mins):**
 - [ ] Reach out to 3–5 existing users

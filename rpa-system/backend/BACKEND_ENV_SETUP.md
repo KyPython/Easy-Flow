@@ -13,7 +13,7 @@ These **MUST** match your frontend Firebase configuration:
 - Backend must have: `FIREBASE_PROJECT_ID=easyflow-77db9`
 
 ```bash
-# Get these from: Firebase Console → Project Settings → Service Accounts
+# Get these from: Firebase Console -> Project Settings -> Service Accounts
 FIREBASE_PROJECT_ID=easyflow-77db9
 FIREBASE_CLIENT_EMAIL=your-service-account@easyflow-77db9.iam.gserviceaccount.com
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n"
@@ -23,18 +23,18 @@ FIREBASE_DATABASE_URL=https://easyflow-77db9-default-rtdb.firebaseio.com/
 **How to get Firebase credentials:**
 1. Go to [Firebase Console](https://console.firebase.google.com/)
 2. Select your project (`easyflow-77db9`)
-3. Go to Project Settings → Service Accounts
+3. Go to Project Settings -> Service Accounts
 4. Click "Generate New Private Key"
 5. Download the JSON file
 6. Extract:
-   - `project_id` → `FIREBASE_PROJECT_ID`
-   - `client_email` → `FIREBASE_CLIENT_EMAIL`
-   - `private_key` → `FIREBASE_PRIVATE_KEY` (keep the `\n` characters)
+   - `project_id` -> `FIREBASE_PROJECT_ID`
+   - `client_email` -> `FIREBASE_CLIENT_EMAIL`
+   - `private_key` -> `FIREBASE_PRIVATE_KEY` (keep the `\n` characters)
 
 ### 2. Supabase Configuration (REQUIRED)
 
 ```bash
-# Get these from: Supabase Dashboard → Settings → API
+# Get these from: Supabase Dashboard -> Settings -> API
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 # OR use any of these alternative names:
@@ -44,7 +44,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 
 ### 3. Integration OAuth (REQUIRED - Prevents 500 errors on /api/integrations/*)
 
-**⚠️ CRITICAL:** These credentials are required for OAuth flows to work. Without them, you'll get 500 errors when trying to connect integrations.
+** CRITICAL:** These credentials are required for OAuth flows to work. Without them, you'll get 500 errors when trying to connect integrations.
 
 #### Quick Setup (Interactive Script)
 ```bash
@@ -66,7 +66,7 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 **How to get Google OAuth credentials:**
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Select your project (or create one)
-3. **⚠️ CRITICAL: Enable required APIs first:**
+3. ** CRITICAL: Enable required APIs first:**
    - **Gmail API**: https://console.cloud.google.com/apis/library/gmail.googleapis.com
      - Click "Enable" button
    - **Google Sheets API**: https://console.cloud.google.com/apis/library/sheets.googleapis.com
@@ -77,8 +77,8 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
      - Click "Enable" button
    - **Google Calendar API** (for Meet): https://console.cloud.google.com/apis/library/calendar-json.googleapis.com
      - Click "Enable" button
-4. Go to APIs & Services → Credentials
-5. Click "Create Credentials" → "OAuth client ID"
+4. Go to APIs & Services -> Credentials
+5. Click "Create Credentials" -> "OAuth client ID"
 6. Choose "Web application"
 7. Add authorized redirect URIs:
    - `http://localhost:3030/api/integrations/gmail/oauth/callback`
@@ -104,7 +104,7 @@ If `FACEBOOK_APP_ID` and `FACEBOOK_APP_SECRET` are not configured, WhatsApp will
 1. Go to [Facebook Developers](https://developers.facebook.com/)
 2. Create a new app or select an existing one
 3. Add "WhatsApp" product to your app
-4. Go to Settings → Basic
+4. Go to Settings -> Basic
 5. Copy App ID and App Secret
 6. Add to your `.env` file
 
@@ -136,11 +136,11 @@ SLACK_CLIENT_SECRET=your-slack-client-secret
 
 **How to get Slack OAuth credentials:**
 1. Go to [Slack API Apps](https://api.slack.com/apps)
-2. Click "Create New App" → "From scratch"
+2. Click "Create New App" -> "From scratch"
 3. Name your app and select your workspace
 4. Go to "OAuth & Permissions" in the sidebar
 5. Scroll to "Redirect URLs" and add:
-   - **⚠️ IMPORTANT: Slack requires HTTPS for redirect URIs**
+   - ** IMPORTANT: Slack requires HTTPS for redirect URIs**
    - **Option 1 (Local Dev with ngrok):** Use ngrok to create HTTPS tunnel:
      ```bash
      # Install ngrok: https://ngrok.com/download
@@ -151,7 +151,7 @@ SLACK_CLIENT_SECRET=your-slack-client-secret
      ```
    - **Option 2 (Production):** Use your production URL:
      - `https://easyflow-backend-ad8e.onrender.com/api/integrations/slack/oauth/callback`
-6. Scroll to "Scopes" → "Bot Token Scopes" and add:
+6. Scroll to "Scopes" -> "Bot Token Scopes" and add:
    - `chat:write` - Send messages
    - `channels:read` - View basic channel information
    - `channels:history` - View message history
@@ -185,16 +185,16 @@ npm start
 
 **Expected output if configured correctly:**
 ```
-✅ Firebase Project ID matches frontend configuration
-✅ Firebase Admin initialized successfully
-✅ Supabase client ready for database operations
-✅ Configuration health check passed
+ Firebase Project ID matches frontend configuration
+ Firebase Admin initialized successfully
+ Supabase client ready for database operations
+ Configuration health check passed
 ```
 
 **If you see errors:**
-- `🔥 CRITICAL: Firebase Project ID mismatch!` → Check `FIREBASE_PROJECT_ID` matches `easyflow-77db9`
-- `SLACK_CLIENT_ID not configured` → Add `SLACK_CLIENT_ID` to `.env`
-- `GOOGLE_CLIENT_ID not configured` → Add `GOOGLE_CLIENT_ID` to `.env`
+- `🔥 CRITICAL: Firebase Project ID mismatch!` -> Check `FIREBASE_PROJECT_ID` matches `easyflow-77db9`
+- `SLACK_CLIENT_ID not configured` -> Add `SLACK_CLIENT_ID` to `.env`
+- `GOOGLE_CLIENT_ID not configured` -> Add `GOOGLE_CLIENT_ID` to `.env`
 
 ## File Location
 

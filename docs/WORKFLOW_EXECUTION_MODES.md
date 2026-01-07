@@ -1,6 +1,6 @@
 # Workflow Execution Modes - Power/Performance Trade-offs
 
-## 🎯 Core Insight: Voltage Squared Effect Applied to Workflows
+## Core Insight: Voltage Squared Effect Applied to Workflows
 
 Just like hardware power optimization (P = V² × f), workflow execution has a similar trade-off:
 
@@ -8,16 +8,16 @@ Just like hardware power optimization (P = V² × f), workflow execution has a s
 - **High Performance Mode**: Fast execution, higher compute cost
 - **Eco Mode**: Slower execution, lower compute cost
 
-## 📊 Execution Mode Strategy
+## Execution Mode Strategy
 
 ### Mode 1: **Real-Time Mode** (High Performance)
 **Use Case:** User-facing workflows, interactive tasks, time-sensitive operations
 
 **Characteristics:**
-- ✅ Low latency (fast response)
-- ❌ Higher compute cost
-- ✅ Immediate execution
-- ✅ Priority queue placement
+- Low latency (fast response)
+- Higher compute cost
+- Immediate execution
+- Priority queue placement
 
 **Example Workflows:**
 - User clicks "Run Now" button
@@ -35,10 +35,10 @@ Just like hardware power optimization (P = V² × f), workflow execution has a s
 **Use Case:** Batch jobs, scheduled workflows, non-time-sensitive tasks
 
 **Characteristics:**
-- ✅ Lower compute cost (~50% savings)
-- ❌ Higher latency (acceptable for batch)
-- ✅ Better resource utilization
-- ✅ Can run during off-peak hours
+- Lower compute cost (~50% savings)
+- Higher latency (acceptable for batch)
+- Better resource utilization
+- Can run during off-peak hours
 
 **Example Workflows:**
 - Scheduled daily reports
@@ -58,9 +58,9 @@ Just like hardware power optimization (P = V² × f), workflow execution has a s
 **Use Case:** Most workflows, standard operations
 
 **Characteristics:**
-- ✅ Balanced latency and cost
-- ✅ Standard execution
-- ✅ Normal priority
+-  Balanced latency and cost
+-  Standard execution
+-  Normal priority
 
 ## 🏗️ Architecture Design
 
@@ -205,20 +205,20 @@ async executeWorkflow(workflow, context) {
 }
 ```
 
-## 🎯 Real-World Application
+##  Real-World Application
 
 ### Scenario 1: User Clicks "Run Now"
 ```javascript
 // User wants immediate results
 executionMode = 'real-time';
-// → Fast execution, higher cost, user happy
+// -> Fast execution, higher cost, user happy
 ```
 
 ### Scenario 2: Scheduled Daily Report
 ```javascript
 // Runs at 2 AM, no one waiting
 executionMode = 'eco';
-// → Slower execution, 60% cost savings, runs overnight
+// -> Slower execution, 60% cost savings, runs overnight
 ```
 
 ### Scenario 3: Approaching Deadline
@@ -243,7 +243,7 @@ if (timeUntilDeadline < 3600000) {
    - Worker pool utilization
    - Queue depth by mode
 
-## 🚀 Implementation Plan
+##  Implementation Plan
 
 ### Phase 1: Metadata & Detection
 - [ ] Add `execution_mode` field to workflows table
@@ -265,19 +265,19 @@ if (timeUntilDeadline < 3600000) {
 - [ ] Report savings to users
 - [ ] Optimize mode selection
 
-## 💡 Key Takeaways
+##  Key Takeaways
 
 1. **Voltage Squared Effect**: Small voltage reduction = large power savings
    - Applied: Small latency increase = large cost savings
 
 2. **Latency vs Throughput**: Not all workflows need speed
-   - Batch jobs: Can wait → Use eco mode
-   - User-facing: Need speed → Use real-time mode
+   - Batch jobs: Can wait -> Use eco mode
+   - User-facing: Need speed -> Use real-time mode
 
 3. **Smart Defaults**: Auto-detect mode from context
-   - User-triggered → Real-time
-   - Scheduled → Eco
-   - Has deadline → Real-time
+   - User-triggered -> Real-time
+   - Scheduled -> Eco
+   - Has deadline -> Real-time
 
 4. **Cost Transparency**: Show users the trade-off
    - "Run now: $0.10, Run overnight: $0.04"

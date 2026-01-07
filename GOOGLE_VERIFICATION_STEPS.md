@@ -1,7 +1,7 @@
 # Google Domain Verification - Quick Steps
 
 ## Current Status
-- ✅ Code is in production (privacy policy links are live)
+-  Code is in production (privacy policy links are live)
 - ⏳ Waiting for DNS TXT record update
 - ⏳ Domain verification pending in Google Search Console
 

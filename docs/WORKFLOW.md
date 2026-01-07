@@ -1,6 +1,6 @@
 # Daily Workflow
 
-> **📘 For complete daily workflow guide, see [DAILY_DEVELOPER_GUIDE.md](../DAILY_DEVELOPER_GUIDE.md)**
+> ** For complete daily workflow guide, see [DAILY_DEVELOPER_GUIDE.md](../DAILY_DEVELOPER_GUIDE.md)**
 
 This is a quick reference. For detailed setup, troubleshooting, and all commands, see the main guide.
 
@@ -16,13 +16,13 @@ git checkout dev
 ```
 
 ### During Development
-- Make changes → Test in browser
+- Make changes -> Test in browser
 - Watch logs: `npm run logs`
 - Commit to dev: `git commit -m "feat: description" && git push origin dev`
 
 ### Ship to Production
 ```bash
-npm run ship  # Fully automated: validates → merges → deploys
+npm run ship  # Fully automated: validates -> merges -> deploys
 ```
 
 ### Evening: Stop Development

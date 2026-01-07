@@ -72,13 +72,13 @@ All values must match your `.env.local`:
 
 | Config Field | .env.local Variable | Required |
 |-------------|---------------------|----------|
-| `apiKey` | `REACT_APP_FIREBASE_API_KEY` | ✅ Yes |
-| `authDomain` | `REACT_APP_FIREBASE_AUTH_DOMAIN` | ✅ Yes |
-| `databaseURL` | `REACT_APP_FIREBASE_DATABASE_URL` | ✅ Yes |
-| `projectId` | `REACT_APP_FIREBASE_PROJECT_ID` | ✅ Yes |
-| `storageBucket` | `REACT_APP_FIREBASE_STORAGE_BUCKET` | ✅ Yes |
-| `messagingSenderId` | `REACT_APP_FIREBASE_MESSAGING_SENDER_ID` | ✅ Yes |
-| `appId` | `REACT_APP_FIREBASE_APP_ID` | ✅ Yes |
+| `apiKey` | `REACT_APP_FIREBASE_API_KEY` |  Yes |
+| `authDomain` | `REACT_APP_FIREBASE_AUTH_DOMAIN` |  Yes |
+| `databaseURL` | `REACT_APP_FIREBASE_DATABASE_URL` |  Yes |
+| `projectId` | `REACT_APP_FIREBASE_PROJECT_ID` |  Yes |
+| `storageBucket` | `REACT_APP_FIREBASE_STORAGE_BUCKET` |  Yes |
+| `messagingSenderId` | `REACT_APP_FIREBASE_MESSAGING_SENDER_ID` |  Yes |
+| `appId` | `REACT_APP_FIREBASE_APP_ID` |  Yes |
 
 **CRITICAL:** `projectId` must be `easyflow-77db9` to match backend.
 
@@ -97,16 +97,16 @@ After generating the file:
    ```
 
 3. **Check browser console:**
-   - Should NOT see: `❌ CRITICAL: Could not load firebase-config.js`
-   - Should see: `✅ Firebase initialized successfully`
+   - Should NOT see: ` CRITICAL: Could not load firebase-config.js`
+   - Should see: ` Firebase initialized successfully`
 
 ## When to Regenerate
 
 Regenerate this file when:
-- ✅ You update `.env.local` Firebase values
-- ✅ You switch between environments (dev/prod)
-- ✅ You clone the repo to a new machine
-- ✅ After pulling changes that update `.env.example`
+-  You update `.env.local` Firebase values
+-  You switch between environments (dev/prod)
+-  You clone the repo to a new machine
+-  After pulling changes that update `.env.example`
 
 ## Troubleshooting
 
@@ -120,7 +120,7 @@ Regenerate this file when:
 
 ### Error: "400 INVALID_ARGUMENT"
 - **Cause:** Values in `firebase-config.js` don't match actual Firebase project
-- **Fix:** Verify values match Firebase Console → Project Settings
+- **Fix:** Verify values match Firebase Console -> Project Settings
 
 ## File Format
 
@@ -142,7 +142,7 @@ const FIREBASE_CONFIG = {
 
 ## Security Note
 
-⚠️  **This file contains PUBLIC API keys** (not secrets):
+  **This file contains PUBLIC API keys** (not secrets):
 - Firebase API keys are public by design
 - They're restricted by domain in Firebase Console
 - Still, this file is git-ignored to avoid exposing keys in repos

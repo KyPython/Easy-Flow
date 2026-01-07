@@ -1,7 +1,7 @@
-⚠️ PENDING: Google OAuth Verification
+ PENDING: Google OAuth Verification
 =====================================
 
-📋 Quick Reminder:
+ Quick Reminder:
 - DNS TXT record is already added (verified with dig command)
 - Need to complete Google Search Console domain verification
 - Then request branding re-verification
@@ -10,12 +10,12 @@
 - Google Search Console: https://search.google.com/search-console
 - OAuth Consent Screen: https://console.cloud.google.com/apis/credentials/consent
 
-✅ What Works Now:
+ What Works Now:
 - OAuth flows work (users can connect integrations)
 - App works in "Testing" mode (up to 100 test users)
 - All integrations function normally
 
-⚠️ What's Pending:
+ What's Pending:
 - Domain verification in Google Search Console
 - Branding verification (after domain is verified)
 - This will remove "unverified app" warning and allow public access

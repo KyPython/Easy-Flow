@@ -38,9 +38,9 @@
 Each component directory typically contains:
 ```
 ComponentName/
-├── ComponentName.jsx      # Main component
-├── ComponentName.module.css # Styles
-└── index.js              # Export (optional)
++── ComponentName.jsx      # Main component
++── ComponentName.module.css # Styles
++── index.js              # Export (optional)
 ```
 
 ## Usage Pattern

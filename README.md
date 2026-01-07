@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### First Time Setup
 ```bash
@@ -25,7 +25,7 @@
 
 ---
 
-## 📘 Daily Developer Guide
+##  Daily Developer Guide
 
 **👉 [DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md)** - **START HERE** - Everything you need for daily work:
 - Quick start and setup
@@ -39,7 +39,7 @@
 ## 🗺️ Codebase Navigation
 
 **👉 [CODEBASE_NAVIGATION.md](CODEBASE_NAVIGATION.md)** - Complete codebase map:
-- Every route → component/handler mapped
+- Every route -> component/handler mapped
 - Click-to-code flow examples
 - Component and service maps
 - Directory structure
@@ -83,7 +83,7 @@ npm run quality:check   # Code quality scan
 
 ### Git & Deployment
 ```bash
-npm run ship            # Ship to production (dev → main, fully automated)
+npm run ship            # Ship to production (dev -> main, fully automated)
 npm run git:status      # Git workflow status
 ```
 
@@ -112,7 +112,7 @@ npm run client:template # Create client workflow template
 
 ---
 
-## 🎯 Branch Strategy
+##  Branch Strategy
 
 - **Dev Branch** (`dev`): Permissive validation, allows work-in-progress code
 - **Main Branch** (`main`): Strict validation, production-ready code only

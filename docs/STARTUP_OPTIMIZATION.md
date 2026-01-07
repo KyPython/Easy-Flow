@@ -74,9 +74,9 @@ docker compose -f rpa-system/docker-compose.monitoring.yml stop  # Instead of do
 ### 5. Reduce Health Check Timeouts
 
 For development, reduce timeouts:
-- Kafka: 30s → 15s
-- Grafana: 60s → 30s
-- Prometheus: 85s → 30s
+- Kafka: 30s -> 15s
+- Grafana: 60s -> 30s
+- Prometheus: 85s -> 30s
 
 ---
 

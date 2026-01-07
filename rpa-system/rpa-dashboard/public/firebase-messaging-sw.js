@@ -18,13 +18,13 @@ try {
   firebaseConfig = typeof FIREBASE_CONFIG !== 'undefined' ? FIREBASE_CONFIG : null;
 } catch (e) {
   configError = e;
-  console.error('[firebase-messaging-sw.js] ❌ CRITICAL: Could not load firebase-config.js:', e.message);
+  console.error('[firebase-messaging-sw.js] CRITICAL: Could not load firebase-config.js:', e.message);
   // ✅ FIX: Don't create empty fallback config - this hides the real problem
   // Instead, set to null so validation below will catch it and fail loudly
   firebaseConfig = null;
 }
 
-// ✅ CRITICAL: Validate config before initializing Firebase
+// Validate config before initializing Firebase
 // This prevents "Missing App configuration value: projectId" errors
 // This also prevents the authentication cascade (401 → FCM 400 → Supabase instability)
 const hasProjectId = firebaseConfig && firebaseConfig.projectId && firebaseConfig.projectId.trim();
@@ -54,7 +54,7 @@ if (!hasProjectId || !hasApiKey) {
   console.error('[firebase-messaging-sw.js]', errorMessage);
   console.error('='.repeat(80) + '\n');
   
-  // ✅ CRITICAL: Always throw in development to prevent silent failure
+  // Always throw in development to prevent silent failure
   // In production, we'll skip initialization but log prominently
   const isDevelopment = self.location && (
     self.location.hostname === 'localhost' || 
@@ -310,7 +310,7 @@ self.addEventListener('unhandledrejection', (event) => {
   const isConfigError = error && (error.name === 'FirebaseConfigurationError' || error.message?.includes('FATAL'));
   
   if (isConfigError) {
-    // ✅ CRITICAL: Log configuration errors prominently
+    // Log configuration errors prominently
     console.error('\n\n🔥🔥🔥 FIREBASE SERVICE WORKER CONFIGURATION ERROR 🔥🔥🔥\n');
     console.error(error.message || error);
     console.error('\nThis error prevents the service worker from initializing Firebase.');

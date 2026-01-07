@@ -4,7 +4,7 @@
 
 ---
 
-## 🎯 Reframed Strategy: "Activation & Complex Workflows"
+##  Reframed Strategy: "Activation & Complex Workflows"
 
 **Key Insight**: EasyFlow is designed to be easy - users can build workflows with natural language. But some people need:
 1. **Help getting started** (first workflow to see how easy it is)
@@ -13,7 +13,7 @@
 
 ---
 
-## 🎯 Two Revenue Streams (Updated)
+##  Two Revenue Streams (Updated)
 
 ### 1. "Concierge Onboarding" (Primary - Warm Leads)
 **Goal**: Help users build their FIRST workflow so they see how easy EasyFlow is
@@ -31,7 +31,7 @@
 
 ---
 
-## 📋 Step-by-Step Process
+##  Step-by-Step Process
 
 ### Step 1: Find Opportunities
 
@@ -210,7 +210,7 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
 
 ---
 
-## 📊 Daily Workflow (Reframed)
+##  Daily Workflow (Reframed)
 
 ### Morning (30 mins): "Activation Outreach"
 
@@ -277,7 +277,7 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
 
 ---
 
-## 🚀 Quick Start (Reframed)
+##  Quick Start (Reframed)
 
 ### Today's Action Plan
 
@@ -298,7 +298,7 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
 
 ---
 
-## 💡 Pro Tips (Reframed)
+##  Pro Tips (Reframed)
 
 1. **Don't Build FOR Them**: Show them how to use the AI Agent - that's the value
 2. **15-Minute Calls**: Quick onboarding calls, not hours of building

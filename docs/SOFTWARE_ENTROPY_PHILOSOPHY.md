@@ -1,6 +1,6 @@
 # Software Entropy Philosophy: Hotspots Over "Wall of Shame"
 
-## 🎯 The Core Difference
+##  The Core Difference
 
 ### SonarQube: "Wall of Shame" Approach
 
@@ -34,27 +34,27 @@
 
 ---
 
-## 📊 The Hotspot Formula
+##  The Hotspot Formula
 
 ### Hotspot Score = Complexity × Churn
 
 ```
 High Priority Hotspot:
-├─ Complexity: High (2,000 lines, 15 long functions)
-├─ Churn: High (edited 12 times this month)
-└─ Score: 180 → FIX THIS FIRST
++─ Complexity: High (2,000 lines, 15 long functions)
++─ Churn: High (edited 12 times this month)
++─ Score: 180 -> FIX THIS FIRST
 
 Low Priority (Not a Hotspot):
-├─ Complexity: High (1,500 lines, 10 long functions)
-├─ Churn: Low (edited 1 time this year)
-└─ Score: 15 → Can wait
++─ Complexity: High (1,500 lines, 10 long functions)
++─ Churn: Low (edited 1 time this year)
++─ Score: 15 -> Can wait
 ```
 
 ### Real-World Example
 
 **SonarQube says:**
 ```
-❌ 50,000 issues found:
+ 50,000 issues found:
    - workflowExecutor.js: 15 long functions
    - legacy-utils.js: 10 long functions
    - old-migration.js: 8 long functions
@@ -63,7 +63,7 @@ Low Priority (Not a Hotspot):
 
 **Software Entropy says:**
 ```
-✅ Top 10 Hotspots (Fix These First):
+ Top 10 Hotspots (Fix These First):
 
 1. workflowExecutor.js
    - Complexity: High (2,000 lines, 15 long functions)
@@ -81,12 +81,12 @@ Low Priority (Not a Hotspot):
 
 NOT a Hotspot:
 - legacy-utils.js: High complexity but low churn (edited 1x/year)
-  → Can refactor later, not urgent
+  -> Can refactor later, not urgent
 ```
 
 ---
 
-## 🔧 How This Applies to EasyFlow
+##  How This Applies to EasyFlow
 
 ### Current State
 
@@ -108,40 +108,40 @@ Software Entropy's hotspot-focused approach:
 ### Example Output for EasyFlow
 
 ```
-🔍 Software Entropy - Hotspot Analysis
+ Software Entropy - Hotspot Analysis
 
 Top 10 Hotspots (Fix These First):
 
 1. rpa-system/backend/services/workflowExecutor.js
-   ├─ Complexity: 85/100 (2,000 lines, 15 functions > 50 lines)
-   ├─ Churn: 12 edits this month (HIGH)
-   ├─ Hotspot Score: 180
-   └─ Recommendation: Split into smaller services (workflowParser, workflowRunner, etc.)
+   +─ Complexity: 85/100 (2,000 lines, 15 functions > 50 lines)
+   +─ Churn: 12 edits this month (HIGH)
+   +─ Hotspot Score: 180
+   +─ Recommendation: Split into smaller services (workflowParser, workflowRunner, etc.)
 
 2. rpa-system/rpa-dashboard/src/components/AIWorkflowAgent/AIWorkflowAgent.jsx
-   ├─ Complexity: 60/100 (1,000 lines, 8 functions > 50 lines)
-   ├─ Churn: 8 edits this month (HIGH)
-   ├─ Hotspot Score: 80
-   └─ Recommendation: Extract chat logic into separate hook
+   +─ Complexity: 60/100 (1,000 lines, 8 functions > 50 lines)
+   +─ Churn: 8 edits this month (HIGH)
+   +─ Hotspot Score: 80
+   +─ Recommendation: Extract chat logic into separate hook
 
 3. rpa-system/backend/app.js
-   ├─ Complexity: 70/100 (1,500 lines, 12 functions > 50 lines)
-   ├─ Churn: 6 edits this month (MEDIUM)
-   ├─ Hotspot Score: 70
-   └─ Recommendation: Split routes into separate files
+   +─ Complexity: 70/100 (1,500 lines, 12 functions > 50 lines)
+   +─ Churn: 6 edits this month (MEDIUM)
+   +─ Hotspot Score: 70
+   +─ Recommendation: Split routes into separate files
 
 ... (7 more hotspots)
 
 NOT Hotspots (Low Priority):
 - rpa-system/backend/utils/legacyHelpers.js
-  ├─ Complexity: 50/100
-  ├─ Churn: 0 edits this year (LOW)
-  └─ Score: 5 → Can refactor later
+  +─ Complexity: 50/100
+  +─ Churn: 0 edits this year (LOW)
+  +─ Score: 5 -> Can refactor later
 ```
 
 ---
 
-## 💡 Key Insights
+##  Key Insights
 
 ### 1. Not All Complex Code is Bad
 
@@ -162,8 +162,8 @@ NOT Hotspots (Low Priority):
 ### 2. Churn Matters More Than Complexity
 
 **Example:**
-- `workflowExecutor.js`: 2,000 lines, edited 12x/month → **FIX NOW**
-- `legacy-utils.js`: 2,000 lines, edited 1x/year → **Can wait**
+- `workflowExecutor.js`: 2,000 lines, edited 12x/month -> **FIX NOW**
+- `legacy-utils.js`: 2,000 lines, edited 1x/year -> **Can wait**
 
 **The math:**
 - High complexity + High churn = **Hotspot** (fix first)
@@ -174,15 +174,15 @@ NOT Hotspots (Low Priority):
 
 **SonarQube:**
 - "You have 50,000 issues"
-- Team: "We can't fix that many" → Ignores tool
+- Team: "We can't fix that many" -> Ignores tool
 
 **Software Entropy:**
 - "You have 10 hotspots"
-- Team: "We can fix 10 files" → Actually fixes them
+- Team: "We can fix 10 files" -> Actually fixes them
 
 ---
 
-## 🚀 Implementation Strategy
+##  Implementation Strategy
 
 ### Phase 1: Update Tool (Do First)
 
@@ -204,8 +204,8 @@ NOT Hotspots (Low Priority):
    - Show top N (default: 10)
 
 4. **Context-Aware Recommendations**
-   - "This file is complex AND you edit it weekly → Split it"
-   - "This file is complex but rarely touched → Low priority"
+   - "This file is complex AND you edit it weekly -> Split it"
+   - "This file is complex but rarely touched -> Low priority"
 
 ### Phase 2: Integrate into EasyFlow
 
@@ -227,20 +227,20 @@ software-entropy . --hotspots --top 10
 
 ---
 
-## ✅ Benefits for EasyFlow
+##  Benefits for EasyFlow
 
 ### 1. Actionable Feedback
 
 **Before (SonarQube-style):**
 ```
-❌ 50,000 issues found
-   Team: "We can't fix all of these" → Ignores
+ 50,000 issues found
+   Team: "We can't fix all of these" -> Ignores
 ```
 
 **After (Hotspot-focused):**
 ```
-✅ Top 10 hotspots identified
-   Team: "We can fix 10 files" → Actually fixes them
+ Top 10 hotspots identified
+   Team: "We can fix 10 files" -> Actually fixes them
 ```
 
 ### 2. Prioritized Work
@@ -269,7 +269,7 @@ software-entropy . --hotspots --top 10
 
 ---
 
-## 🎯 Recommendation
+##  Recommendation
 
 **Wait for tool update, then integrate hotspot-focused approach.**
 

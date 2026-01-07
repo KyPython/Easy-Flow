@@ -659,7 +659,7 @@ class WorkflowExecutor {
             workflow_connections(*)
           `)
           .eq('id', workflowId)
-          .eq('user_id', userId) // ✅ CRITICAL: Ensure user owns the workflow
+          .eq('user_id', userId) // Ensure user owns the workflow
           // ensure PostgREST returns at most one row to avoid coercion errors
           .limit(1)
           .maybeSingle();

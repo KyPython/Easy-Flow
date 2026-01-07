@@ -16,37 +16,37 @@ All routes are registered in `app.js`. See [CODEBASE_NAVIGATION.md](../../CODEBA
 
 ### Quick Route Reference
 
-- `POST /api/tasks` → `routes/tasks.js`
-- `GET /api/executions` → `routes/executionRoutes.js`
-- `POST /api/workflows` → `routes/workflowRoutes.js`
-- `GET /api/integrations` → `routes/integrationRoutes.js`
+- `POST /api/tasks` -> `routes/tasks.js`
+- `GET /api/executions` -> `routes/executionRoutes.js`
+- `POST /api/workflows` -> `routes/workflowRoutes.js`
+- `GET /api/integrations` -> `routes/integrationRoutes.js`
 
 ## 📁 Directory Structure
 
 ```
 backend/
-├── app.js              # Express app (route registration)
-├── server.js           # HTTP server
-├── routes/             # API endpoints
-│   ├── tasks.js
-│   ├── executionRoutes.js
-│   └── ...
-├── services/           # Business logic
-│   ├── workflowExecutor.js
-│   ├── aiWorkflowAgent.js
-│   └── ...
-├── middleware/         # Express middleware
-│   ├── auth.js
-│   ├── structuredLogging.js
-│   └── ...
-├── utils/              # Utilities
-│   ├── logger.js
-│   └── ...
-└── controllers/        # Request controllers
-    └── TaskController.ts
++── app.js              # Express app (route registration)
++── server.js           # HTTP server
++── routes/             # API endpoints
+|   +── tasks.js
+|   +── executionRoutes.js
+|   +── ...
++── services/           # Business logic
+|   +── workflowExecutor.js
+|   +── aiWorkflowAgent.js
+|   +── ...
++── middleware/         # Express middleware
+|   +── auth.js
+|   +── structuredLogging.js
+|   +── ...
++── utils/              # Utilities
+|   +── logger.js
+|   +── ...
++── controllers/        # Request controllers
+    +── TaskController.ts
 ```
 
-## 🔧 Key Services
+##  Key Services
 
 | Service | Purpose |
 |---------|---------|

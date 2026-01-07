@@ -124,7 +124,7 @@ The validation runs in `.github/workflows/qa-core.yml`:
 - name: Validate RAG Knowledge Base - CRITICAL
   run: |
     chmod +x scripts/validate-rag-knowledge.sh
-    ./scripts/validate-rag-knowledge.sh || (echo "❌ RAG knowledge validation failed..." && exit 1)
+    ./scripts/validate-rag-knowledge.sh || (echo " RAG knowledge validation failed..." && exit 1)
 ```
 
 **Position**: After code validation, before tests
@@ -137,7 +137,7 @@ The validation runs in `scripts/pre-commit.sh`:
 ```bash
 # RAG knowledge validation (non-blocking warning)
 if [ -f "scripts/validate-rag-knowledge.sh" ]; then
-  ./scripts/validate-rag-knowledge.sh || echo "⚠️ RAG knowledge may be outdated"
+  ./scripts/validate-rag-knowledge.sh || echo " RAG knowledge may be outdated"
 fi
 ```
 
@@ -156,29 +156,29 @@ fi
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔍 VALIDATING RAG KNOWLEDGE BASE
+ VALIDATING RAG KNOWLEDGE BASE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📋 Extracting features from codebase...
+ Extracting features from codebase...
 📚 Extracting knowledge from RAG seed function...
 
-🔍 Comparing codebase vs RAG knowledge...
+ Comparing codebase vs RAG knowledge...
 
-📊 Workflow Steps:
-  ✅ All workflow steps documented in RAG
+ Workflow Steps:
+   All workflow steps documented in RAG
 
-📊 Task Types:
-  ✅ All task types documented in RAG
+ Task Types:
+   All task types documented in RAG
 
-📊 Integrations:
-  ✅ Found 5 integrations: Slack, Gmail, Google Sheets, Google Meet, WhatsApp
+ Integrations:
+   Found 5 integrations: Slack, Gmail, Google Sheets, Google Meet, WhatsApp
   ℹ️ Integration knowledge is managed separately in addIntegrationKnowledge.js
 
-📊 System Prompt Features:
-  ✅ Found 6 features in system prompt
+ System Prompt Features:
+   Found 6 features in system prompt
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ VALIDATION PASSED: RAG knowledge is up-to-date
+ VALIDATION PASSED: RAG knowledge is up-to-date
 ```
 
 ## Troubleshooting
@@ -215,5 +215,5 @@ If validation reports missing knowledge that actually exists:
 ---
 
 **Last Updated**: 2025-01-XX
-**Status**: ✅ Active in CI/CD
+**Status**:  Active in CI/CD
 

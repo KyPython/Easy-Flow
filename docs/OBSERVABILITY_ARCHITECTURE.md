@@ -7,79 +7,79 @@ EasyFlow uses a **comprehensive observability stack** that integrates logs, trac
 ## Architecture Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    FRONTEND (React)                             │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ FrontendLogger (logger.js)                                │  │
-│  │  - Creates trace context (traceId, spanId, requestId)    │  │
-│  │  - Sends logs to /api/internal/front-logs                 │  │
-│  │  - Includes: level, component, message, trace, user       │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                           │                                      │
-│                           │ POST /api/internal/front-logs       │
-│                           ▼                                      │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │
-┌─────────────────────────────────────────────────────────────────┐
-│                    BACKEND (Node.js/Express)                    │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Structured Logger (structuredLogging.js)                  │  │
-│  │  - Pino JSON logger                                        │  │
-│  │  - Auto-injects trace context into every log              │  │
-│  │  - Writes to stdout (Docker captures)                      │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ OpenTelemetry (telemetryInit.js)                          │  │
-│  │  - Traces → OTLP Exporter → Tempo/Grafana Cloud          │  │
-│  │  - Metrics → Prometheus + OTLP → Grafana                  │  │
-│  │  - 10% sampling (configurable)                            │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Database Instrumentation (databaseInstrumentation.js)     │  │
-│  │  - Wraps Supabase client                                  │  │
-│  │  - Logs: operation, table, duration, filters              │  │
-│  │  - Auto-injects trace context                             │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                           │                                      │
-│                           │ stdout/stderr                       │
-│                           ▼                                      │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ Docker Logging Driver
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    PROMTAIL (Log Collector)                     │
-│  - Collects logs from Docker containers                        │
-│  - Parses JSON logs                                             │
-│  - Extracts trace IDs for correlation                           │
-│  - Ships to Loki                                                │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │
-┌─────────────────────────────────────────────────────────────────┐
-│                    LOKI (Log Aggregation)                       │
-│  - Stores all logs (frontend + backend + workers)               │
-│  - Indexed by: timestamp, level, service, traceId               │
-│  - Queryable via LogQL                                          │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │
-┌─────────────────────────────────────────────────────────────────┐
-│                    TEMPO (Trace Storage)                         │
-│  - Stores distributed traces                                   │
-│  - Correlates spans across services                             │
-│  - Queryable by traceId                                         │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │
-┌─────────────────────────────────────────────────────────────────┐
-│                    GRAFANA (Visualization)                       │
-│  - Unified view of logs, traces, metrics                        │
-│  - Trace-to-logs correlation (click trace → see logs)          │
-│  - Log-to-traces correlation (click log → see trace)            │
-│  - Dashboards for SLOs, performance, errors                     │
-└─────────────────────────────────────────────────────────────────┘
++─────────────────────────────────────────────────────────────────+
+|                    FRONTEND (React)                             |
+|  +──────────────────────────────────────────────────────────+  |
+|  | FrontendLogger (logger.js)                                |  |
+|  |  - Creates trace context (traceId, spanId, requestId)    |  |
+|  |  - Sends logs to /api/internal/front-logs                 |  |
+|  |  - Includes: level, component, message, trace, user       |  |
+|  +──────────────────────────────────────────────────────────+  |
+|                           |                                      |
+|                           | POST /api/internal/front-logs       |
+|                           v                                      |
++─────────────────────────────────────────────────────────────────+
+                              |
+                              |
++─────────────────────────────────────────────────────────────────+
+|                    BACKEND (Node.js/Express)                    |
+|  +──────────────────────────────────────────────────────────+  |
+|  | Structured Logger (structuredLogging.js)                  |  |
+|  |  - Pino JSON logger                                        |  |
+|  |  - Auto-injects trace context into every log              |  |
+|  |  - Writes to stdout (Docker captures)                      |  |
+|  +──────────────────────────────────────────────────────────+  |
+|  +──────────────────────────────────────────────────────────+  |
+|  | OpenTelemetry (telemetryInit.js)                          |  |
+|  |  - Traces -> OTLP Exporter -> Tempo/Grafana Cloud          |  |
+|  |  - Metrics -> Prometheus + OTLP -> Grafana                  |  |
+|  |  - 10% sampling (configurable)                            |  |
+|  +──────────────────────────────────────────────────────────+  |
+|  +──────────────────────────────────────────────────────────+  |
+|  | Database Instrumentation (databaseInstrumentation.js)     |  |
+|  |  - Wraps Supabase client                                  |  |
+|  |  - Logs: operation, table, duration, filters              |  |
+|  |  - Auto-injects trace context                             |  |
+|  +──────────────────────────────────────────────────────────+  |
+|                           |                                      |
+|                           | stdout/stderr                       |
+|                           v                                      |
++─────────────────────────────────────────────────────────────────+
+                              |
+                              | Docker Logging Driver
+                              v
++─────────────────────────────────────────────────────────────────+
+|                    PROMTAIL (Log Collector)                     |
+|  - Collects logs from Docker containers                        |
+|  - Parses JSON logs                                             |
+|  - Extracts trace IDs for correlation                           |
+|  - Ships to Loki                                                |
++─────────────────────────────────────────────────────────────────+
+                              |
+                              |
++─────────────────────────────────────────────────────────────────+
+|                    LOKI (Log Aggregation)                       |
+|  - Stores all logs (frontend + backend + workers)               |
+|  - Indexed by: timestamp, level, service, traceId               |
+|  - Queryable via LogQL                                          |
++─────────────────────────────────────────────────────────────────+
+                              |
+                              |
++─────────────────────────────────────────────────────────────────+
+|                    TEMPO (Trace Storage)                         |
+|  - Stores distributed traces                                   |
+|  - Correlates spans across services                             |
+|  - Queryable by traceId                                         |
++─────────────────────────────────────────────────────────────────+
+                              |
+                              |
++─────────────────────────────────────────────────────────────────+
+|                    GRAFANA (Visualization)                       |
+|  - Unified view of logs, traces, metrics                        |
+|  - Trace-to-logs correlation (click trace -> see logs)          |
+|  - Log-to-traces correlation (click log -> see trace)            |
+|  - Dashboards for SLOs, performance, errors                     |
++─────────────────────────────────────────────────────────────────+
 ```
 
 ## Trace Context Propagation
@@ -200,11 +200,11 @@ Every log entry includes:
 ### 1. **Automatic Trace Context Injection**
 - Every log automatically includes trace context
 - No manual trace ID passing needed
-- Works across frontend → backend → database → Kafka → workers
+- Works across frontend -> backend -> database -> Kafka -> workers
 
 ### 2. **End-to-End Correlation**
-- Click a trace in Grafana → see all related logs
-- Click a log in Loki → see the full trace
+- Click a trace in Grafana -> see all related logs
+- Click a log in Loki -> see the full trace
 - Follow a request from frontend to database to worker
 
 ### 3. **Structured Logging**
@@ -304,7 +304,7 @@ REACT_APP_FRONT_LOGS_ENDPOINT=/api/internal/front-logs
 ## Benefits
 
 1. **Full Visibility**: See everything that happens in a request
-2. **Fast Debugging**: Click trace → see all logs → find root cause
+2. **Fast Debugging**: Click trace -> see all logs -> find root cause
 3. **Performance Monitoring**: Track slow queries, timeouts, bottlenecks
 4. **Error Tracking**: Correlate errors with traces and user context
 5. **Business Metrics**: Track usage, workflows, tasks per user
@@ -324,7 +324,7 @@ REACT_APP_FRONT_LOGS_ENDPOINT=/api/internal/front-logs
    - Log: `Database SELECT query: automation_runs`
    - Same trace ID, child span ID
 
-4. **Kafka message** (Backend → Worker)
+4. **Kafka message** (Backend -> Worker)
    - Trace context in Kafka headers
    - Worker continues same trace
 
@@ -333,25 +333,25 @@ REACT_APP_FRONT_LOGS_ENDPOINT=/api/internal/front-logs
    - Same trace ID, new span ID
 
 6. **All logs correlated** in Grafana
-   - Click trace → see all 5 logs
+   - Click trace -> see all 5 logs
    - See full request flow end-to-end
 
 ## Current Status
 
-✅ **Fully Integrated:**
-- Frontend logs → Backend → Loki
-- Backend logs → Loki
-- Database instrumentation → Loki
-- OpenTelemetry traces → Tempo
-- Metrics → Prometheus
+ **Fully Integrated:**
+- Frontend logs -> Backend -> Loki
+- Backend logs -> Loki
+- Database instrumentation -> Loki
+- OpenTelemetry traces -> Tempo
+- Metrics -> Prometheus
 - All logs include trace context
 
-✅ **Dynamic Configuration:**
+ **Dynamic Configuration:**
 - Sampling rates configurable
 - Observability can be enabled/disabled
 - Log levels configurable per environment
 
-✅ **Production Ready:**
+ **Production Ready:**
 - Cost-optimized (sampling)
 - Performance-optimized (async, throttled)
 - Security-aware (no sensitive data in logs)

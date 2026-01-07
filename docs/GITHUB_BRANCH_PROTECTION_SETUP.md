@@ -6,13 +6,13 @@ This document explains how to configure GitHub branch protection rules to **prev
 
 ---
 
-## ⚠️ Current Problem
+## Current Problem
 
 **Workflows run AFTER pushes**, so they can't block the push itself. Without branch protection rules, code can be pushed to `main` even if workflows fail.
 
 ---
 
-## ✅ Solution: GitHub Branch Protection Rules
+## Solution: GitHub Branch Protection Rules
 
 Branch protection rules **require status checks to pass** before allowing:
 - Direct pushes to `main`
@@ -21,7 +21,7 @@ Branch protection rules **require status checks to pass** before allowing:
 
 ---
 
-## 📋 Required Status Checks
+## Required Status Checks
 
 Configure these workflows as **required status checks** in GitHub:
 
@@ -42,18 +42,18 @@ Configure these workflows as **required status checks** in GitHub:
    - Status check name: `terraform`
 
 5. **Monitor Email Queue** (`monitor-email-queue.yml`)
-   - ⚠️ **NOTE: This is a MONITORING workflow only - do NOT add as required status check**
+   - **NOTE: This is a MONITORING workflow only - do NOT add as required status check**
    - This workflow monitors email queue health and creates alerts
    - Failures should not block production deployments
 
 ---
 
-## 🔧 How to Set Up Branch Protection
+## How to Set Up Branch Protection
 
 ### Step 1: Navigate to Branch Protection Settings
 
 1. Go to your GitHub repository: `https://github.com/YOUR_USERNAME/Easy-Flow`
-2. Click **Settings** → **Branches**
+2. Click **Settings** -> **Branches**
 3. Under **Branch protection rules**, click **Add rule** (or edit existing rule for `main`)
 
 ### Step 2: Configure Protection Rule
@@ -62,25 +62,25 @@ Configure these workflows as **required status checks** in GitHub:
 
 **Enable these settings:**
 
-✅ **Require a pull request before merging**
-- ✅ Require approvals: `1`
-- ✅ Dismiss stale pull request approvals when new commits are pushed
+**Require a pull request before merging**
+- Require approvals: `1`
+- Dismiss stale pull request approvals when new commits are pushed
 
-✅ **Require status checks to pass before merging**
-- ✅ Require branches to be up to date before merging
-- ✅ **Status checks that are required:**
+**Require status checks to pass before merging**
+- Require branches to be up to date before merging
+- **Status checks that are required:**
   - `qa` (from `QA — core feature tests`)
   - `integration` (from `QA — Integration Tests`)
   - `validate` (from `Code Validation — SRP, Dynamic, Theme, Logging (Branch-Aware)`)
   - `terraform` (from `Terraform Validation`)
-  - ⚠️ **DO NOT** add `Monitor Email Queue` - it's monitoring only, not a blocker
+  - **DO NOT** add `Monitor Email Queue` - it's monitoring only, not a blocker
 
-✅ **Require conversation resolution before merging**
+**Require conversation resolution before merging**
 
-✅ **Do not allow bypassing the above settings**
-- ✅ Even for administrators
+**Do not allow bypassing the above settings**
+- Even for administrators
 
-✅ **Restrict who can push to matching branches**
+**Restrict who can push to matching branches**
 - Add specific users/teams (optional, but recommended)
 
 ### Step 3: Save the Rule
@@ -101,7 +101,7 @@ After setting up branch protection:
    ```
    **Expected:** Push should be **blocked** if workflows haven't run or failed
 
-2. **Try to merge `dev` → `main` via PR:**
+2. **Try to merge `dev` -> `main` via PR:**
    - Create a PR from `dev` to `main`
    - **Expected:** PR cannot be merged until all required status checks pass
 
@@ -112,11 +112,11 @@ After setting up branch protection:
 
 ---
 
-## 🔍 Verifying Status Check Names
+## Verifying Status Check Names
 
 To find the exact status check names:
 
-1. Go to **Settings** → **Branches**
+1. Go to **Settings** -> **Branches**
 2. Click **Add rule** for `main`
 3. Scroll to **"Require status checks to pass before merging"**
 4. Click **"Choose which status checks are required"**
@@ -128,7 +128,7 @@ To find the exact status check names:
 
 ---
 
-## ⚠️ Important Notes
+## Important Notes
 
 1. **Workflows must run at least once** before they appear in the status check list
 2. **Status check names are case-sensitive**
@@ -148,7 +148,7 @@ If you don't see the status checks in the list:
 1. **Trigger the workflows manually:**
    - Go to **Actions** tab
    - Select each workflow
-   - Click **"Run workflow"** → Select `main` branch → **Run workflow**
+   - Click **"Run workflow"** -> Select `main` branch -> **Run workflow**
 
 2. **Wait for workflows to complete** (they must run at least once)
 
@@ -177,7 +177,7 @@ gh api repos/:owner/:repo/branches/main/protection \
 
 ---
 
-## ✅ Verification Checklist
+## Verification Checklist
 
 After setup, verify:
 

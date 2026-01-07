@@ -23,7 +23,7 @@ This is confirmed by:
    - Select project: **`easyflow-77db9`**
 
 2. **Navigate to Service Accounts:**
-   - Project Settings (gear icon) → **Service Accounts** tab
+   - Project Settings (gear icon) -> **Service Accounts** tab
 
 3. **Generate New Private Key:**
    - Click **"Generate new private key"**
@@ -62,7 +62,7 @@ FIREBASE_DATABASE_URL=https://easyflow-77db9-default-rtdb.firebaseio.com/
 - The `project_id` in the JSON must be exactly `easyflow-77db9`
 
 **For Render Deployment:**
-1. Go to Render Dashboard → Your Backend Service → **Environment**
+1. Go to Render Dashboard -> Your Backend Service -> **Environment**
 2. Add/Update these environment variables:
    - `FIREBASE_PROJECT_ID` = `easyflow-77db9`
    - `FIREBASE_CLIENT_EMAIL` = `firebase-adminsdk-xxxxx@easyflow-77db9.iam.gserviceaccount.com`
@@ -75,11 +75,11 @@ FIREBASE_DATABASE_URL=https://easyflow-77db9-default-rtdb.firebaseio.com/
    - https://console.cloud.google.com/
    - Select project: **`easyflow-77db9`**
 
-2. **Navigate to IAM & Admin → Service Accounts:**
+2. **Navigate to IAM & Admin -> Service Accounts:**
    - Find the service account matching `FIREBASE_CLIENT_EMAIL`
    - Verify it has the **"Firebase Admin SDK Administrator Service Agent"** role
    - If missing, add it:
-     - Click the service account → **Permissions** tab
+     - Click the service account -> **Permissions** tab
      - Click **"Grant Access"**
      - Add role: **"Firebase Admin SDK Administrator Service Agent"**
 
@@ -101,7 +101,7 @@ cd /Users/ky/Easy-Flow
 1. **Check Backend Logs:**
    Look for:
    ```
-   ✅ Firebase Project ID matches frontend configuration
+    Firebase Project ID matches frontend configuration
    🔥 Firebase Admin initialized successfully
    ```
 
@@ -116,7 +116,7 @@ cd /Users/ky/Easy-Flow
 - [ ] `FIREBASE_CLIENT_EMAIL` belongs to `easyflow-77db9` project
 - [ ] `FIREBASE_PRIVATE_KEY` is from the same service account
 - [ ] Service account has "Firebase Admin SDK Administrator Service Agent" role
-- [ ] Backend logs show: "✅ Firebase Project ID matches frontend configuration"
+- [ ] Backend logs show: " Firebase Project ID matches frontend configuration"
 - [ ] No more 401 errors in browser console
 
 ## Common Mistakes
@@ -137,7 +137,7 @@ cd /Users/ky/Easy-Flow
 2. **Verify Environment Variables:**
    The backend logs will show:
    ```
-   🔍 [DEBUG] Firebase environment variables check:
+    [DEBUG] Firebase environment variables check:
    FIREBASE_PROJECT_ID: set (easyflow-77db9)
    FIREBASE_CLIENT_EMAIL: set
    FIREBASE_PRIVATE_KEY: set (XXXX chars)

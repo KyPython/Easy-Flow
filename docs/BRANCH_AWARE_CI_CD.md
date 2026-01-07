@@ -8,9 +8,9 @@ EasyFlow uses a **branch-aware CI/CD pipeline** that enforces different validati
 - **Main Branch**: Strict (all checks must pass, blocking)
 
 This ensures:
-- ✅ **No code loss**: Dev branch allows commits even if checks fail
-- ✅ **Production quality**: Main branch enforces strict validation
-- ✅ **Fully automated**: No manual verification needed
+-  **No code loss**: Dev branch allows commits even if checks fail
+-  **Production quality**: Main branch enforces strict validation
+-  **Fully automated**: No manual verification needed
 
 ---
 
@@ -53,12 +53,12 @@ This ensures:
 **Triggers**: Pushes/PRs to `dev` branch
 
 **Checks** (all non-blocking):
-- ✅ Development environment check
-- ⚠️ Security scan (Snyk) - warning only
-- ⚠️ Test suite - warning only
-- ⚠️ Code quality - warning only
-- ⚠️ Code validation (SRP, Dynamic, Theme, Logging) - warning only
-- ⚠️ RAG knowledge validation - warning only
+-  Development environment check
+-  Security scan (Snyk) - warning only
+-  Test suite - warning only
+-  Code quality - warning only
+-  Code validation (SRP, Dynamic, Theme, Logging) - warning only
+-  RAG knowledge validation - warning only
 
 **Result**: Always passes (warnings logged)
 
@@ -66,14 +66,14 @@ This ensures:
 **Triggers**: Pushes/PRs to `main` branch only
 
 **Checks** (all blocking):
-- ✅ Development environment check
-- ❌ Security scan (Snyk) - **BLOCKS on high+ vulnerabilities**
-- ❌ Test suite - **BLOCKS on failures**
-- ⚠️ Code quality - warning only
-- ❌ Code validation (SRP, Dynamic, Theme, Logging) - **BLOCKS on failures**
-- ❌ RAG knowledge validation - **BLOCKS on failures**
-- ❌ Terraform validation - **BLOCKS on failures**
-- ❌ Full test suite with services - **BLOCKS on failures**
+-  Development environment check
+-  Security scan (Snyk) - **BLOCKS on high+ vulnerabilities**
+-  Test suite - **BLOCKS on failures**
+-  Code quality - warning only
+-  Code validation (SRP, Dynamic, Theme, Logging) - **BLOCKS on failures**
+-  RAG knowledge validation - **BLOCKS on failures**
+-  Terraform validation - **BLOCKS on failures**
+-  Full test suite with services - **BLOCKS on failures**
 
 **Result**: Fails if any blocking check fails
 
@@ -164,75 +164,75 @@ This ensures:
 
 | Check | Dev Branch Behavior |
 |-------|-------------------|
-| Security Scan | ⚠️ Warning only |
-| Tests | ⚠️ Warning only |
-| Code Quality | ⚠️ Warning only |
-| SRP Validation | ⚠️ Warning only |
-| Dynamic Code | ⚠️ Warning only |
-| Theme Consistency | ⚠️ Warning only |
-| Logging Integration | ⚠️ Warning only |
-| RAG Knowledge | ⚠️ Warning only |
-| Terraform | ⚠️ Warning only |
+| Security Scan |  Warning only |
+| Tests |  Warning only |
+| Code Quality |  Warning only |
+| SRP Validation |  Warning only |
+| Dynamic Code |  Warning only |
+| Theme Consistency |  Warning only |
+| Logging Integration |  Warning only |
+| RAG Knowledge |  Warning only |
+| Terraform |  Warning only |
 
 ### Strict (Main Branch)
 
 | Check | Main Branch Behavior |
 |-------|-------------------|
-| Security Scan | ❌ **BLOCKS** on high+ vulnerabilities |
-| Tests | ❌ **BLOCKS** on failures |
-| Code Quality | ⚠️ Warning only |
-| SRP Validation | ❌ **BLOCKS** on failures |
-| Dynamic Code | ❌ **BLOCKS** on failures |
-| Theme Consistency | ❌ **BLOCKS** on failures |
-| Logging Integration | ❌ **BLOCKS** on failures |
-| RAG Knowledge | ❌ **BLOCKS** on failures |
-| Terraform | ❌ **BLOCKS** on failures |
+| Security Scan |  **BLOCKS** on high+ vulnerabilities |
+| Tests |  **BLOCKS** on failures |
+| Code Quality |  Warning only |
+| SRP Validation |  **BLOCKS** on failures |
+| Dynamic Code |  **BLOCKS** on failures |
+| Theme Consistency |  **BLOCKS** on failures |
+| Logging Integration |  **BLOCKS** on failures |
+| RAG Knowledge |  **BLOCKS** on failures |
+| Terraform |  **BLOCKS** on failures |
 
 ---
 
 ## Workflow Summary
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Developer Workflow                       │
-└─────────────────────────────────────────────────────────────┘
++─────────────────────────────────────────────────────────────+
+|                    Developer Workflow                       |
++─────────────────────────────────────────────────────────────+
 
 1. Work on Dev Branch
-   ├─ Commit code (pre-commit: non-blocking)
-   ├─ Push to dev (qa-dev.yml: warnings only)
-   └─ Continue development
+   +─ Commit code (pre-commit: non-blocking)
+   +─ Push to dev (qa-dev.yml: warnings only)
+   +─ Continue development
 
 2. Ready for Production
-   ├─ Run: npm run ship
-   ├─ Script validates on dev
-   ├─ Script merges dev → main
-   ├─ Script validates on main
-   └─ Script pushes to main (triggers deployment)
+   +─ Run: npm run ship
+   +─ Script validates on dev
+   +─ Script merges dev -> main
+   +─ Script validates on main
+   +─ Script pushes to main (triggers deployment)
 
 3. Main Branch
-   ├─ qa-core.yml runs (strict validation)
-   ├─ All checks must pass
-   └─ Production deployment triggered
+   +─ qa-core.yml runs (strict validation)
+   +─ All checks must pass
+   +─ Production deployment triggered
 ```
 
 ---
 
 ## Automation Checklist
 
-✅ **Fully Automated**:
+ **Fully Automated**:
 - Pre-commit hooks (branch-aware)
 - Dev branch validation (non-blocking)
 - Main branch validation (blocking)
 - Ship to production script (fully automated)
 - All CI/CD workflows (no manual steps)
 
-✅ **No Manual Verification Needed**:
+ **No Manual Verification Needed**:
 - All checks run automatically
 - Results are logged and visible
 - Failures are clearly reported
 - Fixes are guided by error messages
 
-✅ **Branch-Aware**:
+ **Branch-Aware**:
 - Dev branch: Permissive (warnings only)
 - Main branch: Strict (blocking)
 - Workflows know which branch they're on
@@ -347,5 +347,5 @@ npm run test:all
 ---
 
 **Last Updated**: 2025-01-XX
-**Status**: ✅ Fully Automated & Branch-Aware
+**Status**:  Fully Automated & Branch-Aware
 

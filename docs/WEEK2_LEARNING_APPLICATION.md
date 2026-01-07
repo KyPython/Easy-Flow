@@ -1,6 +1,6 @@
-# Week 2 Learning Application: Energy per Inference → EasyFlow Cost Optimization
+# Week 2 Learning Application: Energy per Inference -> EasyFlow Cost Optimization
 
-## 🎯 Core Connection
+##  Core Connection
 
 **Week 2 Learning:** Energy per Inference = Power × Time = V² × f × t
 
@@ -8,9 +8,9 @@
 
 ---
 
-## 💡 Key Insight Translation
+##  Key Insight Translation
 
-### Hardware → Software Mapping
+### Hardware -> Software Mapping
 
 | Hardware Concept | Software Equivalent | EasyFlow Implementation |
 |-----------------|---------------------|------------------------|
@@ -21,31 +21,31 @@
 
 ### The Voltage Squared Effect
 
-**Hardware:** Reducing voltage by 30% → ~50% power savings
+**Hardware:** Reducing voltage by 30% -> ~50% power savings
 
-**EasyFlow:** Running background workflows in eco mode → 20% cost savings
+**EasyFlow:** Running background workflows in eco mode -> 20% cost savings
 - Instant mode: $0.004 per workflow (high performance)
 - Eco mode: $0.003 per workflow (20% discount)
 
 ---
 
-## 🚀 Competitive Advantage
+##  Competitive Advantage
 
 ### What Competitors Do (Zapier, Make)
 
-❌ **Run everything at full speed** - No optimization
-❌ **One-size-fits-all pricing** - Same cost for urgent and background
-❌ **No cost transparency** - Users don't see execution costs
+ **Run everything at full speed** - No optimization
+ **One-size-fits-all pricing** - Same cost for urgent and background
+ **No cost transparency** - Users don't see execution costs
 
 ### What EasyFlow Does
 
-✅ **Priority tiers** - Instant (high performance) vs Scheduled (eco mode, 20% discount)
-✅ **Smart scheduling** - Automatically batch non-urgent workflows during low-cost hours
-✅ **Cost transparency** - Show users "This workflow cost $0.003 in eco mode vs $0.004 in instant mode"
+ **Priority tiers** - Instant (high performance) vs Scheduled (eco mode, 20% discount)
+ **Smart scheduling** - Automatically batch non-urgent workflows during low-cost hours
+ **Cost transparency** - Show users "This workflow cost $0.003 in eco mode vs $0.004 in instant mode"
 
 ---
 
-## 📊 Implementation Details
+##  Implementation Details
 
 ### Priority Tiers
 
@@ -81,19 +81,19 @@
 **Real-Time Cost Display:**
 ```
 Workflow Execution Summary:
-├─ Mode: Eco (Scheduled)
-├─ Cost: $0.003 (20% savings vs Instant)
-├─ Duration: 2.3 seconds
-└─ Savings: $0.001 vs Instant mode
++─ Mode: Eco (Scheduled)
++─ Cost: $0.003 (20% savings vs Instant)
++─ Duration: 2.3 seconds
++─ Savings: $0.001 vs Instant mode
 ```
 
 **Monthly Cost Breakdown:**
 ```
 This Month:
-├─ Instant executions: 500 × $0.004 = $2.00
-├─ Eco executions: 500 × $0.003 = $1.50
-├─ Total: $3.50
-└─ Savings: $0.50 (12.5% reduction)
++─ Instant executions: 500 × $0.004 = $2.00
++─ Eco executions: 500 × $0.003 = $1.50
++─ Total: $3.50
++─ Savings: $0.50 (12.5% reduction)
 ```
 
 ---
@@ -145,7 +145,7 @@ Cost = Compute × Duration = (WorkerPool × CostRate) × ExecutionTime
 ```javascript
 // Auto-detect mode based on context
 const mode = executionModeService.determineExecutionMode(workflow, {
-  triggeredBy: 'schedule' // → Eco mode (20% discount)
+  triggeredBy: 'schedule' // -> Eco mode (20% discount)
 });
 
 // Calculate cost
@@ -207,13 +207,13 @@ Smart Behavior: Automatically prioritizes when needed
 
 ---
 
-## ✅ Implementation Status
+##  Implementation Status
 
 ### Completed
-- ✅ Execution mode service with auto-detection
-- ✅ Cost calculation and savings tracking
-- ✅ Priority tier system (Instant vs Scheduled)
-- ✅ Cost transparency features
+-  Execution mode service with auto-detection
+-  Cost calculation and savings tracking
+-  Priority tier system (Instant vs Scheduled)
+-  Cost transparency features
 
 ### Next Steps
 - [ ] Smart scheduling for off-peak execution
@@ -223,7 +223,7 @@ Smart Behavior: Automatically prioritizes when needed
 
 ---
 
-## 🎯 Strategic Value
+##  Strategic Value
 
 ### For Users
 - **Save 20%+ on compute costs** for background workflows
