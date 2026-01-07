@@ -1,6 +1,6 @@
 /**
  * SSRF Protection Utilities
- * 
+ *
  * Prevents Server-Side Request Forgery (SSRF) attacks by validating URLs
  * before making HTTP requests.
  */
@@ -26,16 +26,16 @@ function isPrivateIP(hostname) {
     // Multicast: 224.0.0.0/4
     if (parts[0] >= 224 && parts[0] <= 239) return true;
   }
-  
+
   // Handle IPv6 private ranges
   if (hostname.toLowerCase().startsWith('::1')) return true; // localhost
   if (hostname.toLowerCase().startsWith('fc00:') || hostname.toLowerCase().startsWith('fd00:')) return true; // Unique local
   if (hostname.toLowerCase().startsWith('fe80:')) return true; // Link-local
-  
+
   // Block localhost variations
   const localhostVariants = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]'];
   if (localhostVariants.includes(hostname.toLowerCase())) return true;
-  
+
   return false;
 }
 
@@ -50,20 +50,20 @@ function validateUrlForSSRF(url, options = {}) {
   if (!url || typeof url !== 'string') {
     return { valid: false, error: 'URL is required and must be a string' };
   }
-  
+
   try {
     const parsed = new URL(url);
-    
+
     // Only allow http and https protocols
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return { valid: false, error: 'Invalid protocol. Only http and https are allowed.' };
     }
-    
+
     // Block private IPs unless explicitly allowed
     if (!options.allowPrivateIPs && isPrivateIP(parsed.hostname)) {
       return { valid: false, error: 'Private IP addresses are not allowed' };
     }
-    
+
     // Block dangerous schemes
     const dangerousSchemes = ['javascript:', 'data:', 'file:', 'ftp:'];
     const lowerUrl = url.toLowerCase();
@@ -72,7 +72,7 @@ function validateUrlForSSRF(url, options = {}) {
         return { valid: false, error: `Dangerous URL scheme detected: ${scheme}` };
       }
     }
-    
+
     return { valid: true, url: parsed.href };
   } catch (e) {
     return { valid: false, error: 'Invalid URL format' };

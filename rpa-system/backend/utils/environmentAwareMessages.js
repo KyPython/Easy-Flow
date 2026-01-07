@@ -1,7 +1,7 @@
 /**
  * Environment-Aware Message Utility
  * Provides user-facing messages that adapt based on environment (development, staging, production)
- * 
+ *
  * ✅ OBSERVABILITY: All messages are logged through structured logging
  * ✅ UX: Messages are tailored to environment (dev shows more detail, prod shows user-friendly messages)
  */
@@ -63,7 +63,7 @@ function getUserErrorMessage(error, options = {}) {
     if (userMessage) {
       return userMessage;
     }
-    
+
     // Map common errors to user-friendly messages
     const errorMappings = {
       'network': 'Connection issue. Please check your internet connection and try again.',
@@ -137,7 +137,7 @@ function getTaskStatusMessage(status, options = {}) {
   const messages = {
     completed: {
       dev: `✅ Task "${taskName}" completed successfully`,
-      prod: `Task completed successfully`
+      prod: 'Task completed successfully'
     },
     failed: {
       dev: `❌ Task "${taskName}" failed: ${error || 'Unknown error'}`,
@@ -145,11 +145,11 @@ function getTaskStatusMessage(status, options = {}) {
     },
     running: {
       dev: `🔄 Task "${taskName}" is running...`,
-      prod: `Task is running...`
+      prod: 'Task is running...'
     },
     pending: {
       dev: `⏳ Task "${taskName}" is pending`,
-      prod: `Task is pending`
+      prod: 'Task is pending'
     }
   };
 
@@ -164,7 +164,7 @@ function getTaskStatusMessage(status, options = {}) {
  * @returns {string} Formatted alert message
  */
 function getSystemAlertMessage(alert, severity = 'normal') {
-  const prefix = IS_DEVELOPMENT ? `[DEV] ` : '';
+  const prefix = IS_DEVELOPMENT ? '[DEV] ' : '';
   const severityEmoji = {
     low: 'ℹ️',
     normal: '⚠️',
@@ -173,7 +173,7 @@ function getSystemAlertMessage(alert, severity = 'normal') {
   };
 
   const emoji = severityEmoji[severity] || '⚠️';
-  
+
   return {
     message: `${prefix}${emoji} ${alert}`,
     severity,

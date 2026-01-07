@@ -18,7 +18,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.id || req.ip,
-  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
+  skip: () => isDevelopment || isTest // Skip entirely in dev/test
 });
 
 // Auth middleware with dev bypass support

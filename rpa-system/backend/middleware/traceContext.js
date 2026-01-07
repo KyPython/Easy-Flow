@@ -1,6 +1,6 @@
 /**
  * Trace Context Middleware for EasyFlow
- * 
+ *
  * Implements OpenTelemetry-compatible trace context propagation:
  * - Extracts existing traceparent from incoming requests
  * - Generates new trace IDs when none exist
@@ -35,7 +35,7 @@ function generateTraceParent() {
   const traceId = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '').substring(0, 16); // 32 chars
   const spanId = uuidv4().replace(/-/g, '').substring(0, 16); // 16 chars
   const flags = '01'; // sampled
-  
+
   return `${version}-${traceId}-${spanId}-${flags}`;
 }
 
@@ -44,17 +44,17 @@ function generateTraceParent() {
  */
 function parseTraceParent(traceparent) {
   if (!traceparent || typeof traceparent !== 'string') return null;
-  
+
   const parts = traceparent.split('-');
   if (parts.length !== 4) return null;
-  
+
   const [version, traceId, spanId, flags] = parts;
-  
+
   // Basic validation
   if (version !== '00' || traceId.length !== 32 || spanId.length !== 16) {
     return null;
   }
-  
+
   return { version, traceId, spanId, flags };
 }
 
@@ -70,7 +70,7 @@ function generateChildSpanId() {
  */
 function createTraceContext(req, existingTraceParent = null) {
   let traceId, spanId, parentSpanId = null;
-  
+
   // Try to get OpenTelemetry active span context first (if OTel is initialized)
   if (otelTrace && otelContext) {
     try {
@@ -87,7 +87,7 @@ function createTraceContext(req, existingTraceParent = null) {
       // OTel span not available, continue with manual generation
     }
   }
-  
+
   // If no OTel context, try to extract from headers
   if (!traceId && existingTraceParent) {
     const parsed = parseTraceParent(existingTraceParent);
@@ -97,7 +97,7 @@ function createTraceContext(req, existingTraceParent = null) {
       spanId = generateChildSpanId(); // New span for this service
     }
   }
-  
+
   // Generate new trace if no valid existing one
   if (!traceId) {
     const newTraceParent = generateTraceParent();
@@ -111,7 +111,7 @@ function createTraceContext(req, existingTraceParent = null) {
       spanId = generateChildSpanId();
     }
   }
-  
+
   // Ensure traceId exists before creating requestId
   if (!traceId || traceId.length < 12) {
     traceId = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '').substring(0, 16);
@@ -119,10 +119,10 @@ function createTraceContext(req, existingTraceParent = null) {
   if (!spanId) {
     spanId = generateChildSpanId();
   }
-  
+
   // Create simplified request_id for logging
   const requestId = `req_${traceId.substring(0, 12)}`;
-  
+
   return {
     traceId,
     spanId,
@@ -145,24 +145,24 @@ function createTraceContext(req, existingTraceParent = null) {
 function traceContextMiddleware(req, res, next) {
   // Extract existing traceparent from headers (W3C standard)
   const incomingTraceParent = req.get('traceparent') || req.get('x-trace-id') || req.get('x-request-id');
-  
+
   // Create comprehensive trace context
   const traceContext = createTraceContext(req, incomingTraceParent);
-  
+
   // Store context for this request
   traceContextStorage.run(traceContext, () => {
     // Add context to request object for easy access
     req.traceContext = traceContext;
     req.requestId = traceContext.requestId;
     req.traceId = traceContext.traceId;
-    
+
     // Inject trace headers into response
     res.set({
       'x-trace-id': traceContext.traceId,
       'x-request-id': traceContext.requestId,
       'x-span-id': traceContext.spanId
     });
-    
+
     // Continue with request processing
     next();
   });
@@ -191,7 +191,7 @@ function createContextLogger(namespace = 'app') {
 function getTraceHeaders() {
   const context = getCurrentTraceContext();
   if (!context) return {};
-  
+
   return {
     'traceparent': context.traceparent,
     'x-trace-id': context.traceId,
@@ -206,7 +206,7 @@ function getTraceHeaders() {
 function getKafkaTraceHeaders() {
   const context = getCurrentTraceContext();
   if (!context) return {};
-  
+
   return {
     'traceparent': context.traceparent,
     'x-trace-id': context.traceId,
@@ -222,21 +222,21 @@ function getKafkaTraceHeaders() {
  */
 function extractKafkaTraceContext(messageHeaders) {
   const headers = messageHeaders || {};
-  
+
   // Convert Buffer values to strings if needed
   const getHeader = (key) => {
     const value = headers[key];
     return value ? (Buffer.isBuffer(value) ? value.toString() : value) : null;
   };
-  
+
   const traceparent = getHeader('traceparent');
   const traceId = getHeader('x-trace-id');
   const requestId = getHeader('x-request-id');
   const userId = getHeader('x-user-id');
   const userTier = getHeader('x-user-tier');
-  
+
   if (!traceparent && !traceId) return null;
-  
+
   return {
     traceparent,
     traceId,

@@ -16,12 +16,12 @@ router.use('/webhook', (req, res, next) => {
     res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, x-polar-signature');
   }
-  
+
   // Handle preflight OPTIONS request
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
-  
+
   next();
 });
 
@@ -119,7 +119,7 @@ async function findPlanByPolarProductId(polarProductId) {
     }
 
     if (!data) return null;
-    
+
     // Return object with both UUID (for subscriptions) and slug/name (for profiles)
     // profiles.plan_id is text, so we can store UUID as string or use slug/name
     // planService handles both UUID and text lookups, so UUID string works fine
@@ -203,7 +203,7 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
     // ✅ FIX: profiles.plan_id is text, so use plan slug/name if available, otherwise UUID as string
     // planService handles both UUID and text lookups, so either works
     const profilePlanId = planSlug || planId.toString();
-    
+
     const { error: profileError } = await supabase
       .from('profiles')
       .update({
@@ -221,7 +221,7 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
         plan_slug: planSlug,
         trigger: 'polar_webhook'
       });
-      
+
       // ✅ BULLETPROOF: Send realtime notification to ensure frontend updates immediately
       // This ensures features are available immediately after upgrade/downgrade
       try {
@@ -244,20 +244,20 @@ async function updateUserSubscription(userId, planId, externalPaymentId, status 
               }
             }
           });
-        
+
         logger.info('✅ Realtime notification sent for plan update', { userId, plan_id: profilePlanId });
       } catch (broadcastError) {
         logger.warn('Failed to send realtime notification (non-fatal):', broadcastError);
         // Non-fatal - plan update succeeded, just notification failed
       }
-      
+
       // ✅ BULLETPROOF: Verify plan update was successful
       const { data: verifyProfile } = await supabase
         .from('profiles')
         .select('plan_id')
         .eq('id', userId)
         .single();
-      
+
       if (verifyProfile?.plan_id === profilePlanId) {
         logger.info('✅ Plan update verified successfully', { userId, plan_id: profilePlanId });
       } else {
@@ -440,7 +440,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           // Don't fail the webhook - subscription was already canceled
         } else {
           logger.info(`User ${userId} downgraded to free plan after subscription cancellation`);
-          
+
           // ✅ FIX: Send realtime notification to update frontend
           try {
             await supabase

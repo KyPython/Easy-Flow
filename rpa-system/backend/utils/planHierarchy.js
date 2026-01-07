@@ -18,7 +18,7 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
  */
 async function getPlanHierarchy() {
   const now = Date.now();
-  
+
   // Return cached hierarchy if still valid
   if (cachedHierarchy && (now - lastFetch) < CACHE_TTL) {
     return cachedHierarchy;
@@ -84,7 +84,7 @@ function getFallbackHierarchy() {
  */
 async function getPlanLevel(planName) {
   if (!planName) return 0;
-  
+
   const hierarchy = await getPlanHierarchy();
   const normalized = planName.toLowerCase().trim();
   return hierarchy[normalized] ?? 0;

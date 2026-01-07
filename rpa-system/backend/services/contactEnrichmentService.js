@@ -1,12 +1,12 @@
 /**
  * Contact Enrichment Service
- * 
+ *
  * Enriches contacts with email addresses and professional information:
  * - Hunter.io integration
  * - RocketReach integration
  * - Apollo.io integration
  * - Decision-maker matching
- * 
+ *
  * Features:
  * - Email verification
  * - LinkedIn profile matching
@@ -26,7 +26,7 @@ class ContactEnrichmentService {
     this.hunterApiKey = process.env.HUNTER_API_KEY || '';
     this.rocketReachApiKey = process.env.ROCKETREACH_API_KEY || '';
     this.apolloApiKey = process.env.APOLLO_API_KEY || '';
-    
+
     // Cache for enrichment results
     this.enrichmentCache = new Map();
     // Cache TTL configurable via environment variable (default: 7 days)
@@ -283,7 +283,7 @@ class ContactEnrichmentService {
    */
   async _findDecisionMakersApollo(companyDomain, department = null) {
     try {
-      const titles = department === 'engineering' 
+      const titles = department === 'engineering'
         ? ['CTO', 'VP Engineering', 'Engineering Manager', 'Head of Engineering']
         : department === 'sales'
         ? ['VP Sales', 'Sales Director', 'Head of Sales']

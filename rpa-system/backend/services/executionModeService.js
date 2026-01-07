@@ -1,22 +1,22 @@
 /**
  * Execution Mode Service
- * 
+ *
  * Implements power/performance trade-offs for workflow execution
  * Based on hardware optimization insights: V² effect and latency vs throughput
- * 
+ *
  * Competitive Advantage:
  * - Most platforms (Zapier, Make) run everything at full speed
  * - EasyFlow offers priority tiers: Instant (high performance) vs Scheduled (eco mode, 20% discount)
  * - Smart scheduling: Automatically batch non-urgent workflows during low-cost hours
  * - Cost transparency: Show users exact cost per workflow execution
- * 
+ *
  * Key Concepts:
  * - Instant Mode: Fast execution, $0.004 per workflow (like high-performance CPU)
  * - Scheduled Mode: Slower execution, $0.003 per workflow (20% discount, like low-power CPU)
  * - Balanced Mode: Default, middle ground
- * 
+ *
  * Cost Savings: Scheduled mode saves 20% compute cost by accepting 2x latency (acceptable for batch)
- * 
+ *
  * Week 2 Learning Applied:
  * - Energy per Inference = Power × Time = V² × f × t
  * - Applied: Cost per Workflow = Compute × Duration = (WorkerPool × CostRate) × ExecutionTime
@@ -83,7 +83,7 @@ class ExecutionModeService {
 
   /**
    * Determine execution mode for a workflow
-   * 
+   *
    * Priority:
    * 1. Explicit mode from workflow metadata
    * 2. Auto-detect from context (user-triggered vs scheduled)
@@ -102,7 +102,7 @@ class ExecutionModeService {
 
     // 2. Auto-detect from trigger context
     const triggeredBy = context.triggeredBy || 'manual';
-    
+
     if (triggeredBy === 'user' || triggeredBy === 'manual') {
       // User wants immediate results → real-time
       logger.debug('Auto-detected real-time mode: user-triggered', {
@@ -160,22 +160,22 @@ class ExecutionModeService {
 
   /**
    * Calculate cost estimate for workflow execution
-   * 
+   *
    * Cost transparency: Show users exact cost per workflow
    * Based on quantization analysis: scheduled mode is 20% cheaper
    */
   estimateCost(workflow, mode) {
     const config = this.getExecutionConfig(mode);
     const instantCost = 0.004; // $0.004 per workflow (Instant tier)
-    
+
     const cost = config.costPerExecution || instantCost;
-    const savingsVsInstant = mode !== EXECUTION_MODES.REALTIME 
-      ? instantCost - cost 
+    const savingsVsInstant = mode !== EXECUTION_MODES.REALTIME
+      ? instantCost - cost
       : 0;
     const savingsPercentage = mode !== EXECUTION_MODES.REALTIME
       ? ((savingsVsInstant / instantCost) * 100).toFixed(1)
       : 0;
-    
+
     return {
       mode,
       tier: config.tier || 'instant',
@@ -195,11 +195,11 @@ class ExecutionModeService {
     const config = this.getExecutionConfig(mode);
     const stepCount = workflow.workflow_steps?.length || 1;
     const baseTimePerStep = 0.5; // 30 seconds per step in real-time
-    
+
     // Eco mode takes 2x longer (like low-power CPU)
-    const timeMultiplier = mode === EXECUTION_MODES.ECO ? 2.0 : 
+    const timeMultiplier = mode === EXECUTION_MODES.ECO ? 2.0 :
                           mode === EXECUTION_MODES.BALANCED ? 1.4 : 1.0;
-    
+
     return (stepCount * baseTimePerStep * timeMultiplier);
   }
 

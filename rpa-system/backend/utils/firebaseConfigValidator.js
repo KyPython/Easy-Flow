@@ -17,10 +17,10 @@ function validateFirebaseConfig() {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  
+
   const errors = [];
   const warnings = [];
-  
+
   // Critical: Project ID must match frontend
   if (projectId && projectId !== EXPECTED_PROJECT_ID) {
     errors.push({
@@ -39,7 +39,7 @@ function validateFirebaseConfig() {
       fix: `Set FIREBASE_PROJECT_ID=${EXPECTED_PROJECT_ID} in backend .env file`
     });
   }
-  
+
   // Check required credentials
   if (!clientEmail) {
     warnings.push({
@@ -50,7 +50,7 @@ function validateFirebaseConfig() {
       fix: 'Set FIREBASE_CLIENT_EMAIL in backend .env file'
     });
   }
-  
+
   if (!privateKey) {
     warnings.push({
       type: 'MISSING_PRIVATE_KEY',
@@ -60,7 +60,7 @@ function validateFirebaseConfig() {
       fix: 'Set FIREBASE_PRIVATE_KEY in backend .env file'
     });
   }
-  
+
   // Log errors and warnings
   if (errors.length > 0) {
     logger.error('\n🔥🔥🔥 FIREBASE CONFIGURATION ERRORS 🔥🔥🔥\n');
@@ -69,18 +69,18 @@ function validateFirebaseConfig() {
       logger.error(`  Impact: ${error.impact}`);
       logger.error(`  Fix: ${error.fix}\n`);
     });
-    
+
     // In development, throw to prevent silent failure
     if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev') {
       const errorMessage = errors.map(e => `${e.message}\n  Fix: ${e.fix}`).join('\n\n');
       throw new Error(
         `\n🔥 FATAL: Firebase Configuration Errors\n\n${errorMessage}\n\n` +
-        `These errors will cause authentication failures and cascade through the system.\n` +
-        `Please fix the configuration before starting the server.\n`
+        'These errors will cause authentication failures and cascade through the system.\n' +
+        'Please fix the configuration before starting the server.\n'
       );
     }
   }
-  
+
   if (warnings.length > 0) {
     logger.warn('\n⚠️ FIREBASE CONFIGURATION WARNINGS ⚠️\n');
     warnings.forEach(warning => {
@@ -89,7 +89,7 @@ function validateFirebaseConfig() {
       logger.warn(`  Fix: ${warning.fix}\n`);
     });
   }
-  
+
   // Success message if all checks pass
   if (errors.length === 0 && warnings.length === 0) {
     logger.info('✅ Firebase configuration validated successfully', {
@@ -98,7 +98,7 @@ function validateFirebaseConfig() {
       has_credentials: !!(clientEmail && privateKey)
     });
   }
-  
+
   return {
     valid: errors.length === 0,
     errors,

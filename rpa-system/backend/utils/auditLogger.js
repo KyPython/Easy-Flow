@@ -2,7 +2,7 @@
 const { logger, getLogger } = require('./logger');
 /**
  * Audit Logger for EasyFlow
- * 
+ *
  * Tracks all user actions, automation executions, and system events
  * for security, compliance, and debugging purposes.
  */
@@ -21,12 +21,12 @@ class AuditLogger {
       logger.warn('⚠️ Supabase not configured - audit logging disabled for local dev');
       this.supabase = null;
     }
-    
+
     // Cache settings
     this.logBuffer = [];
     this.bufferSize = parseInt(process.env.AUDIT_BUFFER_SIZE) || 100;
     this.flushInterval = parseInt(process.env.AUDIT_FLUSH_INTERVAL) || 30000; // 30 seconds
-    
+
     // Start periodic flush
     this.startPeriodicFlush();
   }
@@ -385,17 +385,17 @@ class AuditLogger {
 
       data.forEach(log => {
         // Count by action type
-        stats.by_action_type[log.action_type] = 
+        stats.by_action_type[log.action_type] =
           (stats.by_action_type[log.action_type] || 0) + 1;
 
         // Count by specific action
-        stats.by_action[log.action] = 
+        stats.by_action[log.action] =
           (stats.by_action[log.action] || 0) + 1;
 
         // Automation specific stats
         if (log.action_type === 'automation_execution') {
           stats.automation_stats.total_executions++;
-          
+
           const status = log.details?.status;
           if (status === 'success' || status === 'completed') {
             stats.automation_stats.successful++;
@@ -405,7 +405,7 @@ class AuditLogger {
 
           const taskType = log.details?.task_type;
           if (taskType) {
-            stats.automation_stats.by_type[taskType] = 
+            stats.automation_stats.by_type[taskType] =
               (stats.automation_stats.by_type[taskType] || 0) + 1;
           }
         }
@@ -486,7 +486,7 @@ class AuditLogger {
       if (error) throw error;
 
       logger.info(`🧹 Cleaned up ${count} old audit logs (older than ${retentionDays} days)`);
-      
+
       return { cleaned_count: count, cutoff_date: cutoffDate.toISOString() };
     } catch (error) {
       logger.error('Audit log cleanup failed:', error);

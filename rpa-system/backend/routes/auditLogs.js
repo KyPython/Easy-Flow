@@ -67,7 +67,7 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
   // Create logger with business context for this operation
   const logger = createLogger('api.audit_logs')
     .withUser(req.user)
-    .withOperation('get_user_audit_logs', { 
+    .withOperation('get_user_audit_logs', {
       endpoint: '/api/audit-logs/user',
       method: 'GET'
     });
@@ -96,7 +96,7 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
       if (planData && planData.plan_limits && planData.plan_limits.full_logging_days) {
         retentionDays = planData.plan_limits.full_logging_days;
       }
-      
+
       logger.debug('Plan retention policy applied', {
         business: {
           user: { user_id: userId },
@@ -105,7 +105,7 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
       });
     } catch (e) {
       logger.warn('Could not fetch plan retention days, using default', e, {
-        business: { 
+        business: {
           user: { user_id: userId },
           operation: { fallback_retention_days: retentionDays }
         }
@@ -122,7 +122,7 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
       offset,
       search
     } = req.query || {};
-    
+
     // ✅ SECURITY: Validate types before using (prevent type confusion attacks)
     // Ensure req.query is an object
     if (!req.query || typeof req.query !== 'object') {
@@ -192,7 +192,7 @@ router.get('/system', requireAdmin, requireFeature('audit_logs_admin'), async (r
       offset,
       search
     } = req.query || {};
-    
+
     // ✅ SECURITY: Validate types before using (prevent type confusion attacks)
     // Ensure req.query is an object
     if (!req.query || typeof req.query !== 'object') {
@@ -244,12 +244,12 @@ router.get('/system', requireAdmin, requireFeature('audit_logs_admin'), async (r
     res.json(result);
   } catch (error) {
     logger.error('Failed to fetch system audit logs:', error);
-    
+
     await auditLogger.logSystemEvent('error', 'system_audit_logs_fetch_failed', {
       error: error.message,
       admin_user: req.user?.id
     }, req.user?.id);
-    
+
     res.status(500).json({ error: 'Failed to fetch system audit logs' });
   }
 });
@@ -277,12 +277,12 @@ router.get('/system/stats', requireAdmin, requireFeature('audit_logs_admin'), as
     res.json(combinedStats);
   } catch (error) {
     logger.error('Failed to fetch system audit stats:', error);
-    
+
     await auditLogger.logSystemEvent('error', 'system_audit_stats_fetch_failed', {
       error: error.message,
       admin_user: req.user?.id
     }, req.user?.id);
-    
+
     res.status(500).json({ error: 'Failed to fetch system audit statistics' });
   }
 });
@@ -315,15 +315,15 @@ router.get('/export', requireFeature('audit_logs'), async (req, res) => {
 
     if (format.toLowerCase() === 'csv') {
       const csv = convertLogsToCSV(result.logs);
-      
+
       const filename = `audit_logs_${userId}_${new Date().toISOString().split('T')[0]}.csv`;
-      
+
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(csv);
     } else if (format.toLowerCase() === 'json') {
       const filename = `audit_logs_${userId}_${new Date().toISOString().split('T')[0]}.json`;
-      
+
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.json(result);
@@ -340,14 +340,14 @@ router.get('/export', requireFeature('audit_logs'), async (req, res) => {
 
   } catch (error) {
     logger.error('Failed to export audit logs:', error);
-    
+
     if (req.user?.id) {
       await auditLogger.logSystemEvent('error', 'audit_logs_export_failed', {
         error: error.message,
         format: req.query.format
       }, req.user.id);
     }
-    
+
     res.status(500).json({ error: 'Failed to export audit logs' });
   }
 });
@@ -359,9 +359,9 @@ router.get('/export', requireFeature('audit_logs'), async (req, res) => {
 router.delete('/cleanup', requireAdmin, requireFeature('audit_logs_admin'), async (req, res) => {
   try {
     const { retentionDays = 365 } = req.query;
-    
+
     const result = await auditLogger.cleanupOldLogs(parseInt(retentionDays));
-    
+
     await auditLogger.logSystemEvent('info', 'audit_logs_cleanup', {
       ...result,
       retention_days: retentionDays,
@@ -374,12 +374,12 @@ router.delete('/cleanup', requireAdmin, requireFeature('audit_logs_admin'), asyn
     });
   } catch (error) {
     logger.error('Failed to cleanup audit logs:', error);
-    
+
     await auditLogger.logSystemEvent('error', 'audit_logs_cleanup_failed', {
       error: error.message,
       admin_user: req.user?.id
     }, req.user?.id);
-    
+
     res.status(500).json({ error: 'Failed to cleanup audit logs' });
   }
 });
@@ -460,7 +460,7 @@ function convertLogsToCSV(logs) {
       log.ip_address || '',
       log.user_agent || ''
     ];
-    
+
     // Escape commas and quotes in CSV
     const escapedRow = row.map(field => {
       if (typeof field === 'string' && (field.includes(',') || field.includes('"'))) {
@@ -468,7 +468,7 @@ function convertLogsToCSV(logs) {
       }
       return field;
     });
-    
+
     csvRows.push(escapedRow.join(','));
   });
 

@@ -10,10 +10,10 @@ const { getCurrentTraceContext } = require('./traceContext');
 // Create base logger configuration
 const loggerConfig = {
   level: process.env.LOG_LEVEL || 'info',
-  
+
   // Always use JSON format for reliable log capture
   // pino-pretty causes issues with nohup/file redirection
-  // 
+  //
   // ✅ DOCKER LOGGING: Pino writes to stdout/stderr by default (no destination specified)
   // This allows Docker to capture logs via its logging driver, which Promtail then collects
   // Logs are automatically shipped to Loki for observability and trace discovery
@@ -44,14 +44,14 @@ const loggerConfig = {
     err: pino.stdSerializers.err,
     req: pino.stdSerializers.req,
     res: pino.stdSerializers.res,
-    
+
     // Custom serializer for user objects (remove sensitive data)
     user: (user) => {
       if (!user) return user;
       const { password, secrets, ...safeUser } = user;
       return safeUser;
     },
-    
+
     // Custom serializer for database operations
     database: (db) => {
       if (!db) return db;
@@ -73,17 +73,17 @@ const rootLogger = pino(loggerConfig);
 /**
  * Log Sampling Configuration
  * Reduces volume of debug/info logs by sampling
- * 
+ *
  * Sampling rates (1 in N logs):
  * - trace: 0.1% (1 in 1000) - Very verbose tracing
  * - debug: 1% (1 in 100) - Detailed debugging
  * - info: 100% (1 in 1) - General information (ALWAYS LOG - critical for observability)
  * - warn: 100% (1 in 1) - Warnings (ALWAYS LOG - important for debugging)
  * - error/fatal: 100% (always logged) - Critical issues
- * 
+ *
  * ✅ OBSERVABILITY: Info and warn logs are now always logged to ensure complete visibility
  * into automation task execution, completion, and artifact generation.
- * 
+ *
  * Override via environment variables:
  * - TRACE_LOG_SAMPLE_RATE (default: 1000)
  * - DEBUG_LOG_SAMPLE_RATE (default: 100)
@@ -107,11 +107,11 @@ const samplingCounters = new Map();
 function shouldSample(namespace, level) {
   const sampleRate = SAMPLING_CONFIG[level] || 1;
   if (sampleRate === 1) return true; // Always log error/fatal (no sampling)
-  
+
   const key = `${namespace}:${level}`;
   const counter = (samplingCounters.get(key) || 0) + 1;
   samplingCounters.set(key, counter);
-  
+
   // Sample every Nth log
   return counter % sampleRate === 0;
 }
@@ -123,9 +123,9 @@ class StructuredLogger {
   constructor(namespace = 'default', baseContext = {}) {
     this.namespace = namespace;
     this.baseContext = baseContext;
-    this.logger = rootLogger.child({ 
+    this.logger = rootLogger.child({
       logger: namespace,
-      ...baseContext 
+      ...baseContext
     });
   }
 
@@ -134,7 +134,7 @@ class StructuredLogger {
    */
   child(context = {}) {
     return new StructuredLogger(
-      this.namespace, 
+      this.namespace,
       { ...this.baseContext, ...context }
     );
   }
@@ -198,7 +198,7 @@ class StructuredLogger {
 
   error(message, error = null, extra = {}) {
     const errorLog = this._enrichLog(extra);
-    
+
     if (error instanceof Error) {
       // Structured error logging with full stack trace and metadata
       errorLog.error = {
@@ -219,7 +219,7 @@ class StructuredLogger {
 
   fatal(message, error = null, extra = {}) {
     const fatalLog = this._enrichLog(extra);
-    
+
     if (error instanceof Error) {
       fatalLog.error = {
         message: error.message,
@@ -282,7 +282,7 @@ class StructuredLogger {
    */
   _enrichLog(extra = {}) {
     const traceContext = getCurrentTraceContext();
-    
+
     return {
       ...extra,
       // Always include trace correlation
@@ -302,19 +302,19 @@ class StructuredLogger {
    */
   _extractErrorMetadata(error) {
     const metadata = {};
-    
+
     // Database errors
     if (error.code && typeof error.code === 'string') {
       metadata.database_error_code = error.code;
     }
-    
+
     // HTTP errors
     if (error.response) {
       metadata.http_status = error.response.status;
       metadata.http_statusText = error.response.statusText;
       metadata.http_url = error.response.config?.url;
     }
-    
+
     // Validation errors
     if (error.errors && Array.isArray(error.errors)) {
       metadata.validation_errors = error.errors.map(e => ({
@@ -322,7 +322,7 @@ class StructuredLogger {
         message: e.message
       }));
     }
-    
+
     return metadata;
   }
 }
@@ -344,13 +344,13 @@ function requestLoggingMiddleware() {
   return (req, res, next) => {
     const startTime = Date.now();
     const logger = createLogger('http.request');
-    
+
     // Sample info logs (only log every Nth request start)
     const shouldLogStart = shouldSample('http.request', 'info');
-    
+
     // Always log API requests, sample health/metrics endpoints
     const isHealthEndpoint = req.path === '/health' || req.path === '/metrics' || req.path === '/api/health';
-    
+
     if (shouldLogStart && !isHealthEndpoint) {
       logger.info('HTTP request started', {
         http: {
@@ -368,11 +368,11 @@ function requestLoggingMiddleware() {
     const originalSend = res.send;
     res.send = function(data) {
       const duration = Date.now() - startTime;
-      
+
       // Only log 5xx errors always, sample everything else aggressively
       const is5xxError = res.statusCode >= 500;
       const shouldLogEnd = is5xxError || shouldSample('http.request', 'info');
-      
+
       if (shouldLogEnd && !isHealthEndpoint) {
         // Calculate response size - handle objects, strings, and buffers
         let responseSize = 0;
@@ -390,7 +390,7 @@ function requestLoggingMiddleware() {
             }
           }
         }
-        
+
         logger.info('HTTP request completed', {
           http: {
             method: req.method,
@@ -402,7 +402,7 @@ function requestLoggingMiddleware() {
           performance: { duration }
         });
       }
-      
+
       return originalSend.call(this, data);
     };
 

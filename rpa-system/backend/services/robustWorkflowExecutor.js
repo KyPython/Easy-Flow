@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 
 /**
  * Enhanced Workflow Executor with Hard Timeouts and Immediate Error Feedback
- * 
+ *
  * Key Features:
  * - Hard timeouts on all browser operations (30s max)
  * - Immediate error logging and status updates
@@ -15,7 +15,7 @@ const { v4: uuidv4 } = require('uuid');
 class RobustWorkflowExecutor {
   constructor() {
     this.supabase = getSupabase();
-    
+
     // Execution configuration - all values from centralized config
     const { config: appConfig } = require('../utils/appConfig');
     this.config = {
@@ -26,7 +26,7 @@ class RobustWorkflowExecutor {
       MAX_RETRY_ATTEMPTS: appConfig.retries.maxAttempts,
       RETRY_DELAY: appConfig.retries.baseDelay
     };
-    
+
     this.runningExecutions = new Map();
   }
 
@@ -36,45 +36,45 @@ class RobustWorkflowExecutor {
   async executeWorkflow({ workflowId, userId, steps, inputData = {} }) {
     const executionId = uuidv4();
     const startTime = Date.now();
-    
+
     try {
       // Initialize execution tracking
       await this._initializeExecution(executionId, workflowId, userId);
-      this.runningExecutions.set(executionId, { 
-        cancelled: false, 
+      this.runningExecutions.set(executionId, {
+        cancelled: false,
         startTime,
-        currentStep: 0 
+        currentStep: 0
       });
 
       logger.info(`[RobustExecutor] Starting workflow ${workflowId} with execution ${executionId}`);
-      
+
       // Launch browser with timeout protection
       const browser = await this._launchBrowserWithTimeout();
       const page = await browser.newPage();
-      
+
       try {
         // Execute all steps with comprehensive error handling
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
           await this._updateExecutionProgress(executionId, i, steps.length, `Executing step: ${step.type}`);
-          
+
           // Check for cancellation before each step
           if (this._isExecutionCancelled(executionId)) {
             throw new Error('Execution cancelled by user');
           }
-          
+
           // Execute step with timeout protection
           await this._executeStepWithTimeout(page, step, executionId, i);
         }
-        
+
         // Mark as completed
         await this._completeExecution(executionId, 'success', 'Workflow completed successfully');
         return { success: true, executionId };
-        
+
       } finally {
         await browser.close();
       }
-      
+
     } catch (error) {
       // Immediate error handling and status update
       logger.error(`[RobustExecutor] Execution ${executionId} failed:`, error);
@@ -92,7 +92,7 @@ class RobustWorkflowExecutor {
     const stepTimeout = setTimeout(() => {
       throw new Error(`Step ${stepIndex} (${step.type}) exceeded maximum timeout of ${this.config.DEFAULT_TIMEOUT}ms`);
     }, this.config.DEFAULT_TIMEOUT);
-    
+
     try {
       switch (step.type) {
         case 'navigate':
@@ -124,26 +124,26 @@ class RobustWorkflowExecutor {
   async _performNavigation(page, step, executionId) {
     try {
       logger.info(`[RobustExecutor] Navigating to: ${step.url}`);
-      
+
       // Navigate with explicit timeout
       await Promise.race([
-        page.goto(step.url, { 
+        page.goto(step.url, {
           waitUntil: 'domcontentloaded',
-          timeout: this.config.PAGE_LOAD_TIMEOUT 
+          timeout: this.config.PAGE_LOAD_TIMEOUT
         }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error(`Navigation timeout: Page failed to load within ${this.config.PAGE_LOAD_TIMEOUT}ms`)), 
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Navigation timeout: Page failed to load within ${this.config.PAGE_LOAD_TIMEOUT}ms`)),
           this.config.PAGE_LOAD_TIMEOUT)
         )
       ]);
-      
+
       // Wait for page to be interactive
       await page.waitForFunction(() => document.readyState === 'complete', {
         timeout: this.config.SELECTOR_TIMEOUT
       });
-      
+
       logger.info(`[RobustExecutor] Successfully navigated to: ${step.url}`);
-      
+
     } catch (error) {
       const failureReason = `Navigation failed to ${step.url}: ${error.message}`;
       await this._logStepFailure(executionId, 'navigate', step, failureReason);
@@ -156,68 +156,68 @@ class RobustWorkflowExecutor {
    */
   async _performLogin(page, step, executionId) {
     const { usernameSelector, passwordSelector, submitSelector, username, password } = step;
-    
+
     try {
       logger.info(`[RobustExecutor] Performing login with selectors: username(${usernameSelector}), password(${passwordSelector}), submit(${submitSelector})`);
-      
+
       // Wait for username field with explicit timeout
       try {
-        await page.waitForSelector(usernameSelector, { 
+        await page.waitForSelector(usernameSelector, {
           timeout: this.config.SELECTOR_TIMEOUT,
-          visible: true 
+          visible: true
         });
       } catch (timeoutError) {
         throw new Error(`Username field not found: Selector "${usernameSelector}" did not appear within ${this.config.SELECTOR_TIMEOUT}ms`);
       }
-      
+
       // Wait for password field
       try {
-        await page.waitForSelector(passwordSelector, { 
+        await page.waitForSelector(passwordSelector, {
           timeout: this.config.SELECTOR_TIMEOUT,
-          visible: true 
+          visible: true
         });
       } catch (timeoutError) {
         throw new Error(`Password field not found: Selector "${passwordSelector}" did not appear within ${this.config.SELECTOR_TIMEOUT}ms`);
       }
-      
+
       // Fill credentials with timeout protection
       await Promise.race([
         this._fillCredentialsSequence(page, usernameSelector, passwordSelector, username, password),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Credential filling timeout')), this.config.SELECTOR_TIMEOUT)
         )
       ]);
-      
+
       // Wait for submit button and click
       try {
-        await page.waitForSelector(submitSelector, { 
+        await page.waitForSelector(submitSelector, {
           timeout: this.config.SELECTOR_TIMEOUT,
-          visible: true 
+          visible: true
         });
-        
+
         // Click submit with timeout
         await Promise.race([
           page.click(submitSelector),
-          new Promise((_, reject) => 
+          new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Submit button click timeout')), 5000)
           )
         ]);
       } catch (error) {
         throw new Error(`Submit button interaction failed: Selector "${submitSelector}" - ${error.message}`);
       }
-      
+
       // Wait for navigation or login success indicator
       await Promise.race([
         page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: this.config.LOGIN_TIMEOUT }),
         page.waitForSelector('[data-testid="dashboard"], .dashboard, #dashboard', { timeout: this.config.LOGIN_TIMEOUT }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Login verification timeout: No redirect or success indicator detected')), 
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Login verification timeout: No redirect or success indicator detected')),
           this.config.LOGIN_TIMEOUT)
         )
       ]);
-      
-      logger.info(`[RobustExecutor] Login completed successfully`);
-      
+
+      logger.info('[RobustExecutor] Login completed successfully');
+
     } catch (error) {
       const failureReason = `Login failed: ${error.message}`;
       await this._logStepFailure(executionId, 'login', step, failureReason);
@@ -235,10 +235,10 @@ class RobustWorkflowExecutor {
       document.querySelector(selector).value = '';
     }, usernameSelector);
     await page.type(usernameSelector, username, { delay: 50 });
-    
+
     // Small delay to mimic human behavior
     await page.waitForTimeout(500);
-    
+
     // Clear and fill password
     await page.click(passwordSelector);
     await page.evaluate((selector) => {
@@ -252,16 +252,16 @@ class RobustWorkflowExecutor {
    */
   async _performClick(page, step, executionId) {
     const { selector, waitForSelector: waitSelector } = step;
-    
+
     try {
       logger.info(`[RobustExecutor] Clicking element: ${selector}`);
-      
+
       // Wait for element to be available and clickable
       await page.waitForSelector(selector, {
         timeout: this.config.SELECTOR_TIMEOUT,
         visible: true
       });
-      
+
       // Ensure element is clickable
       await page.waitForFunction(
         (sel) => {
@@ -271,24 +271,24 @@ class RobustWorkflowExecutor {
         { timeout: this.config.SELECTOR_TIMEOUT },
         selector
       );
-      
+
       // Perform click with timeout protection
       await Promise.race([
         page.click(selector),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Click operation timeout')), 5000)
         )
       ]);
-      
+
       // Wait for any expected changes after click
       if (waitSelector) {
         await page.waitForSelector(waitSelector, {
           timeout: this.config.SELECTOR_TIMEOUT
         });
       }
-      
+
       logger.info(`[RobustExecutor] Successfully clicked: ${selector}`);
-      
+
     } catch (error) {
       const failureReason = `Click failed on "${selector}": ${error.message}`;
       await this._logStepFailure(executionId, 'click', step, failureReason);
@@ -301,33 +301,33 @@ class RobustWorkflowExecutor {
    */
   async _performFill(page, step, executionId) {
     const { selector, value } = step;
-    
+
     try {
       logger.info(`[RobustExecutor] Filling field: ${selector}`);
-      
+
       // Wait for field to be available
       await page.waitForSelector(selector, {
         timeout: this.config.SELECTOR_TIMEOUT,
         visible: true
       });
-      
+
       // Clear existing content
       await page.click(selector);
       await page.keyboard.down('Control');
       await page.keyboard.press('KeyA');
       await page.keyboard.up('Control');
-      
+
       // Fill with new value
       await page.type(selector, value, { delay: 50 });
-      
+
       // Validate the field was filled correctly
       const filledValue = await page.$eval(selector, el => el.value);
       if (filledValue !== value) {
         throw new Error(`Field validation failed: Expected "${value}", got "${filledValue}"`);
       }
-      
+
       logger.info(`[RobustExecutor] Successfully filled: ${selector}`);
-      
+
     } catch (error) {
       const failureReason = `Fill operation failed on "${selector}": ${error.message}`;
       await this._logStepFailure(executionId, 'fill', step, failureReason);
@@ -340,7 +340,7 @@ class RobustWorkflowExecutor {
    */
   async _performWait(page, step, executionId) {
     const { selector, timeout = this.config.SELECTOR_TIMEOUT } = step;
-    
+
     try {
       if (selector) {
         await page.waitForSelector(selector, { timeout });
@@ -361,7 +361,7 @@ class RobustWorkflowExecutor {
    */
   async _launchBrowserWithTimeout() {
     const puppeteer = require('puppeteer');
-    
+
     return await Promise.race([
       puppeteer.launch({
         headless: true,
@@ -373,7 +373,7 @@ class RobustWorkflowExecutor {
           '--disable-features=VizDisplayCompositor'
         ]
       }),
-      new Promise((_, reject) => 
+      new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Browser launch timeout')), 15000)
       )
     ]);
@@ -391,7 +391,7 @@ class RobustWorkflowExecutor {
       failed_at: new Date().toISOString(),
       failure_reason: this._categorizeError(error)
     };
-    
+
     try {
       if (this.supabase) {
         // Update execution status immediately
@@ -404,7 +404,7 @@ class RobustWorkflowExecutor {
             metadata: JSON.stringify(failureData)
           })
           .eq('id', executionId);
-        
+
         // Log to automation history
         await this.supabase
           .from('automation_history')
@@ -415,10 +415,10 @@ class RobustWorkflowExecutor {
             created_at: new Date().toISOString()
           });
       }
-      
+
       logger.error(`[RobustExecutor] Execution ${executionId} failed and logged:`, failureData);
     } catch (dbError) {
-      logger.error(`[RobustExecutor] Failed to log execution error:`, dbError);
+      logger.error('[RobustExecutor] Failed to log execution error:', dbError);
     }
   }
 
@@ -433,17 +433,17 @@ class RobustWorkflowExecutor {
       failure_reason: reason,
       failed_at: new Date().toISOString()
     };
-    
+
     try {
       if (this.supabase) {
         await this.supabase
           .from('step_failures')
           .insert(stepFailure);
       }
-      
-      logger.error(`[RobustExecutor] Step failure logged:`, stepFailure);
+
+      logger.error('[RobustExecutor] Step failure logged:', stepFailure);
     } catch (error) {
-      logger.error(`[RobustExecutor] Failed to log step failure:`, error);
+      logger.error('[RobustExecutor] Failed to log step failure:', error);
     }
   }
 
@@ -452,7 +452,7 @@ class RobustWorkflowExecutor {
    */
   _categorizeError(error) {
     const message = error.message.toLowerCase();
-    
+
     if (message.includes('timeout')) {
       return 'TIMEOUT_ERROR';
     } else if (message.includes('selector') || message.includes('element')) {
@@ -502,7 +502,7 @@ class RobustWorkflowExecutor {
         })
         .eq('id', executionId);
     }
-    
+
     logger.info(`[RobustExecutor] Progress ${executionId}: ${currentStep}/${totalSteps} - ${message}`);
   }
 

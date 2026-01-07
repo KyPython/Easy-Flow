@@ -8,10 +8,10 @@ const { getBrowserVisualizationService } = require('./browserVisualizationServic
 
 /**
  * Link Discovery Service for Seamless Invoice Download
- * 
+ *
  * Automatically finds PDF download links after login, eliminating manual URL hunting.
  * Supports multiple discovery methods for maximum compatibility.
- * 
+ *
  * ✅ ADAPTIVE LEARNING: Learns from every run and improves over time
  * - Stores successful patterns in database
  * - Tries learned patterns first for faster discovery
@@ -98,7 +98,7 @@ class LinkDiscoveryService {
       }
 
       const normalizedUrl = this._normalizeUrl(siteUrl);
-      
+
       // Extract pattern from successful discovery
       const pattern = {
         site_url: normalizedUrl,
@@ -172,7 +172,7 @@ class LinkDiscoveryService {
       }
 
       const normalizedUrl = this._normalizeUrl(siteUrl);
-      
+
       const { error } = await this.supabase
         .from('link_discovery_failures')
         .insert({
@@ -204,7 +204,7 @@ class LinkDiscoveryService {
    */
   async _tryMultipleStrategies(page, siteUrl, learnedPatterns = []) {
     const strategies = [];
-    
+
     // Strategy 1: Try learned patterns first (if available) - HIGHEST PRIORITY
     if (learnedPatterns.length > 0) {
       logger.info(`[LinkDiscovery] 🎯 Applying ${learnedPatterns.length} learned pattern(s) FIRST (highest priority)`);
@@ -242,7 +242,7 @@ class LinkDiscoveryService {
       try {
         logger.info(`[LinkDiscovery] Trying strategy: ${strategy.name}`);
         let result;
-        
+
         if (strategy.method === 'auto-detect') {
           result = await this._autoDetectPdfLinks(page);
         } else if (strategy.method === 'enhanced-detect') {
@@ -280,7 +280,7 @@ class LinkDiscoveryService {
 
       const result = await page.evaluate((selectors, linkPatterns) => {
         const results = [];
-        
+
         // Try each learned selector
         for (const selector of selectors) {
           try {
@@ -342,11 +342,11 @@ class LinkDiscoveryService {
     // - Clicking through modals/dropdowns
     // - Following redirects
     // - Checking iframe content
-    
+
     try {
       // Wait longer for dynamic content
       await this._wait(3000);
-      
+
       // Check for modals or dropdowns that might contain links
       await page.evaluate(() => {
         // Try to open common dropdowns/modals
@@ -415,32 +415,32 @@ class LinkDiscoveryService {
     const browser = await this._launchBrowser();
     const page = await browser.newPage();
     const vizService = getBrowserVisualizationService();
-    
+
     try {
       logger.info(`[LinkDiscovery] Starting discovery for ${url} using method: ${discoveryMethod}`);
-      
+
       // Step 1: Navigate to the page
       logger.info(`[LinkDiscovery] Navigating to: ${url}`);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: this.config.TIMEOUT });
-      
+
       // ✅ VISUALIZATION: Capture screenshot after navigation
       if (runId) {
         await vizService.captureAndUpdate(page, runId, 'Page loaded', '🌐 Page loaded successfully', 15);
       }
-      
+
       // Wait for page to be ready
       await page.waitForFunction(() => document.readyState === 'complete', {
         timeout: this.config.SELECTOR_TIMEOUT
       });
-      
+
       // Step 2: Attempt login if credentials provided and login form detected
       // ✅ DEMO PORTAL: Skip login for demo portal - it's a test site that doesn't require authentication
       const isDemoPortal = url && (
-        url.includes('/demo') || 
+        url.includes('/demo') ||
         url.includes('localhost:3030/demo') ||
         url.includes('127.0.0.1:3030/demo')
       );
-      
+
       // ✅ DEMO PORTAL: Auto-show invoices by adding ?auto=true to URL
       if (isDemoPortal && !url.includes('?auto=true') && !url.includes('?public=true')) {
         const separator = url.includes('?') ? '&' : '?';
@@ -455,24 +455,24 @@ class LinkDiscoveryService {
           logger.warn('[LinkDiscovery] Invoice list did not appear, continuing anyway');
         }
       }
-      
+
       if (username && password && !isDemoPortal) {
         try {
           // ✅ VISUALIZATION: Capture screenshot before login
           if (runId) {
             await vizService.captureBeforeAction(page, runId, 'Login form detected', '🔐 Logging in...', 25);
           }
-          
+
           // ✅ INTELLIGENT ADAPTATION: Get adapted selectors for this site
           const adaptedSelectors = await this.siteAdaptationService.getAdaptedSelectors(url, 'login');
-          
+
           await this._performLogin(page, { url, username, password, adaptedSelectors });
-          
+
           // ✅ VISUALIZATION: Capture screenshot after login
           if (runId) {
             await vizService.captureAfterAction(page, runId, 'Login successful', '✅ Logged in successfully', 35);
           }
-          
+
           // ✅ LEARNING: Store successful pattern
           await this.siteAdaptationService.learnFromSuccess({
             siteUrl: url,
@@ -484,16 +484,16 @@ class LinkDiscoveryService {
         } catch (loginError) {
           // ✅ AUTO PASSWORD RESET: Check if password reset is needed
           const resetCheck = await this.passwordResetService.detectPasswordResetNeeded(page, loginError);
-          
+
           if (resetCheck.needsReset && resetCheck.canAutoReset) {
             logger.info('[LinkDiscovery] Password reset needed, attempting automated reset');
-            
+
             const resetResult = await this.passwordResetService.performPasswordReset(page, {
               email: username, // Assuming username is email
               resetLinkUrl: resetCheck.resetLinkUrl,
               siteUrl: url
             });
-            
+
             if (resetResult.success) {
               // ✅ LEARNING: Store failure pattern for future reference
               await this.siteAdaptationService.learnFromFailure({
@@ -503,31 +503,31 @@ class LinkDiscoveryService {
                 attemptedSelectors: adaptedSelectors || [],
                 pageStructure: await this._getPageStructure(page)
               });
-              
+
               throw new Error(`Password reset email sent. ${resetResult.message}. Please update your password in EasyFlow and try again.`);
             }
           }
-          
+
           // ✅ SELF-HEALING: Try alternative strategies
           const pageStructure = await this._getPageStructure(page);
           const healing = await this.siteAdaptationService.selfHeal(url, 'login', null, pageStructure);
-          
+
           if (healing.shouldRetry && healing.strategies.length > 0) {
             logger.info('[LinkDiscovery] Attempting self-healing with alternative selectors', {
               strategyCount: healing.strategies.length
             });
-            
+
             // Try alternative selectors
             for (const strategy of healing.strategies.slice(0, healing.maxRetries)) {
               try {
-                await this._performLogin(page, { 
-                  url, 
-                  username, 
-                  password, 
-                  adaptedSelectors: [strategy] 
+                await this._performLogin(page, {
+                  url,
+                  username,
+                  password,
+                  adaptedSelectors: [strategy]
                 });
                 logger.info('[LinkDiscovery] Self-healing succeeded with alternative selector', { strategy });
-                
+
                 // Store successful healing pattern
                 await this.siteAdaptationService.learnFromSuccess({
                   siteUrl: url,
@@ -536,7 +536,7 @@ class LinkDiscoveryService {
                   executionTime: Date.now(),
                   successPattern: { method: 'self-healed', selector: strategy }
                 });
-                
+
                 break; // Success, exit retry loop
               } catch (retryError) {
                 logger.warn('[LinkDiscovery] Self-healing attempt failed', { strategy, error: retryError.message });
@@ -544,7 +544,7 @@ class LinkDiscoveryService {
               }
             }
           }
-          
+
           // If login fails because no form was detected, continue without login
           if (loginError.message.includes('Could not detect login form')) {
             logger.info('[LinkDiscovery] No login form detected, proceeding without login');
@@ -556,7 +556,7 @@ class LinkDiscoveryService {
       } else {
         logger.info('[LinkDiscovery] No credentials provided, skipping login');
       }
-      
+
       // Step 3: Get page info for better error messages and learning
       const pageInfo = await page.evaluate(() => {
         return {
@@ -569,16 +569,16 @@ class LinkDiscoveryService {
           hasForms: document.querySelectorAll('form').length > 0
         };
       });
-      
+
       // ✅ ADAPTIVE LEARNING: Get learned patterns for this site (or use provided ones)
       const normalizedUrl = this._normalizeUrl(url);
       let patternsToUse = learnedPatterns;
-      
+
       // If patterns weren't provided, fetch them
       if (!patternsToUse || patternsToUse.length === 0) {
         patternsToUse = await this._getLearnedPatterns(normalizedUrl);
       }
-      
+
       if (patternsToUse && patternsToUse.length > 0) {
         logger.info(`[LinkDiscovery] 🧠 Using ${patternsToUse.length} learned pattern(s) - these will be tried FIRST`, {
           siteUrl: normalizedUrl,
@@ -589,20 +589,20 @@ class LinkDiscoveryService {
           }))
         });
       } else {
-        logger.info(`[LinkDiscovery] No learned patterns found - will use generic strategies`);
+        logger.info('[LinkDiscovery] No learned patterns found - will use generic strategies');
       }
-      
+
       // Step 4: Discover PDF links using adaptive multi-strategy approach
       // ✅ VISUALIZATION: Capture screenshot before link discovery
       if (runId) {
         await vizService.captureAndUpdate(page, runId, 'Searching for PDF links', '🔍 Searching for PDF links...', 45);
       }
-      
+
       let discoveredLinks = [];
       let allLinksFound = 0;
       let strategyUsed = discoveryMethod;
       let selectorsUsed = [];
-      
+
       // ✅ ADAPTIVE LEARNING: Try user-specified method first, then fall back to multi-strategy
       if (discoveryMethod === 'css-selector' && discoveryValue) {
         discoveredLinks = await this._discoverByCssSelector(page, discoveryValue);
@@ -616,20 +616,20 @@ class LinkDiscoveryService {
         allLinksFound = multiStrategyResult.allLinksFound || 0;
         strategyUsed = multiStrategyResult.strategyUsed || 'auto-detect';
       }
-      
+
       // ✅ VISUALIZATION: Capture screenshot after link discovery
       if (runId && discoveredLinks.length > 0) {
         await vizService.captureAndUpdate(page, runId, `Found ${discoveredLinks.length} PDF link(s)`, `✅ Found ${discoveredLinks.length} PDF link(s)!`, 55);
       }
-      
+
       // If auto-detect didn't return allLinksFound, count all links on page
       if (allLinksFound === 0) {
         allLinksFound = pageInfo.allLinks;
       }
-      
+
       // ✅ ADAPTIVE LEARNING: If no links found, try enhanced detection as last resort
       if (discoveredLinks.length === 0) {
-        logger.info(`[LinkDiscovery] No links found, trying enhanced detection as last resort...`);
+        logger.info('[LinkDiscovery] No links found, trying enhanced detection as last resort...');
         const enhancedResult = await this._enhancedDetectPdfLinks(page);
         if (enhancedResult.pdfLinks && enhancedResult.pdfLinks.length > 0) {
           discoveredLinks = enhancedResult.pdfLinks;
@@ -638,13 +638,13 @@ class LinkDiscoveryService {
           logger.info(`[LinkDiscovery] Enhanced detection found ${discoveredLinks.length} links`);
         }
       }
-      
+
       // ✅ SEAMLESS UX: Extract cookies for authenticated PDF downloads
       const cookies = await page.cookies();
       const cookieString = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
-      
+
       logger.info(`[LinkDiscovery] Found ${discoveredLinks.length} potential PDF links out of ${allLinksFound} total links`);
-      
+
       // ✅ ADAPTIVE LEARNING: Learn from this discovery attempt
       if (discoveredLinks.length > 0) {
         // Success! Store the pattern for future use
@@ -664,7 +664,7 @@ class LinkDiscoveryService {
           pageInfo
         );
       }
-      
+
       return {
         success: discoveredLinks.length > 0,
         discoveredLinks,
@@ -686,10 +686,10 @@ class LinkDiscoveryService {
           learnedPatternsCount: patternsToUse?.length || 0
         }
       };
-      
+
     } catch (error) {
       logger.error('[LinkDiscovery] Discovery failed:', error);
-      
+
       // ✅ ADAPTIVE LEARNING: Learn from failure
       try {
         const pageInfo = await page.evaluate(() => ({
@@ -707,7 +707,7 @@ class LinkDiscoveryService {
       } catch (learnError) {
         logger.warn('[LinkDiscovery] Error learning from failure:', learnError);
       }
-      
+
       throw new Error(`Link discovery failed: ${error.message}`);
     } finally {
       await browser.close();
@@ -730,12 +730,12 @@ class LinkDiscoveryService {
             placeholder: input.placeholder
           }))
         }));
-        
+
         const links = Array.from(document.querySelectorAll('a')).map(link => ({
           href: link.href,
           text: link.textContent.trim()
         }));
-        
+
         return { forms, links, title: document.title, url: window.location.href };
       });
     } catch (error) {
@@ -759,42 +759,42 @@ class LinkDiscoveryService {
         // Auto-detect login form fields (page should already be navigated)
         loginSelectors = await this._detectLoginSelectors(page);
       }
-      
+
       if (!loginSelectors.username || !loginSelectors.password || !loginSelectors.submit) {
         throw new Error('Could not detect login form. Page may not require login or form structure is unusual.');
       }
-      
-      logger.info(`[LinkDiscovery] Detected login form:`, loginSelectors);
-      
+
+      logger.info('[LinkDiscovery] Detected login form:', loginSelectors);
+
       // Fill credentials
       await page.waitForSelector(loginSelectors.username, { timeout: this.config.SELECTOR_TIMEOUT });
       await page.click(loginSelectors.username);
       await page.evaluate((selector) => document.querySelector(selector).value = '', loginSelectors.username);
       await page.type(loginSelectors.username, username, { delay: 50 });
-      
+
       await page.waitForSelector(loginSelectors.password, { timeout: this.config.SELECTOR_TIMEOUT });
       await page.click(loginSelectors.password);
       await page.evaluate((selector) => document.querySelector(selector).value = '', loginSelectors.password);
       await page.type(loginSelectors.password, password, { delay: 50 });
-      
+
       // Submit login
       await page.waitForSelector(loginSelectors.submit, { timeout: this.config.SELECTOR_TIMEOUT });
       await page.click(loginSelectors.submit);
-      
+
       // Wait for login completion
       await Promise.race([
         page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: this.config.LOGIN_TIMEOUT }),
         page.waitForFunction(() => {
           const indicators = ['dashboard', 'account', 'profile', 'welcome', 'home'];
-          return indicators.some(term => 
+          return indicators.some(term =>
             document.body.textContent.toLowerCase().includes(term) ||
             document.querySelector(`[class*="${term}"], [id*="${term}"]`)
           );
         }, { timeout: this.config.LOGIN_TIMEOUT })
       ]);
-      
+
       logger.info('[LinkDiscovery] Login completed successfully');
-      
+
       // ✅ LEARNING: Detect if site structure changed
       const currentStructure = await this._getPageStructure(page);
       const siteChange = await this.siteAdaptationService.detectSiteChange(url, currentStructure);
@@ -804,7 +804,7 @@ class LinkDiscoveryService {
           confidence: (siteChange.confidence * 100).toFixed(1) + '%'
         });
       }
-      
+
       return true;
     } catch (error) {
       // ✅ LEARNING: Store failure for adaptation
@@ -883,7 +883,7 @@ class LinkDiscoveryService {
   async _detectLoginSelectors(page) {
     return await page.evaluate(() => {
       const selectors = { username: null, password: null, submit: null };
-      
+
       // Find username/email field
       const usernamePatterns = [
         'input[type="email"]',
@@ -898,7 +898,7 @@ class LinkDiscoveryService {
         'input[placeholder*="email" i]',
         'input[placeholder*="username" i]'
       ];
-      
+
       for (const pattern of usernamePatterns) {
         const element = document.querySelector(pattern);
         if (element && element.type !== 'password') {
@@ -906,7 +906,7 @@ class LinkDiscoveryService {
           break;
         }
       }
-      
+
       // Find password field
       const passwordElement = document.querySelector('input[type="password"]');
       if (passwordElement) {
@@ -918,7 +918,7 @@ class LinkDiscoveryService {
           selectors.password = 'input[type="password"]';
         }
       }
-      
+
       // Find submit button - use standard CSS selectors first
       const standardSelectors = [
         'button[type="submit"]',
@@ -928,7 +928,7 @@ class LinkDiscoveryService {
         '.btn-login',
         '.submit-btn'
       ];
-      
+
       for (const pattern of standardSelectors) {
         const element = document.querySelector(pattern);
         if (element) {
@@ -936,16 +936,16 @@ class LinkDiscoveryService {
           break;
         }
       }
-      
+
       // If no standard selector found, search by text content using JavaScript
       if (!selectors.submit) {
         // Helper function to find button by text content and return a valid CSS selector
         const findButtonByText = (textVariations) => {
           const allButtons = Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"]'));
-          
+
           for (const button of allButtons) {
             const buttonText = (button.textContent || button.innerText || button.value || '').trim().toLowerCase();
-            
+
             for (const text of textVariations) {
               if (buttonText.includes(text.toLowerCase())) {
                 // Generate a valid CSS selector for this button
@@ -979,14 +979,14 @@ class LinkDiscoveryService {
           }
           return null;
         };
-        
+
         // Try to find login-related buttons by text
         const loginButtonSelector = findButtonByText(['login', 'sign in', 'log in', 'signin']);
         if (loginButtonSelector) {
           selectors.submit = loginButtonSelector;
         }
       }
-      
+
       // Fallback: find any button in a form
       if (!selectors.submit) {
         const form = document.querySelector('form');
@@ -1003,7 +1003,7 @@ class LinkDiscoveryService {
           }
         }
       }
-      
+
       return selectors;
     });
   }
@@ -1014,18 +1014,18 @@ class LinkDiscoveryService {
   async _discoverByCssSelector(page, cssSelector) {
     try {
       logger.info(`[LinkDiscovery] Using CSS selector: ${cssSelector}`);
-      
+
       // Wait for elements to be available
       await this._wait(2000);
-      
+
       const links = await page.evaluate((selector) => {
         const elements = document.querySelectorAll(selector);
         const results = [];
-        
+
         elements.forEach((element, index) => {
           let href = null;
           let text = element.textContent?.trim() || '';
-          
+
           if (element.tagName === 'A' && element.href) {
             href = element.href;
           } else if (element.onclick || element.getAttribute('data-url')) {
@@ -1039,7 +1039,7 @@ class LinkDiscoveryService {
               text = text || nestedAnchor.textContent?.trim();
             }
           }
-          
+
           if (href) {
             results.push({
               href: href,
@@ -1050,14 +1050,14 @@ class LinkDiscoveryService {
             });
           }
         });
-        
+
         return results;
       }, cssSelector);
-      
+
       return this._validatePdfLinks(links);
-      
+
     } catch (error) {
-      logger.error(`[LinkDiscovery] CSS selector discovery failed:`, error);
+      logger.error('[LinkDiscovery] CSS selector discovery failed:', error);
       return [];
     }
   }
@@ -1068,28 +1068,28 @@ class LinkDiscoveryService {
   async _discoverByTextMatch(page, linkText) {
     try {
       logger.info(`[LinkDiscovery] Searching for links containing: "${linkText}"`);
-      
+
       await this._wait(2000);
-      
+
       const links = await page.evaluate((searchText) => {
         const results = [];
         const searchLower = searchText.toLowerCase();
-        
+
         // Find all clickable elements
         const clickableElements = document.querySelectorAll('a, button, [onclick], [role="button"]');
-        
+
         clickableElements.forEach((element, index) => {
           const text = element.textContent?.trim() || '';
           const title = element.title || '';
           const ariaLabel = element.getAttribute('aria-label') || '';
-          
+
           // Check if text matches
-          if (text.toLowerCase().includes(searchLower) || 
+          if (text.toLowerCase().includes(searchLower) ||
               title.toLowerCase().includes(searchLower) ||
               ariaLabel.toLowerCase().includes(searchLower)) {
-            
+
             let href = null;
-            
+
             if (element.tagName === 'A' && element.href) {
               href = element.href;
             } else if (element.onclick) {
@@ -1097,7 +1097,7 @@ class LinkDiscoveryService {
             } else if (element.getAttribute('data-url')) {
               href = element.getAttribute('data-url');
             }
-            
+
             if (href) {
               results.push({
                 href: href,
@@ -1109,14 +1109,14 @@ class LinkDiscoveryService {
             }
           }
         });
-        
+
         return results;
       }, linkText);
-      
+
       return this._validatePdfLinks(links);
-      
+
     } catch (error) {
-      logger.error(`[LinkDiscovery] Text match discovery failed:`, error);
+      logger.error('[LinkDiscovery] Text match discovery failed:', error);
       return [];
     }
   }
@@ -1128,16 +1128,16 @@ class LinkDiscoveryService {
   async _autoDetectPdfLinks(page) {
     try {
       logger.info('[LinkDiscovery] Auto-detecting PDF links with enhanced detection...');
-      
+
       await this._wait(2000);
-      
+
       const result = await page.evaluate(() => {
         const results = [];
         let allLinksCount = 0;
-        
+
         // Count all links first
         allLinksCount = document.querySelectorAll('a').length;
-        
+
         // ✅ SEAMLESS UX: Multiple detection strategies for maximum compatibility
         // Strategy 1: Direct PDF links
         const directPdfLinks = Array.from(document.querySelectorAll('a[href*=".pdf"], a[href*="pdf"], a[href*="PDF"]'));
@@ -1153,16 +1153,16 @@ class LinkDiscoveryService {
             });
           }
         });
-        
+
         // Strategy 2: Comprehensive element detection
         const allElements = document.querySelectorAll('a, button, [onclick], [role="button"], [data-url], [data-pdf], [data-download]');
-        
+
         allElements.forEach((element, index) => {
           // Skip if already added as direct PDF link
           if (element.tagName === 'A' && element.href && element.href.includes('.pdf')) {
             return;
           }
-          
+
           const text = (element.textContent || '').trim().toLowerCase();
           let href = element.href || element.getAttribute('data-url') || element.getAttribute('data-pdf') || '';
           const onclick = element.onclick?.toString() || element.getAttribute('onclick') || '';
@@ -1171,14 +1171,14 @@ class LinkDiscoveryService {
           const title = (element.title || '').toLowerCase();
           const ariaLabel = (element.getAttribute('aria-label') || '').toLowerCase();
           const dataAttr = element.getAttribute('data-download') || element.getAttribute('data-pdf') || '';
-          
+
           let score = 0;
           let reasons = [];
-          
+
           // ✅ DEMO PORTAL: Extract PDF URL from onclick handlers (e.g., downloadInvoice('001') -> /demo/invoice-001.pdf)
           if (!href && onclick) {
             // Match patterns like: downloadInvoice('001'), downloadInvoice("002"), download('invoice-001.pdf')
-            const invoiceIdMatch = onclick.match(/downloadInvoice\(['"]([^'"]+)['"]\)/i) || 
+            const invoiceIdMatch = onclick.match(/downloadInvoice\(['"]([^'"]+)['"]\)/i) ||
                                    onclick.match(/download\(['"]([^'"]+)['"]\)/i) ||
                                    onclick.match(/['"]([^'"]*invoice[^'"]*\.pdf)['"]/i);
             if (invoiceIdMatch) {
@@ -1195,59 +1195,59 @@ class LinkDiscoveryService {
               score += 0.4; // Boost score for extracted URLs
             }
           }
-          
+
           // ✅ SEAMLESS UX: Enhanced URL-based scoring
           if (href.includes('.pdf') || href.includes('/pdf/') || href.includes('/download/')) {
             score += 0.5;
             reasons.push('URL pattern suggests PDF');
           }
-          
+
           if (href.includes('download') || onclick.includes('download') || dataAttr.includes('download')) {
             score += 0.25;
             reasons.push('Download indicator found');
           }
-          
+
           if (href.includes('invoice') || onclick.includes('invoice') || text.includes('invoice')) {
             score += 0.3;
             reasons.push('Invoice-related content');
           }
-          
+
           // ✅ SEAMLESS UX: Enhanced text-based scoring with more keywords
           const pdfKeywords = ['pdf', 'download', 'invoice', 'receipt', 'bill', 'statement', 'report', 'document', 'file'];
           const downloadKeywords = ['download', 'get', 'save', 'export', 'print', 'fetch', 'retrieve'];
           const invoiceKeywords = ['invoice', 'receipt', 'bill', 'statement', 'payment'];
-          
+
           pdfKeywords.forEach(keyword => {
-            if (text.includes(keyword) || title.includes(keyword) || ariaLabel.includes(keyword) || 
+            if (text.includes(keyword) || title.includes(keyword) || ariaLabel.includes(keyword) ||
                 className.includes(keyword) || id.includes(keyword)) {
               score += 0.2;
               reasons.push(`Contains "${keyword}"`);
             }
           });
-          
+
           downloadKeywords.forEach(keyword => {
             if (text.includes(keyword) || title.includes(keyword) || ariaLabel.includes(keyword)) {
               score += 0.15;
               reasons.push(`Action: ${keyword}`);
             }
           });
-          
+
           invoiceKeywords.forEach(keyword => {
             if (text.includes(keyword) || title.includes(keyword) || ariaLabel.includes(keyword)) {
               score += 0.25;
               reasons.push(`Invoice-related: ${keyword}`);
             }
           });
-          
+
           // ✅ SEAMLESS UX: Enhanced class/attribute-based scoring
           const downloadClasses = ['download', 'pdf', 'file', 'invoice', 'document', 'export', 'save'];
           downloadClasses.forEach(cls => {
             if (className.includes(cls) || id.includes(cls)) {
               score += 0.2;
-              reasons.push(`CSS class/id suggests download`);
+              reasons.push('CSS class/id suggests download');
             }
           });
-          
+
           // Icon-based detection (more comprehensive)
           const hasDownloadIcon = element.querySelector('[class*="download"], [class*="pdf"], [class*="file"], [class*="invoice"]') ||
                                  element.innerHTML.includes('⬇') || element.innerHTML.includes('📄') ||
@@ -1256,24 +1256,24 @@ class LinkDiscoveryService {
             score += 0.2;
             reasons.push('Has download/file icon');
           }
-          
+
           // ✅ SEAMLESS UX: Data attribute detection
           if (dataAttr) {
             score += 0.3;
             reasons.push('Has download data attribute');
           }
-          
+
           // ✅ SEAMLESS UX: Lower threshold for better discovery (was 0.3, now 0.25)
           if (score >= 0.25 && (href || onclick || dataAttr)) {
             const linkText = element.textContent?.trim() || element.title || ariaLabel || 'PDF Link';
             const linkHref = href || onclick || dataAttr;
-            
+
             // Avoid duplicates
             if (!results.find(r => r.href === linkHref && r.text === linkText)) {
               results.push({
                 href: linkHref,
                 text: linkText,
-                selector: `auto-detected`,
+                selector: 'auto-detected',
                 score: Math.min(score, 1.0),
                 reasons: reasons,
                 method: 'auto-detect'
@@ -1281,10 +1281,10 @@ class LinkDiscoveryService {
             }
           }
         });
-        
+
         // ✅ SEAMLESS UX: Sort by confidence score (highest first)
         const sortedResults = results.sort((a, b) => b.score - a.score);
-        
+
         // ✅ SEAMLESS UX: Deduplicate similar links
         const uniqueResults = [];
         const seenUrls = new Set();
@@ -1295,23 +1295,23 @@ class LinkDiscoveryService {
             uniqueResults.push(link);
           }
         }
-        
+
         return {
           pdfLinks: uniqueResults,
           allLinksFound: allLinksCount
         };
       });
-      
+
       logger.info(`[LinkDiscovery] Auto-detected ${result.pdfLinks.length} potential PDF links out of ${result.allLinksFound} total links`);
       const validatedLinks = this._validatePdfLinks(result.pdfLinks);
-      
+
       return {
         pdfLinks: validatedLinks,
         allLinksFound: result.allLinksFound
       };
-      
+
     } catch (error) {
-      logger.error(`[LinkDiscovery] Auto-detection failed:`, error);
+      logger.error('[LinkDiscovery] Auto-detection failed:', error);
       return { pdfLinks: [], allLinksFound: 0 };
     }
   }
@@ -1324,7 +1324,7 @@ class LinkDiscoveryService {
       // Filter out obvious non-PDF links
       const href = link.href?.toLowerCase() || '';
       const text = link.text?.toLowerCase() || '';
-      
+
       // Exclude common false positives
       const excludePatterns = [
         'javascript:void',
@@ -1335,14 +1335,14 @@ class LinkDiscoveryService {
         'signup',
         'register'
       ];
-      
+
       const isExcluded = excludePatterns.some(pattern => href.includes(pattern));
       if (isExcluded) return false;
-      
+
       // Must have either .pdf in URL or PDF-related text
       const hasPdfUrl = href.includes('.pdf');
       const hasPdfText = text.includes('pdf') || text.includes('download') || text.includes('invoice');
-      
+
       return hasPdfUrl || hasPdfText;
     });
   }

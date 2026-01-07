@@ -14,14 +14,14 @@ class AIDataExtractor {
   constructor() {
     this.openaiApiKey = process.env.OPENAI_API_KEY;
     this.baseUrl = 'https://api.openai.com/v1';
-    
+
     // ✅ INSTRUCTION 2: Get tracer for external API operations
     this.tracer = trace.getTracer('external-api.openai');
-    
+
     // ✅ INSTRUCTION 2: Create instrumented HTTP client for OpenAI
     this.httpClient = this._createInstrumentedClient();
   }
-  
+
   /**
    * ✅ INSTRUCTION 2: Create Axios instance with trace propagation for OpenAI calls
    */
@@ -33,7 +33,7 @@ class AIDataExtractor {
         'Content-Type': 'application/json'
       }
     });
-    
+
     // Add request interceptor for trace propagation
     client.interceptors.request.use(
       (config) => {
@@ -41,17 +41,17 @@ class AIDataExtractor {
         const carrier = {};
         propagation.inject(context.active(), carrier);
         config.headers = { ...config.headers, ...carrier };
-        
+
         // Add OpenAI-specific auth header
         if (this.openaiApiKey) {
           config.headers['Authorization'] = `Bearer ${this.openaiApiKey}`;
         }
-        
+
         return config;
       },
       (error) => Promise.reject(error)
     );
-    
+
     return client;
   }
 
@@ -62,7 +62,7 @@ class AIDataExtractor {
     try {
       // First, extract text using OCR if it's an image
       let textContent = '';
-      
+
       if (this.isImageFile(fileName)) {
         textContent = await this.performOCR(fileBuffer);
       } else if (this.isPDFFile(fileName)) {
@@ -73,7 +73,7 @@ class AIDataExtractor {
 
       // Use AI to structure the extracted text
       const structuredData = await this.structureInvoiceData(textContent);
-      
+
       return {
         success: true,
         extractedText: textContent,
@@ -84,7 +84,7 @@ class AIDataExtractor {
           confidence: structuredData.confidence || 0.8
         }
       };
-      
+
     } catch (error) {
       logger.error('[AIDataExtractor] Invoice extraction failed:', error);
       return {
@@ -103,10 +103,10 @@ class AIDataExtractor {
     try {
       // Clean HTML and extract relevant content
       const cleanText = this.cleanHTML(htmlContent);
-      
+
       // Use AI to extract specific data points
       const extractedData = await this.extractSpecificData(cleanText, extractionTargets);
-      
+
       return {
         success: true,
         extractedData: extractedData,
@@ -115,7 +115,7 @@ class AIDataExtractor {
           targetFields: extractionTargets
         }
       };
-      
+
     } catch (error) {
       logger.error('[AIDataExtractor] Web page extraction failed:', error);
       return {
@@ -167,7 +167,7 @@ Return valid JSON only, no additional text.
       },
       async (span) => {
         const startTime = Date.now();
-        
+
         try {
           const response = await this.httpClient.post(
             '/chat/completions',
@@ -190,13 +190,13 @@ Return valid JSON only, no additional text.
 
           const duration = Date.now() - startTime;
           const extractedText = response.data.choices[0].message.content;
-          
+
           // Parse the JSON response
           const structuredData = JSON.parse(extractedText);
-          
+
           // Add confidence score based on completeness
           structuredData.confidence = this.calculateConfidence(structuredData);
-          
+
           // ✅ Set span success attributes
           span.setStatus({ code: SpanStatusCode.OK });
           span.setAttribute('http.status_code', response.status);
@@ -204,31 +204,31 @@ Return valid JSON only, no additional text.
           span.setAttribute('openai.tokens_used', response.data.usage?.total_tokens || 0);
           span.setAttribute('openai.finish_reason', response.data.choices[0].finish_reason);
           span.setAttribute('openai.confidence_score', structuredData.confidence);
-          
+
           return structuredData;
-          
+
         } catch (error) {
           const duration = Date.now() - startTime;
-          
+
           // ✅ Record exception and set error status
           span.recordException(error);
-          span.setStatus({ 
-            code: SpanStatusCode.ERROR, 
-            message: error.message 
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message
           });
           span.setAttribute('openai.duration_ms', duration);
           span.setAttribute('error', true);
           span.setAttribute('http.status_code', error.response?.status || 0);
-          
+
           logger.error('[AIDataExtractor] AI structuring failed:', error);
-          
+
           // Preserve rate limit status codes
           if (error.response?.status === 429) {
             const rateLimitError = new Error('Rate limit exceeded. The AI extraction service is temporarily busy. Please wait a moment and try again.');
             rateLimitError.statusCode = 429;
             throw rateLimitError;
           }
-          
+
           throw new Error(`Failed to structure invoice data: ${error.message}`);
         } finally {
           span.end();
@@ -242,7 +242,7 @@ Return valid JSON only, no additional text.
    */
   async extractSpecificData(content, targets) {
     const targetDescriptions = targets.map(t => `${t.name}: ${t.description}`).join('\n');
-    
+
     const prompt = `
 Extract the following specific data points from this web content:
 
@@ -274,7 +274,7 @@ If a data point cannot be found, set its value to null.
       },
       async (span) => {
         const startTime = Date.now();
-        
+
         try {
           const response = await this.httpClient.post(
             '/chat/completions',
@@ -298,38 +298,38 @@ If a data point cannot be found, set its value to null.
           const duration = Date.now() - startTime;
           const extractedText = response.data.choices[0].message.content;
           const parsedData = JSON.parse(extractedText);
-          
+
           // ✅ Set span success attributes
           span.setStatus({ code: SpanStatusCode.OK });
           span.setAttribute('http.status_code', response.status);
           span.setAttribute('openai.duration_ms', duration);
           span.setAttribute('openai.tokens_used', response.data.usage?.total_tokens || 0);
           span.setAttribute('openai.finish_reason', response.data.choices[0].finish_reason);
-          
+
           return parsedData;
-          
+
         } catch (error) {
           const duration = Date.now() - startTime;
-          
+
           // ✅ Record exception and set error status
           span.recordException(error);
-          span.setStatus({ 
-            code: SpanStatusCode.ERROR, 
-            message: error.message 
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message
           });
           span.setAttribute('openai.duration_ms', duration);
           span.setAttribute('error', true);
           span.setAttribute('http.status_code', error.response?.status || 0);
-          
+
           logger.error('[AIDataExtractor] Specific data extraction failed:', error);
-          
+
           // Preserve rate limit status codes
           if (error.response?.status === 429) {
             const rateLimitError = new Error('Rate limit exceeded. The AI extraction service is temporarily busy. Please wait a moment and try again.');
             rateLimitError.statusCode = 429;
             throw rateLimitError;
           }
-          
+
           throw new Error(`Failed to extract specific data: ${error.message}`);
         } finally {
           span.end();
@@ -345,7 +345,7 @@ If a data point cannot be found, set its value to null.
     try {
       // Convert image to base64 for OpenAI Vision API
       const base64Image = imageBuffer.toString('base64');
-      
+
       const response = await axios.post(
         `${this.baseUrl}/chat/completions`,
         {
@@ -378,7 +378,7 @@ If a data point cannot be found, set its value to null.
       );
 
       return response.data.choices[0].message.content;
-      
+
     } catch (error) {
       logger.error('[AIDataExtractor] OCR failed:', error);
       throw new Error(`OCR processing failed: ${error.message}`);
@@ -397,7 +397,7 @@ If a data point cannot be found, set its value to null.
       return data.text;
     } catch (error) {
       logger.error('[AIDataExtractor] PDF text extraction failed:', error);
-      
+
       // Fallback: Convert PDF to image and use OCR
       return await this.convertPDFToImageAndOCR(pdfBuffer);
     }
@@ -435,13 +435,13 @@ If a data point cannot be found, set its value to null.
   calculateConfidence(data) {
     const requiredFields = ['vendor_name', 'invoice_number', 'invoice_date', 'total_amount'];
     const presentFields = requiredFields.filter(field => data[field] && data[field] !== null && data[field] !== '');
-    
+
     const baseScore = presentFields.length / requiredFields.length;
-    
+
     // Bonus points for additional fields
     const bonusFields = ['due_date', 'line_items', 'currency'];
     const bonusPoints = bonusFields.filter(field => data[field] && data[field] !== null).length * 0.05;
-    
+
     return Math.min(1.0, baseScore + bonusPoints);
   }
 
@@ -502,7 +502,7 @@ Return valid JSON only.
 
       const extractedText = response.data.choices[0].message.content;
       return JSON.parse(extractedText);
-      
+
     } catch (error) {
       logger.error('[AIDataExtractor] Table extraction failed:', error);
       throw new Error(`Failed to extract table data: ${error.message}`);

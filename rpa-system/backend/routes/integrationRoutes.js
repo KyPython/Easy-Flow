@@ -51,11 +51,11 @@ router.get('/usage', requireAuth, requireFeature('custom_integrations'), async (
     // For each integration, find workflows that use it
     for (const [serviceId, actionTypes] of Object.entries(integrationActions)) {
       const workflowsUsingService = [];
-      
+
       if (workflows && actionTypes.length > 0) {
         for (const workflow of workflows) {
           if (!workflow.steps || !Array.isArray(workflow.steps)) continue;
-          
+
           // Check if any step uses this integration
           const usesIntegration = workflow.steps.some(step => {
             const actionType = step.action_type || step.type;
@@ -90,16 +90,16 @@ router.get('/usage', requireAuth, requireFeature('custom_integrations'), async (
             recentActivityCount = recentExecutions.length;
           } else if (executionsError) {
             // Log but don't fail - table might not exist or be empty
-            logger.debug('[IntegrationRoutes] Could not fetch workflow executions', { 
+            logger.debug('[IntegrationRoutes] Could not fetch workflow executions', {
               error: executionsError.message,
-              serviceId 
+              serviceId
             });
           }
         } catch (execError) {
           // Gracefully handle if workflow_executions table doesn't exist
-          logger.debug('[IntegrationRoutes] Workflow executions query failed', { 
+          logger.debug('[IntegrationRoutes] Workflow executions query failed', {
             error: execError.message,
-            serviceId 
+            serviceId
           });
         }
       }
@@ -134,7 +134,7 @@ router.get('/', requireAuth, requireFeature('custom_integrations'), async (req, 
   try {
     const userId = req.user.id;
     const integrations = await integrationCredentialsService.listIntegrations(userId);
-    
+
     res.json({
       success: true,
       integrations: integrations.map(integration => ({
@@ -166,16 +166,16 @@ router.get('/:service', requireAuth, requireFeature('custom_integrations'), asyn
   try {
     const userId = req.user.id;
     const { service } = req.params;
-    
+
     const credentials = await integrationCredentialsService.getCredentials(userId, service);
-    
+
     if (!credentials) {
       return res.status(404).json({
         success: false,
         error: `${service} integration not connected`
       });
     }
-    
+
     // Don't return actual credentials, just metadata
     res.json({
       success: true,
@@ -211,21 +211,21 @@ router.post('/:service/connect', requireAuth, requireFeature('custom_integration
     const userId = req.user.id;
     const { service } = req.params;
     const { credentials, displayName, expiresAt } = req.body;
-    
+
     if (!credentials) {
       return res.status(400).json({
         success: false,
         error: 'Credentials are required'
       });
     }
-    
+
     await integrationCredentialsService.storeCredentials(
       userId,
       service,
       credentials,
       { displayName, expiresAt }
     );
-    
+
     // Automatically test the connection after storing credentials
     // Run asynchronously so it doesn't block the response
     integrationCredentialsService.testConnection(userId, service)
@@ -240,7 +240,7 @@ router.post('/:service/connect', requireAuth, requireFeature('custom_integration
         // Log but don't fail the connection if testing fails
         logger.error(`[IntegrationRoutes] Auto-test error for ${service}:`, testError);
       });
-    
+
     res.json({
       success: true,
       message: `${service} integration connected successfully`
@@ -263,9 +263,9 @@ router.post('/:service/test', requireAuth, requireFeature('custom_integrations')
   try {
     const userId = req.user.id;
     const { service } = req.params;
-    
+
     const result = await integrationCredentialsService.testConnection(userId, service);
-    
+
     res.json(result);
   } catch (error) {
     logger.error('[IntegrationRoutes] Failed to test integration:', error);
@@ -285,9 +285,9 @@ router.delete('/:service', requireAuth, requireFeature('custom_integrations'), a
   try {
     const userId = req.user.id;
     const { service } = req.params;
-    
+
     await integrationCredentialsService.deleteCredentials(userId, service);
-    
+
     res.json({
       success: true,
       message: `${service} integration disconnected`
@@ -312,7 +312,7 @@ router.get('/:service/oauth/start', requireAuth, requireFeature('custom_integrat
     const { service } = req.params;
     const redirectUri = req.query.redirect_uri || `${req.protocol}://${req.get('host')}/api/integrations/${service}/oauth/callback`;
     const returnPath = req.query.return_path || '/app/integrations';
-    
+
     // Log the redirect URI for debugging
     logger.info('[IntegrationRoutes] OAuth start', {
       service,
@@ -320,7 +320,7 @@ router.get('/:service/oauth/start', requireAuth, requireFeature('custom_integrat
       frontendHostname: req.get('referer') || 'unknown',
       queryRedirectUri: req.query.redirect_uri
     });
-    
+
     // Generate OAuth state token with return path in metadata
     const stateToken = await integrationCredentialsService.storeOAuthState(
       userId,
@@ -328,10 +328,10 @@ router.get('/:service/oauth/start', requireAuth, requireFeature('custom_integrat
       redirectUri,
       { return_path: returnPath }
     );
-    
+
     // Get OAuth URL based on service
     const oauthUrl = await getOAuthUrl(service, stateToken, redirectUri);
-    
+
     res.json({
       success: true,
       oauthUrl,
@@ -356,13 +356,13 @@ router.get('/:service/oauth/callback', async (req, res) => {
   try {
     const { service } = req.params;
     const { code, state, error } = req.query;
-    
+
     // Get frontend URL for redirect
-    const frontendUrl = process.env.FRONTEND_URL || 
-      (process.env.NODE_ENV === 'development' 
-        ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}` 
+    const frontendUrl = process.env.FRONTEND_URL ||
+      (process.env.NODE_ENV === 'development'
+        ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}`
         : 'http://localhost:3000');
-    
+
     // Try to get return path from state (for error cases before validation)
     // Use peek: true to avoid consuming the state token
     let fallbackReturnPath = '/app/integrations';
@@ -376,27 +376,27 @@ router.get('/:service/oauth/callback', async (req, res) => {
         // Ignore errors when getting return path for error redirects
       }
     }
-    
+
     if (error) {
       return res.redirect(`${frontendUrl}${fallbackReturnPath}?error=${encodeURIComponent(error)}`);
     }
-    
+
     if (!code || !state) {
       return res.redirect(`${frontendUrl}${fallbackReturnPath}?error=missing_code_or_state`);
     }
-    
+
     // Validate state token and get user_id from it (this will consume/delete the token)
     const oauthState = await integrationCredentialsService.validateOAuthState(state);
     if (!oauthState) {
       logger.error('[IntegrationRoutes] Invalid or expired OAuth state token', { state, service });
       return res.redirect(`${frontendUrl}${fallbackReturnPath}?error=invalid_or_expired_state`);
     }
-    
+
     const userId = oauthState.user_id;
-    
+
     // Get return path from metadata, default to /app/integrations
     const returnPath = oauthState.metadata?.return_path || '/app/integrations';
-    
+
     // Validate return path is a valid app route (security)
     const validRoutes = [
       '/app', '/app/tasks', '/app/history', '/app/files', '/app/bulk-processor',
@@ -404,17 +404,17 @@ router.get('/:service/oauth/callback', async (req, res) => {
       '/app/integrations', '/app/unified-dashboard', '/app/webhooks', '/app/rules',
       '/app/workflows'
     ];
-    
+
     // Check if return path is valid (exact match or starts with valid route)
-    const isValidRoute = validRoutes.some(route => 
+    const isValidRoute = validRoutes.some(route =>
       returnPath === route || returnPath.startsWith(route + '/')
     );
-    
+
     const finalReturnPath = isValidRoute ? returnPath : '/app/integrations';
-    
+
     // Exchange code for tokens
     const credentials = await exchangeOAuthCode(service, code, oauthState.redirect_uri);
-    
+
     // Store credentials
     await integrationCredentialsService.storeCredentials(
       userId,
@@ -422,7 +422,7 @@ router.get('/:service/oauth/callback', async (req, res) => {
       credentials,
       { expiresAt: credentials.expiresAt }
     );
-    
+
     // Automatically test the connection after storing credentials
     // Run asynchronously so it doesn't block the redirect
     integrationCredentialsService.testConnection(userId, service)
@@ -437,13 +437,13 @@ router.get('/:service/oauth/callback', async (req, res) => {
         // Log but don't fail the OAuth flow if testing fails
         logger.error(`[IntegrationRoutes] Auto-test error for ${service}:`, testError);
       });
-    
+
     res.redirect(`${frontendUrl}${finalReturnPath}?success=true`);
   } catch (error) {
     logger.error('[IntegrationRoutes] OAuth callback failed:', error);
-    const frontendUrl = process.env.FRONTEND_URL || 
-      (process.env.NODE_ENV === 'development' 
-        ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}` 
+    const frontendUrl = process.env.FRONTEND_URL ||
+      (process.env.NODE_ENV === 'development'
+        ? `http://localhost:${process.env.FRONTEND_PORT || '3000'}`
         : 'http://localhost:3000');
     res.redirect(`${frontendUrl}/app/integrations?error=${encodeURIComponent(error.message)}`);
   }
@@ -454,7 +454,7 @@ router.get('/:service/oauth/callback', async (req, res) => {
  * @private
  */
 async function getOAuthUrl(service, stateToken, redirectUri) {
-  // Use the redirectUri parameter if provided (full callback URL), 
+  // Use the redirectUri parameter if provided (full callback URL),
   // otherwise construct from API_BASE_URL
   // This allows localhost for development and production URL for production
   let callbackUrl;
@@ -466,7 +466,7 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
     const baseUrl = redirectUri || (process.env.API_BASE_URL || 'http://localhost:3030');
     callbackUrl = `${baseUrl}/api/integrations/${service}/oauth/callback`;
   }
-  
+
   switch (service) {
     case 'slack':
       const slackClientId = process.env.SLACK_CLIENT_ID;
@@ -475,10 +475,10 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
         error.statusCode = 503;
         throw error;
       }
-      
+
       const slackScopes = 'chat:write,channels:read,channels:history,files:write';
       return `https://slack.com/oauth/v2/authorize?client_id=${slackClientId}&scope=${slackScopes}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${stateToken}`;
-    
+
     case 'gmail':
     case 'google_sheets':
     case 'google_meet':
@@ -490,7 +490,7 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
         error.statusCode = 503;
         throw error;
       }
-      
+
       const scopes = {
         gmail: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',
         google_sheets: 'https://www.googleapis.com/auth/spreadsheets',
@@ -498,18 +498,18 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
         google_drive: 'https://www.googleapis.com/auth/drive',
         google_calendar: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events'
       };
-      
+
       const scope = scopes[service] || scopes.google_drive;
-      
+
       // Log the exact redirect URI being sent to Google for debugging
       logger.info('[IntegrationRoutes] Google OAuth URL generated', {
         service,
         callbackUrl,
         scope: scope.substring(0, 50) + '...' // Truncate for logging
       });
-      
+
       return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${stateToken}`;
-    
+
     case 'notion':
       const notionClientId = process.env.NOTION_CLIENT_ID;
       if (!notionClientId) {
@@ -517,11 +517,11 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
         error.statusCode = 503;
         throw error;
       }
-      
+
       // Notion OAuth 2.0
       const notionScopes = 'read write';
       return `https://api.notion.com/v1/oauth/authorize?client_id=${notionClientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&owner=user&state=${stateToken}`;
-    
+
     case 'whatsapp':
       // Meta WhatsApp Business API OAuth (via Facebook Login)
       const facebookAppId = process.env.FACEBOOK_APP_ID;
@@ -530,14 +530,14 @@ async function getOAuthUrl(service, stateToken, redirectUri) {
         error.statusCode = 503;
         throw error;
       }
-      
+
       // Meta WhatsApp requires these scopes:
       // - whatsapp_business_management: Manage WhatsApp Business accounts
       // - whatsapp_business_messaging: Send and receive messages
       // - business_management: Manage business assets
       const whatsappScopes = 'whatsapp_business_management,whatsapp_business_messaging,business_management';
       return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=${whatsappScopes}&response_type=code&state=${stateToken}`;
-    
+
     default:
       throw new Error(`OAuth not supported for service: ${service}`);
   }
@@ -560,7 +560,7 @@ async function exchangeOAuthCode(service, code, redirectUri) {
     const baseUrl = redirectUri || (process.env.API_BASE_URL || 'http://localhost:3030');
     callbackUrl = `${baseUrl}/api/integrations/${service}/oauth/callback`;
   }
-  
+
   // ✅ SECURITY: Validate callback URL to prevent SSRF attacks
   // For OAuth, allow localhost in development but require proper URL format
   const urlValidation = validateUrlForSSRF(callbackUrl, { allowPrivateIPs: process.env.NODE_ENV !== 'production' });
@@ -573,12 +573,12 @@ async function exchangeOAuthCode(service, code, redirectUri) {
     throw new Error(`Invalid callback URL: ${urlValidation.error}. OAuth redirect URI must be a valid URL.`);
   }
   callbackUrl = urlValidation.url; // Use validated URL
-  
+
   switch (service) {
     case 'slack':
       const slackClientId = process.env.SLACK_CLIENT_ID;
       const slackClientSecret = process.env.SLACK_CLIENT_SECRET;
-      
+
       const slackResponse = await axios.post('https://slack.com/api/oauth.v2.access', null, {
         params: {
           client_id: slackClientId,
@@ -587,7 +587,7 @@ async function exchangeOAuthCode(service, code, redirectUri) {
           redirect_uri: callbackUrl
         }
       });
-      
+
       if (!slackResponse.data.ok) {
         const errorMsg = slackResponse.data.error || 'Unknown error';
         const errorDescription = slackResponse.data.error_description || '';
@@ -598,12 +598,12 @@ async function exchangeOAuthCode(service, code, redirectUri) {
         });
         throw new Error(`Slack OAuth error: ${errorMsg}${errorDescription ? ` - ${errorDescription}` : ''}`);
       }
-      
+
       return {
         accessToken: slackResponse.data.access_token,
         botToken: slackResponse.data.bot?.bot_access_token || slackResponse.data.access_token
       };
-    
+
     case 'gmail':
     case 'google_sheets':
     case 'google_meet':
@@ -611,7 +611,7 @@ async function exchangeOAuthCode(service, code, redirectUri) {
     case 'google_calendar':
       const googleClientId = process.env.GOOGLE_CLIENT_ID;
       const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
-      
+
       const googleResponse = await axios.post('https://oauth2.googleapis.com/token', null, {
         params: {
           client_id: googleClientId,
@@ -621,7 +621,7 @@ async function exchangeOAuthCode(service, code, redirectUri) {
           grant_type: 'authorization_code'
         }
       });
-      
+
       return {
         accessToken: googleResponse.data.access_token,
         refreshToken: googleResponse.data.refresh_token,
@@ -629,15 +629,15 @@ async function exchangeOAuthCode(service, code, redirectUri) {
         clientSecret: googleClientSecret,
         expiresAt: new Date(Date.now() + googleResponse.data.expires_in * 1000).toISOString()
       };
-    
+
     case 'notion':
       const notionClientId = process.env.NOTION_CLIENT_ID;
       const notionClientSecret = process.env.NOTION_CLIENT_SECRET;
-      
+
       if (!notionClientId || !notionClientSecret) {
         throw new Error('NOTION_CLIENT_ID and NOTION_CLIENT_SECRET must be configured');
       }
-      
+
       // Notion OAuth token exchange
       const notionResponse = await axios.post('https://api.notion.com/v1/oauth/token', {
         grant_type: 'authorization_code',
@@ -652,23 +652,23 @@ async function exchangeOAuthCode(service, code, redirectUri) {
           'Content-Type': 'application/json'
         }
       });
-      
+
       return {
         accessToken: notionResponse.data.access_token,
         botId: notionResponse.data.bot_id,
         workspaceId: notionResponse.data.workspace_id,
         workspaceName: notionResponse.data.workspace_name
       };
-    
+
     case 'whatsapp':
       // Meta WhatsApp Business API OAuth token exchange
       const facebookAppId = process.env.FACEBOOK_APP_ID;
       const facebookAppSecret = process.env.FACEBOOK_APP_SECRET;
-      
+
       if (!facebookAppId || !facebookAppSecret) {
         throw new Error('FACEBOOK_APP_ID and FACEBOOK_APP_SECRET must be configured for WhatsApp OAuth');
       }
-      
+
       // Exchange authorization code for access token
       const facebookTokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
         params: {
@@ -678,36 +678,36 @@ async function exchangeOAuthCode(service, code, redirectUri) {
           code
         }
       });
-      
+
       const accessToken = facebookTokenResponse.data.access_token;
-      
+
       // Get user's WhatsApp Business Account info
       // First, get the user's business accounts
       let phoneNumberId = null;
       let businessAccountId = null;
-      
+
       try {
         // Get user's businesses
-        const businessesResponse = await axios.get(`https://graph.facebook.com/v18.0/me/businesses`, {
+        const businessesResponse = await axios.get('https://graph.facebook.com/v18.0/me/businesses', {
           headers: { 'Authorization': `Bearer ${accessToken}` }
         });
-        
+
         if (businessesResponse.data.data && businessesResponse.data.data.length > 0) {
           businessAccountId = businessesResponse.data.data[0].id;
-          
+
           // Get WhatsApp Business Account for this business
           const wabaResponse = await axios.get(`https://graph.facebook.com/v18.0/${businessAccountId}/owned_whatsapp_business_accounts`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
           });
-          
+
           if (wabaResponse.data.data && wabaResponse.data.data.length > 0) {
             const wabaId = wabaResponse.data.data[0].id;
-            
+
             // Get phone numbers for this WhatsApp Business Account
             const phoneNumbersResponse = await axios.get(`https://graph.facebook.com/v18.0/${wabaId}/phone_numbers`, {
               headers: { 'Authorization': `Bearer ${accessToken}` }
             });
-            
+
             if (phoneNumbersResponse.data.data && phoneNumbersResponse.data.data.length > 0) {
               phoneNumberId = phoneNumbersResponse.data.data[0].id;
             }
@@ -717,17 +717,17 @@ async function exchangeOAuthCode(service, code, redirectUri) {
         logger.warn('[IntegrationRoutes] Could not fetch WhatsApp Business Account details:', error.message);
         // Continue anyway - user can provide phoneNumberId manually if needed
       }
-      
+
       return {
         provider: 'meta',
         accessToken,
         phoneNumberId,
         businessAccountId,
-        expiresAt: facebookTokenResponse.data.expires_in 
+        expiresAt: facebookTokenResponse.data.expires_in
           ? new Date(Date.now() + facebookTokenResponse.data.expires_in * 1000).toISOString()
           : null
       };
-    
+
     default:
       throw new Error(`OAuth exchange not supported for service: ${service}`);
   }
@@ -741,7 +741,7 @@ router.post('/seed-knowledge', requireAuth, async (req, res) => {
   try {
     const { addIntegrationKnowledge } = require('../services/addIntegrationKnowledge');
     const result = await addIntegrationKnowledge();
-    
+
     if (result.success) {
       res.json({
         success: true,

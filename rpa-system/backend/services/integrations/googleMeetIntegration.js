@@ -21,27 +21,27 @@ class GoogleMeetIntegration {
    */
   async authenticate(credentials) {
     const { accessToken, refreshToken, clientId, clientSecret } = credentials;
-    
+
     this.oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
       'urn:ietf:wg:oauth:2.0:oob'
     );
-    
+
     this.oauth2Client.setCredentials({
       access_token: accessToken,
       refresh_token: refreshToken
     });
-    
+
     // Refresh token if needed
     if (!accessToken && refreshToken) {
       const { credentials: newCredentials } = await this.oauth2Client.refreshAccessToken();
       this.oauth2Client.setCredentials(newCredentials);
     }
-    
+
     this.drive = google.drive({ version: 'v3', auth: this.oauth2Client });
     this.calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
-    
+
     logger.info('[GoogleMeetIntegration] Authenticated successfully');
   }
 
@@ -51,21 +51,21 @@ class GoogleMeetIntegration {
    */
   async findRecordings(params = {}) {
     const { since = null, maxResults = 10 } = params;
-    
+
     let query = "mimeType='video/mp4' and name contains 'Meet Recording'";
-    
+
     if (since) {
       const sinceDate = new Date(since).toISOString();
       query += ` and modifiedTime >= '${sinceDate}'`;
     }
-    
+
     const response = await this.drive.files.list({
       q: query,
       orderBy: 'modifiedTime desc',
       pageSize: maxResults,
       fields: 'files(id, name, createdTime, modifiedTime, size, webViewLink)'
     });
-    
+
     return {
       success: true,
       recordings: response.data.files || [],
@@ -82,12 +82,12 @@ class GoogleMeetIntegration {
       fileId,
       fields: 'id, name, mimeType, size'
     });
-    
+
     const fileResponse = await this.drive.files.get(
       { fileId, alt: 'media' },
       { responseType: 'arraybuffer' }
     );
-    
+
     return {
       success: true,
       file: {
@@ -109,10 +109,10 @@ class GoogleMeetIntegration {
     // Download recording
     const downloadResult = await this.downloadRecording(fileId);
     const file = downloadResult.file;
-    
+
     // Transcribe
     const transcription = await this.transcriptionService.transcribe(file, options);
-    
+
     return {
       success: true,
       fileId,
@@ -128,13 +128,13 @@ class GoogleMeetIntegration {
    * @param {Object} params - { calendarId?, timeMin?, timeMax?, maxResults? }
    */
   async getMeetEvents(params = {}) {
-    const { 
-      calendarId = 'primary', 
+    const {
+      calendarId = 'primary',
       timeMin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
       timeMax = new Date().toISOString(),
       maxResults = 10
     } = params;
-    
+
     const response = await this.calendar.events.list({
       calendarId,
       timeMin,
@@ -144,13 +144,13 @@ class GoogleMeetIntegration {
       orderBy: 'startTime',
       q: 'meet' // Filter for events with Meet links
     });
-    
+
     const meetEvents = (response.data.items || []).filter(event => {
       // Check if event has Meet link
-      return event.hangoutLink || 
+      return event.hangoutLink ||
              event.conferenceData?.entryPoints?.some(ep => ep.entryPointType === 'video');
     });
-    
+
     return {
       success: true,
       events: meetEvents.map(event => ({
@@ -171,23 +171,23 @@ class GoogleMeetIntegration {
    */
   async processRecordings(params = {}) {
     const { since = null, extractInsights = false } = params;
-    
+
     // Find recordings
     const recordingsResult = await this.findRecordings({ since });
-    
+
     // Process each recording
     const results = await Promise.all(
       recordingsResult.recordings.map(async (recording) => {
         try {
           const transcription = await this.transcribeRecording(recording.id);
-          
+
           let insights = null;
           if (extractInsights) {
             insights = await this.transcriptionService.extractInsights(transcription.transcription, {
               focus: 'customer feedback and product insights'
             });
           }
-          
+
           return {
             success: true,
             recording: {
@@ -212,7 +212,7 @@ class GoogleMeetIntegration {
         }
       })
     );
-    
+
     return {
       success: true,
       processed: results.filter(r => r.success).length,

@@ -1,13 +1,13 @@
 /**
  * Lead Scoring Service
- * 
+ *
  * Calculates lead scores for companies based on:
  * - Hiring velocity (jobs posted over time)
  * - Seniority mix (ratio of senior vs junior roles)
  * - Tech stack signals
  * - Department signals
  * - Company growth indicators
- * 
+ *
  * Supports ICP (Ideal Customer Profile) filtering with declarative rules.
  */
 
@@ -27,7 +27,7 @@ class LeadScoringService {
       departmentSignals: parseFloat(process.env.LEAD_SCORE_WEIGHT_DEPARTMENT || '0.15'),
       companyGrowth: parseFloat(process.env.LEAD_SCORE_WEIGHT_COMPANY_GROWTH || '0.15')
     };
-    
+
     // Hiring velocity thresholds - configurable via environment variables
     this.hiringVelocityThresholds = {
       high: parseInt(process.env.LEAD_SCORE_HIRING_HIGH_THRESHOLD || '10', 10),
@@ -35,7 +35,7 @@ class LeadScoringService {
       low: parseInt(process.env.LEAD_SCORE_HIRING_LOW_THRESHOLD || '2', 10),
       minimal: parseInt(process.env.LEAD_SCORE_HIRING_MINIMAL_THRESHOLD || '1', 10)
     };
-    
+
     // Hiring velocity scores - configurable via environment variables
     this.hiringVelocityScores = {
       high: parseFloat(process.env.LEAD_SCORE_HIRING_HIGH_SCORE || '1.0'),
@@ -44,7 +44,7 @@ class LeadScoringService {
       minimal: parseFloat(process.env.LEAD_SCORE_HIRING_MINIMAL_SCORE || '0.2'),
       old: parseFloat(process.env.LEAD_SCORE_HIRING_OLD_SCORE || '0.1')
     };
-    
+
     // Company growth thresholds - configurable via environment variables
     this.companyGrowthThresholds = {
       headcountLarge: parseInt(process.env.LEAD_SCORE_HEADCOUNT_LARGE || '500', 10),
@@ -53,7 +53,7 @@ class LeadScoringService {
       jobsHigh: parseInt(process.env.LEAD_SCORE_JOBS_HIGH || '10', 10),
       jobsMedium: parseInt(process.env.LEAD_SCORE_JOBS_MEDIUM || '5', 10)
     };
-    
+
     // Company growth scores - configurable via environment variables
     this.companyGrowthScores = {
       headcountLarge: parseFloat(process.env.LEAD_SCORE_HEADCOUNT_LARGE_SCORE || '0.3'),
@@ -63,7 +63,7 @@ class LeadScoringService {
       jobsMedium: parseFloat(process.env.LEAD_SCORE_JOBS_MEDIUM_SCORE || '0.2'),
       jobsLow: parseFloat(process.env.LEAD_SCORE_JOBS_LOW_SCORE || '0.1')
     };
-    
+
     // Time windows - configurable via environment variables
     this.timeWindows = {
       recentDays: parseInt(process.env.LEAD_SCORE_RECENT_DAYS || '30', 10),
@@ -80,7 +80,7 @@ class LeadScoringService {
 
       // Get job postings for this company
       const jobPostings = await this._getJobPostings(companyDomain);
-      
+
       // Get company profile
       const companyProfile = await this._getCompanyProfile(companyDomain);
 
@@ -155,7 +155,7 @@ class LeadScoringService {
     // Score based on recent activity using configurable thresholds
     const thresholds = this.hiringVelocityThresholds;
     const scores = this.hiringVelocityScores;
-    
+
     if (recentJobs >= thresholds.high) return scores.high;
     if (recentJobs >= thresholds.medium) return scores.medium;
     if (recentJobs >= thresholds.low) return scores.low;
@@ -218,7 +218,7 @@ class LeadScoringService {
     });
 
     // Calculate match ratio
-    const matches = preferredTech.filter(tech => 
+    const matches = preferredTech.filter(tech =>
       allTech.has(tech.toLowerCase())
     ).length;
 
@@ -272,7 +272,7 @@ class LeadScoringService {
       seriesA: parseFloat(process.env.LEAD_SCORE_FUNDING_SERIES_A || '0.2'),
       seed: parseFloat(process.env.LEAD_SCORE_FUNDING_SEED || '0.1')
     };
-    
+
     if (companyProfile?.fundingStage) {
       const funding = companyProfile.fundingStage.toLowerCase();
       if (funding.includes('series c') || funding.includes('series d') || funding.includes('growth')) {
@@ -351,7 +351,7 @@ class LeadScoringService {
 
         // Get company profile for additional filters
         const companyProfile = await this._getCompanyProfile(company.company_domain);
-        
+
         if (industries.length > 0 && !industries.includes(companyProfile?.industry)) continue;
         if (headcountMin && (!companyProfile?.headcount || companyProfile.headcount < headcountMin)) continue;
         if (headcountMax && companyProfile?.headcount && companyProfile.headcount > headcountMax) continue;
@@ -458,7 +458,7 @@ class LeadScoringService {
 
     for (let i = 0; i < companyDomains.length; i += batchSize) {
       const batch = companyDomains.slice(i, i + batchSize);
-      const batchPromises = batch.map(domain => 
+      const batchPromises = batch.map(domain =>
         this.calculateLeadScore(domain, { ...options, saveToDatabase: false })
       );
       const batchResults = await Promise.all(batchPromises);

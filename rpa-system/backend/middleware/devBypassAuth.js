@@ -1,10 +1,10 @@
 /**
  * Unified Dev Bypass Authentication Middleware
- * 
+ *
  * This middleware provides consistent dev bypass support across all routes.
  * It should be used by any route that has its own auth middleware to ensure
  * dev bypass works consistently throughout the app.
- * 
+ *
  * SECURITY: Only works when NODE_ENV !== 'production'
  */
 
@@ -22,7 +22,7 @@ function checkDevBypass(req) {
   if (nodeEnv === 'production' || nodeEnv === 'prod') {
     return null;
   }
-  
+
   // ✅ SECURITY: Additional safety check - if NODE_ENV is not explicitly set to development,
   // be more restrictive (only allow if explicitly in development mode)
   // This prevents accidental bypass if NODE_ENV is unset or misconfigured
@@ -49,7 +49,7 @@ function checkDevBypass(req) {
   // Check for dev bypass header (x-dev-bypass)
   const header = (req.headers['x-dev-bypass'] || '').trim();
   const expected = (process.env.DEV_BYPASS_TOKEN || '').trim();
-  
+
   if (expected && header === expected) {
     return {
       id: process.env.DEV_USER_ID || 'dev-user-123',
@@ -67,22 +67,22 @@ function checkDevBypass(req) {
  */
 function devBypassAuthMiddleware(req, res, next) {
   const devUser = checkDevBypass(req);
-  
+
   if (devUser) {
     req.user = devUser;
     req.devBypass = true;
     req.devUser = { id: devUser.id, isDevBypass: true };
-    
+
     logger.warn('[dev-bypass-auth] granted', {
       ip: req.ip,
       userId: devUser.id,
       path: req.path,
       method: req.method
     });
-    
+
     return next();
   }
-  
+
   // Not a dev bypass request, continue to normal auth
   next();
 }

@@ -89,7 +89,7 @@ async function main() {
           logger.error(`  - FAILED to update Sub ID ${sub.id}:`, updateErr.message);
         } else {
           updatedCount++;
-          logger.info(`  - SUCCESS: Updated status in DB.`);
+          logger.info('  - SUCCESS: Updated status in DB.');
         }
       }
     }
@@ -128,8 +128,8 @@ export async function fetchSubscriptions() {
     const response = await axios.get(`${POLAR_API_URL}/subscriptions`, {
       headers: {
         Authorization: `Bearer ${POLAR_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
     logger.info('Subscriptions:', response.data);
     return response.data;

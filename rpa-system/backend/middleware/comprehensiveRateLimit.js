@@ -1,13 +1,13 @@
 /**
  * Comprehensive Rate Limiting Middleware
- * 
+ *
  * Enforces ALL pricing page features with bulletproof limit checking:
  * - Webhook creation limits
  * - Scheduled automation daily limits
  * - Integration creation limits
  * - API access enforcement
  * - Audit logs access enforcement
- * 
+ *
  * All limits are checked against Supabase plan feature_flags
  */
 
@@ -43,10 +43,10 @@ const checkWebhookLimit = async (req, res, next) => {
     }
 
     const planData = await getUserPlan(userId);
-    
+
     // Check if webhooks are enabled
     const webhookValue = planData.limits?.webhook_integrations || planData.limits?.webhook_management;
-    const hasWebhooks = typeof webhookValue === 'string' 
+    const hasWebhooks = typeof webhookValue === 'string'
       ? webhookValue.toLowerCase() !== 'no' && webhookValue !== ''
       : !!webhookValue;
 
@@ -161,10 +161,10 @@ const checkScheduledAutomationLimit = async (req, res, next) => {
     }
 
     const planData = await getUserPlan(userId);
-    
+
     // Check if scheduled automations are enabled
     const scheduledValue = planData.limits?.scheduled_automations;
-    const hasScheduled = typeof scheduledValue === 'string' 
+    const hasScheduled = typeof scheduledValue === 'string'
       ? scheduledValue.toLowerCase() !== 'no' && scheduledValue !== ''
       : !!scheduledValue;
 
@@ -215,7 +215,7 @@ const checkScheduledAutomationLimit = async (req, res, next) => {
     if (canCreate === true && (!supabase.rpc || typeof supabase.rpc !== 'function')) {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
-      
+
       const { count } = await supabase
         .from('workflow_schedules')
         .select('id', { count: 'exact', head: true })
@@ -226,7 +226,7 @@ const checkScheduledAutomationLimit = async (req, res, next) => {
       const scheduledStr = String(scheduledValue || '');
       const match = scheduledStr.match(/\d+/);
       const dailyLimit = match ? parseInt(match[0], 10) : 0;
-      
+
       canCreate = (count || 0) < dailyLimit;
     }
 
@@ -234,7 +234,7 @@ const checkScheduledAutomationLimit = async (req, res, next) => {
       // Get current daily count for error message
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
-      
+
       const { count: currentCount } = await supabase
         .from('workflow_schedules')
         .select('id', { count: 'exact', head: true })
@@ -285,10 +285,10 @@ const checkIntegrationLimit = async (req, res, next) => {
     }
 
     const planData = await getUserPlan(userId);
-    
+
     // Check if custom integrations are enabled
     const integrationValue = planData.limits?.custom_integrations;
-    const hasIntegrations = typeof integrationValue === 'string' 
+    const hasIntegrations = typeof integrationValue === 'string'
       ? integrationValue.toLowerCase() !== 'no' && integrationValue !== ''
       : !!integrationValue;
 
@@ -346,7 +346,7 @@ const checkIntegrationLimit = async (req, res, next) => {
       const integrationStr = String(integrationValue || '');
       const match = integrationStr.match(/\d+/);
       const integrationLimit = match ? parseInt(match[0], 10) : 0;
-      
+
       canCreate = (count || 0) < integrationLimit;
     }
 
@@ -401,10 +401,10 @@ const checkApiAccess = async (req, res, next) => {
     }
 
     const planData = await getUserPlan(userId);
-    
+
     // Check API access
     const apiValue = planData.limits?.api_access || planData.limits?.full_api_access;
-    const hasApiAccess = typeof apiValue === 'string' 
+    const hasApiAccess = typeof apiValue === 'string'
       ? apiValue.toLowerCase() !== 'no' && apiValue !== ''
       : !!apiValue;
 

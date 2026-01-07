@@ -19,7 +19,7 @@ const systemCommandLimiter = rateLimit({
   message: 'Too many requests, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
+  skip: () => isDevelopment || isTest // Skip entirely in dev/test
 });
 
 /**
@@ -32,21 +32,21 @@ router.get('/code-quality', systemCommandLimiter, async (req, res) => {
     // Run the export script to generate metrics
     const scriptPath = path.join(__dirname, '../../../scripts/export-quality-metrics.sh');
     const metricsFile = '/tmp/easyflow-code-quality-metrics.prom';
-    
+
     try {
       // Run export script
       await execAsync(`bash "${scriptPath}"`);
-      
+
       // Read metrics file
       const metrics = await fs.readFile(metricsFile, 'utf-8');
-      
+
       res.set('Content-Type', 'text/plain; version=0.0.4');
       res.send(metrics);
-      
+
       logger.debug('Code quality metrics exported successfully');
     } catch (error) {
       logger.warn('Failed to export code quality metrics, returning empty metrics', { error: error.message });
-      
+
       // Return empty metrics so Prometheus doesn't fail
       res.set('Content-Type', 'text/plain; version=0.0.4');
       res.send(`# Code quality metrics temporarily unavailable

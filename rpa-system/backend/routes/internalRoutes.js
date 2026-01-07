@@ -15,7 +15,7 @@ const fileSystemLimiter = rateLimit({
   message: 'Too many file operations, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
+  skip: () => isDevelopment || isTest // Skip entirely in dev/test
 });
 
 // Create a child logger for frontend logs
@@ -96,9 +96,9 @@ router.post('/front-errors', fileSystemLimiter, async (req, res) => {
     logger.info('[internal/front-errors] saved frontend error payload', { file: filename });
     return res.status(204).send();
   } catch (err) {
-    try { 
-      logger.error('[internal/front-errors] failed to persist payload', err?.message || err); 
-    } catch (e) { 
+    try {
+      logger.error('[internal/front-errors] failed to persist payload', err?.message || err);
+    } catch (e) {
       // Fallback: if logger itself fails, use root logger directly
       const { rootLogger } = require('../middleware/structuredLogging');
       rootLogger.error({ error: e?.message || e }, '[internal/front-errors] logger failed');

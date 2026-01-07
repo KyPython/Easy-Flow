@@ -58,7 +58,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.id || req.ip,
-  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
+  skip: () => isDevelopment || isTest // Skip entirely in dev/test
 });
 
 /**
@@ -70,15 +70,15 @@ router.get('/', authMiddleware, requireFeature('business_rules'), apiLimiter, co
   try {
     const userId = req.user.id;
     const rules = await businessRulesService.getUserRules(userId);
-    
+
     logger.info('Fetched user rules', { userId, count: rules.length });
     res.json({ success: true, data: rules });
   } catch (error) {
     logger.error('Error fetching rules:', { error: error.message, userId: req.user?.id });
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to fetch rules',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -92,21 +92,21 @@ router.get('/:ruleId', authMiddleware, requireFeature('business_rules'), apiLimi
   try {
     const { ruleId } = req.params;
     const userId = req.user.id;
-    
+
     const rule = await businessRulesService.getRuleById(ruleId, userId);
-    
+
     if (!rule) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Rule not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'Rule not found'
       });
     }
 
     // Get usage information
     const usage = await businessRulesService.getRuleUsage(ruleId, userId);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       data: {
         ...rule,
         usage: {
@@ -117,10 +117,10 @@ router.get('/:ruleId', authMiddleware, requireFeature('business_rules'), apiLimi
     });
   } catch (error) {
     logger.error('Error fetching rule:', { error: error.message, ruleId: req.params.ruleId });
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to fetch rule',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -137,22 +137,22 @@ router.post('/', authMiddleware, requireFeature('business_rules'), apiLimiter, c
 
     // Validate required fields
     if (!ruleData.name || !ruleData.description) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Rule name and description are required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Rule name and description are required'
       });
     }
 
     const rule = await businessRulesService.createRule(ruleData, userId);
-    
+
     logger.info('Created business rule', { ruleId: rule.id, userId });
     res.status(201).json({ success: true, data: rule });
   } catch (error) {
     logger.error('Error creating rule:', { error: error.message, userId: req.user?.id });
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to create rule',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -169,22 +169,22 @@ router.put('/:ruleId', authMiddleware, requireFeature('business_rules'), apiLimi
     const ruleData = req.body;
 
     const rule = await businessRulesService.updateRule(ruleId, ruleData, userId);
-    
+
     logger.info('Updated business rule', { ruleId, userId });
     res.json({ success: true, data: rule });
   } catch (error) {
     if (error.message === 'Rule not found or access denied') {
-      return res.status(404).json({ 
-        success: false, 
-        error: error.message 
+      return res.status(404).json({
+        success: false,
+        error: error.message
       });
     }
-    
+
     logger.error('Error updating rule:', { error: error.message, ruleId: req.params.ruleId });
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to update rule',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -200,22 +200,22 @@ router.delete('/:ruleId', authMiddleware, requireFeature('business_rules'), apiL
     const userId = req.user.id;
 
     await businessRulesService.deleteRule(ruleId, userId);
-    
+
     logger.info('Deleted business rule', { ruleId, userId });
     res.json({ success: true, message: 'Rule deleted successfully' });
   } catch (error) {
     if (error.message === 'Rule not found or access denied') {
-      return res.status(404).json({ 
-        success: false, 
-        error: error.message 
+      return res.status(404).json({
+        success: false,
+        error: error.message
       });
     }
-    
+
     logger.error('Error deleting rule:', { error: error.message, ruleId: req.params.ruleId });
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to delete rule',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -231,9 +231,9 @@ router.get('/:ruleId/usage', authMiddleware, requireFeature('business_rules'), a
     const userId = req.user.id;
 
     const usage = await businessRulesService.getRuleUsage(ruleId, userId);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       data: {
         ruleId,
         workflows: usage,
@@ -242,10 +242,10 @@ router.get('/:ruleId/usage', authMiddleware, requireFeature('business_rules'), a
     });
   } catch (error) {
     logger.error('Error fetching rule usage:', { error: error.message, ruleId: req.params.ruleId });
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to fetch rule usage',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -262,21 +262,21 @@ router.post('/:ruleId/evaluate', authMiddleware, requireFeature('business_rules'
     const { data } = req.body;
 
     if (!data) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Data is required for rule evaluation' 
+      return res.status(400).json({
+        success: false,
+        error: 'Data is required for rule evaluation'
       });
     }
 
     const result = await businessRulesService.evaluateRule(ruleId, data, userId);
-    
+
     res.json({ success: true, data: result });
   } catch (error) {
     logger.error('Error evaluating rule:', { error: error.message, ruleId: req.params.ruleId });
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to evaluate rule',
-      details: error.message 
+      details: error.message
     });
   }
 });

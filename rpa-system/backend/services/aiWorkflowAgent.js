@@ -1,14 +1,14 @@
 /**
  * AI Workflow Agent Service
- * 
+ *
  * Converts natural language descriptions into executable workflow configurations.
  * Uses OpenAI GPT-4 to understand user intent and generate workflow nodes/edges.
- * 
+ *
  * POWERED BY RAG-NODE-TS:
  * - Uses your rag-node-ts RAG service for knowledge retrieval
  * - All app knowledge is stored in Pinecone via your RAG SaaS
  * - Continuous learning through the RAG service
- * 
+ *
  * OBSERVABILITY:
  * - All logs flow through structured logging with trace context
  * - Token usage metrics tracked for cost monitoring
@@ -354,7 +354,7 @@ Be helpful, creative, and ensure workflows are practical and executable.`;
 /**
  * Parse natural language into a workflow configuration
  * Uses rag-node-ts RAG service for knowledge retrieval
- * 
+ *
  * OBSERVABILITY: Performance tracking for workflow generation
  */
 async function parseNaturalLanguage(userMessage, context = {}) {
@@ -362,26 +362,26 @@ async function parseNaturalLanguage(userMessage, context = {}) {
   const parseLogger = logger.withOperation('ai.agent.parseNaturalLanguage', {
     userId: context.userId
   });
-  
+
   try {
     // 🧠 RAG: Get relevant knowledge from your rag-node-ts service
     let knowledgeContext = { context: '', sources: [], method: 'none' };
-    
+
     try {
       const ragStartTime = Date.now();
-      const ragResult = await ragClient.query(userMessage, { 
-        topK: 5, 
+      const ragResult = await ragClient.query(userMessage, {
+        topK: 5,
         mode: 'retrieval',  // Just get passages, we'll generate our own answer
-        useCache: true 
+        useCache: true
       });
-      
+
       if (ragResult.success && ragResult.results?.length > 0) {
         knowledgeContext = {
           context: ragResult.results.map(r => r.text).join('\n\n'),
           sources: ragResult.results.map(r => r.metadata?.source || 'rag'),
           method: 'rag-node-ts'
         };
-        
+
         parseLogger.info('Retrieved knowledge from rag-node-ts', {
           sources: knowledgeContext.sources?.slice(0, 3),
           contextLength: knowledgeContext.context?.length || 0,
@@ -407,7 +407,7 @@ ${knowledgeContext.context}
 Use this knowledge to provide accurate, helpful responses about the Easy-Flow app features and capabilities.`;
 
     const messages = [
-      { role: 'system', content: enhancedSystemPrompt },
+      { role: 'system', content: enhancedSystemPrompt }
     ];
 
     // Add conversation context if provided
@@ -442,7 +442,7 @@ Use this knowledge to provide accurate, helpful responses about the Easy-Flow ap
 
   } catch (error) {
     logger.error('[AI Agent] Error parsing natural language:', error);
-    
+
     // Return a helpful error response
     return {
       success: false,
@@ -461,7 +461,7 @@ function enhanceWorkflow(workflow) {
   }
 
   const timestamp = Date.now();
-  
+
   // Ensure all nodes have proper IDs and positions
   const enhancedNodes = workflow.nodes.map((node, index) => ({
     id: node.id || `node-${node.stepType}-${timestamp}-${index}`,
@@ -557,7 +557,7 @@ async function getSuggestions(partialInput) {
   ];
 
   const inputLower = partialInput.toLowerCase();
-  
+
   // Find matching patterns
   for (const pattern of commonPatterns) {
     if (pattern.trigger.some(t => inputLower.includes(t))) {
@@ -584,20 +584,20 @@ async function getConversationResponse(userMessage, context = {}) {
     // 🧠 RAG: Get answer from your rag-node-ts service
     let knowledgeContext = { context: '', sources: [], method: 'none' };
     let ragAnswer = null;
-    
+
     try {
-      const ragResult = await ragClient.query(userMessage, { 
-        topK: 5, 
+      const ragResult = await ragClient.query(userMessage, {
+        topK: 5,
         mode: 'answer',  // Get full RAG answer with citations
-        useCache: true 
+        useCache: true
       });
-      
+
       if (ragResult.success) {
         // If RAG gives a good answer, we can use it or enhance it
         if (ragResult.answer && !ragResult.answer.includes('does not contain enough information')) {
           ragAnswer = ragResult.answer;
         }
-        
+
         // Also extract context for our own answer generation
         if (ragResult.citations?.length > 0) {
           knowledgeContext = {
@@ -606,7 +606,7 @@ async function getConversationResponse(userMessage, context = {}) {
             method: 'rag-node-ts'
           };
         }
-        
+
         logger.info('[AI Agent] Retrieved knowledge from rag-node-ts', {
           sources: knowledgeContext.sources?.slice(0, 3),
           hasAnswer: !!ragAnswer
@@ -622,7 +622,7 @@ async function getConversationResponse(userMessage, context = {}) {
     // Get support email from config
     const { config: appConfig } = require('../utils/appConfig');
     const supportEmail = appConfig.urls.supportEmail;
-    
+
     const enhancedSystemPrompt = `You are a helpful AI assistant for an automation workflow builder called Easy-Flow. 
 
 ## YOUR KNOWLEDGE ABOUT EASY-FLOW
@@ -671,7 +671,7 @@ Keep responses concise, friendly, and helpful. Use emojis occasionally.
 ALWAYS base your answers on the Easy-Flow knowledge provided above when relevant.`;
 
     const messages = [
-      { role: 'system', content: enhancedSystemPrompt },
+      { role: 'system', content: enhancedSystemPrompt }
     ];
 
     if (context.previousMessages) {
@@ -719,25 +719,25 @@ function isWorkflowRequest(userMessage) {
 
 /**
  * Main handler for AI agent interactions
- * 
+ *
  * NOW WITH FULL APP CONTROL:
  * - Uses OpenAI function calling to decide when to execute actions
  * - Can create tasks, run workflows, scrape websites, send emails, etc.
  * - All via natural language!
- * 
+ *
  * OBSERVABILITY: Full structured logging with performance & token tracking
  */
 async function handleMessage(userMessage, context = {}) {
   const startTime = Date.now();
   const actionExecutor = require('./aiActionExecutor');
-  
+
   // Create user-scoped logger for this interaction
   const msgLogger = logger
     .withUser({ id: context.userId, email: context.userEmail })
     .withOperation('ai.agent.handleMessage', {
       messageLength: userMessage?.length || 0
     });
-  
+
   // Check if OpenAI is configured
   const openai = getOpenAI();
   if (!openai) {
@@ -749,16 +749,16 @@ async function handleMessage(userMessage, context = {}) {
       aiEnabled: false
     };
   }
-  
+
   try {
     msgLogger.info('Processing AI message', {
       messagePreview: userMessage?.slice(0, 50),
       hasContext: !!context.previousMessages
     });
-    
+
     // Get available actions as OpenAI tools
     const tools = actionExecutor.getActionsAsTools();
-    
+
     // Also add workflow generation as a tool
     tools.push({
       type: 'function',
@@ -943,7 +943,7 @@ WHEN TO USE create_automated_workflow:
 Available automation types: ${Object.values(WORKFLOW_STEPS).map(s => `${s.icon} ${s.label}`).join(', ')}`;
 
     const messages = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: systemPrompt }
     ];
 
     // Add conversation history
@@ -1000,7 +1000,7 @@ Available automation types: ${Object.values(WORKFLOW_STEPS).map(s => `${s.icon} 
       if (functionName === 'generate_workflow') {
         const result = await parseNaturalLanguage(functionArgs.description, context);
         const duration = Date.now() - startTime;
-        
+
         msgLogger.performance('ai.agent.workflow_generation', duration, {
           category: 'ai_agent',
           success: result.success,
@@ -1066,7 +1066,7 @@ Keep responses short, friendly, and actionable. Use plain English - no technical
       });
 
       const duration = Date.now() - startTime;
-      
+
       msgLogger.performance('ai.agent.action_execution', duration, {
         category: 'ai_agent',
         action: functionName,
@@ -1090,7 +1090,7 @@ Keep responses short, friendly, and actionable. Use plain English - no technical
 
     // No tool call - just a conversational response
     const duration = Date.now() - startTime;
-    
+
     msgLogger.performance('ai.agent.conversation', duration, {
       category: 'ai_agent',
       type: 'conversation'
@@ -1109,7 +1109,7 @@ Keep responses short, friendly, and actionable. Use plain English - no technical
 
   } catch (error) {
     const duration = Date.now() - startTime;
-    
+
     msgLogger.error('AI message handling failed', error, {
       duration,
       messageLength: userMessage?.length
@@ -1122,7 +1122,7 @@ Keep responses short, friendly, and actionable. Use plain English - no technical
     return {
       type: 'error',
       success: false,
-      message: "Something went wrong. Please try again!",
+      message: 'Something went wrong. Please try again!',
       error: error.message
     };
   }
@@ -1135,16 +1135,16 @@ async function refineWorkflow(existingWorkflow, refinementRequest, context = {})
   try {
     const messages = [
       { role: 'system', content: SYSTEM_PROMPT },
-      { 
-        role: 'assistant', 
+      {
+        role: 'assistant',
         content: JSON.stringify({
           workflow: existingWorkflow,
           explanation: 'This is the current workflow configuration.'
         })
       },
-      { 
-        role: 'user', 
-        content: `Please modify the workflow: ${refinementRequest}` 
+      {
+        role: 'user',
+        content: `Please modify the workflow: ${refinementRequest}`
       }
     ];
 
@@ -1206,23 +1206,23 @@ async function initializeKnowledge() {
   try {
     // Check if RAG service is healthy
     const health = await ragClient.healthCheck();
-    
+
     if (!health.success) {
       logger.error('[AI Agent] rag-node-ts service not available!', {
         url: ragClient.RAG_SERVICE_URL,
         hint: 'Start your RAG service with: cd /Users/ky/rag-node-ts && npm run dev'
       });
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'rag-node-ts service unavailable',
         hint: 'Start your RAG service first'
       };
     }
-    
+
     // Seed knowledge via YOUR RAG service
     logger.info('[AI Agent] Seeding knowledge via rag-node-ts...');
     const result = await ragClient.seedEasyFlowKnowledge();
-    
+
     // Also seed integration knowledge
     try {
       const { addIntegrationKnowledge } = require('./addIntegrationKnowledge');
@@ -1233,20 +1233,20 @@ async function initializeKnowledge() {
     } catch (integrationError) {
       logger.warn('[AI Agent] Failed to seed integration knowledge:', integrationError);
     }
-    
+
     logger.info('[AI Agent] Knowledge seeded to rag-node-ts', {
       successful: result.successful,
       failed: result.failed
     });
-    
-    return { 
-      success: result.success, 
+
+    return {
+      success: result.success,
       method: 'rag-node-ts',
       successCount: result.successful,
       errorCount: result.failed,
       message: `Seeded ${result.successful} knowledge items to your RAG service`
     };
-    
+
   } catch (error) {
     logger.error('[AI Agent] Error initializing knowledge:', error);
     return { success: false, error: error.message };
@@ -1262,20 +1262,20 @@ async function addAppKnowledge(knowledge) {
     const result = await ragClient.ingestText(
       knowledge.content,
       `easyflow:${knowledge.category}:${knowledge.title.toLowerCase().replace(/\s+/g, '-')}`,
-      { 
+      {
         category: knowledge.category,
         title: knowledge.title,
         keywords: knowledge.keywords || []
       }
     );
-    
+
     if (result.success) {
       logger.info('[AI Agent] Knowledge added to rag-node-ts', { title: knowledge.title });
       return result;
     }
-    
+
     return { success: false, error: 'Failed to add knowledge to RAG service' };
-    
+
   } catch (error) {
     logger.error('[AI Agent] Error adding knowledge:', error);
     return { success: false, error: error.message };
@@ -1285,7 +1285,7 @@ async function addAppKnowledge(knowledge) {
 // Knowledge categories for organizing content in rag-node-ts
 const KNOWLEDGE_CATEGORIES = {
   WORKFLOW_STEPS: 'workflow_steps',
-  APP_FEATURES: 'app_features', 
+  APP_FEATURES: 'app_features',
   TROUBLESHOOTING: 'troubleshooting',
   BEST_PRACTICES: 'best_practices',
   FAQ: 'faq',

@@ -207,7 +207,7 @@ router.post('/invite', requireFeature('team_management'), async (req, res) => {
 
     // Check if user has admin/owner role
     const hasAdminRole = requester.role && ['admin', 'owner'].includes(requester.role);
-    
+
     if (!hasAdminRole) {
       // If no role, check if they're the only member in their organization (first user)
       if (requester.organization_id) {
@@ -216,9 +216,9 @@ router.post('/invite', requireFeature('team_management'), async (req, res) => {
           .select('id')
           .eq('organization_id', requester.organization_id)
           .limit(2);
-        
+
         const isOnlyMember = !orgError && orgMembers && orgMembers.length === 1 && orgMembers[0].id === userId;
-        
+
         if (!isOnlyMember) {
           return res.status(403).json({ error: 'Insufficient permissions. Only admins and owners can invite team members.' });
         }
@@ -231,9 +231,9 @@ router.post('/invite', requireFeature('team_management'), async (req, res) => {
 
     // TODO: Send invitation email and create invitation record
     // For now, return success (actual invitation logic would go here)
-    res.json({ 
-      success: true, 
-      message: 'Invitation sent successfully',
+    res.json({
+      success: true,
+      message: 'Invitation sent successfully'
       // In a real implementation, you'd create an invitation record here
     });
   } catch (err) {

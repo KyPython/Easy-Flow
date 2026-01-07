@@ -1,13 +1,13 @@
 /**
  * Job Parser Service
- * 
+ *
  * Parses job postings from various ATS (Applicant Tracking System) platforms:
  * - Workday
  * - Greenhouse
  * - Lever
  * - SmartRecruiters
  * - Generic careers pages
- * 
+ *
  * Features:
  * - ATS vendor auto-detection
  * - Layout change detection
@@ -480,10 +480,10 @@ class JobParserService {
       for (let i = 0; i < Math.min(jobElements.length, 50); i++) {
         const element = jobElements.eq(i);
         const jobUrl = element.attr('href') || element.find('a').attr('href');
-        
+
         if (jobUrl) {
           const fullUrl = jobUrl.startsWith('http') ? jobUrl : new URL(jobUrl, url).href;
-          
+
           const jobData = {
             roleTitle: element.find('h2, h3, .title, .job-title').first().text().trim() ||
                        element.text().trim().split('\n')[0],

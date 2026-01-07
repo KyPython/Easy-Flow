@@ -1,13 +1,13 @@
 /**
  * Database Warm-Up Utility
- * 
+ *
  * Prevents "cold start" query timeout issues by waking up the database
  * connection when the server starts. This is especially important for
  * serverless/auto-scaling databases like Supabase that may pause inactive instances.
- * 
+ *
  * Problem: First request after inactivity times out while database wakes up
  * Solution: Run a lightweight query on startup to establish connection
- * 
+ *
  * NOTE: The main warm-up is now handled directly in server.js with blocking behavior.
  * This utility is kept for health check endpoint warm-up (non-blocking).
  */
@@ -18,7 +18,7 @@ const { logger } = require('./logger');
 /**
  * Warm up the database connection by running a lightweight query
  * This wakes up paused database instances and establishes a connection pool
- * 
+ *
  * @param {Object} options - Warm-up options
  * @param {number} options.timeout - Maximum time to wait for warm-up (ms), default 30000
  * @param {boolean} options.failSilently - If true, log warnings instead of throwing, default true
@@ -35,7 +35,7 @@ async function warmupDatabase(options = {}) {
 
   try {
     const supabase = getSupabase();
-    
+
     if (!supabase) {
       const message = '[DatabaseWarmup] Supabase not configured - skipping warm-up';
       if (failSilently) {
@@ -55,7 +55,7 @@ async function warmupDatabase(options = {}) {
       .select('id', { count: 'exact', head: true })
       .limit(0); // Don't fetch any rows, just wake up the connection
 
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Database warm-up timeout')), timeout)
     );
 
@@ -69,7 +69,7 @@ async function warmupDatabase(options = {}) {
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = error?.message || String(error);
-    
+
     if (failSilently) {
       logger.warn(`[DatabaseWarmup] ⚠️ Database warm-up failed after ${duration}ms: ${errorMessage}`);
       logger.warn('[DatabaseWarmup] Server will continue - first request may be slower');
@@ -84,7 +84,7 @@ async function warmupDatabase(options = {}) {
 /**
  * Warm up database with retry logic
  * Useful for environments where database may take longer to wake up
- * 
+ *
  * @param {Object} options - Warm-up options
  * @param {number} options.maxRetries - Maximum retry attempts, default 2
  * @param {number} options.retryDelay - Delay between retries (ms), default 2000
@@ -105,7 +105,7 @@ async function warmupDatabaseWithRetry(options = {}) {
     }
 
     const success = await warmupDatabase({ timeout, failSilently: attempt < maxRetries });
-    
+
     if (success) {
       return true;
     }

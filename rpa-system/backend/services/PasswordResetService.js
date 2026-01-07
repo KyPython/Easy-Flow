@@ -14,7 +14,7 @@ class PasswordResetService {
       SELECTOR_TIMEOUT: 15000,
       RESET_TIMEOUT: 60000 // Password reset can take longer
     };
-    
+
     // Common patterns for password reset links/buttons
     this.resetPatterns = {
       linkText: [
@@ -84,8 +84,8 @@ class PasswordResetService {
         for (const link of links) {
           const linkText = link.textContent.toLowerCase().trim();
           const linkHref = link.href.toLowerCase();
-          
-          if (linkText.includes('forgot') || linkText.includes('reset') || 
+
+          if (linkText.includes('forgot') || linkText.includes('reset') ||
               linkHref.includes('forgot') || linkHref.includes('reset')) {
             indicators.hasForgotPasswordLink = true;
             indicators.resetLinkUrl = link.href;
@@ -95,7 +95,7 @@ class PasswordResetService {
         }
 
         // Check for password-related error messages
-        if (text.includes('incorrect password') || 
+        if (text.includes('incorrect password') ||
             text.includes('wrong password') ||
             text.includes('invalid password') ||
             text.includes('password incorrect')) {
@@ -103,14 +103,14 @@ class PasswordResetService {
         }
 
         // Check for account locked messages
-        if (text.includes('account locked') || 
+        if (text.includes('account locked') ||
             text.includes('too many attempts') ||
             text.includes('locked out')) {
           indicators.hasAccountLocked = true;
         }
 
         // Check for expired password messages
-        if (text.includes('password expired') || 
+        if (text.includes('password expired') ||
             text.includes('password has expired') ||
             text.includes('change your password')) {
           indicators.hasExpiredPassword = true;
@@ -122,7 +122,7 @@ class PasswordResetService {
       logger.info('[PasswordReset] Detected indicators:', indicators);
 
       return {
-        needsReset: indicators.hasForgotPasswordLink || 
+        needsReset: indicators.hasForgotPasswordLink ||
                    indicators.hasPasswordError ||
                    indicators.hasExpiredPassword,
         canAutoReset: indicators.hasForgotPasswordLink && indicators.resetLinkUrl,
@@ -158,7 +158,7 @@ class PasswordResetService {
           for (const link of links) {
             const text = link.textContent.toLowerCase();
             const href = link.href.toLowerCase();
-            if (text.includes('forgot') || text.includes('reset') || 
+            if (text.includes('forgot') || text.includes('reset') ||
                 href.includes('forgot') || href.includes('reset')) {
               return link.href;
             }
@@ -206,7 +206,7 @@ class PasswordResetService {
         page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: this.config.RESET_TIMEOUT }),
         page.waitForFunction(() => {
           const text = document.body.textContent.toLowerCase();
-          return text.includes('email sent') || 
+          return text.includes('email sent') ||
                  text.includes('check your email') ||
                  text.includes('reset link') ||
                  text.includes('instructions sent');
@@ -216,7 +216,7 @@ class PasswordResetService {
       // Check for success
       const success = await page.evaluate(() => {
         const text = document.body.textContent.toLowerCase();
-        return text.includes('email sent') || 
+        return text.includes('email sent') ||
                text.includes('check your email') ||
                text.includes('reset link') ||
                text.includes('instructions sent') ||
@@ -268,9 +268,9 @@ class PasswordResetService {
           const name = (input.name || '').toLowerCase();
           const id = (input.id || '').toLowerCase();
           const placeholder = (input.placeholder || '').toLowerCase();
-          
-          if (type === 'email' || 
-              name.includes('email') || 
+
+          if (type === 'email' ||
+              name.includes('email') ||
               id.includes('email') ||
               placeholder.includes('email')) {
             return input.id || input.name || null;
@@ -312,8 +312,8 @@ class PasswordResetService {
         const buttons = Array.from(document.querySelectorAll('button, input[type="submit"]'));
         for (const button of buttons) {
           const text = button.textContent.toLowerCase();
-          if (text.includes('submit') || 
-              text.includes('send') || 
+          if (text.includes('submit') ||
+              text.includes('send') ||
               text.includes('reset') ||
               text.includes('continue')) {
             return button.id || button.className || null;

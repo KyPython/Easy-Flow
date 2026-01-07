@@ -1,6 +1,6 @@
 /**
  * Scrape Queue Manager
- * 
+ *
  * Manages queue system for domain lists with:
  * - Concurrent scraping with rate limits
  * - Domain-specific rate limiting
@@ -22,13 +22,13 @@ class ScrapeQueueManager {
     this.processing = new Map(); // domain -> { startTime, attempts }
     this.rateLimits = new Map(); // domain -> { lastRequest, requestCount, windowStart }
     this.domainConfigs = new Map(); // domain -> { rateLimit, priority, retries }
-    
+
     // Configuration
     this.maxConcurrent = parseInt(process.env.MAX_CONCURRENT_SCRAPES || '10', 10);
     this.defaultRateLimit = parseInt(process.env.DEFAULT_RATE_LIMIT || '60', 10); // requests per minute
     this.defaultRetries = parseInt(process.env.DEFAULT_SCRAPE_RETRIES || '3', 10);
     this.rateLimitWindow = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10); // 1 minute
-    
+
     // Statistics
     this.stats = {
       totalQueued: 0,
@@ -97,7 +97,7 @@ class ScrapeQueueManager {
    */
   getNextJob() {
     const now = new Date();
-    
+
     // Filter jobs that are ready to process
     const readyJobs = this.queue.filter(job => {
       // Check if scheduled time has passed
@@ -129,10 +129,10 @@ class ScrapeQueueManager {
 
     // Get highest priority ready job
     const job = readyJobs[0];
-    
+
     // Remove from queue
     this.queue = this.queue.filter(j => j.id !== job.id);
-    
+
     // Mark as processing
     this.processing.set(job.domain, {
       startTime: now,
@@ -200,7 +200,7 @@ class ScrapeQueueManager {
   markCompleted(domain, success = true, result = null) {
     this.processing.delete(domain);
     this.stats.totalProcessed++;
-    
+
     if (success) {
       this.stats.totalSucceeded++;
     } else {
@@ -222,25 +222,25 @@ class ScrapeQueueManager {
 
     // Find original job in queue or create retry job
     const originalJob = jobId ? this.queue.find(j => j.id === jobId) : null;
-    
+
     if (originalJob && originalJob.attempts < originalJob.retries) {
       // Retry job
       originalJob.attempts++;
       originalJob.scheduledFor = new Date(Date.now() + (originalJob.attempts * 60000)); // Exponential backoff
       this.queue.push(originalJob);
       this.queue.sort((a, b) => b.priority - a.priority || a.scheduledFor - b.scheduledFor);
-      
-      logger.info('Scrape job will retry', { 
-        domain, 
-        attempt: originalJob.attempts, 
+
+      logger.info('Scrape job will retry', {
+        domain,
+        attempt: originalJob.attempts,
         maxRetries: originalJob.retries,
         nextAttempt: originalJob.scheduledFor
       });
     } else {
       // Max retries reached or no job found
       this.stats.totalFailed++;
-      logger.error('Scrape job failed permanently', { 
-        domain, 
+      logger.error('Scrape job failed permanently', {
+        domain,
         error: error.message,
         attempts: processing.attempts
       });

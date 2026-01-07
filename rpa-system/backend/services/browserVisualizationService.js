@@ -1,6 +1,6 @@
 /**
  * Browser Visualization Service
- * 
+ *
  * Captures screenshots during browser automation and streams them to the frontend
  * Shows users exactly what's happening in real-time (clicks, navigation, form filling, etc.)
  */
@@ -35,7 +35,7 @@ class BrowserVisualizationService {
       };
 
       const screenshot = await page.screenshot(screenshotOptions);
-      
+
       logger.debug('[BrowserViz] Screenshot captured', {
         action,
         size: screenshot ? screenshot.length : 0

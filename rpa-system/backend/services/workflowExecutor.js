@@ -37,27 +37,27 @@ const executionRegistry = new Map();
 class WorkflowExecutor {
   constructor(logger) {
     this.supabase = getSupabase();
-    
+
     // ✅ INSTRUCTION 2: Use injected logger or create default logger
     this.logger = logger || createLogger('workflow.executor');
-    
+
     if (!this.supabase) {
       this.logger.warn('Supabase not configured - some features will be disabled', {
         env: process.env.NODE_ENV
       });
     }
-    
+
     // Track running executions to check for cancellation
     this.runningExecutions = new Map(); // executionId -> { cancelled: boolean }
-    
+
     // ✅ INSTRUCTION 1: Create instrumented Axios instance for trace propagation
     this.httpClient = this._createInstrumentedHttpClient();
-    
+
     // ✅ EXECUTION MODES: Initialize execution mode service and smart scheduler
     this.executionModeService = new ExecutionModeService();
     this.smartScheduler = new SmartScheduler();
   }
-  
+
   /**
    * ✅ INSTRUCTION 1: Create Axios instance with automatic trace context injection
    * This ensures all outbound HTTP calls propagate the active span context
@@ -70,37 +70,37 @@ class WorkflowExecutor {
         'Content-Type': 'application/json'
       }
     });
-    
+
     // Add request interceptor to inject trace context into headers
     client.interceptors.request.use(
       (config) => {
         // Get current active context and inject into headers
         const activeContext = context.active();
         const carrier = {};
-        
+
         // Inject trace context using W3C Trace Context propagator
         propagation.inject(activeContext, carrier);
-        
+
         // Merge trace headers into request headers
         config.headers = {
           ...config.headers,
           ...carrier
         };
-        
+
         // ✅ INSTRUCTION 2: Use structured logger instead of console.log
         if (process.env.NODE_ENV !== 'production' && carrier.traceparent) {
           this.logger.debug('Injected trace context to HTTP request', {
             traceparent: carrier.traceparent
           });
         }
-        
+
         return config;
       },
       (error) => {
         return Promise.reject(error);
       }
     );
-    
+
     return client;
   }
 
@@ -149,7 +149,7 @@ class WorkflowExecutor {
         lastErr = err;
         // If explicitly cancelled, propagate immediately
         if (err?.code === 'CANCELLED') throw err;
-        
+
         // Check if we should retry
         const retry = await shouldRetry(err, attempt);
         if (!retry || attempt === maxAttempts) {
@@ -164,11 +164,11 @@ class WorkflowExecutor {
           }
           throw err;
         }
-        
+
         // Calculate wait time with exponential backoff
         const wait = this._calcBackoff(attempt, baseMs, maxMs, jitterRatio);
         totalWaitMs += wait;
-        
+
         // Call retry callback if provided
         if (typeof onRetry === 'function') {
           try {
@@ -178,7 +178,7 @@ class WorkflowExecutor {
             this.logger.warn('Retry callback error:', retryErr);
           }
         }
-        
+
         // Log retry attempt
         this.logger.info('Retrying after error', {
           attempt,
@@ -187,7 +187,7 @@ class WorkflowExecutor {
           error_message: err.message,
           error_code: err.code
         });
-        
+
         // Wait with backoff, checking for cancellation periodically
         const start = Date.now();
         while (Date.now() - start < wait) {
@@ -210,14 +210,14 @@ class WorkflowExecutor {
   // ✅ IMMEDIATE STATUS UPDATE METHODS
   async _updateExecutionStatus(executionId, status, message, additionalData = {}) {
     if (!this.supabase) return;
-    
+
     try {
       const updateData = {
         status,
         updated_at: new Date().toISOString(),
         ...additionalData
       };
-      
+
       // Store status message in metadata instead of non-existent status_message column
       if (message) {
         const currentMetadata = additionalData.metadata || {};
@@ -227,12 +227,12 @@ class WorkflowExecutor {
           last_updated: new Date().toISOString()
         };
       }
-      
+
       await this.supabase
         .from('workflow_executions')
         .update(updateData)
         .eq('id', executionId);
-      
+
       // ✅ INSTRUCTION 2: Use structured logger
       this.logger.info('Execution status updated', {
         execution_id: executionId,
@@ -261,7 +261,7 @@ class WorkflowExecutor {
       failure_reason: this._categorizeError(error),
       step_info: JSON.stringify(stepInfo)
     };
-    
+
     try {
       if (this.supabase) {
         // Update execution status immediately
@@ -270,7 +270,7 @@ class WorkflowExecutor {
           error_message: error.message,
           completed_at: new Date().toISOString()
         };
-        
+
         // ✅ FIX: Only include metadata if column exists (graceful degradation)
         // Try to update with metadata, but don't fail if column doesn't exist
         try {
@@ -293,7 +293,7 @@ class WorkflowExecutor {
             throw metaError;
           }
         }
-        
+
         // Log to automation history
         await this.supabase
           .from('automation_history')
@@ -304,7 +304,7 @@ class WorkflowExecutor {
             created_at: new Date().toISOString()
           });
       }
-      
+
       // ✅ INSTRUCTION 2: Use structured logger with error object
       this.logger.error('Execution failed and logged', {
         execution_id: executionId,
@@ -322,7 +322,7 @@ class WorkflowExecutor {
   _categorizeError(error) {
     const message = (error.message || '').toLowerCase();
     const code = error.code || '';
-    
+
     // Check for automation service unavailable
     if (!process.env.AUTOMATION_URL) {
       return 'AUTOMATION_SERVICE_NOT_CONFIGURED';
@@ -353,7 +353,7 @@ class WorkflowExecutor {
     const errorCode = error?.code || 'unknown';
     const errorStatus = error?.response?.status || 'N/A';
     const errorMessage = error?.message || 'Unknown error';
-    
+
     const messages = {
       'AUTOMATION_SERVICE_NOT_CONFIGURED': {
         summary: `Automation service not configured at ${timestamp}`,
@@ -412,7 +412,7 @@ class WorkflowExecutor {
     };
 
     const errorInfo = messages[errorCategory] || messages['UNKNOWN_ERROR'];
-    
+
     // Return both structured and string format for backward compatibility
     return {
       message: errorInfo.summary,
@@ -433,7 +433,7 @@ class WorkflowExecutor {
   // ✅ HEALTH CHECK FOR AUTOMATION SERVICE
   async _checkAutomationServiceHealth() {
     const automationUrl = process.env.AUTOMATION_URL;
-    
+
     if (!automationUrl) {
       return {
         healthy: false,
@@ -448,18 +448,18 @@ class WorkflowExecutor {
       if (!/^https?:\/\//i.test(normalizedUrl)) {
         normalizedUrl = `http://${normalizedUrl}`;
       }
-      
+
       // Try health endpoint first, then root
       const healthEndpoints = ['/health', '/', '/status'];
       let lastError;
-      
+
       for (const endpoint of healthEndpoints) {
         try {
           const response = await this.httpClient.get(`${normalizedUrl}${endpoint}`, {
             timeout: 5000,
             validateStatus: (status) => status < 500 // Accept 2xx, 3xx, 4xx as "service is up"
           });
-          
+
           return {
             healthy: true,
             url: normalizedUrl
@@ -475,7 +475,7 @@ class WorkflowExecutor {
           }
         }
       }
-      
+
       // If all endpoints failed, service is likely down
       const code = lastError?.code || '';
       if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ETIMEDOUT') {
@@ -485,13 +485,13 @@ class WorkflowExecutor {
           message: 'Automation service is not reachable'
         };
       }
-      
+
       return {
         healthy: false,
         error: 'AUTOMATION_SERVICE_ERROR',
         message: lastError?.message || 'Unknown error checking automation service'
       };
-      
+
     } catch (error) {
       return {
         healthy: false,
@@ -512,7 +512,7 @@ class WorkflowExecutor {
         execution_id: executionId
       });
       await this._updateExecutionStatus(executionId, 'cancelled', 'Execution cancelled by timeout or user request');
-      
+
       // ✅ FIX: Also update in registry
       const registryEntry = executionRegistry.get(executionId);
       if (registryEntry) {
@@ -520,7 +520,7 @@ class WorkflowExecutor {
       }
     }
   }
-  
+
   // ✅ FIX: Static method to cancel execution from any executor instance
   static async cancelExecutionById(executionId) {
     const registryEntry = executionRegistry.get(executionId);
@@ -532,16 +532,16 @@ class WorkflowExecutor {
   }
 
   async startExecution(config) {
-    const { 
-      workflowId, 
-      userId, 
-      triggeredBy = 'manual', 
-      triggerData = {}, 
+    const {
+      workflowId,
+      userId,
+      triggeredBy = 'manual',
+      triggerData = {},
       inputData = {},
       resumeFromExecutionId = null, // ✅ PHASE 3: Resume from previous execution
       executionMode = null // ✅ EXECUTION MODES: Explicit mode override
     } = config;
-    
+
     // ✅ PHASE 3: If resuming, get data from previous execution
     let resumeData = null;
     if (resumeFromExecutionId) {
@@ -552,24 +552,24 @@ class WorkflowExecutor {
           .eq('id', resumeFromExecutionId)
           .eq('user_id', userId)
           .single();
-        
+
         if (previousExecution) {
           // Get last successful step's output data
           const successfulSteps = (previousExecution.step_executions || [])
             .filter(step => step.status === 'completed')
             .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
-          
+
           if (successfulSteps.length > 0) {
             resumeData = successfulSteps[0].output_data || previousExecution.output_data;
             // Merge with provided input data
             inputData = { ...resumeData, ...inputData };
           }
-          
+
           // Get partial results from metadata if available
           if (previousExecution.metadata) {
             try {
-              const metadata = typeof previousExecution.metadata === 'string' 
-                ? JSON.parse(previousExecution.metadata) 
+              const metadata = typeof previousExecution.metadata === 'string'
+                ? JSON.parse(previousExecution.metadata)
                 : previousExecution.metadata;
               if (metadata.partial_results) {
                 inputData._resumed_from = resumeFromExecutionId;
@@ -586,13 +586,13 @@ class WorkflowExecutor {
         // Continue with normal execution if resume fails
       }
     }
-    
+
     const executionId = uuidv4();
-    
+
     // ✅ HARD TIMEOUT CONFIGURATION
     const EXECUTION_TIMEOUT = 300000; // 5 minutes maximum execution time
     let executionTimer = null;
-    
+
     // ✅ FIX: Store timer reference so we can clear it if execution completes early
     const timeoutHandler = async () => {
       // ✅ INSTRUCTION 2: Structured logging
@@ -600,7 +600,7 @@ class WorkflowExecutor {
         execution_id: executionId,
         max_timeout_seconds: EXECUTION_TIMEOUT / 1000
       });
-      
+
       // ✅ FIX: Mark execution as failed with timeout error
       try {
         await this._updateExecutionStatus(executionId, 'failed', `Execution exceeded maximum time limit of ${EXECUTION_TIMEOUT / 1000} seconds`);
@@ -611,13 +611,13 @@ class WorkflowExecutor {
           error: timeoutError.message
         });
       }
-      
+
       // Cancel the execution
       await this.cancelExecution(executionId);
     };
-    
+
     executionTimer = setTimeout(timeoutHandler, EXECUTION_TIMEOUT);
-    
+
     try {
       if (process.env.NODE_ENV !== 'production') {
         // ✅ INSTRUCTION 2: Structured logging
@@ -630,13 +630,13 @@ class WorkflowExecutor {
       if (!this.supabase) {
         throw new Error('Workflow not found: Database unavailable');
       }
-      
+
       // ✅ IMMEDIATE STATUS UPDATE
       await this._updateExecutionStatus(executionId, 'running', 'Initializing workflow execution...');
-      
+
       // Get workflow definition - first try to find the workflow
       let workflow, workflowError;
-      
+
       try {
         if (process.env.NODE_ENV !== 'production') {
           // ✅ INSTRUCTION 2: Structured logging
@@ -644,7 +644,7 @@ class WorkflowExecutor {
             workflow_id: workflowId
           });
         }
-        
+
         // ✅ SECURITY: Filter by user_id to ensure users can only execute their own workflows
         const result = await this.supabase
           .from('workflows')
@@ -660,7 +660,7 @@ class WorkflowExecutor {
           .maybeSingle();
 
         if (process.env.NODE_ENV !== 'production') {
-          logger.info(`[WorkflowExecutor] Query result:`, {
+          logger.info('[WorkflowExecutor] Query result:', {
             error: result.error,
             dataExists: !!result.data,
             dataId: result.data?.id,
@@ -669,7 +669,7 @@ class WorkflowExecutor {
         }
 
         if (result.error) {
-          logger.error(`[WorkflowExecutor] Database error:`, result.error);
+          logger.error('[WorkflowExecutor] Database error:', result.error);
           workflowError = result.error;
           workflow = null;
         } else if (!result.data) {
@@ -690,11 +690,11 @@ class WorkflowExecutor {
         workflowError = { message: `Database query failed: ${queryError.message}` };
         workflow = null;
       }
-        
+
       if (workflowError || !workflow) {
         throw new Error(`Workflow not found: ${workflowError?.message || 'Unknown error'}`);
       }
-      
+
       const allowDraft = (process.env.ALLOW_DRAFT_EXECUTION || '').toLowerCase() === 'true' || process.env.NODE_ENV === 'test';
       if (workflow.status !== 'active') {
         if (!allowDraft) {
@@ -707,13 +707,13 @@ class WorkflowExecutor {
           });
         }
       }
-      
+
       // ✅ EXECUTION MODES: Determine execution mode and get configuration
       const context = { triggeredBy, triggerData };
       const determinedMode = executionMode || this.executionModeService.determineExecutionMode(workflow, context);
       const modeConfig = this.executionModeService.getExecutionConfig(determinedMode);
       const costEstimate = this.executionModeService.estimateCost(workflow, determinedMode);
-      
+
       this.logger.info('Execution mode determined', {
         workflow_id: workflowId,
         execution_mode: determinedMode,
@@ -722,7 +722,7 @@ class WorkflowExecutor {
         savings_percentage: costEstimate.savingsPercentage,
         triggered_by: triggeredBy
       });
-      
+
       // ✅ SMART SCHEDULING: For eco mode, schedule optimally
       let scheduledExecution = null;
       if (determinedMode === EXECUTION_MODES.ECO) {
@@ -734,7 +734,7 @@ class WorkflowExecutor {
           reason: scheduledExecution.reason
         });
       }
-      
+
       // Create workflow execution record with execution mode metadata
       const executionMetadata = {
         execution_mode: determinedMode,
@@ -742,7 +742,7 @@ class WorkflowExecutor {
         cost_estimate: costEstimate,
         scheduled_execution: scheduledExecution
       };
-      
+
       const { data: execution, error: executionError } = await this.supabase
         .from('workflow_executions')
         .insert({
@@ -760,11 +760,11 @@ class WorkflowExecutor {
         })
         .select()
         .single();
-        
+
       if (executionError) {
         throw new Error(`Failed to create execution: ${executionError.message}`);
       }
-      
+
       if (process.env.NODE_ENV !== 'production') {
         // ✅ INSTRUCTION 2: Structured logging
         this.logger.info('Created workflow execution', {
@@ -772,7 +772,7 @@ class WorkflowExecutor {
           workflow_id: workflowId
         });
       }
-      
+
       // ✅ EXECUTION MODES: For scheduled executions, don't start immediately
       if (scheduledExecution && scheduledExecution.executeAt > new Date()) {
         // Queue for later execution
@@ -783,10 +783,10 @@ class WorkflowExecutor {
         });
         return execution;
       }
-      
+
       // Mark as running
       this.runningExecutions.set(execution.id, { cancelled: false, timer: executionTimer, executionMode: determinedMode });
-      
+
       // ✅ FIX: Also register in shared registry so cancel endpoint can find it
       executionRegistry.set(execution.id, { cancelled: false, executor: this, timer: executionTimer, executionMode: determinedMode });
 
@@ -809,7 +809,7 @@ class WorkflowExecutor {
         if (registryEntry && registryEntry.timer) {
           clearTimeout(registryEntry.timer);
         }
-        
+
         logger.error(`[WorkflowExecutor] Execution ${execution.id} failed:`, error);
         // If cancelled, don't overwrite cancelled status with failed
         const run = this.runningExecutions.get(execution.id);
@@ -817,9 +817,9 @@ class WorkflowExecutor {
           this.failExecution(execution.id, error.message);
         }
       });
-      
+
       return execution;
-      
+
     } catch (error) {
       logger.error('[WorkflowExecutor] Failed to start execution:', error);
       throw error;
@@ -831,14 +831,14 @@ class WorkflowExecutor {
     let currentData = execution.input_data || {};
     let stepsExecuted = 0;
     const partialResults = []; // ✅ FIX: Track partial successes
-    
+
     // ✅ EXECUTION MODES: Get execution mode and config
     const executionMode = options.executionMode || execution.execution_mode || EXECUTION_MODES.BALANCED;
     const modeConfig = options.modeConfig || this.executionModeService.getExecutionConfig(executionMode);
-    
+
     // ✅ EXECUTION MODES: Apply mode-specific timeout
     const executionTimeout = modeConfig.timeout || 300000; // Default 5 minutes
-    
+
     this.logger.info('executeWorkflow: Starting with execution mode', {
       execution_id: execution.id,
       workflow_id: workflow.id,
@@ -846,15 +846,15 @@ class WorkflowExecutor {
       timeout_ms: executionTimeout,
       tier: modeConfig.tier
     });
-    
+
     // ✅ OBSERVABILITY: Create OpenTelemetry span for workflow execution
     const tracer = trace.getTracer('workflow.executor');
-    
+
     this.logger.info('executeWorkflow: About to create span', {
       execution_id: execution.id,
       workflow_id: workflow.id
     });
-    
+
     return await tracer.startActiveSpan(
       `workflow.execute.${workflow.name || workflow.id}`,
       {
@@ -883,25 +883,25 @@ class WorkflowExecutor {
             trace_id: span.spanContext().traceId,
             span_id: span.spanContext().spanId
           });
-          
+
           // ✅ FIX: Update status to show progress with detailed info
           await this._updateExecutionStatus(
-            execution.id, 
-            'running', 
+            execution.id,
+            'running',
             'Starting workflow execution...',
             {
               steps_total: workflow.workflow_steps?.length || 0,
               steps_executed: 0
             }
           );
-      
+
       // Find the start step - check workflow_steps first, then canvas_config
       let steps = workflow.workflow_steps || [];
       // CRITICAL: Handle null/undefined from Supabase - convert to empty array
-      let connections = Array.isArray(workflow.workflow_connections) 
-        ? workflow.workflow_connections 
+      let connections = Array.isArray(workflow.workflow_connections)
+        ? workflow.workflow_connections
         : [];
-      
+
       // ✅ DIAGNOSTIC: Use warn level for diagnostic info (warn logs sampled at 10%, but more appropriate than error)
       this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Workflow loaded state', {
         workflow_id: workflow.id,
@@ -913,11 +913,11 @@ class WorkflowExecutor {
         has_canvas_config: !!workflow.canvas_config,
         execution_id: execution.id
       });
-      
+
       // ✅ FIX: Parse canvas_config if steps OR connections are missing
       // This handles cases where steps exist but connections don't (e.g., after UI save)
       const needsCanvasParse = (steps.length === 0 || connections.length === 0) && workflow.canvas_config;
-      
+
       // ✅ DIAGNOSTIC: Use warn level for diagnostic info
       this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Canvas parse decision', {
         workflow_id: workflow.id,
@@ -930,7 +930,7 @@ class WorkflowExecutor {
         condition_has_canvas: !!workflow.canvas_config,
         execution_id: execution.id
       });
-      
+
       if (needsCanvasParse) {
         // ✅ DIAGNOSTIC: Use warn level for diagnostic info
         this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Parsing canvas_config (missing steps or connections)', {
@@ -940,12 +940,12 @@ class WorkflowExecutor {
           existing_connections_count: connections.length,
           execution_id: execution.id
         });
-        
+
         try {
-          const canvasConfig = typeof workflow.canvas_config === 'string' 
-            ? JSON.parse(workflow.canvas_config) 
+          const canvasConfig = typeof workflow.canvas_config === 'string'
+            ? JSON.parse(workflow.canvas_config)
             : workflow.canvas_config;
-          
+
           // ✅ FIX: Add detailed logging to debug step parsing
           this.logger.info('[WorkflowExecutor] Canvas config structure', {
             workflow_id: workflow.id,
@@ -968,10 +968,10 @@ class WorkflowExecutor {
             all_edge_targets: canvasConfig.edges?.map(e => e.target) || [],
             execution_id: execution.id
           });
-          
+
           const crypto = require('crypto');
           const nodeIdToUuidMap = new Map();
-          
+
           // ✅ CRITICAL FIX: Only create NEW steps if steps don't exist
           // If steps exist, we need to build a map from their step_key to UUID
           if (steps.length === 0 && canvasConfig.nodes && Array.isArray(canvasConfig.nodes)) {
@@ -980,28 +980,28 @@ class WorkflowExecutor {
               // ✅ FIX: Check both node.data.stepType and node.type, with detailed logging
               let stepType = node.data?.stepType || node.type || 'unknown';
               let actionType = null;
-              
+
               // ✅ FIX: Map specific types to action steps with action_type
               // Handle both direct action types and variations
               const actionTypes = ['email', 'api_call', 'web_scraping', 'web_scrape', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr', 'reddit_monitor', 'reddit_analyze', 'reddit_generate_insights', 'reddit_generate_blog_topics'];
-              
+
               // Normalize action type names
               let normalizedActionType = stepType;
               if (stepType === 'web_scraping') {
                 normalizedActionType = 'web_scrape';
               }
-              
+
               if (actionTypes.includes(stepType) || actionTypes.includes(normalizedActionType)) {
                 actionType = normalizedActionType;
                 stepType = 'action';
               }
-              
+
               // ✅ FIX: Also check node.data.action_type if stepType wasn't an action
               if (stepType !== 'action' && node.data?.action_type) {
                 actionType = node.data.action_type;
                 stepType = 'action';
               }
-              
+
               // Log any node that might be a start node
               if (stepType === 'start' || node.id?.includes('start') || node.data?.label?.toLowerCase().includes('start')) {
                 this.logger.info('[WorkflowExecutor] Found potential start node', {
@@ -1013,11 +1013,11 @@ class WorkflowExecutor {
                   execution_id: execution.id
                 });
               }
-              
+
               // ✅ FIX: Generate proper UUID for step_id, store canvas node ID in step_key
               const uuid = crypto.randomUUID();
               nodeIdToUuidMap.set(node.id, uuid);
-              
+
               return {
                 id: uuid,
                 step_key: node.id,
@@ -1030,7 +1030,7 @@ class WorkflowExecutor {
                 position_y: node.position?.y || 0
               };
             });
-            
+
             // ✅ FIX: Insert steps into database so foreign keys work
             // Only insert if we created new steps (steps.length was 0 before)
             const stepsToInsert = steps.map(step => ({
@@ -1044,11 +1044,11 @@ class WorkflowExecutor {
               position_x: step.position_x,
               position_y: step.position_y
             }));
-            
+
             const { error: insertError } = await this.supabase
               .from('workflow_steps')
               .insert(stepsToInsert);
-            
+
             if (insertError) {
               this.logger.error('[WorkflowExecutor] Failed to insert steps from canvas', {
                 workflow_id: workflow.id,
@@ -1057,61 +1057,61 @@ class WorkflowExecutor {
               });
               throw new Error(`Failed to persist workflow steps: ${insertError.message}`);
             }
-            
+
             // Update workflow object with persisted steps
             workflow.workflow_steps = steps;
           } else if (steps.length > 0) {
             // Steps already exist - sync with canvas_config nodes
             // CRITICAL: Canvas node IDs may have changed, so we need to match by step_type/name
             // and update step_key, or create missing steps
-            
+
             // Build initial map from existing step_keys
             steps.forEach(step => {
               if (step.step_key) {
                 nodeIdToUuidMap.set(step.step_key, step.id);
               }
             });
-            
+
             // CRITICAL FIX: Sync canvas nodes with existing steps
             // Match by step_type + name, update step_key if node ID changed, create missing steps
             if (canvasConfig.nodes && Array.isArray(canvasConfig.nodes)) {
               const stepsToUpdate = [];
               const stepsToCreate = [];
-              
+
               for (const node of canvasConfig.nodes) {
                 let stepType = node.data?.stepType || node.type || 'unknown';
                 let actionType = null;
-                
+
                 // Normalize action types
                 const actionTypes = ['email', 'api_call', 'web_scraping', 'web_scrape', 'data_transform', 'file_upload', 'delay', 'form_submit', 'invoice_ocr', 'reddit_monitor', 'reddit_analyze', 'reddit_generate_insights', 'reddit_generate_blog_topics'];
                 let normalizedActionType = stepType;
                 if (stepType === 'web_scraping') {
                   normalizedActionType = 'web_scrape';
                 }
-                
+
                 if (actionTypes.includes(stepType) || actionTypes.includes(normalizedActionType)) {
                   actionType = normalizedActionType;
                   stepType = 'action';
                 }
-                
+
                 if (stepType !== 'action' && node.data?.action_type) {
                   actionType = node.data.action_type;
                   stepType = 'action';
                 }
-                
+
                 const nodeName = node.data?.label || node.data?.name || 'Unnamed Step';
-                
+
                 // Try to find existing step by step_key first
                 let existingStep = steps.find(s => s.step_key === node.id);
-                
+
                 // If not found, try to match by step_type + name (for cases where node ID changed)
                 if (!existingStep) {
-                  existingStep = steps.find(s => 
-                    s.step_type === stepType && 
+                  existingStep = steps.find(s =>
+                    s.step_type === stepType &&
                     (s.name === nodeName || (stepType === 'start' && s.step_type === 'start'))
                   );
                 }
-                
+
                 if (existingStep) {
                   // Step exists - update step_key if it changed
                   if (existingStep.step_key !== node.id) {
@@ -1139,7 +1139,7 @@ class WorkflowExecutor {
                     position_y: node.position?.y || 0
                   });
                   nodeIdToUuidMap.set(node.id, uuid);
-                  
+
                   // Add to in-memory steps array
                   steps.push({
                     id: uuid,
@@ -1154,7 +1154,7 @@ class WorkflowExecutor {
                   });
                 }
               }
-              
+
               // Update step_keys in database
               if (stepsToUpdate.length > 0) {
                 for (const update of stepsToUpdate) {
@@ -1162,7 +1162,7 @@ class WorkflowExecutor {
                     .from('workflow_steps')
                     .update({ step_key: update.step_key })
                     .eq('id', update.id);
-                  
+
                   if (error) {
                     this.logger.error('[WorkflowExecutor] Failed to update step_key', {
                       workflow_id: workflow.id,
@@ -1174,13 +1174,13 @@ class WorkflowExecutor {
                   }
                 }
               }
-              
+
               // Create new steps
               if (stepsToCreate.length > 0) {
                 const { error: createError } = await this.supabase
                   .from('workflow_steps')
                   .insert(stepsToCreate);
-                
+
                 if (createError) {
                   this.logger.error('[WorkflowExecutor] Failed to create missing steps', {
                     workflow_id: workflow.id,
@@ -1198,7 +1198,7 @@ class WorkflowExecutor {
                 }
               }
             }
-            
+
             this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Synced steps with canvas_config', {
               workflow_id: workflow.id,
               steps_count: steps.length,
@@ -1207,14 +1207,14 @@ class WorkflowExecutor {
               execution_id: execution.id
             });
           }
-          
+
           // ✅ FIX: Parse edges and convert to workflow_connections
           // Only parse if connections are missing (don't overwrite existing connections)
           if (connections.length === 0 && canvasConfig.edges && Array.isArray(canvasConfig.edges)) {
             // ✅ CRITICAL FIX: If steps already exist, we MUST use their existing UUIDs
             // Build a map from step_key (canvas node ID) to step UUID from database
             const stepKeyToUuidMap = new Map();
-            
+
             // Always build the map from existing steps first
             if (steps.length > 0) {
               // Steps already exist - use their step_key to map to UUIDs
@@ -1223,7 +1223,7 @@ class WorkflowExecutor {
                   stepKeyToUuidMap.set(step.step_key, step.id);
                 }
               });
-              
+
               this.logger.info('[WorkflowExecutor] Built step_key to UUID map from existing steps', {
                 workflow_id: workflow.id,
                 steps_count: steps.length,
@@ -1231,13 +1231,13 @@ class WorkflowExecutor {
                 execution_id: execution.id
               });
             }
-            
+
             // If we just created new steps, merge nodeIdToUuidMap with stepKeyToUuidMap
             // Otherwise, use only stepKeyToUuidMap (existing steps)
-            const idMap = nodeIdToUuidMap.size > 0 
+            const idMap = nodeIdToUuidMap.size > 0
               ? new Map([...stepKeyToUuidMap, ...nodeIdToUuidMap]) // Merge both maps
               : stepKeyToUuidMap; // Use existing steps only
-            
+
             // ✅ DIAGNOSTIC: Use warn level for diagnostic info
             this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Mapping canvas edges to step UUIDs', {
               workflow_id: workflow.id,
@@ -1253,11 +1253,11 @@ class WorkflowExecutor {
               })),
               execution_id: execution.id
             });
-            
+
             const parsedConnections = canvasConfig.edges.map(edge => {
               const sourceUuid = idMap.get(edge.source);
               const targetUuid = idMap.get(edge.target);
-              
+
               this.logger.debug('[WorkflowExecutor] Mapping edge', {
                 workflow_id: workflow.id,
                 edge_source: edge.source,
@@ -1269,7 +1269,7 @@ class WorkflowExecutor {
                 available_keys: Array.from(idMap.keys()),
                 execution_id: execution.id
               });
-              
+
               if (!sourceUuid || !targetUuid) {
                 this.logger.warn('[WorkflowExecutor] Could not map edge to step UUIDs', {
                   workflow_id: workflow.id,
@@ -1282,7 +1282,7 @@ class WorkflowExecutor {
                   execution_id: execution.id
                 });
               }
-              
+
               return {
                 id: crypto.randomUUID(),
                 workflow_id: workflow.id,
@@ -1292,13 +1292,13 @@ class WorkflowExecutor {
                 condition: edge.data?.condition || edge.data?.conditions || {}
               };
             }).filter(conn => conn.source_step_id && conn.target_step_id);
-            
+
             // Insert connections into database
             if (parsedConnections.length > 0) {
               const { error: connError } = await this.supabase
                 .from('workflow_connections')
                 .insert(parsedConnections);
-              
+
               if (connError) {
                 this.logger.error('[WorkflowExecutor] Failed to insert connections', {
                   workflow_id: workflow.id,
@@ -1318,7 +1318,7 @@ class WorkflowExecutor {
                   execution_id: execution.id
                 });
               }
-              
+
               // Update workflow object with parsed connections
               workflow.workflow_connections = parsedConnections;
               connections = parsedConnections;
@@ -1348,7 +1348,7 @@ class WorkflowExecutor {
             });
             workflow.workflow_connections = [];
           }
-          
+
           this.logger.info('[WorkflowExecutor] Parsed canvas_config', {
             workflow_id: workflow.id,
             steps_count: steps.length,
@@ -1357,14 +1357,14 @@ class WorkflowExecutor {
             connections_count: workflow.workflow_connections?.length || 0,
             execution_id: execution.id
           });
-          
+
           // ✅ FIX: Update execution.steps_total after canvas parsing completes
           // Reload steps to get accurate count after parsing (steps may have been added/updated)
           const { data: updatedSteps } = await this.supabase
             .from('workflow_steps')
             .select('id')
             .eq('workflow_id', workflow.id);
-          
+
           if (updatedSteps && updatedSteps.length > 0) {
             const actualStepsTotal = updatedSteps.length;
             // Update execution record with correct steps_total
@@ -1372,10 +1372,10 @@ class WorkflowExecutor {
               .from('workflow_executions')
               .update({ steps_total: actualStepsTotal })
               .eq('id', execution.id);
-            
+
             // Update workflow object
             workflow.workflow_steps = updatedSteps.map(s => ({ id: s.id }));
-            
+
             this.logger.warn('[WorkflowExecutor] 🔍 DEBUG: Updated execution steps_total after canvas parsing', {
               workflow_id: workflow.id,
               execution_id: execution.id,
@@ -1392,24 +1392,24 @@ class WorkflowExecutor {
           });
         }
       }
-      
+
       this.logger.info('[WorkflowExecutor] Looking for start step', {
         workflow_id: workflow.id,
         total_steps: steps.length,
         step_types: steps.map(s => s.step_type),
         execution_id: execution.id
       });
-      
+
       const startStep = steps.find(step => step.step_type === 'start');
-      
+
       if (!startStep) {
         // ✅ FIX: Provide helpful error message and mark execution as failed immediately
         this.logger.error('[WorkflowExecutor] No start step found', {
           workflow_id: workflow.id,
-          available_steps: steps.map(s => ({ 
-            id: s.id, 
-            type: s.step_type, 
-            name: s.name 
+          available_steps: steps.map(s => ({
+            id: s.id,
+            type: s.step_type,
+            name: s.name
           })),
           has_canvas_config: !!workflow.canvas_config,
           execution_id: execution.id
@@ -1419,10 +1419,10 @@ class WorkflowExecutor {
         await this.failExecution(execution.id, errorMsg, null, 'WORKFLOW_CONFIGURATION_ERROR');
         return;
       }
-      
+
       // Update workflow object to use parsed steps
       workflow.workflow_steps = steps;
-      
+
       // ✅ DEBUG: Log workflow connections to help diagnose "no steps executed" issues
       this.logger.info('[WorkflowExecutor] Workflow structure before execution', {
         workflow_id: workflow.id,
@@ -1445,7 +1445,7 @@ class WorkflowExecutor {
           name: s.name
         }))
       });
-      
+
       // ✅ FIX: Warn if no connections exist (workflow will complete immediately)
       if (!workflow.workflow_connections || workflow.workflow_connections.length === 0) {
         this.logger.error('[WorkflowExecutor] ⚠️ No workflow connections found - workflow will complete without executing steps', {
@@ -1460,30 +1460,30 @@ class WorkflowExecutor {
           all_step_ids: workflow.workflow_steps.map(s => s.id)
         });
       }
-      
+
           // ✅ FIX: Update status before executing steps with step count
       // ✅ FIX: Use actual steps count (may have been updated after canvas parsing)
       const actualStepsTotal = workflow.workflow_steps?.length || steps.length || 0;
-      
+
       await this._updateExecutionStatus(
-        execution.id, 
-        'running', 
+        execution.id,
+        'running',
         `Executing ${actualStepsTotal} steps...`,
         {
           steps_total: actualStepsTotal,
           steps_executed: 0
         }
       );
-      
+
       // ✅ FIX: Also update execution record directly to ensure frontend gets correct count
       await this.supabase
         .from('workflow_executions')
         .update({ steps_total: actualStepsTotal })
         .eq('id', execution.id);
-      
+
   // Execute workflow steps
   const result = await this.executeStep(execution, startStep, currentData, workflow, new Set(), partialResults);
-      
+
       // On return, check if cancelled
       const run = this.runningExecutions.get(execution.id);
       if (run && run.cancelled) {
@@ -1497,16 +1497,16 @@ class WorkflowExecutor {
         .from('step_executions')
         .select('id, status')
         .eq('workflow_execution_id', execution.id);
-      
+
       const actualStepsExecuted = stepExecutions?.filter(se => se.status === 'completed').length || 0;
       const { data: executionStatus } = await this.supabase
         .from('workflow_executions')
         .select('steps_total')
         .eq('id', execution.id)
         .single();
-      
+
       const totalSteps = executionStatus?.steps_total || workflow.workflow_steps?.length || 0;
-      
+
       this.logger.info('Workflow execution result', {
         execution_id: execution.id,
         result_success: result.success,
@@ -1516,7 +1516,7 @@ class WorkflowExecutor {
         total_steps: totalSteps,
         trace_id: span.spanContext().traceId
       });
-      
+
       span.setAttributes({
         'workflow.actual_steps_executed': actualStepsExecuted,
         'workflow.steps_total': totalSteps,
@@ -1528,7 +1528,7 @@ class WorkflowExecutor {
             // Use actual step_executions count instead of database field
             if (totalSteps > 0 && actualStepsExecuted === 0) {
               const errorMsg = 'Workflow execution failed. Please try running the workflow again.';
-              
+
               this.logger.error('❌ Workflow marked as completed but no steps executed', {
                 execution_id: execution.id,
                 workflow_id: workflow.id,
@@ -1537,10 +1537,10 @@ class WorkflowExecutor {
                 steps_executed: actualStepsExecuted,
                 trace_id: span.spanContext().traceId
               });
-              
+
               // ✅ Map to consumer-friendly error message
               const errorMapping = mapError(
-                errorMsg, 
+                errorMsg,
                 'NO_STEPS_EXECUTED',
                 {
                   executionId: execution.id,
@@ -1548,10 +1548,10 @@ class WorkflowExecutor {
                   userId: execution.user_id
                 }
               );
-              
-              span.setStatus({ 
-                code: SpanStatusCode.ERROR, 
-                message: errorMapping.consumer.message 
+
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: errorMapping.consumer.message
               });
               span.setAttributes({
                 'workflow.completed': false,
@@ -1563,24 +1563,24 @@ class WorkflowExecutor {
                 'error.message': errorMapping.consumer.message,
                 'workflow.duration_ms': Date.now() - startTime
               });
-              
+
               // Store consumer-friendly message in database
               await this.failExecution(
-                execution.id, 
-                errorMapping.consumer.message, 
-                null, 
+                execution.id,
+                errorMapping.consumer.message,
+                null,
                 'NO_STEPS_EXECUTED'
               );
               return;
             }
-            
+
             // ✅ FIX: Store partial results in metadata if any steps partially succeeded
             const outputData = result.data;
             if (partialResults.length > 0) {
               outputData._partial_results = partialResults;
               outputData._partial_success_note = 'Some steps completed successfully before failure';
             }
-            
+
             const duration = Date.now() - startTime;
             span.setStatus({ code: SpanStatusCode.OK });
             span.setAttributes({
@@ -1589,19 +1589,19 @@ class WorkflowExecutor {
               'workflow.duration_ms': duration,
               'workflow.success': true
             });
-            
+
             this.logger.info('✅ Workflow execution completed successfully', {
               execution_id: execution.id,
               steps_executed: actualStepsExecuted,
               duration_ms: duration,
               workflow_name: workflow.name
             });
-            
+
             // ✅ UNIVERSAL LEARNING: Learn from successful workflow execution
             try {
               const { getUniversalLearningService } = require('./UniversalLearningService');
               const learningService = getUniversalLearningService();
-              
+
               await learningService.learnFromWorkflowSuccess({
                 workflowId: workflow.id,
                 workflowName: workflow.name,
@@ -1618,7 +1618,7 @@ class WorkflowExecutor {
                 execution_id: execution.id
               });
             }
-            
+
             await this.completeExecution(execution.id, outputData, actualStepsExecuted, startTime);
           } else {
             // ✅ FIX: If we have partial results, include them in the failure
@@ -1627,11 +1627,11 @@ class WorkflowExecutor {
               errorCategory: result.errorCategory,
               partialResults: partialResults.length > 0 ? partialResults : undefined
             };
-            
+
             const duration = Date.now() - startTime;
-            span.setStatus({ 
-              code: SpanStatusCode.ERROR, 
-              message: result.error || 'Workflow execution failed' 
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: result.error || 'Workflow execution failed'
             });
             span.setAttributes({
               'workflow.completed': false,
@@ -1643,7 +1643,7 @@ class WorkflowExecutor {
               'error.step_id': result.errorStepId || null,
               'workflow.partial_results_count': partialResults.length
             });
-            
+
             // Store partial results even on failure
             if (partialResults.length > 0) {
               try {
@@ -1665,7 +1665,7 @@ class WorkflowExecutor {
                 }
               }
             }
-            
+
             const errorCategory = result.errorCategory || this._categorizeError({ message: result.error });
             this.logger.error('❌ Workflow execution failed', {
               execution_id: execution.id,
@@ -1677,12 +1677,12 @@ class WorkflowExecutor {
             });
             await this.failExecution(execution.id, result.error, result.errorStepId, errorCategory);
           }
-          
+
         } catch (error) {
           const duration = Date.now() - startTime;
-          span.setStatus({ 
-            code: SpanStatusCode.ERROR, 
-            message: error.message || 'Unexpected workflow execution error' 
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message || 'Unexpected workflow execution error'
           });
           span.setAttributes({
             'workflow.completed': false,
@@ -1693,13 +1693,13 @@ class WorkflowExecutor {
             'error.message': error.message || 'Unknown error',
             'error.stack': error.stack || null
           });
-          
+
           this.logger.error('❌ Workflow execution failed with unexpected error', error, {
             execution_id: execution.id,
             workflow_id: workflow.id,
             duration_ms: duration
           });
-          
+
           const run = this.runningExecutions.get(execution.id);
           if (!run || !run.cancelled) {
         // ✅ FIX: Store partial results even on unexpected errors
@@ -1719,7 +1719,7 @@ class WorkflowExecutor {
             logger.warn('Failed to store partial results:', metaErr);
           }
         }
-        
+
             const errorCategory = this._categorizeError(error);
             const userMessage = this._getUserFriendlyMessage(errorCategory, error);
             await this.failExecution(execution.id, userMessage, null, errorCategory);
@@ -1739,7 +1739,7 @@ class WorkflowExecutor {
     // ✅ OBSERVABILITY: Create span for step execution
     const tracer = trace.getTracer('workflow.step');
     const stepStartTime = Date.now();
-    
+
     return await tracer.startActiveSpan(
       `workflow.step.${step.step_type}.${step.name || step.id}`,
       {
@@ -1762,7 +1762,7 @@ class WorkflowExecutor {
             stepSpan.end();
             return { success: false, error: 'Execution cancelled', errorStepId: step.id };
           }
-          
+
           // Prevent infinite loops
           if (visitedSteps.has(step.id)) {
             const error = new Error(`Circular dependency detected at step: ${step.name}`);
@@ -1772,7 +1772,7 @@ class WorkflowExecutor {
             throw error;
           }
           visitedSteps.add(step.id);
-          
+
           this.logger.info('Executing workflow step', {
             execution_id: execution.id,
             step_id: step.id,
@@ -1782,26 +1782,26 @@ class WorkflowExecutor {
             trace_id: stepSpan.spanContext().traceId,
             span_id: stepSpan.spanContext().spanId
           });
-          
+
           // ✅ FIX: Update execution status to show current step with detailed progress
           const stepNumber = Array.from(visitedSteps).length;
           const totalSteps = workflow.workflow_steps?.length || 0;
           const stepTypeInfo = step.action_type ? ` (${step.action_type})` : '';
           await this._updateExecutionStatus(
-            execution.id, 
-            'running', 
+            execution.id,
+            'running',
             `Executing step ${stepNumber}/${totalSteps}: ${step.name}${stepTypeInfo}`,
             {
               steps_executed: stepNumber - 1,
               steps_total: totalSteps
             }
           );
-          
+
           // Create step execution record
           const stepExecution = await this.createStepExecution(execution.id, step.id, inputData);
-          
+
           let result = { success: true, data: inputData };
-          
+
           // Execute based on step type
           // ✅ FIX: Handle case where step_type might be an action type directly (legacy support)
           let stepType = step.step_type;
@@ -1819,7 +1819,7 @@ class WorkflowExecutor {
               step.action_type = step.step_type;
             }
           }
-          
+
           switch (stepType) {
             case 'start':
               result = await this.executeStartStep(step, inputData);
@@ -1836,14 +1836,14 @@ class WorkflowExecutor {
             default:
               throw new Error(`Unknown step type: ${step.step_type}${step.action_type ? ` (action_type: ${step.action_type})` : ''}`);
           }
-          
+
           // ✅ ENHANCED: Update step execution with detailed information
           // Store step start time for duration calculation
           stepExecution._startTime = stepStartTime;
           await this.updateStepExecution(stepExecution, result);
-          
+
           const stepDuration = Date.now() - stepStartTime;
-          
+
           // ✅ ENHANCED: Update status message with step details
           if (execution?.id && result.success && result.meta?.stepDetails) {
             const stepNumber = Array.from(visitedSteps).length;
@@ -1855,13 +1855,13 @@ class WorkflowExecutor {
               `✓ Step ${stepNumber}: ${result.meta.stepDetails} (${durationDisplay})`
             );
           }
-          
+
           // ✅ OBSERVABILITY: Update span with step results
           if (result.success) {
             // ✅ CRITICAL FIX: Increment stepsExecuted when step actually succeeds
             // Note: stepsExecuted is in the outer scope, we need to track it properly
             // We'll update it via the execution status update which tracks it in the database
-            
+
             stepSpan.setStatus({ code: SpanStatusCode.OK });
             stepSpan.setAttributes({
               'step.completed': true,
@@ -1877,9 +1877,9 @@ class WorkflowExecutor {
               trace_id: stepSpan.spanContext().traceId
             });
           } else {
-            stepSpan.setStatus({ 
-              code: SpanStatusCode.ERROR, 
-              message: result.error || 'Step execution failed' 
+            stepSpan.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: result.error || 'Step execution failed'
             });
             stepSpan.setAttributes({
               'step.completed': false,
@@ -1898,7 +1898,7 @@ class WorkflowExecutor {
               duration_ms: stepDuration
             });
           }
-          
+
           // ✅ FIX: Store partial results even if step fails (if it produced some data)
           if (!result.success && result.data && Object.keys(result.data).length > 0) {
             partialResults.push({
@@ -1910,44 +1910,44 @@ class WorkflowExecutor {
               errorCategory: result.errorCategory
             });
           }
-          
+
           if (!result.success) {
             // ✅ IMMEDIATE FIX: Preserve error category from action execution
             stepSpan.end();
-            return { 
-              success: false, 
-              error: result.error, 
+            return {
+              success: false,
+              error: result.error,
               errorStepId: step.id,
               errorCategory: result.errorCategory
             };
           }
-          
+
           // Handle end step
           if (step.step_type === 'end') {
             stepSpan.end();
             return { success: true, data: result.data };
           }
-          
+
           // Find next step(s)
           const nextSteps = await this.getNextSteps(step, result.data, workflow);
-          
+
           if (nextSteps.length === 0) {
             // No more steps, workflow complete
             stepSpan.end();
             return { success: true, data: result.data };
           }
-          
+
           // Execute next step(s)
           // For now, we only handle sequential execution (single next step)
           const nextStep = nextSteps[0];
           stepSpan.end();
           return await this.executeStep(execution, nextStep, result.data, workflow, visitedSteps, partialResults);
-          
+
         } catch (error) {
           const stepDuration = Date.now() - stepStartTime;
-          stepSpan.setStatus({ 
-            code: SpanStatusCode.ERROR, 
-            message: error.message || 'Step execution error' 
+          stepSpan.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message || 'Step execution error'
           });
           stepSpan.setAttributes({
             'error': true,
@@ -1971,8 +1971,8 @@ class WorkflowExecutor {
 
   async executeStartStep(step, inputData) {
     // Start step just passes data through
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: inputData,
       meta: {
         stepDetails: 'Workflow started',
@@ -1984,7 +1984,7 @@ class WorkflowExecutor {
   async executeActionStep(step, inputData, execution) {
     try {
       const { action_type, config } = step;
-      
+
       // ✅ OBSERVABILITY: Log action step execution
       this.logger.info('Executing action step', {
         step_id: step.id,
@@ -1993,14 +1993,14 @@ class WorkflowExecutor {
         step_type: step.step_type,
         execution_id: execution?.id
       });
-      
+
       // Get action definition
       const { data: actionDef, error } = await this.supabase
         .from('action_definitions')
         .select('*')
         .eq('action_type', action_type)
         .single();
-        
+
       if (error || !actionDef) {
         this.logger.error('Action definition not found', {
           action_type: action_type,
@@ -2011,7 +2011,7 @@ class WorkflowExecutor {
         });
         throw new Error(`Action definition not found: ${action_type}`);
       }
-      
+
     // Execute based on action type
   switch (action_type) {
         case 'web_scrape':
@@ -2059,7 +2059,7 @@ class WorkflowExecutor {
         default:
           throw new Error(`Unsupported action type: ${action_type}`);
       }
-      
+
     } catch (error) {
       // ✅ OBSERVABILITY: Log action step failure with full context
       this.logger.error('Action step execution failed', {
@@ -2078,13 +2078,13 @@ class WorkflowExecutor {
   async executeConditionStep(step, inputData) {
     try {
       const { conditions } = step;
-      
+
       // Simple condition evaluation
       // In production, you'd want a more robust expression evaluator
       for (const condition of conditions) {
         const { field, operator, value } = condition;
         const fieldValue = this.getNestedValue(inputData, field);
-        
+
         let conditionMet = false;
         switch (operator) {
           case 'equals':
@@ -2108,14 +2108,14 @@ class WorkflowExecutor {
           default:
             throw new Error(`Unsupported condition operator: ${operator}`);
         }
-        
+
         if (conditionMet) {
           return { success: true, data: inputData, conditionResult: true, matchedCondition: condition };
         }
       }
-      
+
       return { success: true, data: inputData, conditionResult: false };
-      
+
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -2125,11 +2125,11 @@ class WorkflowExecutor {
     const { config } = step;
     const success = config.success !== false;
     const message = config.message || (success ? 'Workflow completed successfully' : 'Workflow ended with error');
-    
-    return { 
-      success, 
-      data: { 
-        ...inputData, 
+
+    return {
+      success,
+      data: {
+        ...inputData,
         workflowResult: { success, message }
       },
       meta: {
@@ -2152,40 +2152,40 @@ class WorkflowExecutor {
           error_category: errorCategory,
           message: healthCheck.message
         });
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: userMessage,
           errorCategory,
           technicalError: healthCheck.message
         };
       }
-      
+
       // This is a placeholder - integrate with your existing scraping service
       const { url, selectors, timeout = 30 } = config;
-      
+
       // ✅ VISIBILITY: Update status to show what's happening
       if (execution?.id) {
         await this._updateExecutionStatus(
           execution.id,
           'running',
-          `Step 1: Connecting to scraping service...`
+          'Step 1: Connecting to scraping service...'
         );
       }
-      
+
       logger.info(`[WorkflowExecutor] Web scraping: ${url}`);
-      
+
       // Track step start time for duration
       const stepStartTime = Date.now();
-      
+
       // ✅ PRIORITY 2: Retry scraping with configurable exponential backoff
       const { config } = require('../utils/appConfig');
       const maxAttempts = config.retries.maxAttempts;
       const backoffDelays = config.retries.scrapeBackoff;
-      
+
       let lastError;
       let attempts = 0;
       let scrapedData = null;
-      
+
       // Update status to show connection
       if (execution?.id) {
         await this._updateExecutionStatus(
@@ -2194,15 +2194,15 @@ class WorkflowExecutor {
           `Step 1: Connected to scraping service (${((Date.now() - stepStartTime) / 1000).toFixed(1)} sec)`
         );
       }
-      
+
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         attempts = attempt;
-        
+
         // Check for cancellation
         if (execution && await this._isCancelled(execution.id)) {
           throw new Error('Execution cancelled');
         }
-        
+
         try {
           // Update status to show retry attempt
           if (execution?.id && attempt > 1) {
@@ -2218,13 +2218,13 @@ class WorkflowExecutor {
               `Step 1: Scraping data from ${url}...`
             );
           }
-          
+
           this.logger.info(`[WorkflowExecutor] Scraping attempt ${attempt}/${maxAttempts}`, {
             execution_id: execution?.id,
             url,
             attempt
           });
-          
+
           // Use instrumented client for automatic trace propagation
           const response = await this.httpClient.post(`${process.env.AUTOMATION_URL}/scrape`, {
             url,
@@ -2233,10 +2233,10 @@ class WorkflowExecutor {
           }, {
             timeout: timeout * 1000
           });
-          
+
           scrapedData = response.data;
           const scrapeDuration = (Date.now() - scrapeStartTime) / 1000;
-          
+
           // ✅ OBSERVABILITY: Log successful scraping with metrics
           this.logger.info(`[WorkflowExecutor] ✅ Scraping succeeded on attempt ${attempt}`, {
             execution_id: execution?.id,
@@ -2252,20 +2252,20 @@ class WorkflowExecutor {
             }
           });
           break; // Success - exit retry loop
-          
+
         } catch (err) {
           lastError = err;
           const status = err?.response?.status;
           const code = err?.code || '';
-          const isRetryable = 
+          const isRetryable =
             (code && ['ECONNRESET','ETIMEDOUT','ENOTFOUND','EAI_AGAIN'].includes(code)) ||
             (status && (status >= 500 || status === 408 || status === 429)) ||
             (err?.message?.toLowerCase().includes('timeout') || err?.message?.toLowerCase().includes('network'));
-          
+
           if (!isRetryable || attempt === maxAttempts) {
             // Not retryable or max attempts reached
             const errorCategory = this._categorizeError(err);
-            this.logger.error(`[WorkflowExecutor] ❌ Scraping failed (not retrying)`, {
+            this.logger.error('[WorkflowExecutor] ❌ Scraping failed (not retrying)', {
               execution_id: execution?.id,
               url,
               attempt,
@@ -2286,10 +2286,10 @@ class WorkflowExecutor {
             });
             throw err;
           }
-          
+
           // Calculate wait time for this attempt
           const waitMs = backoffDelays[attempt - 1] || 0;
-          
+
           // ✅ OBSERVABILITY: Log retry attempt with full context
           this.logger.warn(`[WorkflowExecutor] ⚠️ Scraping attempt ${attempt} failed, retrying in ${waitMs}ms`, {
             execution_id: execution?.id,
@@ -2308,18 +2308,18 @@ class WorkflowExecutor {
               error_category: this._categorizeError(err)
             }
           });
-          
+
           // Wait before retry (except first attempt which is immediate)
           if (waitMs > 0) {
             await new Promise(resolve => setTimeout(resolve, waitMs));
           }
         }
       }
-      
+
       if (!scrapedData && lastError) {
         throw lastError;
       }
-      
+
       const backoff = {
         value: { data: scrapedData },
         attempts,
@@ -2339,8 +2339,8 @@ class WorkflowExecutor {
               updated_at: new Date().toISOString()
             })
             .eq('id', execution.id);
-          
-          this.logger.info(`[WorkflowExecutor] 💾 Scraped data stored in execution`, {
+
+          this.logger.info('[WorkflowExecutor] 💾 Scraped data stored in execution', {
             execution_id: execution.id,
             data_size: JSON.stringify(scrapedData).length
           });
@@ -2351,7 +2351,7 @@ class WorkflowExecutor {
           });
         }
       }
-      
+
       // Update status to show scraping succeeded
       if (execution?.id) {
         await this._updateExecutionStatus(
@@ -2360,7 +2360,7 @@ class WorkflowExecutor {
           'Scraping ✓ | Preparing next step...'
         );
       }
-      
+
       // Calculate records count for user-friendly message
       let recordsCount = 0;
       let stepDetails = '';
@@ -2379,13 +2379,13 @@ class WorkflowExecutor {
           stepDetails = 'Scraping completed';
         }
       }
-      
+
       const stepDuration = (Date.now() - (stepStartTime || Date.now())) / 1000;
-      const durationDisplay = stepDuration < 1 
-        ? `${Math.round(stepDuration * 1000)}ms` 
+      const durationDisplay = stepDuration < 1
+        ? `${Math.round(stepDuration * 1000)}ms`
         : `${stepDuration.toFixed(1)}s`;
-      
-      this.logger.info(`[WorkflowExecutor] ✅ Scraping completed successfully`, {
+
+      this.logger.info('[WorkflowExecutor] ✅ Scraping completed successfully', {
         execution_id: execution?.id,
         url,
         attempts: backoff.attempts,
@@ -2394,15 +2394,15 @@ class WorkflowExecutor {
         duration_sec: stepDuration,
         data_size: scrapedData ? JSON.stringify(scrapedData).length : 0
       });
-      
+
       return {
         success: true,
         data: {
           ...inputData,
           scraped_data: scrapedData
         },
-        meta: { 
-          attempts: backoff.attempts, 
+        meta: {
+          attempts: backoff.attempts,
           backoffWaitMs: backoff.totalWaitMs,
           stepDetails: stepDetails || 'Scraping completed',
           duration: durationDisplay,
@@ -2411,17 +2411,17 @@ class WorkflowExecutor {
           scrapeTime: scrapeDuration.toFixed(1)
         }
       };
-      
+
     } catch (error) {
       // ✅ ENHANCED: Categorize error and provide detailed user-friendly message
       const errorCategory = this._categorizeError(error);
       const userMessageObj = this._getUserFriendlyMessage(errorCategory, error);
-      const timestamp = new Date().toLocaleString('en-US', { 
-        hour: 'numeric', 
+      const timestamp = new Date().toLocaleString('en-US', {
+        hour: 'numeric',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       });
-      
+
       // Build enhanced error message with all details
       const enhancedError = {
         summary: `Web scraping failed: ${userMessageObj.message || error.message}`,
@@ -2438,7 +2438,7 @@ class WorkflowExecutor {
         // Formatted message for display
         formatted: `Web scraping failed: ${userMessageObj.message || error.message} at ${timestamp}\n- Reason: ${userMessageObj.reason || error.message}\n- Fix: ${userMessageObj.fix || 'Please try again or contact support'}`
       };
-      
+
       // ✅ OBSERVABILITY: Log error with full context for observability
       this.logger.error('Web scraping failed', {
         execution_id: execution?.id,
@@ -2457,9 +2457,9 @@ class WorkflowExecutor {
           error_fix: enhancedError.fix
         }
       });
-      
-      return { 
-        success: false, 
+
+      return {
+        success: false,
         error: enhancedError.formatted,
         errorCategory,
         technicalError: error.message,
@@ -2471,7 +2471,7 @@ class WorkflowExecutor {
   async executeApiCallAction(config, inputData, execution) {
     try {
       const { method, url, headers = {}, body, timeout = 30 } = config;
-      
+
       // ✅ VISIBILITY: Update status to show what's happening
       if (execution?.id) {
         await this._updateExecutionStatus(
@@ -2480,9 +2480,9 @@ class WorkflowExecutor {
           `Calling API: ${method} ${url}...`
         );
       }
-      
+
       logger.info(`[WorkflowExecutor] API call: ${method} ${url}`);
-      
+
       // ✅ INSTRUCTION 1: Use instrumented HTTP client for trace propagation
       const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
       const baseMs = Number(config?.retries?.baseMs || 300);
@@ -2532,7 +2532,7 @@ class WorkflowExecutor {
         },
         meta: { attempts: backoff.attempts, backoffWaitMs: backoff.totalWaitMs }
       };
-      
+
     } catch (error) {
       return { success: false, error: `API call failed: ${error.message}` };
     }
@@ -2541,20 +2541,20 @@ class WorkflowExecutor {
   async executeDataTransformAction(config, inputData) {
     try {
       const { transformations, output_format = 'json' } = config;
-      
+
       let transformedData = inputData;
-      
+
       // Apply transformations
       for (const transform of transformations) {
         const { type, source_field, target_field, operation } = transform;
-        
+
         switch (type) {
           case 'map':
             transformedData[target_field] = this.getNestedValue(transformedData, source_field);
             break;
           case 'filter':
             if (Array.isArray(transformedData[source_field])) {
-              transformedData[target_field] = transformedData[source_field].filter(item => 
+              transformedData[target_field] = transformedData[source_field].filter(item =>
                 this.evaluateFilterCondition(item, operation)
               );
             }
@@ -2562,22 +2562,22 @@ class WorkflowExecutor {
           case 'aggregate':
             if (Array.isArray(transformedData[source_field])) {
               transformedData[target_field] = this.performAggregation(
-                transformedData[source_field], 
+                transformedData[source_field],
                 operation
               );
             }
             break;
         }
       }
-      
-      return { 
-        success: true, 
-        data: { 
-          ...inputData, 
-          transformed_data: transformedData 
+
+      return {
+        success: true,
+        data: {
+          ...inputData,
+          transformed_data: transformedData
         }
       };
-      
+
     } catch (error) {
       return { success: false, error: `Data transformation failed: ${error.message}` };
     }
@@ -2813,15 +2813,15 @@ class WorkflowExecutor {
     try {
       // ✅ PRIORITY 3: Default to allowFailure=true if scraping data exists (decouple email from scraping)
       const hasScrapedData = inputData?.scraped_data || inputData?._partial_results?.some(r => r.data?.scraped_data);
-      
+
       // ✅ FIX: Handle nested config structure from canvas (node.data.config) vs direct config
       // Canvas nodes store config as node.data.config, but we store entire node.data as step.config
       const emailConfig = config?.config || config || {};
       const { to, template, variables = {}, scheduled_at, allowFailure = hasScrapedData } = emailConfig;
-      
+
       // ✅ FIX: Handle to as array (from canvas) - take first non-empty value
       const toEmail = Array.isArray(to) ? to.find(email => email && email.trim()) : to;
-      
+
       if (!toEmail || !template) {
         const error = 'Email step requires `to` and `template`';
         if (allowFailure) {
@@ -2844,18 +2844,18 @@ class WorkflowExecutor {
         }
         throw new Error(error);
       }
-      
+
       // ✅ PRIORITY 3: Update status to show email is being sent
       if (execution?.id) {
         await this._updateExecutionStatus(
           execution.id,
           'running',
-          hasScrapedData 
+          hasScrapedData
             ? 'Scraping ✓ | Sending email...'
             : 'Sending email...'
         );
       }
-      
+
       // ✅ OBSERVABILITY: Log email action with context
       logger.info(`[WorkflowExecutor] Enqueue email to: ${toEmail}`, {
         execution_id: execution?.id,
@@ -2879,7 +2879,7 @@ class WorkflowExecutor {
         scheduled_at: scheduled_at || new Date().toISOString()
       };
       const { data, error } = await this.supabase.from('email_queue').insert([insert]).select('*');
-      
+
       // ✅ PRIORITY 3: If email queue fails but allowFailure is true, continue workflow and retry email separately
       if (error) {
         const errorMsg = `Failed to enqueue email: ${error.message}`;
@@ -2889,7 +2889,7 @@ class WorkflowExecutor {
             error: errorMsg,
             has_scraped_data: hasScrapedData
           });
-          
+
           // ✅ PRIORITY 3: Schedule email retry in background (separate from workflow)
           setImmediate(async () => {
             try {
@@ -2900,7 +2900,7 @@ class WorkflowExecutor {
                 .from('email_queue')
                 .insert([retryInsert])
                 .select('*');
-              
+
               if (retryError) {
                 this.logger.warn('Email retry also failed', {
                   execution_id: execution?.id,
@@ -2919,7 +2919,7 @@ class WorkflowExecutor {
               });
             }
           });
-          
+
           // Update status to show email is retrying
           if (execution?.id) {
             await this._updateExecutionStatus(
@@ -2928,7 +2928,7 @@ class WorkflowExecutor {
               'Scraping ✓ | Email ✗ (retrying)'
             );
           }
-          
+
           return {
             success: true, // Mark as success so workflow continues
             data: {
@@ -2946,18 +2946,18 @@ class WorkflowExecutor {
       }
 
       const item = Array.isArray(data) ? data[0] : data;
-      
+
       // Update status to show success
       if (execution?.id) {
         await this._updateExecutionStatus(
           execution.id,
           'running',
-          hasScrapedData 
+          hasScrapedData
             ? 'Scraping ✓ | Email ✓'
             : 'Email queued successfully'
         );
       }
-      
+
       return {
         success: true,
         data: {
@@ -2975,19 +2975,19 @@ class WorkflowExecutor {
           duration: '0.1s'
         }
       };
-      
+
     } catch (error) {
       // ✅ PRIORITY 3: If email fails but we have scraped data, don't fail the workflow
       const hasScrapedData = inputData?.scraped_data || inputData?._partial_results?.some(r => r.data?.scraped_data);
       const allowFailure = config?.allowFailure !== false && hasScrapedData;
-      
+
       if (allowFailure) {
         this.logger.warn('Email sending failed but continuing workflow (scraped data preserved)', {
           execution_id: execution?.id,
           error: error.message,
           has_scraped_data: hasScrapedData
         });
-        
+
         // Update status
         if (execution?.id) {
           await this._updateExecutionStatus(
@@ -2996,7 +2996,7 @@ class WorkflowExecutor {
             'Scraping ✓ | Email ✗ (will retry)'
           );
         }
-        
+
         return {
           success: true,
           data: {
@@ -3010,7 +3010,7 @@ class WorkflowExecutor {
           }
         };
       }
-      
+
       return { success: false, error: `Email sending failed: ${error.message}` };
     }
   }
@@ -3018,14 +3018,14 @@ class WorkflowExecutor {
   async executeDelayAction(config, inputData, execution) {
     try {
       const { duration_seconds, duration_type = 'fixed' } = config;
-      
+
       let waitTime = duration_seconds;
       if (duration_type === 'random') {
         waitTime = Math.floor(Math.random() * duration_seconds) + 1;
       }
-      
+
       logger.info(`[WorkflowExecutor] Waiting for ${waitTime} seconds`);
-      
+
       // Cooperative wait that checks for cancellation every 500ms
       const start = Date.now();
       const totalMs = waitTime * 1000;
@@ -3035,18 +3035,18 @@ class WorkflowExecutor {
           return { success: false, error: 'Execution cancelled during delay' };
         }
       }
-      
-      return { 
-        success: true, 
-        data: { 
-          ...inputData, 
-          delay_result: { 
-            waited_seconds: waitTime 
+
+      return {
+        success: true,
+        data: {
+          ...inputData,
+          delay_result: {
+            waited_seconds: waitTime
           }
         },
         meta: { attempts: 1, backoffWaitMs: 0 }
       };
-      
+
     } catch (error) {
       return { success: false, error: `Delay failed: ${error.message}` };
     }
@@ -3064,22 +3064,22 @@ class WorkflowExecutor {
           error_category: errorCategory,
           message: healthCheck.message
         });
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: userMessage,
           errorCategory,
           technicalError: healthCheck.message
         };
       }
-      
+
       const { url, form_data, selectors, wait_after_submit = 3 } = config;
-      
+
       if (!url) {
         throw new Error('URL is required for form submission');
       }
-      
+
       logger.info(`[WorkflowExecutor] Submitting form: ${url}`);
-      
+
       const axios = require('axios');
       const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
       const baseMs = Number(config?.retries?.baseMs || 300);
@@ -3090,7 +3090,7 @@ class WorkflowExecutor {
             try { controller?.abort?.(); } catch (_) {}
           }
         }, 500);
-        
+
         try {
           return await axios.post(`${process.env.AUTOMATION_URL}/form-submit`, {
             url,
@@ -3130,21 +3130,21 @@ class WorkflowExecutor {
         },
         meta: { attempts: backoff.attempts, backoffWaitMs: backoff.totalWaitMs }
       };
-      
+
     } catch (error) {
       // ✅ IMMEDIATE FIX: Categorize error and provide user-friendly message
       const errorCategory = this._categorizeError(error);
       const userMessage = this._getUserFriendlyMessage(errorCategory, error);
-      
+
       this.logger.error('Form submission failed', {
         execution_id: execution?.id,
         error_category: errorCategory,
         error_message: error.message,
         error_code: error.code
       });
-      
-      return { 
-        success: false, 
+
+      return {
+        success: false,
         error: userMessage,
         errorCategory,
         technicalError: error.message
@@ -3164,15 +3164,15 @@ class WorkflowExecutor {
           error_category: errorCategory,
           message: healthCheck.message
         });
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: userMessage,
           errorCategory,
           technicalError: healthCheck.message
         };
       }
-      
-      const { 
+
+      const {
         file_source,        // 'url', 'file_path', or 'input_data_field'
         file_url,          // Direct URL to invoice file
         file_path,         // Local path to invoice file
@@ -3180,12 +3180,12 @@ class WorkflowExecutor {
         extract_fields = ['vendor', 'amount', 'date', 'invoice_number'], // Fields to extract
         validation = {}    // Validation rules
       } = config;
-      
-      logger.info(`[WorkflowExecutor] Processing invoice OCR`);
-      
+
+      logger.info('[WorkflowExecutor] Processing invoice OCR');
+
       // Resolve file source
       let fileToProcess = null;
-      
+
       if (file_source === 'url' && file_url) {
         fileToProcess = { type: 'url', value: file_url };
       } else if (file_source === 'file_path' && file_path) {
@@ -3206,11 +3206,11 @@ class WorkflowExecutor {
           }
         }
       }
-      
+
       if (!fileToProcess) {
         throw new Error('No valid file source found for invoice OCR processing');
       }
-      
+
       const axios = require('axios');
       const maxAttempts = Math.max(1, Number(config?.retries?.maxAttempts || 3));
       const baseMs = Number(config?.retries?.baseMs || 300);
@@ -3221,7 +3221,7 @@ class WorkflowExecutor {
             try { controller?.abort?.(); } catch (_) {}
           }
         }, 500);
-        
+
         try {
           const { getAutomationUrl, config } = require('../utils/appConfig');
           return await axios.post(`${getAutomationUrl()}/invoice-ocr`, {
@@ -3253,21 +3253,21 @@ class WorkflowExecutor {
 
       const response = backoff.value;
       const ocrResult = response.data;
-      
+
       // Apply validation if specified
       const validationResults = {};
       if (validation.amount_threshold && ocrResult.extracted_data?.amount) {
         const amount = parseFloat(ocrResult.extracted_data.amount.replace(/[^\d.-]/g, ''));
         validationResults.amount_threshold = amount <= validation.amount_threshold;
       }
-      
+
       if (validation.required_vendor && ocrResult.extracted_data?.vendor) {
         const vendor = ocrResult.extracted_data.vendor.toLowerCase();
-        validationResults.vendor_approved = validation.required_vendor.some(v => 
+        validationResults.vendor_approved = validation.required_vendor.some(v =>
           vendor.includes(v.toLowerCase())
         );
       }
-      
+
       return {
         success: true,
         data: {
@@ -3279,21 +3279,21 @@ class WorkflowExecutor {
         },
         meta: { attempts: backoff.attempts, backoffWaitMs: backoff.totalWaitMs }
       };
-      
+
     } catch (error) {
       // ✅ IMMEDIATE FIX: Categorize error and provide user-friendly message
       const errorCategory = this._categorizeError(error);
       const userMessage = this._getUserFriendlyMessage(errorCategory, error);
-      
+
       this.logger.error('Invoice OCR failed', {
         execution_id: execution?.id,
         error_category: errorCategory,
         error_message: error.message,
         error_code: error.code
       });
-      
-      return { 
-        success: false, 
+
+      return {
+        success: false,
         error: userMessage,
         errorCategory,
         technicalError: error.message
@@ -3308,7 +3308,7 @@ class WorkflowExecutor {
       const connections = (workflow.workflow_connections || []).filter(
         conn => conn.source_step_id === currentStep.id
       );
-      
+
       // ✅ DEBUG: Log connection lookup to help diagnose "no steps executed" issues
       if (connections.length === 0) {
         this.logger.warn('[WorkflowExecutor] No connections found from current step', {
@@ -3324,12 +3324,12 @@ class WorkflowExecutor {
           workflow_id: workflow.id
         });
       }
-      
+
       const nextSteps = [];
-      
+
       for (const connection of connections) {
         let shouldFollow = false;
-        
+
         switch (connection.connection_type) {
           case 'next':
             shouldFollow = true;
@@ -3346,7 +3346,7 @@ class WorkflowExecutor {
           default:
             shouldFollow = true;
         }
-        
+
         if (shouldFollow) {
           const nextStep = workflow.workflow_steps.find(
             step => step.id === connection.target_step_id
@@ -3365,7 +3365,7 @@ class WorkflowExecutor {
           }
         }
       }
-      
+
       // ✅ DEBUG: Log result
       if (nextSteps.length === 0 && connections.length > 0) {
         this.logger.warn('[WorkflowExecutor] Connections exist but none matched conditions', {
@@ -3376,9 +3376,9 @@ class WorkflowExecutor {
           workflow_id: workflow.id
         });
       }
-      
+
       return nextSteps;
-      
+
     } catch (error) {
       logger.error('[WorkflowExecutor] Error finding next steps:', error);
       return [];
@@ -3389,21 +3389,21 @@ class WorkflowExecutor {
     // ✅ FIX: Handle canvas node IDs (node-xxx) vs UUID step IDs
     // If stepId is a canvas node ID, look up the actual step UUID from workflow_steps
     let actualStepId = stepId;
-    
+
     // Check if stepId is a canvas node ID (starts with "node-")
     if (stepId && typeof stepId === 'string' && stepId.startsWith('node-')) {
       this.logger.warn('Canvas node ID detected, looking up step UUID', {
         workflow_execution_id: workflowExecutionId,
         canvas_node_id: stepId
       });
-      
+
       // Try to find the step by step_key (which stores the canvas node ID)
       const { data: step, error: lookupError } = await this.supabase
         .from('workflow_steps')
         .select('id')
         .eq('step_key', stepId)
         .maybeSingle();
-      
+
       if (lookupError || !step) {
         // If lookup fails, try to get workflow_id from execution and search there
         const { data: execution } = await this.supabase
@@ -3411,7 +3411,7 @@ class WorkflowExecutor {
           .select('workflow_id')
           .eq('id', workflowExecutionId)
           .single();
-        
+
         if (execution?.workflow_id) {
           const { data: workflowStep } = await this.supabase
             .from('workflow_steps')
@@ -3419,7 +3419,7 @@ class WorkflowExecutor {
             .eq('workflow_id', execution.workflow_id)
             .eq('step_key', stepId)
             .maybeSingle();
-          
+
           if (workflowStep) {
             actualStepId = workflowStep.id;
           } else {
@@ -3442,7 +3442,7 @@ class WorkflowExecutor {
         actualStepId = step.id;
       }
     }
-    
+
     // Validate that actualStepId is a valid UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(actualStepId)) {
@@ -3453,7 +3453,7 @@ class WorkflowExecutor {
       });
       throw new Error(`Invalid step ID format: ${stepId}. Expected UUID but got: ${actualStepId}`);
     }
-    
+
     const { data, error } = await this.supabase
       .from('step_executions')
       .insert({
@@ -3466,7 +3466,7 @@ class WorkflowExecutor {
       })
       .select()
       .single();
-      
+
     if (error) {
       this.logger.error('Failed to create step execution', {
         workflow_execution_id: workflowExecutionId,
@@ -3477,7 +3477,7 @@ class WorkflowExecutor {
       });
       throw new Error(`Failed to create step execution: ${error.message}`);
     }
-    
+
     return data;
   }
 
@@ -3485,7 +3485,7 @@ class WorkflowExecutor {
     const stepStartTime = stepExecution?.started_at ? new Date(stepExecution.started_at).getTime() : Date.now();
     const stepDuration = Date.now() - stepStartTime;
     const durationSec = (stepDuration / 1000).toFixed(1);
-    
+
     // Build step details message
     let stepDetails = '';
     if (result.success) {
@@ -3500,8 +3500,8 @@ class WorkflowExecutor {
           stepDetails = 'Scraping completed';
         }
       } else if (result.data?.email_result) {
-        stepDetails = result.data.email_result.status === 'queued' 
-          ? 'Email queued' 
+        stepDetails = result.data.email_result.status === 'queued'
+          ? 'Email queued'
           : 'Email sent';
       } else {
         stepDetails = 'Step completed';
@@ -3510,7 +3510,7 @@ class WorkflowExecutor {
       // For failed steps, include error category
       stepDetails = result.errorDetails?.reason || result.error || 'Step failed';
     }
-    
+
     const updateData = {
       completed_at: new Date().toISOString(),
       status: result.success ? 'completed' : 'failed',
@@ -3521,7 +3521,7 @@ class WorkflowExecutor {
       },
       duration_ms: Math.max(0, stepDuration)
     };
-    
+
     if (!result.success) {
       // ✅ ENHANCED: Store detailed error information in result JSONB
       const errorDetails = result.errorDetails || {};
@@ -3536,18 +3536,18 @@ class WorkflowExecutor {
         retry_available: errorDetails.retry !== false
       };
     }
-    
+
     // Add retry metrics if available
     const attempts = result?.meta?.attempts;
     if (typeof attempts === 'number' && attempts >= 1) {
       updateData.retry_count = Math.max(0, attempts - 1);
     }
-    
+
     const { error } = await this.supabase
       .from('step_executions')
       .update(updateData)
       .eq('id', stepExecution.id);
-      
+
     if (error) {
       logger.error('Failed to update step execution:', error);
     }
@@ -3555,17 +3555,17 @@ class WorkflowExecutor {
 
   async completeExecution(executionId, outputData, stepsExecuted, startTime) {
     const duration = Math.floor((Date.now() - startTime) / 1000);
-    
+
     // Get execution details for metrics
     const { data: execution } = await this.supabase
       .from('workflow_executions')
       .select('workflow_id, user_id, triggered_by, steps_total')
       .eq('id', executionId)
       .single();
-    
+
     // ✅ FIX: Add actionable next steps guidance in metadata
     const nextSteps = this._generateNextStepsGuidance(outputData, stepsExecuted);
-    
+
     const { error } = await this.supabase
       .from('workflow_executions')
       .update({
@@ -3581,11 +3581,11 @@ class WorkflowExecutor {
         }
       })
       .eq('id', executionId);
-      
+
     if (error) {
       logger.error('Failed to complete execution:', error);
     }
-    
+
     // ✅ PHASE 3: Record metrics
     if (execution) {
       try {
@@ -3606,7 +3606,7 @@ class WorkflowExecutor {
         logger.warn('Failed to record execution metrics', { error: metricsError.message });
       }
     }
-    
+
     logger.info(`[WorkflowExecutor] Execution ${executionId} completed in ${duration}s`);
   }
 
@@ -3617,11 +3617,11 @@ class WorkflowExecutor {
       .select('workflow_id, user_id, triggered_by, steps_total, started_at')
       .eq('id', executionId)
       .single();
-    
+
     // ✅ ENHANCED: Parse error message to extract structured details
     let errorDetails = {};
     let formattedErrorMessage = errorMessage;
-    
+
     // Try to parse structured error if it's an object or contains structured format
     if (typeof errorMessage === 'object' && errorMessage.errorDetails) {
       errorDetails = errorMessage.errorDetails;
@@ -3635,13 +3635,13 @@ class WorkflowExecutor {
       if (reasonLine) errorDetails.reason = reasonLine.replace('Reason:', '').trim();
       if (fixLine) errorDetails.fix = fixLine.replace('Fix:', '').trim();
     }
-    
-    const timestamp = new Date().toLocaleString('en-US', { 
-      hour: 'numeric', 
+
+    const timestamp = new Date().toLocaleString('en-US', {
+      hour: 'numeric',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     });
-    
+
     // ✅ FIX: Build update data with only core columns that exist in DB
     const updateData = {
       status: 'failed',
@@ -3650,7 +3650,7 @@ class WorkflowExecutor {
       error_category: errorCategory || null,
       retry_available: errorDetails.retry !== false
     };
-    
+
     // Calculate duration if started_at exists
     if (execution?.started_at) {
       try {
@@ -3658,7 +3658,7 @@ class WorkflowExecutor {
         updateData.duration_seconds = duration;
       } catch (_) {}
     }
-    
+
     // ✅ FIX: Only set error_step_id if it's a valid UUID that exists in workflow_steps
     // Verify the step exists in the database to avoid foreign key constraint violations
     if (errorStepId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(errorStepId)) {
@@ -3668,7 +3668,7 @@ class WorkflowExecutor {
         .select('id')
         .eq('id', errorStepId)
         .single();
-      
+
       if (stepExists) {
         updateData.error_step_id = errorStepId;
       } else {
@@ -3678,7 +3678,7 @@ class WorkflowExecutor {
         });
       }
     }
-    
+
     // ✅ FIX: Store all error details in metadata field as JSON
     const errorDetailsForStorage = {
       category: errorCategory,
@@ -3690,18 +3690,18 @@ class WorkflowExecutor {
       retry_available: errorDetails.retry !== false,
       details: errorDetails
     };
-    
+
     updateData.metadata = errorDetailsForStorage;
-    
+
     const { error } = await this.supabase
       .from('workflow_executions')
       .update(updateData)
       .eq('id', executionId);
-      
+
     if (error) {
       logger.error('Failed to update execution status:', error);
     }
-    
+
     // ✅ PHASE 3: Record metrics
     if (execution) {
       try {
@@ -3723,7 +3723,7 @@ class WorkflowExecutor {
         logger.warn('Failed to record execution metrics', { error: metricsError.message });
       }
     }
-    
+
     logger.error(`[WorkflowExecutor] Execution ${executionId} failed: ${errorMessage}`, {
       execution_id: executionId,
       error_category: errorCategory,
@@ -3765,7 +3765,7 @@ class WorkflowExecutor {
   _generateNextStepsGuidance(outputData, stepsExecuted) {
     const actions = [];
     let message = '✅ Workflow completed successfully!';
-    
+
     // ✅ ENHANCEMENT: Check for email results and provide specific guidance
     const emailResult = outputData?.email_result;
     if (emailResult) {
@@ -3773,9 +3773,9 @@ class WorkflowExecutor {
         // Extract email address from output data or step config
         const emailAddress = emailResult.to_email || emailResult.to || 'your email';
         const template = emailResult.template || 'notification';
-        
-        message = `✅ Workflow completed! Email queued successfully.`;
-        
+
+        message = '✅ Workflow completed! Email queued successfully.';
+
         // Add email-specific metadata
         const emailMetadata = {
           email_sent: true,
@@ -3784,7 +3784,7 @@ class WorkflowExecutor {
           queue_id: emailResult.queue_id,
           message: `📧 Check your inbox at ${emailAddress} - your email should arrive shortly!`
         };
-        
+
         return {
           message: emailMetadata.message,
           actions: [
@@ -3802,7 +3802,7 @@ class WorkflowExecutor {
       } else if (emailResult.status === 'sent') {
         const emailAddress = emailResult.to_email || emailResult.to || 'your email';
         message = `✅ Email sent successfully to ${emailAddress}!`;
-        
+
         return {
           message,
           actions: [
@@ -3823,7 +3823,7 @@ class WorkflowExecutor {
         };
       }
     }
-    
+
     // ✅ FIX: If no steps completed, prioritize debugging
     if (stepsExecuted === 0) {
       actions.push({
@@ -3834,7 +3834,7 @@ class WorkflowExecutor {
         description: 'See what went wrong - no steps were executed'
       });
       message = '⚠️ Workflow completed but no steps were executed. Check execution details.';
-      
+
       actions.push({
         label: 'Edit Workflow',
         path: null, // Stay in workflow builder, switch to canvas tab
@@ -3842,14 +3842,14 @@ class WorkflowExecutor {
         icon: '✏️',
         description: 'Review and fix your workflow configuration'
       });
-      
+
       return {
         message,
         actions,
         steps_completed: stepsExecuted
       };
     }
-    
+
     // Check for scraped data
     if (outputData?.scraped_data || outputData?.web_scraping_result) {
       actions.push({
@@ -3860,14 +3860,14 @@ class WorkflowExecutor {
       });
       message = '✅ Data scraped successfully! Check the Files tab to view your results.';
     }
-    
+
     // ✅ ENHANCEMENT: Check for email sent/queued with detailed information
     if (outputData?.email_result || outputData?.email_sent) {
       const emailResult = outputData?.email_result || {};
       const emailStatus = emailResult.status || 'sent';
       const emailAddress = emailResult.to_email || emailResult.to || 'your email';
       const template = emailResult.template || 'notification';
-      
+
       if (emailStatus === 'sent' || emailStatus === 'queued' || emailStatus === 'pending') {
         actions.push({
           label: 'Check Your Inbox',
@@ -3875,13 +3875,13 @@ class WorkflowExecutor {
           icon: '📧',
           description: `Email ${emailStatus === 'queued' ? 'queued' : 'sent'} to ${emailAddress} using "${template}" template`
         });
-        
+
         if (emailStatus === 'queued') {
           message = `✅ Workflow completed! Email queued successfully. Check ${emailAddress} - your email should arrive shortly!`;
         } else {
           message = `✅ Email sent successfully to ${emailAddress}!`;
         }
-        
+
         // Return early with email-specific guidance
         return {
           message,
@@ -3897,7 +3897,7 @@ class WorkflowExecutor {
         };
       }
     }
-    
+
     // Check for API call results
     if (outputData?.api_response || outputData?.api_call_result) {
       actions.push({
@@ -3908,7 +3908,7 @@ class WorkflowExecutor {
         description: 'Check workflow execution details for API response data'
       });
     }
-    
+
     // Check for file uploads
     if (outputData?.file_upload_result || outputData?.uploaded_file) {
       actions.push({
@@ -3919,7 +3919,7 @@ class WorkflowExecutor {
       });
       message = '✅ Files uploaded successfully!';
     }
-    
+
     // Add workflow executions view (only if we don't already have it)
     if (!actions.find(a => a.tab === 'executions')) {
       actions.push({
@@ -3930,7 +3930,7 @@ class WorkflowExecutor {
         description: `Review this workflow execution (${stepsExecuted} steps completed)`
       });
     }
-    
+
     // Always add option to run again
     actions.push({
       label: 'Run Workflow Again',
@@ -3939,7 +3939,7 @@ class WorkflowExecutor {
       icon: '🔄',
       description: 'Execute this workflow with new data'
     });
-    
+
     return {
       message,
       actions,
@@ -3952,11 +3952,11 @@ class WorkflowExecutor {
     // ✅ FIX: Check local map first
     const run = this.runningExecutions.get(executionId);
     if (run && run.cancelled) return true;
-    
+
     // ✅ FIX: Check shared registry (in case cancel came from different executor instance)
     const registryEntry = executionRegistry.get(executionId);
     if (registryEntry && registryEntry.cancelled) return true;
-    
+
     // Check DB status as source of truth in case cancel came from API route
     try {
       const { data, error } = await this.supabase
@@ -3982,10 +3982,10 @@ class WorkflowExecutor {
       logger.warn('Cannot cleanup stuck executions: Supabase not configured');
       return { cleaned: 0, errors: [] };
     }
-    
+
     const maxAgeMs = maxAgeMinutes * 60 * 1000;
     const cutoffTime = new Date(Date.now() - maxAgeMs).toISOString();
-    
+
     try {
       // Find executions that have been running for too long
       const { data: stuckExecutions, error: findError } = await supabase
@@ -3993,30 +3993,30 @@ class WorkflowExecutor {
         .select('id, started_at, workflow_id, user_id')
         .eq('status', 'running')
         .lt('started_at', cutoffTime);
-      
+
       if (findError) {
         logger.error('Error finding stuck executions:', findError);
         return { cleaned: 0, errors: [findError.message] };
       }
-      
+
       if (!stuckExecutions || stuckExecutions.length === 0) {
         return { cleaned: 0, errors: [] };
       }
-      
+
       logger.warn(`Found ${stuckExecutions.length} stuck execution(s) to cleanup`, {
         max_age_minutes: maxAgeMinutes,
         cutoff_time: cutoffTime
       });
-      
+
       const errors = [];
       let cleaned = 0;
-      
+
       // Mark each stuck execution as failed
       for (const execution of stuckExecutions) {
         try {
           const ageMinutes = Math.round((Date.now() - new Date(execution.started_at).getTime()) / 60000);
           const errorMessage = `Execution stuck in running state for ${ageMinutes} minutes. Marked as failed by cleanup job.`;
-          
+
           await supabase
             .from('workflow_executions')
             .update({
@@ -4029,7 +4029,7 @@ class WorkflowExecutor {
               }
             })
             .eq('id', execution.id);
-          
+
           // Also cancel in registry if still there
           const registryEntry = executionRegistry.get(execution.id);
           if (registryEntry) {
@@ -4038,7 +4038,7 @@ class WorkflowExecutor {
               clearTimeout(registryEntry.timer);
             }
           }
-          
+
           cleaned++;
           logger.info('Cleaned up stuck execution', {
             execution_id: execution.id,
@@ -4053,7 +4053,7 @@ class WorkflowExecutor {
           });
         }
       }
-      
+
       return { cleaned, errors };
     } catch (error) {
       logger.error('Unexpected error during stuck execution cleanup:', error);

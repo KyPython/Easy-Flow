@@ -63,8 +63,8 @@ router.post('/send', async (req, res) => {
 			// Use the email template from utils if available
 			try {
 				const { getAutomationTipsEmail } = require('./utils/emailTemplates');
-				const emailTemplate = getAutomationTipsEmail({ 
-					email: to_email, 
+				const emailTemplate = getAutomationTipsEmail({
+					email: to_email,
 					source: data?.source || 'unknown',
 					userPlan: data?.userPlan || 'hobbyist'
 				});

@@ -9,7 +9,7 @@ const path = require('path');
 const candidates = [
   path.resolve(__dirname, '..', '.env'),       // backend/.env (preferred)
   path.resolve(__dirname, '..', '..', '.env'), // rpa-system/.env (parent)
-  path.resolve(process.cwd(), '.env'),         // cwd .env
+  path.resolve(process.cwd(), '.env')         // cwd .env
 ];
 
 function chooseEnv() {

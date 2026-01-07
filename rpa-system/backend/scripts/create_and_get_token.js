@@ -27,7 +27,7 @@ async function run() {
         apikey: SUPABASE_ANON_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+      body: JSON.stringify({ email: EMAIL, password: PASSWORD })
     });
     const txt = await resp.text();
     let j;
@@ -45,7 +45,7 @@ async function run() {
         apikey: SUPABASE_ANON_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+      body: JSON.stringify({ email: EMAIL, password: PASSWORD })
     });
     const tokenJson = await tokenResp.json();
     logger.info('token status', tokenResp.status, tokenJson);

@@ -30,27 +30,27 @@ class MultiChannelCollectionService {
       this.slack = new SlackIntegration();
       await this.slack.authenticate(credentials.slack);
     }
-    
+
     if (credentials.gmail) {
       this.gmail = new GmailIntegration();
       await this.gmail.authenticate(credentials.gmail);
     }
-    
+
     if (credentials.whatsapp) {
       this.whatsapp = new WhatsAppIntegration();
       await this.whatsapp.authenticate(credentials.whatsapp);
     }
-    
+
     if (credentials.meet) {
       this.meet = new GoogleMeetIntegration();
       await this.meet.authenticate(credentials.meet);
     }
-    
+
     if (credentials.sheets) {
       this.sheets = new GoogleSheetsIntegration();
       await this.sheets.authenticate(credentials.sheets);
     }
-    
+
     logger.info('[MultiChannelCollection] Initialized with available integrations');
   }
 
@@ -65,9 +65,9 @@ class MultiChannelCollectionService {
       channels = {},
       includeTranscriptions = false
     } = params;
-    
+
     const allFeedback = [];
-    
+
     // Collect from Slack
     if (this.slack && channels.slack) {
       try {
@@ -76,7 +76,7 @@ class MultiChannelCollectionService {
           keywords,
           since
         });
-        
+
         allFeedback.push(...slackFeedback.feedback.map(f => ({
           ...f,
           source: 'slack',
@@ -86,7 +86,7 @@ class MultiChannelCollectionService {
         logger.error('[MultiChannelCollection] Slack collection failed:', error);
       }
     }
-    
+
     // Collect from Gmail
     if (this.gmail && channels.gmail) {
       try {
@@ -95,7 +95,7 @@ class MultiChannelCollectionService {
           since,
           maxResults: channels.gmail.maxResults || 50
         });
-        
+
         allFeedback.push(...gmailFeedback.feedback.map(f => ({
           ...f,
           source: 'gmail'
@@ -104,7 +104,7 @@ class MultiChannelCollectionService {
         logger.error('[MultiChannelCollection] Gmail collection failed:', error);
       }
     }
-    
+
     // Collect from WhatsApp (requires webhook messages to be passed)
     if (this.whatsapp && channels.whatsapp && channels.whatsapp.messages) {
       try {
@@ -112,13 +112,13 @@ class MultiChannelCollectionService {
           channels.whatsapp.messages,
           { keywords }
         );
-        
+
         allFeedback.push(...whatsappFeedback.feedback);
       } catch (error) {
         logger.error('[MultiChannelCollection] WhatsApp collection failed:', error);
       }
     }
-    
+
     // Collect from Google Meet recordings
     if (this.meet && channels.meet && includeTranscriptions) {
       try {
@@ -126,7 +126,7 @@ class MultiChannelCollectionService {
           since,
           extractInsights: true
         });
-        
+
         recordings.results.forEach(result => {
           if (result.success && result.insights) {
             result.insights.forEach(insight => {
@@ -147,14 +147,14 @@ class MultiChannelCollectionService {
         logger.error('[MultiChannelCollection] Meet collection failed:', error);
       }
     }
-    
+
     // Sort by timestamp (newest first)
     allFeedback.sort((a, b) => {
       const timeA = new Date(a.timestamp).getTime();
       const timeB = new Date(b.timestamp).getTime();
       return timeB - timeA;
     });
-    
+
     return {
       success: true,
       feedback: allFeedback,
@@ -174,11 +174,11 @@ class MultiChannelCollectionService {
    */
   async compileToSheet(params) {
     const { spreadsheetId, feedback, sheetName = 'Customer Feedback' } = params;
-    
+
     if (!this.sheets) {
       throw new Error('Google Sheets integration not initialized');
     }
-    
+
     return await this.sheets.compileFeedback({
       spreadsheetId,
       feedback,
@@ -198,7 +198,7 @@ class MultiChannelCollectionService {
       acc[source].push(item);
       return acc;
     }, {});
-    
+
     // Group by sentiment
     const bySentiment = feedback.reduce((acc, item) => {
       const sentiment = item.sentiment || 'neutral';
@@ -206,7 +206,7 @@ class MultiChannelCollectionService {
       acc[sentiment].push(item);
       return acc;
     }, {});
-    
+
     // Group by category (if available)
     const byCategory = feedback.reduce((acc, item) => {
       const category = item.category || 'general';
@@ -214,7 +214,7 @@ class MultiChannelCollectionService {
       acc[category].push(item);
       return acc;
     }, {});
-    
+
     return {
       total: feedback.length,
       bySource: Object.keys(bySource).map(source => ({
@@ -249,10 +249,10 @@ class MultiChannelCollectionService {
       sheetName = 'Customer Feedback',
       generateSummary = true
     } = params;
-    
+
     // Collect from all channels
     const collectionResult = await this.collectFromAllChannels(collectionParams);
-    
+
     // Compile to sheet if spreadsheet ID provided
     let compileResult = null;
     if (spreadsheetId && this.sheets) {
@@ -262,13 +262,13 @@ class MultiChannelCollectionService {
         sheetName
       });
     }
-    
+
     // Generate summary
     let summary = null;
     if (generateSummary) {
       summary = await this.generateSummary(collectionResult.feedback);
     }
-    
+
     return {
       success: true,
       collection: collectionResult,

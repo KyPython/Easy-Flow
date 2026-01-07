@@ -29,16 +29,16 @@ class TriggerService {
     if (process.env.NODE_ENV !== 'production') {
       logger.info('[TriggerService] Initializing automation trigger system...');
     }
-    
+
     try {
       // Load and schedule all active workflows
       await this.loadActiveSchedules();
-      
+
       // Set up periodic refresh of schedules (every 5 minutes)
       cron.schedule('*/5 * * * *', () => {
         this.refreshSchedules();
       });
-      
+
       this.initialized = true;
       if (process.env.NODE_ENV !== 'production') {
         logger.info('[TriggerService] Automation trigger system initialized');
@@ -57,7 +57,7 @@ class TriggerService {
         logger.error('[TriggerService] Cannot load schedules: Supabase not configured');
         return;
       }
-      
+
       const { data: schedules, error } = await this.supabase
         .from('workflow_schedules')
         .select(`
@@ -79,10 +79,10 @@ class TriggerService {
       if (process.env.NODE_ENV !== 'production') {
         logger.info(`[TriggerService] Loading ${schedules?.length || 0} active schedules`);
       }
-      
+
       let successCount = 0;
       let failureCount = 0;
-      
+
       for (const schedule of schedules || []) {
         try {
           await this.scheduleWorkflow(schedule);
@@ -96,7 +96,7 @@ class TriggerService {
           });
         }
       }
-      
+
       if (failureCount > 0) {
         logger.warn(`[TriggerService] Scheduled ${successCount} workflows, ${failureCount} failed`);
       }
@@ -109,10 +109,10 @@ class TriggerService {
   async scheduleWorkflow(schedule) {
     try {
       const { id, schedule_type, cron_expression, interval_seconds, workflow } = schedule;
-      
+
       // Stop existing job if it exists
       this.stopSchedule(id);
-      
+
       if (schedule_type === 'cron' && cron_expression) {
         // Validate and schedule cron job
         if (cron.validate(cron_expression)) {
@@ -122,39 +122,39 @@ class TriggerService {
             scheduled: false,
             timezone: schedule.timezone || 'UTC'
           });
-          
+
           task.start();
           this.activeJobs.set(id, task);
-          
+
           if (process.env.NODE_ENV !== 'production') {
             logger.info(`[TriggerService] Scheduled cron workflow: ${workflow.name} (${cron_expression})`);
           }
-          
+
           // Update next trigger time
           await this.updateNextTriggerTime(id, this.getNextCronTime(cron_expression, schedule.timezone));
-          
+
         } else {
           logger.error(`[TriggerService] Invalid cron expression for schedule ${id}: ${cron_expression}`);
         }
-        
+
       } else if (schedule_type === 'interval' && interval_seconds) {
         // Schedule interval-based job
         const intervalMs = interval_seconds * 1000;
         const intervalId = setInterval(async () => {
           await this.executeScheduledWorkflow(schedule);
         }, intervalMs);
-        
+
         this.activeJobs.set(id, { type: 'interval', intervalId });
-        
+
         if (process.env.NODE_ENV !== 'production') {
           logger.info(`[TriggerService] Scheduled interval workflow: ${workflow.name} (every ${interval_seconds}s)`);
         }
-        
+
         // Update next trigger time
         const nextTrigger = new Date(Date.now() + intervalMs);
         await this.updateNextTriggerTime(id, nextTrigger.toISOString());
       }
-      
+
     } catch (error) {
       logger.error(`[TriggerService] Failed to schedule workflow ${schedule.id}:`, error);
     }
@@ -168,11 +168,11 @@ class TriggerService {
       const executionModeService = new ExecutionModeService();
       const smartScheduler = new SmartScheduler();
       const { workflow_id, user_id, id: schedule_id, workflow } = schedule;
-      
+
       if (process.env.NODE_ENV !== 'production') {
         logger.info(`[TriggerService] Executing scheduled workflow: ${workflow_id}`);
       }
-      
+
       // Check execution limits
       if (schedule.max_executions && schedule.execution_count >= schedule.max_executions) {
         if (process.env.NODE_ENV !== 'production') {
@@ -181,13 +181,13 @@ class TriggerService {
         await this.deactivateSchedule(schedule_id);
         return;
       }
-      
+
       // ✅ EXECUTION MODES: Determine execution mode for scheduled workflow
       const context = { triggeredBy: 'schedule', triggerData: { scheduleId: schedule_id } };
       const executionMode = executionModeService.determineExecutionMode(workflow, context);
       const modeConfig = executionModeService.getExecutionConfig(executionMode);
       const costEstimate = executionModeService.estimateCost(workflow, executionMode);
-      
+
       logger.info('Scheduled workflow execution mode determined', {
         workflow_id: workflow_id,
         schedule_id: schedule_id,
@@ -196,19 +196,19 @@ class TriggerService {
         cost_per_execution: costEstimate.costPerExecution,
         savings_percentage: costEstimate.savingsPercentage
       });
-      
+
       // ✅ SMART SCHEDULING: Schedule workflow optimally
       const scheduledExecution = await smartScheduler.scheduleWorkflow(workflow, context);
-      
+
       // ✅ PHASE 3: Use critical workflow handler for scheduled workflows
       // (especially "Scheduled Web Scraping → Email Report" type)
       const isCriticalWorkflow = this._isCriticalWorkflowType(workflow);
-      
+
       if (isCriticalWorkflow) {
         try {
           const { CriticalWorkflowHandler } = require('./criticalWorkflowHandler');
           const criticalHandler = new CriticalWorkflowHandler();
-          
+
           // Start execution first with execution mode
           const execution = await this.workflowExecutor.startExecution({
             workflowId: workflow_id,
@@ -217,7 +217,7 @@ class TriggerService {
             triggerData: { scheduleId: schedule_id },
             executionMode: executionMode
           });
-          
+
           // Execute with critical workflow handler
           // Note: executeWorkflow is async and runs in background
           this.workflowExecutor.executeWorkflow(execution, workflow, { executionMode, modeConfig })
@@ -227,15 +227,15 @@ class TriggerService {
             .catch(error => {
               logger.error(`[TriggerService] Critical workflow execution failed: ${execution.id}`, error);
             });
-          
+
           await this.updateScheduleStats(schedule_id);
           return;
         } catch (criticalError) {
-          logger.error(`[TriggerService] Critical workflow handler failed, falling back to standard execution:`, criticalError);
+          logger.error('[TriggerService] Critical workflow handler failed, falling back to standard execution:', criticalError);
           // Fall through to standard execution
         }
       }
-      
+
       // Standard execution for non-critical workflows with execution mode
       const execution = await this.workflowExecutor.startExecution({
         workflowId: workflow_id,
@@ -244,16 +244,16 @@ class TriggerService {
         triggerData: { scheduleId: schedule_id },
         executionMode: executionMode
       });
-      
+
       // Update schedule stats
       await this.updateScheduleStats(schedule_id);
-      
+
       if (process.env.NODE_ENV !== 'production') {
         logger.info(`[TriggerService] Started execution ${execution.id} for schedule ${schedule_id}`);
       }
-      
+
     } catch (error) {
-      logger.error(`[TriggerService] Failed to execute scheduled workflow:`, error);
+      logger.error('[TriggerService] Failed to execute scheduled workflow:', error);
     }
   }
 
@@ -262,9 +262,9 @@ class TriggerService {
    */
   _isCriticalWorkflowType(workflow) {
     if (!workflow || !workflow.workflow_steps) return false;
-    
+
     const steps = workflow.workflow_steps;
-    
+
     // Check for: Web Scrape action + Email action
     const hasWebScrape = steps.some(
       step => step.step_type === 'action' && step.action_type === 'web_scrape'
@@ -272,7 +272,7 @@ class TriggerService {
     const hasEmail = steps.some(
       step => step.step_type === 'action' && step.action_type === 'email'
     );
-    
+
     // Also check if it's scheduled (called from schedule context)
     return hasWebScrape && hasEmail;
   }
@@ -282,7 +282,7 @@ class TriggerService {
       if (process.env.NODE_ENV !== 'production') {
         logger.info('[TriggerService] Refreshing schedules...');
       }
-      
+
       // Get current active schedules from database
       const { data: currentSchedules, error } = await this.supabase
         .from('workflow_schedules')
@@ -299,21 +299,21 @@ class TriggerService {
 
       const currentScheduleIds = new Set(currentSchedules.map(s => s.id));
       const activeJobIds = new Set(this.activeJobs.keys());
-      
+
       // Remove schedules that are no longer active
       for (const jobId of activeJobIds) {
         if (!currentScheduleIds.has(jobId)) {
           this.stopSchedule(jobId);
         }
       }
-      
+
       // Add new schedules
       for (const schedule of currentSchedules) {
         if (!activeJobIds.has(schedule.id)) {
           await this.scheduleWorkflow(schedule);
         }
       }
-      
+
     } catch (error) {
       logger.error('[TriggerService] Failed to refresh schedules:', error);
     }
@@ -342,12 +342,12 @@ class TriggerService {
         .from('workflow_schedules')
         .update({ next_trigger_at: nextTriggerTime })
         .eq('id', scheduleId);
-        
+
       if (error) {
         logger.error(`[TriggerService] Failed to update next trigger time for ${scheduleId}:`, error);
       }
     } catch (error) {
-      logger.error(`[TriggerService] Error updating next trigger time:`, error);
+      logger.error('[TriggerService] Error updating next trigger time:', error);
     }
   }
 
@@ -360,12 +360,12 @@ class TriggerService {
           last_triggered_at: new Date().toISOString()
         })
         .eq('id', scheduleId);
-        
+
       if (error) {
         logger.error(`[TriggerService] Failed to update schedule stats for ${scheduleId}:`, error);
       }
     } catch (error) {
-      logger.error(`[TriggerService] Error updating schedule stats:`, error);
+      logger.error('[TriggerService] Error updating schedule stats:', error);
     }
   }
 
@@ -373,18 +373,18 @@ class TriggerService {
     try {
       // Stop the job
       this.stopSchedule(scheduleId);
-      
+
       // Deactivate in database
       const { error } = await this.supabase
         .from('workflow_schedules')
         .update({ is_active: false })
         .eq('id', scheduleId);
-        
+
       if (error) {
         logger.error(`[TriggerService] Failed to deactivate schedule ${scheduleId}:`, error);
       }
     } catch (error) {
-      logger.error(`[TriggerService] Error deactivating schedule:`, error);
+      logger.error('[TriggerService] Error deactivating schedule:', error);
     }
   }
 
@@ -410,7 +410,7 @@ class TriggerService {
   async createWebhookSchedule(workflowId, userId, config) {
     try {
       const webhookToken = this.generateWebhookToken();
-      
+
       const { data, error } = await this.supabase
         .from('workflow_schedules')
         .insert({
@@ -424,11 +424,11 @@ class TriggerService {
         })
         .select()
         .single();
-        
+
       if (error) {
         throw new Error(`Failed to create webhook schedule: ${error.message}`);
       }
-      
+
       return {
         scheduleId: data.id,
         webhookUrl: `/api/webhooks/trigger/${webhookToken}`,
@@ -452,11 +452,11 @@ class TriggerService {
         .eq('webhook_token', token)
         .eq('is_active', true)
         .single();
-        
+
       if (error || !schedule) {
         throw new Error('Invalid webhook token or inactive schedule');
       }
-      
+
       // Validate webhook secret if configured
       if (schedule.webhook_secret) {
         const signature = headers['x-webhook-signature'];
@@ -464,29 +464,29 @@ class TriggerService {
           throw new Error('Invalid webhook signature');
         }
       }
-      
+
       // Execute the workflow
       const execution = await this.workflowExecutor.startExecution({
         workflowId: schedule.workflow_id,
         userId: schedule.user_id,
         triggeredBy: 'webhook',
-        triggerData: { 
+        triggerData: {
           scheduleId: schedule.id,
           webhookPayload: payload,
           webhookHeaders: headers
         },
         inputData: payload
       });
-      
+
       // Update schedule stats
       await this.updateScheduleStats(schedule.id);
-      
+
       return {
         success: true,
         executionId: execution.id,
         workflowName: schedule.workflow.name
       };
-      
+
     } catch (error) {
       logger.error('[TriggerService] Webhook execution failed:', error);
       throw error;
@@ -499,7 +499,7 @@ class TriggerService {
         .createHmac('sha256', secret)
         .update(JSON.stringify(payload))
         .digest('hex');
-        
+
       return crypto.timingSafeEqual(
         Buffer.from(`sha256=${expectedSignature}`),
         Buffer.from(signature)
@@ -564,17 +564,17 @@ class TriggerService {
     try {
       // Stop the active job
       this.stopSchedule(scheduleId);
-      
+
       // Delete from database
       const { error } = await this.supabase
         .from('workflow_schedules')
         .delete()
         .eq('id', scheduleId);
-        
+
       if (error) {
         throw new Error(`Failed to delete schedule: ${error.message}`);
       }
-      
+
       return { success: true };
     } catch (error) {
       logger.error('[TriggerService] Error deleting schedule:', error);
@@ -594,12 +594,12 @@ class TriggerService {
     if (process.env.NODE_ENV !== 'production') {
       logger.info('[TriggerService] Shutting down automation trigger system...');
     }
-    
+
     // Stop all active jobs
     for (const scheduleId of this.activeJobs.keys()) {
       this.stopSchedule(scheduleId);
     }
-    
+
     this.initialized = false;
     if (process.env.NODE_ENV !== 'production') {
       logger.info('[TriggerService] Automation trigger system shutdown complete');

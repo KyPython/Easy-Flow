@@ -1,6 +1,6 @@
 /**
  * Scraping & Lead Generation API Routes
- * 
+ *
  * Provides endpoints for:
  * - Managing scrape jobs
  * - Viewing job postings
@@ -41,21 +41,21 @@ router.get('/queue/stats', requireAuth, contextLoggerMiddleware, async (req, res
   const startTime = Date.now();
   const userId = req.user?.id;
   const userEmail = req.user?.email;
-  
+
   const reqLogger = logger
     .withUser({ id: userId, email: userEmail })
     .withOperation('scraping.route.queue_stats', { requestId: req.requestId });
-  
+
   try {
     const queueManager = getScrapeQueueManager();
     const stats = queueManager.getStats();
-    
+
     const duration = Date.now() - startTime;
     reqLogger.performance('scraping.route.queue_stats', duration, {
       category: 'api_endpoint',
       success: true
     });
-    
+
     res.json({
       success: true,
       stats
@@ -83,14 +83,14 @@ router.post('/queue/enqueue', requireAuth, requireFeature('lead_generation'), ch
   const startTime = Date.now();
   const userId = req.user?.id;
   const userEmail = req.user?.email;
-  
+
   const reqLogger = logger
     .withUser({ id: userId, email: userEmail })
     .withOperation('scraping.route.queue_enqueue', { requestId: req.requestId });
-  
+
   try {
     const { domains, options } = req.body;
-    
+
     if (!domains || (Array.isArray(domains) && domains.length === 0)) {
       return res.status(400).json({
         success: false,
@@ -100,12 +100,12 @@ router.post('/queue/enqueue', requireAuth, requireFeature('lead_generation'), ch
 
     const queueManager = getScrapeQueueManager();
     const domainList = Array.isArray(domains) ? domains : [domains];
-    
+
     reqLogger.info('Enqueuing domains for scraping', {
       domainCount: domainList.length,
       priority: options?.priority || 0
     });
-    
+
     const jobIds = await queueManager.enqueueBatch(domainList, {
       priority: options?.priority || 0,
       retries: options?.retries || 3,
@@ -123,7 +123,7 @@ router.post('/queue/enqueue', requireAuth, requireFeature('lead_generation'), ch
       success: true,
       jobCount: jobIds.length
     });
-    
+
     reqLogger.metric('scraping.queue.enqueued', jobIds.length, 'count', {
       userId,
       priority: options?.priority || 0
@@ -155,7 +155,7 @@ router.get('/proxy/stats', requireAuth, contextLoggerMiddleware, async (req, res
   try {
     const proxyManager = getProxyManager();
     const stats = proxyManager.getStats();
-    
+
     res.json({
       success: true,
       stats
@@ -176,7 +176,7 @@ router.get('/proxy/stats', requireAuth, contextLoggerMiddleware, async (req, res
 router.get('/antibot/config', requireAuth, contextLoggerMiddleware, async (req, res) => {
   try {
     const { domain } = req.query;
-    
+
     if (!domain) {
       return res.status(400).json({
         success: false,
@@ -186,7 +186,7 @@ router.get('/antibot/config', requireAuth, contextLoggerMiddleware, async (req, 
 
     const antiBotService = getAntiBotService();
     const config = antiBotService.getAntiBotConfig(domain);
-    
+
     res.json({
       success: true,
       config
@@ -207,7 +207,7 @@ router.get('/antibot/config', requireAuth, contextLoggerMiddleware, async (req, 
 router.post('/captcha/solve', requireAuth, requireFeature('lead_generation'), contextLoggerMiddleware, async (req, res) => {
   try {
     const { imageUrl, captchaType } = req.body;
-    
+
     if (!imageUrl) {
       return res.status(400).json({
         success: false,
@@ -217,7 +217,7 @@ router.post('/captcha/solve', requireAuth, requireFeature('lead_generation'), co
 
     const antiBotService = getAntiBotService();
     const solution = await antiBotService.solveCaptcha(imageUrl, captchaType || 'image');
-    
+
     res.json({
       success: true,
       solution
@@ -273,7 +273,7 @@ router.get('/jobs', requireAuth, contextLoggerMiddleware, async (req, res) => {
 router.post('/jobs', requireAuth, requireFeature('lead_generation'), checkScrapingJobLimit, contextLoggerMiddleware, async (req, res) => {
   try {
     const { domain, frequency, jobPattern, config, priority } = req.body;
-    
+
     if (!domain || !frequency) {
       return res.status(400).json({
         success: false,
@@ -336,7 +336,7 @@ router.post('/jobs', requireAuth, requireFeature('lead_generation'), checkScrapi
 function calculateNextRun(frequency) {
   // ✅ SECURITY: Validate type before using string methods
   const safeFrequency = typeof frequency === 'string' ? frequency : String(frequency || 'daily');
-  
+
   const now = new Date();
   const next = new Date(now);
 
@@ -386,7 +386,7 @@ router.post('/parse-job', requireAuth, requireFeature('lead_generation'), contex
           error: `Invalid URL: ${urlValidation.error}`
         });
       }
-      
+
       try {
         const response = await axios.get(urlValidation.url, {
           timeout: 30000,
@@ -476,7 +476,7 @@ router.post('/parse-careers-page', requireAuth, requireFeature('lead_generation'
           error: `Invalid URL: ${urlValidation.error}`
         });
       }
-      
+
       try {
         const response = await axios.get(urlValidation.url, {
           timeout: 30000,
@@ -1169,15 +1169,15 @@ router.get('/usage', requireAuth, contextLoggerMiddleware, async (req, res) => {
   const startTime = Date.now();
   const userId = req.user?.id;
   const userEmail = req.user?.email;
-  
+
   const reqLogger = logger
     .withUser({ id: userId, email: userEmail })
     .withOperation('scraping.route.usage', { requestId: req.requestId });
-  
+
   try {
     const planData = await getUserPlan(userId);
     const scrapingUsage = await getScrapingUsage(userId);
-    
+
     const usage = {
       domains_scraped_this_month: scrapingUsage.domains_scraped_this_month || 0,
       jobs_created: scrapingUsage.jobs_created || 0,
@@ -1189,13 +1189,13 @@ router.get('/usage', requireAuth, contextLoggerMiddleware, async (req, res) => {
       },
       plan: planData.plan.name
     };
-    
+
     const duration = Date.now() - startTime;
     reqLogger.performance('scraping.route.usage', duration, {
       category: 'api_endpoint',
       success: true
     });
-    
+
     res.json({
       success: true,
       usage

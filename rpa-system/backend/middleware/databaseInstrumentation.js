@@ -13,28 +13,28 @@ class InstrumentedSupabaseClient {
   constructor(supabaseUrl, supabaseKey, options = {}) {
     try {
       this.client = createClient(supabaseUrl, supabaseKey, options);
-      
+
       // ✅ FIX: Validate that the client was created successfully
       if (!this.client) {
         throw new Error('Supabase client creation failed - client is null/undefined');
       }
-      
+
     } catch (error) {
       // If client creation fails, create a null client
       this.client = null;
       // Logger not available yet, will log in next block
     }
-    
+
     this.logger = createContextLogger('database.supabase');
-    
+
     // ✅ Log initialization failure after logger is available
     if (!this.client) {
       this.logger.error('Failed to create Supabase client - client is null');
     }
-    
+
     // ✅ INSTRUCTION 1: Get tracer for database operations
     this.tracer = trace.getTracer('database.supabase');
-    
+
     // Log initialization status
     if (this.client) {
       this.logger.info('Instrumented Supabase client initialized', {
@@ -79,11 +79,11 @@ class InstrumentedSupabaseClient {
       });
       return Promise.reject(error);
     }
-    
+
     const tracer = this.tracer;
     const logger = this.logger;
     const originalRpc = this.client.rpc.bind(this.client);
-    
+
     // Create span for RPC call
     return tracer.startActiveSpan(
       `supabase.rpc.${functionName}`,
@@ -99,7 +99,7 @@ class InstrumentedSupabaseClient {
       },
       async (span) => {
         const startTime = Date.now();
-        
+
         try {
           logger.info(`RPC function call started: ${functionName}`, {
             database: {
@@ -108,15 +108,15 @@ class InstrumentedSupabaseClient {
               function: functionName
             }
           });
-          
+
           // Execute the RPC call
           const result = await originalRpc(functionName, params);
           const duration = Date.now() - startTime;
-          
+
           span.setStatus({ code: SpanStatusCode.OK });
           span.setAttribute('db.supabase.duration_ms', duration);
           span.setAttribute('db.supabase.has_error', !!result.error);
-          
+
           logger.info(`RPC function call completed: ${functionName}`, {
             database: {
               system: 'supabase_postgres',
@@ -125,18 +125,18 @@ class InstrumentedSupabaseClient {
             },
             performance: { duration }
           });
-          
+
           return result;
         } catch (error) {
           const duration = Date.now() - startTime;
-          
+
           span.recordException(error);
-          span.setStatus({ 
-            code: SpanStatusCode.ERROR, 
-            message: error.message 
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message
           });
           span.setAttribute('db.supabase.duration_ms', duration);
-          
+
           logger.error(`RPC function call failed: ${functionName}`, {
             database: {
               system: 'supabase_postgres',
@@ -149,7 +149,7 @@ class InstrumentedSupabaseClient {
             },
             performance: { duration }
           });
-          
+
           throw error;
         } finally {
           span.end();
@@ -232,10 +232,10 @@ class InstrumentedTable {
   async _executeOperation(operation, queryFn, attributes = {}) {
     const startTime = Date.now();
     const traceContext = getCurrentTraceContext();
-    
+
     // ✅ INSTRUCTION 1: Create OpenTelemetry span with standard db.* attributes
     const tracer = trace.getTracer('database.supabase');
-    
+
     return await tracer.startActiveSpan(
       `supabase.${operation.toLowerCase()}.${this.tableName}`,
       {
@@ -271,7 +271,7 @@ class InstrumentedTable {
         try {
           const result = await queryFn();
           const duration = Date.now() - startTime;
-          
+
           // ✅ Set span status and attributes on success
           span.setStatus({ code: SpanStatusCode.OK });
           span.setAttribute('db.supabase.duration_ms', duration);
@@ -294,16 +294,16 @@ class InstrumentedTable {
           return result;
         } catch (error) {
           const duration = Date.now() - startTime;
-          
+
           // ✅ Record exception and set error status
           span.recordException(error);
-          span.setStatus({ 
-            code: SpanStatusCode.ERROR, 
-            message: error.message 
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message
           });
           span.setAttribute('db.supabase.duration_ms', duration);
           span.setAttribute('error', true);
-          
+
           // Log failed operation
           this.logger.error(`Database ${operation} failed`, {
             span: { ...spanContext, duration, status: 'error' },
@@ -390,7 +390,7 @@ class InstrumentedQuery {
     return this;
   }
   or(filters, options) {
-    this.filters.push({ type: "or", filters: "string" });
+    this.filters.push({ type: 'or', filters: 'string' });
     this.query = this.query.or(filters, options);
     return this;
   }
@@ -425,10 +425,10 @@ class InstrumentedQuery {
   async execute() {
     const startTime = Date.now();
     const traceContext = getCurrentTraceContext();
-    
+
     // ✅ INSTRUCTION 1: Create OpenTelemetry span for query execution
     const tracer = trace.getTracer('database.supabase');
-    
+
     return await tracer.startActiveSpan(
       `supabase.query.${this.operation.toLowerCase()}.${this.tableName}`,
       {
@@ -472,7 +472,7 @@ class InstrumentedQuery {
         try {
           const result = await this.query;
           const duration = Date.now() - startTime;
-          
+
           // ✅ Set span status and attributes on success
           span.setStatus({ code: SpanStatusCode.OK });
           span.setAttribute('db.supabase.duration_ms', duration);
@@ -496,16 +496,16 @@ class InstrumentedQuery {
           return result;
         } catch (error) {
           const duration = Date.now() - startTime;
-          
+
           // ✅ Record exception and set error status
           span.recordException(error);
-          span.setStatus({ 
-            code: SpanStatusCode.ERROR, 
-            message: error.message 
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message
           });
           span.setAttribute('db.supabase.duration_ms', duration);
           span.setAttribute('error', true);
-          
+
           // Log failed query
           this.logger.error(`Database ${this.operation} query failed`, {
             span: { ...spanContext, duration, status: 'error' },

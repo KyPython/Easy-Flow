@@ -48,7 +48,7 @@ const appConfig = {
   server: {
     port: getEnvNumber('PORT', 3030),
     host: getEnv('HOST', '0.0.0.0'),
-    nodeEnv: getEnv('NODE_ENV', 'development'),
+    nodeEnv: getEnv('NODE_ENV', 'development')
   },
 
   // API URLs
@@ -56,26 +56,26 @@ const appConfig = {
     // Backend API
     apiBase: getEnv('API_BASE_URL', getEnv('REACT_APP_API_BASE', '')),
     backendUrl: getEnv('BACKEND_URL', getEnv('API_BASE_URL', '')),
-    
+
     // Automation Service
     automationUrl: getEnv('AUTOMATION_URL', 'http://127.0.0.1:7070'),
     automationPort: getEnvNumber('AUTOMATION_PORT', 7070),
-    
+
     // Frontend
     frontendUrl: getEnv('FRONTEND_URL', getEnv('PUBLIC_URL', '')),
-    
+
     // Demo Portal
     demoUrl: getEnv('DEMO_URL', '/demo'),
-    
+
     // Support & Contact
     supportEmail: getEnv('SUPPORT_EMAIL', 'support@useeasyflow.com'),
     noreplyEmail: getEnv('NOREPLY_EMAIL', getEnv('SENDGRID_FROM_EMAIL', 'noreply@useeasyflow.com')),
     contactEmail: getEnv('CONTACT_EMAIL', 'contact@useeasyflow.com'),
-    
+
     // External Services
     polarUrl: getEnv('POLAR_URL', 'https://api.polar.sh'),
     hubspotUrl: getEnv('HUBSPOT_URL', 'https://api.hubapi.com'),
-    sendgridUrl: getEnv('SENDGRID_URL', 'https://api.sendgrid.com'),
+    sendgridUrl: getEnv('SENDGRID_URL', 'https://api.sendgrid.com')
   },
 
   // Timeouts & Limits
@@ -83,24 +83,24 @@ const appConfig = {
     // HTTP Client
     httpDefault: getEnvNumber('HTTP_TIMEOUT', 30000), // 30s
     httpLong: getEnvNumber('HTTP_TIMEOUT_LONG', 120000), // 2min for OCR
-    
+
     // Workflow Execution
     workflowDefault: getEnvNumber('WORKFLOW_TIMEOUT', 300000), // 5min
     workflowMax: getEnvNumber('WORKFLOW_TIMEOUT_MAX', 600000), // 10min
-    
+
     // Browser Automation
     browserDefault: getEnvNumber('BROWSER_TIMEOUT', 30000), // 30s
     browserPageLoad: getEnvNumber('BROWSER_PAGE_LOAD_TIMEOUT', 20000), // 20s
     browserSelector: getEnvNumber('BROWSER_SELECTOR_TIMEOUT', 15000), // 15s
     browserLogin: getEnvNumber('BROWSER_LOGIN_TIMEOUT', 25000), // 25s
-    
+
     // Scraping
     scrapeDefault: getEnvNumber('SCRAPE_TIMEOUT', 30), // 30s
     scrapeMax: getEnvNumber('SCRAPE_TIMEOUT_MAX', 60), // 60s
-    
+
     // Database
     databaseQuery: getEnvNumber('DATABASE_QUERY_TIMEOUT', 30000), // 30s
-    databaseConnection: getEnvNumber('DATABASE_CONNECTION_TIMEOUT', 10000), // 10s
+    databaseConnection: getEnvNumber('DATABASE_CONNECTION_TIMEOUT', 10000) // 10s
   },
 
   // Retry Configuration
@@ -108,17 +108,17 @@ const appConfig = {
     // Default retry attempts
     maxAttempts: getEnvNumber('MAX_RETRY_ATTEMPTS', 3),
     maxAttemptsLong: getEnvNumber('MAX_RETRY_ATTEMPTS_LONG', 5),
-    
+
     // Backoff delays (milliseconds)
     baseDelay: getEnvNumber('RETRY_BASE_DELAY', 1000), // 1s
     maxDelay: getEnvNumber('RETRY_MAX_DELAY', 30000), // 30s
-    
+
     // Exponential backoff multipliers
     backoffMultiplier: getEnvNumber('RETRY_BACKOFF_MULTIPLIER', 2),
-    
+
     // Specific retry delays
     scrapeBackoff: [0, 5000, 15000], // 0s, 5s, 15s
-    httpBackoff: [1000, 2000, 4000], // 1s, 2s, 4s
+    httpBackoff: [1000, 2000, 4000] // 1s, 2s, 4s
   },
 
   // Rate Limits - Environment-aware defaults
@@ -126,18 +126,18 @@ const appConfig = {
     // API Rate Limits
     apiWindowMs: getEnvNumber('RATE_LIMIT_WINDOW_MS', 60000), // 1 minute
     // Much higher limits in development/test, reasonable in production
-    apiMaxRequests: getEnvNumber('RATE_LIMIT_MAX_REQUESTS', 
+    apiMaxRequests: getEnvNumber('RATE_LIMIT_MAX_REQUESTS',
       (getEnv('NODE_ENV') === 'development' || getEnv('NODE_ENV') === 'test') ? 5000 : 100),
-    
+
     // Workflow Execution Rate Limits
     workflowWindowMs: getEnvNumber('WORKFLOW_RATE_LIMIT_WINDOW_MS', 60000),
     workflowMaxExecutions: getEnvNumber('WORKFLOW_RATE_LIMIT_MAX',
       (getEnv('NODE_ENV') === 'development' || getEnv('NODE_ENV') === 'test') ? 1000 : 10),
-    
+
     // Scraping Rate Limits
     scrapeWindowMs: getEnvNumber('SCRAPE_RATE_LIMIT_WINDOW_MS', 60000),
     scrapeMaxRequests: getEnvNumber('SCRAPE_RATE_LIMIT_MAX',
-      (getEnv('NODE_ENV') === 'development' || getEnv('NODE_ENV') === 'test') ? 1000 : 20),
+      (getEnv('NODE_ENV') === 'development' || getEnv('NODE_ENV') === 'test') ? 1000 : 20)
   },
 
   // Feature Flags
@@ -145,7 +145,7 @@ const appConfig = {
     telemetry: !getEnvBoolean('DISABLE_TELEMETRY', false),
     emailWorker: getEnvBoolean('ENABLE_EMAIL_WORKER', true),
     analytics: getEnvBoolean('ENABLE_ANALYTICS', true),
-    debugging: getEnvBoolean('ENABLE_DEBUGGING', getEnv('NODE_ENV') === 'development'),
+    debugging: getEnvBoolean('ENABLE_DEBUGGING', getEnv('NODE_ENV') === 'development')
   },
 
   // Demo Configuration
@@ -153,20 +153,20 @@ const appConfig = {
     enabled: getEnvBoolean('DEMO_ENABLED', true),
     username: getEnv('DEMO_USERNAME', 'demo@useeasyflow.com'),
     password: getEnv('DEMO_PASSWORD', ''), // Should be empty for security
-    description: getEnv('DEMO_DESCRIPTION', 'EasyFlow demo invoice portal - always available, always works!'),
+    description: getEnv('DEMO_DESCRIPTION', 'EasyFlow demo invoice portal - always available, always works!')
   },
 
   // Logging Configuration
   logging: {
     level: getEnv('LOG_LEVEL', getEnv('NODE_ENV') === 'production' ? 'info' : 'debug'),
-    sampleRate: getEnvNumber('LOG_SAMPLE_RATE', 1), // 1 = 100%, 0.1 = 10%
+    sampleRate: getEnvNumber('LOG_SAMPLE_RATE', 1) // 1 = 100%, 0.1 = 10%
   },
 
   // Cache Configuration
   cache: {
     ttl: getEnvNumber('CACHE_TTL', 300000), // 5 minutes
-    maxSize: getEnvNumber('CACHE_MAX_SIZE', 1000),
-  },
+    maxSize: getEnvNumber('CACHE_MAX_SIZE', 1000)
+  }
 };
 
 /**
@@ -191,24 +191,24 @@ function getApiBaseUrl() {
   if (appConfig.urls.apiBase) {
     return appConfig.urls.apiBase;
   }
-  
+
   if (appConfig.urls.backendUrl) {
     return appConfig.urls.backendUrl;
   }
-  
+
   // Auto-detect based on environment
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    
+
     // Development
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return `http://localhost:${appConfig.server.port}`;
     }
-    
+
     // Production - use same origin
     return window.location.origin;
   }
-  
+
   // Server-side fallback
   return '';
 }
@@ -218,7 +218,7 @@ function getApiBaseUrl() {
  */
 function validateConfig() {
   const errors = [];
-  
+
   // Required for production
   if (appConfig.server.nodeEnv === 'production') {
     if (!appConfig.urls.supportEmail) {
@@ -228,17 +228,17 @@ function validateConfig() {
       errors.push('NOREPLY_EMAIL is required in production');
     }
   }
-  
+
   if (errors.length > 0) {
     logger.error('Configuration validation failed', { errors });
     throw new Error(`Configuration errors: ${errors.join(', ')}`);
   }
-  
+
   logger.info('Configuration validated successfully', {
     nodeEnv: appConfig.server.nodeEnv,
     port: appConfig.server.port,
     automationUrl: getAutomationUrl(),
-    supportEmail: appConfig.urls.supportEmail,
+    supportEmail: appConfig.urls.supportEmail
   });
 }
 
@@ -259,6 +259,6 @@ module.exports = {
   getEnv,
   getEnvNumber,
   getEnvBoolean,
-  validateConfig,
+  validateConfig
 };
 

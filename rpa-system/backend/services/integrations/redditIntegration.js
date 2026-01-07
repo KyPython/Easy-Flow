@@ -18,10 +18,10 @@ class RedditIntegration {
   async searchPosts(keywords, subreddits = [], limit = 25) {
     try {
       const results = [];
-      
+
       // If subreddits specified, search each one; otherwise search all of Reddit
-      const searchTargets = subreddits.length > 0 
-        ? subreddits 
+      const searchTargets = subreddits.length > 0
+        ? subreddits
         : ['all']; // Search all of Reddit
 
       for (const subreddit of searchTargets) {
@@ -98,8 +98,8 @@ class RedditIntegration {
   async getPostComments(postPermalink) {
     try {
       // Remove leading slash if present and ensure .json extension
-      const permalink = postPermalink.startsWith('/') 
-        ? postPermalink.substring(1) 
+      const permalink = postPermalink.startsWith('/')
+        ? postPermalink.substring(1)
         : postPermalink;
       const url = `https://www.reddit.com/${permalink}.json`;
 

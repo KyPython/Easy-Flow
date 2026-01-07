@@ -18,26 +18,26 @@ class GoogleSheetsIntegration {
    */
   async authenticate(credentials) {
     const { accessToken, refreshToken, clientId, clientSecret } = credentials;
-    
+
     this.oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
       'urn:ietf:wg:oauth:2.0:oob'
     );
-    
+
     this.oauth2Client.setCredentials({
       access_token: accessToken,
       refresh_token: refreshToken
     });
-    
+
     // Refresh token if needed
     if (!accessToken && refreshToken) {
       const { credentials: newCredentials } = await this.oauth2Client.refreshAccessToken();
       this.oauth2Client.setCredentials(newCredentials);
     }
-    
+
     this.sheets = google.sheets({ version: 'v4', auth: this.oauth2Client });
-    
+
     logger.info('[GoogleSheetsIntegration] Authenticated successfully');
   }
 
@@ -47,15 +47,15 @@ class GoogleSheetsIntegration {
    */
   async readData(params) {
     const { spreadsheetId, range, sheetName = null } = params;
-    
+
     // Build range: "Sheet1!A1:C10" or just "A1:C10"
     const fullRange = sheetName ? `${sheetName}!${range}` : range;
-    
+
     const response = await this.sheets.spreadsheets.values.get({
       spreadsheetId,
       range: fullRange
     });
-    
+
     return {
       success: true,
       data: response.data.values || [],
@@ -70,10 +70,10 @@ class GoogleSheetsIntegration {
    */
   async writeData(params) {
     const { spreadsheetId, range, values, sheetName = null } = params;
-    
+
     // Build range
     const fullRange = sheetName ? `${sheetName}!${range}` : range;
-    
+
     const response = await this.sheets.spreadsheets.values.update({
       spreadsheetId,
       range: fullRange,
@@ -82,7 +82,7 @@ class GoogleSheetsIntegration {
         values: Array.isArray(values[0]) ? values : [values]
       }
     });
-    
+
     return {
       success: true,
       updatedCells: response.data.updatedCells,
@@ -96,9 +96,9 @@ class GoogleSheetsIntegration {
    */
   async appendData(params) {
     const { spreadsheetId, values, sheetName = null } = params;
-    
+
     const range = sheetName || 'Sheet1';
-    
+
     const response = await this.sheets.spreadsheets.values.append({
       spreadsheetId,
       range,
@@ -108,7 +108,7 @@ class GoogleSheetsIntegration {
         values: Array.isArray(values[0]) ? values : [values]
       }
     });
-    
+
     return {
       success: true,
       updatedCells: response.data.updates?.updatedCells,
@@ -122,10 +122,10 @@ class GoogleSheetsIntegration {
    */
   async compileFeedback(params) {
     const { spreadsheetId, feedback, sheetName = 'Feedback' } = params;
-    
+
     // Ensure sheet exists
     await this._ensureSheet(spreadsheetId, sheetName);
-    
+
     // Prepare data
     const headers = ['Source', 'Timestamp', 'From', 'Subject/Channel', 'Feedback', 'Sentiment'];
     const rows = feedback.map(item => [
@@ -136,13 +136,13 @@ class GoogleSheetsIntegration {
       item.text || item.body || item.message || '',
       this._detectSentiment(item.text || item.body || item.message || '')
     ]);
-    
+
     // Check if headers exist
-    const existingData = await this.readData({ 
-      spreadsheetId, 
-      range: `${sheetName}!A1:F1` 
+    const existingData = await this.readData({
+      spreadsheetId,
+      range: `${sheetName}!A1:F1`
     });
-    
+
     let startRow = 1;
     if (existingData.data.length === 0 || existingData.data[0][0] !== 'Source') {
       // Write headers
@@ -154,13 +154,13 @@ class GoogleSheetsIntegration {
       startRow = 2;
     } else {
       // Find next empty row
-      const allData = await this.readData({ 
-        spreadsheetId, 
-        range: `${sheetName}!A:F` 
+      const allData = await this.readData({
+        spreadsheetId,
+        range: `${sheetName}!A:F`
       });
       startRow = allData.data.length + 1;
     }
-    
+
     // Append feedback rows
     if (rows.length > 0) {
       await this.appendData({
@@ -169,7 +169,7 @@ class GoogleSheetsIntegration {
         sheetName
       });
     }
-    
+
     return {
       success: true,
       rowsAdded: rows.length,
@@ -187,11 +187,11 @@ class GoogleSheetsIntegration {
       const spreadsheet = await this.sheets.spreadsheets.get({
         spreadsheetId
       });
-      
+
       const sheetExists = spreadsheet.data.sheets?.some(
         sheet => sheet.properties.title === sheetName
       );
-      
+
       if (!sheetExists) {
         await this.sheets.spreadsheets.batchUpdate({
           spreadsheetId,
@@ -220,10 +220,10 @@ class GoogleSheetsIntegration {
     const lowerText = text.toLowerCase();
     const positiveWords = ['love', 'great', 'excellent', 'amazing', 'good', 'happy', 'satisfied'];
     const negativeWords = ['hate', 'terrible', 'awful', 'bad', 'disappointed', 'frustrated', 'angry'];
-    
+
     const positiveCount = positiveWords.filter(w => lowerText.includes(w)).length;
     const negativeCount = negativeWords.filter(w => lowerText.includes(w)).length;
-    
+
     if (positiveCount > negativeCount) return 'Positive';
     if (negativeCount > positiveCount) return 'Negative';
     return 'Neutral';

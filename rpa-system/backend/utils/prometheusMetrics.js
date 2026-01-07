@@ -87,14 +87,14 @@ class PrometheusMetricsExporter {
       this.metrics.totalUsers = totalUsersResult.status === 'fulfilled' ? (totalUsersResult.value.count || 0) : 0;
       this.metrics.activeUsers = activeUsersResult.status === 'fulfilled' ? (activeUsersResult.value.count || 0) : 0;
       this.metrics.newSignups = newSignupsResult.status === 'fulfilled' ? (newSignupsResult.value.count || 0) : 0;
-      
+
       if (activatedUsersResult.status === 'fulfilled' && activatedUsersResult.value.data) {
         this.metrics.activatedUsers = new Set(activatedUsersResult.value.data.map(r => r.user_id)).size;
       }
-      
+
       this.metrics.workflowsCreated = workflowsCreatedResult.status === 'fulfilled' ? (workflowsCreatedResult.value.count || 0) : 0;
       this.metrics.workflowsRun = workflowsRunResult.status === 'fulfilled' ? (workflowsRunResult.value.count || 0) : 0;
-      
+
       // Calculate MRR
       if (mrrResult.status === 'fulfilled' && mrrResult.value.data) {
         const planIds = [...new Set(mrrResult.value.data.map(s => s.plan_id))];
@@ -102,31 +102,31 @@ class PrometheusMetricsExporter {
           .from('plans')
           .select('id, price_monthly')
           .in('id', planIds);
-        
+
         const planPricing = {};
         if (plans) {
           plans.forEach(plan => {
             planPricing[plan.id] = plan.price_monthly || 0;
           });
         }
-        
+
         this.metrics.mrr = 0;
         mrrResult.value.data.forEach(sub => {
           this.metrics.mrr += planPricing[sub.plan_id] || 0;
         });
       }
-      
+
       // Calculate conversion rate
       if (this.metrics.newSignups > 0) {
         this.metrics.conversionRate = (this.metrics.activatedUsers / this.metrics.newSignups) * 100;
       }
-      
+
       // Calculate visit to signup rate
       const visits = visitsResult.status === 'fulfilled' ? (visitsResult.value.count || 0) : 0;
       if (visits > 0) {
         this.metrics.visitToSignupRate = (this.metrics.newSignups / visits) * 100;
       }
-      
+
       this.lastUpdate = new Date();
     } catch (error) {
       logger.error('[PrometheusMetrics] Error updating metrics:', error);

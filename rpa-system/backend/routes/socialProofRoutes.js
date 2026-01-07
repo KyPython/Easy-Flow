@@ -13,8 +13,8 @@ if (!supabaseUrl || !supabaseServiceKey) {
   logger.warn('⚠️ Missing Supabase configuration for social proof metrics. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE in .env');
 }
 
-const supabase = supabaseUrl && supabaseServiceKey ? 
-  createClient(supabaseUrl, supabaseServiceKey) : 
+const supabase = supabaseUrl && supabaseServiceKey ?
+  createClient(supabaseUrl, supabaseServiceKey) :
   null;
 
 // Cache for metrics (60 second cache as requested)
@@ -69,13 +69,13 @@ router.get('/social-proof-metrics', async (req, res) => {
       supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true }),
-      
+
       // ✅ FIX: Active workflows from 'automation_tasks' table (correct table name)
       supabase
         .from('automation_tasks')
         .select('id', { count: 'exact', head: true })
         .eq('is_active', true),
-      
+
       // ✅ FIX: Recent events from 'automation_runs' table (last 7 days) - actual automation runs
       supabase
         .from('automation_runs')
@@ -125,24 +125,24 @@ router.get('/social-proof-metrics', async (req, res) => {
         lastUpdated: metrics.lastUpdated
       }
     };
-    
+
     metricsCache = responseData; // Cache the full response format
     cacheTimestamp = now;
 
     logger.info('📊 Social proof metrics updated (from database):', metrics);
-    
+
     // Return in the format expected by frontend: { metrics: { ... } }
     res.json(responseData);
 
   } catch (error) {
     logger.error('❌ Error fetching social proof metrics:', error);
-    
+
     // Try to return cached data if available (real numbers, just not fresh)
     if (metricsCache) {
       logger.info('📊 Returning cached metrics due to error (real data, just not fresh)');
       return res.json(metricsCache);
     }
-    
+
     // If no cache available, return zeros (real data, just empty database)
     const emptyMetrics = {
       metrics: {
@@ -153,7 +153,7 @@ router.get('/social-proof-metrics', async (req, res) => {
         lastUpdated: new Date().toISOString()
       }
     };
-    
+
     res.json(emptyMetrics); // Return 200 to avoid breaking UI, but with real (empty) data
   }
 });

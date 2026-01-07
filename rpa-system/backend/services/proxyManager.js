@@ -1,9 +1,9 @@
 /**
  * Proxy Management Service
- * 
+ *
  * Manages rotating proxy pool with health checks, automatic rotation,
  * and cost optimization for large-scale scraping operations.
- * 
+ *
  * Supports multiple proxy providers:
  * - Bright Data (Luminati)
  * - Oxylabs
@@ -23,16 +23,16 @@ class ProxyManager {
     this.healthStatus = new Map(); // proxy -> { healthy: boolean, lastCheck: Date, failures: number }
     this.usageStats = new Map(); // proxy -> { requests: number, cost: number, lastUsed: Date }
     this.currentIndex = 0;
-    
+
     // Configuration from environment
     this.provider = process.env.PROXY_PROVIDER || 'none'; // 'brightdata', 'oxylabs', 'smartproxy', 'custom', 'none'
     this.proxyConfig = this._loadProxyConfig();
-    
+
     // Health check settings
     this.healthCheckInterval = parseInt(process.env.PROXY_HEALTH_CHECK_INTERVAL || '300000', 10); // 5 minutes
     this.maxFailures = parseInt(process.env.PROXY_MAX_FAILURES || '3', 10);
     this.healthCheckTimeout = parseInt(process.env.PROXY_HEALTH_CHECK_TIMEOUT || '10000', 10); // 10 seconds
-    
+
     // Start health check loop if proxies are configured
     if (this.provider !== 'none' && this.proxyPool.length > 0) {
       this._startHealthCheckLoop();
@@ -186,10 +186,10 @@ class ProxyManager {
 
     const proxy = healthyProxies[this.currentIndex % healthyProxies.length];
     this.currentIndex++;
-    
+
     // Update usage stats
     this._updateUsageStats(proxy);
-    
+
     return proxy;
   }
 
@@ -205,7 +205,7 @@ class ProxyManager {
     if (proxy.provider && ['brightdata', 'oxylabs', 'smartproxy'].includes(proxy.provider)) {
       const { credentials, options } = proxy.config;
       const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
+
       return {
         protocol: 'http',
         host: credentials.endpoint.split(':')[0],
@@ -249,15 +249,15 @@ class ProxyManager {
 
     const key = proxy.host;
     const health = this.healthStatus.get(key) || { healthy: true, failures: 0, lastCheck: new Date() };
-    
+
     health.failures++;
     health.lastCheck = new Date();
-    
+
     if (health.failures >= this.maxFailures) {
       health.healthy = false;
       logger.warn(`Proxy marked as unhealthy: ${key}`, { failures: health.failures });
     }
-    
+
     this.healthStatus.set(key, health);
   }
 
@@ -269,11 +269,11 @@ class ProxyManager {
 
     const key = proxy.host;
     const health = this.healthStatus.get(key) || { healthy: true, failures: 0, lastCheck: new Date() };
-    
+
     health.healthy = true;
     health.failures = 0;
     health.lastCheck = new Date();
-    
+
     this.healthStatus.set(key, health);
   }
 
@@ -309,7 +309,7 @@ class ProxyManager {
       logger.info(`Running health checks on ${this.proxyPool.length} proxies`);
       const checks = this.proxyPool.map(proxy => this._healthCheckProxy(proxy));
       await Promise.allSettled(checks);
-      
+
       const healthyCount = Array.from(this.healthStatus.values()).filter(h => h.healthy !== false).length;
       logger.info(`Health check complete: ${healthyCount}/${this.proxyPool.length} proxies healthy`);
     }
@@ -334,10 +334,10 @@ class ProxyManager {
 
     const key = proxy.host;
     const stats = this.usageStats.get(key) || { requests: 0, cost: 0, lastUsed: new Date() };
-    
+
     stats.requests++;
     stats.lastUsed = new Date();
-    
+
     // Calculate cost based on provider pricing
     // This is a placeholder - actual costs depend on provider pricing model
     if (this.provider === 'brightdata') {
@@ -347,7 +347,7 @@ class ProxyManager {
     } else if (this.provider === 'smartproxy') {
       stats.cost += 0.0005; // Example: $0.0005 per request
     }
-    
+
     this.usageStats.set(key, stats);
   }
 
@@ -355,13 +355,13 @@ class ProxyManager {
    * Get proxy statistics
    */
   getStats() {
-    const healthyCount = this.provider === 'custom' 
+    const healthyCount = this.provider === 'custom'
       ? Array.from(this.healthStatus.values()).filter(h => h.healthy !== false).length
       : 1;
-    
+
     const totalRequests = Array.from(this.usageStats.values())
       .reduce((sum, stats) => sum + stats.requests, 0);
-    
+
     const totalCost = Array.from(this.usageStats.values())
       .reduce((sum, stats) => sum + stats.cost, 0);
 

@@ -22,7 +22,7 @@ class SlackIntegration {
   async authenticate(credentials) {
     this.accessToken = credentials.accessToken || credentials.botToken;
     this.botToken = credentials.botToken || credentials.accessToken;
-    
+
     // Verify token works
     const test = await this.http.post(
       `${this.baseUrl}/auth.test`,
@@ -34,11 +34,11 @@ class SlackIntegration {
         }
       }
     );
-    
+
     if (!test.data.ok) {
       throw new Error(`Slack authentication failed: ${test.data.error}`);
     }
-    
+
     logger.info('[SlackIntegration] Authenticated successfully', {
       team: test.data.team,
       user: test.data.user
@@ -51,7 +51,7 @@ class SlackIntegration {
    */
   async sendMessage(data) {
     const { channel, text, attachments = [], blocks = [] } = data;
-    
+
     const response = await this.http.post(
       `${this.baseUrl}/chat.postMessage`,
       {
@@ -67,11 +67,11 @@ class SlackIntegration {
         }
       }
     );
-    
+
     if (!response.data.ok) {
       throw new Error(`Slack API error: ${response.data.error}`);
     }
-    
+
     return {
       success: true,
       ts: response.data.ts,
@@ -86,15 +86,15 @@ class SlackIntegration {
    */
   async readMessages(params) {
     const { channel, limit = 100, oldest = null, latest = null } = params;
-    
+
     const queryParams = {
       channel: channel.startsWith('#') ? channel.slice(1) : channel,
       limit
     };
-    
+
     if (oldest) queryParams.oldest = oldest;
     if (latest) queryParams.latest = latest;
-    
+
     const response = await this.http.get(
       `${this.baseUrl}/conversations.history`,
       {
@@ -105,11 +105,11 @@ class SlackIntegration {
         }
       }
     );
-    
+
     if (!response.data.ok) {
       throw new Error(`Slack API error: ${response.data.error}`);
     }
-    
+
     return {
       success: true,
       messages: response.data.messages || [],
@@ -135,11 +135,11 @@ class SlackIntegration {
         }
       }
     );
-    
+
     if (!response.data.ok) {
       throw new Error(`Slack API error: ${response.data.error}`);
     }
-    
+
     return {
       success: true,
       channels: response.data.channels || []
@@ -153,18 +153,18 @@ class SlackIntegration {
    */
   async collectFeedback(params) {
     const { channel, keywords = ['feedback', 'suggestion', 'improve', 'issue', 'problem', 'love', 'hate'], since = null } = params;
-    
+
     // Get messages from the last 7 days if since not specified
     const oldest = since || (Math.floor(Date.now() / 1000) - (7 * 24 * 60 * 60)).toString();
-    
+
     const messagesResult = await this.readMessages({ channel, oldest, limit: 200 });
-    
+
     // Filter messages containing feedback keywords
     const feedbackMessages = messagesResult.messages.filter(msg => {
       const text = (msg.text || '').toLowerCase();
       return keywords.some(keyword => text.includes(keyword.toLowerCase()));
     });
-    
+
     // Extract structured feedback
     const feedback = feedbackMessages.map(msg => ({
       id: msg.ts,
@@ -175,7 +175,7 @@ class SlackIntegration {
       reactions: msg.reactions || [],
       threadReplies: msg.reply_count || 0
     }));
-    
+
     return {
       success: true,
       feedback,
@@ -192,7 +192,7 @@ class SlackIntegration {
   async uploadFile(file, settings) {
     const FormData = require('form-data');
     const formData = new FormData();
-    
+
     formData.append('file', file.buffer, {
       filename: file.name,
       contentType: file.mimetype || 'application/octet-stream'
@@ -200,7 +200,7 @@ class SlackIntegration {
     formData.append('channels', settings.channel.startsWith('#') ? settings.channel.slice(1) : settings.channel);
     if (settings.title) formData.append('title', settings.title);
     if (settings.initialComment) formData.append('initial_comment', settings.initialComment);
-    
+
     const response = await this.http.post(
       `${this.baseUrl}/files.upload`,
       formData,
@@ -211,11 +211,11 @@ class SlackIntegration {
         }
       }
     );
-    
+
     if (!response.data.ok) {
       throw new Error(`Slack API error: ${response.data.error}`);
     }
-    
+
     return {
       success: true,
       file: response.data.file,

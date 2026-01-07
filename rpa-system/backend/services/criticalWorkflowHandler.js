@@ -21,7 +21,7 @@ class CriticalWorkflowHandler {
   async executeCriticalWorkflow(execution, workflow) {
     const startTime = Date.now();
     const executionId = execution.id;
-    
+
     try {
       logger.info('Executing critical workflow', {
         execution_id: executionId,
@@ -66,18 +66,18 @@ class CriticalWorkflowHandler {
         error: error.message,
         stack: error.stack
       });
-      
+
       // ✅ Enhanced error handling for critical workflows
       const errorCategory = this.executor._categorizeError(error);
       const userMessage = this.executor._getUserFriendlyMessage(errorCategory, error);
-      
+
       await this.executor.failExecution(executionId, userMessage, null, errorCategory);
-      
+
       // ✅ Attempt automatic recovery for transient failures
       if (this._isTransientError(errorCategory)) {
         await this._scheduleRetry(execution, workflow, errorCategory);
       }
-      
+
       throw error;
     }
   }
@@ -153,18 +153,18 @@ class CriticalWorkflowHandler {
   async _executeWithRecovery(execution, workflow) {
     // Use standard executor but with enhanced monitoring
     const result = await this.executor.executeWorkflow(execution, workflow);
-    
+
     // ✅ If failed, check if we can recover
     if (!result.success && this._isRecoverable(result.errorCategory)) {
       logger.info('Attempting recovery for failed critical workflow', {
         execution_id: execution.id,
         error_category: result.errorCategory
       });
-      
+
       // Store failure for analysis but don't throw
       await this._recordFailureForAnalysis(execution, result);
     }
-    
+
     return result;
   }
 
@@ -173,14 +173,14 @@ class CriticalWorkflowHandler {
    */
   async _validateResults(data, workflow) {
     const errors = [];
-    
+
     // Check if scraping produced data
     if (workflow.workflow_steps?.some(s => s.action_type === 'web_scrape')) {
       if (!data.scraped_data && !data._partial_results?.some(r => r.data?.scraped_data)) {
         errors.push('Web scraping did not produce any data');
       }
     }
-    
+
     // Check if email was queued (if workflow has email step)
     const hasEmailStep = workflow.workflow_steps?.some(
       step => step.step_type === 'action' && step.action_type === 'email'
@@ -190,7 +190,7 @@ class CriticalWorkflowHandler {
         errors.push('Email was not queued successfully');
       }
     }
-    
+
     return {
       valid: errors.length === 0,
       errors
@@ -210,7 +210,7 @@ class CriticalWorkflowHandler {
         .eq('status', 'pending')
         .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString())
         .limit(1);
-      
+
       // If there are very old pending emails, service might be down
       // But we'll still try - email worker might catch up
       return { healthy: true };
@@ -258,7 +258,7 @@ class CriticalWorkflowHandler {
           })
         })
         .eq('id', execution.id);
-      
+
       logger.info('Scheduled automatic retry for critical workflow', {
         execution_id: execution.id,
         retry_at: new Date(Date.now() + 5 * 60 * 1000).toISOString()

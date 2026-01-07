@@ -4,34 +4,34 @@ const { getSupabase } = require('../utils/supabaseClient');
 
 async function cleanupStaleTasks() {
   const supabase = getSupabase();
-  
+
   if (!supabase) {
     console.error('❌ Supabase not configured');
     process.exit(1);
   }
-  
+
   console.log('🔍 Finding stale tasks...\n');
-  
+
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  
+
   const { data: staleTasks, error: findError } = await supabase
     .from('automation_runs')
     .select('id, started_at, result, automation_tasks(name, url)')
     .eq('status', 'running')
     .lt('started_at', oneHourAgo);
-  
+
   if (findError) {
     console.error('❌ Error finding tasks:', findError);
     return;
   }
-  
+
   if (!staleTasks || staleTasks.length === 0) {
     console.log('✅ No stale tasks found. Queue is clean!');
     return;
   }
-  
+
   console.log(`📊 Found ${staleTasks.length} stale task(s)\n`);
-  
+
   staleTasks.forEach((task, i) => {
     const age = Math.round((Date.now() - new Date(task.started_at).getTime()) / 60000);
     console.log(`${i + 1}. Task ID: ${task.id}`);
@@ -39,11 +39,11 @@ async function cleanupStaleTasks() {
     console.log(`   Task: ${task.automation_tasks?.name || 'Unknown'}`);
     console.log(`   URL: ${task.automation_tasks?.url || 'N/A'}\n`);
   });
-  
+
   console.log(`🗑️  Marking ${staleTasks.length} tasks as failed...\n`);
-  
+
   const taskIds = staleTasks.map(t => t.id);
-  
+
   const { data: updated, error: updateError } = await supabase
     .from('automation_runs')
     .update({
@@ -58,17 +58,17 @@ async function cleanupStaleTasks() {
     })
     .in('id', taskIds)
     .select();
-  
+
   if (updateError) {
     console.error('❌ Error updating tasks:', updateError);
     return;
   }
-  
+
   console.log(`✅ Successfully cleaned up ${updated?.length || 0} stale tasks`);
   console.log('\n📋 Summary:');
   console.log(`   - Total stale tasks: ${staleTasks.length}`);
   console.log(`   - Marked as failed: ${updated?.length || 0}`);
-  console.log(`   - Status: Queue cleaned`);
+  console.log('   - Status: Queue cleaned');
   console.log('\n💡 Users can now resubmit these tasks and they will process correctly.');
 }
 

@@ -37,7 +37,7 @@ const fileSystemLimiter = rateLimit({
   message: 'Too many file operations, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => isDevelopment || isTest, // Skip entirely in dev/test
+  skip: () => isDevelopment || isTest // Skip entirely in dev/test
 });
 
 // Feedback storage configuration
@@ -181,11 +181,11 @@ router.get('/checklists', fileSystemLimiter, async (req, res) => {
   try {
     // Check for summary file first
     const summaryFile = path.join(CHECKLISTS_DIR, 'checklists_summary.json');
-    
+
     try {
       const summaryData = await fs.readFile(summaryFile, 'utf-8');
       const summary = JSON.parse(summaryData);
-      
+
       // Update download URLs
       summary.checklists = summary.checklists.map(checklist => ({
         ...checklist,
@@ -252,7 +252,7 @@ router.get('/checklists/download/:filename', fileSystemLimiter, async (req, res)
         code: 'INVALID_FILENAME'
       });
     }
-    
+
     // Ensure filename ends with .pdf
     if (!normalizedFilename.endsWith('.pdf')) {
       logger.warn(`[feedbackRoutes] Invalid file extension: ${normalizedFilename}`);
@@ -261,9 +261,9 @@ router.get('/checklists/download/:filename', fileSystemLimiter, async (req, res)
         code: 'INVALID_FILE_TYPE'
       });
     }
-    
+
     const filePath = path.join(CHECKLISTS_DIR, normalizedFilename);
-    
+
     // ✅ SECURITY: Ensure resolved path is within CHECKLISTS_DIR (prevent directory traversal)
     const resolvedPath = path.resolve(filePath);
     const resolvedDir = path.resolve(CHECKLISTS_DIR);

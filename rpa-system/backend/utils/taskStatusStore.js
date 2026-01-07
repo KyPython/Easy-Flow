@@ -23,12 +23,12 @@ try {
         useRestAPI = false;
       }
     }
-    
+
     // Fallback to traditional Redis TCP connection
     if (!useRestAPI) {
       const Redis = require('redis');
       const redisOptions = {};
-      
+
       if (process.env.REDIS_URL) {
         redisOptions.url = process.env.REDIS_URL;
       } else if (process.env.REDIS_HOST) {
@@ -38,24 +38,24 @@ try {
           redisOptions.password = process.env.REDIS_PASSWORD;
         }
       }
-      
+
       // Enable TLS for Upstash
       if (process.env.REDIS_TLS === 'true') {
         redisOptions.tls = {};
       }
-      
+
       redis = Redis.createClient(redisOptions);
-      
+
       redis.on('error', (err) => {
         logger.error('[TaskStatusStore] Redis TCP connection error:', err);
         redisEnabled = false;
       });
-      
+
       redis.on('connect', () => {
         logger.info('[TaskStatusStore] Connected to Redis via TCP');
         redisEnabled = true;
       });
-      
+
       // Connect to Redis
       redis.connect().catch(err => {
         logger.warn('[TaskStatusStore] Failed to connect to Redis TCP, falling back to in-memory:', err.message);
@@ -77,10 +77,10 @@ const keyPrefix = process.env.REDIS_TASK_PREFIX || 'task_status:';
 // Upstash REST API helper functions
 async function makeRestRequest(method, key, value = null, ttl = null) {
   if (!axios || !useRestAPI) return null;
-  
+
   try {
     let url, config;
-    
+
     if (method === 'setex') {
       // SETEX: POST to /setex/key/ttl with value in body
       url = `${process.env.UPSTASH_REDIS_REST_URL}/setex/${encodeURIComponent(key)}/${ttl || 86400}`;
@@ -104,7 +104,7 @@ async function makeRestRequest(method, key, value = null, ttl = null) {
         }
       };
     } else if (method === 'exists') {
-      // EXISTS: GET to /exists/key  
+      // EXISTS: GET to /exists/key
       url = `${process.env.UPSTASH_REDIS_REST_URL}/exists/${encodeURIComponent(key)}`;
       config = {
         method: 'GET',
@@ -134,7 +134,7 @@ async function makeRestRequest(method, key, value = null, ttl = null) {
         }
       };
     }
-    
+
     const response = await axios(config);
     return response.data;
   } catch (error) {
@@ -149,7 +149,7 @@ const taskStatusStore = {
     if (redisEnabled) {
       try {
         const key = keyPrefix + taskId;
-        
+
         if (useRestAPI) {
           await makeRestRequest('setex', key, value);
           return;
@@ -162,16 +162,16 @@ const taskStatusStore = {
         // Fall through to memory store
       }
     }
-    
+
     // Use memory store
     memoryStore.set(taskId, value);
   },
-  
+
   async get(taskId) {
     if (redisEnabled) {
       try {
         const key = keyPrefix + taskId;
-        
+
         if (useRestAPI) {
           const result = await makeRestRequest('get', key);
           return result && result.result ? JSON.parse(result.result) : undefined;
@@ -184,16 +184,16 @@ const taskStatusStore = {
         // Fall through to memory store
       }
     }
-    
+
     // Use memory store
     return memoryStore.get(taskId);
   },
-  
+
   async has(taskId) {
     if (redisEnabled) {
       try {
         const key = keyPrefix + taskId;
-        
+
         if (useRestAPI) {
           const result = await makeRestRequest('exists', key);
           return result && result.result === 1;
@@ -206,16 +206,16 @@ const taskStatusStore = {
         // Fall through to memory store
       }
     }
-    
+
     // Use memory store
     return memoryStore.has(taskId);
   },
-  
+
   async delete(taskId) {
     if (redisEnabled) {
       try {
         const key = keyPrefix + taskId;
-        
+
         if (useRestAPI) {
           await makeRestRequest('del', key);
           return;
@@ -228,11 +228,11 @@ const taskStatusStore = {
         // Fall through to memory store
       }
     }
-    
+
     // Use memory store
     return memoryStore.delete(taskId);
   },
-  
+
   async clear() {
     if (redisEnabled) {
       try {
@@ -253,15 +253,15 @@ const taskStatusStore = {
         // Fall through to memory store
       }
     }
-    
+
     // Use memory store
     memoryStore.clear();
   },
-  
+
   // Health check
   async getHealth() {
     let redisConnected = false;
-    
+
     if (redisEnabled) {
       if (useRestAPI) {
         // Test REST API connection
@@ -275,7 +275,7 @@ const taskStatusStore = {
         redisConnected = redis.isOpen;
       }
     }
-    
+
     return {
       redisEnabled,
       redisConnected,

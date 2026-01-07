@@ -9,8 +9,8 @@ const { getAutomationTipsEmail } = require('../utils/emailTemplates');
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
-const supabase = supabaseUrl && supabaseServiceKey ? 
-  createClient(supabaseUrl, supabaseServiceKey) : 
+const supabase = supabaseUrl && supabaseServiceKey ?
+  createClient(supabaseUrl, supabaseServiceKey) :
   null;
 
 /**
@@ -23,7 +23,7 @@ router.post('/capture-email', async (req, res) => {
 
     // Validate email
     if (!email || typeof email !== 'string') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Email is required',
         message: 'Please provide a valid email address'
       });
@@ -32,7 +32,7 @@ router.post('/capture-email', async (req, res) => {
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Invalid email format',
         message: 'Please enter a valid email address'
       });
@@ -72,12 +72,12 @@ router.post('/capture-email', async (req, res) => {
 
     // 2. Send automation tips email immediately (or enqueue if SendGrid not configured)
     const emailTemplate = getAutomationTipsEmail({ email: normalizedEmail, source, userPlan });
-    
+
     // Try to send directly via SendGrid if configured
     const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
     const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || process.env.FROM_EMAIL;
     const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || 'EasyFlow';
-    
+
     // Build FROM address with optional name: "Name <email@domain.com>" or just "email@domain.com"
     const getFromAddress = () => {
       if (!SENDGRID_FROM_EMAIL) return '';
@@ -86,7 +86,7 @@ router.post('/capture-email', async (req, res) => {
       }
       return SENDGRID_FROM_EMAIL;
     };
-    
+
     if (SENDGRID_API_KEY && SENDGRID_FROM_EMAIL) {
       // Send email directly via SendGrid
       try {
@@ -208,21 +208,21 @@ router.post('/capture-email', async (req, res) => {
               easyflow_campaign: 'automation_tips'
             }
           };
-          
+
           logger.info(`📊 Creating contact in HubSpot: ${normalizedEmail}`, { source, userPlan });
-          
+
           const hubspotRes = await axios.post(
             'https://api.hubapi.com/crm/v3/objects/contacts',
             hubspotPayload,
             {
               headers: {
                 'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
               },
               timeout: 10000
             }
           );
-          
+
           logger.info(`✅ Successfully created contact ${normalizedEmail} in HubSpot. Contact ID: ${hubspotRes.data?.id}`);
 
         } catch (hubspotError) {
@@ -249,21 +249,21 @@ router.post('/capture-email', async (req, res) => {
                     last_contact_date: new Date().toISOString()
                   }
                 };
-                
+
                 logger.info(`📊 Updating existing contact in HubSpot: ${contactId}`);
-                
+
                 await axios.patch(
                   `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
                   updatePayload,
                   {
                     headers: {
                       'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
-                      'Content-Type': 'application/json',
+                      'Content-Type': 'application/json'
                     },
                     timeout: 10000
                   }
                 );
-                
+
                 logger.info(`✅ Successfully updated contact ${normalizedEmail} in HubSpot`);
               } else {
                 logger.warn(`⚠️ Failed to parse contact ID from HubSpot error: ${message}`);
@@ -285,18 +285,18 @@ router.post('/capture-email', async (req, res) => {
     }
 
     // Always return success to avoid breaking the UI
-    res.status(200).json({ 
-      success: true, 
-      message: 'Email captured successfully. Check your inbox for automation tips!' 
+    res.status(200).json({
+      success: true,
+      message: 'Email captured successfully. Check your inbox for automation tips!'
     });
 
   } catch (error) {
     logger.error('❌ Error in email capture endpoint:', error);
-    
+
     // Return success even on error to avoid breaking user experience
     // Log the error for monitoring
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       message: 'Email captured successfully',
       warning: 'Email may not have been persisted'
     });
@@ -345,7 +345,7 @@ router.get('/unsubscribe', async (req, res) => {
         // Update email_captures table
         const { error: updateError } = await supabase
           .from('email_captures')
-          .update({ 
+          .update({
             unsubscribed: true,
             unsubscribed_at: new Date().toISOString()
           })
@@ -366,7 +366,7 @@ router.get('/unsubscribe', async (req, res) => {
               {
                 headers: {
                   'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
-                  'Content-Type': 'application/json',
+                  'Content-Type': 'application/json'
                 },
                 timeout: 10000
               }
@@ -385,7 +385,7 @@ router.get('/unsubscribe', async (req, res) => {
                 {
                   headers: {
                     'Authorization': `Bearer ${process.env.HUBSPOT_API_KEY}`,
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                   },
                   timeout: 10000
                 }
@@ -405,7 +405,7 @@ router.get('/unsubscribe', async (req, res) => {
 
     // Return success page
     const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || 'https://www.tryeasyflow.com';
-    
+
     res.status(200).send(`
       <!DOCTYPE html>
       <html>
@@ -463,7 +463,7 @@ router.get('/unsubscribe', async (req, res) => {
 
   } catch (error) {
     logger.error('❌ Error in unsubscribe endpoint:', error);
-    
+
     res.status(500).send(`
       <!DOCTYPE html>
       <html>
