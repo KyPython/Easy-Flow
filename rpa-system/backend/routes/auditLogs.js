@@ -106,19 +106,11 @@ router.get('/user', requireFeature('audit_logs'), async (req, res) => {
     }
 
     logger.debug('Plan retention policy applied', {
-        business: {
-          user: { user_id: userId },
-          operation: { retention_days: retentionDays, plan_name: planData?.plan_name }
-        }
-      });
-    } catch (e) {
-      logger.warn('Could not fetch plan retention days, using default', e, {
-        business: {
-          user: { user_id: userId },
-          operation: { fallback_retention_days: retentionDays }
-        }
-      });
-    }
+      business: {
+        user: { user_id: userId },
+        operation: { retention_days: retentionDays }
+      }
+    });
     const retentionStart = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 
     const {

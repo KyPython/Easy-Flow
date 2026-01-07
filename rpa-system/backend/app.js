@@ -3366,9 +3366,9 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
 
     // Send task completion notification
     try {
-      const notification = NotificationTemplates.taskCompleted(taskData.name);
+      const notification = NotificationTemplates.taskCompleted(task.name || taskId);
       await firebaseNotificationService.sendAndStoreNotification(req.user.id, notification);
-      logger.info(`🔔 Task completion notification sent for task ${taskData.name} to user ${req.user.id}`);
+      logger.info(`🔔 Task completion notification sent for task ${task.name || taskId} to user ${req.user.id}`);
     } catch (notificationError) {
       logger.error('🔔 Failed to send task completion notification:', notificationError.message);
     }
