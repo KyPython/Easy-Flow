@@ -86,7 +86,7 @@ class ProxyManager {
         };
         break;
 
-      case 'custom':
+      case 'custom': {
         // Load custom proxy list from environment or file
         const customProxies = process.env.CUSTOM_PROXY_LIST;
         if (customProxies) {
@@ -103,6 +103,7 @@ class ProxyManager {
           });
         }
         break;
+      }
 
       default:
         logger.info('No proxy provider configured - scraping will use direct connections');

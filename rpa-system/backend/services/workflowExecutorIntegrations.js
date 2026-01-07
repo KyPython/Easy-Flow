@@ -36,7 +36,7 @@ async function executeSlackAction(actionType, config, inputData, execution) {
 
   try {
     switch (actionType) {
-      case 'slack_send':
+      case 'slack_send': {
         const sendResult = await slack.sendMessage({
           channel: config.channel,
           text: config.message,
@@ -48,8 +48,9 @@ async function executeSlackAction(actionType, config, inputData, execution) {
           data: sendResult,
           message: `Message sent to ${config.channel}`
         };
+      }
 
-      case 'slack_read':
+      case 'slack_read': {
         const readResult = await slack.readMessages({
           channel: config.channel,
           limit: config.limit || 100,
@@ -61,8 +62,9 @@ async function executeSlackAction(actionType, config, inputData, execution) {
           data: readResult,
           message: `Read ${readResult.messages.length} messages from ${config.channel}`
         };
+      }
 
-      case 'slack_collect_feedback':
+      case 'slack_collect_feedback': {
         const feedbackResult = await slack.collectFeedback({
           channel: config.channel,
           keywords: config.keywords || ['feedback', 'suggestion'],
@@ -73,6 +75,7 @@ async function executeSlackAction(actionType, config, inputData, execution) {
           data: feedbackResult,
           message: `Collected ${feedbackResult.count} feedback items from ${config.channel}`
         };
+      }
 
       default:
         throw new Error(`Unknown Slack action: ${actionType}`);
@@ -109,7 +112,7 @@ async function executeGmailAction(actionType, config, inputData, execution) {
 
   try {
     switch (actionType) {
-      case 'gmail_send':
+      case 'gmail_send': {
         const sendResult = await gmail.sendEmail({
           to: config.to,
           subject: config.subject,
@@ -122,8 +125,9 @@ async function executeGmailAction(actionType, config, inputData, execution) {
           data: sendResult,
           message: `Email sent to ${Array.isArray(config.to) ? config.to.join(', ') : config.to}`
         };
+      }
 
-      case 'gmail_read':
+      case 'gmail_read': {
         const readResult = await gmail.readEmails({
           query: config.query,
           maxResults: config.maxResults || 10,
@@ -134,8 +138,9 @@ async function executeGmailAction(actionType, config, inputData, execution) {
           data: readResult,
           message: `Read ${readResult.count} emails`
         };
+      }
 
-      case 'gmail_collect_feedback':
+      case 'gmail_collect_feedback': {
         const feedbackResult = await gmail.collectFeedback({
           keywords: config.keywords || ['feedback', 'suggestion'],
           since: config.since,
@@ -146,6 +151,7 @@ async function executeGmailAction(actionType, config, inputData, execution) {
           data: feedbackResult,
           message: `Collected ${feedbackResult.count} feedback emails`
         };
+      }
 
       default:
         throw new Error(`Unknown Gmail action: ${actionType}`);
@@ -182,7 +188,7 @@ async function executeSheetsAction(actionType, config, inputData, execution) {
 
   try {
     switch (actionType) {
-      case 'sheets_read':
+      case 'sheets_read': {
         const readResult = await sheets.readData({
           spreadsheetId: config.spreadsheetId,
           range: config.range,
@@ -193,8 +199,9 @@ async function executeSheetsAction(actionType, config, inputData, execution) {
           data: readResult,
           message: `Read ${readResult.data.length} rows from sheet`
         };
+      }
 
-      case 'sheets_write':
+      case 'sheets_write': {
         const writeResult = await sheets.writeData({
           spreadsheetId: config.spreadsheetId,
           range: config.range,
@@ -206,8 +213,9 @@ async function executeSheetsAction(actionType, config, inputData, execution) {
           data: writeResult,
           message: 'Wrote data to sheet'
         };
+      }
 
-      case 'sheets_compile_feedback':
+      case 'sheets_compile_feedback': {
         // Get feedback from inputData or previous steps
         const feedback = config.feedback || inputData.feedback || [];
         const compileResult = await sheets.compileFeedback({
@@ -220,6 +228,7 @@ async function executeSheetsAction(actionType, config, inputData, execution) {
           data: compileResult,
           message: `Compiled ${feedback.length} feedback items to sheet`
         };
+      }
 
       default:
         throw new Error(`Unknown Sheets action: ${actionType}`);
@@ -256,15 +265,16 @@ async function executeMeetAction(actionType, config, inputData, execution) {
 
   try {
     switch (actionType) {
-      case 'meet_transcribe':
+      case 'meet_transcribe': {
         const transcribeResult = await meet.transcribeRecording(config.fileId);
         return {
           success: true,
           data: transcribeResult,
           message: `Transcribed recording: ${transcribeResult.fileName}`
         };
+      }
 
-      case 'meet_process_recordings':
+      case 'meet_process_recordings': {
         const processResult = await meet.processRecordings({
           since: config.since,
           extractInsights: config.extractInsights || false
@@ -274,6 +284,7 @@ async function executeMeetAction(actionType, config, inputData, execution) {
           data: processResult,
           message: `Processed ${processResult.processed} recordings`
         };
+      }
 
       default:
         throw new Error(`Unknown Meet action: ${actionType}`);
@@ -409,7 +420,7 @@ async function executeMultiChannelAction(config, inputData, execution) {
 async function executeRedditAction(actionType, config, inputData, execution) {
   try {
     switch (actionType) {
-      case 'reddit_monitor':
+      case 'reddit_monitor': {
         const monitorResult = await RedditIntegration.searchPosts({
           keywords: config.keywords || [],
           subreddits: config.subreddits || [],
@@ -446,8 +457,9 @@ async function executeRedditAction(actionType, config, inputData, execution) {
           },
           message: `Found ${postsWithComments.length} Reddit posts matching keywords`
         };
+      }
 
-      case 'reddit_analyze':
+      case 'reddit_analyze': {
         const content = config.content || inputData.content || inputData;
         if (!content) {
           throw new Error('Content is required for Reddit analysis');
@@ -462,8 +474,9 @@ async function executeRedditAction(actionType, config, inputData, execution) {
           data: analyzeResult.analysis,
           message: `Analyzed content: ${analyzeResult.analysis.sentiment} sentiment, ${analyzeResult.analysis.topic} topic`
         };
+      }
 
-      case 'reddit_generate_insights':
+      case 'reddit_generate_insights': {
         const analyses = config.analyses || inputData.analyses || [];
         if (!Array.isArray(analyses) || analyses.length === 0) {
           throw new Error('Analyses array is required for insight generation');
@@ -482,8 +495,9 @@ async function executeRedditAction(actionType, config, inputData, execution) {
           summary: insightsResult.summary,
           message: `Generated insights for ${Object.keys(insightsResult.insights).length} teams`
         };
+      }
 
-      case 'reddit_generate_blog_topics':
+      case 'reddit_generate_blog_topics': {
         const insights = config.insights || inputData.insights || {};
         if (!insights || Object.keys(insights).length === 0) {
           throw new Error('Insights object is required for blog topic generation');
@@ -501,6 +515,7 @@ async function executeRedditAction(actionType, config, inputData, execution) {
           },
           message: `Generated ${topicsResult.topics.length} blog topic suggestions`
         };
+      }
 
       default:
         throw new Error(`Unknown Reddit action: ${actionType}`);

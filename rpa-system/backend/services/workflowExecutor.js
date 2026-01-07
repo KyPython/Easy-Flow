@@ -201,7 +201,9 @@ class WorkflowExecutor {
         }
       } finally {
         // best-effort: abort controller on failure path if still active
-        try { controller?.abort?.(); } catch (_) {}
+        try { controller?.abort?.(); } catch (_) {
+          // Best-effort: ignore abort errors if controller already aborted
+        }
       }
     }
     throw lastErr || new Error('Unknown backoff error');
@@ -544,6 +546,7 @@ class WorkflowExecutor {
 
     // ✅ PHASE 3: If resuming, get data from previous execution
     let resumeData = null;
+    let currentInputData = { ...inputData }; // Create mutable copy of input data
     if (resumeFromExecutionId) {
       try {
         const { data: previousExecution } = await this.supabase
@@ -562,7 +565,7 @@ class WorkflowExecutor {
           if (successfulSteps.length > 0) {
             resumeData = successfulSteps[0].output_data || previousExecution.output_data;
             // Merge with provided input data
-            inputData = { ...resumeData, ...inputData };
+            currentInputData = { ...resumeData, ...currentInputData };
           }
 
           // Get partial results from metadata if available
@@ -575,7 +578,9 @@ class WorkflowExecutor {
                 inputData._resumed_from = resumeFromExecutionId;
                 inputData._partial_results = metadata.partial_results;
               }
-            } catch (_) {}
+            } catch (_) {
+              // Best-effort: ignore metadata parsing errors
+            }
           }
         }
       } catch (resumeError) {
@@ -751,7 +756,7 @@ class WorkflowExecutor {
           status: scheduledExecution && scheduledExecution.executeAt > new Date() ? 'queued' : 'running',
           started_at: scheduledExecution && scheduledExecution.executeAt > new Date() ? null : new Date().toISOString(),
           scheduled_at: scheduledExecution?.executeAt?.toISOString() || null,
-          input_data: inputData,
+          input_data: currentInputData,
           triggered_by: triggeredBy,
           trigger_data: triggerData,
           steps_total: workflow.workflow_steps?.length || 0,
@@ -1607,7 +1612,7 @@ class WorkflowExecutor {
                 workflowName: workflow.name,
                 steps: workflow.steps || [],
                 executionTime: duration,
-                inputData: inputData || {},
+                inputData: currentData || {},
                 resultData: outputData || {},
                 userId: execution.user_id
               });
@@ -2176,6 +2181,7 @@ class WorkflowExecutor {
 
       // Track step start time for duration
       const stepStartTime = Date.now();
+      const scrapeStartTime = stepStartTime; // Alias for compatibility
 
       // ✅ PRIORITY 2: Retry scraping with configurable exponential backoff
       const { config } = require('../utils/appConfig');
@@ -2185,6 +2191,8 @@ class WorkflowExecutor {
       let lastError;
       let attempts = 0;
       let scrapedData = null;
+      let connectionTime = 0;
+      let scrapeDuration = 0;
 
       // Update status to show connection
       if (execution?.id) {
@@ -2235,7 +2243,8 @@ class WorkflowExecutor {
           });
 
           scrapedData = response.data;
-          const scrapeDuration = (Date.now() - scrapeStartTime) / 1000;
+          scrapeDuration = (Date.now() - scrapeStartTime) / 1000;
+          connectionTime = ((Date.now() - stepStartTime) - (scrapeDuration * 1000)) / 1000;
 
           // ✅ OBSERVABILITY: Log successful scraping with metrics
           this.logger.info(`[WorkflowExecutor] ✅ Scraping succeeded on attempt ${attempt}`, {
@@ -2407,8 +2416,8 @@ class WorkflowExecutor {
           stepDetails: stepDetails || 'Scraping completed',
           duration: durationDisplay,
           recordsCount,
-          connectionTime: (connectionTime / 1000).toFixed(1),
-          scrapeTime: scrapeDuration.toFixed(1)
+          connectionTime: connectionTime > 0 ? connectionTime.toFixed(1) : '0.0',
+          scrapeTime: scrapeDuration > 0 ? scrapeDuration.toFixed(1) : stepDuration.toFixed(1)
         }
       };
 
@@ -2490,7 +2499,9 @@ class WorkflowExecutor {
       const backoff = await this._withBackoff(async ({ controller }) => {
         const cancelTimer = setInterval(async () => {
           if (execution && await this._isCancelled(execution.id)) {
-            try { controller?.abort?.(); } catch (_) {}
+            try { controller?.abort?.(); } catch (_) {
+          // Best-effort: ignore abort errors if controller already aborted
+        }
           }
         }, 500);
         try {
@@ -2666,7 +2677,9 @@ class WorkflowExecutor {
 
           if (dbError) {
             // best-effort cleanup to keep idempotency before retry
-            try { await this.supabase.storage.from('user-files').remove([storagePath]); } catch (_) {}
+            try { await this.supabase.storage.from('user-files').remove([storagePath]); } catch (_) {
+              // Best-effort: ignore cleanup errors during error handling
+            }
             const e = new Error(`Failed to save file metadata: ${dbError.message}`);
             e._db = true;
             throw e;
@@ -3087,7 +3100,9 @@ class WorkflowExecutor {
       const backoff = await this._withBackoff(async ({ controller }) => {
         const cancelTimer = setInterval(async () => {
           if (execution && await this._isCancelled(execution.id)) {
-            try { controller?.abort?.(); } catch (_) {}
+            try { controller?.abort?.(); } catch (_) {
+          // Best-effort: ignore abort errors if controller already aborted
+        }
           }
         }, 500);
 
@@ -3218,7 +3233,9 @@ class WorkflowExecutor {
       const backoff = await this._withBackoff(async ({ controller }) => {
         const cancelTimer = setInterval(async () => {
           if (execution && await this._isCancelled(execution.id)) {
-            try { controller?.abort?.(); } catch (_) {}
+            try { controller?.abort?.(); } catch (_) {
+          // Best-effort: ignore abort errors if controller already aborted
+        }
           }
         }, 500);
 
@@ -3656,7 +3673,9 @@ class WorkflowExecutor {
       try {
         const duration = Math.floor((Date.now() - new Date(execution.started_at).getTime()) / 1000);
         updateData.duration_seconds = duration;
-      } catch (_) {}
+      } catch (_) {
+        // Best-effort: ignore duration calculation errors
+      }
     }
 
     // ✅ FIX: Only set error_step_id if it's a valid UUID that exists in workflow_steps
@@ -3753,9 +3772,10 @@ class WorkflowExecutor {
         return array.length;
       case 'sum':
         return array.reduce((sum, item) => sum + (item[operation.field] || 0), 0);
-      case 'average':
+      case 'average': {
         const sum = array.reduce((sum, item) => sum + (item[operation.field] || 0), 0);
         return array.length > 0 ? sum / array.length : 0;
+      }
       default:
         return array;
     }

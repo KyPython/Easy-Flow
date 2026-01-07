@@ -2050,7 +2050,9 @@ app.post('/api/auth/login', async (req, res) => {
       reason: 'exception',
       error: error.message,
       email: email ? email.substring(0, 3) + '***' : 'missing'
-    }, req).catch(() => {}); // Don't fail if audit logging fails
+    }, req).catch(() => {
+      // Best-effort: Don't fail if audit logging fails
+    });
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -4687,7 +4689,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
     const inserts = [];
 
     switch (campaign) {
-      case 'welcome':
+      case 'welcome': {
         inserts.push({
           profile_id: req.user.id,
           to_email: targetEmail,
@@ -4708,6 +4710,7 @@ app.post('/api/trigger-campaign', async (req, res) => {
         });
         logger.info(`[trigger-campaign] Enqueuing welcome and followup emails for ${targetEmail}`, inserts);
         break;
+      }
       default:
         // Handle other campaigns if you add them
         logger.info(`[trigger-campaign] Unknown campaign: ${campaign}`);
