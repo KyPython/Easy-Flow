@@ -1,5 +1,5 @@
 const { getSupabase } = require('../utils/supabaseClient');
-const { logger, createLogger } = require('../utils/logger');
+const { createLogger } = require('../utils/logger');
 const { firebaseNotificationService } = require('../utils/firebaseAdmin');
 
 class SubscriptionMonitoringService {
