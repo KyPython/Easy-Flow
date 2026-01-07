@@ -43,6 +43,8 @@
     "test": "react-app-rewired test",
     "eject": "react-scripts eject",
     "postinstall": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('child_process').execSync('npx patch-package', { stdio: 'inherit' }); } catch(e) { process.exit(0); } }\"",
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix",
     "accessibility:test": "npm run build && npx serve -s build -l 3000 & sleep 5 && npx pa11y-ci --config .pa11yci.json",
     "accessibility:axe": "npm run build && npx serve -s build -l 3000 & sleep 5 && npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --save results/axe-report.json",
     "accessibility:all": "npm run accessibility:test && npm run accessibility:axe"
