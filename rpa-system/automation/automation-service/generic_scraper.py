@@ -123,9 +123,7 @@ def scrape_web_page(url, task_data=None):
 
             import requests
             response = requests.get(url, timeout=10)
-            if response.headers.get(
-    'content-type',
-     '').startswith('application/json'):
+            if response.headers.get('content-type', '').startswith('application/json'):
                 data = response.json()
 
                 # Apply filters if specified

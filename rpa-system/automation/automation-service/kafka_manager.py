@@ -58,12 +58,12 @@ class KafkaManager:
         logger.info(f"📤 Result topic: {self.result_topic}")
 
     async def initialize(self):
-    """Initialize Kafka connections with retry logic"""
-    if not self.kafka_enabled:
-    logger.info("🔇 Kafka disabled - running in standalone mode")
-    return True
+        """Initialize Kafka connections with retry logic"""
+        if not self.kafka_enabled:
+            logger.info("🔇 Kafka disabled - running in standalone mode")
+            return True
 
-    logger.info("🚀 Initializing Kafka connections...")
+        logger.info("🚀 Initializing Kafka connections...")
 
     # Initialize producer
     if await self._initialize_producer():
@@ -84,8 +84,8 @@ class KafkaManager:
     return True
 
     def _calculate_backoff_delay(self, attempt: int) -> float:
-    """Calculate exponential backoff delay"""
-    delay = self.initial_retry_delay * (self.retry_multiplier ** attempt)
+        """Calculate exponential backoff delay"""
+        delay = self.initial_retry_delay * (self.retry_multiplier ** attempt)
     return min(delay, self.max_retry_delay)
 
     async def _initialize_producer(self) -> bool:
@@ -168,8 +168,8 @@ class KafkaManager:
     return False
 
     def register_message_handler(self, task_type: str, handler: Callable):
-    """Register a message handler for a specific task type"""
-    self.message_handlers[task_type] = handler
+        """Register a message handler for a specific task type"""
+        self.message_handlers[task_type] = handler
     logger.info(f"📝 Registered handler for task type: {task_type}")
 
     async def start_consumer_loop(self):
