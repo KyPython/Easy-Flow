@@ -1203,7 +1203,7 @@ try {
  const { WorkflowExecutor } = require('./services/workflowExecutor');
  const { getWorkflowQueue } = require('./services/workflowQueue');
  const { STATES, WorkflowStateMachine } = require('./services/workflowStateMachine');
- 
+
  // ✅ NEW: REST-compliant endpoint - POST /api/workflows/:id/executions
  app.post('/api/workflows/:id/executions', authMiddleware, requireWorkflowRun, apiLimiter, async (req, res) => {
  // ✅ CRITICAL DEFENSIVE: Block workflow execution if this request came from a non-execution endpoint
@@ -1252,7 +1252,7 @@ try {
  try {
  const userId = req.user?.id;
  if (!userId) return res.status(401).json({ error: 'Authentication required' });
-     
+
      const { id: workflowId } = req.params;
      const { inputData = {}, triggeredBy = 'manual', triggerData = {}, executionMode } = req.body || {};
 
@@ -1305,10 +1305,10 @@ try {
        return res.status(500).json({ error: 'Failed to create execution' });
      }
 
-     logger.info('[API] created execution, enqueueing', { 
-       execution_id: executionId, 
-       workflow_id: workflowId, 
-       user_id: userId 
+     logger.info('[API] created execution, enqueueing', {
+       execution_id: executionId,
+       workflow_id: workflowId,
+       user_id: userId
      });
 
      // Enqueue execution job
@@ -1348,9 +1348,9 @@ try {
          })
          .eq('id', executionId);
 
-       logger.error('[API] failed to enqueue execution:', { 
-         execution_id: executionId, 
-         error: queueError.message 
+       logger.error('[API] failed to enqueue execution:', {
+         execution_id: executionId,
+         error: queueError.message
        });
        return res.status(500).json({ error: 'Failed to queue execution for processing' });
      }
@@ -1375,7 +1375,7 @@ try {
    // Reuse new endpoint logic
    const userId = req.user?.id;
    if (!userId) return res.status(401).json({ error: 'Authentication required' });
-   
+
    const { id: workflowId } = req.params;
    const { inputData = {}, triggeredBy = 'manual', triggerData = {}, executionMode } = req.body || {};
 
@@ -1458,9 +1458,9 @@ try {
        })
        .eq('id', executionId);
 
-     logger.error('[API] failed to enqueue execution:', { 
-       execution_id: executionId, 
-       error: queueError.message 
+     logger.error('[API] failed to enqueue execution:', {
+       execution_id: executionId,
+       error: queueError.message
      });
      return res.status(500).json({ error: 'Failed to queue execution for processing' });
    }
@@ -1703,11 +1703,11 @@ app.get('/health', async (_req, res) => {
  }
 
  // Overall status
- health.status = allHealthy ? 'healthy' : 
+ health.status = allHealthy ? 'healthy' :
                  (health.checks.database?.status === 'healthy' ? 'degraded' : 'unhealthy');
 
  // Return appropriate status code
- const statusCode = allHealthy ? 200 : 
+ const statusCode = allHealthy ? 200 :
                     (health.checks.database?.status === 'healthy' ? 200 : 503);
 
  res.status(statusCode).json(health);
@@ -3446,7 +3446,7 @@ app.post('/api/notifications', authMiddleware, requireFeature('priority_support'
   req.url = '/api/notifications/create';
   // Call handler directly (extract to shared function in future)
   // For now, reuse by calling the route handler
-  return require('./routes').createNotification?.(req, res) || 
+  return require('./routes').createNotification?.(req, res) ||
          (await import('./routes/notificationRoutes')).createNotification(req, res);
 });
 
@@ -3785,8 +3785,8 @@ app.post('/api/tasks/:id/executions', authMiddleware, requireAutomationRun, asyn
     // 2. Merge override params if provided
     const overrideParams = req.body?.override_params || {};
     const taskUrl = overrideParams.url || taskData.url;
-    const taskParams = taskData.parameters ? 
-      (typeof taskData.parameters === 'string' ? JSON.parse(taskData.parameters) : taskData.parameters) : 
+    const taskParams = taskData.parameters ?
+      (typeof taskData.parameters === 'string' ? JSON.parse(taskData.parameters) : taskData.parameters) :
       {};
     const mergedParams = { ...taskParams, ...overrideParams };
 
@@ -3841,10 +3841,10 @@ app.post('/api/tasks/:id/executions', authMiddleware, requireAutomationRun, asyn
         parameters: mergedParams
       });
 
-      logger.info('[API] Task execution queued', { 
-        execution_id: executionId, 
-        task_id: taskId, 
-        user_id: userId 
+      logger.info('[API] Task execution queued', {
+        execution_id: executionId,
+        task_id: taskId,
+        user_id: userId
       });
 
       // ✅ PHASE 2: Return 202 Accepted with Location header
@@ -3870,9 +3870,9 @@ app.post('/api/tasks/:id/executions', authMiddleware, requireAutomationRun, asyn
         })
         .eq('id', executionId);
 
-      logger.error('[API] Failed to queue task execution:', { 
-        execution_id: executionId, 
-        error: queueError.message 
+      logger.error('[API] Failed to queue task execution:', {
+        execution_id: executionId,
+        error: queueError.message
       });
       return res.status(500).json({ error: 'Failed to queue execution for processing' });
     }
@@ -4684,7 +4684,7 @@ app.get('/api/schedules', authMiddleware, requireFeature('scheduled_automations'
 app.post('/api/events', async (req, res) => {
   // Delegate to track-event handler (same logic, better naming)
   req.url = '/api/track-event';
-  const handler = app._router?.stack?.find(layer => 
+  const handler = app._router?.stack?.find(layer =>
     layer.route && layer.route.path === '/api/track-event' && layer.route.methods.post
   );
   if (handler) {
@@ -4796,7 +4796,7 @@ app.post('/api/track-event', trackEventDeprecation, async (req, res) => {
  })();
 
  // ✅ PHASE 2: Return 201 Created for event resource creation
- return res.status(201).json({ 
+ return res.status(201).json({
    ok: true,
    event: {
      name: finalEventName,
@@ -6048,7 +6048,7 @@ app.post('/api/automation/executions', authMiddleware, requireAutomationRun, aut
     // Use shared AutomationExecutionService
     const { getAutomationExecutionService } = require('./services/automationExecutionService');
     const executionService = getAutomationExecutionService();
-    
+
     const result = await executionService.executeAutomationTask({
       taskData: req.body,
       userId,
@@ -6058,7 +6058,7 @@ app.post('/api/automation/executions', authMiddleware, requireAutomationRun, aut
     // ✅ PHASE 2: Return 202 Accepted with Location header
     const executionId = result.execution.id;
     res.setHeader('Location', `/api/executions/${executionId}`);
-    
+
     return res.status(202).json({
       execution: result.execution,
       message: 'Automation execution accepted and queued',
@@ -6068,12 +6068,12 @@ app.post('/api/automation/executions', authMiddleware, requireAutomationRun, aut
     });
   } catch (error) {
     logger.error('[POST /api/automation/executions] error:', error.message);
-    
+
     // Return appropriate error status based on error type
     if (error.message.includes('required') || error.message.includes('Invalid')) {
       return res.status(400).json({ error: error.message });
     }
-    
+
     return res.status(500).json({
       error: 'Failed to queue automation execution',
  details: process.env.NODE_ENV !== 'production' ? error.message : undefined

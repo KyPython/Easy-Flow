@@ -1,10 +1,10 @@
 /**
  * Workflow Checkpoint Service
- * 
+ *
  * Manages checkpoint creation, validation, and resume capability for workflow executions.
  * Designed for CP consistency: ensures checkpoints are complete and consistent before
  * allowing execution to proceed, even if it means temporary unavailability.
- * 
+ *
  * Architecture Principles:
  * - Statelessness: Checkpoints enable stateless API (202 Accepted) by storing complete state
  * - CP Consistency: Prioritizes Consistency and Partition Tolerance over Availability
@@ -243,7 +243,7 @@ class WorkflowCheckpointService {
    */
   _reconstructCheckpoint(stepExecution) {
     const workflowStep = stepExecution.workflow_steps || {};
-    
+
     return {
       checkpoint_version: this.checkpointVersion,
       workflow_execution_id: stepExecution.workflow_execution_id,
@@ -288,7 +288,7 @@ class WorkflowCheckpointService {
    */
   async resumeFromCheckpoint(workflowExecutionId) {
     const checkpoint = await this.getLatestCheckpoint(workflowExecutionId);
-    
+
     if (!checkpoint) {
       return {
         canResume: false,

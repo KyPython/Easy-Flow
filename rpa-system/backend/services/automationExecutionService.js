@@ -1,6 +1,6 @@
 /**
  * Automation Execution Service
- * 
+ *
  * Shared service for executing automation tasks via REST endpoints.
  * Used by both /api/automation/execute and /api/automation/executions endpoints.
  */
