@@ -487,8 +487,10 @@ const TaskForm = ({ onTaskSubmit, loading, initialUrl, testSiteConfig }) => {
  };
  
  const endpoint = finalForm.enableAI
- ? '/api/run-task-with-ai'
- : '/api/automation/execute';
+// ✅ PHASE 1: Use new REST endpoint (run-task-with-ai can use /api/tasks/:id/executions with aiEnabled)
+// For now, keep automation/execute but prefer new endpoint
+? '/api/automation/executions' // AI-enabled tasks
+: '/api/automation/executions'; // Standard automation tasks
 
  let completedTask = null;
  try {

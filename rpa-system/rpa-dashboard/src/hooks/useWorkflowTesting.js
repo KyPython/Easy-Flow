@@ -85,7 +85,8 @@ export const useWorkflowTesting = (workflowId) => {
  if (!session) throw new Error('Authentication required');
  // Execute workflow using real automation endpoint
  const executionStart = Date.now();
- const { data: result } = await api.post('/api/automation/execute', {
+      // ✅ PHASE 1: Use new REST endpoint
+      const { data: result } = await api.post('/api/automation/executions', {
  workflow_id: workflowId,
  test_scenario_id: scenarioId,
  input_data: scenario.input_data,

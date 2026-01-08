@@ -12,7 +12,7 @@ class WorkflowQueue {
   constructor() {
     this.redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL || 'redis://localhost:6379';
     this.queueName = 'workflow-executions';
-
+    
     // Create Bull queue
     this.queue = new Bull(this.queueName, {
       redis: {
@@ -121,7 +121,7 @@ class WorkflowQueue {
 
     try {
       const job = await this.queue.add(jobData, jobOptions);
-
+      
       logger.info('Workflow execution enqueued', {
         job_id: job.id,
         execution_id: executionId,
@@ -194,7 +194,7 @@ class WorkflowQueue {
       }
 
       await job.remove();
-
+      
       logger.info('Workflow job cancelled', {
         job_id: jobId,
         execution_id: job.data?.executionId
@@ -247,7 +247,7 @@ class WorkflowQueue {
     try {
       const cleaned = await this.queue.clean(maxAge, 1000, 'completed');
       const cleanedFailed = await this.queue.clean(maxAge, 1000, 'failed');
-
+      
       logger.info('Cleaned old jobs', {
         completed: cleaned.length,
         failed: cleanedFailed.length

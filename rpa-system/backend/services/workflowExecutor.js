@@ -1873,19 +1873,19 @@ class WorkflowExecutor {
  // ✅ ENHANCED: Update step execution with detailed information
  // Store step start time for duration calculation
  stepExecution._startTime = stepStartTime;
-
+ 
  // ✅ CHECKPOINTING: Pass checkpointing option to updateStepExecution
  await this.updateStepExecution(stepExecution, result, { enableCheckpointing });
-
+ 
  // ✅ CHECKPOINTING: Create comprehensive checkpoint for resume capability
  if (enableCheckpointing && result.success) {
    try {
      const { WorkflowCheckpointService } = require('./workflowCheckpointService');
      const checkpointService = new WorkflowCheckpointService();
-
+     
      // Find next step for resume metadata
      const nextStep = this._findNextStep(workflow, step, currentData, connections);
-
+     
      await checkpointService.createCheckpoint({
        workflowExecutionId: execution.id,
        stepExecution: stepExecution,
@@ -1909,7 +1909,7 @@ class WorkflowExecutor {
          loopIterations: this._getLoopIterations(execution, step)
        }
      });
-
+     
      this.logger.info('Checkpoint created for resume capability', {
        workflow_execution_id: execution.id,
        step_execution_id: stepExecution.id,
@@ -1924,7 +1924,7 @@ class WorkflowExecutor {
      });
    }
  }
-
+ 
  // ✅ CHECKPOINTING: Update job progress if job is available
  if (job && enableCheckpointing) {
    const totalSteps = workflow.workflow_steps?.length || 0;
@@ -3599,7 +3599,7 @@ class WorkflowExecutor {
  }
 
  const { STATES } = require('./workflowStateMachine');
-
+ 
  const { data, error } = await this.supabase
    .from('step_executions')
    .insert({
@@ -3665,7 +3665,7 @@ class WorkflowExecutor {
    // Determine new state
    const currentState = stepExecution.state || STATES.PENDING;
    const newState = result.success ? STATES.COMPLETED : STATES.FAILED;
-
+   
    // Validate state transition
    const transitionValidation = WorkflowStateMachine.validateTransition(currentState, newState);
    if (!transitionValidation.valid) {
@@ -3740,7 +3740,7 @@ class WorkflowExecutor {
 
  async completeExecution(executionId, outputData, stepsExecuted, startTime) {
    const duration = Math.floor((Date.now() - startTime) / 1000);
-
+   
    // Import state machine
    const { STATES, WorkflowStateMachine } = require('./workflowStateMachine');
 
@@ -3813,7 +3813,7 @@ class WorkflowExecutor {
  async failExecution(executionId, errorMessage, errorStepId = null, errorCategory = null) {
    // Import state machine
    const { STATES, WorkflowStateMachine } = require('./workflowStateMachine');
-
+   
    // Get execution details for metrics
    const { data: execution } = await this.supabase
      .from('workflow_executions')

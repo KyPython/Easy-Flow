@@ -340,13 +340,13 @@ function createLogger(namespace = 'app', context = {}) {
 /**
  * Express middleware for structured request logging
  * ✅ PRODUCTION EXCELLENCE: Logs EVERY request as structured JSON for P99 latency analysis
- *
+ * 
  * Required fields for observability:
  * - request_method: HTTP method (GET, POST, etc.)
  * - path: Request path
  * - status_code: HTTP status code
  * - duration_ms: Request duration in milliseconds
- *
+ * 
  * This enables calculation of P99 latency (99th percentile) to identify bottlenecks
  * that affect 1 in 100 users.
  */
@@ -377,7 +377,7 @@ function requestLoggingMiddleware() {
      path: req.path,
      status_code: res.statusCode,
      duration_ms: durationMs,
-
+     
      // Additional context for debugging and correlation
      http: {
        method: req.method,
@@ -390,20 +390,20 @@ function requestLoggingMiddleware() {
        content_length: req.get('content-length'),
        content_type: req.get('content-type')
      },
-
+     
      // Performance metrics for latency analysis
      performance: {
        duration_ms: durationMs,
        duration_seconds: (durationMs / 1000).toFixed(3)
      },
-
+     
      // Categorization for filtering
      endpoint_type: isHealthEndpoint ? 'health' : 'api',
-
+     
      // Request context
      request_id: req.requestId || req.traceId || req.headers['x-request-id'],
      trace_id: req.traceId || req.headers['x-trace-id'],
-
+     
      // User context (if available)
      user_id: req.user?.id || null
    });

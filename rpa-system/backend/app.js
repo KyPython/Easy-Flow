@@ -3440,7 +3440,26 @@ app.get('/api/automation/status/:task_id', authMiddleware, async (req, res) => {
 });
 
 // POST /api/notifications/create - server-side notification creation & optional push
-app.post('/api/notifications/create', authMiddleware, requireFeature('priority_support'), async (req, res) => {
+// ✅ PHASE 3: NEW REST-COMPLIANT ENDPOINT - POST /api/notifications
+app.post('/api/notifications', authMiddleware, requireFeature('priority_support'), async (req, res) => {
+  // Use same handler logic as /api/notifications/create
+  req.url = '/api/notifications/create';
+  // Call handler directly (extract to shared function in future)
+  // For now, reuse by calling the route handler
+  return require('./routes').createNotification?.(req, res) || 
+         (await import('./routes/notificationRoutes')).createNotification(req, res);
+});
+
+// ✅ PHASE 3: DEPRECATED - POST /api/notifications/create (use /api/notifications)
+const notificationsCreateDeprecation = (req, res, next) => {
+  logger.warn('[API] Deprecated endpoint used: /api/notifications/create. Use POST /api/notifications instead');
+  res.set('Deprecation', 'true');
+  res.set('Sunset', '2026-04-01');
+  res.set('Link', '</api/notifications>; rel="successor-version"');
+  next();
+};
+
+app.post('/api/notifications/create', notificationsCreateDeprecation, authMiddleware, requireFeature('priority_support'), async (req, res) => {
  try {
  const { type, title, body, priority = 'normal', data = {} } = req.body || {};
  if (!type || !title || !body) {
@@ -3466,12 +3485,15 @@ app.post('/api/notifications/create', authMiddleware, requireFeature('priority_s
  // ✅ PHASE 2: Return 201 Created for resource creation
  res.setHeader('Location', `/api/notifications/${result.store.notificationId}`);
  res.status(201).json({
+ success: true,
    notification: {
      id: result.store.notificationId,
-     success: true,
-     push: result.push,
-     stored: result.store
+     type: type,
+     title: title,
+     created_at: new Date().toISOString()
    },
+ push: result.push,
+   stored: result.store,
    location: `/api/notifications/${result.store.notificationId}`
  });
  } catch (error) {
@@ -4658,7 +4680,30 @@ app.get('/api/schedules', authMiddleware, requireFeature('scheduled_automations'
 
 // --- Marketing & growth endpoints -------------------------------------------------
 // Track arbitrary marketing/product events server-side
-app.post('/api/track-event', async (req, res) => {
+// ✅ PHASE 3: NEW REST-COMPLIANT ENDPOINT - POST /api/events
+app.post('/api/events', async (req, res) => {
+  // Delegate to track-event handler (same logic, better naming)
+  req.url = '/api/track-event';
+  const handler = app._router?.stack?.find(layer => 
+    layer.route && layer.route.path === '/api/track-event' && layer.route.methods.post
+  );
+  if (handler) {
+    return handler.route.stack[handler.route.stack.length - 1].handle(req, res);
+  }
+  // Fallback: call track-event logic directly
+  return require('./routes/trackingRoutes').trackEvent(req, res);
+});
+
+// ✅ PHASE 3: DEPRECATED - POST /api/track-event (use /api/events)
+const trackEventDeprecation = (req, res, next) => {
+  logger.warn('[API] Deprecated endpoint used: /api/track-event. Use POST /api/events instead');
+  res.set('Deprecation', 'true');
+  res.set('Sunset', '2026-04-01');
+  res.set('Link', '</api/events>; rel="successor-version"');
+  next();
+};
+
+app.post('/api/track-event', trackEventDeprecation, async (req, res) => {
  try {
  // Support both 'event_name' and 'event' for backward compatibility
  const { user_id, event_name, event, properties, utm } = req.body || {};
@@ -4750,80 +4795,19 @@ app.post('/api/track-event', async (req, res) => {
  }
  })();
 
- // ✅ PHASE 2: Return 201 Created for resource creation
- return res.status(201).json({ ok: true });
+ // ✅ PHASE 2: Return 201 Created for event resource creation
+ return res.status(201).json({ 
+   ok: true,
+   event: {
+     name: finalEventName,
+     created_at: new Date().toISOString()
+   }
+ });
  } catch (e) {
  logger.error('[POST /api/track-event] error', e?.message || e);
  return res.status(500).json({ error: 'internal' });
  }
 });
-
-// ✅ PHASE 3: NEW REST-COMPLIANT ENDPOINT - POST /api/events
-// Resource-oriented endpoint for tracking events
-app.post('/api/events', async (req, res) => {
- // Reuse track-event logic but with REST naming
- const { user_id, event_name, event, properties, utm } = req.body || {};
- const finalEventName = event_name || event;
- if (!finalEventName) {
-   return res.status(400).json({ error: 'event_name or event is required' });
- }
-
- // Reuse existing track-event logic
- // For now, delegate to track-event endpoint handler
- req.url = '/api/track-event';
- req.path = '/api/track-event';
- 
- // Call track-event handler logic
- // ✅ PHASE 2: Return 201 Created for resource creation
- // (Implementation same as /api/track-event but with REST naming)
- if (supabase) {
-   try {
-     const insertResult = await supabase.from('marketing_events').insert([{
-       user_id: user_id || null,
-       event_name: finalEventName,
-       properties: properties || {},
-       utm: utm || {},
-       created_at: new Date().toISOString()
-     }]);
-
-     if (insertResult.error) {
-       logger.error('[POST /api/events] Failed to insert event', {
-         event_name: finalEventName,
-         user_id: user_id || null,
-         error: insertResult.error.message
-       });
-       return res.status(500).json({ error: 'Failed to create event' });
-     }
-
-     // ✅ PHASE 2: Return 201 Created with Location header
-     const eventId = insertResult.data?.[0]?.id;
-     if (eventId) {
-       res.setHeader('Location', `/api/events/${eventId}`);
-     }
-     return res.status(201).json({
-       event: {
-         id: eventId,
-         event_name: finalEventName,
-         created_at: new Date().toISOString()
-       }
-     });
-   } catch (e) {
-     logger.error('[POST /api/events] error', e?.message || e);
-     return res.status(500).json({ error: 'internal' });
-   }
- } else {
-   return res.status(503).json({ error: 'Database not available' });
- }
-});
-
-// ✅ PHASE 3: Add deprecation headers to old track-event endpoint
-app.post('/api/track-event', async (req, res, next) => {
- logger.warn('[API] Deprecated endpoint used: /api/track-event. Use POST /api/events instead');
- res.set('Deprecation', 'true');
- res.set('Sunset', '2026-04-01');
- res.set('Link', '</api/events>; rel="successor-version"');
- next();
-}, async (req, res) => {
 
 // Batch tracking endpoint - handles multiple events in a single request
 app.post('/api/track-event/batch', async (req, res) => {
@@ -5349,7 +5333,8 @@ app.post('/api/automation/queue', authMiddleware, automationLimiter, async (req,
 //
 
 // ✅ BULLETPROOF: Uses requireAutomationRun middleware for consistent rate limiting
-app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automationLimiter, async (req, res) => {
+// ✅ PHASE 1: Add deprecation headers via middleware
+app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automationLimiter, automationExecuteDeprecation, async (req, res) => {
  // ✅ CRITICAL: Log immediately when endpoint is hit
  // ✅ OBSERVABILITY: Use structured logging with trace context
  logger.info('🚨 Automation execute endpoint hit', {
@@ -6012,6 +5997,13 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
 
  logger.debug('[AutomationExecute] 📤 SENDING RESPONSE NOW');
 
+ // ✅ PHASE 2: Ensure Location header is set for async operations
+ if (response.run_id) {
+   res.setHeader('Location', `/api/executions/${response.run_id}`);
+ } else if (response.task_id) {
+   res.setHeader('Location', `/api/executions/${response.task_id}`);
+ }
+
  res.status(202).json(response);
 
  } catch (error) {
@@ -6027,223 +6019,67 @@ app.post('/api/automation/execute', authMiddleware, requireAutomationRun, automa
  }
 });
 
-// ✅ PHASE 1: NEW REST-COMPLIANT ENDPOINT - POST /api/automation/executions
-// Resource-oriented endpoint for executing automation tasks
-// This endpoint creates a task if needed and executes it
-app.post('/api/automation/executions', authMiddleware, requireAutomationRun, automationLimiter, async (req, res) => {
-  // Log immediately when endpoint is hit
-  logger.info('🚨 Automation executions endpoint hit', {
+// ✅ PHASE 1: Add deprecation middleware for old automation endpoint
+const automationExecuteDeprecation = (req, res, next) => {
+  logger.warn('[API] Deprecated endpoint used: /api/automation/execute. Use POST /api/automation/executions instead', {
     user_id: req.user?.id,
-    timestamp: new Date().toISOString(),
-    operation: 'automation_execution'
+    task_type: req.body?.task_type
+  });
+  res.set('Deprecation', 'true');
+  res.set('Sunset', '2026-04-01');
+  res.set('Link', '</api/automation/executions>; rel="successor-version"');
+  next();
+};
+
+// ✅ PHASE 1: NEW REST-COMPLIANT ENDPOINT - POST /api/automation/executions
+// Resource-oriented endpoint using shared AutomationExecutionService
+app.post('/api/automation/executions', authMiddleware, requireAutomationRun, automationLimiter, async (req, res) => {
+  logger.info('[POST /api/automation/executions] REST endpoint hit', {
+    user_id: req.user?.id,
+    task_type: req.body?.task_type
   });
 
   try {
-    const taskData = req.body;
-
-    // Validate payload
-    if (!taskData || typeof taskData !== 'object') {
-      return res.status(400).json({
-        error: 'Request body must be a JSON object with required fields.'
-      });
-    }
-    if (!taskData.task_type) {
-      return res.status(400).json({
-        error: 'task_type is required',
-        accepted_types: ['web_automation', 'form_submission', 'data_extraction', 'file_download', 'invoice_download']
-      });
-    }
-    if (!taskData.url && ['web_automation', 'form_submission', 'data_extraction', 'file_download', 'invoice_download'].includes(taskData.task_type)) {
-      return res.status(400).json({
-        error: 'url is required for this task_type.'
-      });
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // ✅ SECURITY: Validate URL to prevent SSRF
-    if (taskData.url) {
-      const urlValidation = isValidUrl(taskData.url);
-      if (!urlValidation.valid) {
-        logger.warn(`[POST /api/automation/executions] Invalid URL rejected: ${taskData.url} (reason: ${urlValidation.reason})`);
-        return res.status(400).json({
-          error: urlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid URL format'
-        });
-      }
-    }
-    if (taskData.pdf_url) {
-      const pdfUrlValidation = isValidUrl(taskData.pdf_url);
-      if (!pdfUrlValidation.valid) {
-        logger.warn(`[POST /api/automation/executions] Invalid PDF URL rejected: ${taskData.pdf_url}`);
-        return res.status(400).json({
-          error: pdfUrlValidation.reason === 'private-ip' ? 'Private IP addresses are not allowed' : 'Invalid PDF URL format'
-        });
-      }
-    }
-
-    // Process discovery method validation (same as /api/automation/execute)
-    const discoveryMethod = taskData.discoveryMethod;
-    const hasValidDiscoveryMethod = discoveryMethod &&
-      typeof discoveryMethod === 'string' &&
-      discoveryMethod.trim() !== '' &&
-      discoveryMethod !== 'none' &&
-      ['auto-detect', 'text-match'].includes(discoveryMethod);
-
-    if (taskData.task_type === 'invoice_download' && hasValidDiscoveryMethod) {
-      const backendPort = process.env.PORT || '3030';
-      const isDemoPortal = taskData.url && (
-        taskData.url.includes('/demo') ||
-        taskData.url.includes(`localhost:${backendPort}/demo`) ||
-        taskData.url.includes('demo@useeasyflow.com') ||
-        taskData.url.includes('demo portal')
-      );
-
-      if (!isDemoPortal && (!taskData.username || !taskData.password)) {
-        const { getUserErrorMessage } = require('./utils/environmentAwareMessages');
-        const errorMsg = getUserErrorMessage(
-          'Username and password are required for invoice download with link discovery',
-          {
-            context: 'api.automation.executions',
-            userMessage: 'Please provide your login credentials to use link discovery'
-          }
-        );
-        return res.status(400).json({ error: errorMsg });
-      }
-    }
-
-    // Create enriched task (same as /api/automation/execute)
-    const enrichedTask = {
-      ...taskData,
-      user_id: req.user.id,
-      created_at: new Date().toISOString(),
-      source: 'backend-api'
-    };
-
-    const taskType = (taskData.task_type || 'general').toLowerCase();
-    const taskName = taskData.title ||
-      (taskData.task_type && taskData.task_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())) ||
-      'Automation Task';
-
-    // Create database records (same logic as /api/automation/execute)
-    let taskRecord = null;
-    let runRecord = null;
-    let executionId = null;
-
-    if (supabase) {
-      try {
-        const taskParams = {
-          url: taskData.url || '',
-          username: taskData.username || '',
-          password: taskData.password || '',
-          pdf_url: taskData.pdf_url || '',
-          discoveryMethod: taskData.discoveryMethod || '',
-          discoveryValue: taskData.discoveryValue || '',
-          enableAI: taskData.enableAI || false,
-          extractionTargets: taskData.extractionTargets || []
-        };
-
-        // Create automation_tasks record
-        const { data: task, error: taskError } = await supabase
-          .from('automation_tasks')
-          .insert([{
-            user_id: req.user.id,
-            name: taskName,
-            description: taskData.notes || taskData.description || '',
-            url: taskData.url || '',
-            task_type: taskType,
-            parameters: JSON.stringify(taskParams),
-            is_active: true
-          }])
-          .select()
-          .single();
-
-        if (taskError) {
-          logger.error('[API] Failed to create automation task:', { error: taskError.message });
-          // Continue anyway - task will still be queued
-        } else {
-          taskRecord = task;
-        }
-
-        // Create automation_runs record
-        if (taskRecord) {
-          executionId = require('uuid').v4();
-          const { data: run, error: runError } = await supabase
-            .from('automation_runs')
-            .insert([{
-              id: executionId,
-              task_id: taskRecord.id,
-              user_id: req.user.id,
-              status: 'running',
-              started_at: new Date().toISOString(),
-              result: JSON.stringify({
-                status: 'queued',
-                message: 'Task queued for processing',
-                queue_status: 'pending'
-              })
-            }])
-            .select()
-            .single();
-
-          if (runError) {
-            logger.error('[API] Failed to create automation run:', { error: runError.message });
-            executionId = null;
-          } else {
-            runRecord = run;
-          }
-        }
-      } catch (dbException) {
-        logger.error('[API] Database error:', { error: dbException.message });
-        // Continue - task will still be queued via Kafka
-      }
-    }
-
-    // Queue task via Kafka
-    let task_id;
-    try {
-      const result = await kafkaService.sendAutomationTask(enrichedTask);
-      task_id = result.taskId;
-      logger.info('Task sent to Kafka successfully', { task_id, task_type: taskType });
-    } catch (kafkaError) {
-      logger.error('Failed to send task to Kafka', { error: kafkaError.message });
-      task_id = enrichedTask.task_id || uuidv4();
-    }
-
-    // Store task status
-    await taskStatusStore.set(task_id, {
-      status: 'queued',
-      result: null,
-      updated_at: new Date().toISOString(),
-      user_id: req.user.id,
-      task: enrichedTask,
-      task_record_id: taskRecord?.id,
-      run_record_id: runRecord?.id
+    // Use shared AutomationExecutionService
+    const { getAutomationExecutionService } = require('./services/automationExecutionService');
+    const executionService = getAutomationExecutionService();
+    
+    const result = await executionService.executeAutomationTask({
+      taskData: req.body,
+      userId,
+      options: {}
     });
 
-    // Use execution ID from run record, or fallback to task_id
-    const finalExecutionId = executionId || runRecord?.id || task_id;
-
     // ✅ PHASE 2: Return 202 Accepted with Location header
-    res.setHeader('Location', `/api/executions/${finalExecutionId}`);
+    const executionId = result.execution.id;
+    res.setHeader('Location', `/api/executions/${executionId}`);
+    
     return res.status(202).json({
-      execution: {
-        id: finalExecutionId,
-        task_id: taskRecord?.id || null,
-        status: 'queued',
-        created_at: runRecord?.started_at || new Date().toISOString()
-      },
+      execution: result.execution,
       message: 'Automation execution accepted and queued',
-      location: `/api/executions/${finalExecutionId}`
+      location: `/api/executions/${executionId}`,
+      ...(result.db_error ? { db_warning: result.db_error } : {}),
+      ...(result.db_recorded !== undefined ? { db_recorded: result.db_recorded } : {})
     });
   } catch (error) {
     logger.error('[POST /api/automation/executions] error:', error.message);
-    res.status(500).json({
+    
+    // Return appropriate error status based on error type
+    if (error.message.includes('required') || error.message.includes('Invalid')) {
+      return res.status(400).json({ error: error.message });
+    }
+    
+    return res.status(500).json({
       error: 'Failed to queue automation execution',
-      details: process.env.NODE_ENV !== 'production' ? error.message : undefined
-    });
-  }
+ details: process.env.NODE_ENV !== 'production' ? error.message : undefined
+ });
+ }
 });
-
-// ✅ PHASE 1: Add deprecation headers to old automation endpoint (middleware)
-// Note: Deprecation headers are added via middleware, but we keep the endpoint functional
-// The actual endpoint implementation is above at line ~5279
 
 // Legacy automation endpoint (now uses Kafka behind the scenes)
 app.post('/api/trigger-automation', authMiddleware, automationLimiter, async (req, res) => {

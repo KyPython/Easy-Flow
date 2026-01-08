@@ -299,10 +299,10 @@ export const useWorkflow = (workflowId) => {
  if (!workflowId || !isValidWorkflowId(workflowId)) return;
 
  try {
- const { data: result } = await api.post(buildApiUrl('/api/workflows/execute'), {
- workflowId,
- inputData
- });
+   // ✅ PHASE 1: Use new REST endpoint
+   const { data: result } = await api.post(buildApiUrl(`/api/workflows/${workflowId}/executions`), {
+     inputData
+   });
  return result;
  } catch (err) {
  console.error('Error executing workflow:', err);

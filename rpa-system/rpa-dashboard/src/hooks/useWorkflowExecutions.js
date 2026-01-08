@@ -213,11 +213,11 @@ export const useWorkflowExecutions = (workflowId) => {
  throw new Error('Not authenticated');
  }
 
- const response = await api.post(buildApiUrl('/api/workflows/execute'), {
- workflowId,
- inputData,
- triggeredBy: 'manual',
- executionMode // ✅ EXECUTION MODES: Pass execution mode to backend
+ // ✅ PHASE 1: Use new REST endpoint
+ const response = await api.post(buildApiUrl(`/api/workflows/${workflowId}/executions`), {
+   inputData,
+   triggeredBy: 'manual',
+   executionMode // ✅ EXECUTION MODES: Pass execution mode to backend
  });
  
  const result = response.data || response;
