@@ -163,9 +163,9 @@ def perform_web_automation(url, task_data):
                 })
 
         # Final page state
-    result["final_url"] = driver.current_url
-    result["page_title"] = driver.title
-    result["end_time"] = datetime.now().isoformat()
+        result["final_url"] = driver.current_url
+        result["page_title"] = driver.title
+        result["end_time"] = datetime.now().isoformat()
 
     # Get final page content for analysis
     soup = BeautifulSoup(driver.page_source, 'html.parser')

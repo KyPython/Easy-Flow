@@ -436,13 +436,13 @@ def process_automation_task(task_data):
     # ✅ OBSERVABILITY: Add OpenTelemetry trace context to log context
     if OTEL_AVAILABLE and otel_context is not None:
         try:
-    span = trace.get_current_span()
-    if span:
-    span_context = span.get_span_context()
-    if span_context and span_context.is_valid:
-    extra_context['otel_trace_id'] = format(span_context.trace_id, '032x')
-    extra_context['otel_span_id'] = format(span_context.span_id, '016x')
-    extra_context['otel_trace_flags'] = span_context.trace_flags
+            span = trace.get_current_span()
+            if span:
+                span_context = span.get_span_context()
+                if span_context and span_context.is_valid:
+                    extra_context['otel_trace_id'] = format(span_context.trace_id, '032x')
+                    extra_context['otel_span_id'] = format(span_context.span_id, '016x')
+                    extra_context['otel_trace_flags'] = span_context.trace_flags
     except Exception as e:
         # Silently fail if trace context extraction fails
     pass
