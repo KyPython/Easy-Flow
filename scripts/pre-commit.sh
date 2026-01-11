@@ -51,18 +51,25 @@ FAILED=0
 SKIP_TESTS="${SKIP_TESTS:-false}"
 
 # Step 1: Lint Frontend (React Dashboard)
-echo "${BLUE}Step 1: Linting frontend...${NC}"
-if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
-    cd rpa-system/rpa-dashboard
-    if npm run lint 2>/dev/null || npm run lint:fix 2>/dev/null; then
-        echo "  ${GREEN}✓ Frontend linting passed${NC}"
-    else
-        echo "  ${YELLOW}⚠ Frontend linting issues (attempting auto-fix)${NC}"
-        npm run lint:fix 2>/dev/null || true
-    fi
-    cd ../..
+# ✅ FAST MODE: Skip frontend linting on dev branch
+if [ "$IS_DEV_BRANCH" = true ]; then
+    echo "${BLUE}Step 1: Frontend linting (skipped on dev for speed)...${NC}"
+    echo "  ${YELLOW}○ Frontend linting skipped on dev for speed${NC}"
+    echo "  ${YELLOW}  Linting will run in CI/CD${NC}"
 else
-    echo "  ${YELLOW}○ Frontend not found, skipping${NC}"
+    echo "${BLUE}Step 1: Linting frontend...${NC}"
+    if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
+        cd rpa-system/rpa-dashboard
+        if npm run lint 2>/dev/null || npm run lint:fix 2>/dev/null; then
+            echo "  ${GREEN}✓ Frontend linting passed${NC}"
+        else
+            echo "  ${YELLOW}⚠ Frontend linting issues (attempting auto-fix)${NC}"
+            npm run lint:fix 2>/dev/null || true
+        fi
+        cd ../..
+    else
+        echo "  ${YELLOW}○ Frontend not found, skipping${NC}"
+    fi
 fi
 
 # Step 2: Lint Backend (if ESLint config exists)
@@ -139,37 +146,44 @@ if [ "$IS_DEV_BRANCH" != true ] && [ -f "rpa-system/backend/package.json" ]; the
     cd ../..
 fi
 
-# Step 5: Environment Check
-echo "\n${BLUE}Step 5: Checking development environment...${NC}"
-if ./scripts/dev-env-check.sh >/dev/null 2>&1; then
-    echo "  ${GREEN}✓ Environment check passed${NC}"
+# Step 5-6.5: Skip slow checks on dev branch for speed
+if [ "$IS_DEV_BRANCH" = true ]; then
+    echo "\n${BLUE}Steps 5-6.5: Validation checks (skipped on dev for speed)...${NC}"
+    echo "  ${YELLOW}○ Environment, quality, and validation checks skipped on dev${NC}"
+    echo "  ${YELLOW}  All checks will run in CI/CD${NC}"
 else
-    echo "  ${YELLOW}⚠ Environment check warnings (non-blocking)${NC}"
-fi
-
-# Step 6: Code Quality Check (non-blocking)
-echo "\n${BLUE}Step 6: Checking code quality...${NC}"
-if ./scripts/code-quality-check.sh >/dev/null 2>&1; then
-    echo "  ${GREEN}✓ Code quality check passed${NC}"
-else
-    echo "  ${YELLOW}⚠ Code quality issues found (non-blocking)${NC}"
-    echo "  Run 'npm run quality:check' for details"
-fi
-
-# Step 6.5: Quick validation checks (non-blocking in pre-commit, blocking in CI/CD)
-echo "\n${BLUE}Step 6.5: Running quick validation checks...${NC}"
-if ./scripts/validate-srp.sh >/dev/null 2>&1; then
-    echo "  ${GREEN}✓ SRP validation passed${NC}"
-else
-    echo "  ${YELLOW}⚠ SRP violations found (non-blocking in pre-commit)${NC}"
-    echo "  ${YELLOW}  Will block in CI/CD and production deployment${NC}"
-fi
-
-if ./scripts/validate-theme-consistency.sh >/dev/null 2>&1; then
-    echo "  ${GREEN}✓ Theme consistency check passed${NC}"
-else
-    echo "  ${YELLOW}⚠ Theme consistency issues found (non-blocking in pre-commit)${NC}"
-    echo "  ${YELLOW}  Will block in CI/CD and production deployment${NC}"
+    # Step 5: Environment Check
+    echo "\n${BLUE}Step 5: Checking development environment...${NC}"
+    if ./scripts/dev-env-check.sh >/dev/null 2>&1; then
+        echo "  ${GREEN}✓ Environment check passed${NC}"
+    else
+        echo "  ${YELLOW}⚠ Environment check warnings (non-blocking)${NC}"
+    fi
+    
+    # Step 6: Code Quality Check (non-blocking)
+    echo "\n${BLUE}Step 6: Checking code quality...${NC}"
+    if ./scripts/code-quality-check.sh >/dev/null 2>&1; then
+        echo "  ${GREEN}✓ Code quality check passed${NC}"
+    else
+        echo "  ${YELLOW}⚠ Code quality issues found (non-blocking)${NC}"
+        echo "  Run 'npm run quality:check' for details"
+    fi
+    
+    # Step 6.5: Quick validation checks (non-blocking in pre-commit, blocking in CI/CD)
+    echo "\n${BLUE}Step 6.5: Running quick validation checks...${NC}"
+    if ./scripts/validate-srp.sh >/dev/null 2>&1; then
+        echo "  ${GREEN}✓ SRP validation passed${NC}"
+    else
+        echo "  ${YELLOW}⚠ SRP violations found (non-blocking in pre-commit)${NC}"
+        echo "  ${YELLOW}  Will block in CI/CD and production deployment${NC}"
+    fi
+    
+    if ./scripts/validate-theme-consistency.sh >/dev/null 2>&1; then
+        echo "  ${GREEN}✓ Theme consistency check passed${NC}"
+    else
+        echo "  ${YELLOW}⚠ Theme consistency issues found (non-blocking in pre-commit)${NC}"
+        echo "  ${YELLOW}  Will block in CI/CD and production deployment${NC}"
+    fi
 fi
 
 # Step 7: Terraform Validation (if infrastructure files changed)
