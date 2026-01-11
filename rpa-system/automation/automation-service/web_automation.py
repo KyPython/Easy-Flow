@@ -66,11 +66,11 @@ def perform_web_automation(url, task_data):
     Perform comprehensive web automation tasks.
 
     Args:
-    url (str): Target URL
+        url (str): Target URL
     task_data (dict): Task configuration with actions and verification
 
     Returns:
-    dict: Result of automation including success status and data
+        dict: Result of automation including success status and data
     """
     # Translate localhost URLs for Docker environment
     url = translate_localhost_url(url)
@@ -196,7 +196,7 @@ def perform_web_automation(url, task_data):
     return result
 
     except Exception as e:
-    logger.error(f"Web automation failed: {e}")
+        logger.error(f"Web automation failed: {e}")
     return {
         "error": str(e),
         "status": "failed",
@@ -204,8 +204,8 @@ def perform_web_automation(url, task_data):
         "timestamp": datetime.now().isoformat()
     }
     finally:
-    if driver:
-    driver.quit()
+        if driver:
+        driver.quit()
 
 
 def perform_action(driver, action, action_index):
@@ -213,46 +213,46 @@ def perform_action(driver, action, action_index):
     Perform a single automation action.
 
     Args:
-    driver: WebDriver instance
+        driver: WebDriver instance
     action (dict): Action configuration
     action_index (int): Index of action in sequence
 
     Returns:
-    dict: Result of action
+        dict: Result of action
     """
     action_type = action.get('type', 'unknown')
     timestamp = datetime.now().isoformat()
 
     try:
-    if action_type == 'fill_text':
-    return fill_text_action(driver, action, action_index, timestamp)
+        if action_type == 'fill_text':
+        return fill_text_action(driver, action, action_index, timestamp)
 
     elif action_type == 'click':
-    return click_action(driver, action, action_index, timestamp)
+        return click_action(driver, action, action_index, timestamp)
 
     elif action_type == 'select_option':
-    return select_option_action(driver, action, action_index, timestamp)
+        return select_option_action(driver, action, action_index, timestamp)
 
     elif action_type == 'wait':
-    return wait_action(driver, action, action_index, timestamp)
+        return wait_action(driver, action, action_index, timestamp)
 
     elif action_type == 'wait_for_element':
-    return wait_for_element_action(driver, action, action_index, timestamp)
+        return wait_for_element_action(driver, action, action_index, timestamp)
 
     elif action_type == 'drag_and_drop':
-    return drag_and_drop_action(driver, action, action_index, timestamp)
+        return drag_and_drop_action(driver, action, action_index, timestamp)
 
     elif action_type == 'scroll':
-    return scroll_action(driver, action, action_index, timestamp)
+        return scroll_action(driver, action, action_index, timestamp)
 
     elif action_type == 'hover':
-    return hover_action(driver, action, action_index, timestamp)
+        return hover_action(driver, action, action_index, timestamp)
 
     elif action_type == 'press_key':
-    return press_key_action(driver, action, action_index, timestamp)
+        return press_key_action(driver, action, action_index, timestamp)
 
     else:
-    return {
+        return {
         "action_index": action_index,
         "action_type": action_type,
         "success": False,
@@ -261,7 +261,7 @@ def perform_action(driver, action, action_index):
     }
 
     except Exception as e:
-    return {
+        return {
         "action_index": action_index,
         "action_type": action_type,
         "success": False,
@@ -281,7 +281,7 @@ def fill_text_action(driver, action, action_index, timestamp):
     )
 
     if clear_first:
-    element.clear()
+        element.clear()
 
     element.send_keys(str(value))
 
@@ -307,7 +307,7 @@ def click_action(driver, action, action_index, timestamp):
     element.click()
 
     if wait_after > 0:
-    time.sleep(wait_after)
+        time.sleep(wait_after)
 
     return {
         "action_index": action_index,
@@ -332,9 +332,9 @@ def select_option_action(driver, action, action_index, timestamp):
     select = Select(element)
 
     if by_value:
-    select.select_by_value(str(value))
+        select.select_by_value(str(value))
     else:
-    select.select_by_visible_text(str(value))
+        select.select_by_visible_text(str(value))
 
     return {
         "action_index": action_index,
@@ -412,13 +412,13 @@ def scroll_action(driver, action, action_index, timestamp):
     pixels = action.get('pixels', 500)
 
     if direction == 'down':
-    driver.execute_script(f"window.scrollBy(0, {pixels});")
+        driver.execute_script(f"window.scrollBy(0, {pixels});")
     elif direction == 'up':
-    driver.execute_script(f"window.scrollBy(0, -{pixels});")
+        driver.execute_script(f"window.scrollBy(0, -{pixels});")
     elif direction == 'top':
-    driver.execute_script("window.scrollTo(0, 0);")
+        driver.execute_script("window.scrollTo(0, 0);")
     elif direction == 'bottom':
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
     return {
         "action_index": action_index,
@@ -457,7 +457,7 @@ def press_key_action(driver, action, action_index, timestamp):
     selector = action.get('selector')
 
     if selector:
-    element = WebDriverWait(driver, 10).until(
+        element = WebDriverWait(driver, 10).until(
         EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
     )
     element.send_keys(getattr(Keys, key.upper(), key))
@@ -480,45 +480,45 @@ def check_success_indicator(driver, indicator):
     Check if a success indicator is present.
 
     Args:
-    driver: WebDriver instance
+        driver: WebDriver instance
     indicator (dict): Success indicator configuration
 
     Returns:
-    bool: True if indicator shows success
+        bool: True if indicator shows success
     """
     indicator_type = indicator.get('type')
 
     if indicator_type == 'element_present':
-    selector = indicator.get('selector')
+        selector = indicator.get('selector')
     try:
-    driver.find_element(By.CSS_SELECTOR, selector)
+        driver.find_element(By.CSS_SELECTOR, selector)
     return True
     except NoSuchElementException:
-    return False
+        return False
 
     elif indicator_type == 'element_contains_text':
-    selector = indicator.get('selector')
+        selector = indicator.get('selector')
     text = indicator.get('text', '').lower()
     try:
-    element = driver.find_element(By.CSS_SELECTOR, selector)
+        element = driver.find_element(By.CSS_SELECTOR, selector)
     return text in element.text.lower()
     except NoSuchElementException:
-    return False
+        return False
 
     elif indicator_type == 'url_contains':
-    value = indicator.get('value', '')
+        value = indicator.get('value', '')
     return value in driver.current_url
 
     elif indicator_type == 'title_contains':
-    value = indicator.get('value', '')
+        value = indicator.get('value', '')
     return value.lower() in driver.title.lower()
 
     elif indicator_type == 'page_source_contains':
-    text = indicator.get('text', '').lower()
+        text = indicator.get('text', '').lower()
     return text in driver.page_source.lower()
 
     else:
-    logger.warning(f"Unknown success indicator type: {indicator_type}")
+        logger.warning(f"Unknown success indicator type: {indicator_type}")
     return False
 
 
@@ -528,11 +528,11 @@ def download_pdf(pdf_url, task_data):
     Supports authenticated downloads using cookies from link discovery.
 
     Args:
-    pdf_url (str): URL of the PDF to download
+        pdf_url (str): URL of the PDF to download
     task_data (dict): Task configuration (may include auth_cookies or cookie_string)
 
     Returns:
-    dict: Result of download operation
+        dict: Result of download operation
     """
     import requests
     import tempfile
@@ -550,7 +550,7 @@ def download_pdf(pdf_url, task_data):
     # Ensure the path is within the temp directory or a safe download directory
     safe_base = os.path.abspath(tempfile.gettempdir())
     if not download_path.startswith(safe_base):
-    logger.warning(
+        logger.warning(
         f"Download path {download_path} outside safe directory, using temp directory")
     download_path = safe_base
 
@@ -565,7 +565,7 @@ def download_pdf(pdf_url, task_data):
 
     parsed_url = urlparse(pdf_url)
     if parsed_url.scheme not in ('http', 'https'):
-    return {
+        return {
         "success": False,
         "error": f"Invalid URL scheme: {
             parsed_url.scheme}. Only http and https are allowed."}
@@ -573,7 +573,7 @@ def download_pdf(pdf_url, task_data):
     # Block private IP addresses and localhost (unless in development mode)
     hostname = parsed_url.hostname
     if not hostname:
-    return {
+        return {
         "success": False,
         "error": "Invalid URL: missing hostname"
     }
@@ -587,7 +587,7 @@ def download_pdf(pdf_url, task_data):
     # Check for localhost variations (skip in development)
     localhost_variants = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']
     if not is_development and hostname.lower() in localhost_variants:
-    return {
+        return {
         "success": False,
         "error": "Private/localhost addresses are not allowed"
     }
@@ -595,10 +595,10 @@ def download_pdf(pdf_url, task_data):
     # Check if hostname is an IP address and if it's private (skip in
     # development)
     try:
-    ip = ipaddress.ip_address(hostname)
+        ip = ipaddress.ip_address(hostname)
     if not is_development and (
             ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast):
-    return {
+                return {
         "success": False,
         "error": "Private IP addresses are not allowed"
     }
@@ -613,7 +613,7 @@ def download_pdf(pdf_url, task_data):
 
     # Handle cookie string (simpler format)
     if task_data.get('cookie_string'):
-    headers['Cookie'] = task_data['cookie_string']
+        headers['Cookie'] = task_data['cookie_string']
     logger.info(
         f"Using cookie string for authenticated download ({len(task_data['cookie_string'])} chars)")
 
@@ -621,7 +621,7 @@ def download_pdf(pdf_url, task_data):
     elif task_data.get('auth_cookies'):
         # Convert cookie objects to requests-compatible format
     for cookie in task_data['auth_cookies']:
-    cookies_dict[cookie.get('name', '')] = cookie.get('value', '')
+        cookies_dict[cookie.get('name', '')] = cookie.get('value', '')
     logger.info(
         f"Using {
             len(cookies_dict)} cookies for authenticated download")
@@ -643,7 +643,7 @@ def download_pdf(pdf_url, task_data):
     # ✅ FIX: For demo URLs, provide helpful error message
     if not is_pdf_content_type and '/demo' in pdf_url and not pdf_url.endswith(
             '.pdf'):
-    return {
+                return {
         "success": False,
         "error": f"URL does not point to a PDF file. The URL '{pdf_url}' returns HTML content. For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf' instead of 'http://localhost:3030/demo'.",
         "content_type": content_type,
@@ -661,12 +661,12 @@ def download_pdf(pdf_url, task_data):
                 filename)))
     # Double-check the final path is still within safe directory
     if not filepath.startswith(download_path):
-    raise ValueError(f"Path traversal detected: {filepath}")
+        raise ValueError(f"Path traversal detected: {filepath}")
 
     # Save the file
     with open(filepath, 'wb') as f:
-    for chunk in response.iter_content(chunk_size=8192):
-    f.write(chunk)
+        for chunk in response.iter_content(chunk_size=8192):
+        f.write(chunk)
 
     file_size = os.path.getsize(filepath)
 
@@ -683,8 +683,8 @@ def download_pdf(pdf_url, task_data):
 
     # ✅ FIX: Verify it's actually a PDF and fail if it's not
     if verify_pdf:
-    with open(filepath, 'rb') as f:
-    header = f.read(4)
+        with open(filepath, 'rb') as f:
+        header = f.read(4)
     is_pdf = header == b'%PDF'
     result["is_valid_pdf"] = is_pdf
 
@@ -696,15 +696,15 @@ def download_pdf(pdf_url, task_data):
 
     # Clean up the invalid file
     try:
-    os.remove(filepath)
+        os.remove(filepath)
     except Exception as e:
-    logger.warning(f"Failed to remove invalid file: {e}")
+        logger.warning(f"Failed to remove invalid file: {e}")
 
     error_msg = "Downloaded file is not a valid PDF"
     if is_html:
-    error_msg += f". The URL returned HTML content instead of a PDF. Content-Type was: {content_type}"
+        error_msg += f". The URL returned HTML content instead of a PDF. Content-Type was: {content_type}"
     if '/demo' in pdf_url:
-    error_msg += f" For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf'"
+        error_msg += f" For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf'"
 
     return {
         "success": False,
@@ -716,20 +716,20 @@ def download_pdf(pdf_url, task_data):
     # ✅ Upload to Supabase storage if configured
     artifact_url = None
     try:
-    supabase_url = os.environ.get('SUPABASE_URL')
+        supabase_url = os.environ.get('SUPABASE_URL')
     # ✅ FIX: Check both SUPABASE_SERVICE_ROLE and SUPABASE_SERVICE_ROLE_KEY (different naming conventions)
     supabase_key = os.environ.get('SUPABASE_SERVICE_ROLE') or os.environ.get(
         'SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_KEY')
     user_id = task_data.get('user_id')
 
     if supabase_url and supabase_key and user_id:
-    try:
-    from supabase import create_client, Client
+        try:
+        from supabase import create_client, Client
     supabase: Client = create_client(supabase_url, supabase_key)
 
     # Read file content
     with open(filepath, 'rb') as f:
-    file_content = f.read()
+        file_content = f.read()
 
     # Generate storage path
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -753,35 +753,35 @@ def download_pdf(pdf_url, task_data):
     # dict)
     upload_error = None
     if hasattr(upload_result, 'error'):
-    upload_error = upload_result.error
+        upload_error = upload_result.error
     elif isinstance(upload_result, dict):
-    upload_error = upload_result.get('error')
+        upload_error = upload_result.get('error')
 
     # ✅ FIX: Better error logging for RLS issues
     if upload_error:
-    error_msg = str(upload_error) if not isinstance(
+        error_msg = str(upload_error) if not isinstance(
         upload_error, dict) else upload_error.get(
         'message', str(upload_error))
     logger.warning(f"⚠️ Supabase storage upload failed: {error_msg}")
     # If RLS error, suggest checking service role key
     if 'row-level security' in error_msg.lower() or 'rls' in error_msg.lower():
-    logger.warning(
+        logger.warning(
         "💡 Tip: RLS policy violation - ensure SUPABASE_SERVICE_ROLE (service role key) is set, not SUPABASE_ANON_KEY")
 
     if not upload_error:
         # Create signed URL (valid for 1 year) since bucket is private
         # Using very long expiry since these are user's own files
     try:
-    url_result = supabase.storage.from_(
+        url_result = supabase.storage.from_(
         'user-files').create_signed_url(storage_path, 31536000)  # 1 year in seconds
     artifact_url = None
     if isinstance(url_result, dict):
-    artifact_url = url_result.get('signedURL') or url_result.get('signedUrl')
+        artifact_url = url_result.get('signedURL') or url_result.get('signedUrl')
     elif isinstance(url_result, str):
-    artifact_url = url_result
+        artifact_url = url_result
 
     if artifact_url:
-    result["artifact_url"] = artifact_url
+        result["artifact_url"] = artifact_url
     result["storage_path"] = storage_path
     logger.info(f"✅ Uploaded invoice to Supabase storage with signed URL")
     else:
@@ -789,7 +789,7 @@ def download_pdf(pdf_url, task_data):
     result["storage_path"] = storage_path
     logger.warning("⚠️ Could not create signed URL, using storage path only")
     except Exception as url_error:
-    logger.warning(
+        logger.warning(
         f"⚠️ Failed to create signed URL (file still uploaded): {url_error}")
     result["storage_path"] = storage_path
 
@@ -797,7 +797,7 @@ def download_pdf(pdf_url, task_data):
     # Note: This may fail due to RLS policies, but file is still uploaded to
     # storage
     try:
-    import hashlib
+        import hashlib
     # ✅ SECURITY: Use SHA-256 instead of MD5 (MD5 is cryptographically broken)
     file_content_hash = hashlib.sha256(file_content).hexdigest()
 
@@ -826,21 +826,21 @@ def download_pdf(pdf_url, task_data):
 
     # Check for errors in the response
     if hasattr(file_insert_result, 'error') and file_insert_result.error:
-    logger.warning(
+        logger.warning(
         f"⚠️ File record creation failed (RLS policy?): {
             file_insert_result.error}")
     elif hasattr(file_insert_result, 'data') and file_insert_result.data:
-    result["file_record_id"] = file_insert_result.data[0].get('id') if isinstance(
+        result["file_record_id"] = file_insert_result.data[0].get('id') if isinstance(
         file_insert_result.data, list) else file_insert_result.data.get('id')
     logger.info(
         f"✅ Created file record in files table: {
             result.get('file_record_id')}")
     elif isinstance(file_insert_result, dict) and file_insert_result.get('error'):
-    logger.warning(
+        logger.warning(
         f"⚠️ File record creation failed: {
             file_insert_result.get('error')}")
     else:
-    logger.warning(
+        logger.warning(
         "⚠️ File uploaded but file record creation returned no data")
     except Exception as file_record_error:
         # File is still in storage, just the database record failed
@@ -850,7 +850,7 @@ def download_pdf(pdf_url, task_data):
     result["storage_path"] = storage_path
     result["file_record_error"] = str(file_record_error)
     else:
-    error_msg = str(upload_error) if not isinstance(
+        error_msg = str(upload_error) if not isinstance(
         upload_error, dict) else upload_error.get(
         'message', str(upload_error))
     logger.warning(f"⚠️ Failed to upload to Supabase storage: {error_msg}")
@@ -860,16 +860,16 @@ def download_pdf(pdf_url, task_data):
     result["upload_failed"] = True
     result["upload_error"] = error_msg
     except ImportError:
-    logger.warning("⚠️ supabase-py not installed, skipping cloud upload")
+        logger.warning("⚠️ supabase-py not installed, skipping cloud upload")
     except Exception as upload_error:
-    logger.warning(f"⚠️ Failed to upload to Supabase storage: {upload_error}")
+        logger.warning(f"⚠️ Failed to upload to Supabase storage: {upload_error}")
     except Exception as e:
-    logger.warning(f"⚠️ Error during Supabase upload attempt: {e}")
+        logger.warning(f"⚠️ Error during Supabase upload attempt: {e}")
 
     return result
 
     except Exception as e:
-    logger.error(f"PDF download failed: {e}")
+        logger.error(f"PDF download failed: {e}")
     return {
         "success": False,
         "error": str(e),

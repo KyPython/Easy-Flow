@@ -126,7 +126,7 @@ def scrape_web_page(url, task_data=None):
             if response.headers.get(
     'content-type',
      '').startswith('application/json'):
-                data = response.json()
+         data = response.json()
 
                 # Apply filters if specified
                 if task_data.get('filters'):
@@ -135,7 +135,7 @@ def scrape_web_page(url, task_data=None):
                         data = data[:filters['limit']]
                     if filters.get('fields') and isinstance(
                         data, (list, dict)):
-                        if isinstance(data, list) and data:
+                            if isinstance(data, list) and data:
                             data = [{k: item.get(k) for k in filters['fields']}
                                     for item in data if isinstance(item, dict)]
                         elif isinstance(data, dict):
@@ -173,7 +173,7 @@ def scrape_web_page(url, task_data=None):
  }
  ) as span:
      try:
-     result = _scrape_web_page_impl(driver, url, task_data)
+         result = _scrape_web_page_impl(driver, url, task_data)
  
  span.set_status(Status(StatusCode.OK))
  span.set_attribute('scraping.status', result.get('status', 'unknown'))
@@ -239,7 +239,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
  "browser.action.extract_basic_data",
  attributes={'browser.url': url}
  ) as extract_span:
- # Extract meta description
+     # Extract meta description
  meta_description_tag = soup.find("meta", attrs={"name": "description"})
  scraped_data["description"] = meta_description_tag["content"].strip() if meta_description_tag and meta_description_tag.get("content") else "No meta description found"
  
@@ -270,7 +270,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
  "browser.action.extract_structured_data",
  attributes={'browser.url': url}
  ) as struct_span:
- # Extract structured data - tables
+     # Extract structured data - tables
  tables = []
  for table in soup.find_all('table'):
      table_data = []
@@ -318,7 +318,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
  struct_span.set_attribute('extraction.lists_found', len(lists))
  struct_span.set_attribute('extraction.links_found', len(links))
  else:
- # Fallback without instrumentation
+     # Fallback without instrumentation
  tables = []
  for table in soup.find_all('table'):
      table_data = []
@@ -363,7 +363,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
  images = []
  for img in soup.find_all('img'):
      if img.get('src'):
-     images.append({
+         images.append({
  'src': img['src'],
  'alt': img.get('alt', ''),
  'title': img.get('title', '')
@@ -390,10 +390,10 @@ def _scrape_web_page_impl(driver, url, task_data=None):
      extracted_elements = {}
  for key, selector in selectors.items():
      try:
-     elements = driver.find_elements(By.CSS_SELECTOR, selector)
+         elements = driver.find_elements(By.CSS_SELECTOR, selector)
  if elements:
      if len(elements) == 1:
-     extracted_elements[key] = elements[0].text.strip()
+         extracted_elements[key] = elements[0].text.strip()
  else:
      extracted_elements[key] = [elem.text.strip() for elem in elements if elem.text.strip()]
  else:
@@ -409,7 +409,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
  selector = task_data.get('selector')
  if selector:
      try:
-     element = WebDriverWait(driver, 5).until(
+         element = WebDriverWait(driver, 5).until(
  EC.presence_of_element_located((By.CSS_SELECTOR, selector))
  )
  scraped_data["targeted_element_text"] = element.text.strip()
@@ -448,7 +448,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
  }
  finally:
      if driver:
-     driver.quit()
+         driver.quit()
 
 def generate_files(scraped_data):
     """
@@ -559,15 +559,15 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
  filled_fields = []
  for field_name, field_value in form_data.items():
      if field_name in selectors:
-     try:
-     selector = selectors[field_name]
+         try:
+         selector = selectors[field_name]
  element = WebDriverWait(driver, 10).until(
  EC.presence_of_element_located((By.CSS_SELECTOR, selector))
  )
  
  # Handle different input types
  if element.tag_name.lower() == 'select':
- # Handle dropdown/select elements
+     # Handle dropdown/select elements
  select = Select(element)
  try:
      select.select_by_visible_text(str(field_value))
@@ -576,7 +576,7 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
  filled_fields.append(f"{field_name}: {field_value} (select)")
  
  elif element.get_attribute('type') == 'checkbox':
- # Handle checkboxes
+     # Handle checkboxes
  if field_value and not element.is_selected():
      element.click()
  elif not field_value and element.is_selected():
@@ -584,19 +584,19 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
  filled_fields.append(f"{field_name}: {field_value} (checkbox)")
  
  elif element.get_attribute('type') == 'radio':
- # Handle radio buttons
+     # Handle radio buttons
  if field_value:
      element.click()
  filled_fields.append(f"{field_name}: {field_value} (radio)")
  
  elif element.get_attribute('type') == 'file':
- # Handle file uploads
+     # Handle file uploads
  if field_value and os.path.exists(str(field_value)):
      element.send_keys(str(field_value))
  filled_fields.append(f"{field_name}: {field_value} (file)")
  
  else:
- # Handle text inputs, textareas, etc.
+     # Handle text inputs, textareas, etc.
  element.clear()
  element.send_keys(str(field_value))
  filled_fields.append(f"{field_name}: {field_value} (text)")
@@ -610,7 +610,7 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
  
  if 'submit' in selectors:
      try:
- # Use provided submit button selector
+         # Use provided submit button selector
  submit_btn = WebDriverWait(driver, 5).until(
  EC.element_to_be_clickable((By.CSS_SELECTOR, selectors['submit']))
  )
@@ -622,14 +622,14 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
  
  if not submit_success:
      try:
- # Try to find and click any submit button
+         # Try to find and click any submit button
  submit_btn = driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit'], button:contains('Submit')")
  submit_btn.click()
  submit_success = True
  submit_method = "auto_submit_button"
  except:
      try:
- # Try submitting the form using Enter key on the last filled field
+         # Try submitting the form using Enter key on the last filled field
  last_element = driver.find_element(By.CSS_SELECTOR, list(selectors.values())[-1])
  last_element.send_keys(Keys.RETURN)
  submit_success = True
@@ -672,7 +672,7 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
  messages = []
  for selector in message_selectors:
      try:
-     elements = result_soup.select(selector)
+         elements = result_soup.select(selector)
  for elem in elements[:3]: # Limit to first 3 per selector
  text = elem.get_text(strip=True)
  if text and len(text) < 500: # Only include reasonable length messages
@@ -694,4 +694,4 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
  }
  finally:
      if driver:
-     driver.quit()
+         driver.quit()
