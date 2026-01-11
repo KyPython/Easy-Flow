@@ -311,16 +311,16 @@ def send_result_to_kafka(task_id, result, status='completed', run_id=None):
     try:
         producer = get_kafka_producer()
         if not producer:
-        logger.error("Kafka producer not available")
-        return False
+            logger.error("Kafka producer not available")
+            return False
 
         # Determine status from result if not explicitly provided
         if status == 'completed' and result:
-        if isinstance(result, dict):
-        if result.get('success') is False:
-        status = 'failed'
-        elif result.get('success') is True:
-        status = 'completed'
+            if isinstance(result, dict):
+                if result.get('success') is False:
+                    status = 'failed'
+                elif result.get('success') is True:
+                    status = 'completed'
         else:
         status = 'completed'  # Default to completed if unclear
 

@@ -102,47 +102,47 @@ def perform_web_automation(url, task_data):
             "status": "success"
         }
 
-    # Perform actions
-    actions = task_data.get('actions', [])
-    for i, action in enumerate(actions):
-    try:
-    action_result = perform_action(driver, action, i)
-    result["actions_performed"].append(action_result)
+        # Perform actions
+        actions = task_data.get('actions', [])
+        for i, action in enumerate(actions):
+            try:
+                action_result = perform_action(driver, action, i)
+                result["actions_performed"].append(action_result)
 
-    if not action_result.get('success', True):
-    result["status"] = "partial_failure"
+                if not action_result.get('success', True):
+                    result["status"] = "partial_failure"
 
-    except Exception as e:
-    logger.error(f"Action {i} failed: {e}")
-    result["actions_performed"].append({
-        "action_index": i,
-        "action_type": action.get('type', 'unknown'),
-        "success": False,
-        "error": str(e),
-        "timestamp": datetime.now().isoformat()
-    })
-    result["status"] = "partial_failure"
+            except Exception as e:
+                logger.error(f"Action {i} failed: {e}")
+                result["actions_performed"].append({
+                    "action_index": i,
+                    "action_type": action.get('type', 'unknown'),
+                    "success": False,
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat()
+                })
+                result["status"] = "partial_failure"
 
-    # Perform verifications
-    verify_elements = task_data.get('verify_elements', [])
-    for selector in verify_elements:
-    try:
-    element = driver.find_element(By.CSS_SELECTOR, selector)
-    result["verifications"].append({
-        "selector": selector,
-        "found": True,
-        "text": element.text.strip(),
-        "visible": element.is_displayed()
-    })
-    except NoSuchElementException:
-    result["verifications"].append({
-        "selector": selector,
-        "found": False,
-        "error": "Element not found"
-    })
-    result["status"] = "partial_failure"
+        # Perform verifications
+        verify_elements = task_data.get('verify_elements', [])
+        for selector in verify_elements:
+            try:
+                element = driver.find_element(By.CSS_SELECTOR, selector)
+                result["verifications"].append({
+                    "selector": selector,
+                    "found": True,
+                    "text": element.text.strip(),
+                    "visible": element.is_displayed()
+                })
+            except NoSuchElementException:
+                result["verifications"].append({
+                    "selector": selector,
+                    "found": False,
+                    "error": "Element not found"
+                })
+                result["status"] = "partial_failure"
 
-    # Check success indicators
+        # Check success indicators
     success_indicators = task_data.get('success_indicators', [])
     for indicator in success_indicators:
     try:

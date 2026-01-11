@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 class KafkaManager:
     """Refactored Kafka manager using aiokafka for non-blocking I/O"""
 
-
     def __init__(self):
         # Environment configuration
         self.kafka_enabled = os.getenv(
@@ -37,12 +36,13 @@ class KafkaManager:
     # Connection settings with exponential backoff
         self.retry_attempts = int(os.getenv('KAFKA_RETRY_ATTEMPTS', '5'))
 
-        self.initial_retry_delay = int(os.getenv('KAFKA_INITIAL_RETRY_DELAY', '1'))
+        self.initial_retry_delay = int(
+            os.getenv('KAFKA_INITIAL_RETRY_DELAY', '1'))
 
         self.max_retry_delay = int(os.getenv('KAFKA_MAX_RETRY_DELAY', '60'))
 
-        self.retry_multiplier = float(os.getenv('KAFKA_RETRY_MULTIPLIER', '2.0'))
-
+        self.retry_multiplier = float(
+            os.getenv('KAFKA_RETRY_MULTIPLIER', '2.0'))
 
     # Internal state
         self.producer: Optional[AIOKafkaProducer] = None
@@ -53,12 +53,11 @@ class KafkaManager:
 
         self.shutdown_event = asyncio.Event()
 
-
     # Message handlers
         self.message_handlers: Dict[str, Callable] = {}
 
-
-        logger.info(f"🔧 KafkaManager initialized - Enabled: {self.kafka_enabled}")
+        logger.info(
+            f"🔧 KafkaManager initialized - Enabled: {self.kafka_enabled}")
 
         if self.kafka_enabled:
             logger.info(
@@ -71,7 +70,6 @@ class KafkaManager:
 
     async def initialize(self):
         """Initialize Kafka connections with retry logic"""
-
 
         if not self.kafka_enabled:
             logger.info("🔇 Kafka disabled - running in standalone mode")
@@ -105,13 +103,11 @@ class KafkaManager:
     def _calculate_backoff_delay(self, attempt: int) -> float:
         """Calculate exponential backoff delay"""
 
-
         delay = self.initial_retry_delay * (self.retry_multiplier ** attempt)
         return min(delay, self.max_retry_delay)
 
     async def _initialize_producer(self) -> bool:
         """Initialize AIOKafkaProducer with exponential backoff retry logic"""
-
 
         for attempt in range(self.retry_attempts):
             try:
@@ -151,10 +147,8 @@ class KafkaManager:
                     await asyncio.sleep(delay)
         return False
 
-
     async def _initialize_consumer(self) -> bool:
         """Initialize AIOKafkaConsumer with exponential backoff retry logic"""
-
 
         for attempt in range(self.retry_attempts):
             try:
@@ -166,7 +160,8 @@ class KafkaManager:
                     bootstrap_servers=self.bootstrap_servers,
                     group_id=self.consumer_group,
                     value_deserializer=lambda x: json.loads(x.decode('utf-8')),
-                    key_deserializer=lambda x: x.decode('utf-8') if x else None,
+                    key_deserializer=lambda x: x.decode(
+                        'utf-8') if x else None,
                     auto_offset_reset='earliest',
                 )
 
@@ -174,7 +169,9 @@ class KafkaManager:
 
                 # Test connection by fetching partitions
                 partitions = await self.consumer.partitions_for_topic(self.task_topic)
-                logger.info(f"📋 Topic '{self.task_topic}' partitions: {partitions}")
+                logger.info(
+    f"📋 Topic '{
+        self.task_topic}' partitions: {partitions}")
 
                 return True
             except KafkaError as e:
@@ -192,26 +189,21 @@ class KafkaManager:
                     await asyncio.sleep(delay)
         return False
 
-
     def register_message_handler(self, task_type: str, handler: Callable):
         """Register a message handler for a specific task type"""
-
 
         self.message_handlers[task_type] = handler
         logger.info(f"📝 Registered handler for task type: {task_type}")
 
-
     async def start_consumer_loop(self):
         """Start the main consumer loop using async iterator"""
 
-
         if not self.kafka_enabled or not self.consumer:
-            logger.info("🔇 Consumer loop skipped - Kafka disabled or not initialized")
+            logger.info(
+                "🔇 Consumer loop skipped - Kafka disabled or not initialized")
             return
 
-
         logger.info(f"👂 Starting consumer loop for topic: {self.task_topic}")
-
 
         try:
 
@@ -231,10 +223,8 @@ class KafkaManager:
 
         logger.info("🛑 Consumer loop stopped")
 
-
     async def _process_message(self, message):
         """Process a single Kafka message with comprehensive span instrumentation"""
-
 
         message_start_time = time.time()
 
@@ -244,7 +234,6 @@ class KafkaManager:
 
         task_type = 'unknown'
 
-
         try:
 
         task_data = message.value
@@ -253,14 +242,11 @@ class KafkaManager:
 
         task_id = task_data.get('task_id', 'unknown')
 
-
     # ✅ Extract trace context from Kafka message headers
         trace_context = self._extract_trace_context(message.headers)
 
-
     # ✅ Extract business context from task data for span attributes
         business_context = self._extract_business_context(task_data)
-
 
     # ✅ Create message processing span context with business attributes
         span_context = {
@@ -274,7 +260,6 @@ class KafkaManager:
             # ✅ High-cardinality business attributes for filtering
             **business_context
         }
-
 
     # ✅ Log message processing start with full span context
         print(json.dumps({
@@ -293,14 +278,12 @@ class KafkaManager:
             "trace": trace_context
         }))
 
-
         handler = self.message_handlers.get(task_type)
 
         if handler:
 
             # Execute handler within span context
         handler_start_time = time.time()
-
 
         print(json.dumps({
 
@@ -312,12 +295,10 @@ class KafkaManager:
             "trace": trace_context
         }))
 
-
     # Pass trace context to handler for further propagation
         result = await handler(task_data, trace_context)
 
         handler_duration = time.time() - handler_start_time
-
 
         print(json.dumps({
 
@@ -333,7 +314,6 @@ class KafkaManager:
             "performance": {"handler_duration": handler_duration},
             "trace": trace_context
         }))
-
 
         await self.send_result(task_id, result, 'completed', trace_context)
 
@@ -373,7 +353,6 @@ class KafkaManager:
             "trace": trace_context
         }))
 
-
         except Exception as e:
 
         task_id = getattr(message.value, 'task_id', 'unknown')
@@ -397,9 +376,7 @@ class KafkaManager:
             **trace_context
         }))
 
-
         await self.send_result(task_id, {'error': str(e)}, 'failed', trace_context)
-
 
     async def send_result(self,
                           task_id: str,

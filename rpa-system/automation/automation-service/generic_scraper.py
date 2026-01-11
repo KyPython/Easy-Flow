@@ -149,13 +149,13 @@ def scrape_web_page(url, task_data=None):
                     'content_type': response.headers.get('content-type', ''),
                     'response_code': response.status_code
                 }
-                                    except Exception as e:
+            except Exception as e:
                 logger.warning(
-        f"JSON extraction failed, falling back to HTML scraping: {e}")
+                    f"JSON extraction failed, falling back to HTML scraping: {e}")
 
- # Continue with regular HTML scraping
-    driver = create_webdriver()
-    if not driver:
+        # Continue with regular HTML scraping
+        driver = create_webdriver()
+        if not driver:
         return {"error": "Failed to create WebDriver"}
 
  # ✅ INSTRUCTION 3: Wrap main scraping sequence with span
