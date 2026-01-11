@@ -334,7 +334,7 @@ def send_result_to_kafka(task_id, result, status='completed', run_id=None):
 
         # ✅ FIX: Include run_id in message so Kafka consumer can update automation_runs table
         if run_id:
-        message['run_id'] = run_id
+            message['run_id'] = run_id
 
         logger.info(
             f"📤 Sending result to Kafka for task {task_id}: status={status}, success={

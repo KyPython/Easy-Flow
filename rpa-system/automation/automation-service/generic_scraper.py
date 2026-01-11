@@ -162,7 +162,7 @@ def scrape_web_page(url, task_data=None):
     if not OTEL_AVAILABLE or tracer is None:
         # Fallback without instrumentation
         return _scrape_web_page_impl(driver, url, task_data)
- 
+
  with tracer.start_as_current_span(
  "browser.action.scrape_page",
  kind=SpanKind.INTERNAL,
