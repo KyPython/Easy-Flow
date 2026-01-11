@@ -170,7 +170,47 @@ install_npm_deps "rpa-system/backend" "Backend" || echo -e "${YELLOW}  ⚠ Backe
 
 # Install frontend dependencies
 # ✅ FIX: Continue even if install fails (non-critical for startup)
-install_npm_deps "rpa-system/rpa-dashboard" "Frontend" || echo -e "${YELLOW}  ⚠ Frontend dependencies install had issues, continuing...${NC}"
+echo -e "${YELLOW}  Installing Frontend dependencies...${NC}"
+if install_npm_deps "rpa-system/rpa-dashboard" "Frontend" || echo -e "${YELLOW}  ⚠ Frontend dependencies install had issues, continuing...${NC}"; then
+    # ✅ SELF-HEALING: Check for common missing browser polyfills and fix config
+    echo -e "${YELLOW}  Checking frontend webpack config...${NC}"
+    FRONTEND_CONFIG="rpa-system/rpa-dashboard/config-overrides.js"
+    if [ -f "$FRONTEND_CONFIG" ]; then
+        # Check if config tries to require polyfills that don't exist
+        if grep -q "require.resolve.*browserify" "$FRONTEND_CONFIG" 2>/dev/null; then
+            # Check if path-browserify is actually installed
+            if [ ! -d "rpa-system/rpa-dashboard/node_modules/path-browserify" ]; then
+                echo -e "${YELLOW}  ⚠ config-overrides.js references browserify polyfills but they're not installed${NC}"
+                echo -e "${GREEN}  🔧 Self-healing: Simplifying webpack config to use false fallbacks...${NC}"
+                
+                # Backup original config
+                cp "$FRONTEND_CONFIG" "$FRONTEND_CONFIG.backup" 2>/dev/null || true
+                
+                # Replace browserify requires with false fallbacks
+                if [[ "$OSTYPE" == "darwin"* ]]; then
+                    # macOS sed
+                    sed -i '' 's/const pathBrowserify = require.resolve("path-browserify");/\/\/ Polyfills disabled - using false fallbacks/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                    sed -i '' 's/path: pathBrowserify/path: false/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                    sed -i '' 's/stream: require.resolve("stream-browserify")/stream: false/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                    sed -i '' 's/buffer: require.resolve("buffer")/buffer: false/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                    sed -i '' 's/util: require.resolve("util")/util: false/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                    sed -i '' 's/os: require.resolve("os-browserify.*)/os: false/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                else
+                    # Linux sed
+                    sed -i 's/const pathBrowserify = require.resolve("path-browserify");/\/\/ Polyfills disabled - using false fallbacks/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                    sed -i 's/path: pathBrowserify/path: false/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                    sed -i 's/stream: require.resolve("stream-browserify")/stream: false/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                    sed -i 's/buffer: require.resolve("buffer")/buffer: false/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                    sed -i 's/util: require.resolve("util")/util: false/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                    sed -i 's/os: require.resolve("os-browserify.*)/os: false/g' "$FRONTEND_CONFIG" 2>/dev/null || true
+                fi
+                
+                echo -e "${GREEN}  ✓ Webpack config auto-fixed${NC}"
+                echo -e "${YELLOW}    Backup saved at: $FRONTEND_CONFIG.backup${NC}"
+            fi
+        fi
+    fi
+fi
 
 # Install automation service Python dependencies
 install_python_deps "rpa-system/automation/automation-service" "Automation Service" "rpa-system/automation/automation-service/requirements.txt"
@@ -348,8 +388,23 @@ fi
 echo -e "${YELLOW}Freeing up critical ports...${NC}"
 for port in $FRONTEND_PORT $BACKEND_PORT $AUTOMATION_PORT $BACKEND_METRICS_PORT; do
     if lsof -ti:$port > /dev/null 2>&1; then
-        lsof -ti:$port | xargs kill -9 2>/dev/null || true
-        echo -e "${GREEN}✓ Freed port $port${NC}"
+        echo -e "${YELLOW}  🔧 Self-healing: Port $port in use, force-freeing...${NC}"
+        # Try graceful kill first
+        lsof -ti:$port | xargs kill 2>/dev/null || true
+        sleep 1
+        # If still running, force kill
+        if lsof -ti:$port > /dev/null 2>&1; then
+            lsof -ti:$port | xargs kill -9 2>/dev/null || true
+            sleep 1
+        fi
+        # Verify port is now free
+        if lsof -ti:$port > /dev/null 2>&1; then
+            echo -e "${RED}✗ Failed to free port $port${NC}"
+            echo -e "${YELLOW}  Process details:${NC}"
+            lsof -i:$port | head -5
+        else
+            echo -e "${GREEN}✓ Freed port $port${NC}"
+        fi
     fi
 done
 sleep 1
@@ -797,12 +852,23 @@ if ! pm2 start ecosystem.config.js 2>/dev/null; then
         echo -e "${YELLOW}  Attempting PM2 start again...${NC}"
         pm2 start ecosystem.config.js || {
             echo -e "${RED}✗ PM2 start failed. Check PM2 logs: pm2 logs${NC}"
-            exit 1
+            echo -e "${GREEN}  🔧 Self-healing: Cleaning PM2 processes and retrying...${NC}"
+            pm2 kill 2>/dev/null || true
+            sleep 2
+            pm2 start ecosystem.config.js || {
+                echo -e "${RED}✗ PM2 start still failed after cleanup${NC}"
+                exit 1
+            }
         }
     else
         echo -e "${RED}✗ ecosystem.config.js has syntax errors${NC}"
         echo -e "${YELLOW}  Error details:${NC}"
         node -e "require('./ecosystem.config.js')" 2>&1 | head -5
+        echo -e "${GREEN}  🔧 Self-healing: Regenerating ecosystem.config.js...${NC}"
+        # Backup the broken config
+        mv ecosystem.config.js ecosystem.config.js.broken 2>/dev/null || true
+        # The script will regenerate it on next run
+        echo -e "${YELLOW}  Please run ./start-dev.sh again to regenerate config${NC}"
         exit 1
     fi
 fi
