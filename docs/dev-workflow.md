@@ -1,48 +1,38 @@
-# Fast Development Workflow
+# Development Workflow
 
-## Quick Commit to Dev Branch
+## Normal Git Commands Work (No Special Commands Needed)
 
-For rapid iteration on the `dev` branch, use these methods to skip slow validations:
-
-### Method 1: Fast Commit Script (Recommended)
+The pre-commit hook is **automatically optimized** for the `dev` branch:
 
 ```bash
-./scripts/fast-commit.sh "Your commit message"
-git push --no-verify origin dev
+# Just use normal git commands - they're fast on dev branch!
+git add .
+git commit -m "Your commit message"
+git push origin dev
 ```
 
-### Method 2: Skip Validations with Environment Variable
-
-```bash
-SKIP_VALIDATION=true git commit -m "Your commit message"
-git push --no-verify origin dev
-```
-
-### Method 3: Use --no-verify Flag
-
-```bash
-git commit --no-verify -m "Your commit message"
-git push --no-verify origin dev
-```
-
-## When to Use Fast Commits
-
-✅ **Use fast commits on `dev` branch when:**
-- Rapid prototyping
-- Quick bug fixes
-- WIP commits
-- Experimental features
-
-❌ **Don't use fast commits when:**
-- Committing to `main` branch
-- Ready for production
-- Need full validation
+The hook automatically:
+- ✅ Skips slow operations on `dev` branch (linting, builds, validation)
+- ✅ Runs full checks on `main` branch (production safety)
+- ✅ Completes in <0.1 seconds on `dev` (vs ~1.5 minutes before)
 
 ## Full Validation (CI/CD)
 
-Full validations still run in CI/CD for `dev` branch on:
-- Pull requests
+**All comprehensive checks run automatically in CI/CD:**
+
+- ✅ Linting (frontend + backend)
+- ✅ Build verification
+- ✅ Test suites
+- ✅ Code quality checks
+- ✅ Security scans
+- ✅ Validation checks (SRP, theme, etc.)
+- ✅ Duplicate code detection
+- ✅ Unused code detection
+- ✅ Test coverage validation
+
+CI/CD runs on:
+- Pull requests to `dev` or `main`
 - Scheduled daily checks
 - Before merging to `main`
 
-This ensures code quality while allowing fast local iteration.
+This ensures code quality while keeping local development fast and friction-free.
