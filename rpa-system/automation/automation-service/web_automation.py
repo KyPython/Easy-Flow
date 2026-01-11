@@ -57,8 +57,8 @@ def create_webdriver():
         driver = webdriver.Chrome(service=service, options=options)
         return driver
     except Exception as e:
-    logger.error(f"Failed to create WebDriver: {e}")
-    return None
+        logger.error(f"Failed to create WebDriver: {e}")
+        return None
 
 
 def perform_web_automation(url, task_data):

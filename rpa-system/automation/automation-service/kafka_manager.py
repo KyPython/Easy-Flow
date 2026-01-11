@@ -184,7 +184,7 @@ class KafkaManager:
                     logger.info(
                         f"⏱️ Retrying in {delay:.1f} seconds with exponential backoff...")
                     await asyncio.sleep(delay)
-                except Exception as e:
+            except Exception as e:
                 logger.error(f"❌ Consumer initialization error: {e}")
                 if attempt < self.retry_attempts - 1:
                     delay = self._calculate_backoff_delay(attempt)

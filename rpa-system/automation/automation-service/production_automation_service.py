@@ -237,13 +237,13 @@ def get_kafka_producer():
     """Thread-safe way to get the Kafka producer instance."""
     global kafka_producer
     if kafka_producer is None:
-    with kafka_lock:
-    if kafka_producer is None:
-    if not KAFKA_AVAILABLE:
-    logger.warning("Kafka-python not available, cannot create producer.")
-    return None
-    try:
-    kafka_producer = KafkaProducer(
+            with kafka_lock:
+                if kafka_producer is None:
+                    if not KAFKA_AVAILABLE:
+                    logger.warning("Kafka-python not available, cannot create producer.")
+                    return None
+                try:
+                    kafka_producer = KafkaProducer(
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         value_serializer=lambda x: json.dumps(x).encode('utf-8'),
         key_serializer=lambda x: x.encode(
