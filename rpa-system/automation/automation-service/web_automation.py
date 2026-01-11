@@ -145,24 +145,24 @@ def perform_web_automation(url, task_data):
             # Check success indicators
         success_indicators = task_data.get('success_indicators', [])
         for indicator in success_indicators:
-        try:
-        success = check_success_indicator(driver, indicator)
-        result["verifications"].append({
-            "type": "success_indicator",
-            "indicator": indicator,
-            "success": success
-        })
-        if not success:
-        result["status"] = "partial_failure"
-        except Exception as e:
-        result["verifications"].append({
-            "type": "success_indicator",
-            "indicator": indicator,
-            "success": False,
-            "error": str(e)
-        })
+            try:
+                success = check_success_indicator(driver, indicator)
+                result["verifications"].append({
+                    "type": "success_indicator",
+                    "indicator": indicator,
+                    "success": success
+                })
+                if not success:
+                    result["status"] = "partial_failure"
+            except Exception as e:
+                result["verifications"].append({
+                    "type": "success_indicator",
+                    "indicator": indicator,
+                    "success": False,
+                    "error": str(e)
+                })
 
-    # Final page state
+        # Final page state
     result["final_url"] = driver.current_url
     result["page_title"] = driver.title
     result["end_time"] = datetime.now().isoformat()
