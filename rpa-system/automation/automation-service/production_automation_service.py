@@ -415,9 +415,9 @@ def process_automation_task(task_data):
     # ✅ FIX: Normalize task_type to handle both hyphen and underscore formats
     # Backend sends 'invoice-download' but worker expects 'invoice_download'
     if task_type == 'invoice-download':
-    task_type = 'invoice_download'
-    # Update in task_data for consistency
-    task_data['task_type'] = 'invoice_download'
+        task_type = 'invoice_download'
+        # Update in task_data for consistency
+        task_data['task_type'] = 'invoice_download'
 
     # ✅ INSTRUCTION 3: Extract user_id and workflow_id from task payload (Gap 9, 17)
     user_id = task_data.get('user_id', 'unknown')
