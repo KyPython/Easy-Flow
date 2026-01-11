@@ -124,9 +124,9 @@ class FrontendLogger {
  // Only log every Nth message based on sample rate
  if (namespaceCounter % LOG_SAMPLE_RATE !== 0) {
  isSampled = true;
- // Still send sampled logs to backend telemetry for observability
- // This ensures observability system gets representative sample of all logs
- const traceInfo = getCurrentTraceInfo();
+         // Still send sampled logs to backend telemetry for observability
+         // This ensures observability system gets representative sample of all logs
+         const traceInfo = getCurrentTraceInfoSync();
  const logEntry = {
  level,
  namespace: this.namespace,
