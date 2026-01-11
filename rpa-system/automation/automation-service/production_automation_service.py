@@ -322,7 +322,7 @@ def send_result_to_kafka(task_id, result, status='completed', run_id=None):
                 elif result.get('success') is True:
                     status = 'completed'
         else:
-        status = 'completed'  # Default to completed if unclear
+                status = 'completed'  # Default to completed if unclear
 
         message = {
             'task_id': task_id,

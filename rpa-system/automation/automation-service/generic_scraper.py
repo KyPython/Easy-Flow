@@ -155,8 +155,8 @@ def scrape_web_page(url, task_data=None):
 
         # Continue with regular HTML scraping
         driver = create_webdriver()
-        if not driver:
-        return {"error": "Failed to create WebDriver"}
+            if not driver:
+            return {"error": "Failed to create WebDriver"}
 
  # ✅ INSTRUCTION 3: Wrap main scraping sequence with span
  if not OTEL_AVAILABLE or tracer is None:
