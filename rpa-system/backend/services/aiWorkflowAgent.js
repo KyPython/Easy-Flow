@@ -730,6 +730,7 @@ function isWorkflowRequest(userMessage) {
 async function handleMessage(userMessage, context = {}) {
  const startTime = Date.now();
  const actionExecutor = require('./aiActionExecutor');
+ const painMapping = require('./painMappingService');
 
  // Create user-scoped logger for this interaction
  const msgLogger = logger
@@ -755,6 +756,56 @@ async function handleMessage(userMessage, context = {}) {
  messagePreview: userMessage?.slice(0, 50),
  hasContext: !!context.previousMessages
  });
+
+ // ✅ PAIN MAPPING: Detect if user is describing a problem, not a solution
+ const painDetection = painMapping.detectPainPoint(userMessage);
+ const discoveredInfo = painMapping.extractDiscoveredInfo(context);
+ 
+ if (painDetection.isPainPoint && painDetection.confidence > 0.6) {
+ msgLogger.info('Pain point detected', {
+ painTypes: painDetection.painTypes,
+ confidence: painDetection.confidence,
+ discoveredInfo: Object.keys(discoveredInfo)
+ });
+ 
+ // Check if we have enough information to proceed
+ const questions = painMapping.generateClarifyingQuestions(painDetection, { discoveredInfo });
+ 
+ if (questions.length > 0) {
+ // We need more information - ask clarifying questions
+ const questionText = questions.map(q => q.question).join('\n- ');
+ 
+ // Also try to match templates to show user we understand their pain
+ const templateMatches = await painMapping.matchTemplatesToPain(userMessage, discoveredInfo);
+ 
+ let responseMessage = `I understand you're dealing with ${painDetection.painTypes?.[0] || 'a repetitive task'}. Let me help you automate this! 🎯\n\n`;
+ 
+ if (templateMatches.success && templateMatches.matches.length > 0) {
+ const topMatch = templateMatches.matches[0];
+ responseMessage += `I found a template that might help: **${topMatch.name}** - ${topMatch.description}\n\n`;
+ responseMessage += `To set this up perfectly, I need a few quick details:\n- ${questionText}\n\n`;
+ responseMessage += `Or if you'd like, I can set up "${topMatch.name}" right now with standard settings. Just say "yes" or "set it up"!`;
+ } else {
+ responseMessage += `To create the perfect workflow for you, I need a few quick details:\n- ${questionText}`;
+ }
+ 
+ return {
+ type: 'conversation',
+ success: true,
+ message: responseMessage,
+ needsClarification: true,
+ clarifyingQuestions: questions,
+ templateMatches: templateMatches.matches || [],
+ discoveredInfo
+ };
+ }
+ 
+ // We have enough info, but user said "just make it work" - apply defaults
+ const wantsDefaults = /just make it work|just do it|set it up|make it happen|do your thing/i.test(userMessage);
+ if (wantsDefaults) {
+ context.applyDefaults = true;
+ }
+ }
 
  // Get available actions as OpenAI tools
  const tools = actionExecutor.getActionsAsTools();
