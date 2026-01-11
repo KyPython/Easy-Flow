@@ -222,8 +222,7 @@ async function matchTemplatesToPain(painDescription, discoveredInfo = {}) {
   
   try {
     // Query templates via Supabase
-    const { getSupabase } = require('../utils/supabase');
-    const supabase = getSupabase();
+    const supabase = require('../utils/supabase').getSupabase();
     
     if (!supabase) {
       logger.warn('Supabase not available for template matching');
