@@ -460,11 +460,11 @@ def process_automation_task(task_data):
 
     try:
         # --- Real automation logic with browser automation ---
-    if task_type == 'web_automation':
-    try:
-    from . import web_automation
-    except ImportError:
-    import web_automation
+        if task_type == 'web_automation':
+            try:
+                from . import web_automation
+            except ImportError:
+                import web_automation
 
     url = task_data.get('url')
     if not url:
