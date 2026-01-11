@@ -349,7 +349,8 @@ def send_result_to_kafka(task_id, result, status='completed', run_id=None):
             carrier = {}
             propagate.inject(carrier)
 
-            # Convert carrier to Kafka headers format (list of tuples with bytes)
+            # Convert carrier to Kafka headers format (list of tuples with
+            # bytes)
             for key, value in carrier.items():
                 # Ensure value is bytes - handle both str and bytes
                 if isinstance(value, str):
