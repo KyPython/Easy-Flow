@@ -27,14 +27,14 @@ import re
 # ✅ INSTRUCTION 3: Import OpenTelemetry for browser automation span instrumentation
 try:
     from opentelemetry import trace
- from opentelemetry.trace import Status, StatusCode, SpanKind
- OTEL_AVAILABLE = True
+    from opentelemetry.trace import Status, StatusCode, SpanKind
+    OTEL_AVAILABLE = True
 
- # ✅ INSTRUCTION 3: Get tracer for browser automation operations
- tracer = trace.get_tracer('browser.automation')
+    # ✅ INSTRUCTION 3: Get tracer for browser automation operations
+    tracer = trace.get_tracer('browser.automation')
 except ImportError:
     OTEL_AVAILABLE = False
- tracer = None
+    tracer = None
  logging.warning(
      "⚠️ OpenTelemetry not available - browser automation spans disabled")
 

@@ -227,8 +227,8 @@ def kafka_headers_to_dict(kafka_headers):
                 header_dict[key] = value.decode('utf-8')
             else:
                 header_dict[key] = str(value)
-    except Exception as e:
-    logger.warning(f"Failed to decode Kafka header {key}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to decode Kafka header {key}: {e}")
 
     return header_dict
 

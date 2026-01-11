@@ -69,7 +69,7 @@ def should_process_file(filepath):
             return False
 
     # Only process text files
- return filepath.suffix in TEXT_EXTENSIONS
+    return filepath.suffix in TEXT_EXTENSIONS
 
 def sanitize_text(content):
  """Replace AI-generated characters and patterns with human-written equivalents"""
