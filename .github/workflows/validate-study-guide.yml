@@ -2,13 +2,15 @@ name: Validate Study Guide
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]  # Only validate on main (dev runs on schedule)
     paths:
       - 'docs/guides/COMPREHENSIVE_STUDY_GUIDE.md'
       - 'rpa-system/**'
       - 'scripts/validate-study-guide.js'
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev]  # Run on PRs
+  schedule:
+    - cron: "0 6 * * *" # Daily validation at 6 AM UTC
     paths:
       - 'docs/guides/COMPREHENSIVE_STUDY_GUIDE.md'
       - 'rpa-system/**'
