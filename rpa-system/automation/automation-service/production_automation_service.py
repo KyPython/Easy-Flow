@@ -217,16 +217,16 @@ def kafka_headers_to_dict(kafka_headers):
     dict: Dictionary with string keys and values
     """
     if not kafka_headers:
-    return {}
+        return {}
 
     header_dict = {}
     for key, value in kafka_headers:
-    try:
-        # Decode bytes to string
-    if isinstance(value, bytes):
-    header_dict[key] = value.decode('utf-8')
-    else:
-    header_dict[key] = str(value)
+        try:
+            # Decode bytes to string
+            if isinstance(value, bytes):
+                header_dict[key] = value.decode('utf-8')
+            else:
+                header_dict[key] = str(value)
     except Exception as e:
     logger.warning(f"Failed to decode Kafka header {key}: {e}")
 

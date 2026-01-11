@@ -8,13 +8,13 @@ import sys
 import os
 
 def convert_svg_to_png():
- """Convert SVG logo to PNG for Notion"""
- svg_path = 'rpa-system/rpa-dashboard/src/logo.svg'
- output_path = 'rpa-system/rpa-dashboard/public/logo-notion.png'
- 
- if not os.path.exists(svg_path):
- print(f"Error: Logo file not found at {svg_path}")
- return False
+    """Convert SVG logo to PNG for Notion"""
+    svg_path = 'rpa-system/rpa-dashboard/src/logo.svg'
+    output_path = 'rpa-system/rpa-dashboard/public/logo-notion.png'
+
+    if not os.path.exists(svg_path):
+        print(f"Error: Logo file not found at {svg_path}")
+        return False
  
  # Try method 1: cairosvg (recommended)
  try:

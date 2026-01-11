@@ -53,9 +53,9 @@ def create_webdriver():
     options.add_argument('--disable-javascript')  # Can be enabled per task
 
     try:
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-    return driver
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+        return driver
     except Exception as e:
     logger.error(f"Failed to create WebDriver: {e}")
     return None

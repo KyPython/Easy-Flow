@@ -43,10 +43,10 @@ def parse_headers(header_string):
 def initialize_telemetry():
     """Initialize OpenTelemetry SDK for traces and metrics."""
     try:
-    from opentelemetry import trace
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.sdk.resources import Resource
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.sdk.resources import Resource
     from opentelemetry.semconv.resource import ResourceAttributes
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 

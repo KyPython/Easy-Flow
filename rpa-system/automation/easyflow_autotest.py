@@ -10,10 +10,10 @@ from typing import Dict, Optional
 
 vals: Dict[str, str] = {}
 with open(env_path) as f:
- for line in f:
- if '=' in line:
- k,v=line.rstrip('\n').split('=',1)
- vals[k]=v
+    for line in f:
+        if '=' in line:
+            k, v = line.rstrip('\n').split('=', 1)
+            vals[k] = v
 SUPABASE_URL: Optional[str] = vals.get('SUPABASE_URL')
 SUPABASE_ANON_KEY: Optional[str] = vals.get('SUPABASE_ANON_KEY')
 SUPABASE_SERVICE_ROLE: Optional[str] = vals.get('SUPABASE_SERVICE_ROLE')
