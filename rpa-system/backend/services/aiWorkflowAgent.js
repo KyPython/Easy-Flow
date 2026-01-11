@@ -1052,6 +1052,17 @@ Available automation types: ${Object.values(WORKFLOW_STEPS).map(s => `${s.icon} 
  const result = await parseNaturalLanguage(functionArgs.description, context);
  const duration = Date.now() - startTime;
 
+ // ✅ PAIN MAPPING: Apply defaults if user requested "just make it work"
+ if (context.applyDefaults && result.success && result.workflow) {
+ result.workflow = painMapping.applyDefaultSettings(result.workflow, true);
+ }
+ 
+ // ✅ PAIN MAPPING: Generate non-technical preview
+ if (result.success && result.workflow) {
+ const discoveredInfo = painMapping.extractDiscoveredInfo(context);
+ result.preview = painMapping.generateWorkflowPreview(result.workflow, discoveredInfo);
+ }
+
  msgLogger.performance('ai.agent.workflow_generation', duration, {
  category: 'ai_agent',
  success: result.success,
