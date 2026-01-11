@@ -151,8 +151,30 @@ for port in "$FRONTEND_PORT" "$BACKEND_PORT" "$AUTOMATION_PORT" 9090 3001 $RAG_P
 done
 
 echo ""
-if [ "$PORTS_OK" = true ]; then
+# Verify PM2 is actually stopped
+PM2_PROCESSES=$(pm2 list 2>/dev/null | grep -v "│ id" | grep -v "┌─" | grep -v "└─" | grep -v "─" | wc -l | tr -d ' ')
+if [ "$PM2_PROCESSES" -gt 0 ]; then
+    echo -e "${YELLOW}⚠ PM2 still reports $PM2_PROCESSES process(es)${NC}"
+    echo -e "${YELLOW}  Attempting force cleanup...${NC}"
+    pm2 kill 2>/dev/null || true
+    sleep 1
+fi
+
+# Final verification
+FINAL_PORTS_OK=true
+for port in "$FRONTEND_PORT" "$BACKEND_PORT" "$AUTOMATION_PORT" 9090 3001 ${RAG_PORT:-3002} 3100 3200 4317 4318 "$BACKEND_METRICS_PORT" 9080 9093; do
+    if [[ "$port" =~ ^[0-9]+$ ]]; then
+        if lsof -i :"$port" 2>/dev/null | grep LISTEN > /dev/null 2>&1; then
+            FINAL_PORTS_OK=false
+            break
+        fi
+    fi
+done
+
+if [ "$PORTS_OK" = true ] && [ "$FINAL_PORTS_OK" = true ]; then
     echo -e "${GREEN}✓ All servers and infrastructure stopped successfully${NC}"
 else
     echo -e "${YELLOW}⚠ Some ports are still in use. You may need to manually kill processes.${NC}"
+    echo -e "${YELLOW}  To force kill all processes on ports, run:${NC}"
+    echo -e "${YELLOW}    for p in \$FRONTEND_PORT \$BACKEND_PORT \$AUTOMATION_PORT; do lsof -ti:\$p | xargs kill -9 2>/dev/null; done${NC}"
 fi

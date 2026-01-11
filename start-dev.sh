@@ -771,6 +771,21 @@ if (fs.existsSync(RAG_DIR) && fs.existsSync(path.join(RAG_DIR, 'package.json')))
 }
 EOL
 
+# ✅ VALIDATION: Check syntax before starting services
+echo ""
+echo -e "${YELLOW}🔍 Validating code syntax before startup...${NC}"
+if [ -f "scripts/validate-syntax.sh" ]; then
+    if ! ./scripts/validate-syntax.sh; then
+        echo -e "${RED}✗ Syntax validation failed - cannot start services${NC}"
+        echo -e "${YELLOW}Please fix the errors above and try again.${NC}"
+        exit 1
+    fi
+    echo ""
+else
+    echo -e "${YELLOW}⚠ Syntax validation script not found, skipping validation${NC}"
+    echo ""
+fi
+
 # Start all services with PM2
 echo -e "${GREEN}Starting all services with PM2...${NC}"
 if ! pm2 start ecosystem.config.js 2>/dev/null; then
