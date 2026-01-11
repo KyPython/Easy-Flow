@@ -1,13 +1,17 @@
-/* UpgradeBanner Styles using EasyFlow theme */
+/* UpgradeBanner - Following Visual Design Principles Section 3 (Psychology of Design)
+ * Emotional Design: Premium gradient for aspirational feeling
+ * Language: "Unlock" not "Restricted" - behavioral design
+ * Social Proof: "Join X users" - reflective design
+ */
 
 .banner {
   background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-secondary-600) 100%);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: var(--spacing-lg);
   margin-bottom: var(--spacing-xl);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   animation: fadeIn 0.3s ease-out;
-  border: 1px solid var(--color-primary-200);
+  border: 2px solid rgba(255, 255, 255, 0.1);
   position: relative;
   overflow: hidden;
 }

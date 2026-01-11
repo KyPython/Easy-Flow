@@ -1,11 +1,11 @@
 const { getSupabase } = require('../utils/supabaseClient');
-const { createLogger } = require('../utils/logger');
+const { getLogger } = require('../utils/logger');
 const { firebaseNotificationService } = require('../utils/firebaseAdmin');
 
 class SubscriptionMonitoringService {
   constructor() {
     this.supabase = getSupabase();
-    this.logger = createLogger('subscription.monitoring');
+    this.logger = getLogger('subscription.monitoring');
   }
 
   /**
@@ -437,4 +437,3 @@ class SubscriptionMonitoringService {
 }
 
 module.exports = new SubscriptionMonitoringService();
-

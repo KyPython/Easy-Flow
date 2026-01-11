@@ -44,66 +44,93 @@
   min-height: 48px;
 }
 
-/* Variants */
+/* Variants - Aligned with Visual Design Principles (Section 4: Gestalt - Similarity) */
+
+/* Primary: Solid blue for trust & stability (main actions) */
 .primary {
-  background: var(--color-primary);
-  color: var(--text-inverse);
+  background: var(--color-primary-600);
+  color: white;
+  font-weight: var(--font-weight-semibold);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  background: var(--color-primary-700);
   box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .primary:active {
-  background: var(--color-primary-dark);
-  transform: translateY(1px);
+  background: var(--color-primary-800);
+  transform: translateY(0);
 }
 
+/* Secondary: Ghost style for de-emphasized actions */
 .secondary {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-secondary);
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+  border: 1px solid var(--color-gray-300);
+  font-weight: var(--font-weight-medium);
 }
 
 .secondary:hover:not(:disabled) {
-  background: var(--bg-tertiary);
-  border-color: var(--border-primary);
-  box-shadow: var(--shadow-sm);
+  background: var(--color-gray-200);
+  border-color: var(--color-gray-400);
 }
 
 .secondary:active {
-  background: var(--border-primary);
-  transform: translateY(1px);
+  background: var(--color-gray-300);
+  transform: translateY(0);
 }
 
+/* Destructive: Red outline for dangerous actions (visual caution) */
+.destructive {
+  background: transparent;
+  color: var(--color-error-600);
+  border: 2px solid var(--color-error-600);
+  font-weight: var(--font-weight-semibold);
+}
+
+.destructive:hover:not(:disabled) {
+  background: var(--color-error-50);
+  border-color: var(--color-error-700);
+}
+
+.destructive:active {
+  background: var(--color-error-100);
+  transform: translateY(0);
+}
+
+/* Danger: Solid red for immediate destructive actions */
 .danger {
-  background: var(--color-error);
-  color: var(--text-inverse);
+  background: var(--color-error-600);
+  color: white;
+  font-weight: var(--font-weight-semibold);
 }
 
 .danger:hover:not(:disabled) {
-  background: var(--color-error-hover);
+  background: var(--color-error-700);
   box-shadow: var(--shadow-md);
 }
 
 .danger:active {
-  background: var(--color-error-dark);
-  transform: translateY(1px);
+  background: var(--color-error-800);
+  transform: translateY(0);
 }
 
+/* Ghost: Transparent for tertiary actions */
 .ghost {
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--color-gray-600);
+  font-weight: var(--font-weight-medium);
 }
 
 .ghost:hover:not(:disabled) {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
 }
 
 .ghost:active {
-  background: var(--bg-tertiary);
+  background: var(--color-gray-200);
 }
 
 /* Loading spinner */

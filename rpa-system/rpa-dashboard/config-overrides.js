@@ -5,28 +5,18 @@ module.exports = function override(config, env) {
   // Basic fallbacks for node modules - CRITICAL: must be set before other config
   config.resolve = config.resolve || {};
   
-  // CRITICAL: Ensure path-browserify is resolved BEFORE setting fallback
-  const pathBrowserify = require.resolve("path-browserify");
-  
+  // Simplified: Just disable node modules that don't work in browser
   config.resolve.fallback = {
     ...config.resolve.fallback,
     fs: false,
     net: false,
     tls: false,
     crypto: false,
-    // CRITICAL: path fallback MUST be set to pathBrowserify to handle OpenTelemetry imports
-    path: pathBrowserify,
-    stream: require.resolve("stream-browserify"),
-    buffer: require.resolve("buffer"),
-    util: require.resolve("util"),
-    os: require.resolve("os-browserify/browser"),
-  };
-  
-  // CRITICAL: Also ensure path is available globally for ESM modules
-  config.resolve.alias = {
-    ...config.resolve.alias,
-    'path': pathBrowserify,
-    'path/': pathBrowserify,
+    path: false,
+    stream: false,
+    buffer: false,
+    util: false,
+    os: false,
   };
   
   // Ensure fallbacks work for node_modules too
@@ -70,9 +60,6 @@ module.exports = function override(config, env) {
     '@opentelemetry/instrumentation/build/src/instrumentationNodeModuleFile': emptyModulePath,
     // Also match any import that includes this filename
     'instrumentationNodeModuleFile': emptyModulePath,
-    // Also ensure 'path' resolves to path-browserify in ALL contexts (including ESM)
-    'path': pathBrowserify,
-    'path/': pathBrowserify,
   };
   
   // Fix React Refresh runtime module resolution issue

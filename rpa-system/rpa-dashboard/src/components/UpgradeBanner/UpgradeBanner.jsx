@@ -72,10 +72,10 @@ const UpgradeBanner = () => {
         
         <div className={styles.message}>
           <div className={styles.title}>
-            🚀 Unlock Advanced Workflows
+            ✨ Unlock Advanced Workflows
           </div>
           <div className={styles.subtitle}>
-            50% off for first 10 customers · Only <span className={styles.urgency}>7 spots left</span>
+            Join 1,000+ power users · 50% off first month
           </div>
         </div>
         

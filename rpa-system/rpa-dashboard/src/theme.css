@@ -27,25 +27,28 @@
   --color-secondary-800: #075985;
   --color-secondary-900: #0c4a6e;
 
-  /* Status colors with blue undertones */
+  /* Status colors - Psychology-driven (Section 3 of Visual Design Principles) */
+  /* Green = Progress, completion (behavioral signal) */
   --color-success-50: #f0fdf4;
   --color-success-100: #dcfce7;
   --color-success-200: #bbf7d0;
-  --color-success-500: #22c55e;
+  --color-success-500: #10B981; /* Updated to match design guide */
   --color-success-600: #16a34a;
   --color-success-700: #15803d;
   
+  /* Amber = Caution, needs attention (behavioral signal) */
   --color-warning-50: #fffbeb;
   --color-warning-100: #fef3c7;
   --color-warning-200: #fde68a;
-  --color-warning-500: #f59e0b;
+  --color-warning-500: #F59E0B; /* Amber for "needs attention" states */
   --color-warning-600: #d97706;
   --color-warning-700: #b45309;
   
+  /* Red = Urgency, failure (visceral impact) */
   --color-error-50: #fef2f2;
   --color-error-100: #fee2e2;
   --color-error-200: #fecaca;
-  --color-error-500: #ef4444;
+  --color-error-500: #EF4444; /* Red for urgent errors */
   --color-error-600: #dc2626;
   --color-error-700: #b91c1c;
 
