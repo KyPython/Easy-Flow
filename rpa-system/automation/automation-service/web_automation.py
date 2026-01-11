@@ -158,9 +158,9 @@ def perform_web_automation(url, task_data):
         result["verifications"].append({
             "type": "success_indicator",
             "indicator": indicator,
-        "success": False,
-        "error": str(e)
-    })
+            "success": False,
+            "error": str(e)
+        })
 
     # Final page state
     result["final_url"] = driver.current_url
