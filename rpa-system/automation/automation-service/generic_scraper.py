@@ -153,10 +153,10 @@ def scrape_web_page(url, task_data=None):
                 logger.warning(
                     f"JSON extraction failed, falling back to HTML scraping: {e}")
 
-        # Continue with regular HTML scraping
-        driver = create_webdriver()
-        if not driver:
-            return {"error": "Failed to create WebDriver"}
+    # Continue with regular HTML scraping
+    driver = create_webdriver()
+    if not driver:
+        return {"error": "Failed to create WebDriver"}
 
     # ✅ INSTRUCTION 3: Wrap main scraping sequence with span
     if not OTEL_AVAILABLE or tracer is None:
