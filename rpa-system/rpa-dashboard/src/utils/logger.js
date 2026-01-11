@@ -4,7 +4,35 @@
  * Provides structured logging with trace context correlation
  */
 
-import { trackEvent, getCurrentTraceInfo } from './api';
+// ✅ FIX: Use dynamic imports to break circular dependency with api.js
+// api.js imports createLogger from logger.js, so we can't import from api.js at top level
+let getCurrentTraceInfo = null;
+let trackEvent = null;
+
+// Lazy load these functions to avoid circular dependency
+async function loadApiUtils() {
+  if (!getCurrentTraceInfo || !trackEvent) {
+    const apiModule = await import('./api');
+    getCurrentTraceInfo = apiModule.getCurrentTraceInfo;
+    trackEvent = apiModule.trackEvent;
+  }
+  return { getCurrentTraceInfo, trackEvent };
+}
+
+// Synchronous fallback for getCurrentTraceInfo (used in _log method)
+function getCurrentTraceInfoSync() {
+  // Try to get from already loaded module, or return empty object
+  try {
+    // This will work if api.js has already been loaded
+    const apiModule = require('./api');
+    if (apiModule && apiModule.getCurrentTraceInfo) {
+      return apiModule.getCurrentTraceInfo();
+    }
+  } catch (e) {
+    // Module not loaded yet, return empty trace info
+  }
+  return {};
+}
 
 // Log levels with priorities
 const LOG_LEVELS = {
@@ -153,7 +181,7 @@ class FrontendLogger {
  }
 
  // Get trace context for correlation
- const traceInfo = getCurrentTraceInfo();
+ const traceInfo = getCurrentTraceInfoSync();
 
  // Build structured log entry
  const logEntry = {
