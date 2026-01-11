@@ -192,12 +192,12 @@ def context_aware_submit(executor, fn, *args, **kwargs):
         """Internal wrapper that restores context in the new thread"""
         # Attach the captured context in this new thread
         token = otel_context.attach(current_context)
-    try:
-        # Execute the original function with the restored context
-    return fn(*args, **kwargs)
-    finally:
-        # Detach context to avoid leaks
-    otel_context.detach(token)
+        try:
+            # Execute the original function with the restored context
+            return fn(*args, **kwargs)
+        finally:
+            # Detach context to avoid leaks
+            otel_context.detach(token)
 
     # Submit the context-preserving wrapper to the executor
     return executor.submit(context_preserving_wrapper)
