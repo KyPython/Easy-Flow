@@ -346,18 +346,18 @@ def send_result_to_kafka(task_id, result, status='completed', run_id=None):
         headers = []
         if OTEL_AVAILABLE and propagate is not None:
             # Create carrier dict to inject context into
-        carrier = {}
-        propagate.inject(carrier)
+            carrier = {}
+            propagate.inject(carrier)
 
-        # Convert carrier to Kafka headers format (list of tuples with bytes)
-        for key, value in carrier.items():
-            # Ensure value is bytes - handle both str and bytes
-        if isinstance(value, str):
-        value_bytes = value.encode('utf-8')
-        elif isinstance(value, bytes):
-        value_bytes = value
-        else:
-        value_bytes = str(value).encode('utf-8')
+            # Convert carrier to Kafka headers format (list of tuples with bytes)
+            for key, value in carrier.items():
+                # Ensure value is bytes - handle both str and bytes
+                if isinstance(value, str):
+                    value_bytes = value.encode('utf-8')
+                elif isinstance(value, bytes):
+                    value_bytes = value
+                else:
+                    value_bytes = str(value).encode('utf-8')
         headers.append((key, value_bytes))
 
         # Pass task_id as-is (key_serializer will handle encoding)
