@@ -440,12 +440,14 @@ def process_automation_task(task_data):
             if span:
                 span_context = span.get_span_context()
                 if span_context and span_context.is_valid:
-                    extra_context['otel_trace_id'] = format(span_context.trace_id, '032x')
-                    extra_context['otel_span_id'] = format(span_context.span_id, '016x')
+                    extra_context['otel_trace_id'] = format(
+                        span_context.trace_id, '032x')
+                    extra_context['otel_span_id'] = format(
+                        span_context.span_id, '016x')
                     extra_context['otel_trace_flags'] = span_context.trace_flags
-    except Exception as e:
-        # Silently fail if trace context extraction fails
-    pass
+        except Exception as e:
+            # Silently fail if trace context extraction fails
+            pass
 
     task_logger = logging.LoggerAdapter(logger, extra_context)
 
