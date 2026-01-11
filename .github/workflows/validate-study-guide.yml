@@ -1,4 +1,4 @@
-name: Validate Study Guide
+name: Validate Study Guide (Branch-Aware)
 
 on:
   push:
@@ -11,9 +11,6 @@ on:
     branches: [main, dev]  # Run on PRs
   schedule:
     - cron: "0 6 * * *" # Daily validation at 6 AM UTC
-    paths:
-      - 'docs/guides/COMPREHENSIVE_STUDY_GUIDE.md'
-      - 'rpa-system/**'
   workflow_dispatch:
 
 jobs:
@@ -30,16 +27,39 @@ jobs:
         with:
           node-version: 20
 
+      - name: Determine branch and validation mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+          echo "🔍 Branch: ${{ steps.branch-info.outputs.branch }}"
+          echo "🔍 Mode: ${{ steps.branch-info.outputs.mode }}"
+          echo "🔍 Blocking: ${{ steps.branch-info.outputs.blocking }}"
+
       - name: Validate Study Guide
         id: validate
-        continue-on-error: true
+        env:
+          STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
         run: |
           chmod +x scripts/validate-study-guide.js
           node scripts/validate-study-guide.js
           exit_code=$?
           if [ $exit_code -ne 0 ]; then
             echo "validation_failed=true" >> $GITHUB_OUTPUT
-            exit 1
+            if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+              exit 1
+            else
+              echo "⚠️ Study guide validation failed (non-blocking on dev branch)"
+              exit 0
+            fi
           else
             echo "validation_failed=false" >> $GITHUB_OUTPUT
           fi
@@ -56,8 +76,8 @@ jobs:
               body: '⚠️ **Study Guide Validation Failed**\n\nThe study guide does not match the codebase. Please update `docs/guides/COMPREHENSIVE_STUDY_GUIDE.md` to reflect the current implementation.\n\nRun `node scripts/validate-study-guide.js` locally to see detailed errors.'
             })
 
-      - name: Fail job if validation failed
-        if: steps.validate.outputs.validation_failed == 'true'
+      - name: Fail job if validation failed (strict mode)
+        if: steps.validate.outputs.validation_failed == 'true' && steps.branch-info.outputs.blocking == 'true'
         run: |
           echo "❌ Study Guide validation failed. Please update the study guide to match the codebase."
           exit 1

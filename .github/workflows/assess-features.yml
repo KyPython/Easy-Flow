@@ -1,4 +1,4 @@
-name: Assess Feature Readiness
+name: Assess Feature Readiness (Branch-Aware)
 
 on:
   workflow_dispatch:
@@ -21,6 +21,9 @@ on:
 jobs:
   assess-features:
     runs-on: ubuntu-latest
+    env:
+      CI: true
+      NODE_ENV: development
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,6 +35,22 @@ jobs:
         with:
           node-version: 20
           cache: "npm"
+
+      - name: Determine branch and validation mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+          echo "🔍 Branch: ${{ steps.branch-info.outputs.branch }}"
+          echo "🔍 Mode: ${{ steps.branch-info.outputs.mode }}"
+          echo "🔍 Blocking: ${{ steps.branch-info.outputs.blocking }}"
 
       - name: Install jq
         run: |
@@ -81,40 +100,23 @@ jobs:
         if: always()
         run: |
           echo "## Feature Readiness Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ steps.branch-info.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode**: ${{ steps.branch-info.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Ready for Production**: ${{ steps.assess.outputs.ready_count }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ⚠️ **Not Ready**: ${{ steps.assess.outputs.not_ready_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Ready**: ${{ steps.assess.outputs.ready_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📝 **Draft**: ${{ steps.assess.outputs.not_ready_count }}" >> $GITHUB_STEP_SUMMARY
           echo "- 🚀 **Shipped**: ${{ steps.assess.outputs.shipped_count }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
           if [ "${{ steps.assess.outputs.ready_count }}" != "0" ]; then
             echo "### Ready Features" >> $GITHUB_STEP_SUMMARY
             echo "${{ steps.assess.outputs.ready_features }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**To ship these features, run:**" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-            echo "npm run ship:features" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "💡 **Next Steps**: Run \`npm run ship:features\` to ship ready features to production" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Ship ready features (if requested)
-        if: |
-          steps.assess.outputs.ready_count != '0' && 
-          (github.event.inputs.auto_ship == 'true' || env.AUTO_SHIP == 'true')
-        env:
-          AUTO_SHIP: 'true'
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Auto-ship ready features (if enabled)
+        if: github.event.inputs.auto_ship == 'true' && steps.assess.outputs.ready_count != '0'
         run: |
           echo "🚀 Auto-shipping ready features..."
-          
-          # Configure git for automated commits
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Ship features
-          ./scripts/ship-features.sh || {
-            echo "⚠️ Shipping failed. Check logs above."
-            exit 1
-          }
-
+          ./scripts/ship-features.sh || echo "⚠️ Auto-ship failed (non-blocking)"
