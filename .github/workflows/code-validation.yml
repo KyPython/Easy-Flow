@@ -62,6 +62,7 @@ jobs:
           chmod +x scripts/validate-duplicate-cicd.sh
           chmod +x scripts/verify-backup.sh
           chmod +x scripts/validate-test-coverage.sh
+          chmod +x scripts/validate-ui-backend-parity.sh
 
       - name: Run Single Responsibility Principle (SRP) Validation
         run: |
