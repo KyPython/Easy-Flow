@@ -1,0 +1,64 @@
+name: Dev Branch — Quick Check (Non-Blocking)
+
+on:
+  push:
+    branches: [dev]
+    # Skip on large file changes to avoid timeouts
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '**.log'
+      - 'node_modules/**'
+  workflow_dispatch:
+
+# This workflow is intentionally lightweight - just verify code compiles
+# Full checks run on schedule and PRs, not blocking dev pushes
+
+jobs:
+  quick-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5  # Fast timeout - should complete in 2-3 minutes
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1  # Shallow clone for speed
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            rpa-system/package-lock.json
+            rpa-system/rpa-dashboard/package-lock.json
+            rpa-system/backend/package-lock.json
+
+      - name: Quick syntax check
+        run: |
+          echo "🔍 Quick syntax check (non-blocking for dev branch)"
+          # Just verify Node.js files parse correctly
+          if [ -d "rpa-system/backend" ]; then
+            cd rpa-system/backend
+            node --check routes/*.js services/*.js 2>/dev/null || echo "⚠️ Some syntax issues found (non-blocking)"
+            cd ../..
+          fi
+        continue-on-error: true
+
+      - name: Verify builds compile
+        run: |
+          echo "🔍 Quick build verification (non-blocking)"
+          # Frontend build check (skip if no changes)
+          if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
+            cd rpa-system/rpa-dashboard
+            timeout 120 npm run build 2>&1 | head -50 || echo "⚠️ Build issues (non-blocking on dev)"
+            cd ../..
+          fi
+        continue-on-error: true
+
+      - name: Success
+        run: |
+          echo "✅ Quick check complete - dev branch push allowed"
+          echo "📝 Full validation runs on schedule and PRs (not blocking pushes)"

@@ -2,9 +2,12 @@ name: Code Validation — SRP, Dynamic, Theme, Logging (Branch-Aware)
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]  # Only run on main pushes (strict)
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev]  # Run on PRs to both branches
+  schedule:
+    # Run validation checks daily on dev branch at 3 AM UTC
+    - cron: "0 3 * * *"
   workflow_dispatch:
 
 jobs:

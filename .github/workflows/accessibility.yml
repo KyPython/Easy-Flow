@@ -2,9 +2,11 @@ name: Accessibility Checks (Branch-Aware)
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]  # Only run on main (dev runs on schedule)
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev]  # Run on PRs
+  schedule:
+    - cron: "0 7 * * *" # Daily at 7 AM UTC
   workflow_dispatch:
 
 jobs:

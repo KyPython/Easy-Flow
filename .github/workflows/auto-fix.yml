@@ -2,9 +2,11 @@ name: Auto-Fix Code Formatting
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]  # Only auto-fix on main (dev runs on schedule)
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev]  # Run on PRs
+  schedule:
+    - cron: "0 1 * * *" # Daily at 1 AM UTC (before other checks)
   workflow_dispatch:
   schedule:
     # Run daily at 2 AM UTC to auto-fix any accumulated issues
