@@ -66,23 +66,30 @@ else
 fi
 
 # Step 2: Lint Backend (if ESLint config exists)
-echo "\n${BLUE}Step 2: Linting backend...${NC}"
-if [ -f "rpa-system/backend/package.json" ]; then
-    cd rpa-system/backend
-    # Check if eslint is available
-    if grep -q "eslint" package.json 2>/dev/null || command -v eslint >/dev/null 2>&1; then
-        if npm run lint 2>/dev/null || npx eslint . --ext .js,.jsx 2>/dev/null; then
-            echo "  ${GREEN}✓ Backend linting passed${NC}"
-        else
-            echo "  ${YELLOW}⚠ Backend linting issues found${NC}"
-            FAILED=$((FAILED + 1))
-        fi
-    else
-        echo "  ${YELLOW}○ ESLint not configured for backend, skipping${NC}"
-    fi
-    cd ../..
+# ✅ FAST MODE: Skip backend linting on dev branch
+if [ "$IS_DEV_BRANCH" = true ]; then
+    echo "\n${BLUE}Step 2: Backend linting (skipped on dev for speed)...${NC}"
+    echo "  ${YELLOW}○ Backend linting skipped on dev for speed${NC}"
+    echo "  ${YELLOW}  Linting will run in CI/CD${NC}"
 else
-    echo "  ${YELLOW}○ Backend not found, skipping${NC}"
+    echo "\n${BLUE}Step 2: Linting backend...${NC}"
+    if [ -f "rpa-system/backend/package.json" ]; then
+        cd rpa-system/backend
+        # Check if eslint is available
+        if grep -q "eslint" package.json 2>/dev/null || command -v eslint >/dev/null 2>&1; then
+            if npm run lint 2>/dev/null || npx eslint . --ext .js,.jsx 2>/dev/null; then
+                echo "  ${GREEN}✓ Backend linting passed${NC}"
+            else
+                echo "  ${YELLOW}⚠ Backend linting issues found${NC}"
+                FAILED=$((FAILED + 1))
+            fi
+        else
+            echo "  ${YELLOW}○ ESLint not configured for backend, skipping${NC}"
+        fi
+        cd ../..
+    else
+        echo "  ${YELLOW}○ Backend not found, skipping${NC}"
+    fi
 fi
 
 # Step 3: Run Tests (if available) - SKIP by default for speed
@@ -95,22 +102,29 @@ else
 fi
 
 # Step 4: Build Check (verify compilation)
-echo "\n${BLUE}Step 4: Verifying builds...${NC}"
-
-# Frontend build
-if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
-    cd rpa-system/rpa-dashboard
-    if npm run build >/dev/null 2>&1; then
-        echo "  ${GREEN}✓ Frontend builds successfully${NC}"
-    else
-        echo "  ${RED}✗ Frontend build failed${NC}"
-        FAILED=$((FAILED + 1))
+# ✅ FAST MODE: Skip slow builds on dev branch (non-blocking anyway)
+if [ "$IS_DEV_BRANCH" = true ]; then
+    echo "\n${BLUE}Step 4: Build check (skipped on dev for speed)${NC}"
+    echo "  ${YELLOW}○ Build checks skipped on dev branch for faster commits${NC}"
+    echo "  ${YELLOW}  Builds will be validated in CI/CD${NC}"
+else
+    echo "\n${BLUE}Step 4: Verifying builds...${NC}"
+    
+    # Frontend build (only on main branch)
+    if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
+        cd rpa-system/rpa-dashboard
+        if npm run build >/dev/null 2>&1; then
+            echo "  ${GREEN}✓ Frontend builds successfully${NC}"
+        else
+            echo "  ${RED}✗ Frontend build failed${NC}"
+            FAILED=$((FAILED + 1))
+        fi
+        cd ../..
     fi
-    cd ../..
 fi
 
-# Backend build (if it has a build step)
-if [ -f "rpa-system/backend/package.json" ]; then
+# Backend build (if it has a build step) - only on main branch
+if [ "$IS_DEV_BRANCH" != true ] && [ -f "rpa-system/backend/package.json" ]; then
     cd rpa-system/backend
     if grep -q '"build"' package.json; then
         if npm run build >/dev/null 2>&1; then
