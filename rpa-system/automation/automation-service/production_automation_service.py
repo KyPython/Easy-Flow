@@ -183,15 +183,15 @@ def context_aware_submit(executor, fn, *args, **kwargs):
     """
     if not OTEL_AVAILABLE or otel_context is None:
         # Fallback to normal submit if OpenTelemetry not available
-    return executor.submit(fn, *args, **kwargs)
+        return executor.submit(fn, *args, **kwargs)
 
     # Capture the current OpenTelemetry context
     current_context = otel_context.get_current()
 
     def context_preserving_wrapper():
-    """Internal wrapper that restores context in the new thread"""
-    # Attach the captured context in this new thread
-    token = otel_context.attach(current_context)
+        """Internal wrapper that restores context in the new thread"""
+        # Attach the captured context in this new thread
+        token = otel_context.attach(current_context)
     try:
         # Execute the original function with the restored context
     return fn(*args, **kwargs)
