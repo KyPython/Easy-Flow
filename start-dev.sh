@@ -820,7 +820,17 @@ for i in {1..15}; do
     fi
     sleep 1
 done
-[ "$BACKEND_OK" = false ] && { echo -e "${RED}✗ Backend failed to start${NC}"; pm2 logs easyflow-backend --lines 20 --nostream; }
+if [ "$BACKEND_OK" = false ]; then
+    echo -e "${RED}✗ Backend failed to start${NC}"
+    echo -e "${YELLOW}Checking PM2 status and logs...${NC}"
+    pm2 status easyflow-backend 2>/dev/null || true
+    pm2 logs easyflow-backend --lines 20 --nostream 2>/dev/null || true
+    # Check for syntax errors in logs
+    if pm2 logs easyflow-backend --lines 5 --nostream 2>/dev/null | grep -q "SyntaxError\|Unexpected token"; then
+        echo -e "${RED}⚠ Syntax error detected in backend logs${NC}"
+        echo -e "${YELLOW}Run: ./scripts/validate-syntax.sh to validate and auto-fix${NC}"
+    fi
+fi
 
 # Wait for Automation Worker (reduced timeout for dev)
 AUTO_OK=false
@@ -832,7 +842,17 @@ for i in {1..15}; do
     fi
     sleep 1
 done
-[ "$AUTO_OK" = false ] && { echo -e "${RED}✗ Automation worker failed to start${NC}"; echo -e "${YELLOW}Error logs:${NC}"; pm2 logs easyflow-automation --err --lines 20 --nostream; }
+if [ "$AUTO_OK" = false ]; then
+    echo -e "${RED}✗ Automation worker failed to start${NC}"
+    echo -e "${YELLOW}Checking PM2 status and logs...${NC}"
+    pm2 status easyflow-automation 2>/dev/null || true
+    pm2 logs easyflow-automation --err --lines 20 --nostream 2>/dev/null || true
+    # Check for syntax errors in logs
+    if pm2 logs easyflow-automation --err --lines 5 --nostream 2>/dev/null | grep -q "IndentationError\|SyntaxError"; then
+        echo -e "${RED}⚠ Syntax/Indentation error detected in automation logs${NC}"
+        echo -e "${YELLOW}Run: ./scripts/validate-syntax.sh to validate and auto-fix${NC}"
+    fi
+fi
 
 # Wait for RAG service (non-critical, but check if it was started)
 if pm2 list | grep -q "rag-node-ts"; then
@@ -914,7 +934,27 @@ fi
 
 echo ""
 echo -e "${GREEN}=========================================${NC}"
-echo -e "${GREEN}All services started successfully!${NC}"
+# Only declare success if critical services are actually running
+if [ "$BACKEND_OK" = true ] && [ "$AUTO_OK" = true ]; then
+    echo -e "${GREEN}All services started successfully!${NC}"
+elif [ "$BACKEND_OK" = false ] || [ "$AUTO_OK" = false ]; then
+    echo -e "${YELLOW}⚠ Some services failed to start${NC}"
+    echo -e "${YELLOW}Check the errors above and logs for details${NC}"
+    if [ "$BACKEND_OK" = false ]; then
+        echo -e "${RED}  ✗ Backend is not healthy${NC}"
+    fi
+    if [ "$AUTO_OK" = false ]; then
+        echo -e "${RED}  ✗ Automation worker is not healthy${NC}"
+    fi
+    echo ""
+    echo -e "${YELLOW}To debug:${NC}"
+    echo -e "${YELLOW}  1. Check syntax: ./scripts/validate-syntax.sh${NC}"
+    echo -e "${YELLOW}  2. Check logs: pm2 logs${NC}"
+    echo -e "${YELLOW}  3. Check status: pm2 status${NC}"
+    echo ""
+else
+    echo -e "${GREEN}All services started successfully!${NC}"
+fi
 echo ""
 echo "Application:"
 echo "  Frontend:         http://localhost:$FRONTEND_PORT"
