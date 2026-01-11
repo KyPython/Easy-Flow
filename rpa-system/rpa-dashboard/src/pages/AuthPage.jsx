@@ -8,54 +8,89 @@ import { captureAndStoreUTM, getStoredUTMParams } from '../utils/utmCapture';
 import { trackOnboardingStep } from '../utils/onboardingTracking';
 import { createLogger } from '../utils/logger';
 import { getEnvMessage } from '../utils/envAwareMessages';
+import {
+  trackSignupFormViewed,
+  trackSignupAttempt,
+  trackSignupValidationError,
+  trackSignupFailure,
+  trackSignupSuccess,
+  SIGNUP_ERROR_TYPES
+} from '../utils/signupTracking';
+import { getABTestVariant, trackABTestView } from '../utils/abTesting';
 import styles from './AuthPage.module.css';
 
 const logger = createLogger('AuthPage');
 
 export default function AuthPage() {
- const [mode, setMode] = useState('login');
- const [email, setEmail] = useState('');
- const [password, setPassword] = useState('');
- const [error, setError] = useState('');
- const [success, setSuccess] = useState('');
- const [loading, setLoading] = useState(false);
- const [referralCode, setReferralCode] = useState('');
- const navigate = useNavigate();
- const { signIn } = useAuth(); // Use AuthContext signIn which has backend fallback
- // removed language context
+  const [mode, setMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
+  const [signupFormVariant, setSignupFormVariant] = useState('A');
+  const navigate = useNavigate();
+  const { signIn } = useAuth(); // Use AuthContext signIn which has backend fallback
+  // removed language context
 
- // Check if user is already authenticated and redirect
- useEffect(() => {
- const checkUser = async () => {
- try {
- // Ensure Supabase client initialized before checking auth state
- const mod = await import('../utils/supabaseClient');
- if (mod && mod.initSupabase) await mod.initSupabase();
- } catch (e) {
- // ignore init errors and continue with stub behavior
- }
- const client = await initSupabase();
- const { data: { user } } = await client.auth.getUser();
- if (user) {
- // User is already authenticated, redirect to dashboard
- navigate('/app');
- }
- };
- 
- // Capture and store UTM parameters on page load
- captureAndStoreUTM();
- 
- // Check for referral code in URL
- const urlParams = new URLSearchParams(window.location.search);
- const refCode = urlParams.get('ref');
- if (refCode) {
- setReferralCode(refCode);
- setMode('register'); // Switch to signup mode if there's a referral code
- }
- 
- checkUser();
+  // Check if user is already authenticated and redirect
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        // Ensure Supabase client initialized before checking auth state
+        const mod = await import('../utils/supabaseClient');
+        if (mod && mod.initSupabase) await mod.initSupabase();
+      } catch (e) {
+        // ignore init errors and continue with stub behavior
+      }
+      const client = await initSupabase();
+      const { data: { user } } = await client.auth.getUser();
+      if (user) {
+        // User is already authenticated, redirect to dashboard
+        navigate('/app');
+      }
+    };
+    
+    // Capture and store UTM parameters on page load
+    captureAndStoreUTM();
+    
+    // Check for referral code in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode) {
+      setReferralCode(refCode);
+      setMode('register'); // Switch to signup mode if there's a referral code
+    }
 
- // Listen for auth state changes (ensure real client initialized first)
+    // ✅ A/B TESTING: Get signup form variant for testing
+    const variant = getABTestVariant('signup_form');
+    setSignupFormVariant(variant);
+    if (variant) {
+      trackABTestView('signup_form', variant).catch(e => 
+        logger.debug('Failed to track signup_form A/B test view', { error: e })
+      );
+    }
+    
+    checkUser();
+  }, []);
+
+  // ✅ TRACKING: Track signup form viewed when mode switches to signup
+  useEffect(() => {
+    if (mode === 'signup' || mode === 'register') {
+      const utmParams = getStoredUTMParams() || {};
+      trackSignupFormViewed({
+        variant: signupFormVariant,
+        referral_code: referralCode || null,
+        utm_source: utmParams?.source,
+        utm_medium: utmParams?.medium,
+        utm_campaign: utmParams?.campaign
+      }).catch(e => logger.debug('Failed to track signup_form_viewed', { error: e }));
+    }
+  }, [mode, signupFormVariant, referralCode]);
+
+  // Listen for auth state changes (ensure real client initialized first)
+  useEffect(() => {
  let subscription = { unsubscribe: () => {} };
  (async () => {
  try {
@@ -175,29 +210,63 @@ export default function AuthPage() {
  }
  };
 
- const onSubmit = async (e) => {
- e.preventDefault();
- setError('');
- setSuccess('');
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
 
- // Basic client-side validation to reduce 400s
- const isValidEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
- if (!isValidEmail(email)) {
- setError(getEnvMessage({
- dev: 'Please enter a valid email address.',
- prod: 'Please enter a valid email address.'
- }));
- return;
- }
- if (!password || password.length < 6) {
- setError(getEnvMessage({
- dev: 'Password must be at least 6 characters.',
- prod: 'Password must be at least 6 characters long.'
- }));
- return;
- }
+    const utmParams = getStoredUTMParams() || {};
 
- setLoading(true);
+    // Basic client-side validation to reduce 400s
+    const isValidEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+    if (!isValidEmail(email)) {
+      const errorMsg = getEnvMessage({
+        dev: 'Please enter a valid email address.',
+        prod: 'Please enter a valid email address.'
+      });
+      setError(errorMsg);
+      
+      // ✅ TRACKING: Track validation error
+      if (mode === 'signup' || mode === 'register') {
+        trackSignupValidationError(SIGNUP_ERROR_TYPES.VALIDATION, {
+          field: 'email',
+          variant: signupFormVariant,
+          utm_source: utmParams?.source
+        }).catch(e => logger.debug('Failed to track validation error', { error: e }));
+      }
+      return;
+    }
+    if (!password || password.length < 6) {
+      const errorMsg = getEnvMessage({
+        dev: 'Password must be at least 6 characters.',
+        prod: 'Password must be at least 6 characters long.'
+      });
+      setError(errorMsg);
+      
+      // ✅ TRACKING: Track validation error
+      if (mode === 'signup' || mode === 'register') {
+        trackSignupValidationError(SIGNUP_ERROR_TYPES.VALIDATION, {
+          field: 'password',
+          variant: signupFormVariant,
+          utm_source: utmParams?.source
+        }).catch(e => logger.debug('Failed to track validation error', { error: e }));
+      }
+      return;
+    }
+
+    // ✅ TRACKING: Track signup attempt (user clicked submit)
+    if (mode === 'signup' || mode === 'register') {
+      trackSignupAttempt({
+        variant: signupFormVariant,
+        referral_code: referralCode || null,
+        utm_source: utmParams?.source,
+        utm_medium: utmParams?.medium,
+        utm_campaign: utmParams?.campaign,
+        email_domain: email.split('@')[1] || null // Track email domain for analysis (not full email)
+      }).catch(e => logger.debug('Failed to track signup_attempt', { error: e }));
+    }
+
+    setLoading(true);
  try {
  if (mode === 'login') {
  // Use AuthContext.signIn which tries backend first, then Supabase fallback
@@ -234,17 +303,17 @@ export default function AuthPage() {
  try { await trackOnboardingStep('first_login', { user_id: user.id }); } catch (e) { logger.debug('trackOnboardingStep failed', { error: e, step: 'first_login' }); }
  }
  
- // ✅ SMART REDIRECT: New users go to tasks page, existing users go to intended path or dashboard
- const redirectPath = isNewUser ? '/app/tasks' : intendedPath;
- const redirectMessage = isNewUser 
- ? getEnvMessage({
- dev: 'Welcome! Redirecting to create your first automation...',
- prod: 'Welcome! Redirecting to create your first automation...'
- })
- : getEnvMessage({
- dev: `Login successful! Redirecting${intendedPath !== '/app' ? ' to your destination' : ' to dashboard'}...`,
- prod: 'Login successful! Redirecting...'
- });
+        // ✅ SMART REDIRECT: New users go to dashboard (has workflow creation prompt), existing users go to intended path or dashboard
+        const redirectPath = isNewUser ? '/app' : intendedPath;
+        const redirectMessage = isNewUser 
+          ? getEnvMessage({
+            dev: 'Welcome! Let\'s create your first automation...',
+            prod: 'Welcome! Let\'s create your first automation...'
+          })
+          : getEnvMessage({
+            dev: `Login successful! Redirecting${intendedPath !== '/app' ? ' to your destination' : ' to dashboard'}...`,
+            prod: 'Login successful! Redirecting...'
+          });
  
  setSuccess(redirectMessage);
  setTimeout(() => {
@@ -254,57 +323,82 @@ export default function AuthPage() {
  // Capture UTM parameters and send to signup API
  const utmParams = getStoredUTMParams() || captureAndStoreUTM();
  
- const { error } = await signUp({ email, password });
- if (error) throw error;
- // Set flag to indicate this was a signup (will be converted to tracking flag on successful auth)
- sessionStorage.setItem('just_signed_up_pending', 'true');
- // If confirmations are enabled, inform the user
- setSuccess(getEnvMessage({
- dev: 'Sign-up successful! Please check your email to confirm your account.',
- prod: 'Sign-up successful! Please check your email to confirm your account.'
- }));
- 
- // Send UTM parameters to backend signup endpoint
- try {
- const { api } = await import('../utils/api');
- await api.post('/api/tracking/signup-source', {
- email: email,
- utm_source: utmParams?.source,
- utm_medium: utmParams?.medium,
- utm_campaign: utmParams?.campaign,
- referrer: utmParams?.referrer,
- landing_page: utmParams?.landing_page
- }).catch(e => logger.debug('Failed to send UTM params to backend', { error: e, email }));
- } catch (e) {
- logger.debug('Failed to send signup source data', { error: e, email });
+        const { error } = await signUp({ email, password });
+        if (error) throw error;
+        
+        // ✅ TRACKING: Track signup success
+        await trackSignupSuccess({
+          variant: signupFormVariant,
+          referral_code: referralCode || null,
+          utm_source: utmParams?.source,
+          utm_medium: utmParams?.medium,
+          utm_campaign: utmParams?.campaign,
+          email_domain: email.split('@')[1] || null
+        });
+
+        // Set flag to indicate this was a signup (will be converted to tracking flag on successful auth)
+        sessionStorage.setItem('just_signed_up_pending', 'true');
+        // If confirmations are enabled, inform the user
+        setSuccess(getEnvMessage({
+          dev: 'Sign-up successful! Please check your email to confirm your account.',
+          prod: 'Sign-up successful! Please check your email to confirm your account.'
+        }));
+
+        // Send UTM parameters to backend signup endpoint
+        try {
+          const { api } = await import('../utils/api');
+          await api.post('/api/tracking/signup-source', {
+            email: email,
+            utm_source: utmParams?.source,
+            utm_medium: utmParams?.medium,
+            utm_campaign: utmParams?.campaign,
+            referrer: utmParams?.referrer,
+            landing_page: utmParams?.landing_page
+          }).catch(e => logger.debug('Failed to send UTM params to backend', { error: e, email }));
+        } catch (e) {
+          logger.debug('Failed to send signup source data', { error: e, email });
+        }
+
+        // ✅ OBSERVABILITY: Track signup event with email and UTM for correlation
+        // Note: user_id will be null until first login, but email allows correlation
+        try { 
+          trackEvent({ 
+            event_name: 'user_signup', 
+            properties: { 
+              email: email,
+              timestamp: new Date().toISOString(),
+              source: 'auth_page',
+              variant: signupFormVariant,
+              referral_code: referralCode || null,
+              utm_source: utmParams?.source,
+              utm_medium: utmParams?.medium,
+              utm_campaign: utmParams?.campaign,
+              referrer: utmParams?.referrer,
+              landing_page: utmParams?.landing_page
+            } 
+          }); 
+        } catch (e) { 
+          logger.error('Failed to track signup event', { error: e, email }); 
+        }
+        try { triggerCampaign({ email, reason: 'signup' }); } catch (e) { logger.debug('triggerCampaign failed', { error: e, reason: 'signup', email }); }
  }
- 
- // ✅ OBSERVABILITY: Track signup event with email and UTM for correlation
- // Note: user_id will be null until first login, but email allows correlation
- try { 
- trackEvent({ 
- event_name: 'user_signup', 
- properties: { 
- email: email,
- timestamp: new Date().toISOString(),
- source: 'auth_page',
- utm_source: utmParams?.source,
- utm_medium: utmParams?.medium,
- utm_campaign: utmParams?.campaign,
- referrer: utmParams?.referrer,
- landing_page: utmParams?.landing_page
- } 
- }); 
- } catch (e) { 
- logger.error('Failed to track signup event', { error: e, email }); 
- }
- try { triggerCampaign({ email, reason: 'signup' }); } catch (e) { logger.debug('triggerCampaign failed', { error: e, reason: 'signup', email }); }
- }
- } catch (err) {
- logger.error('Authentication error', { error: err, mode, email: email ? email.substring(0, 3) + '***' : 'none' });
- const msg = typeof err?.message === 'string' ? err.message : String(err || 'Authentication failed');
- const status = err?.status;
- const lower = msg.toLowerCase();
+      } catch (err) {
+        logger.error('Authentication error', { error: err, mode, email: email ? email.substring(0, 3) + '***' : 'none' });
+        
+        // ✅ TRACKING: Track signup failure with error categorization
+        if (mode === 'signup' || mode === 'register') {
+          trackSignupFailure(err, {
+            variant: signupFormVariant,
+            referral_code: referralCode || null,
+            utm_source: utmParams?.source,
+            utm_medium: utmParams?.medium,
+            email_domain: email.split('@')[1] || null
+          }).catch(e => logger.debug('Failed to track signup_failure', { error: e }));
+        }
+
+        const msg = typeof err?.message === 'string' ? err.message : String(err || 'Authentication failed');
+        const status = err?.status;
+        const lower = msg.toLowerCase();
 
  // Network-level or DNS failures often surface as TypeError: Failed to fetch
  if (err instanceof TypeError || lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('network error')) {
@@ -393,48 +487,69 @@ export default function AuthPage() {
  return (
  <div className={styles.page}>
  <div className={styles.card}>
-<div className={styles.header}>
- {/* Google tag (gtag.js) should be included in public/index.html or via useEffect, not directly in JSX */}
- <h2 className={styles.title}>{mode === 'login' ? t('auth.welcome_back','Welcome back') : t('auth.create_account','Create your account')}</h2>
- <p className={styles.subtitle}>{mode === 'login' ? t('auth.sign_in_to_continue','Sign in to continue') : t('auth.sign_up_to_continue','Sign up to continue')}</p>
-</div>
- <form onSubmit={onSubmit} className={styles.form}>
- <div className={styles.formGrid}>
- <div className={styles.formGroup}>
- <label className={styles.label} htmlFor="auth-email">{t('auth.email','Email')}</label>
- <input
- id="auth-email"
- name="email"
- className={styles.input}
- type="email"
- autoComplete="email"
- value={email}
- onChange={e => {
- setEmail(e.target.value);
- // Clear error when user starts typing
- if (error) setError('');
- }}
- required
- />
- </div>
- <div className={styles.formGroup}>
- <label className={styles.label} htmlFor="auth-password">{t('auth.password','Password')}</label>
- <input
- id="auth-password"
- name="password"
- className={styles.input}
- type="password"
- autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
- value={password}
- onChange={e => {
- setPassword(e.target.value);
- // Clear error when user starts typing
- if (error) setError('');
- }}
- required
- />
- </div>
- </div>
+      <div className={styles.header}>
+        {/* Google tag (gtag.js) should be included in public/index.html or via useEffect, not directly in JSX */}
+        <h2 className={styles.title}>
+          {mode === 'login' 
+            ? t('auth.welcome_back','Welcome back') 
+            : signupFormVariant === 'B' 
+              ? 'Start Automating Today' 
+              : t('auth.create_account','Create your account')
+          }
+        </h2>
+        <p className={styles.subtitle}>
+          {mode === 'login' 
+            ? t('auth.sign_in_to_continue','Sign in to continue') 
+            : signupFormVariant === 'B'
+              ? 'Join thousands automating repetitive tasks'
+              : t('auth.sign_up_to_continue','Sign up to continue')
+          }
+        </p>
+      </div>
+      <form onSubmit={onSubmit} className={`${styles.form} ${mode === 'signup' || mode === 'register' ? styles[`formVariant${signupFormVariant}`] : ''}`}>
+        <div className={styles.formGrid}>
+          <div className={styles.formGroup}>
+            <label className={styles.label} htmlFor="auth-email">{t('auth.email','Email')}</label>
+            <input
+              id="auth-email"
+              name="email"
+              className={styles.input}
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={e => {
+                setEmail(e.target.value);
+                // Clear error when user starts typing
+                if (error) setError('');
+              }}
+              placeholder={signupFormVariant === 'B' && (mode === 'signup' || mode === 'register') ? 'you@example.com' : ''}
+              required
+            />
+          </div>
+          <div className={styles.formGroup}>
+            <label className={styles.label} htmlFor="auth-password">{t('auth.password','Password')}</label>
+            <input
+              id="auth-password"
+              name="password"
+              className={styles.input}
+              type="password"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              value={password}
+              onChange={e => {
+                setPassword(e.target.value);
+                // Clear error when user starts typing
+                if (error) setError('');
+              }}
+              placeholder={signupFormVariant === 'B' && (mode === 'signup' || mode === 'register') ? 'At least 6 characters' : ''}
+              required
+            />
+            {signupFormVariant === 'B' && (mode === 'signup' || mode === 'register') && (
+              <div className={styles.passwordHint}>
+                Minimum 6 characters required
+              </div>
+            )}
+          </div>
+        </div>
  {error && (
  <div>
  <div className={styles.errorText}>{error}</div>
@@ -475,10 +590,21 @@ export default function AuthPage() {
  )}
  </div>
  )}
- <div className={styles.actions}>
- <button type="submit" className={styles.submitButton} disabled={loading}>
- {loading ? t('auth.please_wait','Please wait...') : (mode === 'login' ? t('auth.sign_in','Sign In') : t('auth.sign_up','Sign Up'))}
- </button>
+        <div className={styles.actions}>
+          <button 
+            type="submit" 
+            className={`${styles.submitButton} ${signupFormVariant === 'B' && (mode === 'signup' || mode === 'register') ? styles.submitButtonVariantB : ''}`} 
+            disabled={loading}
+          >
+            {loading 
+              ? t('auth.please_wait','Please wait...') 
+              : mode === 'login' 
+                ? t('auth.sign_in','Sign In') 
+                : signupFormVariant === 'B'
+                  ? 'Get Started Free'
+                  : t('auth.sign_up','Sign Up')
+            }
+          </button>
  <button
  type="button"
  className={styles.secondaryButton}

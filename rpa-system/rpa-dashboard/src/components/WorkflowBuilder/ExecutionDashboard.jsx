@@ -650,7 +650,43 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
  )}
  
  <div className={styles.dataSection}>
- <h4>Output Data</h4>
+ <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+ <h4 style={{ margin: 0 }}>Output Data</h4>
+ {/* ✅ REVENUE: Export scraped data to CSV for $197 client deliveries */}
+ {execution.output_data && execution.status === 'completed' && (
+ <button
+ onClick={async () => {
+ try {
+ const response = await api.get(`/api/executions/${execution.id}/export-data?format=csv`, {
+ responseType: 'blob'
+ });
+ const url = window.URL.createObjectURL(new Blob([response.data]));
+ const link = document.createElement('a');
+ link.href = url;
+ link.download = `execution-${execution.execution_number || execution.id}-${new Date().toISOString().split('T')[0]}.csv`;
+ document.body.appendChild(link);
+ link.click();
+ document.body.removeChild(link);
+ window.URL.revokeObjectURL(url);
+ } catch (error) {
+ console.error('Export failed:', error);
+ alert('Failed to export data. Please try again.');
+ }
+ }}
+ style={{
+ padding: '6px 12px',
+ background: 'var(--primary, #007bff)',
+ color: 'white',
+ border: 'none',
+ borderRadius: '4px',
+ cursor: 'pointer',
+ fontSize: '14px'
+ }}
+ >
+ 📥 Export to CSV
+ </button>
+ )}
+ </div>
  {/* ✅ ENHANCEMENT: Show email-specific information prominently */}
  {execution.output_data?.email_result && (
  <div className={styles.emailResultBox}>

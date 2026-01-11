@@ -13,5 +13,27 @@ module.exports = {
  // Allow tests to pass when no test files are found (useful during development)
  passWithNoTests: true,
  // Increase timeout for tests that may need more time (e.g., database queries, async operations)
- testTimeout: 30000 // 30 seconds (default is 5 seconds)
+ testTimeout: 30000, // 30 seconds (default is 5 seconds)
+ // Coverage configuration - enforce minimum thresholds
+ collectCoverageFrom: [
+   'routes/**/*.js',
+   'services/**/*.js',
+   'utils/**/*.js',
+   'middleware/**/*.js',
+   'workers/**/*.js',
+   '!**/node_modules/**',
+   '!**/tests/**',
+   '!**/coverage/**',
+   '!jest.config.js',
+   '!server.js'
+ ],
+ coverageThreshold: {
+   global: {
+     branches: 70,
+     functions: 70,
+     lines: 80,
+     statements: 80
+   }
+ },
+ coverageReporters: ['text', 'json-summary', 'lcov']
 };

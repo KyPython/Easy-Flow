@@ -28,9 +28,22 @@ export default function UserCountBadge({ variant = 'join', className = '' }) {
  }
  }, [data.totalUsers, loading, displayCount]);
 
- const text = variant === 'join' 
- ? `Join ${displayCount.toLocaleString()}+ users automating workflows`
- : `Trusted by ${displayCount.toLocaleString()}+ professionals`;
+ // Don't show "0+ users" - it kills credibility
+ // If count is 0 or very low, use generic trust signal instead
+ const getText = () => {
+   if (displayCount === 0 || displayCount < 5) {
+     // Use generic trust signals when user count is low
+     return variant === 'join' 
+       ? 'Join founders automating their workflows'
+       : 'Trusted by founders automating workflows';
+   }
+   // Show actual count when we have real users
+   return variant === 'join' 
+     ? `Join ${displayCount.toLocaleString()}+ users automating workflows`
+     : `Trusted by ${displayCount.toLocaleString()}+ professionals`;
+ };
+
+ const text = getText();
 
  return (
  <div 

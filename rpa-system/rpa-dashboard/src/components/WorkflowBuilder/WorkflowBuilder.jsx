@@ -205,61 +205,73 @@ const WorkflowBuilder = () => {
  is_first_workflow: true // Backend can verify this
  });
 
- // ✅ ACTIVATION TRACKING: Track user activation (first workflow creation)
- try {
- const { trackEvent } = await import('../../utils/api');
- const { data: { user } } = await supabase.auth.getUser();
- if (user) {
- // Check if this is the first workflow for this user
- const { count } = await supabase
- .from('workflows')
- .select('id', { count: 'exact', head: true })
- .eq('user_id', user.id);
- 
- if (count === 1) {
- // This is activation!
- const { data: profile } = await supabase
- .from('profiles')
- .select('created_at')
- .eq('id', user.id)
- .single();
- 
- const signupDate = profile?.created_at ? new Date(profile.created_at) : new Date();
- const activationDate = new Date();
- const timeToActivate = Math.round((activationDate - signupDate) / (1000 * 60)); // minutes
- 
- // Track activation event
- await trackEvent({
- event_name: 'user_activated',
- user_id: user.id,
- properties: {
- workflow_id: newWorkflow.id,
- signup_date: signupDate.toISOString(),
- activation_date: activationDate.toISOString(),
- time_to_activate_minutes: timeToActivate
- }
- });
+        // ✅ ACTIVATION TRACKING: Track user activation (first workflow creation)
+        try {
+          const { trackActivationMilestone, calculateTimeToActivate } = await import('../../utils/activationTracking');
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            // Check if this is the first workflow for this user
+            const { count } = await supabase
+              .from('workflows')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', user.id);
 
- // Store activation event in database
- await supabase.from('activation_events').insert({
- user_id: user.id,
- workflow_id: newWorkflow.id,
- signup_date: signupDate.toISOString(),
- activation_date: activationDate.toISOString(),
- time_to_activate_minutes: timeToActivate
- }).catch(e => console.debug('Failed to store activation event:', e));
+            if (count === 1) {
+              // This is activation!
+              const activationEvent = {
+                milestone: 'first_workflow_created',
+                event_name: 'first_workflow_created',
+                timestamp: new Date().toISOString()
+              };
 
- // Track onboarding step
- const { trackOnboardingStep } = await import('../../utils/onboardingTracking');
- await trackOnboardingStep('first_workflow_created', {
- workflow_id: newWorkflow.id,
- time_to_activate_minutes: timeToActivate
- }).catch(e => console.debug('Failed to track onboarding step:', e));
- }
- }
- } catch (e) {
- console.debug('Failed to track activation:', e);
- }
+              // Track activation milestone
+              await trackActivationMilestone('first_workflow_created', {
+                workflow_id: newWorkflow.id,
+                workflow_name: newWorkflow.name
+              });
+
+              // Calculate and track time-to-activate
+              const timeToActivate = await calculateTimeToActivate(activationEvent);
+
+              // Track as legacy event for backward compatibility
+              const { trackEvent } = await import('../../utils/api');
+              await trackEvent({
+                event_name: 'user_activated',
+                user_id: user.id,
+                properties: {
+                  workflow_id: newWorkflow.id,
+                  activation_date: activationEvent.timestamp,
+                  time_to_activate_minutes: timeToActivate?.minutes || 0,
+                  time_to_activate_hours: timeToActivate?.hours || 0,
+                  time_to_activate_days: timeToActivate?.days || 0
+                }
+              });
+
+              // Store activation event in database
+              await supabase.from('activation_events').insert({
+                user_id: user.id,
+                milestone: 'first_workflow_created',
+                workflow_id: newWorkflow.id,
+                completed_at: activationEvent.timestamp,
+                properties: {
+                  workflow_name: newWorkflow.name,
+                  time_to_activate_minutes: timeToActivate?.minutes || 0,
+                  time_to_activate_hours: timeToActivate?.hours || 0,
+                  time_to_activate_days: timeToActivate?.days || 0
+                }
+              }).catch(e => console.debug('Failed to store activation event:', e));
+
+              // Track onboarding step
+              const { trackOnboardingStep } = await import('../../utils/onboardingTracking');
+              await trackOnboardingStep('first_workflow_created', {
+                workflow_id: newWorkflow.id,
+                time_to_activate_minutes: timeToActivate?.minutes || 0
+              }).catch(e => console.debug('Failed to track onboarding step:', e));
+            }
+          }
+        } catch (e) {
+          console.debug('Failed to track activation:', e);
+        }
 
  // ✅ UX: Show helpful success message with clear next steps
  showSuccess(`✅ Workflow "${newWorkflow.name}" saved and activated!\n\n👉 Next steps:\n1. Add action steps (Web Scraping, Email, etc.) from the Actions toolbar\n2. Connect the Start step to your first action\n3. Click "🎬 Run" to execute your workflow`);

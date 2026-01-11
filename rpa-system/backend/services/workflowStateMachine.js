@@ -1,9 +1,9 @@
 /**
  * Workflow Execution State Machine
- * 
+ *
  * State transitions:
  * PENDING -> RUNNING -> COMPLETED | RETRYING | FAILED
- * 
+ *
  * RETRYING -> RUNNING -> COMPLETED | RETRYING | FAILED
  */
 
@@ -39,7 +39,7 @@ class WorkflowStateMachine {
       logger.warn('Invalid state', { state: newState });
       return false;
     }
-    
+
     const allowedStates = VALID_TRANSITIONS[currentState] || [];
     return allowedStates.includes(newState);
   }

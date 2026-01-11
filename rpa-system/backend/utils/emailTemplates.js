@@ -141,22 +141,27 @@ Unsubscribe: ${appUrl}/unsubscribe?email=${encodeURIComponent(email)}
 
 /**
  * Get email template by name
- * Supports: 'success', 'welcome', 'followup', 'automation_tips', 'custom'
+ * Supports: 'success', 'welcome', 'followup', 'welcome_followup', 'activation_reminder', 'success_tips', 'automation_tips', 'custom'
  */
 function getEmailTemplate(templateName, data = {}) {
- switch (templateName) {
- case 'success':
- return getSuccessEmail(data);
- case 'welcome':
- return getWelcomeEmail(data);
- case 'followup':
- return getFollowupEmail(data);
- case 'automation_tips':
- return getAutomationTipsEmail(data);
- case 'custom':
- default:
- return getCustomEmail(data);
- }
+  switch (templateName) {
+    case 'success':
+      return getSuccessEmail(data);
+    case 'welcome':
+      return getWelcomeEmail(data);
+    case 'followup':
+    case 'welcome_followup':
+      return getFollowupEmail(data);
+    case 'activation_reminder':
+      return getActivationReminderEmail(data);
+    case 'success_tips':
+      return getSuccessTipsEmail(data);
+    case 'automation_tips':
+      return getAutomationTipsEmail(data);
+    case 'custom':
+    default:
+      return getCustomEmail(data);
+  }
 }
 
 /**
@@ -214,32 +219,94 @@ function getWelcomeEmail(data = {}) {
 }
 
 /**
- * Followup email template
+ * Followup email template (Day 1)
  */
 function getFollowupEmail(data = {}) {
- const subject = 'How is EasyFlow working for you?';
- const html = '<p>Just checking in to see how your automations are going.</p>';
- const text = 'Just checking in to see how your automations are going.';
- return { subject, html, text };
+  const { name } = data;
+  const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
+  
+  const subject = '🚀 Ready to automate your first task?';
+  const html = `
+    <p>Hi${name ? ' ' + name : ''},</p>
+    <p>Thanks for signing up for EasyFlow! Here are some quick tips to get started:</p>
+    <ul>
+      <li>📊 <strong>Portal CSV Export</strong> - Automate login and data extraction from any website</li>
+      <li>📧 <strong>Email Automation</strong> - Send automated emails based on triggers</li>
+      <li>🌐 <strong>Web Scraping</strong> - Extract data from any website automatically</li>
+    </ul>
+    <p><a href="${appUrl}/app/workflows?view=templates" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Browse Templates</a></p>
+    <p>Need help? Just reply to this email!</p>
+  `;
+  const text = `Hi${name ? ' ' + name : ''}, Thanks for signing up! Browse templates at ${appUrl}/app/workflows?view=templates`;
+  return { subject, html, text };
+}
+
+/**
+ * Activation reminder email template (Day 3)
+ */
+function getActivationReminderEmail(data = {}) {
+  const { name } = data;
+  const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
+  
+  const subject = '💡 Create your first workflow in 5 minutes';
+  const html = `
+    <p>Hi${name ? ' ' + name : ''},</p>
+    <p>We noticed you haven't created your first workflow yet. Let's change that!</p>
+    <p>Creating your first automation is easier than you think:</p>
+    <ol>
+      <li>Choose a template (Portal CSV Export is popular!)</li>
+      <li>Customize it for your needs</li>
+      <li>Run it and watch the magic happen</li>
+    </ol>
+    <p><a href="${appUrl}/app/workflows?view=templates" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Create Your First Workflow</a></p>
+    <p>Questions? Reply to this email - I'm here to help!</p>
+  `;
+  const text = `Hi${name ? ' ' + name : ''}, Create your first workflow at ${appUrl}/app/workflows?view=templates`;
+  return { subject, html, text };
+}
+
+/**
+ * Success tips email template (Day 7)
+ */
+function getSuccessTipsEmail(data = {}) {
+  const { name } = data;
+  const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
+  
+  const subject = '✨ Success stories from EasyFlow users';
+  const html = `
+    <p>Hi${name ? ' ' + name : ''},</p>
+    <p>Here are some ways other users are automating with EasyFlow:</p>
+    <ul>
+      <li>📊 <strong>Monthly reports</strong> - Automatically export data and email to stakeholders</li>
+      <li>📧 <strong>Lead capture</strong> - Extract contact info from websites and add to CRM</li>
+      <li>🔄 <strong>Data sync</strong> - Keep spreadsheets updated from multiple sources</li>
+    </ul>
+    <p><a href="${appUrl}/app" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Go to Dashboard</a></p>
+    <p>Want to automate something specific? Reply and let me know!</p>
+  `;
+  const text = `Hi${name ? ' ' + name : ''}, Check out success stories and templates at ${appUrl}/app`;
+  return { subject, html, text };
 }
 
 /**
  * Custom email template
  */
 function getCustomEmail(data = {}) {
- const { subject: customSubject, text: customText, html: customHtml } = data;
- const subject = customSubject || 'EasyFlow Notification';
- const html = customHtml || `<p>${customText || 'Hello from EasyFlow'}</p>`;
- const text = customText || 'Hello from EasyFlow';
- return { subject, html, text };
+  const { subject: customSubject, text: customText, html: customHtml } = data;
+  const subject = customSubject || 'EasyFlow Notification';
+  const html = customHtml || `<p>${customText || 'Hello from EasyFlow'}</p>`;
+  const text = customText || 'Hello from EasyFlow';
+  return { subject, html, text };
 }
 
 module.exports = {
- getAutomationTipsEmail,
- getEmailTemplate,
- getSuccessEmail,
- getWelcomeEmail,
- getFollowupEmail,
- getCustomEmail
+  getAutomationTipsEmail,
+  getEmailTemplate,
+  getSuccessEmail,
+  getWelcomeEmail,
+  getFollowupEmail,
+  getActivationReminderEmail,
+  getSuccessTipsEmail,
+  getCustomEmail
 };
 

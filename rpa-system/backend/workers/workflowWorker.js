@@ -25,7 +25,7 @@ class WorkflowWorker {
 
     // Process jobs with concurrency control
     const concurrency = parseInt(process.env.WORKFLOW_WORKER_CONCURRENCY || '5', 10);
-    
+
     this.queue.process('*', concurrency, async (job) => {
       return await this.processWorkflowExecution(job);
     });
@@ -43,7 +43,7 @@ class WorkflowWorker {
    */
   async processWorkflowExecution(job) {
     const { executionId, workflowId, userId, inputData, triggeredBy, triggerData, executionMode } = job.data;
-    
+
     const executionLogger = getLogger('workflow.worker.execution', {
       execution_id: executionId,
       workflow_id: workflowId,
@@ -83,7 +83,7 @@ class WorkflowWorker {
       // Transition to RUNNING state
       const newState = execution.state === STATES.RETRYING ? STATES.RUNNING : STATES.RUNNING;
       const transitionValidation = WorkflowStateMachine.validateTransition(execution.state || STATES.PENDING, newState);
-      
+
       if (!transitionValidation.valid) {
         throw new Error(transitionValidation.error);
       }
@@ -156,7 +156,7 @@ class WorkflowWorker {
 
       // Check if we should retry
       const shouldRetry = job.attemptsMade < job.opts.attempts;
-      
+
       if (shouldRetry) {
         // Update to RETRYING state
         await this.supabase

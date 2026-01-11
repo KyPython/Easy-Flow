@@ -12,6 +12,7 @@ import { useAuth } from '../utils/AuthContext';
 import { useTheme } from '../utils/ThemeContext';
 import { api } from '../utils/api';
 import { createLogger } from '../utils/logger';
+import SignupAnalyticsDashboard from '../components/Analytics/SignupAnalyticsDashboard';
 import styles from './AdminAnalyticsPage.module.css';
 
 const AdminAnalyticsPage = () => {
@@ -155,13 +156,19 @@ const AdminAnalyticsPage = () => {
  >
  User Activity
  </button>
- <button
- className={`${styles.tab} ${activeTab === 'workflows' ? styles.active : ''}`}
- onClick={() => setActiveTab('workflows')}
- >
- Workflow Usage
- </button>
- </div>
+        <button
+          className={`${styles.tab} ${activeTab === 'workflows' ? styles.active : ''}`}
+          onClick={() => setActiveTab('workflows')}
+        >
+          Workflow Usage
+        </button>
+        <button
+          className={`${styles.tab} ${activeTab === 'signup' ? styles.active : ''}`}
+          onClick={() => setActiveTab('signup')}
+        >
+          Signup Analytics
+        </button>
+      </div>
 
  {activeTab === 'overview' && overview && (
  <div className={styles.content}>
@@ -313,10 +320,16 @@ const AdminAnalyticsPage = () => {
  )}
  </div>
  </div>
- </div>
- )}
- </div>
- );
+    </div>
+  )}
+
+  {activeTab === 'signup' && (
+    <div className={styles.content}>
+      <SignupAnalyticsDashboard />
+    </div>
+  )}
+</div>
+);
 };
 
 export default AdminAnalyticsPage;

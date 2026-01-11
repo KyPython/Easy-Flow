@@ -76,22 +76,37 @@ const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = 
  return mounted ? children : fallback;
  };
 
- useEffect(() => {
- // Find new tasks that weren't in the previous set
- const currentTaskIds = new Set(recentTasks.map(task => task.id));
- const newTasks = recentTasks.filter(task => !lastTaskIds.has(task.id));
- 
- // Send notifications for new completed/failed tasks
- newTasks.forEach(task => {
- if (task.status === 'completed') {
- sendTaskCompleted(task.type, task.url);
- } else if (task.status === 'failed') {
- sendTaskFailed(task.type, task.url, task.error || 'Task failed');
- }
- });
- 
- setLastTaskIds(currentTaskIds);
- }, [recentTasks, sendTaskCompleted, sendTaskFailed]); // Safe to include functions since they're from useCallback
+  // ✅ ACTIVATION: Show onboarding modal for new users (first-time visitors after signup)
+  useEffect(() => {
+    const justSignedUp = sessionStorage.getItem('just_signed_up') === 'true';
+    const onboardingCompleted = localStorage.getItem('onboarding_completed') === 'true';
+    
+    if (justSignedUp && !onboardingCompleted && user) {
+      // Small delay to ensure page is fully loaded before showing modal
+      const timer = setTimeout(() => {
+        setShowOnboarding(true);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    // Find new tasks that weren't in the previous set
+    const currentTaskIds = new Set(recentTasks.map(task => task.id));
+    const newTasks = recentTasks.filter(task => !lastTaskIds.has(task.id));
+    
+    // Send notifications for new completed/failed tasks
+    newTasks.forEach(task => {
+      if (task.status === 'completed') {
+        sendTaskCompleted(task.type, task.url);
+      } else if (task.status === 'failed') {
+        sendTaskFailed(task.type, task.url, task.error || 'Task failed');
+      }
+    });
+    
+    setLastTaskIds(currentTaskIds);
+  }, [recentTasks, sendTaskCompleted, sendTaskFailed]); // Safe to include functions since they're from useCallback
 
  return (
  <div className={styles.dashboard} data-theme={theme}>
@@ -317,14 +332,20 @@ const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = 
  </div>
  )}
 
- {/* Onboarding Modal */}
- <Suspense fallback={null}>
- <OnboardingModal 
- isOpen={showOnboarding}
- onClose={() => setShowOnboarding(false)}
- userEmail={user?.email || 'your email'}
- />
- </Suspense>
+        {/* Onboarding Modal */}
+        <Suspense fallback={null}>
+          <OnboardingModal 
+            isOpen={showOnboarding}
+            onClose={() => {
+              setShowOnboarding(false);
+              // Mark onboarding as completed so it doesn't show again
+              localStorage.setItem('onboarding_completed', 'true');
+              // Clear the just_signed_up flag
+              sessionStorage.removeItem('just_signed_up');
+            }}
+            userEmail={user?.email || 'your email'}
+          />
+        </Suspense>
  </div>
  );
 };

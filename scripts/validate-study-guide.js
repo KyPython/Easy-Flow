@@ -309,6 +309,13 @@ function validateStudyGuide() {
   
   log('\n' + '='.repeat(60), 'blue');
   
+  // Check if running in strict/blocking mode (main branch)
+  // STRICT_MODE can be set via environment variable or detected via CI context
+  const isStrictMode = process.env.STRICT_MODE === 'true' || 
+                       process.env.BLOCKING_MODE === 'true' ||
+                       process.env.GITHUB_REF === 'refs/heads/main' ||
+                       (process.env.GITHUB_BASE_REF === 'main' && process.env.GITHUB_EVENT_NAME === 'pull_request');
+
   if (errors.length > 0) {
     log('\n❌ Study guide validation failed!', 'red');
     log('Please update docs/guides/COMPREHENSIVE_STUDY_GUIDE.md to match the codebase.', 'red');
@@ -316,7 +323,16 @@ function validateStudyGuide() {
   } else if (warnings.length > 0) {
     log('\n⚠️  Study guide has warnings but no critical errors.', 'yellow');
     log('Consider updating docs/guides/COMPREHENSIVE_STUDY_GUIDE.md to include missing items.', 'yellow');
-    process.exit(0);
+    
+    // In strict/blocking mode (main branch), warnings should fail the check
+    if (isStrictMode) {
+      log('\n❌ Warnings are not allowed in strict mode (main branch).', 'red');
+      log('Documentation must be complete before production deployment.', 'red');
+      process.exit(1);
+    } else {
+      log('\n⚠️  Continuing in permissive mode (warnings allowed on dev branch).', 'yellow');
+      process.exit(0);
+    }
   } else {
     log('\n✓ Study guide validation passed!', 'green');
     process.exit(0);

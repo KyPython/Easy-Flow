@@ -133,12 +133,12 @@ if (require.main === module) {
      environment: process.env.NODE_ENV || 'development'
    });
    logger.info('[server] Ready to accept requests - database connection established');
-   
+
    if (workflowWorker) {
      logger.info('[server] ✅ Workflow execution worker is running');
    }
    });
-   
+
    // Graceful shutdown
    process.on('SIGTERM', async () => {
      logger.info('[server] SIGTERM received, shutting down gracefully...');

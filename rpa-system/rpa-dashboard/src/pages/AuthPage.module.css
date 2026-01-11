@@ -73,6 +73,43 @@
   box-shadow: 0 0 0 3px var(--color-primary-100);
 }
 
+.input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* A/B Test Variant B Styles */
+.formVariantB .input {
+  padding: var(--spacing-lg);
+  font-size: var(--font-size-base);
+}
+
+.formVariantB .submitButton {
+  width: 100%;
+  padding: var(--spacing-lg);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.submitButtonVariantB {
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.submitButtonVariantB:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--color-primary-700) 0%, var(--color-primary-800) 100%);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+}
+
+.passwordHint {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: var(--spacing-xs);
+}
+
 .errorText {
   color: var(--color-error-500);
   font-size: var(--font-size-xs);

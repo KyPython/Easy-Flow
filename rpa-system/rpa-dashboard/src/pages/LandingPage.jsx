@@ -68,12 +68,14 @@ export default function LandingPage() {
  {' '}and{' '}
  <Link to="/privacy" style={{ textDecoration: 'underline' }}>Privacy Policy</Link>.
  </p>
- <div className={styles.ctaGroup}>
- <a href="https://calendly.com/kyjahn-smith/consultation" target="_blank" rel="noopener noreferrer" className={styles.ctaPrimary}>
- {t('landing.book_consultation', 'Book a 20-min Workflow Setup Call')}
- </a>
- <Link to="/pricing" className={styles.ctaSecondary}>{t('landing.view_pricing','View Pricing')}</Link>
- </div>
+        <div className={styles.ctaGroup}>
+          <Link to="/auth" className={styles.ctaPrimary}>
+            {t('landing.start_free_trial', 'Start Free Trial — No Credit Card Required')}
+          </Link>
+          <a href="https://calendly.com/kyjahn-smith/consultation" target="_blank" rel="noopener noreferrer" className={styles.ctaSecondary}>
+            {t('landing.book_consultation_optional', 'Prefer help? Book a free setup call')}
+          </a>
+        </div>
  
  {/* Social Proof */}
  <div style={{ marginTop: '20px', textAlign: 'center' }}>
@@ -184,12 +186,104 @@ export default function LandingPage() {
  </p>
  </div>
 
- <div className={styles.ctaBig}>
- <a href="https://calendly.com/kyjahn-smith/consultation" target="_blank" rel="noopener noreferrer" className={styles.ctaPrimary}>
- {t('landing.book_consultation', 'Book a 20-min Workflow Setup Call')}
- </a>
- </div>
- </section>
+        <div className={styles.ctaBig}>
+          <Link to="/auth" className={styles.ctaPrimary}>
+            {t('landing.start_free_trial', 'Start Free Trial — No Credit Card Required')}
+          </Link>
+          <a href="https://calendly.com/kyjahn-smith/consultation" target="_blank" rel="noopener noreferrer" className={styles.ctaSecondary} style={{ marginTop: '16px', display: 'inline-block' }}>
+            {t('landing.prefer_help', 'Prefer help? Book a free setup call')}
+          </a>
+        </div>
+      </section>
+
+      {/* Pricing Section - Show pricing on landing page */}
+      <section className={styles.pricingSection}>
+        <h2 className={styles.sectionTitle}>{t('landing.pricing_title', 'Simple, Transparent Pricing')}</h2>
+        <p style={{ textAlign: 'center', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--spacing-xl)', color: 'var(--text-muted)' }}>
+          {t('landing.pricing_subtitle', 'Start free. Upgrade when you need more. All plans include a 14-day free trial.')}
+        </p>
+        
+        <div className={styles.pricingGrid}>
+          {/* Starter Plan */}
+          <div className={styles.pricingCard}>
+            <h3 className={styles.pricingPlanName}>Starter</h3>
+            <div className={styles.pricingAmount}>
+              <span className={styles.pricingCurrency}>$</span>
+              <span className={styles.pricingPrice}>29</span>
+              <span className={styles.pricingPeriod}>/month</span>
+            </div>
+            <p className={styles.pricingDescription}>Perfect for small teams getting started with automation</p>
+            <ul className={styles.pricingFeatures}>
+              <li>✓ 100 automation runs/month</li>
+              <li>✓ Unlimited workflows</li>
+              <li>✓ 10 webhook integrations</li>
+              <li>✓ Email support (48h response)</li>
+              <li>✓ 7 days analytics retention</li>
+            </ul>
+            <Link to="/auth" className={styles.pricingButton}>
+              Start Free Trial
+            </Link>
+          </div>
+
+          {/* Professional Plan - Most Popular */}
+          <div className={`${styles.pricingCard} ${styles.pricingCardPopular}`}>
+            <div className={styles.popularBadge}>Most Popular</div>
+            <h3 className={styles.pricingPlanName}>Professional</h3>
+            <div className={styles.pricingAmount}>
+              <span className={styles.pricingCurrency}>$</span>
+              <span className={styles.pricingPrice}>99</span>
+              <span className={styles.pricingPeriod}>/month</span>
+            </div>
+            <p className={styles.pricingDescription}>For teams needing advanced automation features</p>
+            <ul className={styles.pricingFeatures}>
+              <li>✓ 1,000 automation runs/month</li>
+              <li>✓ Unlimited workflows</li>
+              <li>✓ 100 webhooks</li>
+              <li>✓ Priority support (4h response)</li>
+              <li>✓ 90 days analytics retention</li>
+              <li>✓ Advanced templates</li>
+              <li>✓ 25 custom integrations</li>
+            </ul>
+            <Link to="/auth" className={styles.pricingButton}>
+              Start Free Trial
+            </Link>
+          </div>
+
+          {/* Enterprise Plan */}
+          <div className={styles.pricingCard}>
+            <h3 className={styles.pricingPlanName}>Enterprise</h3>
+            <div className={styles.pricingAmount}>
+              <span className={styles.pricingCurrency}>$</span>
+              <span className={styles.pricingPrice}>299</span>
+              <span className={styles.pricingPeriod}>/month</span>
+            </div>
+            <p className={styles.pricingDescription}>For large organizations with full automation needs</p>
+            <ul className={styles.pricingFeatures}>
+              <li>✓ 10,000 automation runs/month</li>
+              <li>✓ Unlimited workflows</li>
+              <li>✓ Unlimited webhooks</li>
+              <li>✓ Dedicated support (1h response)</li>
+              <li>✓ 1 year analytics retention</li>
+              <li>✓ Enterprise SSO</li>
+              <li>✓ Custom development</li>
+              <li>✓ SOC2 + GDPR compliance</li>
+            </ul>
+            <Link to="/auth" className={styles.pricingButton}>
+              Start Free Trial
+            </Link>
+          </div>
+        </div>
+
+        <p style={{ textAlign: 'center', fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-lg)', color: 'var(--text-muted)' }}>
+          All plans include a <strong>14-day free trial</strong>. No credit card required to start.
+        </p>
+
+        <div style={{ marginTop: 'var(--spacing-xl)', textAlign: 'center' }}>
+          <Link to="/pricing" className={styles.ctaSecondary}>
+            {t('landing.view_full_pricing', 'View Full Pricing Details')}
+          </Link>
+        </div>
+      </section>
 
  <footer className={styles.footer}>
  <p>&copy; 2025 {t('landing.footer_tagline','EasyFlow. Intelligent RPA Automation Platform.')}</p>

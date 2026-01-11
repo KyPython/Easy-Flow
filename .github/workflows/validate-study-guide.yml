@@ -4,13 +4,13 @@ on:
   push:
     branches: [main, dev]
     paths:
-      - 'COMPREHENSIVE_STUDY_GUIDE.md'
+      - 'docs/guides/COMPREHENSIVE_STUDY_GUIDE.md'
       - 'rpa-system/**'
       - 'scripts/validate-study-guide.js'
   pull_request:
     branches: [main, dev]
     paths:
-      - 'COMPREHENSIVE_STUDY_GUIDE.md'
+      - 'docs/guides/COMPREHENSIVE_STUDY_GUIDE.md'
       - 'rpa-system/**'
   workflow_dispatch:
 
@@ -30,10 +30,12 @@ jobs:
 
       - name: Validate Study Guide
         id: validate
+        continue-on-error: true
         run: |
           chmod +x scripts/validate-study-guide.js
-          node scripts/validate-study-guide.js || exit_code=$?
-          if [ $? -ne 0 ]; then
+          node scripts/validate-study-guide.js
+          exit_code=$?
+          if [ $exit_code -ne 0 ]; then
             echo "validation_failed=true" >> $GITHUB_OUTPUT
             exit 1
           else
@@ -52,3 +54,8 @@ jobs:
               body: '⚠️ **Study Guide Validation Failed**\n\nThe study guide does not match the codebase. Please update `docs/guides/COMPREHENSIVE_STUDY_GUIDE.md` to reflect the current implementation.\n\nRun `node scripts/validate-study-guide.js` locally to see detailed errors.'
             })
 
+      - name: Fail job if validation failed
+        if: steps.validate.outputs.validation_failed == 'true'
+        run: |
+          echo "❌ Study Guide validation failed. Please update the study guide to match the codebase."
+          exit 1
