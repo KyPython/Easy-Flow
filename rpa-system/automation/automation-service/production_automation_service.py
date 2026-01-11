@@ -370,7 +370,7 @@ def send_result_to_kafka(task_id, result, status='completed', run_id=None):
             'value': message
         }
         if headers:
-        send_kwargs['headers'] = headers
+            send_kwargs['headers'] = headers
 
         future = producer.send(**send_kwargs)
         # Wait for acknowledgment
