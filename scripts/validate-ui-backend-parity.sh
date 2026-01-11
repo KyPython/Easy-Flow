@@ -96,42 +96,17 @@ echo -e "${BLUE}📋 Step 2: Extracting frontend API calls...${NC}"
 if [ ! -d "rpa-system/rpa-dashboard/src" ]; then
   echo -e "${YELLOW}⚠ Frontend directory not found, skipping frontend API call extraction${NC}"
 else
-  # Find all JS/JSX/TS/TSX files in frontend
-  find rpa-system/rpa-dashboard/src -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" \) 2>/dev/null | \
-    grep -v node_modules | grep -v ".test." | grep -v ".spec." | while read -r file; do
-      
-      # Extract api.get('/api/...'), api.post('/api/...'), etc. using multiple passes
-      # First, extract api.get/post/put/delete/patch calls
-      grep -hE "\.(get|post|put|delete|patch)[[:space:]]*\(" "$file" 2>/dev/null | grep -E "(api|axios)" | \
-        while read -r line; do
-          # Extract method (get, post, put, delete, patch)
-          method=$(echo "$line" | sed -nE 's/.*\.(get|post|put|delete|patch)[[:space:]]*\(.*/\1/p')
-          # Extract path (look for '/api/' patterns)
-          path=$(echo "$line" | sed -nE "s|.*['\"\`](/api/[^'\"\`]+)['\"\`].*|\1|p")
-          if [ -n "$method" ] && [ -n "$path" ]; then
-            # Extract API path (remove base URL if present)
-            api_path=$(echo "$path" | sed -E "s|^https?://[^/]+||" | sed -E "s|^\$?\{.*baseURL.*\}||")
-            if echo "$api_path" | grep -q "^/api/"; then
-              # Normalize path (UUIDs and numbers to {id})
-              normalized_path=$(echo "$api_path" | sed 's/[0-9a-fA-F]\{8\}-[0-9a-fA-F]\{4\}-[0-9a-fA-F]\{4\}-[0-9a-fA-F]\{4\}-[0-9a-fA-F]\{12\}/{id}/g' | sed 's/[0-9]\+/{id}/g')
-              echo "$method $normalized_path $file" >> "$FRONTEND_CALLS_FILE"
-            fi
-          fi
-        done
-      
-      # Also extract fetch('/api/...') calls
-      grep -hE "fetch[[:space:]]*\([[:space:]]*['\"\`]/api/" "$file" 2>/dev/null | \
-        while read -r line; do
-          # Extract URL
-          url=$(echo "$line" | sed -nE "s|.*fetch[[:space:]]*\([[:space:]]*['\"\`]([^'\"\`]+)['\"\`].*|\1|p")
-          if [ -n "$url" ] && echo "$url" | grep -q "^/api/"; then
-            # Default to GET for fetch calls (could be improved by checking for method option)
-            method="get"
-            normalized_path=$(echo "$url" | sed 's/[0-9a-fA-F]\{8\}-[0-9a-fA-F]\{4\}-[0-9a-fA-F]\{4\}-[0-9a-fA-F]\{4\}-[0-9a-fA-F]\{12\}/{id}/g' | sed 's/[0-9]\+/{id}/g')
-            echo "$method $normalized_path $file" >> "$FRONTEND_CALLS_FILE"
-          fi
-        done
-  done
+  # Use Node.js helper script for more reliable extraction
+  if command -v node >/dev/null 2>&1 && [ -f "scripts/validate-ui-backend-parity-helper.js" ]; then
+    node scripts/validate-ui-backend-parity-helper.js "rpa-system/rpa-dashboard/src" "$FRONTEND_CALLS_FILE" >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+      echo -e "${YELLOW}⚠ Node.js helper script failed, falling back to basic extraction${NC}"
+      touch "$FRONTEND_CALLS_FILE"
+    fi
+  else
+    echo -e "${YELLOW}⚠ Node.js or helper script not found, skipping frontend extraction${NC}"
+    touch "$FRONTEND_CALLS_FILE"
+  fi
 fi
 
 FRONTEND_CALLS_COUNT=$(wc -l < "$FRONTEND_CALLS_FILE" 2>/dev/null | tr -d ' ' || echo "0")

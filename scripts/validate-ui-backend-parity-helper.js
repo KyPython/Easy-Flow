@@ -55,28 +55,7 @@ function extractApiCalls(filePath) {
   return calls;
 }
 
-function walkDir(dir, fileList = []) {
-  const files = fs.readFileSync(dir);
-  
-  files.forEach(file => {
-    const filePath = path.join(dir, file);
-    const stat = fs.statSync(filePath);
-    
-    if (stat.isDirectory()) {
-      // Skip node_modules, test files, etc.
-      if (!filePath.includes('node_modules') && !filePath.includes('.test.') && !filePath.includes('.spec.')) {
-        walkDir(filePath, fileList);
-      }
-    } else if (stat.isFile()) {
-      // Only process JS/JSX/TS/TSX files
-      if (/\.(js|jsx|ts|tsx)$/.test(file)) {
-        fileList.push(filePath);
-      }
-    }
-  });
-  
-  return fileList;
-}
+// Removed - using recursive findFiles function instead
 
 // Main execution
 try {

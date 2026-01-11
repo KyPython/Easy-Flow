@@ -35,8 +35,8 @@ try:
 except ImportError:
     OTEL_AVAILABLE = False
     tracer = None
- logging.warning(
-     "⚠️ OpenTelemetry not available - browser automation spans disabled")
+    logging.warning(
+        "⚠️ OpenTelemetry not available - browser automation spans disabled")
 
 logger = logging.getLogger(__name__)
 
@@ -73,20 +73,20 @@ def create_webdriver():
 
 def _create_webdriver_impl():
     """Internal implementation of WebDriver creation."""
- options = Options()
- options.add_argument('--headless')
- options.add_argument('--no-sandbox')
- options.add_argument('--disable-dev-shm-usage')
- options.add_argument('--disable-gpu')
- options.add_argument('--window-size=1920,1080')
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920,1080')
 
- try:
-     service = Service(ChromeDriverManager().install())
-     driver = webdriver.Chrome(service=service, options=options)
-     return driver
- except Exception as e:
-     logger.error(f"Failed to create WebDriver: {e}")
-     return None
+    try:
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+        return driver
+    except Exception as e:
+        logger.error(f"Failed to create WebDriver: {e}")
+        return None
 
 
 def scrape_web_page(url, task_data=None):
@@ -123,7 +123,9 @@ def scrape_web_page(url, task_data=None):
 
             import requests
             response = requests.get(url, timeout=10)
-            if response.headers.get('content-type', '').startswith('application/json'):
+            if response.headers.get(
+    'content-type',
+     '').startswith('application/json'):
                 data = response.json()
 
                 # Apply filters if specified
@@ -131,11 +133,12 @@ def scrape_web_page(url, task_data=None):
                     filters = task_data['filters']
                     if isinstance(data, list) and filters.get('limit'):
                         data = data[:filters['limit']]
-                    if filters.get('fields') and isinstance(data, (list, dict)):
+                    if filters.get('fields') and isinstance(
+                        data, (list, dict)):
                         if isinstance(data, list) and data:
                             data = [{k: item.get(k) for k in filters['fields']}
                                     for item in data if isinstance(item, dict)]
-                                    elif isinstance(data, dict):
+                        elif isinstance(data, dict):
                             data = {k: data.get(k) for k in filters['fields']}
 
                 return {

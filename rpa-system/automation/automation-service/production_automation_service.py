@@ -240,29 +240,33 @@ def get_kafka_producer():
         with kafka_lock:
             if kafka_producer is None:
                 if not KAFKA_AVAILABLE:
-                logger.warning(
-                    "Kafka-python not available, cannot create producer.")
-                return None
-            try:
-                kafka_producer = KafkaProducer(
-                    bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-                    value_serializer=lambda x: json.dumps(x).encode('utf-8'),
-                    key_serializer=lambda x: x.encode(
-                        'utf-8') if isinstance(x, str) else (x if isinstance(x, bytes) else str(x).encode('utf-8')),
-                    retries=3,
-                    retry_backoff_ms=int(
-                        os.getenv(
-                            'KAFKA_RETRY_BACKOFF_MS',
-                            '1000')),
-                    request_timeout_ms=30000,
-                    api_version=(0, 11, 0)  # Use v0.11.0+ to support headers
-                )
-    # ✅ INSTRUCTION 2: Reduced connection logging (Gap 19)
-    # Log at DEBUG level - connection is already monitored by Kafka metrics
-    logger.debug(f"Kafka producer connected to {KAFKA_BOOTSTRAP_SERVERS}")
-    except Exception as e:
-    logger.error(f"Failed to connect Kafka producer: {e}")
-    kafka_producer = None
+                    logger.warning(
+                        "Kafka-python not available, cannot create producer.")
+                    return None
+                try:
+                    kafka_producer = KafkaProducer(
+                        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+                        value_serializer=lambda x: json.dumps(
+                            x).encode('utf-8'),
+                        key_serializer=lambda x: x.encode(
+                            'utf-8') if isinstance(x, str) else (x if isinstance(x, bytes) else str(x).encode('utf-8')),
+                        retries=3,
+                        retry_backoff_ms=int(
+                            os.getenv(
+                                'KAFKA_RETRY_BACKOFF_MS',
+                                '1000')),
+                        request_timeout_ms=30000,
+                        # Use v0.11.0+ to support headers
+                        api_version=(0, 11, 0)
+                    )
+                    # ✅ INSTRUCTION 2: Reduced connection logging (Gap 19)
+                    # Log at DEBUG level - connection is already monitored by
+                    # Kafka metrics
+                    logger.debug(
+                        f"Kafka producer connected to {KAFKA_BOOTSTRAP_SERVERS}")
+                except Exception as e:
+                    logger.error(f"Failed to connect Kafka producer: {e}")
+                    kafka_producer = None
     return kafka_producer
 
 
@@ -270,118 +274,124 @@ def get_kafka_consumer():
     """Thread-safe way to get the Kafka consumer instance."""
     global kafka_consumer
     if kafka_consumer is None:
-    with kafka_lock:
-    if kafka_consumer is None:
-    if not KAFKA_AVAILABLE:
-    logger.warning("Kafka-python not available, cannot create consumer.")
-    return None
-    try:
-    kafka_consumer = KafkaConsumer(
-        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-        group_id=KAFKA_CONSUMER_GROUP,
-        value_deserializer=lambda x: json.loads(x.decode('utf-8')),
-        key_deserializer=lambda x: x.decode('utf-8') if x else None,
-        auto_offset_reset='earliest',  # ✅ FIX: Process queued messages, not just new ones
-        enable_auto_commit=True,
-        api_version=(0, 10, 1),
-        consumer_timeout_ms=1000  # Timeout for polling
-    )
-    # ✅ FIX: Explicitly subscribe to topic to ensure partitions are assigned
-    kafka_consumer.subscribe([KAFKA_TASK_TOPIC])
-    logger.info(
-        f"✅ Kafka consumer connected and subscribed to {KAFKA_TASK_TOPIC} on {KAFKA_BOOTSTRAP_SERVERS}")
-    except Exception as e:
-    logger.error(f"❌ Failed to connect Kafka consumer: {e}", exc_info=True)
-    kafka_consumer = None
+        with kafka_lock:
+            if kafka_consumer is None:
+                if not KAFKA_AVAILABLE:
+                    logger.warning(
+                        "Kafka-python not available, cannot create consumer.")
+                    return None
+                try:
+                    kafka_consumer = KafkaConsumer(
+                        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+                        group_id=KAFKA_CONSUMER_GROUP,
+                        value_deserializer=lambda x: json.loads(
+                            x.decode('utf-8')),
+                        key_deserializer=lambda x: x.decode(
+                            'utf-8') if x else None,
+                        auto_offset_reset='earliest',
+                        # ✅ FIX: Process queued messages, not just new ones
+                        enable_auto_commit=True,
+                        api_version=(0, 10, 1),
+                        consumer_timeout_ms=1000  # Timeout for polling
+                    )
+                    # ✅ FIX: Explicitly subscribe to topic to ensure partitions are assigned
+                    kafka_consumer.subscribe([KAFKA_TASK_TOPIC])
+                    logger.info(
+                        f"✅ Kafka consumer connected and subscribed to {KAFKA_TASK_TOPIC} on {KAFKA_BOOTSTRAP_SERVERS}")
+                except Exception as e:
+                    logger.error(
+                        f"❌ Failed to connect Kafka consumer: {e}",
+                        exc_info=True)
+                    kafka_consumer = None
     return kafka_consumer
 
 
 def send_result_to_kafka(task_id, result, status='completed', run_id=None):
     """Send task result back to Kafka with trace context propagation"""
     try:
-    producer = get_kafka_producer()
-    if not producer:
-    logger.error("Kafka producer not available")
-    return False
+        producer = get_kafka_producer()
+        if not producer:
+        logger.error("Kafka producer not available")
+        return False
 
-    # Determine status from result if not explicitly provided
-    if status == 'completed' and result:
-    if isinstance(result, dict):
-    if result.get('success') is False:
-    status = 'failed'
-    elif result.get('success') is True:
-    status = 'completed'
-    else:
-    status = 'completed'  # Default to completed if unclear
+        # Determine status from result if not explicitly provided
+        if status == 'completed' and result:
+        if isinstance(result, dict):
+        if result.get('success') is False:
+        status = 'failed'
+        elif result.get('success') is True:
+        status = 'completed'
+        else:
+        status = 'completed'  # Default to completed if unclear
 
-    message = {
-        'task_id': task_id,
-        'status': status,
-        'result': result,
-        'timestamp': datetime.now(timezone.utc).isoformat(),
-        'worker_id': os.getenv('HOSTNAME', 'unknown')
-    }
+        message = {
+            'task_id': task_id,
+            'status': status,
+            'result': result,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'worker_id': os.getenv('HOSTNAME', 'unknown')
+        }
 
-    # ✅ FIX: Include run_id in message so Kafka consumer can update automation_runs table
-    if run_id:
-    message['run_id'] = run_id
+        # ✅ FIX: Include run_id in message so Kafka consumer can update automation_runs table
+        if run_id:
+        message['run_id'] = run_id
 
-    logger.info(
-        f"📤 Sending result to Kafka for task {task_id}: status={status}, success={
-            result.get('success') if isinstance(
-                result, dict) else 'N/A'}")
+        logger.info(
+            f"📤 Sending result to Kafka for task {task_id}: status={status}, success={
+                result.get('success') if isinstance(
+                    result, dict) else 'N/A'}")
 
-    # ✅ INSTRUCTION 2: Inject trace context into Kafka message headers
-    # Note: Headers require Kafka API v0.11.0+
-    headers = []
-    if OTEL_AVAILABLE and propagate is not None:
-        # Create carrier dict to inject context into
-    carrier = {}
-    propagate.inject(carrier)
+        # ✅ INSTRUCTION 2: Inject trace context into Kafka message headers
+        # Note: Headers require Kafka API v0.11.0+
+        headers = []
+        if OTEL_AVAILABLE and propagate is not None:
+            # Create carrier dict to inject context into
+        carrier = {}
+        propagate.inject(carrier)
 
-    # Convert carrier to Kafka headers format (list of tuples with bytes)
-    for key, value in carrier.items():
-        # Ensure value is bytes - handle both str and bytes
-    if isinstance(value, str):
-    value_bytes = value.encode('utf-8')
-    elif isinstance(value, bytes):
-    value_bytes = value
-    else:
-    value_bytes = str(value).encode('utf-8')
-    headers.append((key, value_bytes))
+        # Convert carrier to Kafka headers format (list of tuples with bytes)
+        for key, value in carrier.items():
+            # Ensure value is bytes - handle both str and bytes
+        if isinstance(value, str):
+        value_bytes = value.encode('utf-8')
+        elif isinstance(value, bytes):
+        value_bytes = value
+        else:
+        value_bytes = str(value).encode('utf-8')
+        headers.append((key, value_bytes))
 
-    # Pass task_id as-is (key_serializer will handle encoding)
-    # No need to pre-encode since key_serializer handles both str and bytes
+        # Pass task_id as-is (key_serializer will handle encoding)
+        # No need to pre-encode since key_serializer handles both str and bytes
 
-    # Only include headers if we have them (and API version supports it)
-    send_kwargs = {
-        'topic': KAFKA_RESULT_TOPIC,
-        'key': task_id,
-        'value': message
-    }
-    if headers:
-    send_kwargs['headers'] = headers
+        # Only include headers if we have them (and API version supports it)
+        send_kwargs = {
+            'topic': KAFKA_RESULT_TOPIC,
+            'key': task_id,
+            'value': message
+        }
+        if headers:
+        send_kwargs['headers'] = headers
 
-    future = producer.send(**send_kwargs)
-    # Wait for acknowledgment
-    record_metadata = future.get(timeout=10)
-    logger.info(
-        f"✅ Result sent to Kafka successfully - Topic: {
-            record_metadata.topic}, Partition: {
-            record_metadata.partition}, Offset: {
+        future = producer.send(**send_kwargs)
+        # Wait for acknowledgment
+        record_metadata = future.get(timeout=10)
+        logger.info(
+            f"✅ Result sent to Kafka successfully - Topic: {
+                record_metadata.topic}, Partition: {
+                record_metadata.partition}, Offset: {
                 record_metadata.offset}")
 
-    # ✅ INSTRUCTION 2: REMOVED kafka_messages metric (Gap 8, 18)
-    # Kafka message counts are available from Kafka broker metrics
+        # ✅ INSTRUCTION 2: REMOVED kafka_messages metric (Gap 8, 18)
+        # Kafka message counts are available from Kafka broker metrics
 
-    return True
+        return True
     except Exception as e:
-    logger.error(
-        f"❌ Failed to send result to Kafka for task {task_id}: {e}",
-        exc_info=True)
-    import traceback
-    logger.error(f"Traceback: {traceback.format_exc()}")
-    return False
+        logger.error(
+            f"❌ Failed to send result to Kafka for task {task_id}: {e}",
+            exc_info=True)
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
 
 
 def process_automation_task(task_data):

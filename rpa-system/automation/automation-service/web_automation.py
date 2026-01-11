@@ -77,30 +77,30 @@ def perform_web_automation(url, task_data):
 
     driver = create_webdriver()
     if not driver:
-    return {"error": "Failed to create WebDriver", "status": "failed"}
+        return {"error": "Failed to create WebDriver", "status": "failed"}
 
     try:
-    logger.info(f"Starting web automation for: {url}")
+        logger.info(f"Starting web automation for: {url}")
 
-    # Navigate to URL
-    driver.get(url)
+        # Navigate to URL
+        driver.get(url)
 
-    # Wait for page load
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.TAG_NAME, "body"))
-    )
+        # Wait for page load
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
 
-    # Allow additional time for dynamic content
-    time.sleep(2)
+        # Allow additional time for dynamic content
+        time.sleep(2)
 
-    result = {
-        "url": url,
-        "start_time": datetime.now().isoformat(),
-        "actions_performed": [],
-        "verifications": [],
-        "screenshots": [],
-        "status": "success"
-    }
+        result = {
+            "url": url,
+            "start_time": datetime.now().isoformat(),
+            "actions_performed": [],
+            "verifications": [],
+            "screenshots": [],
+            "status": "success"
+        }
 
     # Perform actions
     actions = task_data.get('actions', [])

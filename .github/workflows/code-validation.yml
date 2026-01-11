@@ -243,6 +243,19 @@ jobs:
           fi
         continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
+      - name: Validate UI/Backend Feature Parity
+        env:
+          STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
+        run: |
+          echo "🔍 Checking UI/Backend feature parity..."
+          chmod +x scripts/validate-ui-backend-parity.sh
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-ui-backend-parity.sh || (echo "❌ UI/Backend feature parity validation failed" && exit 1)
+          else
+            ./scripts/validate-ui-backend-parity.sh || echo "⚠️ UI/Backend feature parity issues found (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
       - name: Validate Study Guide
         env:
           STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
