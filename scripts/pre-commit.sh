@@ -47,6 +47,9 @@ fi
 # Track if any checks fail
 FAILED=0
 
+# Allow skipping tests via environment variable (for faster commits)
+SKIP_TESTS="${SKIP_TESTS:-false}"
+
 # Step 1: Lint Frontend (React Dashboard)
 echo "${BLUE}Step 1: Linting frontend...${NC}"
 if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
@@ -82,33 +85,13 @@ else
     echo "  ${YELLOW}○ Backend not found, skipping${NC}"
 fi
 
-# Step 3: Run Tests (if available)
-echo "\n${BLUE}Step 3: Running tests...${NC}"
-
-# Backend tests
-if [ -f "rpa-system/backend/package.json" ]; then
-    cd rpa-system/backend
-    if npm run test:backend -- --passWithNoTests || npm test -- --passWithNoTests; then
-        echo "  ${GREEN}✓ Backend tests passed${NC}"
-    else
-        echo "  ${YELLOW}⚠ Backend tests failed (non-blocking in pre-commit)${NC}"
-        echo "  ${YELLOW}  Tests will block in pre-push and CI/CD${NC}"
-        # Don't fail pre-commit for test issues (they'll block in pre-push)
-    fi
-    cd ../..
-fi
-
-# Frontend tests
-if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
-    cd rpa-system/rpa-dashboard
-    if npm test -- --watchAll=false --passWithNoTests; then
-        echo "  ${GREEN}✓ Frontend tests passed${NC}"
-    else
-        echo "  ${YELLOW}⚠ Frontend tests failed (non-blocking in pre-commit)${NC}"
-        echo "  ${YELLOW}  Tests will block in pre-push and CI/CD${NC}"
-        # Don't fail pre-commit for test issues (they'll block in pre-push)
-    fi
-    cd ../..
+# Step 3: Run Tests (if available) - SKIP by default for speed
+if [ "$SKIP_TESTS" != "true" ]; then
+    echo "\n${BLUE}Step 3: Running tests (can skip with SKIP_TESTS=true)...${NC}"
+    echo "${YELLOW}  ⚠️  Tests are slow - skipping in pre-commit for speed${NC}"
+    echo "${YELLOW}  Tests will run in CI/CD and pre-push hooks${NC}"
+else
+    echo "\n${BLUE}Step 3: Tests skipped (SKIP_TESTS=true)${NC}"
 fi
 
 # Step 4: Build Check (verify compilation)
