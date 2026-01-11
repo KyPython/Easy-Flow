@@ -16,23 +16,60 @@ The hook automatically:
 - ✅ Runs full checks on `main` branch (production safety)
 - ✅ Completes in <0.1 seconds on `dev` (vs ~1.5 minutes before)
 
-## Full Validation (CI/CD)
+## Comprehensive CI/CD Coverage
 
-**All comprehensive checks run automatically in CI/CD:**
+**All checks run automatically in CI/CD - you don't need to run them locally:**
 
-- ✅ Linting (frontend + backend)
-- ✅ Build verification
-- ✅ Test suites
-- ✅ Code quality checks
-- ✅ Security scans
-- ✅ Validation checks (SRP, theme, etc.)
+### Code Validation (`code-validation.yml`)
+**Triggers:** PRs to `dev`/`main`, daily schedule (3 AM UTC), main branch pushes
+
+- ✅ Single Responsibility Principle (SRP) validation
+- ✅ Dynamic code validation (no hardcoded values)
+- ✅ Theme consistency validation
+- ✅ Logging integration validation
+- ✅ Environment-aware messages validation
+- ✅ RAG knowledge validation
+- ✅ Learning system validation
 - ✅ Duplicate code detection
 - ✅ Unused code detection
+- ✅ Duplicate features detection
+- ✅ Duplicate CI/CD workflows detection
+- ✅ Code backup verification (GitHub)
 - ✅ Test coverage validation
+- ✅ Study guide validation
 
-CI/CD runs on:
-- Pull requests to `dev` or `main`
-- Scheduled daily checks
-- Before merging to `main`
+### QA Core (`qa-core.yml`)
+**Triggers:** PRs to `main`, main branch pushes
 
-This ensures code quality while keeping local development fast and friction-free.
+- ✅ Security scan (Snyk) - CRITICAL
+- ✅ Auto-fix code formatting
+- ✅ Comprehensive test suite
+- ✅ Code quality checks
+- ✅ Comprehensive code validation
+- ✅ Accessibility checks - CRITICAL
+- ✅ Integration tests
+
+### QA Dev (`qa-dev.yml`)
+**Triggers:** PRs to `dev`, daily schedule (2 AM UTC)
+
+- ✅ Security scan (non-blocking on dev)
+- ✅ Auto-fix code formatting
+- ✅ Comprehensive test suite (warnings only)
+- ✅ Code quality checks (warnings only)
+- ✅ Comprehensive code validation (warnings only)
+
+### QA Integration (`qa-integration.yml`)
+**Triggers:** PRs to `dev`/`main`, daily schedule (4 AM UTC)
+
+- ✅ Integration test suite
+- ✅ Database integration tests
+- ✅ Service integration tests
+
+### Quick Checks (`dev-quick-check.yml`)
+**Triggers:** Pushes to `dev` branch (non-blocking)
+
+- ✅ Quick syntax check
+- ✅ Build verification
+- ✅ Fast feedback (5-minute timeout)
+
+**Summary:** CI/CD ensures code quality automatically. Just use normal git commands - all comprehensive checks run in CI/CD on PRs and scheduled runs.
