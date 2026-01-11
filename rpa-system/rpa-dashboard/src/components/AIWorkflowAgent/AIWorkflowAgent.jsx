@@ -224,10 +224,18 @@ const Message = ({ message, isUser, isTyping, onApplyWorkflow, onAction }) => {
  </div>
  ) : (
  <>
- <div className={styles.messageText}>{isUser ? message.content : renderMarkdown(message.content)}</div>
- 
- {/* Show workflow preview if available */}
- {message.workflow && (
+            <div className={styles.messageText}>{isUser ? message.content : renderMarkdown(message.content)}</div>
+            
+            {/* Show workflow preview text if available (non-technical description) */}
+            {message.workflowPreview && (
+              <div className={styles.workflowPreviewText}>
+                <strong>Here's what this workflow will do:</strong>
+                <p>{message.workflowPreview}</p>
+              </div>
+            )}
+            
+            {/* Show workflow preview if available */}
+            {message.workflow && (
  <div className={styles.workflowPreview}>
  <div className={styles.workflowHeader}>
  <span className={styles.workflowIcon}>✨</span>
@@ -744,11 +752,15 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  content = data.message || "I'm here to help! What would you like to do?";
  break;
  
- case 'workflow':
- // AI generated a workflow
- content = data.explanation || "I've created a workflow for you! Check it out below.";
- workflow = data.workflow;
- break;
+      case 'workflow':
+        // AI generated a workflow
+        content = data.explanation || "I've created a workflow for you! Check it out below.";
+        workflow = data.workflow;
+        // Extract preview if available (non-technical description from pain mapping)
+        if (data.preview) {
+          workflow = { ...workflow, preview: data.preview };
+        }
+        break;
  
  case 'action':
  // AI executed an action (scrape, email, etc.)
@@ -790,22 +802,23 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  workflow = data.workflow;
  }
 
- const aiMessage = {
- id: `ai-${Date.now()}`,
- content,
- isUser: false,
- timestamp: new Date(),
- workflow,
- actionResult,
- suggestions: data.suggestions,
- // Add email actions if available (for mailto fallback)
- actions: data.type === 'action' && actionResult?.data?.fallback?.type === 'mailto' ? [{
- type: 'mailto',
- href: actionResult.data.fallback.link,
- label: '📧 Open Email Client',
- variant: 'primary'
- }] : undefined
- };
+      const aiMessage = {
+        id: `ai-${Date.now()}`,
+        content,
+        isUser: false,
+        timestamp: new Date(),
+        workflow,
+        workflowPreview: workflow?.preview || data.preview, // Extract preview separately for display
+        actionResult,
+        suggestions: data.suggestions,
+        // Add email actions if available (for mailto fallback)
+        actions: data.type === 'action' && actionResult?.data?.fallback?.type === 'mailto' ? [{
+          type: 'mailto',
+          href: actionResult.data.fallback.link,
+          label: '📧 Open Email Client',
+          variant: 'primary'
+        }] : undefined
+      };
  setMessages(prev => [...prev, aiMessage]);
  saveMessage(aiMessage); // Save AI response
  }

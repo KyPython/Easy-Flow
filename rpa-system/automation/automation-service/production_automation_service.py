@@ -237,22 +237,26 @@ def get_kafka_producer():
     """Thread-safe way to get the Kafka producer instance."""
     global kafka_producer
     if kafka_producer is None:
-            with kafka_lock:
-                if kafka_producer is None:
-                    if not KAFKA_AVAILABLE:
-                    logger.warning("Kafka-python not available, cannot create producer.")
-                    return None
-                try:
-                    kafka_producer = KafkaProducer(
-        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-        value_serializer=lambda x: json.dumps(x).encode('utf-8'),
-        key_serializer=lambda x: x.encode(
-            'utf-8') if isinstance(x, str) else (x if isinstance(x, bytes) else str(x).encode('utf-8')),
-        retries=3,
-        retry_backoff_ms=int(os.getenv('KAFKA_RETRY_BACKOFF_MS', '1000')),
-        request_timeout_ms=30000,
-        api_version=(0, 11, 0)  # Use v0.11.0+ to support headers
-    )
+        with kafka_lock:
+            if kafka_producer is None:
+                if not KAFKA_AVAILABLE:
+                logger.warning(
+                    "Kafka-python not available, cannot create producer.")
+                return None
+            try:
+                kafka_producer = KafkaProducer(
+                    bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+                    value_serializer=lambda x: json.dumps(x).encode('utf-8'),
+                    key_serializer=lambda x: x.encode(
+                        'utf-8') if isinstance(x, str) else (x if isinstance(x, bytes) else str(x).encode('utf-8')),
+                    retries=3,
+                    retry_backoff_ms=int(
+                        os.getenv(
+                            'KAFKA_RETRY_BACKOFF_MS',
+                            '1000')),
+                    request_timeout_ms=30000,
+                    api_version=(0, 11, 0)  # Use v0.11.0+ to support headers
+                )
     # ✅ INSTRUCTION 2: Reduced connection logging (Gap 19)
     # Log at DEBUG level - connection is already monitored by Kafka metrics
     logger.debug(f"Kafka producer connected to {KAFKA_BOOTSTRAP_SERVERS}")

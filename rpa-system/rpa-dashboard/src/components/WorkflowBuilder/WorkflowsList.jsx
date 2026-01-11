@@ -8,16 +8,17 @@ import LoadingSpinner from './LoadingSpinner';
 import ActionButton from './ActionButton';
 import ConfirmDialog from './ConfirmDialog';
 import {
- FaPlus,
- FaEdit,
- FaPlay,
- FaTrash,
- FaClock,
- FaCheckCircle,
- FaPauseCircle,
- FaArchive,
- FaLayerGroup,
- FaHistory
+  FaPlus,
+  FaEdit,
+  FaPlay,
+  FaTrash,
+  FaClock,
+  FaCheckCircle,
+  FaPauseCircle,
+  FaArchive,
+  FaLayerGroup,
+  FaHistory,
+  FaRobot
 } from 'react-icons/fa';
 import PropTypes from 'prop-types';
 
@@ -273,20 +274,29 @@ const WorkflowsList = () => {
  <h1>Your Workflows</h1>
  <p>Manage and organize your automation workflows</p>
  </div>
- <div className={styles.headerActions}>
- <ActionButton
- variant="secondary"
- onClick={() => navigate('/app/workflows/templates')}
- >
- <FaLayerGroup /> Browse Templates
- </ActionButton>
- <ActionButton
- variant="primary"
- onClick={() => navigate('/app/workflows/builder')}
- >
- <FaPlus /> Create New Workflow
- </ActionButton>
- </div>
+      <div className={styles.headerActions}>
+        <ActionButton
+          variant="secondary"
+          onClick={() => {
+            // Trigger AI agent to open with discovery mode
+            window.dispatchEvent(new CustomEvent('openAIAgent', { detail: { mode: 'discover' } }));
+          }}
+        >
+          <FaRobot /> Suggest a Workflow
+        </ActionButton>
+        <ActionButton
+          variant="secondary"
+          onClick={() => navigate('/app/workflows/templates')}
+        >
+          <FaLayerGroup /> Browse Templates
+        </ActionButton>
+        <ActionButton
+          variant="primary"
+          onClick={() => navigate('/app/workflows/builder')}
+        >
+          <FaPlus /> Create New Workflow
+        </ActionButton>
+      </div>
  </div>
 
  {workflows.length === 0 ? (

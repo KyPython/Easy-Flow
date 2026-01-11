@@ -284,10 +284,23 @@ function Shell() {
  // Email capture modal state
  const [showEmailCapture, setShowEmailCapture] = useState(false);
 
- // AI Agent panel state - unified assistant for workflows + support
- const [showAIAgent, setShowAIAgent] = useState(false);
+  // AI Agent panel state - unified assistant for workflows + support
+  const [showAIAgent, setShowAIAgent] = useState(false);
 
- // Check if email capture should be shown
+  // Listen for custom event to open AI agent from child components
+  useEffect(() => {
+    const handleOpenAIAgent = (event) => {
+      setShowAIAgent(true);
+      // Store discovery mode in sessionStorage for the AI agent to read
+      if (event.detail?.mode === 'discover') {
+        sessionStorage.setItem('aiAgentMode', 'discover');
+      }
+    };
+    window.addEventListener('openAIAgent', handleOpenAIAgent);
+    return () => window.removeEventListener('openAIAgent', handleOpenAIAgent);
+  }, []);
+
+  // Check if email capture should be shown
  useEffect(() => {
  if (user && sessionsCount >= 3) {
  const emailCaptured = localStorage.getItem('email_captured') === 'true';

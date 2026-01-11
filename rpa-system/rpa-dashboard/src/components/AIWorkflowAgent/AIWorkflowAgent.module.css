@@ -318,6 +318,31 @@
   }
 }
 
+/* Non-technical workflow preview text (from pain mapping) */
+.workflowPreviewText {
+  background: var(--card-bg, #f8f9fa);
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-left: 3px solid var(--color-primary, #2563eb);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary, #1f2937);
+}
+
+.workflowPreviewText strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-primary, #1f2937);
+  font-weight: 600;
+}
+
+.workflowPreviewText p {
+  margin: 0;
+  color: var(--text-secondary, #4b5563);
+}
+
 /* Workflow Preview Card */
 .workflowPreview {
   margin-top: var(--spacing-sm);
