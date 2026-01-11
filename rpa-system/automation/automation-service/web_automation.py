@@ -170,14 +170,14 @@ def perform_web_automation(url, task_data):
     # Get final page content for analysis
         soup = BeautifulSoup(driver.page_source, 'html.parser')
 
-    # Look for common success/error patterns
-    success_patterns = soup.find_all(
-        text=lambda text: text and any(
-            keyword in text.lower() for keyword in [
-                'success',
-                'submitted',
-                'thank you',
-                'welcome',
+        # Look for common success/error patterns
+        success_patterns = soup.find_all(
+            text=lambda text: text and any(
+                keyword in text.lower() for keyword in [
+                    'success',
+                    'submitted',
+                    'thank you',
+                    'welcome',
                 'logged in']))
     error_patterns = soup.find_all(
         text=lambda text: text and any(

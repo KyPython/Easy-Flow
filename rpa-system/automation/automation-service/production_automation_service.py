@@ -468,11 +468,11 @@ def process_automation_task(task_data):
 
             url = task_data.get('url')
             if not url:
-        result = {'success': False, 'error': 'Missing required field: url'}
-    else:
-        automation_result = web_automation.perform_web_automation(
-            url, task_data)
-    if automation_result.get('status') == 'success' or automation_result.get(
+                result = {'success': False, 'error': 'Missing required field: url'}
+            else:
+                automation_result = web_automation.perform_web_automation(
+                    url, task_data)
+                if automation_result.get('status') == 'success' or automation_result.get(
             'status') == 'partial_failure':
         result = {
             'success': True,
