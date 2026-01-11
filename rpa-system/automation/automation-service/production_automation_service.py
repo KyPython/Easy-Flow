@@ -104,7 +104,7 @@ try:
     )
 
     # ✅ REMOVED (Gap 8, 18):
-        # - active_workers (covered by Kubernetes pod metrics)
+    # - active_workers (covered by Kubernetes pod metrics)
     # - kafka_messages (covered by Kafka broker metrics)
     # - System-level metrics (CPU, memory - covered by node exporter)
 
@@ -466,25 +466,26 @@ def process_automation_task(task_data):
             except ImportError:
                 import web_automation
 
-    url = task_data.get('url')
-    if not url:
+            url = task_data.get('url')
+            if not url:
         result = {'success': False, 'error': 'Missing required field: url'}
     else:
-        automation_result = web_automation.perform_web_automation(url, task_data)
+        automation_result = web_automation.perform_web_automation(
+            url, task_data)
     if automation_result.get('status') == 'success' or automation_result.get(
             'status') == 'partial_failure':
-                result = {
-        'success': True,
-        'data': automation_result,
-        'message': f'Web automation completed with status: {
-            automation_result.get("status")}'}
+        result = {
+            'success': True,
+            'data': automation_result,
+            'message': f'Web automation completed with status: {
+                automation_result.get("status")}'}
     else:
         result = {
-        'success': False,
-        'error': automation_result.get(
-            'error',
-            'Web automation failed'),
-        'details': automation_result}
+            'success': False,
+            'error': automation_result.get(
+                'error',
+                'Web automation failed'),
+            'details': automation_result}
     elif task_type == 'data_extraction' or task_type == 'web_scraping':
         # Support both 'data_extraction' (legacy) and 'web_scraping' task types
         # They use the same scraping logic
@@ -504,28 +505,28 @@ def process_automation_task(task_data):
     task_logger.info(f"✅ Web scraping completed successfully")
     else:
         result = {
-        'success': False,
-        'error': scrape_result.get(
-            'error',
-            'Scraping failed'),
-        'details': scrape_result}
+            'success': False,
+            'error': scrape_result.get(
+                'error',
+                'Scraping failed'),
+            'details': scrape_result}
     task_logger.error(f"❌ Web scraping failed: {result.get('error')}")
     elif task_type == 'invoice_download':
         # Support both pdf_url and url fields
     pdf_url = task_data.get('pdf_url') or task_data.get('url')
     if not pdf_url:
         result = {
-        'success': False,
-        'error': 'Missing required field: pdf_url or url'}
+            'success': False,
+            'error': 'Missing required field: pdf_url or url'}
     else:
         # ✅ SECURITY: Validate URL to prevent SSRF before calling download_pdf
     from urllib.parse import urlparse
     parsed_url = urlparse(pdf_url)
     if parsed_url.scheme not in ('http', 'https'):
         result = {
-        'success': False,
-        'error': f'Invalid URL scheme: {
-            parsed_url.scheme}. Only http and https are allowed.'}
+            'success': False,
+            'error': f'Invalid URL scheme: {
+                parsed_url.scheme}. Only http and https are allowed.'}
     else:
         try:
         from . import web_automation
@@ -546,8 +547,8 @@ def process_automation_task(task_data):
     # Remove any remaining path traversal attempts after normalization
     if '..' in normalized_path or normalized_path.startswith(
             '/') or normalized_path.startswith('~'):
-                task_logger.warning(
-        f"Download path contains unsafe characters, using temp directory")
+        task_logger.warning(
+            f"Download path contains unsafe characters, using temp directory")
     task_data['download_path'] = tempfile.gettempdir()
     else:
         # Ensure path is absolute and within safe directory
@@ -556,7 +557,7 @@ def process_automation_task(task_data):
     # Double-check that resolved path is still within safe base
     if not abs_path.startswith(safe_base):
         task_logger.warning(
-        f"Download path {abs_path} outside safe directory, using temp directory")
+            f"Download path {abs_path} outside safe directory, using temp directory")
     task_data['download_path'] = safe_base
     else:
         task_data['download_path'] = abs_path
@@ -568,15 +569,15 @@ def process_automation_task(task_data):
     # ✅ SECURITY: download_pdf also validates the path internally to prevent path traversal
     if download_result.get('success'):
         result = {'success': True, 'data': download_result,
-              'message': f'Invoice downloaded from {pdf_url}'}
+                  'message': f'Invoice downloaded from {pdf_url}'}
     task_logger.info(f"✅ Invoice download completed successfully")
     else:
         result = {
-        'success': False,
-        'error': download_result.get(
-            'error',
-            'Download failed'),
-        'details': download_result}
+            'success': False,
+            'error': download_result.get(
+                'error',
+                'Download failed'),
+            'details': download_result}
     task_logger.error(f"❌ Invoice download failed: {result.get('error')}")
     elif task_type == 'form_submission':
         # Form submission task - fill and submit forms on web pages
@@ -588,7 +589,9 @@ def process_automation_task(task_data):
     if not url:
         result = {'success': False, 'error': 'Missing required field: url'}
     elif not form_data:
-        result = {'success': False, 'error': 'Missing required field: form_data'}
+        result = {
+            'success': False,
+            'error': 'Missing required field: form_data'}
     else:
         try:
         from . import generic_scraper
@@ -600,16 +603,16 @@ def process_automation_task(task_data):
         url, form_data, selectors, wait_after_submit)
     if submit_result.get(
             'status') == 'success' or submit_result.get('success'):
-                result = {'success': True, 'data': submit_result,
-              'message': f'Form submitted successfully at {url}'}
+        result = {'success': True, 'data': submit_result,
+                  'message': f'Form submitted successfully at {url}'}
     task_logger.info(f"✅ Form submission completed successfully")
     else:
         result = {
-        'success': False,
-        'error': submit_result.get(
-            'error',
-            'Form submission failed'),
-        'details': submit_result}
+            'success': False,
+            'error': submit_result.get(
+                'error',
+                'Form submission failed'),
+            'details': submit_result}
     task_logger.error(f"❌ Form submission failed: {result.get('error')}")
     else:
         result = {'success': False, 'error': f'Unknown task type: {task_type}'}
@@ -629,16 +632,16 @@ def process_automation_task(task_data):
     # ✅ INSTRUCTION 3: Record successful task completion with high-cardinality labels (Gap 17)
     if METRICS_AVAILABLE:
         tasks_processed.labels(
-        status='success',
-        task_type=task_type,
-        user_id=user_id,
-        workflow_id=workflow_id
-    ).inc()
+            status='success',
+            task_type=task_type,
+            user_id=user_id,
+            workflow_id=workflow_id
+        ).inc()
     if start_time:
         task_duration.labels(
-        task_type=task_type,
-        workflow_id=workflow_id
-    ).observe(time.time() - start_time)
+            task_type=task_type,
+            workflow_id=workflow_id
+        ).observe(time.time() - start_time)
 
     # ✅ FIX: Return result so direct HTTP endpoint can use it
     return result
@@ -651,19 +654,23 @@ def process_automation_task(task_data):
 
     # Try to send to Kafka, but don't fail if Kafka is unavailable
     try:
-        send_result_to_kafka(task_id, error_result, status='failed', run_id=run_id)
+        send_result_to_kafka(
+            task_id,
+            error_result,
+            status='failed',
+            run_id=run_id)
     except Exception as kafka_error:
         task_logger.warning(
-        f"⚠️ Could not send error result to Kafka (may be unavailable): {kafka_error}")
+            f"⚠️ Could not send error result to Kafka (may be unavailable): {kafka_error}")
 
     # ✅ INSTRUCTION 3: Record failed task with high-cardinality labels (Gap 17)
     if METRICS_AVAILABLE:
         tasks_processed.labels(
-        status='failed',
-        task_type=task_type,
-        user_id=user_id,
-        workflow_id=workflow_id
-    ).inc()
+            status='failed',
+            task_type=task_type,
+            user_id=user_id,
+            workflow_id=workflow_id
+        ).inc()
     error_count.labels(
         error_type=type(e).__name__,
         task_type=task_type,
@@ -671,9 +678,9 @@ def process_automation_task(task_data):
     ).inc()
     if start_time:
         task_duration.labels(
-        task_type=task_type,
-        workflow_id=workflow_id
-    ).observe(time.time() - start_time)
+            task_type=task_type,
+            workflow_id=workflow_id
+        ).observe(time.time() - start_time)
 
     # ✅ FIX: Return error result so direct HTTP endpoint can use it
     return error_result
@@ -683,7 +690,7 @@ def kafka_consumer_loop():
     """Main Kafka consumer loop that polls for messages with trace context extraction."""
     if not KAFKA_AVAILABLE:
         logger.warning(
-        "Kafka consumer loop not started - kafka-python not installed.")
+            "Kafka consumer loop not started - kafka-python not installed.")
     return
 
     logger.info("Starting Kafka consumer loop...")
@@ -692,7 +699,8 @@ def kafka_consumer_loop():
     while not shutdown_event.is_set():
         try:
         if not consumer:
-        logger.error("Cannot start consumer loop - Kafka consumer not available")
+        logger.error(
+            "Cannot start consumer loop - Kafka consumer not available")
     time.sleep(30)
     continue
 
@@ -721,12 +729,12 @@ def kafka_consumer_loop():
     # Log trace ID for correlation (INFO level so it's searchable in Loki)
     if header_dict.get('traceparent') or header_dict.get('x-trace-id'):
         trace_id_from_header = header_dict.get('x-trace-id') or (header_dict.get('traceparent', '').split(
-        '-')[1] if len(header_dict.get('traceparent', '').split('-')) > 1 else 'unknown')
+            '-')[1] if len(header_dict.get('traceparent', '').split('-')) > 1 else 'unknown')
     logger.info(
         f"📨 Extracted trace context from Kafka headers for task: {task_id}, trace_id: {trace_id_from_header}")
     else:
         logger.warning(
-        f"⚠️ No trace context found in Kafka headers for task: {task_id}")
+            f"⚠️ No trace context found in Kafka headers for task: {task_id}")
 
     # ✅ INSTRUCTION 2: Start consumer span with extracted context as parent
     if OTEL_AVAILABLE and tracer is not None:
@@ -734,22 +742,22 @@ def kafka_consumer_loop():
     token = otel_context.attach(remote_context)
     try:
         with tracer.start_as_current_span(
-        'kafka.consume.automation_task',
-        kind=SpanKind.CONSUMER,
-        attributes={
-            'messaging.system': 'kafka',
-            'messaging.destination': KAFKA_TASK_TOPIC,
-            'messaging.operation': 'receive',
-            'messaging.message_id': task_id,
-            'messaging.kafka.partition': message.partition,
-            'messaging.kafka.offset': message.offset,
-            'task.id': task_id,
-            'task.type': task_data.get('task_type', 'unknown')
-        }
-    ):
-        # ✅ INSTRUCTION 2: Reduced Kafka receive logging (Gap 19)
-        # Log at INFO level so we can see task processing
-        # Include trace ID for correlation with backend logs
+            'kafka.consume.automation_task',
+            kind=SpanKind.CONSUMER,
+            attributes={
+                'messaging.system': 'kafka',
+                'messaging.destination': KAFKA_TASK_TOPIC,
+                'messaging.operation': 'receive',
+                'messaging.message_id': task_id,
+                'messaging.kafka.partition': message.partition,
+                'messaging.kafka.offset': message.offset,
+                'task.id': task_id,
+                'task.type': task_data.get('task_type', 'unknown')
+            }
+        ):
+            # ✅ INSTRUCTION 2: Reduced Kafka receive logging (Gap 19)
+            # Log at INFO level so we can see task processing
+            # Include trace ID for correlation with backend logs
     span = trace.get_current_span()
     trace_id_str = 'unknown'
     if span:
@@ -873,7 +881,7 @@ def trigger_automation():
     """API endpoint to trigger an automation task via Kafka."""
     if not get_kafka_producer():
         return jsonify(
-        {'error': 'Kafka is not available. Task cannot be queued.'}), 503
+            {'error': 'Kafka is not available. Task cannot be queued.'}), 503
 
     try:
         task_data = request.get_json()
@@ -946,8 +954,8 @@ def direct_automation(task_type=None):
     # The result is already returned in the HTTP response
     if result:
         try:
-        # Try to send to Kafka for consistency (but don't fail if Kafka is
-        # unavailable)
+            # Try to send to Kafka for consistency (but don't fail if Kafka is
+            # unavailable)
     send_result_to_kafka(
         task_id,
         result,
@@ -987,12 +995,13 @@ if __name__ == '__main__':
 
     # Start the Kafka consumer in a separate thread if available and connected
     if KAFKA_AVAILABLE and get_kafka_consumer():
-        consumer_thread = threading.Thread(target=kafka_consumer_loop, daemon=True)
+        consumer_thread = threading.Thread(
+            target=kafka_consumer_loop, daemon=True)
     consumer_thread.start()
     logger.info("🎧 Kafka consumer thread started")
     else:
         logger.warning(
-        "⚠️ Kafka is not available. The service will not process Kafka messages.")
+            "⚠️ Kafka is not available. The service will not process Kafka messages.")
 
     # Start Flask app
     port = int(os.getenv('PORT', 7001))

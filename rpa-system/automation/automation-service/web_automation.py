@@ -168,7 +168,7 @@ def perform_web_automation(url, task_data):
         result["end_time"] = datetime.now().isoformat()
 
     # Get final page content for analysis
-    soup = BeautifulSoup(driver.page_source, 'html.parser')
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
 
     # Look for common success/error patterns
     success_patterns = soup.find_all(
@@ -253,21 +253,21 @@ def perform_action(driver, action, action_index):
 
     else:
         return {
-        "action_index": action_index,
-        "action_type": action_type,
-        "success": False,
-        "error": f"Unknown action type: {action_type}",
-        "timestamp": timestamp
-    }
+            "action_index": action_index,
+            "action_type": action_type,
+            "success": False,
+            "error": f"Unknown action type: {action_type}",
+            "timestamp": timestamp
+        }
 
     except Exception as e:
         return {
-        "action_index": action_index,
-        "action_type": action_type,
-        "success": False,
-        "error": str(e),
-        "timestamp": timestamp
-    }
+            "action_index": action_index,
+            "action_type": action_type,
+            "success": False,
+            "error": str(e),
+            "timestamp": timestamp
+        }
 
 
 def fill_text_action(driver, action, action_index, timestamp):
@@ -418,7 +418,8 @@ def scroll_action(driver, action, action_index, timestamp):
     elif direction == 'top':
         driver.execute_script("window.scrollTo(0, 0);")
     elif direction == 'bottom':
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        driver.execute_script(
+            "window.scrollTo(0, document.body.scrollHeight);")
 
     return {
         "action_index": action_index,
@@ -458,8 +459,8 @@ def press_key_action(driver, action, action_index, timestamp):
 
     if selector:
         element = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-    )
+            EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+        )
     element.send_keys(getattr(Keys, key.upper(), key))
     else:
         # Press key on active element
@@ -551,7 +552,7 @@ def download_pdf(pdf_url, task_data):
     safe_base = os.path.abspath(tempfile.gettempdir())
     if not download_path.startswith(safe_base):
         logger.warning(
-        f"Download path {download_path} outside safe directory, using temp directory")
+            f"Download path {download_path} outside safe directory, using temp directory")
     download_path = safe_base
 
     verify_pdf = task_data.get('verify_pdf', True)
@@ -566,17 +567,17 @@ def download_pdf(pdf_url, task_data):
     parsed_url = urlparse(pdf_url)
     if parsed_url.scheme not in ('http', 'https'):
         return {
-        "success": False,
-        "error": f"Invalid URL scheme: {
-            parsed_url.scheme}. Only http and https are allowed."}
+            "success": False,
+            "error": f"Invalid URL scheme: {
+                parsed_url.scheme}. Only http and https are allowed."}
 
     # Block private IP addresses and localhost (unless in development mode)
     hostname = parsed_url.hostname
     if not hostname:
         return {
-        "success": False,
-        "error": "Invalid URL: missing hostname"
-    }
+            "success": False,
+            "error": "Invalid URL: missing hostname"
+        }
 
     # ✅ FIX: Allow localhost in development mode for testing
     # Default to 'development' for local testing (safer default than
@@ -588,9 +589,9 @@ def download_pdf(pdf_url, task_data):
     localhost_variants = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']
     if not is_development and hostname.lower() in localhost_variants:
         return {
-        "success": False,
-        "error": "Private/localhost addresses are not allowed"
-    }
+            "success": False,
+            "error": "Private/localhost addresses are not allowed"
+        }
 
     # Check if hostname is an IP address and if it's private (skip in
     # development)
@@ -598,10 +599,10 @@ def download_pdf(pdf_url, task_data):
         ip = ipaddress.ip_address(hostname)
     if not is_development and (
             ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast):
-                return {
-        "success": False,
-        "error": "Private IP addresses are not allowed"
-    }
+        return {
+            "success": False,
+            "error": "Private IP addresses are not allowed"
+        }
     except ValueError:
         # Not an IP address, check if it's a valid hostname
         # Allow public hostnames
@@ -643,12 +644,11 @@ def download_pdf(pdf_url, task_data):
     # ✅ FIX: For demo URLs, provide helpful error message
     if not is_pdf_content_type and '/demo' in pdf_url and not pdf_url.endswith(
             '.pdf'):
-                return {
-        "success": False,
-        "error": f"URL does not point to a PDF file. The URL '{pdf_url}' returns HTML content. For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf' instead of 'http://localhost:3030/demo'.",
-        "content_type": content_type,
-        "suggestion": "Use a direct PDF URL ending in .pdf, or navigate to the PDF link on the page first."
-    }
+        return {
+            "success": False,
+            "error": f"URL does not point to a PDF file. The URL '{pdf_url}' returns HTML content. For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf' instead of 'http://localhost:3030/demo'.",
+            "content_type": content_type,
+            "suggestion": "Use a direct PDF URL ending in .pdf, or navigate to the PDF link on the page first."}
 
     # Generate filename - sanitize to prevent path traversal
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -760,23 +760,24 @@ def download_pdf(pdf_url, task_data):
     # ✅ FIX: Better error logging for RLS issues
     if upload_error:
         error_msg = str(upload_error) if not isinstance(
-        upload_error, dict) else upload_error.get(
-        'message', str(upload_error))
+            upload_error, dict) else upload_error.get(
+            'message', str(upload_error))
     logger.warning(f"⚠️ Supabase storage upload failed: {error_msg}")
     # If RLS error, suggest checking service role key
     if 'row-level security' in error_msg.lower() or 'rls' in error_msg.lower():
         logger.warning(
-        "💡 Tip: RLS policy violation - ensure SUPABASE_SERVICE_ROLE (service role key) is set, not SUPABASE_ANON_KEY")
+            "💡 Tip: RLS policy violation - ensure SUPABASE_SERVICE_ROLE (service role key) is set, not SUPABASE_ANON_KEY")
 
     if not upload_error:
         # Create signed URL (valid for 1 year) since bucket is private
         # Using very long expiry since these are user's own files
     try:
         url_result = supabase.storage.from_(
-        'user-files').create_signed_url(storage_path, 31536000)  # 1 year in seconds
+            'user-files').create_signed_url(storage_path, 31536000)  # 1 year in seconds
     artifact_url = None
     if isinstance(url_result, dict):
-        artifact_url = url_result.get('signedURL') or url_result.get('signedUrl')
+        artifact_url = url_result.get(
+            'signedURL') or url_result.get('signedUrl')
     elif isinstance(url_result, str):
         artifact_url = url_result
 
@@ -790,7 +791,7 @@ def download_pdf(pdf_url, task_data):
     logger.warning("⚠️ Could not create signed URL, using storage path only")
     except Exception as url_error:
         logger.warning(
-        f"⚠️ Failed to create signed URL (file still uploaded): {url_error}")
+            f"⚠️ Failed to create signed URL (file still uploaded): {url_error}")
     result["storage_path"] = storage_path
 
     # ✅ Create file record in files table so it appears in Files page
@@ -827,21 +828,21 @@ def download_pdf(pdf_url, task_data):
     # Check for errors in the response
     if hasattr(file_insert_result, 'error') and file_insert_result.error:
         logger.warning(
-        f"⚠️ File record creation failed (RLS policy?): {
-            file_insert_result.error}")
+            f"⚠️ File record creation failed (RLS policy?): {
+                file_insert_result.error}")
     elif hasattr(file_insert_result, 'data') and file_insert_result.data:
         result["file_record_id"] = file_insert_result.data[0].get('id') if isinstance(
-        file_insert_result.data, list) else file_insert_result.data.get('id')
+            file_insert_result.data, list) else file_insert_result.data.get('id')
     logger.info(
         f"✅ Created file record in files table: {
             result.get('file_record_id')}")
     elif isinstance(file_insert_result, dict) and file_insert_result.get('error'):
         logger.warning(
-        f"⚠️ File record creation failed: {
-            file_insert_result.get('error')}")
+            f"⚠️ File record creation failed: {
+                file_insert_result.get('error')}")
     else:
         logger.warning(
-        "⚠️ File uploaded but file record creation returned no data")
+            "⚠️ File uploaded but file record creation returned no data")
     except Exception as file_record_error:
         # File is still in storage, just the database record failed
     logger.warning(
@@ -851,8 +852,8 @@ def download_pdf(pdf_url, task_data):
     result["file_record_error"] = str(file_record_error)
     else:
         error_msg = str(upload_error) if not isinstance(
-        upload_error, dict) else upload_error.get(
-        'message', str(upload_error))
+            upload_error, dict) else upload_error.get(
+            'message', str(upload_error))
     logger.warning(f"⚠️ Failed to upload to Supabase storage: {error_msg}")
     # ✅ FIX: Still include storage_path in result so backend can try to create file record
     # The backend will handle the case where file isn't in storage yet
@@ -862,7 +863,8 @@ def download_pdf(pdf_url, task_data):
     except ImportError:
         logger.warning("⚠️ supabase-py not installed, skipping cloud upload")
     except Exception as upload_error:
-        logger.warning(f"⚠️ Failed to upload to Supabase storage: {upload_error}")
+        logger.warning(
+            f"⚠️ Failed to upload to Supabase storage: {upload_error}")
     except Exception as e:
         logger.warning(f"⚠️ Error during Supabase upload attempt: {e}")
 
