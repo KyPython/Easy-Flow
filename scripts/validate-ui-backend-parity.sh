@@ -101,14 +101,14 @@ else
     grep -v node_modules | grep -v ".test." | grep -v ".spec." | while read -r file; do
       
       # Extract api.get('/api/...'), api.post('/api/...'), etc.
-      grep -hE "(api|fetch|axios)\.(get|post|put|delete|patch)\s*\(" "$file" 2>/dev/null | \
-        sed -E "s/.*(api|fetch|axios)\.(get|post|put|delete|patch)\s*\(\s*['\"`]([^'\"`]+)['\"`].*/\2 \3/" | \
+      grep -hE "(api|fetch|axios)\.(get|post|put|delete|patch)[[:space:]]*\(" "$file" 2>/dev/null | \
+        sed -E "s|.*(api|fetch|axios)\.(get|post|put|delete|patch)[[:space:]]*\([[:space:]]*['\"\`]([^'\"\`]+)['\"\`].*|\2 \3|" | \
         while read -r method path; do
           if [ -n "$method" ] && [ -n "$path" ]; then
             # Extract API path (remove base URL if present)
             api_path=$(echo "$path" | sed -E "s|^https?://[^/]+||" | sed -E "s|^\$?\{.*baseURL.*\}||")
             if echo "$api_path" | grep -q "^/api/"; then
-              # Normalize path
+              # Normalize path (UUIDs and numbers to {id})
               normalized_path=$(echo "$api_path" | sed 's/[0-9a-fA-F]\{8\}-[0-9a-fA-F]\{4\}-[0-9a-fA-F]\{4\}-[0-9a-fA-F]\{4\}-[0-9a-fA-F]\{12\}/{id}/g' | sed 's/[0-9]\+/{id}/g')
               echo "$method $normalized_path $file" >> "$FRONTEND_CALLS_FILE"
             fi
@@ -116,8 +116,8 @@ else
         done
       
       # Also extract fetch('/api/...') calls
-      grep -hE "fetch\s*\(\s*['\"`]/api/[^'\"`]+" "$file" 2>/dev/null | \
-        sed -E "s|.*fetch\s*\(\s*['\"`]([^'\"`]+)['\"`].*|\1|" | \
+      grep -hE "fetch[[:space:]]*\([[:space:]]*['\"\`]/api/" "$file" 2>/dev/null | \
+        sed -E "s|.*fetch[[:space:]]*\([[:space:]]*['\"\`]([^'\"\`]+)['\"\`].*|\1|" | \
         while read -r url; do
           if [ -n "$url" ] && echo "$url" | grep -q "^/api/"; then
             # Try to determine method from context (look for POST, PUT, DELETE in surrounding lines)
