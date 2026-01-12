@@ -100,32 +100,30 @@ def scrape_web_page(url, task_data=None):
 
     # Handle API/JSON endpoints
     if task_data.get('extract_json') or task_data.get('method') == 'GET':
-        try:
-            # ✅ SECURITY: Validate URL to prevent SSRF attacks
-            from urllib.parse import urlparse
-            parsed_url = urlparse(url)
-            if parsed_url.scheme not in ('http', 'https'):
+        # ✅ SECURITY: Validate URL to prevent SSRF attacks
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        if parsed_url.scheme not in ('http', 'https'):
+            return {
+                'status': 'error',
+                'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'
+            }
+        # Block private/internal IP addresses to prevent SSRF
+        hostname = parsed_url.hostname
+        if hostname:
+            # Block localhost and private IP ranges
+            blocked_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1']
+            if hostname.lower() in blocked_hosts or hostname.startswith(
+                    '192.168.') or hostname.startswith('10.') or hostname.startswith('172.'):
                 return {
                     'status': 'error',
-                    'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'
+                    'error': 'Access to private/internal IP addresses is not allowed for security reasons.'
                 }
-            # Block private/internal IP addresses to prevent SSRF
-            hostname = parsed_url.hostname
-            if hostname:
-                # Block localhost and private IP ranges
-                blocked_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1']
-                if hostname.lower() in blocked_hosts or hostname.startswith(
-                        '192.168.') or hostname.startswith('10.') or hostname.startswith('172.'):
-                            return {
-                        'status': 'error',
-                        'error': 'Access to private/internal IP addresses is not allowed for security reasons.'
-                    }
 
-            import requests
+        import requests
+        try:
             response = requests.get(url, timeout=10)
-            if response.headers.get(
-    'content-type',
-     '').startswith('application/json'):
+            if response.headers.get('content-type', '').startswith('application/json'):
                 data = response.json()
 
                 # Apply filters if specified
@@ -133,8 +131,7 @@ def scrape_web_page(url, task_data=None):
                     filters = task_data['filters']
                     if isinstance(data, list) and filters.get('limit'):
                         data = data[:filters['limit']]
-                    if filters.get('fields') and isinstance(
-                        data, (list, dict)):
+                    if filters.get('fields') and isinstance(data, (list, dict)):
                         if isinstance(data, list) and data:
                             data = [{k: item.get(k) for k in filters['fields']}
                                     for item in data if isinstance(item, dict)]
@@ -149,14 +146,14 @@ def scrape_web_page(url, task_data=None):
                     'content_type': response.headers.get('content-type', ''),
                     'response_code': response.status_code
                 }
-            except Exception as e:
-                logger.warning(
-                    f"JSON extraction failed, falling back to HTML scraping: {e}")
+        except Exception as e:
+            logger.warning(
+                f"JSON extraction failed, falling back to HTML scraping: {e}")
 
-        # Continue with regular HTML scraping
-        driver = create_webdriver()
-        if not driver:
-            return {"error": "Failed to create WebDriver"}
+    # Continue with regular HTML scraping
+    driver = create_webdriver()
+    if not driver:
+        return {"error": "Failed to create WebDriver"}
 
     # ✅ INSTRUCTION 3: Wrap main scraping sequence with span
     if not OTEL_AVAILABLE or tracer is None:
