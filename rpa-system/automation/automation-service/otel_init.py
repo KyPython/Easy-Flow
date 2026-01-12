@@ -90,10 +90,10 @@ def initialize_telemetry():
             sampling_ratio_override) if sampling_ratio_override else 0.1
 
         if use_always_on:
-        sampler = ParentBased(AlwaysOn())  # Always sample in development
+            sampler = ParentBased(AlwaysOn())  # Always sample in development
         else:
             # Ratio-based in production
-        sampler = ParentBased(TraceIdRatioBased(sampling_ratio))
+            sampler = ParentBased(TraceIdRatioBased(sampling_ratio))
 
         # Configure tracer provider
         tracer_provider = TracerProvider(
@@ -107,7 +107,7 @@ def initialize_telemetry():
         # Configure OTLP exporter for traces
         otlp_endpoint = OTEL_EXPORTER_OTLP_ENDPOINT
         if not otlp_endpoint.endswith('/v1/traces'):
-        otlp_endpoint = f"{otlp_endpoint}/v1/traces"
+            otlp_endpoint = f"{otlp_endpoint}/v1/traces"
 
         otlp_exporter = OTLPSpanExporter(
             endpoint=otlp_endpoint,
