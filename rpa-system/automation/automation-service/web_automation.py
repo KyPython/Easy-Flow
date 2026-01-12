@@ -179,14 +179,14 @@ def perform_web_automation(url, task_data):
                     'thank you',
                     'welcome',
                     'logged in']))
-        error_patterns = soup.find_all(
-            text=lambda text: text and any(
-                keyword in text.lower() for keyword in [
-                    'error',
-                    'failed',
-                    'invalid',
-                    'required',
-                    'please try']))
+            error_patterns = soup.find_all(
+                text=lambda text: text and any(
+                    keyword in text.lower() for keyword in [
+                        'error',
+                        'failed',
+                        'invalid',
+                        'required',
+                        'please try']))
 
     result["page_analysis"] = {
         "success_messages": [msg.strip() for msg in success_patterns[:5]],
