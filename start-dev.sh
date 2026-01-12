@@ -717,12 +717,30 @@ const ROOT_DIR = __dirname;
 
 module.exports = {
   apps: [
+    // Backend API Server (Node.js)
     {
       name: 'easyflow-backend',
       script: 'server.js',
       cwd: 'rpa-system/backend',
       watch: ['rpa-system/backend'],
       ignore_watch: ['node_modules', 'logs'],
+      error_file: path.join(ROOT_DIR, 'logs/backend.log'),
+      out_file: path.join(ROOT_DIR, 'logs/backend.log'),
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      env: {
+        PORT: process.env.PORT || '3030',
+        NODE_ENV: process.env.NODE_ENV || 'development',
+        SUPABASE_URL: process.env.SUPABASE_URL,
+        SUPABASE_KEY: process.env.SUPABASE_KEY,
+        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE,
+        KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
+        KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
+      },
+    },
+    // Automation Worker (Python)
+    {
+      name: 'easyflow-automation',
       script: 'production_automation_service.py',
       interpreter: 'python3',
       cwd: 'rpa-system/automation/automation-service',
@@ -742,6 +760,22 @@ module.exports = {
         SUPABASE_KEY: process.env.SUPABASE_KEY,
         ENV: process.env.ENV || process.env.NODE_ENV || 'development',
         NODE_ENV: process.env.NODE_ENV || process.env.ENV || 'development',
+      },
+    },
+    // Frontend (React)
+    {
+      name: 'easyflow-frontend',
+      script: 'npm',
+      args: 'start',
+      cwd: 'rpa-system/rpa-dashboard',
+      error_file: path.join(ROOT_DIR, 'logs/frontend.log'),
+      out_file: path.join(ROOT_DIR, 'logs/frontend.log'),
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      env: {
+        PORT: '3000',
+        BROWSER: 'none',
+        NODE_ENV: process.env.NODE_ENV || 'development',
       },
     },
   ],
