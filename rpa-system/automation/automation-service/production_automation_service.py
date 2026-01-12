@@ -470,7 +470,8 @@ def process_automation_task(task_data):
             if not url:
                 result = {
                     'success': False,
-                    'error': 'Missing required field: url'}
+                    'error': 'Missing required field: url'
+                }
             else:
                 automation_result = web_automation.perform_web_automation(
                     url, task_data)
@@ -479,16 +480,15 @@ def process_automation_task(task_data):
                     result = {
                         'success': True,
                         'data': automation_result,
-                        'message': f'Web automation completed with status: {
-                            automation_result.get("status")}'}
-                    else:
+                        'message': f'Web automation completed with status: {automation_result.get("status")}'
+                    }
+                else:
                     result = {
                         'success': False,
-                        'error': automation_result.get(
-                            'error',
-                            'Web automation failed'),
-                        'details': automation_result}
-    elif task_type == 'data_extraction' or task_type == 'web_scraping':
+                        'error': automation_result.get('error', 'Web automation failed'),
+                        'details': automation_result
+                    }
+        elif task_type == 'data_extraction' or task_type == 'web_scraping':
         # Support both 'data_extraction' (legacy) and 'web_scraping' task types
         # They use the same scraping logic
     url = task_data.get('url')
