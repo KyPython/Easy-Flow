@@ -171,28 +171,28 @@ def scrape_web_page(url, task_data=None):
             'browser.url': url,
             'browser.operation': 'page_scraping',
             'task.extract_json': task_data.get('extract_json', False)
- }
- ) as span:
-     try:
-         result = _scrape_web_page_impl(driver, url, task_data)
- 
- span.set_status(Status(StatusCode.OK))
- span.set_attribute('scraping.status', result.get('status', 'unknown'))
- span.set_attribute('scraping.tables_found', len(result.get('tables', [])))
- span.set_attribute('scraping.links_found', len(result.get('links', [])))
- 
- return result
- except Exception as e:
-     span.record_exception(e)
- span.set_status(Status(StatusCode.ERROR, str(e)))
- span.set_attribute('error', True)
- raise
- finally:
-     driver.quit()
+        }
+    ) as span:
+        try:
+            result = _scrape_web_page_impl(driver, url, task_data)
+
+            span.set_status(Status(StatusCode.OK))
+            span.set_attribute('scraping.status', result.get('status', 'unknown'))
+            span.set_attribute('scraping.tables_found', len(result.get('tables', [])))
+            span.set_attribute('scraping.links_found', len(result.get('links', [])))
+
+            return result
+        except Exception as e:
+            span.record_exception(e)
+            span.set_status(Status(StatusCode.ERROR, str(e)))
+            span.set_attribute('error', True)
+            raise
+        finally:
+            driver.quit()
 
 def _scrape_web_page_impl(driver, url, task_data=None):
     """Internal implementation of web page scraping."""
- try:
+    try:
      logger.info(f"Scraping web page: {url}")
  
  # ✅ INSTRUCTION 3: Create span for page load
