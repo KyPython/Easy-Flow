@@ -231,16 +231,19 @@ def perform_action(driver, action, action_index):
             return click_action(driver, action, action_index, timestamp)
 
         elif action_type == 'select_option':
-            return select_option_action(driver, action, action_index, timestamp)
+            return select_option_action(
+                driver, action, action_index, timestamp)
 
         elif action_type == 'wait':
             return wait_action(driver, action, action_index, timestamp)
 
         elif action_type == 'wait_for_element':
-            return wait_for_element_action(driver, action, action_index, timestamp)
+            return wait_for_element_action(
+                driver, action, action_index, timestamp)
 
         elif action_type == 'drag_and_drop':
-            return drag_and_drop_action(driver, action, action_index, timestamp)
+            return drag_and_drop_action(
+                driver, action, action_index, timestamp)
 
         elif action_type == 'scroll':
             return scroll_action(driver, action, action_index, timestamp)
@@ -464,7 +467,8 @@ def press_key_action(driver, action, action_index, timestamp):
         element.send_keys(getattr(Keys, key.upper(), key))
     else:
         # Press key on active element
-        driver.switch_to.active_element.send_keys(getattr(Keys, key.upper(), key))
+        driver.switch_to.active_element.send_keys(
+            getattr(Keys, key.upper(), key))
 
     return {
         "action_index": action_index,
@@ -544,11 +548,13 @@ def download_pdf(pdf_url, task_data):
 
     try:
         # ✅ SECURITY: Sanitize download_path to prevent path traversal attacks
-        raw_download_path = task_data.get('download_path', tempfile.gettempdir())
+        raw_download_path = task_data.get(
+            'download_path', tempfile.gettempdir())
         # Normalize path and resolve to absolute path to prevent directory
         # traversal
         download_path = os.path.abspath(os.path.normpath(raw_download_path))
-        # Ensure the path is within the temp directory or a safe download directory
+        # Ensure the path is within the temp directory or a safe download
+        # directory
         safe_base = os.path.abspath(tempfile.gettempdir())
         if not download_path.startswith(safe_base):
             logger.warning(
@@ -586,7 +592,12 @@ def download_pdf(pdf_url, task_data):
         is_development = env in ('development', 'dev', 'local')
 
         # Check for localhost variations (skip in development)
-        localhost_variants = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']
+        localhost_variants = [
+            'localhost',
+            '127.0.0.1',
+            '0.0.0.0',
+            '::1',
+            '[::1]']
         if not is_development and hostname.lower() in localhost_variants:
             return {
                 "success": False,
@@ -691,7 +702,8 @@ def download_pdf(pdf_url, task_data):
                 if not is_pdf:
                     # ✅ FIX: Check if it's HTML content before deleting
                     f.seek(0)  # Reset to beginning
-                    content_start = f.read(100).decode('utf-8', errors='ignore')
+                    content_start = f.read(100).decode(
+                        'utf-8', errors='ignore')
                     is_html = '<html' in content_start.lower() or '<!doctype' in content_start.lower()
 
                     # Clean up the invalid file
@@ -725,7 +737,8 @@ def download_pdf(pdf_url, task_data):
             if supabase_url and supabase_key and user_id:
                 try:
                     from supabase import create_client, Client
-                    supabase: Client = create_client(supabase_url, supabase_key)
+                    supabase: Client = create_client(
+                        supabase_url, supabase_key)
 
                     # Read file content
                     with open(filepath, 'rb') as f:
@@ -744,10 +757,8 @@ def download_pdf(pdf_url, task_data):
                             bool(supabase_key)})")
 
                     upload_result = supabase.storage.from_('user-files').upload(
-                        storage_path,
-                        file_content,
-                        file_options={"content-type": "application/pdf", "upsert": "false"}
-                    )
+                        storage_path, file_content, file_options={
+                            "content-type": "application/pdf", "upsert": "false"})
 
                     # Check if upload was successful (new supabase version returns object, not
                     # dict)
@@ -758,123 +769,123 @@ def download_pdf(pdf_url, task_data):
                         upload_error = upload_result.get('error')
 
                     # ✅ FIX: Better error logging for RLS issues
-    if upload_error:
-        error_msg = str(upload_error) if not isinstance(
-            upload_error, dict) else upload_error.get(
-            'message', str(upload_error))
-    logger.warning(f"⚠️ Supabase storage upload failed: {error_msg}")
-    # If RLS error, suggest checking service role key
-    if 'row-level security' in error_msg.lower() or 'rls' in error_msg.lower():
-        logger.warning(
-            "💡 Tip: RLS policy violation - ensure SUPABASE_SERVICE_ROLE (service role key) is set, not SUPABASE_ANON_KEY")
+                    if upload_error:
+                        error_msg = str(upload_error) if not isinstance(
+                            upload_error, dict) else upload_error.get(
+                            'message', str(upload_error))
+                        logger.warning(f"⚠️ Supabase storage upload failed: {error_msg}")
+                        # If RLS error, suggest checking service role key
+                        if 'row-level security' in error_msg.lower() or 'rls' in error_msg.lower():
+                            logger.warning(
+                                "💡 Tip: RLS policy violation - ensure SUPABASE_SERVICE_ROLE (service role key) is set, not SUPABASE_ANON_KEY")
 
-    if not upload_error:
-        # Create signed URL (valid for 1 year) since bucket is private
-        # Using very long expiry since these are user's own files
-    try:
-        url_result = supabase.storage.from_(
-            'user-files').create_signed_url(storage_path, 31536000)  # 1 year in seconds
-    artifact_url = None
-    if isinstance(url_result, dict):
-        artifact_url = url_result.get(
-            'signedURL') or url_result.get('signedUrl')
-    elif isinstance(url_result, str):
-        artifact_url = url_result
+                    if not upload_error:
+                        # Create signed URL (valid for 1 year) since bucket is private
+                        # Using very long expiry since these are user's own files
+                        try:
+                            url_result = supabase.storage.from_(
+                                'user-files').create_signed_url(storage_path, 31536000)  # 1 year in seconds
+                            artifact_url = None
+                            if isinstance(url_result, dict):
+                                artifact_url = url_result.get(
+                                    'signedURL') or url_result.get('signedUrl')
+                            elif isinstance(url_result, str):
+                                artifact_url = url_result
 
-    if artifact_url:
-        result["artifact_url"] = artifact_url
-    result["storage_path"] = storage_path
-    logger.info(f"✅ Uploaded invoice to Supabase storage with signed URL")
-    else:
-        # Fallback: use public URL if signed URL fails
-    result["storage_path"] = storage_path
-    logger.warning("⚠️ Could not create signed URL, using storage path only")
-    except Exception as url_error:
-        logger.warning(
-            f"⚠️ Failed to create signed URL (file still uploaded): {url_error}")
-    result["storage_path"] = storage_path
+                            if artifact_url:
+                                result["artifact_url"] = artifact_url
+                                result["storage_path"] = storage_path
+                                logger.info(f"✅ Uploaded invoice to Supabase storage with signed URL")
+                            else:
+                                # Fallback: use public URL if signed URL fails
+                                result["storage_path"] = storage_path
+                                logger.warning("⚠️ Could not create signed URL, using storage path only")
+                        except Exception as url_error:
+                            logger.warning(
+                                f"⚠️ Failed to create signed URL (file still uploaded): {url_error}")
+                            result["storage_path"] = storage_path
 
-    # ✅ Create file record in files table so it appears in Files page
-    # Note: This may fail due to RLS policies, but file is still uploaded to
-    # storage
-    try:
-        import hashlib
-    # ✅ SECURITY: Use SHA-256 instead of MD5 (MD5 is cryptographically broken)
-    file_content_hash = hashlib.sha256(file_content).hexdigest()
+                        # ✅ Create file record in files table so it appears in Files page
+                        # Note: This may fail due to RLS policies, but file is still uploaded to
+                        # storage
+                        try:
+                            import hashlib
+                            # ✅ SECURITY: Use SHA-256 instead of MD5 (MD5 is cryptographically broken)
+                            file_content_hash = hashlib.sha256(file_content).hexdigest()
 
-    file_record = {
-        "user_id": str(user_id),  # Ensure string format
-        "original_name": filename,
-        "display_name": filename,
-        "storage_path": storage_path,
-        "storage_bucket": "user-files",
-        "file_size": file_size,
-        "mime_type": "application/pdf",
-        "file_extension": "pdf",
-        # Note: checksum_sha256 column doesn't exist in files table, removed to
-        # prevent errors
-        "folder_path": "/invoices",
-        "tags": ["automation", "invoice"],
-        "metadata": {
-            "source": "automation",
-            "task_type": "invoice_download",
-            "pdf_url": pdf_url
-        }
-    }
+                            file_record = {
+                                "user_id": str(user_id),  # Ensure string format
+                                "original_name": filename,
+                                "display_name": filename,
+                                "storage_path": storage_path,
+                                "storage_bucket": "user-files",
+                                "file_size": file_size,
+                                "mime_type": "application/pdf",
+                                "file_extension": "pdf",
+                                # Note: checksum_sha256 column doesn't exist in files table, removed to
+                                # prevent errors
+                                "folder_path": "/invoices",
+                                "tags": ["automation", "invoice"],
+                                "metadata": {
+                                    "source": "automation",
+                                    "task_type": "invoice_download",
+                                    "pdf_url": pdf_url
+                                }
+                            }
 
-    # ✅ FIX: Use service role key to bypass RLS - check if we have the right key
-    file_insert_result = supabase.table('files').insert(file_record).execute()
+                            # ✅ FIX: Use service role key to bypass RLS - check if we have the right key
+                            file_insert_result = supabase.table('files').insert(file_record).execute()
 
-    # Check for errors in the response
-    if hasattr(file_insert_result, 'error') and file_insert_result.error:
-        logger.warning(
-            f"⚠️ File record creation failed (RLS policy?): {
-                file_insert_result.error}")
-    elif hasattr(file_insert_result, 'data') and file_insert_result.data:
-        result["file_record_id"] = file_insert_result.data[0].get('id') if isinstance(
-            file_insert_result.data, list) else file_insert_result.data.get('id')
-    logger.info(
-        f"✅ Created file record in files table: {
-            result.get('file_record_id')}")
-    elif isinstance(file_insert_result, dict) and file_insert_result.get('error'):
-        logger.warning(
-            f"⚠️ File record creation failed: {
-                file_insert_result.get('error')}")
-    else:
-        logger.warning(
-            "⚠️ File uploaded but file record creation returned no data")
-    except Exception as file_record_error:
-        # File is still in storage, just the database record failed
-    logger.warning(
-        f"⚠️ Failed to create file record (file still uploaded to storage): {file_record_error}")
-    # Include storage path in result so backend can create the record
-    result["storage_path"] = storage_path
-    result["file_record_error"] = str(file_record_error)
-    else:
-        error_msg = str(upload_error) if not isinstance(
-            upload_error, dict) else upload_error.get(
-            'message', str(upload_error))
-    logger.warning(f"⚠️ Failed to upload to Supabase storage: {error_msg}")
-    # ✅ FIX: Still include storage_path in result so backend can try to create file record
-    # The backend will handle the case where file isn't in storage yet
-    result["storage_path"] = storage_path
-    result["upload_failed"] = True
-    result["upload_error"] = error_msg
-    except ImportError:
-        logger.warning("⚠️ supabase-py not installed, skipping cloud upload")
-    except Exception as upload_error:
-        logger.warning(
-            f"⚠️ Failed to upload to Supabase storage: {upload_error}")
-    except Exception as e:
-        logger.warning(f"⚠️ Error during Supabase upload attempt: {e}")
+                            # Check for errors in the response
+                            if hasattr(file_insert_result, 'error') and file_insert_result.error:
+                                logger.warning(
+                                    f"⚠️ File record creation failed (RLS policy?): {
+                                        file_insert_result.error}")
+                            elif hasattr(file_insert_result, 'data') and file_insert_result.data:
+                                result["file_record_id"] = file_insert_result.data[0].get('id') if isinstance(
+                                    file_insert_result.data, list) else file_insert_result.data.get('id')
+                                logger.info(
+                                    f"✅ Created file record in files table: {
+                                        result.get('file_record_id')}")
+                            elif isinstance(file_insert_result, dict) and file_insert_result.get('error'):
+                                logger.warning(
+                                    f"⚠️ File record creation failed: {
+                                        file_insert_result.get('error')}")
+                            else:
+                                logger.warning(
+                                    "⚠️ File uploaded but file record creation returned no data")
+                        except Exception as file_record_error:
+                            # File is still in storage, just the database record failed
+                            logger.warning(
+                                f"⚠️ Failed to create file record (file still uploaded to storage): {file_record_error}")
+                            # Include storage path in result so backend can create the record
+                            result["storage_path"] = storage_path
+                            result["file_record_error"] = str(file_record_error)
+                    else:
+                        error_msg = str(upload_error) if not isinstance(
+                            upload_error, dict) else upload_error.get(
+                            'message', str(upload_error))
+                        logger.warning(f"⚠️ Failed to upload to Supabase storage: {error_msg}")
+                        # ✅ FIX: Still include storage_path in result so backend can try to create file record
+                        # The backend will handle the case where file isn't in storage yet
+                        result["storage_path"] = storage_path
+                        result["upload_failed"] = True
+                        result["upload_error"] = error_msg
+                except ImportError:
+                    logger.warning("⚠️ supabase-py not installed, skipping cloud upload")
+                except Exception as upload_error:
+                    logger.warning(
+                        f"⚠️ Failed to upload to Supabase storage: {upload_error}")
+        except Exception as e:
+            logger.warning(f"⚠️ Error during Supabase upload attempt: {e}")
 
-    return result
+        return result
 
     except Exception as e:
         logger.error(f"PDF download failed: {e}")
-    return {
-        "success": False,
-        "error": str(e),
-        "pdf_url": pdf_url,
-        "timestamp": datetime.now().isoformat()
-    }
+        return {
+            "success": False,
+            "error": str(e),
+            "pdf_url": pdf_url,
+            "timestamp": datetime.now().isoformat()
+        }
