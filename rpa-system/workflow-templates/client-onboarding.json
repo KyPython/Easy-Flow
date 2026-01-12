@@ -1,0 +1,67 @@
+{
+  "template_name": "Client Onboarding Workflow",
+  "description": "Automate new client setup in 60 seconds: Drive folders, project tracker, emails, Slack, spreadsheets",
+  "category": "client-management",
+  "estimated_time": "60 seconds",
+  "steps": [
+    {
+      "step_number": 1,
+      "name": "Create Google Drive Folder",
+      "type": "google_drive_create_folder",
+      "config": {
+        "folder_name": "{{client_name}} - {{project_type}}",
+        "parent_folder_id": "{{template.drive_parent_folder}}",
+        "subfolder_structure": [
+          "01 - Contracts & Agreements",
+          "02 - Project Deliverables",
+          "03 - Client Assets",
+          "04 - Meeting Notes",
+          "05 - Invoices"
+        ]
+      }
+    },
+    {
+      "step_number": 2,
+      "name": "Add to Project Tracker",
+      "type": "project_tracker_create",
+      "config": {
+        "project_name": "{{client_name}} - {{project_type}}",
+        "tracker_type": "{{template.tracker_type}}"
+      }
+    },
+    {
+      "step_number": 3,
+      "name": "Send Welcome Email",
+      "type": "send_email",
+      "config": {
+        "to": "{{client_email}}",
+        "subject": "Welcome to {{template.company_name}}!"
+      }
+    },
+    {
+      "step_number": 4,
+      "name": "Add to Slack",
+      "type": "slack_invite",
+      "config": {
+        "email": "{{client_email}}"
+      }
+    },
+    {
+      "step_number": 5,
+      "name": "Update Client List",
+      "type": "google_sheets_append",
+      "config": {
+        "spreadsheet_id": "{{template.client_list_spreadsheet_id}}"
+      }
+    },
+    {
+      "step_number": 6,
+      "name": "Notify Team",
+      "type": "slack_message",
+      "config": {
+        "channel": "{{template.internal_channel}}",
+        "message": "🎉 New client onboarded: {{client_name}}"
+      }
+    }
+  ]
+}
