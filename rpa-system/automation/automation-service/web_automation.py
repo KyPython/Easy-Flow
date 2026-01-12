@@ -205,7 +205,7 @@ def perform_web_automation(url, task_data):
         }
     finally:
         if driver:
-        driver.quit()
+            driver.quit()
 
 
 def perform_action(driver, action, action_index):
@@ -225,9 +225,9 @@ def perform_action(driver, action, action_index):
 
     try:
         if action_type == 'fill_text':
-        return fill_text_action(driver, action, action_index, timestamp)
+            return fill_text_action(driver, action, action_index, timestamp)
 
-    elif action_type == 'click':
+        elif action_type == 'click':
         return click_action(driver, action, action_index, timestamp)
 
     elif action_type == 'select_option':

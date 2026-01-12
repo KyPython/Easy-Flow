@@ -116,7 +116,7 @@ def scrape_web_page(url, task_data=None):
                 blocked_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1']
                 if hostname.lower() in blocked_hosts or hostname.startswith(
                         '192.168.') or hostname.startswith('10.') or hostname.startswith('172.'):
-                            return {
+                    return {
                         'status': 'error',
                         'error': 'Access to private/internal IP addresses is not allowed for security reasons.'
                     }
@@ -124,8 +124,8 @@ def scrape_web_page(url, task_data=None):
             import requests
             response = requests.get(url, timeout=10)
             if response.headers.get(
-                            'content-type',
-                                '').startswith('application/json'):
+                'content-type',
+                    '').startswith('application/json'):
                 data = response.json()
 
                 # Apply filters if specified
@@ -134,13 +134,13 @@ def scrape_web_page(url, task_data=None):
                     if isinstance(data, list) and filters.get('limit'):
                         data = data[:filters['limit']]
                     if filters.get('fields') and isinstance(
-                        data, (list, dict)):
-                            if isinstance(data, list) and data:
-                                data = [{k: item.get(k) for k in filters['fields']}
-                                        for item in data if isinstance(item, dict)]
-                            elif isinstance(data, dict):
-                                data = {k: data.get(k)
-                                                    for k in filters['fields']}
+                            data, (list, dict)):
+                        if isinstance(data, list) and data:
+                            data = [{k: item.get(k) for k in filters['fields']}
+                                    for item in data if isinstance(item, dict)]
+                        elif isinstance(data, dict):
+                            data = {k: data.get(k)
+                                    for k in filters['fields']}
 
                 return {
                     'status': 'success',
@@ -150,9 +150,9 @@ def scrape_web_page(url, task_data=None):
                     'content_type': response.headers.get('content-type', ''),
                     'response_code': response.status_code
                 }
-            except Exception as e:
-                logger.warning(
-                    f"JSON extraction failed, falling back to HTML scraping: {e}")
+        except Exception as e:
+            logger.warning(
+                f"JSON extraction failed, falling back to HTML scraping: {e}")
 
     # Continue with regular HTML scraping
     driver = create_webdriver()
@@ -164,13 +164,13 @@ def scrape_web_page(url, task_data=None):
         # Fallback without instrumentation
         return _scrape_web_page_impl(driver, url, task_data)
 
- with tracer.start_as_current_span(
- "browser.action.scrape_page",
- kind=SpanKind.INTERNAL,
- attributes={
- 'browser.url': url,
- 'browser.operation': 'page_scraping',
- 'task.extract_json': task_data.get('extract_json', False)
+    with tracer.start_as_current_span(
+        "browser.action.scrape_page",
+        kind=SpanKind.INTERNAL,
+        attributes={
+            'browser.url': url,
+            'browser.operation': 'page_scraping',
+            'task.extract_json': task_data.get('extract_json', False)
  }
  ) as span:
      try:
