@@ -193,16 +193,16 @@ def perform_web_automation(url, task_data):
             "error_messages": [msg.strip() for msg in error_patterns[:5]]
         }
 
-    return result
+        return result
 
     except Exception as e:
         logger.error(f"Web automation failed: {e}")
-    return {
-        "error": str(e),
-        "status": "failed",
-        "url": url,
-        "timestamp": datetime.now().isoformat()
-    }
+        return {
+            "error": str(e),
+            "status": "failed",
+            "url": url,
+            "timestamp": datetime.now().isoformat()
+        }
     finally:
         if driver:
         driver.quit()

@@ -138,8 +138,9 @@ def scrape_web_page(url, task_data=None):
                             if isinstance(data, list) and data:
                                 data = [{k: item.get(k) for k in filters['fields']}
                                         for item in data if isinstance(item, dict)]
-                        elif isinstance(data, dict):
-                            data = {k: data.get(k) for k in filters['fields']}
+                            elif isinstance(data, dict):
+                                data = {k: data.get(k)
+                                                    for k in filters['fields']}
 
                 return {
                     'status': 'success',
