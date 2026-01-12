@@ -320,12 +320,59 @@ const IntegrationsPage = () => {
  } else {
  const integration = INTEGRATIONS.find(i => i.id === service);
  const serviceName = integration?.name || service;
+ 
+ // Show actionable error with link if API needs to be enabled
+ if (response.data.actionUrl && response.data.isConfigIssue) {
+ const errorWithLink = (
+ <div>
+ <p>{response.data.error}</p>
+ <a 
+ href={response.data.actionUrl} 
+ target="_blank" 
+ rel="noopener noreferrer"
+ style={{ 
+ display: 'inline-block',
+ marginTop: '10px',
+ padding: '8px 16px',
+ backgroundColor: '#007bff',
+ color: 'white',
+ borderRadius: '4px',
+ textDecoration: 'none'
+ }}
+ >
+ Enable API in Google Cloud
+ </a>
+ </div>
+ );
+ setError(errorWithLink);
+ } else if (response.data.needsReconnect) {
+ setError(
+ <div>
+ <p>{response.data.error}</p>
+ <button 
+ onClick={() => handleDisconnect(service)}
+ style={{ 
+ marginTop: '10px',
+ padding: '8px 16px',
+ backgroundColor: '#dc3545',
+ color: 'white',
+ border: 'none',
+ borderRadius: '4px',
+ cursor: 'pointer'
+ }}
+ >
+ Reconnect Integration
+ </button>
+ </div>
+ );
+ } else {
  setError(getEnvMessage({
  dev: response.data.error || `Connection test failed for ${service}`,
  prod: response.data.error?.includes('credentials') || response.data.error?.includes('authentication')
  ? `${serviceName} connection failed. Please reconnect the integration.`
  : `Connection test failed for ${serviceName}. Please try again.`
  }));
+ }
  }
  
  loadIntegrations(); // Reload to update test status
@@ -334,12 +381,39 @@ const IntegrationsPage = () => {
  const integration = INTEGRATIONS.find(i => i.id === service);
  const serviceName = integration?.name || service;
  const errorMsg = err.response?.data?.error || err.message;
+ 
+ // Handle actionable errors from backend
+ if (err.response?.data?.actionUrl && err.response?.data?.isConfigIssue) {
+ const errorWithLink = (
+ <div>
+ <p>{err.response.data.error}</p>
+ <a 
+ href={err.response.data.actionUrl} 
+ target="_blank" 
+ rel="noopener noreferrer"
+ style={{ 
+ display: 'inline-block',
+ marginTop: '10px',
+ padding: '8px 16px',
+ backgroundColor: '#007bff',
+ color: 'white',
+ borderRadius: '4px',
+ textDecoration: 'none'
+ }}
+ >
+ Enable API in Google Cloud
+ </a>
+ </div>
+ );
+ setError(errorWithLink);
+ } else {
  setError(getEnvMessage({
  dev: errorMsg || `Failed to test ${service}`,
  prod: errorMsg?.includes('credentials') || errorMsg?.includes('authentication')
  ? `${serviceName} connection failed. Please reconnect the integration.`
  : `Failed to test ${serviceName}. Please try again.`
  }));
+ }
  } finally {
  setTesting(null);
  }
@@ -489,7 +563,7 @@ const IntegrationsPage = () => {
  </div>
  {testStatus && (
  <div className={styles.testStatus}>
- Test: {testStatus === 'success' ? '✅' : '❌'}
+ Test: {testStatus === 'success' ? '✅' : testStatus === 'failed' ? '❌' : '⏳'}
  </div>
  )}
  {status.lastUsedAt && (
@@ -498,6 +572,14 @@ const IntegrationsPage = () => {
  </div>
  )}
  </>
+ ) : integration.id === 'reddit' ? (
+ <div className={styles.statusBadge}>
+ <span 
+ className={styles.statusDot} 
+ style={{ background: 'var(--color-success-600)' }}
+ ></span>
+ Available (No Auth Required)
+ </div>
  ) : (
  <div className={styles.statusBadge}>
  <span 
@@ -526,6 +608,15 @@ const IntegrationsPage = () => {
  Disconnect
  </button>
  </>
+ ) : integration.id === 'reddit' ? (
+ <button
+ className={styles.btnSecondary}
+ onClick={() => handleConnect(integration.id)}
+ disabled={connecting === integration.id}
+ style={{ minWidth: '140px' }}
+ >
+ {connecting === integration.id ? 'Testing...' : 'Test Connection'}
+ </button>
  ) : (
  <button
  className={styles.btnPrimary}

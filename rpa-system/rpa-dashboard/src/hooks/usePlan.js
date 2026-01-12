@@ -78,7 +78,7 @@ export const usePlan = () => {
  if (globalLock.inFlight) return;
  // Prevent rapid repeat attempts (debounce) - skip if last attempt was very recent
  const nowMs = Date.now();
- const MIN_ATTEMPT_INTERVAL_MS = 3000; // 3s
+ const MIN_ATTEMPT_INTERVAL_MS = 10000; // 10s (increased from 3s to reduce API spam)
  if (nowMs - globalLock.lastAttempt < MIN_ATTEMPT_INTERVAL_MS) return;
  globalLock.lastAttempt = nowMs;
  globalLock.inFlight = true;
@@ -330,7 +330,7 @@ export const usePlan = () => {
  // Delay slightly to allow any webhooks to process
  setTimeout(() => {
  fetchPlanData();
- }, 2000);
+ }, 3000); // Increased delay from 2s to 3s
  }
  };
 
@@ -339,7 +339,7 @@ export const usePlan = () => {
  // Window focused, checking for plan updates
  setTimeout(() => {
  fetchPlanData();
- }, 1000);
+ }, 2000); // Increased delay from 1s to 2s
  }
  };
 
@@ -366,11 +366,11 @@ export const usePlan = () => {
  }
  
  if (document.visibilityState === 'visible' && !visibilityPollInterval) {
- // Starting aggressive plan polling for 30 seconds
+ // Starting gentle plan polling for 15 seconds (reduced from 30s)
  visibilityPollInterval = setInterval(async () => {
  // Circuit breaker: stop polling after 3 consecutive failures
  if (consecutiveFailures >= 3) {
- console.error('❌ Stopping aggressive polling - backend appears down');
+ console.error('❌ Stopping polling - backend appears down');
  if (visibilityPollInterval) {
  clearInterval(visibilityPollInterval);
  visibilityPollInterval = null;
@@ -385,17 +385,17 @@ export const usePlan = () => {
  consecutiveFailures++;
  console.warn(`⚠️ Poll attempt failed (${consecutiveFailures}/3)`);
  }
- }, 5000); // Poll every 5 seconds
+ }, 15000); // Poll every 15 seconds (reduced from 5s)
 
- // Stop aggressive polling after 30 seconds
+ // Stop polling after 15 seconds (reduced from 30s)
  setTimeout(() => {
  if (visibilityPollInterval) {
  clearInterval(visibilityPollInterval);
  visibilityPollInterval = null;
  consecutiveFailures = 0;
- // Stopped aggressive plan polling
+ // Stopped plan polling
  }
- }, 30000);
+ }, 15000);
  }
  };
 

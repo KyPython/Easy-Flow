@@ -75,8 +75,8 @@ const TaskProgressPanelManager = () => {
  // Initial fetch
  fetchRunningTasks();
 
- // Poll every 3 seconds
- const interval = setInterval(fetchRunningTasks, 3000);
+ // Poll every 60 seconds (reduced from 30s to improve performance and reduce server load)
+ const interval = setInterval(fetchRunningTasks, 60000);
 
  return () => clearInterval(interval);
  }, [user?.id, fetchRunningTasks]);

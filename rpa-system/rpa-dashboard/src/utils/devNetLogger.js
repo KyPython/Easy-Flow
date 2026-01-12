@@ -111,7 +111,7 @@ export async function fetchWithAuth(url, options = {}) {
  const isDevelopment = process.env.NODE_ENV === 'development';
  if (res.status === 401 && isDevelopment) {
  // In dev: Only log 401s occasionally to reduce noise (expected during token refresh)
- if (shouldLog()) {
+ if (false) { // Silence 401 logs completely to reduce noise
  console.debug('[devNetLogger] 401 Unauthorized (expected during session refresh)', { url, hasToken: !!token });
  }
  }

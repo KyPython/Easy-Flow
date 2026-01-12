@@ -9,16 +9,26 @@
 // This mirrors the pattern used in supabaseClient.
 const runtimeEnv = (typeof window !== 'undefined' && window._env) ? window._env : {};
 
+// Helper to get env var with VITE_ or REACT_APP_ prefix
+const getEnv = (key) => {
+  const viteKey = `VITE_${key}`;
+  const viteKeyPlain = key; // Sometimes VITE_ is not used in window._env
+  const reactKey = `REACT_APP_${key}`;
+  return runtimeEnv[viteKey] || process.env[viteKey] || 
+         runtimeEnv[viteKeyPlain] || process.env[viteKeyPlain] ||
+         runtimeEnv[reactKey] || process.env[reactKey];
+};
+
 // Firebase configuration - values may come from build-time process.env or runtime window._env
 const firebaseConfig = {
- apiKey: runtimeEnv.REACT_APP_FIREBASE_API_KEY || process.env.REACT_APP_FIREBASE_API_KEY,
- authDomain: runtimeEnv.REACT_APP_FIREBASE_AUTH_DOMAIN || process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
- databaseURL: runtimeEnv.REACT_APP_FIREBASE_DATABASE_URL || process.env.REACT_APP_FIREBASE_DATABASE_URL,
- projectId: runtimeEnv.REACT_APP_FIREBASE_PROJECT_ID || process.env.REACT_APP_FIREBASE_PROJECT_ID,
- storageBucket: runtimeEnv.REACT_APP_FIREBASE_STORAGE_BUCKET || process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
- messagingSenderId: runtimeEnv.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
- appId: runtimeEnv.REACT_APP_FIREBASE_APP_ID || process.env.REACT_APP_FIREBASE_APP_ID,
- measurementId: runtimeEnv.REACT_APP_FIREBASE_MEASUREMENT_ID || process.env.REACT_APP_FIREBASE_MEASUREMENT_ID // Optional
+ apiKey: getEnv('FIREBASE_API_KEY'),
+ authDomain: getEnv('FIREBASE_AUTH_DOMAIN'),
+ databaseURL: getEnv('FIREBASE_DATABASE_URL'),
+ projectId: getEnv('FIREBASE_PROJECT_ID'),
+ storageBucket: getEnv('FIREBASE_STORAGE_BUCKET'),
+ messagingSenderId: getEnv('FIREBASE_MESSAGING_SENDER_ID'),
+ appId: getEnv('FIREBASE_APP_ID'),
+ measurementId: getEnv('FIREBASE_MEASUREMENT_ID') // Optional
 };
 
 // Determine feature-specific configuration readiness
@@ -211,7 +221,7 @@ export async function initFirebase() {
  isFirebaseConfigured = true;
  if (process.env.NODE_ENV === 'development') {
  // eslint-disable-next-line no-console
- console.info('Firebase initialized (lazy) projectId=', firebaseConfig.projectId);
+ console.info('🔥 Firebase initialized (lazy)', { projectId: firebaseConfig.projectId, authDomain: firebaseConfig.authDomain });
  }
 
  return { app, messaging, database, auth };

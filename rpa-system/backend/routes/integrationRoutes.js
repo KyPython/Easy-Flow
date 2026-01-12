@@ -135,6 +135,9 @@ router.get('/', requireAuth, requireFeature('custom_integrations'), async (req, 
  const userId = req.user.id;
  const integrations = await integrationCredentialsService.listIntegrations(userId);
 
+ // ✅ PERFORMANCE: Cache integrations list for 60 seconds
+ res.set('Cache-Control', 'private, max-age=60');
+
  res.json({
  success: true,
  integrations: integrations.map(integration => ({

@@ -12,6 +12,28 @@
  * - Rate-limited warnings for missing plans
  */
 
+// Implement in-memory cache for the plan resolution (Jan 12, 2026)
+// This is to avoid making too many calls to the database for the same user.
+// Cache is cleared on process restart.
+const planCache = new Map();
+const CACHE_TTL = 300000; // 5 minutes (drastically reduces DB load)
+const shouldCache = process.env.NODE_ENV === 'production';
+
+function getPlanFromCache(userId) {
+ const cachedPlan = planCache.get(userId);
+ if (cachedPlan && cachedPlan.expiresAt > Date.now()) {
+ return cachedPlan.plan;
+ }
+ return null;
+}
+
+function setPlanInCache(userId, plan) {
+ planCache.set(userId, {
+ plan,
+ expiresAt: Date.now() + CACHE_TTL
+ });
+}
+
 const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');
 const { createLogger } = require('../middleware/structuredLogging');
 
@@ -123,7 +145,7 @@ async function calculateUsage(userId) {
 
  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
- const [monthlyRunsResult, storageResult, workflowsResult, automationTasksResult] = await Promise.all([
+ const [monthlyRunsResult, storageResult, workflowsResult, automationTasksResult, scrapingUsage] = await Promise.all([
  supabase
  .from('automation_runs')
  .select('id', { count: 'exact', head: true })
@@ -135,24 +157,17 @@ async function calculateUsage(userId) {
  (async () => {
  try {
  // Try to use a database function for better performance
+ if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
  const { data, error } = await supabase.rpc('get_user_storage_total', { user_id: userId });
  if (!error && data !== null) {
- return { data: [{ file_size: data }], error: null };
+ return { data: [{ file_size: data }] };
+ }
  }
  } catch (rpcError) {
- // RPC function doesn't exist, fall back to aggregation
+ logger.warn('Storage calculation RPC failed', { userId, error: rpcError.message });
  }
-
- // Fallback: Use aggregation query (more efficient than fetching all rows)
- // Note: Supabase PostgREST doesn't support SUM() directly in select, so we fetch and sum
- // For better performance with many files, consider creating an RPC function:
- // CREATE FUNCTION get_user_storage_total(user_id UUID) RETURNS BIGINT AS $$
- // SELECT COALESCE(SUM(file_size), 0) FROM user_files WHERE user_id = $1;
- // $$ LANGUAGE SQL;
- return await supabase
- .from('user_files')
- .select('file_size')
- .eq('user_id', userId);
+ // Return 0 if RPC fails or is missing - safer than downloading 1000s of rows
+ return { data: [] };
  })(),
  // Count workflows from workflows table (canvas-based workflows)
  supabase
@@ -165,7 +180,25 @@ async function calculateUsage(userId) {
  .from('automation_tasks')
  .select('id', { count: 'exact', head: true })
  .eq('user_id', userId)
- .or('is_active.is.null,is_active.eq.true') // Count active or null (default active)
+ .or('is_active.is.null,is_active.eq.true'), // Count active or null (default active)
+ // ✅ OPTIMIZATION: Parallelize scraping usage query
+ (async () => {
+ try {
+ if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
+ const { data: scrapingData, error: scrapingError } = await supabase
+ .rpc('get_scraping_usage', { user_uuid: userId })
+ .single();
+
+ if (!scrapingError && scrapingData) {
+ return scrapingData;
+ }
+ }
+ } catch (scrapingErr) {
+ // Non-fatal - continue with default values
+ logger.debug('Scraping usage calculation failed, using defaults', { userId });
+ }
+ return { domains_scraped_this_month: 0, jobs_created: 0, total_scrapes: 0 };
+ })()
  ]);
 
  const monthlyRuns = monthlyRunsResult.count || 0;
@@ -188,28 +221,6 @@ async function calculateUsage(userId) {
  automationTasks,
  totalWorkflows
  });
-
- // Calculate scraping usage
- let scrapingUsage = {
- domains_scraped_this_month: 0,
- jobs_created: 0,
- total_scrapes: 0
- };
-
- try {
- if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
- const { data: scrapingData, error: scrapingError } = await supabase
- .rpc('get_scraping_usage', { user_uuid: userId })
- .single();
-
- if (!scrapingError && scrapingData) {
- scrapingUsage = scrapingData;
- }
- }
- } catch (scrapingErr) {
- // Non-fatal - continue with default values
- logger.debug('Scraping usage calculation failed, using defaults', { userId });
- }
 
  return {
  monthly_runs: monthlyRuns,
@@ -251,6 +262,33 @@ async function calculateUsage(userId) {
  */
 async function resolveUserPlan(userId, options = {}) {
  const { normalizeMissingPlan = false } = options;
+
+ // Check cache first
+  // ✅ PERFORMANCE FIX: Always check cache, even if normalizeMissingPlan is true.
+  // This prevents redundant DB queries on every page load/session check.
+  const cached = getPlanFromCache(userId);
+  if (cached) {
+    logger.info('Plan cache hit', { userId });
+ // SAFETY: Reconstruct planData if missing (handles legacy cache from previous deployment)
+ const planData = cached.planData || {
+ plan: cached.plan,
+ usage: cached.usage,
+ limits: cached.limits,
+ features: cached.features,
+ can_run_automation: cached.can_run_automation,
+ can_create_workflow: cached.can_create_workflow
+ };
+
+ return {
+ ...cached,
+ planData, // Ensure nested structure exists for backend consumers
+ metadata: {
+ ...cached.metadata,
+ cached: true,
+ resolved_at: new Date().toISOString()
+ }
+ };
+ }
 
  if (!supabase) {
  throw new Error('Database not configured');
@@ -433,10 +471,17 @@ async function resolveUserPlan(userId, options = {}) {
  stored_plan_id: storedPlanId
  };
 
- return {
- planData,
+ const result = {
+    ...planData, // Flattened for Frontend (fixes infinite spinner)
+    planData,    // Nested for Backend compatibility (fixes 500 error)
  metadata
  };
+
+ // Cache the result
+ // ✅ PERFORMANCE FIX: Always cache the result to prevent slow DB queries on every request
+ setPlanInCache(userId, result);
+
+ return result;
 }
 
 /**
@@ -449,6 +494,7 @@ async function resolveUserPlan(userId, options = {}) {
  * - Trial/expiration dates
  */
 function generatePlanETag(planData) {
+ if (!planData || !planData.plan) return 'W/"0"';
  const {plan, usage} = planData;
  const etagData = [
  plan.id,

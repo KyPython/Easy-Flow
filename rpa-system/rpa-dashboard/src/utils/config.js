@@ -116,7 +116,8 @@ if (process.env.NODE_ENV === 'development') {
  apiBaseUrl: config.apiBaseUrl,
  environment: process.env.NODE_ENV,
  hostname: typeof window !== 'undefined' ? window.location.hostname : 'server-side',
- firebaseConfigured: config.features.firebase
+ firebaseConfigured: config.features.firebase,
+ firebaseProjectId: config.firebase.projectId
  });
 }
 

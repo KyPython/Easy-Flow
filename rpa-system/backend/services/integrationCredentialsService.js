@@ -215,33 +215,62 @@ class IntegrationCredentialsService {
 
  // Format error message to be more user-friendly
  let errorMessage = error.message;
+ let actionUrl = null;
+ let isConfigIssue = false;
 
  // Gmail API not enabled
  if (error.message?.includes('Gmail API has not been used') || error.message?.includes('Gmail API') && error.message?.includes('disabled')) {
  const projectIdMatch = error.message.match(/project (\d+)/);
  const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
- errorMessage = `Gmail API is not enabled. Enable it at: https://console.cloud.google.com/apis/api/gmail.googleapis.com/overview?project=${projectId}`;
+ errorMessage = `Gmail API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.`;
+ actionUrl = `https://console.cloud.google.com/apis/api/gmail.googleapis.com/overview?project=${projectId}`;
+ isConfigIssue = true;
+ }
+ // Google Calendar API not enabled
+ else if (error.message?.includes('Calendar') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
+ const projectIdMatch = error.message.match(/project (\d+)/);
+ const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
+ errorMessage = `Google Calendar API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.`;
+ actionUrl = `https://console.cloud.google.com/apis/api/calendar-json.googleapis.com/overview?project=${projectId}`;
+ isConfigIssue = true;
  }
  // Google Sheets API not enabled
  else if (error.message?.includes('Sheets API') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
  const projectIdMatch = error.message.match(/project (\d+)/);
  const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
- errorMessage = `Google Sheets API is not enabled. Enable it at: https://console.cloud.google.com/apis/api/sheets.googleapis.com/overview?project=${projectId}`;
+ errorMessage = `Google Sheets API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.`;
+ actionUrl = `https://console.cloud.google.com/apis/api/sheets.googleapis.com/overview?project=${projectId}`;
+ isConfigIssue = true;
  }
  // Google Drive API not enabled
  else if (error.message?.includes('Drive API') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
  const projectIdMatch = error.message.match(/project (\d+)/);
  const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
- errorMessage = `Google Drive API is not enabled. Enable it at: https://console.cloud.google.com/apis/api/drive.googleapis.com/overview?project=${projectId}`;
+ errorMessage = `Google Drive API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.`;
+ actionUrl = `https://console.cloud.google.com/apis/api/drive.googleapis.com/overview?project=${projectId}`;
+ isConfigIssue = true;
  }
  // Google Meet API not enabled
  else if (error.message?.includes('Meet API') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
  const projectIdMatch = error.message.match(/project (\d+)/);
  const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
- errorMessage = `Google Meet API is not enabled. Enable it at: https://console.cloud.google.com/apis/api/meet.googleapis.com/overview?project=${projectId}`;
+ errorMessage = `Google Meet API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.`;
+ actionUrl = `https://console.cloud.google.com/apis/api/meet.googleapis.com/overview?project=${projectId}`;
+ isConfigIssue = true;
+ }
+ // Invalid grant (token expired)
+ else if (error.message?.includes('invalid_grant') || error.message?.includes('token')) {
+ errorMessage = 'Your authentication token has expired or been revoked. Please reconnect this integration.';
+ isConfigIssue = false;
  }
 
- return { success: false, error: errorMessage };
+ return { 
+ success: false, 
+ error: errorMessage,
+ actionUrl: actionUrl,
+ isConfigIssue: isConfigIssue,
+ needsReconnect: error.message?.includes('invalid_grant') || error.message?.includes('token')
+ };
  }
  }
 
@@ -289,7 +318,8 @@ class IntegrationCredentialsService {
  google_drive: require('./integrations/googleDriveIntegration'),
  google_calendar: require('./integrations/googleCalendarIntegration'),
  whatsapp: require('./integrations/whatsappIntegration'),
- notion: require('./integrations/notionIntegration')
+ notion: require('./integrations/notionIntegration'),
+ reddit: require('./integrations/redditIntegration')
  };
 
  const IntegrationClass = integrations[service];
