@@ -178,7 +178,7 @@ def perform_web_automation(url, task_data):
                     'submitted',
                     'thank you',
                     'welcome',
-                'logged in']))
+                    'logged in']))
     error_patterns = soup.find_all(
         text=lambda text: text and any(
             keyword in text.lower() for keyword in [
