@@ -228,37 +228,37 @@ def perform_action(driver, action, action_index):
             return fill_text_action(driver, action, action_index, timestamp)
 
         elif action_type == 'click':
-        return click_action(driver, action, action_index, timestamp)
+            return click_action(driver, action, action_index, timestamp)
 
-    elif action_type == 'select_option':
-        return select_option_action(driver, action, action_index, timestamp)
+        elif action_type == 'select_option':
+            return select_option_action(driver, action, action_index, timestamp)
 
-    elif action_type == 'wait':
-        return wait_action(driver, action, action_index, timestamp)
+        elif action_type == 'wait':
+            return wait_action(driver, action, action_index, timestamp)
 
-    elif action_type == 'wait_for_element':
-        return wait_for_element_action(driver, action, action_index, timestamp)
+        elif action_type == 'wait_for_element':
+            return wait_for_element_action(driver, action, action_index, timestamp)
 
-    elif action_type == 'drag_and_drop':
-        return drag_and_drop_action(driver, action, action_index, timestamp)
+        elif action_type == 'drag_and_drop':
+            return drag_and_drop_action(driver, action, action_index, timestamp)
 
-    elif action_type == 'scroll':
-        return scroll_action(driver, action, action_index, timestamp)
+        elif action_type == 'scroll':
+            return scroll_action(driver, action, action_index, timestamp)
 
-    elif action_type == 'hover':
-        return hover_action(driver, action, action_index, timestamp)
+        elif action_type == 'hover':
+            return hover_action(driver, action, action_index, timestamp)
 
-    elif action_type == 'press_key':
-        return press_key_action(driver, action, action_index, timestamp)
+        elif action_type == 'press_key':
+            return press_key_action(driver, action, action_index, timestamp)
 
-    else:
-        return {
-            "action_index": action_index,
-            "action_type": action_type,
-            "success": False,
-            "error": f"Unknown action type: {action_type}",
-            "timestamp": timestamp
-        }
+        else:
+            return {
+                "action_index": action_index,
+                "action_type": action_type,
+                "success": False,
+                "error": f"Unknown action type: {action_type}",
+                "timestamp": timestamp
+            }
 
     except Exception as e:
         return {
@@ -461,10 +461,10 @@ def press_key_action(driver, action, action_index, timestamp):
         element = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
         )
-    element.send_keys(getattr(Keys, key.upper(), key))
+        element.send_keys(getattr(Keys, key.upper(), key))
     else:
         # Press key on active element
-    driver.switch_to.active_element.send_keys(getattr(Keys, key.upper(), key))
+        driver.switch_to.active_element.send_keys(getattr(Keys, key.upper(), key))
 
     return {
         "action_index": action_index,
@@ -491,32 +491,32 @@ def check_success_indicator(driver, indicator):
 
     if indicator_type == 'element_present':
         selector = indicator.get('selector')
-    try:
-        driver.find_element(By.CSS_SELECTOR, selector)
-    return True
-    except NoSuchElementException:
-        return False
+        try:
+            driver.find_element(By.CSS_SELECTOR, selector)
+            return True
+        except NoSuchElementException:
+            return False
 
     elif indicator_type == 'element_contains_text':
         selector = indicator.get('selector')
-    text = indicator.get('text', '').lower()
-    try:
-        element = driver.find_element(By.CSS_SELECTOR, selector)
-    return text in element.text.lower()
-    except NoSuchElementException:
-        return False
+        text = indicator.get('text', '').lower()
+        try:
+            element = driver.find_element(By.CSS_SELECTOR, selector)
+            return text in element.text.lower()
+        except NoSuchElementException:
+            return False
 
     elif indicator_type == 'url_contains':
         value = indicator.get('value', '')
-    return value in driver.current_url
+        return value in driver.current_url
 
     elif indicator_type == 'title_contains':
         value = indicator.get('value', '')
-    return value.lower() in driver.title.lower()
+        return value.lower() in driver.title.lower()
 
     elif indicator_type == 'page_source_contains':
         text = indicator.get('text', '').lower()
-    return text in driver.page_source.lower()
+        return text in driver.page_source.lower()
 
     else:
         logger.warning(f"Unknown success indicator type: {indicator_type}")
@@ -544,210 +544,210 @@ def download_pdf(pdf_url, task_data):
 
     try:
         # ✅ SECURITY: Sanitize download_path to prevent path traversal attacks
-    raw_download_path = task_data.get('download_path', tempfile.gettempdir())
-    # Normalize path and resolve to absolute path to prevent directory
-    # traversal
-    download_path = os.path.abspath(os.path.normpath(raw_download_path))
-    # Ensure the path is within the temp directory or a safe download directory
-    safe_base = os.path.abspath(tempfile.gettempdir())
-    if not download_path.startswith(safe_base):
-        logger.warning(
-            f"Download path {download_path} outside safe directory, using temp directory")
-    download_path = safe_base
+        raw_download_path = task_data.get('download_path', tempfile.gettempdir())
+        # Normalize path and resolve to absolute path to prevent directory
+        # traversal
+        download_path = os.path.abspath(os.path.normpath(raw_download_path))
+        # Ensure the path is within the temp directory or a safe download directory
+        safe_base = os.path.abspath(tempfile.gettempdir())
+        if not download_path.startswith(safe_base):
+            logger.warning(
+                f"Download path {download_path} outside safe directory, using temp directory")
+            download_path = safe_base
 
-    verify_pdf = task_data.get('verify_pdf', True)
+        verify_pdf = task_data.get('verify_pdf', True)
 
-    logger.info(f"Downloading PDF from: {pdf_url}")
+        logger.info(f"Downloading PDF from: {pdf_url}")
 
-    # ✅ SECURITY: Validate PDF URL to prevent SSRF
-    # Only allow http/https URLs, block private IPs
-    from urllib.parse import urlparse
-    import ipaddress
+        # ✅ SECURITY: Validate PDF URL to prevent SSRF
+        # Only allow http/https URLs, block private IPs
+        from urllib.parse import urlparse
+        import ipaddress
 
-    parsed_url = urlparse(pdf_url)
-    if parsed_url.scheme not in ('http', 'https'):
-        return {
-            "success": False,
-            "error": f"Invalid URL scheme: {
-                parsed_url.scheme}. Only http and https are allowed."}
+        parsed_url = urlparse(pdf_url)
+        if parsed_url.scheme not in ('http', 'https'):
+            return {
+                "success": False,
+                "error": f"Invalid URL scheme: {
+                    parsed_url.scheme}. Only http and https are allowed."}
 
-    # Block private IP addresses and localhost (unless in development mode)
-    hostname = parsed_url.hostname
-    if not hostname:
-        return {
-            "success": False,
-            "error": "Invalid URL: missing hostname"
-        }
+        # Block private IP addresses and localhost (unless in development mode)
+        hostname = parsed_url.hostname
+        if not hostname:
+            return {
+                "success": False,
+                "error": "Invalid URL: missing hostname"
+            }
 
-    # ✅ FIX: Allow localhost in development mode for testing
-    # Default to 'development' for local testing (safer default than
-    # 'production')
-    env = os.getenv('ENV', os.getenv('NODE_ENV', 'development')).lower()
-    is_development = env in ('development', 'dev', 'local')
+        # ✅ FIX: Allow localhost in development mode for testing
+        # Default to 'development' for local testing (safer default than
+        # 'production')
+        env = os.getenv('ENV', os.getenv('NODE_ENV', 'development')).lower()
+        is_development = env in ('development', 'dev', 'local')
 
-    # Check for localhost variations (skip in development)
-    localhost_variants = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']
-    if not is_development and hostname.lower() in localhost_variants:
-        return {
-            "success": False,
-            "error": "Private/localhost addresses are not allowed"
-        }
+        # Check for localhost variations (skip in development)
+        localhost_variants = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']
+        if not is_development and hostname.lower() in localhost_variants:
+            return {
+                "success": False,
+                "error": "Private/localhost addresses are not allowed"
+            }
 
-    # Check if hostname is an IP address and if it's private (skip in
-    # development)
-    try:
-        ip = ipaddress.ip_address(hostname)
-    if not is_development and (
-            ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast):
-        return {
-            "success": False,
-            "error": "Private IP addresses are not allowed"
-        }
-    except ValueError:
-        # Not an IP address, check if it's a valid hostname
-        # Allow public hostnames
-    pass
-
-    # ✅ SEAMLESS UX: Use cookies for authenticated PDF downloads
-    headers = {}
-    cookies_dict = {}
-
-    # Handle cookie string (simpler format)
-    if task_data.get('cookie_string'):
-        headers['Cookie'] = task_data['cookie_string']
-    logger.info(
-        f"Using cookie string for authenticated download ({len(task_data['cookie_string'])} chars)")
-
-    # Handle cookie objects (more detailed format from Puppeteer)
-    elif task_data.get('auth_cookies'):
-        # Convert cookie objects to requests-compatible format
-    for cookie in task_data['auth_cookies']:
-        cookies_dict[cookie.get('name', '')] = cookie.get('value', '')
-    logger.info(
-        f"Using {
-            len(cookies_dict)} cookies for authenticated download")
-
-    # Download the file with authentication if available
-    response = requests.get(
-        pdf_url,
-        timeout=30,
-        stream=True,
-        headers=headers,
-        cookies=cookies_dict if cookies_dict else None
-    )
-    response.raise_for_status()
-
-    # ✅ FIX: Check Content-Type header before downloading
-    content_type = response.headers.get('content-type', '').lower()
-    is_pdf_content_type = 'application/pdf' in content_type or 'pdf' in content_type
-
-    # ✅ FIX: For demo URLs, provide helpful error message
-    if not is_pdf_content_type and '/demo' in pdf_url and not pdf_url.endswith(
-            '.pdf'):
-        return {
-            "success": False,
-            "error": f"URL does not point to a PDF file. The URL '{pdf_url}' returns HTML content. For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf' instead of 'http://localhost:3030/demo'.",
-            "content_type": content_type,
-            "suggestion": "Use a direct PDF URL ending in .pdf, or navigate to the PDF link on the page first."}
-
-    # Generate filename - sanitize to prevent path traversal
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"downloaded_invoice_{timestamp}.pdf"
-    # ✅ SECURITY: Use os.path.join and normalize to prevent path traversal
-    filepath = os.path.abspath(
-        os.path.normpath(
-            os.path.join(
-                download_path,
-                filename)))
-    # Double-check the final path is still within safe directory
-    if not filepath.startswith(download_path):
-        raise ValueError(f"Path traversal detected: {filepath}")
-
-    # Save the file
-    with open(filepath, 'wb') as f:
-        for chunk in response.iter_content(chunk_size=8192):
-        f.write(chunk)
-
-    file_size = os.path.getsize(filepath)
-
-    result = {
-        "success": True,
-        "pdf_url": pdf_url,
-        "download_path": filepath,
-        "filename": filename,
-        "file_size": file_size,
-        "timestamp": datetime.now().isoformat(),
-        "content_type": content_type,
-        "status_code": response.status_code
-    }
-
-    # ✅ FIX: Verify it's actually a PDF and fail if it's not
-    if verify_pdf:
-        with open(filepath, 'rb') as f:
-        header = f.read(4)
-    is_pdf = header == b'%PDF'
-    result["is_valid_pdf"] = is_pdf
-
-    if not is_pdf:
-        # ✅ FIX: Check if it's HTML content before deleting
-    f.seek(0)  # Reset to beginning
-    content_start = f.read(100).decode('utf-8', errors='ignore')
-    is_html = '<html' in content_start.lower() or '<!doctype' in content_start.lower()
-
-    # Clean up the invalid file
-    try:
-        os.remove(filepath)
-    except Exception as e:
-        logger.warning(f"Failed to remove invalid file: {e}")
-
-    error_msg = "Downloaded file is not a valid PDF"
-    if is_html:
-        error_msg += f". The URL returned HTML content instead of a PDF. Content-Type was: {content_type}"
-    if '/demo' in pdf_url:
-        error_msg += f" For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf'"
-
-    return {
-        "success": False,
-        "error": error_msg,
-        "content_type": content_type,
-        "file_size": file_size
-    }
-
-    # ✅ Upload to Supabase storage if configured
-    artifact_url = None
-    try:
-        supabase_url = os.environ.get('SUPABASE_URL')
-    # ✅ FIX: Check both SUPABASE_SERVICE_ROLE and SUPABASE_SERVICE_ROLE_KEY (different naming conventions)
-    supabase_key = os.environ.get('SUPABASE_SERVICE_ROLE') or os.environ.get(
-        'SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_KEY')
-    user_id = task_data.get('user_id')
-
-    if supabase_url and supabase_key and user_id:
+        # Check if hostname is an IP address and if it's private (skip in
+        # development)
         try:
-        from supabase import create_client, Client
-    supabase: Client = create_client(supabase_url, supabase_key)
+            ip = ipaddress.ip_address(hostname)
+            if not is_development and (
+                    ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast):
+                return {
+                    "success": False,
+                    "error": "Private IP addresses are not allowed"
+                }
+        except ValueError:
+            # Not an IP address, check if it's a valid hostname
+            # Allow public hostnames
+            pass
 
-    # Read file content
-    with open(filepath, 'rb') as f:
-        file_content = f.read()
+        # ✅ SEAMLESS UX: Use cookies for authenticated PDF downloads
+        headers = {}
+        cookies_dict = {}
 
-    # Generate storage path
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    storage_path = f"{user_id}/invoices/{timestamp}_{filename}"
+        # Handle cookie string (simpler format)
+        if task_data.get('cookie_string'):
+            headers['Cookie'] = task_data['cookie_string']
+            logger.info(
+                f"Using cookie string for authenticated download ({len(task_data['cookie_string'])} chars)")
 
-    # ✅ FIX: Upload to Supabase storage with better error handling
-    # Log which key is being used (masked for security)
-    key_type = "SUPABASE_SERVICE_ROLE" if os.environ.get('SUPABASE_SERVICE_ROLE') else (
-        "SUPABASE_SERVICE_ROLE_KEY" if os.environ.get('SUPABASE_SERVICE_ROLE_KEY') else "SUPABASE_KEY")
-    logger.info(
-        f"📤 Uploading to Supabase storage using {key_type} (key present: {
-            bool(supabase_key)})")
+        # Handle cookie objects (more detailed format from Puppeteer)
+        elif task_data.get('auth_cookies'):
+            # Convert cookie objects to requests-compatible format
+            for cookie in task_data['auth_cookies']:
+                cookies_dict[cookie.get('name', '')] = cookie.get('value', '')
+            logger.info(
+                f"Using {
+                    len(cookies_dict)} cookies for authenticated download")
 
-    upload_result = supabase.storage.from_('user-files').upload(
-        storage_path,
-        file_content,
-        file_options={"content-type": "application/pdf", "upsert": "false"}
-    )
+        # Download the file with authentication if available
+        response = requests.get(
+            pdf_url,
+            timeout=30,
+            stream=True,
+            headers=headers,
+            cookies=cookies_dict if cookies_dict else None
+        )
+        response.raise_for_status()
+
+        # ✅ FIX: Check Content-Type header before downloading
+        content_type = response.headers.get('content-type', '').lower()
+        is_pdf_content_type = 'application/pdf' in content_type or 'pdf' in content_type
+
+        # ✅ FIX: For demo URLs, provide helpful error message
+        if not is_pdf_content_type and '/demo' in pdf_url and not pdf_url.endswith(
+                '.pdf'):
+            return {
+                "success": False,
+                "error": f"URL does not point to a PDF file. The URL '{pdf_url}' returns HTML content. For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf' instead of 'http://localhost:3030/demo'.",
+                "content_type": content_type,
+                "suggestion": "Use a direct PDF URL ending in .pdf, or navigate to the PDF link on the page first."}
+
+        # Generate filename - sanitize to prevent path traversal
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"downloaded_invoice_{timestamp}.pdf"
+        # ✅ SECURITY: Use os.path.join and normalize to prevent path traversal
+        filepath = os.path.abspath(
+            os.path.normpath(
+                os.path.join(
+                    download_path,
+                    filename)))
+        # Double-check the final path is still within safe directory
+        if not filepath.startswith(download_path):
+            raise ValueError(f"Path traversal detected: {filepath}")
+
+        # Save the file
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        file_size = os.path.getsize(filepath)
+
+        result = {
+            "success": True,
+            "pdf_url": pdf_url,
+            "download_path": filepath,
+            "filename": filename,
+            "file_size": file_size,
+            "timestamp": datetime.now().isoformat(),
+            "content_type": content_type,
+            "status_code": response.status_code
+        }
+
+        # ✅ FIX: Verify it's actually a PDF and fail if it's not
+        if verify_pdf:
+            with open(filepath, 'rb') as f:
+                header = f.read(4)
+                is_pdf = header == b'%PDF'
+                result["is_valid_pdf"] = is_pdf
+
+                if not is_pdf:
+                    # ✅ FIX: Check if it's HTML content before deleting
+                    f.seek(0)  # Reset to beginning
+                    content_start = f.read(100).decode('utf-8', errors='ignore')
+                    is_html = '<html' in content_start.lower() or '<!doctype' in content_start.lower()
+
+                    # Clean up the invalid file
+                    try:
+                        os.remove(filepath)
+                    except Exception as e:
+                        logger.warning(f"Failed to remove invalid file: {e}")
+
+                    error_msg = "Downloaded file is not a valid PDF"
+                    if is_html:
+                        error_msg += f". The URL returned HTML content instead of a PDF. Content-Type was: {content_type}"
+                    if '/demo' in pdf_url:
+                        error_msg += f" For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf'"
+
+                    return {
+                        "success": False,
+                        "error": error_msg,
+                        "content_type": content_type,
+                        "file_size": file_size
+                    }
+
+        # ✅ Upload to Supabase storage if configured
+        artifact_url = None
+        try:
+            supabase_url = os.environ.get('SUPABASE_URL')
+            # ✅ FIX: Check both SUPABASE_SERVICE_ROLE and SUPABASE_SERVICE_ROLE_KEY (different naming conventions)
+            supabase_key = os.environ.get('SUPABASE_SERVICE_ROLE') or os.environ.get(
+                'SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_KEY')
+            user_id = task_data.get('user_id')
+
+            if supabase_url and supabase_key and user_id:
+                try:
+                    from supabase import create_client, Client
+                    supabase: Client = create_client(supabase_url, supabase_key)
+
+                    # Read file content
+                    with open(filepath, 'rb') as f:
+                        file_content = f.read()
+
+                    # Generate storage path
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    storage_path = f"{user_id}/invoices/{timestamp}_{filename}"
+
+                    # ✅ FIX: Upload to Supabase storage with better error handling
+                    # Log which key is being used (masked for security)
+                    key_type = "SUPABASE_SERVICE_ROLE" if os.environ.get('SUPABASE_SERVICE_ROLE') else (
+                        "SUPABASE_SERVICE_ROLE_KEY" if os.environ.get('SUPABASE_SERVICE_ROLE_KEY') else "SUPABASE_KEY")
+                    logger.info(
+                        f"📤 Uploading to Supabase storage using {key_type} (key present: {
+                            bool(supabase_key)})")
+
+                    upload_result = supabase.storage.from_('user-files').upload(
+                        storage_path,
+                        file_content,
+                        file_options={"content-type": "application/pdf", "upsert": "false"}
+                    )
 
     # Check if upload was successful (new supabase version returns object, not
     # dict)
