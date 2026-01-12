@@ -189,9 +189,9 @@ def perform_web_automation(url, task_data):
                     'please try']))
 
         result["page_analysis"] = {
-        "success_messages": [msg.strip() for msg in success_patterns[:5]],
-        "error_messages": [msg.strip() for msg in error_patterns[:5]]
-    }
+            "success_messages": [msg.strip() for msg in success_patterns[:5]],
+            "error_messages": [msg.strip() for msg in error_patterns[:5]]
+        }
 
     return result
 

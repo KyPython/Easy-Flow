@@ -480,19 +480,20 @@ def process_automation_task(task_data):
                     result = {
                         'success': True,
                         'data': automation_result,
-                        'message': f'Web automation completed with status: {automation_result.get("status")}'
-                    }
+                        'message': f'Web automation completed with status: {
+                            automation_result.get("status")}'}
                 else:
                     result = {
                         'success': False,
-                        'error': automation_result.get('error', 'Web automation failed'),
-                        'details': automation_result
-                    }
+                        'error': automation_result.get(
+                            'error',
+                            'Web automation failed'),
+                        'details': automation_result}
         elif task_type == 'data_extraction' or task_type == 'web_scraping':
-        # Support both 'data_extraction' (legacy) and 'web_scraping' task types
-        # They use the same scraping logic
-    url = task_data.get('url')
-    if not url:
+            # Support both 'data_extraction' (legacy) and 'web_scraping' task types
+            # They use the same scraping logic
+            url = task_data.get('url')
+            if not url:
         result = {'success': False, 'error': 'Missing required field: url'}
     else:
         try:

@@ -126,7 +126,7 @@ def scrape_web_page(url, task_data=None):
             if response.headers.get(
                             'content-type',
                                 '').startswith('application/json'):
-                            data = response.json()
+                data = response.json()
 
                 # Apply filters if specified
                 if task_data.get('filters'):
@@ -136,8 +136,8 @@ def scrape_web_page(url, task_data=None):
                     if filters.get('fields') and isinstance(
                         data, (list, dict)):
                             if isinstance(data, list) and data:
-                            data = [{k: item.get(k) for k in filters['fields']}
-                                    for item in data if isinstance(item, dict)]
+                                data = [{k: item.get(k) for k in filters['fields']}
+                                        for item in data if isinstance(item, dict)]
                         elif isinstance(data, dict):
                             data = {k: data.get(k) for k in filters['fields']}
 
