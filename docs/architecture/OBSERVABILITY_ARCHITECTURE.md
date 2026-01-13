@@ -301,6 +301,72 @@ REACT_APP_FRONT_LOGS_ENDPOINT=/api/internal/front-logs
 {service="rpa-system-backend"} | json | component="TaskForm" | level="error"
 ```
 
+### Questions to ask myself
+A solid lifelong checklist for backend issues:
+
+Is it failing?
+
+What’s the error rate for this endpoint over time?
+
+What error types/messages are most common?
+
+Is it slow?
+
+What’s the latency distribution (p50, p95, p99)?
+
+Did latency change after a deploy or config change?
+
+Who is affected?
+
+Which users/tenants are impacted?
+
+Is it one tenant, one region, or everyone?
+
+Where is the time/error coming from?
+
+Which internal operation (DB query, external API, worker, cache) is failing or slow?
+
+For a bad request, what does the trace show step‑by‑step?
+
+How often and when?
+
+How many requests per second/minute?
+
+Do errors/latency spike at specific times or traffic patterns?
+
+You don’t have to memorize them verbatim; the idea is:
+
+“Is it broken?” → error rate + top errors
+
+“Is it slow?” → latency distribution
+
+“Who/where?” → affected users + spans (DB, worker, external)
+
+“How often/when?” → traffic patterns
+
+### Observability SOPs
+When an endpoint feels wrong, I will always:
+
+Reproduce it in the UI.
+
+In Grafana, filter logs to that service + endpoint.
+
+For a sample request:
+
+look at duration
+
+look at result size
+
+look at any error fields
+
+If timing is bad or errors exist, open the trace and see which span is responsible.
+
+Decide: frontend behavior vs backend code vs DB vs external dependency.
+
+Make the smallest change that reduces work per request or fixes the error.
+
+Re‑run the same Grafana query to confirm the metric (duration / error rate) improved.
+
 ## Benefits
 
 1. **Full Visibility**: See everything that happens in a request

@@ -3,7 +3,7 @@ import styles from './StatusBadge.module.css';
 import { formatTaskStatus } from '../../utils/formatters';
 import PropTypes from 'prop-types';
 
-const StatusBadge = ({ status }) => {
+const StatusBadge = ({ status, timestamp, showTimestamp = false }) => {
  const getStatusClass = (status) => {
  switch (status) {
  case 'completed':
@@ -32,6 +32,8 @@ StatusBadge.propTypes = {
  status: PropTypes.string.isRequired,
 };
 
-StatusBadge.defaultProps = {};
+StatusBadge.defaultProps = {
+  showTimestamp: false,
+};
 
 export default StatusBadge;

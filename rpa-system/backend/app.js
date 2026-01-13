@@ -3896,129 +3896,183 @@ app.post('/api/tasks/:id/run', authMiddleware, requireAutomationRun, async (req,
   next();
 });
 
-// GET /api/runs - Fetch all automation runs for the user
+// GET /api/runs - Fetch paginated automation runs for the user
 app.get('/api/runs', authMiddleware, async (req, res) => {
- const startTime = Date.now();
- logger.info('[GET /api/runs] Request received', {
- user_id: req.user?.id,
- has_user: !!req.user,
- path: req.path,
- method: req.method
- });
+  const startTime = Date.now();
 
- try {
- // Defensive check
- if (!req.user || !req.user.id) {
- logger.warn('[GET /api/runs] No user in request', {
- has_user: !!req.user,
- user_id: req.user?.id
- });
- return res.status(401).json({ error: 'Authentication failed: User not available on the request.' });
- }
+  // 1) Defensive checks
+  try {
+    if (!req.user || !req.user.id) {
+      logger.warn('[GET /api/runs] No user in request', {
+        has_user: !!req.user,
+        user_id: req.user?.id,
+      });
+      return res
+        .status(401)
+        .json({ error: 'Authentication failed: User not available on the request.' });
+    }
 
- if (!supabase) {
- logger.error('[GET /api/runs] Supabase not available');
- return res.status(500).json({ error: 'Database connection not available' });
- }
+    if (!supabase) {
+      logger.error('[GET /api/runs] Supabase not available');
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
 
- // ✅ PERFORMANCE: Optimize query with proper indexes
- // Required database indexes for optimal performance:
- // CREATE INDEX idx_automation_runs_user_id_started_at ON automation_runs(user_id, started_at DESC);
- // CREATE INDEX idx_automation_runs_task_id ON automation_runs(task_id) WHERE task_id IS NOT NULL;
- // CREATE INDEX idx_automation_tasks_id ON automation_tasks(id);
- //
- // Query optimization: Fetch runs without expensive join, then fetch tasks separately
- // This avoids N+1 queries and allows better use of indexes
- const queryStartTime = Date.now();
- const { data: runsData, error } = await supabase
- .from('automation_runs')
- .select(`
- id,
- status,
- started_at,
- ended_at,
- result,
- artifact_url,
- task_id
- `)
- .eq('user_id', req.user.id)
- .order('started_at', { ascending: false })
- .limit(100);
+    // 2) Pagination inputs (simple page + pageSize)
+    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+    const pageSize = Math.min(
+      Math.max(parseInt(req.query.pageSize || '25', 10), 1),
+      100
+    );
+    const offset = (page - 1) * pageSize;
 
- if (error) {
- logger.error('[GET /api/runs] Database query error:', error);
- throw error;
- }
+    logger.info('[GET /api/runs] Request received', {
+      trace: req.trace,
+      user_id: req.user.id,
+      page,
+      pageSize,
+    });
 
- const queryDuration = Date.now() - queryStartTime;
- if (queryDuration > 2000) {
- logger.warn('[GET /api/runs] Slow query detected', {
- duration_ms: queryDuration,
- user_id: req.user.id,
- runs_count: runsData?.length || 0,
- message: 'Consider adding database indexes: idx_automation_runs_user_id_started_at'
- });
- }
+    // 3) Main runs query (your existing fields) + pagination
+    const queryStartTime = Date.now();
 
- // Fetch task details separately to avoid slow join
- // This is more efficient than a JOIN when we have proper indexes
- const taskIds = [...new Set((runsData || []).filter(r => r.task_id).map(r => r.task_id))];
- let tasksMap = {};
+    const { data: runsData, error, count } = await supabase
+      .from('automation_runs')
+      .select(
+        `
+        id,
+        status,
+        started_at,
+        ended_at,
+        result,
+        artifact_url,
+        task_id
+      `,
+        { count: 'exact' } // ask Supabase for total count
+      )
+      .eq('user_id', req.user.id)
+      .order('started_at', { ascending: false })
+      .range(offset, offset + pageSize - 1); // pagination window
 
- if (taskIds.length > 0) {
- const taskQueryStart = Date.now();
- const { data: tasks, error: tasksError } = await supabase
- .from('automation_tasks')
- .select('id, name, url, task_type')
- .in('id', taskIds);
+    if (error) {
+      logger.error('[GET /api/runs] Database query error', {
+        error_message: error.message,
+        user_id: req.user.id,
+      });
+      throw error;
+    }
 
- if (tasksError) {
- logger.warn('[GET /api/runs] Error fetching tasks (non-critical):', tasksError);
- // Don't fail the request if tasks can't be fetched
- } else if (tasks) {
- tasksMap = tasks.reduce((acc, task) => {
- acc[task.id] = { name: task.name, url: task.url, task_type: task.task_type };
- return acc;
- }, {});
- }
+    const queryDuration = Date.now() - queryStartTime;
 
- const taskQueryDuration = Date.now() - taskQueryStart;
- if (taskQueryDuration > 1000) {
- logger.warn('[GET /api/runs] Slow task query detected', {
- duration_ms: taskQueryDuration,
- task_count: taskIds.length
- });
- }
- }
+    if (queryDuration > 2000) {
+      logger.warn('[GET /api/runs] Slow query detected', {
+        duration_ms: queryDuration,
+        user_id: req.user.id,
+        runs_count: runsData?.length || 0,
+        message:
+          'Consider adding database indexes: idx_automation_runs_user_id_started_at',
+      });
+    }
 
- // Merge task data into runs
- const data = runsData.map(run => ({
- id: run.id,
- status: run.status,
- started_at: run.started_at,
- ended_at: run.ended_at,
- result: run.result,
- artifact_url: run.artifact_url,
- automation_tasks: run.task_id ? tasksMap[run.task_id] || null : null
- }));
+    logger.info('[GET /api/runs] DB query completed', {
+      trace: req.trace,
+      user_id: req.user.id,
+      performance: { duration: queryDuration },
+      result: {
+        rows_returned: runsData?.length || 0,
+        total_count: count ?? 0,
+      },
+    });
 
- const duration = Date.now() - startTime;
- logger.info('[GET /api/runs] Success', {
- user_id: req.user.id,
- runs_count: data?.length || 0,
- duration_ms: duration
- });
- res.json(data || []);
- } catch (err) {
- const duration = Date.now() - startTime;
- logger.error('[GET /api/runs] Error', {
- error: err.message,
- stack: err.stack,
- user_id: req.user?.id,
- duration_ms: duration
- });
- res.status(500).json({ error: 'Failed to fetch runs', details: err.message });
- }
+    // 4) Fetch task details (your existing pattern)
+    const taskIds = [
+      ...new Set((runsData || []).filter((r) => r.task_id).map((r) => r.task_id)),
+    ];
+    let tasksMap = {};
+
+    if (taskIds.length > 0) {
+      const taskQueryStart = Date.now();
+
+      const { data: tasks, error: tasksError } = await supabase
+        .from('automation_tasks')
+        .select('id, name, url, task_type')
+        .in('id', taskIds);
+
+      if (tasksError) {
+        logger.warn(
+          '[GET /api/runs] Error fetching tasks (non-critical)',
+          {
+            error_message: tasksError.message,
+          }
+        );
+        // don't throw; keep going with runs only
+      } else if (tasks) {
+        tasksMap = tasks.reduce((acc, task) => {
+          acc[task.id] = {
+            name: task.name,
+            url: task.url,
+            task_type: task.task_type,
+          };
+          return acc;
+        }, {});
+      }
+
+      const taskQueryDuration = Date.now() - taskQueryStart;
+      if (taskQueryDuration > 1000) {
+        logger.warn('[GET /api/runs] Slow task query detected', {
+          duration_ms: taskQueryDuration,
+          task_count: taskIds.length,
+        });
+      }
+    }
+
+    // 5) Merge task data into runs
+    const data =
+      runsData?.map((run) => ({
+        id: run.id,
+        status: run.status,
+        started_at: run.started_at,
+        ended_at: run.ended_at,
+        result: run.result,
+        artifact_url: run.artifact_url,
+        automation_tasks: run.task_id ? tasksMap[run.task_id] || null : null,
+      })) || [];
+
+    // Pagination metadata
+    const total = count ?? 0;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+
+    const duration = Date.now() - startTime;
+
+    logger.info('[GET /api/runs] Success', {
+      trace: req.trace,
+      user_id: req.user.id,
+      runs_count: data.length,
+      duration_ms: duration,
+      pagination: { page, pageSize, total, totalPages },
+    });
+
+    return res.json({
+      data,
+      page,
+      pageSize,
+      total,
+      totalPages,
+    });
+  } catch (err) {
+    const duration = Date.now() - startTime;
+
+    logger.error('[GET /api/runs] Error', {
+      trace: req.trace,
+      error: err.message,
+      stack: err.stack,
+      user_id: req.user?.id,
+      duration_ms: duration,
+    });
+
+    return res
+      .status(500)
+      .json({ error: 'Failed to fetch runs', details: err.message });
+  }
 });
 
 // GET /api/runs/:id - Fetch a single automation run by ID
