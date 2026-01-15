@@ -421,3 +421,5 @@ rpa-system/monitoring/alertmanager.yml
 .terraform.lock.hcl
 rpa-system/rpa-dashboard/public/firebase-config.js
 code-quality-report.json
+infrastructure/keys/
+*.json
