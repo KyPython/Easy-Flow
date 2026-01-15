@@ -52,7 +52,7 @@ jobs:
           # Install Snyk CLI if not available
           npm install -g snyk || true
           # Run security scan (blocks on high+ vulnerabilities)
-          ./scripts/security-scan.sh || (echo "❌ Security scan failed - high+ vulnerabilities found" && exit 1)
+          ./scripts/security-scan.sh || (echo "❌ Security scan failed. BLOCKING: High+ vulnerabilities found. Run './scripts/security-scan.sh' locally to fix." && exit 1)
 
       - name: Auto-fix code formatting (before tests)
         run: |
@@ -78,17 +78,17 @@ jobs:
       - name: Run comprehensive test suite
         run: |
           chmod +x scripts/test-all.sh scripts/lint-and-test.sh scripts/code-quality-check.sh
-          ./scripts/test-all.sh || (echo "❌ Test suite failed - tests must pass before production deployment" && exit 1)
+          ./scripts/test-all.sh || (echo "❌ Tests failed. BLOCKING: Run './scripts/test-all.sh' locally to debug." && exit 1)
 
       - name: Run code quality check
         run: |
           chmod +x scripts/code-quality-check.sh scripts/generate-quality-report.sh
-          ./scripts/code-quality-check.sh || echo "⚠️ Code quality issues found (non-blocking)"
+          ./scripts/code-quality-check.sh || echo "⚠️ Code quality issues found. Run './scripts/code-quality-check.sh' locally to improve."
 
       - name: Run comprehensive code validation (SRP, Dynamic, Theme, Logging)
         run: |
           chmod +x scripts/validate-all.sh scripts/validate-srp.sh scripts/validate-dynamic-code.sh scripts/validate-theme-consistency.sh scripts/validate-logging-integration.sh
-          ./scripts/validate-all.sh || (echo "❌ Code validation failed - SRP, dynamic code, theme consistency, or logging integration issues found" && exit 1)
+          ./scripts/validate-all.sh || (echo "❌ Validation failed. BLOCKING: Run './scripts/validate-all.sh' locally to fix SRP/Dynamic/Theme/Logging issues." && exit 1)
 
       - name: Run accessibility checks - CRITICAL
         run: |
@@ -111,19 +111,19 @@ jobs:
             sleep 2
           done
           mkdir -p results
-          npx pa11y-ci --config .pa11yci.json || (kill $SERVER_PID 2>/dev/null || true; echo "❌ Accessibility tests failed - WCAG2AA violations found" && exit 1)
-          npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --exit --save results/axe-report.json || (kill $SERVER_PID 2>/dev/null || true; echo "❌ Axe-core accessibility tests failed" && exit 1)
+          npx pa11y-ci --config .pa11yci.json || (kill $SERVER_PID 2>/dev/null || true; echo "❌ Accessibility failed. BLOCKING: WCAG2AA violations. Run 'npx pa11y-ci' locally." && exit 1)
+          npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --exit --save results/axe-report.json || (kill $SERVER_PID 2>/dev/null || true; echo "❌ Axe-core failed. BLOCKING: Run axe-core locally." && exit 1)
           kill $SERVER_PID 2>/dev/null || true
 
       - name: Validate RAG Knowledge Base - CRITICAL
         run: |
           chmod +x scripts/validate-rag-knowledge.sh
-          ./scripts/validate-rag-knowledge.sh || (echo "❌ RAG knowledge validation failed - AI Agent knowledge is outdated or missing. Please update ragClient.js seedEasyFlowKnowledge() and aiWorkflowAgent.js system prompts." && exit 1)
+          ./scripts/validate-rag-knowledge.sh || (echo "❌ RAG validation failed. BLOCKING: Knowledge outdated. Update ragClient.js seedEasyFlowKnowledge() and aiWorkflowAgent.js prompts." && exit 1)
 
       - name: Validate Analytics Tracking - CRITICAL (Business Metrics)
         run: |
           chmod +x scripts/validate-analytics-tracking.sh
-          ./scripts/validate-analytics-tracking.sh || (echo "❌ Analytics tracking validation failed - Feature tracking, signup tracking, or login tracking is missing. This is critical for business metrics." && exit 1)
+          ./scripts/validate-analytics-tracking.sh || (echo "❌ Analytics validation failed. BLOCKING: Critical tracking missing. Run './scripts/validate-analytics-tracking.sh' locally." && exit 1)
 
       - name: Terraform Validation (if infrastructure changes)
         if: contains(github.event.head_commit.modified, 'infrastructure/') || contains(github.event.head_commit.added, 'infrastructure/')
@@ -132,7 +132,7 @@ jobs:
             echo "🔍 Validating Terraform configuration..."
             chmod +x scripts/terraform-validate.sh
             cd infrastructure
-            ../scripts/terraform-validate.sh || (echo "❌ Terraform validation failed - infrastructure must be valid before production deployment" && exit 1)
+            ../scripts/terraform-validate.sh || (echo "❌ Terraform validation failed. BLOCKING: Run 'terraform validate' locally." && exit 1)
           else
             echo "○ No infrastructure changes detected, skipping Terraform validation"
           fi

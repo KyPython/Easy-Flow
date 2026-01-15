@@ -42,7 +42,7 @@ jobs:
           # Just verify Node.js files parse correctly
           if [ -d "rpa-system/backend" ]; then
             cd rpa-system/backend
-            node --check routes/*.js services/*.js 2>/dev/null || echo "⚠️ Some syntax issues found (non-blocking)"
+            node --check routes/*.js services/*.js 2>/dev/null || echo "⚠️ Syntax issues found. ACTION: Check your JS files for syntax errors."
             cd ../..
           fi
         continue-on-error: true
@@ -53,7 +53,7 @@ jobs:
           # Frontend build check (skip if no changes)
           if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
             cd rpa-system/rpa-dashboard
-            timeout 120 npm run build 2>&1 | head -50 || echo "⚠️ Build issues (non-blocking on dev)"
+            timeout 120 npm run build 2>&1 | head -50 || echo "⚠️ Build failed. ACTION: Run 'npm run build' in rpa-dashboard locally to fix."
             cd ../..
           fi
         continue-on-error: true
