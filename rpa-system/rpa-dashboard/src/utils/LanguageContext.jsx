@@ -49,7 +49,7 @@ export const LanguageProvider = ({ children }) => {
  }
  };
  load();
- }, [user]);
+ }, [user?.id]);
 
  // Reflect language to <html lang> and body data-language for CSS/hooks
  useEffect(() => {

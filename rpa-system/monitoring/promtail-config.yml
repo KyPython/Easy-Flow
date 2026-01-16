@@ -160,12 +160,10 @@ scrape_configs:
 
     pipeline_stages:
       # 1) Robust JSON extraction: Find the first '{' and take everything until the end
-      # This handles all formats:
-      # - "0|backend | 2026-01-16 10:13:43: {"level":...}"
-      # - "2026-01-16 10:13:43 {"level":...}"
-      # - "{"level":...}"
       - regex:
-          expression: '(?P<json_content>\{.*\})$'
+          # Match from the first '{' to the end of the line
+          # This handles prefixes like "0|backend | 2026-01-16 12:14:43: "
+          expression: '(?P<json_content>\{.*\})'
           source: message
 
       # 2) Use extracted JSON if found, otherwise fallback to original message
@@ -224,4 +222,4 @@ scrape_configs:
 
       # 8) Final output: use full JSON as the message
       - output:
-          source: message
+          source: json_source

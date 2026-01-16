@@ -19,7 +19,7 @@ scrape_configs:
     pipeline_stages:
       # 1. Strip the PM2 timestamp prefix (YYYY-MM-DD HH:mm:ss) to get the JSON content
       - regex:
-          expression: '^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(?P<content>\{.*\})$'
+          expression: '(?P<content>\{.*\})'
       
       # 2. Set the log line to be just the JSON content
       - output:

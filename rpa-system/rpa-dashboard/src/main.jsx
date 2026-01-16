@@ -17,8 +17,8 @@ if (typeof window !== 'undefined') {
  } catch (e) {
  // localStorage may not be available
  }
- // Default: sample 1% of console.log calls (1 in 100) - more aggressive
- return 100;
+ // Default: sample 100% of console.log calls (1 in 1) - see all logs
+ return 1;
  };
 
  const CONSOLE_SAMPLE_RATE = getConsoleSampleRate();
