@@ -7,8 +7,10 @@ on:
     branches: [ dev ]
 
 jobs:
-  validate:
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      node: 22.x
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,24 +24,68 @@ jobs:
       - name: Commit message enforcement (Conventional Commits)
         run: |
           git log -1 --pretty=%B | xargs -I {} ./scripts/git-workflow-helper.sh commit:validate "{}" || true
+  lint:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - run: npm ci || npm install --no-audit --no-fund
+      - name: Lint
+        run: |
+          chmod +x scripts/lint-and-test.sh || true
+          ./scripts/lint-and-test.sh || true
+  test:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - run: npm ci || npm install --no-audit --no-fund
+      - name: Tests
+        run: |
+          chmod +x scripts/test-all.sh || true
+          ./scripts/test-all.sh || true
+  build:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - run: npm ci || npm install --no-audit --no-fund
       - name: Environment check
         run: |
           chmod +x scripts/dev-env-check.sh || true
           ./scripts/dev-env-check.sh || true
-      - name: Lint and quick tests
+      - name: Build
         run: |
-          chmod +x scripts/lint-and-test.sh || true
-          ./scripts/lint-and-test.sh || true
-      - name: Build validation
-        run: |
-          chmod +x scripts/test-all.sh || true
-          ./scripts/test-all.sh || true
+          echo "Build step placeholder; replace with actual build when available" || true
+  terraform:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: hashFiles('infrastructure/**/*.tf') != ''
+    steps:
+      - uses: actions/checkout@v4
       - name: Terraform fmt/validate
-        if: hashFiles('infrastructure/**/*.tf') != ''
         run: |
           chmod +x scripts/terraform-fmt.sh scripts/terraform-validate.sh || true
           ./scripts/terraform-fmt.sh --check || true
           ./scripts/terraform-validate.sh || true
+  security:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - run: npm ci || npm install --no-audit --no-fund
       - name: Security scan
         run: |
           chmod +x scripts/security-scan.sh || true
