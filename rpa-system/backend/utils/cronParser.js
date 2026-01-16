@@ -1,9 +1,9 @@
 /**
  * Natural Language Cron Parser
- * 
+ *
  * Translates human-readable schedule descriptions into cron expressions.
  * Enables the AI agent to understand "every 15 mins" -> cron expression
- * 
+ *
  * Examples:
  * - "every 15 mins" -> converts to cron expression for every 15 minutes
  * - "every hour" -> converts to cron expression for hourly
@@ -113,7 +113,7 @@ function parseNaturalLanguageCron(naturalLanguage, options = {}) {
     if (weeklyMatch) {
       const dayName = weeklyMatch[1] || 'monday';
       const dayNumber = parseDayOfWeek(dayName);
-      
+
       if (dayNumber === null) {
         return { cronExpression: null, description: null, isValid: false, error: `Invalid day: ${dayName}` };
       }
@@ -151,7 +151,7 @@ function parseNaturalLanguageCron(naturalLanguage, options = {}) {
     const monthlyMatch = input.match(/(?:monthly|every\s+month)(?:\s+on\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?)?(?:\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?/i);
     if (monthlyMatch) {
       const dayOfMonth = monthlyMatch[1] ? parseInt(monthlyMatch[1], 10) : 1;
-      
+
       if (dayOfMonth < 1 || dayOfMonth > 31) {
         return { cronExpression: null, description: null, isValid: false, error: `Invalid day of month: ${dayOfMonth}` };
       }

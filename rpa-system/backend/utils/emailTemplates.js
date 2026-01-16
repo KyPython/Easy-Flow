@@ -224,7 +224,7 @@ function getWelcomeEmail(data = {}) {
 function getFollowupEmail(data = {}) {
   const { name } = data;
   const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
-  
+
   const subject = '🚀 Ready to automate your first task?';
   const html = `
     <p>Hi${name ? ' ' + name : ''},</p>
@@ -247,7 +247,7 @@ function getFollowupEmail(data = {}) {
 function getActivationReminderEmail(data = {}) {
   const { name } = data;
   const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
-  
+
   const subject = '💡 Create your first workflow in 5 minutes';
   const html = `
     <p>Hi${name ? ' ' + name : ''},</p>
@@ -271,7 +271,7 @@ function getActivationReminderEmail(data = {}) {
 function getSuccessTipsEmail(data = {}) {
   const { name } = data;
   const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
-  
+
   const subject = '✨ Success stories from EasyFlow users';
   const html = `
     <p>Hi${name ? ' ' + name : ''},</p>

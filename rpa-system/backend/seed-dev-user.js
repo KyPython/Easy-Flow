@@ -18,7 +18,7 @@ const DEV_EMAIL = 'developer@localhost';
 const DEV_PASSWORD = 'dev-password-123'; // Default password for dev user
 
 async function seed() {
-  console.log(`🌱 Seeding dev environment...`);
+  console.log('🌱 Seeding dev environment...');
   console.log(`   User ID: ${DEV_USER_ID}`);
   console.log(`   Email:   ${DEV_EMAIL}`);
 
@@ -26,7 +26,7 @@ async function seed() {
   try {
     // Try to get the user first
     const { data: { user }, error: findError } = await supabase.auth.admin.getUserById(DEV_USER_ID);
-    
+
     if (!user) {
       console.log('   Creating auth user...');
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
@@ -36,7 +36,7 @@ async function seed() {
         email_confirm: true,
         user_metadata: { name: 'Local Developer' }
       });
-      
+
       if (createError) {
         // If error is "User already registered", we might have missed it in getUserById or it's a soft delete issue
         if (createError.message.includes('already registered')) {
@@ -114,7 +114,7 @@ async function seed() {
           // Get professional plan id
           const { data: plan } = await supabase.from('plans').select('id').eq('id', 'professional').maybeSingle();
           const planId = plan ? plan.id : 'professional';
-          
+
           const { error: subError } = await supabase.from('subscriptions').insert([{
               user_id: DEV_USER_ID,
               plan_id: planId,

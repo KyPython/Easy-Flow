@@ -1507,7 +1507,7 @@ class WorkflowExecutor {
  // Execute workflow steps
  // Extract connections from workflow steps for checkpointing
  const stepConnections = workflow.workflow_steps?.map(s => s.connections || []).flat() || [];
- 
+
  const result = await this.executeStep(execution, startStep, currentData, workflow, new Set(), partialResults, {
    enableCheckpointing,
    job,
