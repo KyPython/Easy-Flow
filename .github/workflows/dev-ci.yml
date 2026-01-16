@@ -19,6 +19,9 @@ jobs:
       - name: Install deps (no hooks)
         run: |
           npm ci || npm install --no-audit --no-fund
+      - name: Commit message enforcement (Conventional Commits)
+        run: |
+          git log -1 --pretty=%B | xargs -I {} ./scripts/git-workflow-helper.sh commit:validate "{}" || true
       - name: Environment check
         run: |
           chmod +x scripts/dev-env-check.sh || true
@@ -37,3 +40,7 @@ jobs:
           chmod +x scripts/terraform-fmt.sh scripts/terraform-validate.sh || true
           ./scripts/terraform-fmt.sh --check || true
           ./scripts/terraform-validate.sh || true
+      - name: Security scan
+        run: |
+          chmod +x scripts/security-scan.sh || true
+          ./scripts/security-scan.sh || true
