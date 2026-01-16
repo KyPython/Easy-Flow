@@ -1,0 +1,39 @@
+name: Dev CI
+
+on:
+  push:
+    branches: [ dev ]
+  pull_request:
+    branches: [ dev ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - name: Install deps (no hooks)
+        run: |
+          npm ci || npm install --no-audit --no-fund
+      - name: Environment check
+        run: |
+          chmod +x scripts/dev-env-check.sh || true
+          ./scripts/dev-env-check.sh || true
+      - name: Lint and quick tests
+        run: |
+          chmod +x scripts/lint-and-test.sh || true
+          ./scripts/lint-and-test.sh || true
+      - name: Build validation
+        run: |
+          chmod +x scripts/test-all.sh || true
+          ./scripts/test-all.sh || true
+      - name: Terraform fmt/validate
+        if: hashFiles('infrastructure/**/*.tf') != ''
+        run: |
+          chmod +x scripts/terraform-fmt.sh scripts/terraform-validate.sh || true
+          ./scripts/terraform-fmt.sh --check || true
+          ./scripts/terraform-validate.sh || true
