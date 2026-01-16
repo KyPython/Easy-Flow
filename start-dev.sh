@@ -890,6 +890,10 @@ if [ "$BACKEND_OK" = true ]; then
         echo -e "${YELLOW}Seeding development user and data...${NC}"
         node rpa-system/backend/seed-dev-user.js || echo -e "${YELLOW}⚠ Seeding failed (non-critical)${NC}"
     fi
+    if [ -f "rpa-system/backend/fix-db-schema.js" ]; then
+        echo -e "${YELLOW}Checking database schema...${NC}"
+        node rpa-system/backend/fix-db-schema.js || true
+    fi
 fi
 
 # Wait for Automation Worker (reduced timeout for dev)

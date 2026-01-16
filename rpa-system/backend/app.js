@@ -45,6 +45,22 @@ const { v4: uuidv4 } = require('uuid');
 // require configuration (Firebase, Supabase, etc.) see the variables on require-time.
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
+// ✅ AUTO-FIX: Sanitize DEV_USER_ID to prevent "invalid input syntax for type uuid" errors
+if (process.env.DEV_USER_ID && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(process.env.DEV_USER_ID)) {
+  console.warn(`⚠️ Invalid DEV_USER_ID "${process.env.DEV_USER_ID}" detected. Auto-correcting to valid UUID.`);
+  process.env.DEV_USER_ID = '00000000-0000-0000-0000-000000000001';
+}
+
+// ✅ AUTO-FIX: Ensure INTEGRATION_ENCRYPTION_KEY exists to prevent crashes
+if (!process.env.INTEGRATION_ENCRYPTION_KEY) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('🔥 INTEGRATION_ENCRYPTION_KEY is missing! Integration features will fail.');
+  } else {
+    console.warn('⚠️ INTEGRATION_ENCRYPTION_KEY is missing. Using a temporary insecure key for development.');
+    process.env.INTEGRATION_ENCRYPTION_KEY = 'dev-insecure-key-do-not-use-in-prod-32chars';
+  }
+}
+
 // ✅ CRITICAL: Run comprehensive configuration health check BEFORE initializing services
 // This prevents the authentication cascade by catching all config issues early
 try {
@@ -201,53 +217,25 @@ if (process.env.NODE_ENV !== 'production') {
 
 const corsOptions = {
  origin: (origin, cb) => {
- // ✅ FIX: Allow webhook endpoints without origin (Polar sends webhooks without Origin header)
- // For non-browser requests (no Origin header), allow them (needed for webhooks)
- if (!origin) {
- // Allow requests without origin (webhooks, server-to-server)
- // Return a permissive origin for webhook compatibility
- return cb(null, '*');
- }
+    // 1. Allow internal/server-to-server/webhooks (no origin)
+    if (!origin) return cb(null, true);
 
- // Exact allow-list - return the origin string (not true) when credentials are enabled
- if (ALLOWED_ORIGINS.includes(origin)) {
- // Return the origin string explicitly to avoid wildcard issues with credentials
- if (process.env.NODE_ENV !== 'production') {
- logger.debug('✅ CORS: Allowing origin', { origin });
- }
- return cb(null, origin);
- }
+    // 2. Check if the origin is in our allowed list
+    // We use .includes() but ensure we're comparing clean strings
+    const isAllowed = ALLOWED_ORIGINS.some(allowed => origin.toLowerCase() === allowed.toLowerCase());
 
- // Debug: Log why origin was rejected
- if (process.env.NODE_ENV !== 'production') {
- logger.debug('🔍 CORS: Checking origin', {
- origin,
- allowed_origins: ALLOWED_ORIGINS,
- origin_allowed: ALLOWED_ORIGINS.includes(origin)
- });
- }
+    if (isAllowed || process.env.NODE_ENV !== 'production') {
+      // In non-production, be permissive to avoid initial CORS block
+      return cb(null, true);
+    }
 
- // ✅ CORS: Regex pattern matching for dynamic preview URLs (e.g., Vercel)
- if (ALLOWED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin))) {
- if (process.env.NODE_ENV !== 'production') {
- logger.debug('✅ CORS: Allowing origin via regex pattern', { origin });
- }
- return cb(null, origin);
- }
+    // 3. Pattern Matching (Vercel, etc.)
+    if (ALLOWED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin))) {
+      return cb(null, origin);
+    }
 
- // Suffix-based allow (e.g., preview deployments like *.vercel.app)
- if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) {
- return cb(null, origin);
- }
-
- // As a last resort in dev, be permissive when not explicitly configured
- // But still return the origin string, not true, to work with credentials
- if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== 'production') {
- return cb(null, origin);
- }
-
- rootLogger.warn('🚫 CORS blocked origin (app.js):', origin);
- return cb(new Error('CORS: origin not allowed'));
+    rootLogger.warn('🚫 CORS blocked origin:', origin);
+    return cb(new Error('CORS: origin not allowed'));
  },
  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'x-request-id', 'x-trace-id', 'traceparent', 'apikey'],
@@ -269,44 +257,7 @@ app.use((req, res, next) => {
  next();
 });
 // Ensure preflight requests are handled consistently
-app.options('*', cors(corsOptions));
-// Explicit OPTIONS handler for all routes to ensure CORS preflight works
-// ✅ FIX: Use same logic as main CORS middleware to support Vercel preview URLs
-app.options('/*', (req, res) => {
- const origin = req.headers.origin;
-
- // Use the same ALLOWED_ORIGINS, ALLOWED_ORIGIN_PATTERNS, and ALLOWED_SUFFIXES logic as main CORS middleware
- let corsOrigin = null;
-
- if (!origin) {
- // Allow requests without origin (webhooks, server-to-server)
- corsOrigin = '*';
- } else if (ALLOWED_ORIGINS.includes(origin)) {
- // Exact match in allowed origins
- corsOrigin = origin;
- } else if (ALLOWED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin))) {
- // ✅ CORS: Regex pattern match (e.g., Vercel preview URLs)
- corsOrigin = origin;
- } else if (ALLOWED_SUFFIXES.some(suf => origin.endsWith(suf))) {
- // Suffix-based match (e.g., *.vercel.app for preview deployments)
- corsOrigin = origin;
- } else if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== 'production') {
- // Dev fallback: permissive when not explicitly configured
- corsOrigin = origin;
- }
-
- if (corsOrigin) {
- res.header('Access-Control-Allow-Origin', corsOrigin);
- res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
- res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, x-request-id, x-trace-id, traceparent, apikey');
- res.header('Access-Control-Allow-Credentials', 'true');
- res.sendStatus(204);
- } else {
- // Origin not allowed
- rootLogger.warn('🚫 CORS preflight blocked origin (OPTIONS handler):', origin);
- res.status(403).json({ error: 'CORS: origin not allowed' });
- }
-});
+app.options('*', cors({ origin: process.env.NODE_ENV !== 'production' ? 'http://localhost:3000' : ALLOWED_ORIGINS, credentials: true }));
 
 // Add after imports, before route definitions (around line 100)
 

@@ -4,6 +4,8 @@ import supabase, { initSupabase } from './supabaseClient';
 import { fetchWithAuth } from './devNetLogger';
 import { createLogger } from './logger';
 
+const IS_DEV = process.env.NODE_ENV === 'development';
+
 const AuthContext = createContext();
 
 export const useAuth = () => {
@@ -15,6 +17,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
+ const isDevelopment = process.env.NODE_ENV === 'development';
  const [user, setUser] = useState(null);
  const [loading, setLoading] = useState(true);
  const [session, setSession] = useState(null);
@@ -86,16 +89,18 @@ export const AuthProvider = ({ children }) => {
  });
  }
  } catch (error) {
- // IMPROVED: Don't clear session on network errors - preserve existing session
- // This prevents sign-out on page refresh when backend is temporarily unreachable
- if (error.message && error.message.includes('JSON')) {
- logger.error('Backend session check failed - received HTML instead of JSON. Backend may be down or misconfigured', error);
+ const errorMessage = error instanceof Error ? error.message : String(error);
+ 
+ if (errorMessage.includes('JSON')) {
+ logger.error('Backend session check failed - received HTML instead of JSON.', error);
  } else {
- logger.warn('Backend session check failed (network error)', { error: error.message || error });
+ // Safely log the error without referencing undefined variables
+ logger.warn('Backend session check failed (network error)', { 
+ error: errorMessage,
+ isDev: isDevelopment 
+ });
  }
  logger.debug('Preserving existing session state due to network error');
- // Don't clear user/session - let the existing Supabase session persist
- // Only clear on explicit 401 (handled above)
  }
  return false;
  };
@@ -138,6 +143,19 @@ export const AuthProvider = ({ children }) => {
  if (startupToken === 'undefined' || startupToken === 'null') startupToken = null;
 
  // Then try backend auth (will accept Authorization header or cookie if present)
+  // Dev bypass: auto-auth specific emails locally if no session
+ try {
+   const isDev = process.env.NODE_ENV === 'development';
+   const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+   const allowed = ['kyjahntsmith@gmail.com', 'kyjahnsmith36@gmail.com'];
+   const lastEmail = (typeof localStorage !== 'undefined') ? (localStorage.getItem('last_login_email') || '') : '';
+   if (isDev && isLocal && !user && !session && allowed.includes(lastEmail)) {
+     const mockUser = { id: '00000000-0000-0000-0000-000000000001', email: lastEmail };
+     setUser(mockUser);
+     setSession({ user: mockUser, access_token: null });
+     logger.info('Dev bypass applied for local run', { email: lastEmail });
+   }
+ } catch (_) {}
  await checkBackendAuth(startupToken);
  logger.debug('Initialization complete', { email: user?.email || 'none' });
  } catch (error) {
@@ -210,6 +228,7 @@ export const AuthProvider = ({ children }) => {
  setSession(session);
  if (session?.access_token) {
  localStorage.setItem('dev_token', session.access_token);
+          try { if (email) localStorage.setItem('last_login_email', email); } catch (_) {}
  }
  // Convert pending signup flag to active signup flag for conversion tracking
  if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('just_signed_up_pending') === 'true') {
@@ -266,6 +285,7 @@ export const AuthProvider = ({ children }) => {
  setSession(data.session);
  if (data.session?.access_token) {
  localStorage.setItem('dev_token', data.session.access_token);
+          try { if (email) localStorage.setItem('last_login_email', email); } catch (_) {}
  }
  // Convert pending signup flag to active signup flag for conversion tracking
  if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('just_signed_up_pending') === 'true') {

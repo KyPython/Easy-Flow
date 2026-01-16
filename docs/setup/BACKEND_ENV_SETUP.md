@@ -161,6 +161,13 @@ SLACK_CLIENT_SECRET=your-slack-client-secret
 8. Click "Install to Workspace" (you'll need workspace admin approval)
 9. Copy the "Client ID" and "Client Secret" from "App Credentials" to your `.env` file
 
+### 4. Security (REQUIRED)
+
+```bash
+# Used for encrypting sensitive integration credentials
+INTEGRATION_ENCRYPTION_KEY=your-32-byte-hex-key
+```
+
 ## Quick Setup Checklist
 
 - [ ] `FIREBASE_PROJECT_ID` is set to `easyflow-77db9`
@@ -173,6 +180,7 @@ SLACK_CLIENT_SECRET=your-slack-client-secret
 - [ ] `GOOGLE_CLIENT_SECRET` is set (if using Google integrations)
 - [ ] `SLACK_CLIENT_ID` is set (if using Slack integration)
 - [ ] `SLACK_CLIENT_SECRET` is set (if using Slack integration)
+- [ ] `INTEGRATION_ENCRYPTION_KEY` is set (generate with `openssl rand -hex 32`)
 
 ## Verification
 

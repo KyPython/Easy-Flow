@@ -100,7 +100,7 @@ const FilesPage = () => {
  }
  }
  fetchShares();
- }, [refreshFiles, user, logger]);
+ }, [refreshFiles, user?.id]);
 
  const handleUploadComplete = (result) => {
  setUploadError('');

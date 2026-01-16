@@ -4,6 +4,42 @@ import './index.css';
 import App from './App.dashboard';
 import { ToastProvider } from './components/WorkflowBuilder/Toast';
 
+// Error Boundary to catch ChunkLoadError (lazy loading failures)
+class ChunkLoadErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    // Update state so the next render will show the fallback UI.
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    // You can also log the error to an error reporting service
+    console.error("ChunkLoadErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '20px', textAlign: 'center', marginTop: '20vh' }}>
+          <h2>Loading Error</h2>
+          <p>There was a problem loading a part of the application.</p>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{ padding: '10px 20px', cursor: 'pointer', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '4px' }}
+          >
+            Reload Application
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Global console log sampling - wrap console.log to reduce log flooding
 // Apply in all environments to prevent log flooding
 if (typeof window !== 'undefined') {
@@ -120,14 +156,18 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 
 root.render(
  isDevelopment ? (
- <ToastProvider>
- <App />
- </ToastProvider>
+ <ChunkLoadErrorBoundary>
+   <ToastProvider>
+     <App />
+   </ToastProvider>
+ </ChunkLoadErrorBoundary>
  ) : (
  <React.StrictMode>
- <ToastProvider>
- <App />
- </ToastProvider>
+   <ChunkLoadErrorBoundary>
+     <ToastProvider>
+       <App />
+     </ToastProvider>
+   </ChunkLoadErrorBoundary>
  </React.StrictMode>
  )
 );

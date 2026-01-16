@@ -61,6 +61,17 @@ scrape_configs:
             docker_stream: stream
             docker_time: time
 
+      # 1) Robust JSON extraction: Find the first '{' and take everything until the end
+      # This handles prefixes like "2026-01-16 12:14:43: " in Docker logs
+      - regex:
+          expression: '(?P<json_content>\{.*\})'
+          source: docker_log
+
+      # 2) Use extracted JSON if found, otherwise fallback to original message
+      - template:
+          source: docker_log
+          template: '{{ if .json_content }}{{ .json_content }}{{ else }}{{ .docker_log }}{{ end }}'
+
       - json:
           source: docker_log
           expressions:

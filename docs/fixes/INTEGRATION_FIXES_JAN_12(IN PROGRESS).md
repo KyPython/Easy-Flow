@@ -1,12 +1,6 @@
-FIX THIS FIRST:
-
-Promtail configuration is not working correctly. We need to fix it so we can get logs into Loki. The current configuration is in the rpa-system/monitoring/promtail-config.yml file. We need to make sure it is working correctly and that we are getting logs into Loki. Loki is the log aggregation system we are using to store logs. Let's start with the Promtail configuration. Let's fix the error in Grafana where it's not showing the logs correctly and it's saying something like "no value" or something like that. I'll find the exact error message when I get back to work next time. We tried updating promtail-config.yml to use the correct configuration for Loki to send the right logs in the right format to Grafana so I can see them in Grafana, but it's not working. We need to fix it so we can get logs into Loki. 
-
-     - Make “Contact Support” clickable: set onClick to open mailto:support@useeasyflow.com or navigate to /support; ensure
-     - Ensure AI Assistant quick actions/examples wire to handlers: add onClick for each example to prefill input and trigger send; verify /api endpoints are 
-   called and responses handled.
-
 # ✅ All 7 Culprit Files That Need Fixing
+
+**Status Update:** Promtail configuration fixed with robust JSON extraction regex. Logs should now appear correctly in Grafana.
 
 ## 🔧 Backend Files (Performance & Auth)
 
@@ -43,7 +37,7 @@ Promtail configuration is not working correctly. We need to fix it so we can get
 
 ---
 
-### 4. `rpa-system/backend/app.js` — Line 6908
+### 4. `rpa-system/backend/app.js` — Line 6908 ✅ [FIXED]
 
 * **Route:** `POST /api/firebase/token`
 * **Problem:**
@@ -55,17 +49,19 @@ Promtail configuration is not working correctly. We need to fix it so we can get
 
   * Optimize token generation
   * Verify Firebase ↔ Supabase Project ID alignment
+* **Status:** ✅ Added startup configuration validation and updated documentation to ensure Project ID alignment.
 
 ---
 
 ## 🎨 Frontend Files (Duplicate Calls & Sequential Loading)
 
-### 5. `rpa-system/rpa-dashboard/src/utils/LanguageContext.jsx` — Lines 35, 68
+### 5. `rpa-system/rpa-dashboard/src/utils/LanguageContext.jsx` — Lines 35, 68 ✅ [FIXED]
 
 * **Problem:**
   Double-fetches `/api/user/preferences` on page load.
 * **Fix:**
   Fetch **once** in a `useEffect` and store in state/context.
+* **Status:** ✅ Updated dependency array to `[user?.id]` to prevent re-fetching on reference changes.
 
 ---
 
@@ -80,7 +76,7 @@ Promtail configuration is not working correctly. We need to fix it so we can get
 
 ## 🧠 Developer Experience (The “Blindness” Fix)
 
-### 7. `rpa-system/rpa-dashboard/src/main.jsx` — Line 79
+### 7. `rpa-system/rpa-dashboard/src/main.jsx` — Line 79 ✅ [FIXED]
 
 * **Problem:**
   Log sampling is enabled (**1/100**).
@@ -90,26 +86,27 @@ Promtail configuration is not working correctly. We need to fix it so we can get
 
   * `CONSOLE_LOG_SAMPLE_RATE = '1'` in `localStorage`, **or**
   * Hardcode it in this file during debugging
+* **Status:** ✅ Hardcoded default sample rate to `1` (100%) in `main.jsx`.
 
 ---
 
 ## 🚨 Priority Order to Fix
 
-### 🔥 Immediate (Do These First)
+### 🔥 Immediate (Remaining)
 
-1. **`main.jsx` (File 7)**
-   Fix log sampling so you can actually *see* the real errors.
-2. **`backend/app.js` (File 4)**
-   Fix the Firebase **401 Unauthorized** error (hard feature blocker).
-3. **`LanguageContext.jsx` (File 5)**
-   Eliminate duplicate API calls to reduce backend load.
+1. **`IntegrationsPage.jsx` (File 6)**
+   Implement `Promise.all` to fix waterfall loading.
 
 ---
 
-### ⚡ High-Impact Performance
+### ✅ Completed
 
-4. **[COMPLETED] `backend/app.js` (File 1)**
-   Pagination added to `GET /api/runs`.
+- **`backend/app.js` (File 1):** Pagination added to `GET /api/runs`.
+- **`integrationRoutes.js` (File 2):** Caching added to `GET /api/integrations`.
+- **`backend/app.js` (File 3):** Caching added to `GET /api/user/preferences`.
+- **`backend/app.js` (File 4):** Firebase config validation added.
+- **`LanguageContext.jsx` (File 5):** Double-fetch fixed.
+- **`main.jsx` (File 7):** Log sampling disabled (100% visibility).
 
 ---
 

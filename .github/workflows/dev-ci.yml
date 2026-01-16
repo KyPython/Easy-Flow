@@ -2,16 +2,34 @@ name: Dev CI
 
 on:
   push:
-    branches: [ dev ]
+    branches: ["**"]
   pull_request:
-    branches: [ dev ]
+    branches: ["**"]
+  schedule:
+    - cron: "0 6 * * *"  # Daily at 06:00 UTC
+  workflow_dispatch:
 
 jobs:
   setup:
     runs-on: ubuntu-latest
     outputs:
       node: 22.x
+      branch: ${{ steps.branch_info.outputs.branch }}
+      mode: ${{ steps.branch_info.outputs.mode }}
+      blocking: ${{ steps.branch_info.outputs.blocking }}
     steps:
+      - name: Branch Awareness
+        id: branch_info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Node
@@ -36,7 +54,12 @@ jobs:
       - name: Lint
         run: |
           chmod +x scripts/lint-and-test.sh || true
-          ./scripts/lint-and-test.sh || true
+          if [ "${{ needs.setup.outputs.blocking }}" == "true" ]; then
+            ./scripts/lint-and-test.sh || (echo "❌ Lint failed" && exit 1)
+          else
+            ./scripts/lint-and-test.sh || echo "⚠️ Lint issues (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ needs.setup.outputs.blocking != 'true' }}
   test:
     runs-on: ubuntu-latest
     needs: setup
@@ -49,7 +72,12 @@ jobs:
       - name: Tests
         run: |
           chmod +x scripts/test-all.sh || true
-          ./scripts/test-all.sh || true
+          if [ "${{ needs.setup.outputs.blocking }}" == "true" ]; then
+            ./scripts/test-all.sh || (echo "❌ Tests failed" && exit 1)
+          else
+            ./scripts/test-all.sh || echo "⚠️ Tests failed (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ needs.setup.outputs.blocking != 'true' }}
   build:
     runs-on: ubuntu-latest
     needs: setup
@@ -62,7 +90,12 @@ jobs:
       - name: Environment check
         run: |
           chmod +x scripts/dev-env-check.sh || true
-          ./scripts/dev-env-check.sh || true
+          if [ "${{ needs.setup.outputs.blocking }}" == "true" ]; then
+            ./scripts/dev-env-check.sh || (echo "❌ Env check failed" && exit 1)
+          else
+            ./scripts/dev-env-check.sh || echo "⚠️ Env issues (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ needs.setup.outputs.blocking != 'true' }}
       - name: Build
         run: |
           echo "Build step placeholder; replace with actual build when available" || true
@@ -89,7 +122,12 @@ jobs:
       - name: Security scan
         run: |
           chmod +x scripts/security-scan.sh || true
-          ./scripts/security-scan.sh || true
+          if [ "${{ needs.setup.outputs.blocking }}" == "true" ]; then
+            ./scripts/security-scan.sh || (echo "❌ Security scan failed" && exit 1)
+          else
+            ./scripts/security-scan.sh || echo "⚠️ Security issues (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ needs.setup.outputs.blocking != 'true' }}
       - name: AI knowledge parity (non-blocking on dev)
         env:
           STRICT_MODE: "false"
