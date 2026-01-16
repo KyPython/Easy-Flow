@@ -1,0 +1,15 @@
+{
+  "supported_task_types": [
+    "web_automation",
+    "form_submission",
+    "data_extraction",
+    "file_download",
+    "invoice_download"
+  ],
+  "supported_endpoints": [
+    "/api/automation/executions",
+    "/api/automation/queue",
+    "/api/tasks/:id/executions",
+    "/api/workflows/:id/executions"
+  ]
+}

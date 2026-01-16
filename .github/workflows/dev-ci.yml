@@ -90,3 +90,9 @@ jobs:
         run: |
           chmod +x scripts/security-scan.sh || true
           ./scripts/security-scan.sh || true
+      - name: AI knowledge parity (non-blocking on dev)
+        env:
+          STRICT_MODE: "false"
+        run: |
+          chmod +x scripts/validate-ai-knowledge.sh
+          ./scripts/validate-ai-knowledge.sh || true
