@@ -884,6 +884,14 @@ if [ "$BACKEND_OK" = false ]; then
     fi
 fi
 
+# Run seed script if backend is healthy (Auto-seed dev user)
+if [ "$BACKEND_OK" = true ]; then
+    if [ -f "rpa-system/backend/seed-dev-user.js" ]; then
+        echo -e "${YELLOW}Seeding development user and data...${NC}"
+        node rpa-system/backend/seed-dev-user.js || echo -e "${YELLOW}⚠ Seeding failed (non-critical)${NC}"
+    fi
+fi
+
 # Wait for Automation Worker (reduced timeout for dev)
 AUTO_OK=false
 for i in {1..15}; do

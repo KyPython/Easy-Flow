@@ -1,0 +1,43 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: easyflow-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: easyflow-backend
+          __path__: /app/logs/*.log
+    pipeline_stages:
+      # 1. Strip the PM2 timestamp prefix (YYYY-MM-DD HH:mm:ss) to get the JSON content
+      - regex:
+          expression: '^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(?P<content>\{.*\})$'
+      
+      # 2. Set the log line to be just the JSON content
+      - output:
+          source: content
+      
+      # 3. Parse the JSON to extract labels
+      - json:
+          expressions:
+            level: level
+            service: service
+            traceId: trace.traceId
+      
+      # 4. Create labels for Loki indexing
+      - labels:
+          level:
+          service:
+      
+      # 5. Use the log's timestamp instead of ingestion time
+      - timestamp:
+          source: time
+          format: '2006-01-02 15:04:05'

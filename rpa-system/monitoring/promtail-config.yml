@@ -159,19 +159,23 @@ scrape_configs:
           __path__: /app/logs/automation-worker.log
 
     pipeline_stages:
-      # 1) Strip PM2 + process prefix (e.g. "0|easyflow-backend | 2026-01-13 12:37:08: ")
+      # 1) Robust JSON extraction: Find the first '{' and take everything until the end
+      # This handles all formats:
+      # - "0|backend | 2026-01-16 10:13:43: {"level":...}"
+      # - "2026-01-16 10:13:43 {"level":...}"
+      # - "{"level":...}"
       - regex:
-          # number | name | timestamp: JSON
-          expression: '^\d+\|[^\|]+\|\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}:\s+(?P<json_line>.*)$'
+          expression: '(?P<json_content>\{.*\})$'
           source: message
 
-      # 2) Use extracted JSON if regex matched, else keep original
+      # 2) Use extracted JSON if found, otherwise fallback to original message
       - template:
-          source: message
-          template: '{{ if .json_line }}{{ .json_line }}{{ else }}{{ .message }}{{ end }}'
+          source: json_source
+          template: '{{ if .json_content }}{{ .json_content }}{{ else }}{{ .message }}{{ end }}'
 
       # 3) Parse JSON (Pino-style)
       - json:
+          source: json_source
           expressions:
             level: level
             msg: msg
