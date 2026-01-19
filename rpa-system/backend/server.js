@@ -24,14 +24,16 @@ if (process.env.NEW_RELIC_LICENSE_KEY && process.env.NEW_RELIC_ENABLED !== 'fals
 }
 
 // Minimal HTTP server bootstrap for production
-const app = require('./app');
+// Use factory to avoid side effects during tests
+const { createApp } = require('./app');
+const app = createApp();
 
 const PORT = process.env.PORT || 3030;
 const HOST = process.env.HOST || '0.0.0.0';
 
-// Only start the server when this file is run directly. This avoids binding the
-// port during test runs when the app is required by Jest.
-if (require.main === module) {
+// Only start the server when this file is run directly and not under Jest.
+// This avoids binding the port during test runs when the app is imported by Jest.
+if (require.main === module && process.env.NODE_ENV !== 'test') {
  // ✅ DATABASE WARM-UP: Block server startup until database is ready
  // This prevents "cold start" query timeout issues with serverless databases
  // By warming up during startup (when no users are waiting), we eliminate

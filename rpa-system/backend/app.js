@@ -8924,6 +8924,25 @@ app.use((err, req, res, _next) => {
 });
 
 
+// Start the server only if this script is run directly
+if (require.main === module) {
+  const server = app.listen(PORT, () => {
+    rootLogger.info(`✅ Server listening on http://localhost:${PORT}`);
+  });
+
+  const gracefulShutdown = (signal) => {
+    rootLogger.info(`${signal} signal received: closing HTTP server.`);
+    server.close(() => {
+      rootLogger.info('HTTP server closed.');
+      // Here you might close DB connections, etc.
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+}
+
 // Export for serverless and testing
 module.exports = app;
 // Expose internal helpers for testing
