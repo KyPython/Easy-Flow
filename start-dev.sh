@@ -4,6 +4,17 @@
 # Handles dependencies, Docker, ports, ngrok, and service orchestration
 
 set -e # Exit on error
+set -o pipefail
+
+# Verbose mode
+VERBOSE=false
+for arg in "$@"; do
+  case "$arg" in
+    -v|--verbose) VERBOSE=true ;;
+  esac
+done
+[ "$VERBOSE" = true ] && set -x
+[ "$VERBOSE" = true ] && trap 'kill $(jobs -p) 2>/dev/null || true' EXIT
 
 # Configuration
 PROJECT_ROOT=$(pwd)
@@ -43,6 +54,11 @@ if [ ! -d "$RPA_SYSTEM_DIR" ]; then
 fi
 
 log "Starting self-healing initialization sequence..."
+
+# Timestamp for traceability
+echo ""
+echo "<current_datetime>$(date -Is)</current_datetime>"
+echo ""
 
 # ==============================================================================
 # 1. Helper Functions
@@ -115,7 +131,7 @@ check_and_install "$FRONTEND_DIR" "Frontend"
 
 # Self-heal: Update noisy dependency in frontend to reduce log spam
 log "Updating frontend tooling to reduce log noise..."
-(cd "$FRONTEND_DIR" && npm i baseline-browser-mapping@latest -D > /dev/null 2>&1)
+(cd "$FRONTEND_DIR" && npm i baseline-browser-mapping@latest -D)
 
 # Check for dotenv existence (backend)
 if [ ! -f "$BACKEND_DIR/.env" ] || [ ! -s "$BACKEND_DIR/.env" ]; then
@@ -154,6 +170,7 @@ if [ ${#COMPOSE_FILES[@]} -gt 0 ]; then
     while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
         if docker compose "${COMPOSE_FILES[@]}" up -d postgres redis zookeeper kafka automation-worker; then
             success "Infrastructure started successfully"
+            [ "$VERBOSE" = true ] && docker compose "${COMPOSE_FILES[@]}" logs -f --tail=50 postgres redis zookeeper kafka automation-worker &
             break
         else
             warn "Failed to start infrastructure (Attempt $ATTEMPT/$MAX_ATTEMPTS)"
@@ -175,7 +192,11 @@ fi
 if command -v ngrok &> /dev/null; then
     log "Starting ngrok tunnel..."
     pkill ngrok || true
+    if [ "$VERBOSE" = true ]; then
+    ngrok http 3030 --log=stdout &
+else
     ngrok http 3030 --log=stdout > /dev/null 2>&1 &
+fi
     sleep 3
     
     # Extract URL
@@ -217,6 +238,7 @@ if command -v pm2 &> /dev/null; then
     
     cd "$PROJECT_ROOT"
     pm2 save
+    [ "$VERBOSE" = true ] && pm2 logs --timestamp --lines 50 &
     success "Services started with PM2"
 else
     warn "PM2 not found. Starting with npm concurrently..."

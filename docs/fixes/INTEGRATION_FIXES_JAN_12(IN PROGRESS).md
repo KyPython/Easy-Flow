@@ -1,5 +1,84 @@
 # EasyFlow Design & CI/CD Guide
 
+Try this structure:
+
+Headline (outcome, not vibe)
+Instead of “Stop Doing Boring Work”, make it ultra-specific:
+“Stop Copy/Pasting Between Tools” (this is already your best line—make it the H1).
+
+Subheadline (who + what + how simple)
+One tight sentence that compresses your “Before/After” and “zero infrastructure” ideas:
+“Connect Slack, Sheets, email, Notion, and your CRM once—EasyFlow keeps them in sync automatically, with no servers or coding.”
+
+Single primary CTA
+Right now you have “Book a call” and “View pricing” competing. For clarity, pick one primary button:
+
+“Start Free Trial” or
+
+“Book Your Free Setup Call”
+Put the other as a ghost link under it (lower visual weight).
+
+Trust + effort reduction (short)
+Keep just the essentials near the hero:
+
+“No credit card required”
+
+“Cancel anytime”
+
+“Free done-with-you setup for early users”
+
+Remove or push down from the hero
+For the first screen, consider moving these below the fold:
+
+Cost mode explainer (Instant/Balanced/Scheduled)
+
+Detailed “Before/After” use cases (Slack→Sheets, Email→Notion, Form→CRM)
+
+Long “Who this is for” section
+
+Those are excellent content pieces, but they belong in sections after someone understands “what EasyFlow is and why I should care.” Keeping the top focused minimizes user effort to “get it” quickly.
+
+If you rewrite just the hero with:
+
+H1: “Stop Copy/Pasting Between Tools”
+
+1-line subhead (who/what/how)
+
+1 main CTA
+
+2–3 short trust bullets
+
+…you’ll massively improve clarity without losing your personality.
+
+For a trust-first landing, keep your intro tight and concrete: one line about who you are (background), one line about why you built EasyFlow (specific pain), and one line about how you personally help early users (done-with-you setup, direct line).
+​
+
+How would you briefly introduce yourself on the page in 1–2 sentences so it feels real but not over-explained?
+
+Perceivability: good contrast, alt text on key images, visible focus outlines on buttons/links.
+
+Operability: full keyboard navigation for forms and flows, no wild flashing, responsive layout.
+
+Understandability: consistent component patterns, clear labels, icons that match actions, minimal cognitive load in flow builders.
+
+Robustness: semantic HTML, ARIA on complex controls, and testing with screen readers.
+
+Add all of this to the CI/CD check. Everything above and below. In this whole page. : For EasyFlow, a minimal robustness pass could be:
+
+Make sure main layout uses semantic tags (header, nav, main, footer, buttons instead of divs).
+
+Add ARIA roles / labels only where semantics aren’t enough (custom menus, modals).
+
+Check forms and interactive elements work without JS-heavy assumptions (basic submit still works).
+
+A tiny mental template you can use later for EasyFlow errors:
+“Your workflow failed because [plain reason]. You can [action 1], [action 2], or [contact support link].”
+
+For Sophia, anytime a question mentions “helping users understand errors and guiding them to fix them,” that’s UX and usability, not just UI cosmetics.
+​
+
+If you imagine that template on your workflows page, what’s one specific failure reason you’d want to explain in plain English (for example, “Google Sheets connection expired” or something else)
+
 # Design Framework: Clarity, Trust, and Momentum
 
 *A practical, repeatable framework for designing clarity, trust, and momentum*
