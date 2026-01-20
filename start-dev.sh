@@ -57,7 +57,7 @@ log "Starting self-healing initialization sequence..."
 
 # Timestamp for traceability
 echo ""
-echo "<current_datetime>$(date -Is)</current_datetime>"
+echo "<current_datetime>$(date -u +%Y-%m-%dT%H:%M:%SZ)</current_datetime>"
 echo ""
 
 # ==============================================================================
