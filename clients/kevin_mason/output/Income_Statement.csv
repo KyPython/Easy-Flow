@@ -1,0 +1,9 @@
+line_item,q2_2025,q1_2025,q2_2024,six_months_2025,six_months_2024,units
+Total revenues,51728.0,,41660.0,99500.0,82970.0,USD
+Gross profit,36840.0,,29437.0,73300.0,62020.0,USD
+Operating income,1110.0,,-3550.0,26.0,-2990.0,USD
+Net income,6244.0,,1700.0,3030.0,1740.0,USD
+Earnings per share (basic),0.48,,0.0,-0.0,0.0,USD
+Average shares outstanding,39140.0,,38610.0,39080.0,39080.0,shares
+
+Note: Extracted via tabula-py (lattice) and cleaned with pandas.
