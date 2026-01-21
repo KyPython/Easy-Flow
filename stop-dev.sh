@@ -5,9 +5,11 @@ set -o pipefail
 
 # Verbose flag
 VERBOSE=false
+KEEP_VOLUMES=false
 for arg in "$@"; do
   case "$arg" in
     -v|--verbose) VERBOSE=true ;;
+    -k|--keep-volumes) KEEP_VOLUMES=true ;;
   esac
 done
 [ "$VERBOSE" = true ] && set -x
@@ -54,6 +56,14 @@ spinner() {
   local msg="$2"
   local start=$3
   local timeout=${4:-120} # Default timeout 120s
+  
+  # Disable xtrace during spinner to avoid flooding output if VERBOSE is on
+  local restore_xtrace=false
+  if [[ $- == *x* ]]; then
+    set +x
+    restore_xtrace=true
+  fi
+
   local spin='-\\|/'
   local i=0
   while kill -0 "$pid" 2>/dev/null; do
@@ -72,6 +82,10 @@ spinner() {
     sleep 0.2
   done
   printf "\r\033[K"
+
+  if [ "$restore_xtrace" = true ]; then
+    set -x
+  fi
 }
 
 run_step() {
@@ -110,16 +124,25 @@ COMPOSE_FILES=()
 [ -f "$DOCKER_COMPOSE_FILE" ] && COMPOSE_FILES+=(-f "$DOCKER_COMPOSE_FILE")
 
 if [ ${#COMPOSE_FILES[@]} -gt 0 ]; then
-  log "Stopping Docker containers (docker compose down -v --remove-orphans)..."
+  DOCKER_ARGS=("down" "--remove-orphans" "-t" "30")
+  if [ "$KEEP_VOLUMES" = false ]; then
+    log "Stopping Docker containers (docker compose down -v --remove-orphans)..."
+    DOCKER_ARGS+=("-v")
+  else
+    log "Stopping Docker containers (docker compose down --remove-orphans)..."
+  fi
+
   START_D=$(date +%s)
   # Add timeout (-t 30) and trap interrupts to ensure clean exit
-  docker compose "${COMPOSE_FILES[@]}" down -v --remove-orphans -t 30 >> "$LOG_FILE" 2>&1 &
+  docker compose "${COMPOSE_FILES[@]}" "${DOCKER_ARGS[@]}" >> "$LOG_FILE" 2>&1 &
   PID=$!
   trap "kill $PID 2>/dev/null" INT TERM
   spinner $PID "Docker down in progress" $START_D 120
+  set +e
   wait $PID
-  trap - INT TERM
   RC=$?
+  set -e
+  trap - INT TERM
   DUR=$(( $(date +%s) - START_D ))
   if [ $RC -eq 0 ]; then
     success "Docker containers stopped in ${DUR}s"
