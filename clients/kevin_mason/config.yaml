@@ -1,0 +1,27 @@
+# Financial Extraction Configuration
+company: "Target Corporation"
+default_pages: [10, 8]
+
+line_items:
+  - name: "Total revenues"
+    regex: "total revenues"
+    units: "USD"
+    min_magnitude: 1000
+    
+  - name: "Net income"
+    regex: "adjusted.*net.*income"
+    units: "USD"
+    min_magnitude: 100
+    priority_page: 10  # Force Non-GAAP if available
+    
+  - name: "Earnings per share (basic)"
+    regex: "basic"
+    section: "eps"
+    units: "per share"
+    max_magnitude: 50
+    
+  - name: "Weighted average shares outstanding (basic)"
+    regex: "basic"
+    section: "shares"
+    units: "shares"
+    min_magnitude: 1000
