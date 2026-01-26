@@ -1485,7 +1485,7 @@ const WorkflowBuilder = () => {
  <div className={styles.currentStepHeader}>
  <span className={styles.currentStepLabel}>Current Step:</span>
  <span className={styles.currentStepName}>
- {metadata.current_step || metadata.step_name || 'Processing...'}
+ {metadata.current_step || metadata.step_name || 'Reclaiming Task...'}
  </span>
  </div>
  <div className={styles.stepStatus}>

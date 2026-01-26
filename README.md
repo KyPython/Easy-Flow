@@ -48,10 +48,13 @@
 
 ## 📚 Essential Documentation
 
-### Daily Use
-- **[DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md)** - **START HERE** - Complete daily workflow guide
+### Getting Started
+- **[docs/guides/easyflow_guide.md](docs/guides/easyflow_guide.md)** - **START HERE** - Complete EasyFlow system guide
+- **[DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md)** - Daily workflow and commands
 - **[CODEBASE_NAVIGATION.md](CODEBASE_NAVIGATION.md)** - Find any code by UI click
-- **[BRANCH_AWARE_CI_CD.md](docs/BRANCH_AWARE_CI_CD.md)** - How dev/main branches work
+
+### Use Cases
+- **[docs/use-cases/PORTAL_CSV_AUTOMATION.md](docs/use-cases/PORTAL_CSV_AUTOMATION.md)** - Portal CSV automation guide
 
 ### Client Automation (Revenue)
 - **[CLIENT_AUTOMATION_QUICK_START.md](docs/CLIENT_AUTOMATION_QUICK_START.md)** - **START HERE** - 15-minute action plan

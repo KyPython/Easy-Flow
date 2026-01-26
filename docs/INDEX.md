@@ -52,7 +52,11 @@ This directory contains all project documentation organized by category.
 - **GOOGLE_OAUTH_VERIFICATION.md** - Google OAuth verification fixes
 
 ### Comprehensive Guides (`docs/guides/`)
-- **COMPREHENSIVE_STUDY_GUIDE.md** - Complete system architecture and mastery guide
+- **easyflow_guide.md** - **START HERE** - Complete system guide (architecture, use cases, development)
+- **COMPREHENSIVE_STUDY_GUIDE.md** - Deep dive into architecture and implementation details
+
+### Use Cases (`docs/use-cases/`)
+- **PORTAL_CSV_AUTOMATION.md** - Portal CSV automation use case (the "robot intern")
 
 ### Philosophy & Strategy (`docs/philosophy/`)
 - **SOFTWARE_ENTROPY_PHILOSOPHY.md** - Software entropy philosophy

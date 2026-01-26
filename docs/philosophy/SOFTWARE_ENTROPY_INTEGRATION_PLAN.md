@@ -1,5 +1,10 @@
 # Software Entropy DevOps Automation Suite - Integration Plan
 
+"Sovereign Complexity Analysis" phase. This involves building a custom script (likely using AST parsing) to detect:
+
+Time Complexity Proxies: Deeply nested loops (e.g., for inside for inside map = O(n³)).
+Space Complexity Proxies: Large object allocations or array spreads inside loops.
+
 ## Core Philosophy: Hotspots Over "Wall of Shame"
 
 ### The Problem with SonarQube
@@ -331,6 +336,10 @@ exclude:
 - [ ] Add to `ship-to-production.sh`
 - [ ] Test end-to-end
 
+### Future Research (Wishlist)
+
+- [ ] **Advanced Optimization Checks:** Investigate feasibility of automated time/space complexity analysis (Big O) for CI/CD to ensure maximum code optimization.
+
 ## Recommendation
 
 **Wait for tool update, then integrate hotspot-focused approach.**
@@ -356,4 +365,3 @@ exclude:
 ---
 
 **This approach transforms code quality from "overwhelming wall of shame" to "actionable top 10 hotspots to fix."**
-

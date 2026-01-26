@@ -88,7 +88,7 @@ const DashboardRuleOfThirds = ({
       subtitle: `${metrics.totalTasks ? Math.round((metrics.completedTasks / metrics.totalTasks) * 100) : 0}% success`
     },
     {
-      title: t('dashboard.time_saved','Time Saved'),
+      title: t('dashboard.time_reclaimed','Time Reclaimed from Platforms'),
       value: `${metrics.timeSavedHours || 0}h`,
       icon: '⏰',
       trend: 'up',

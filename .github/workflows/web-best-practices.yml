@@ -1,0 +1,30 @@
+name: Web Design Best Practices
+
+on:
+  pull_request:
+    paths:
+      - 'rpa-system/rpa-dashboard/src/**'
+      - 'scripts/web_best_practices_check.py'
+  push:
+    branches: [main]
+    paths:
+      - 'rpa-system/rpa-dashboard/src/**'
+      - 'scripts/web_best_practices_check.py'
+  workflow_dispatch:
+
+jobs:
+  web-best-practices:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run web design best practices check
+        run: |
+          python scripts/web_best_practices_check.py rpa-system/rpa-dashboard/src
+      - name: Run test for best practices check
+        run: |
+          python scripts/test_web_best_practices_check.py

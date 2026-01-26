@@ -142,7 +142,27 @@ const UsageCharts = ({ data }) => {
  </div>
  )}
 
- <h2 className={styles.title} style={{ fontSize: '1.5rem', marginBottom: '1.5rem', marginTop: '2rem' }}>Time Saved</h2>
+ <h2 className={styles.title} style={{ fontSize: '1.5rem', marginBottom: '1.5rem', marginTop: '2rem' }}>Time Reclaimed from Platforms</h2>
+ {/* Sovereignty Stats Section */}
+ <section style={{ marginTop: '2rem', padding: '1.5rem', background: '#f6f8fa', borderRadius: '8px' }}>
+	 <h3 style={{ fontWeight: 'bold', marginBottom: '1rem' }}>Sovereignty Stats</h3>
+	 <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+		 <div>
+			 <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{Math.round(metrics.total_time_saved_minutes / 60 * 10) / 10 || 0}h</div>
+			 <div style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Total Autonomy Hours</div>
+		 </div>
+		 <div>
+			 <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{metrics.platforms_bridged || 0}</div>
+			 <div style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Platforms Bridged</div>
+		 </div>
+		 <div style={{ flex: 1 }}>
+			 <div style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Freedom Meter</div>
+			 <div style={{ background: '#e0e0e0', borderRadius: '6px', height: '18px', width: '100%', overflow: 'hidden' }}>
+				 <div style={{ background: 'linear-gradient(90deg, #4caf50, #2196f3)', width: `${Math.min(100, (metrics.activated_workflows || 0) * 10)}%`, height: '100%' }} />
+			 </div>
+		 </div>
+	 </div>
+ </section>
  {metrics.total_time_saved_minutes !== undefined ? (
  <div style={{ textAlign: 'center', padding: '2rem' }}>
  <div style={{ fontSize: '3rem', fontWeight: 'bold', color: 'var(--color-primary)', marginBottom: '0.5rem' }}>

@@ -29,17 +29,44 @@ const TaskProgressPanel = ({ runId, onClose, onComplete }) => {
  const pollIntervalRef = useRef(null);
  const actionsRef = useRef([]);
 
+ // Transform status messages to sovereignty language
+ const transformToSovereignty = useCallback((message) => {
+ if (!message) return message;
+ 
+ const transformations = {
+ 'Extracting data from': 'Extracting data from',
+ 'Processing': 'Applying your custom logic...',
+ 'Saving': 'Sovereignty Asserted: File saved to your custody',
+ 'Completed': 'Sovereignty Asserted: File saved to your custody',
+ 'Loading': 'Extracting data from',
+ 'Fetching': 'Extracting data from',
+ 'Writing': 'Sovereignty Asserted: File saved to your custody',
+ 'Done': 'Sovereignty Asserted: File saved to your custody'
+ };
+ 
+ for (const [key, value] of Object.entries(transformations)) {
+ if (message.includes(key)) {
+ return message.replace(key, value);
+ }
+ }
+ 
+ return message;
+ }, []);
+
  // Parse status message to extract action
  const parseStatusMessage = useCallback((message) => {
  if (!message) return null;
  
- // Extract emoji and action text
- const emojiMatch = message.match(/^([🔍🌐✅⚠️📥📤⚙️❌🔄]+)/);
- const emoji = emojiMatch ? emojiMatch[1] : '';
- const text = message.replace(/^[🔍🌐✅⚠️📥📤⚙️❌🔄]+\s*/, '').trim();
+ // Transform to sovereignty language
+ const transformedMessage = transformToSovereignty(message);
  
- return { emoji, text, full: message };
- }, []);
+ // Extract emoji and action text
+ const emojiMatch = transformedMessage.match(/^([🔍🌐✅⚠️📥📤⚙️❌🔄⚡📁]+)/);
+ const emoji = emojiMatch ? emojiMatch[1] : '';
+ const text = transformedMessage.replace(/^[🔍🌐✅⚠️📥📤⚙️❌🔄⚡📁]+\s*/, '').trim();
+ 
+ return { emoji, text, full: transformedMessage };
+ }, [transformToSovereignty]);
 
  // Fetch run status
  const fetchRunStatus = useCallback(async () => {
@@ -79,7 +106,9 @@ const TaskProgressPanel = ({ runId, onClose, onComplete }) => {
  }
 
  // Update actions log
- const statusMessage = result.status_message || result.message || 'Processing...';
+ // Sovereign Reclamation Copy
+ const statusMessage = result.status_message || result.message || 'Reclaiming Task...';
+ // Sovereign step messages can be injected by backend or mapped here if needed
  const parsedAction = parseStatusMessage(statusMessage);
  
  if (parsedAction) {
@@ -169,12 +198,12 @@ const TaskProgressPanel = ({ runId, onClose, onComplete }) => {
  <div className={`${styles.panel} ${isMinimized ? styles.minimized : ''} ${styles[theme]}`}>
  <div className={styles.header}>
  <div className={styles.headerLeft}>
- <h3 className={styles.title}>Task Progress</h3>
+ <h3 className={styles.title}>Reclaiming Task...</h3>
  {runData && (
  <span className={styles.status} style={{ color: getStatusColor() }}>
- {status === 'completed' ? '✅ Completed' : 
+ {status === 'completed' ? '✅ Sovereignty Asserted' : 
  status === 'failed' ? '❌ Failed' : 
- status === 'running' ? '⚙️ Running' : 
+ status === 'running' ? '⚡ Reclaiming...' : 
  '⏳ Queued'}
  </span>
  )}

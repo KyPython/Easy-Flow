@@ -38,18 +38,18 @@ const Dashboard = ({ metrics = {}, recentTasks = [], workflowsCount = 0, user = 
  subtitle: `${metrics.totalTasks ? Math.round((metrics.completedTasks / metrics.totalTasks) * 100) : 0}% ${t('dashboard.success_rate','worked perfectly')}`
  },
  {
- title: t('dashboard.time_saved','Time Saved'),
+ title: t('dashboard.time_saved','Time Reclaimed from Platforms'),
  value: `${metrics.timeSavedHours || 0}h`,
- icon: '⏰',
+ icon: '⚡',
  trend: 'up',
- subtitle: t('dashboard.this_month','This month')
+ subtitle: t('dashboard.autonomy_hours','Total Autonomy Hours')
  },
  {
- title: t('dashboard.documents_processed','Documents Processed'),
+ title: t('dashboard.documents_processed','Platforms Bridged'),
  value: metrics.documentsProcessed || 0,
- icon: '📄',
+ icon: '🌉',
  trend: 'up',
- subtitle: t('dashboard.files_automated','Reports, invoices, emails processed')
+ subtitle: t('dashboard.silos_broken','Silos you\'ve broken')
  }
  ];
 

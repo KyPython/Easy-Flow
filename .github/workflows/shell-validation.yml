@@ -1,0 +1,22 @@
+name: Shell Script Validation
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/*.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/*.sh'
+  workflow_dispatch:
+
+jobs:
+  shell-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Ensure scripts are executable
+        run: chmod +x scripts/*.sh
+      - name: Run all validation shell scripts
+        run: bash scripts/test-all-validations.sh

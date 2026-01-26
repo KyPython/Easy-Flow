@@ -3,7 +3,10 @@ const { logger, getLogger } = require('../utils/logger');
 const { getSupabase } = require('../utils/supabaseClient');
 const cron = require('node-cron');
 const crypto = require('crypto');
+const { v4: uuidv4 } = require('uuid');
 const { WorkflowExecutor } = require('./workflowExecutor');
+const { getWorkflowQueue } = require('./workflowQueue');
+const { STATES } = require('./workflowStateMachine');
 
 class TriggerService {
  constructor() {
@@ -489,6 +492,133 @@ class TriggerService {
 
  } catch (error) {
  logger.error('[TriggerService] Webhook execution failed:', error);
+ throw error;
+ }
+ }
+
+ /**
+ * ✅ PHASE 1.1: Async webhook trigger - queues execution and returns immediately
+ * This is the production-ready version for 100k+ scale
+ * @param {string} token - Webhook token
+ * @param {Object} payload - Webhook payload
+ * @param {Object} headers - Request headers
+ * @returns {Promise<Object>} - Execution details with job info
+ */
+ async queueWebhookTrigger(token, payload, headers) {
+ try {
+ // Find the webhook schedule (fast DB lookup)
+ const { data: schedule, error } = await this.supabase
+ .from('workflow_schedules')
+ .select(`
+ *,
+ workflow:workflows(id, name, workflow_steps, status, user_id)
+ `)
+ .eq('webhook_token', token)
+ .eq('is_active', true)
+ .single();
+
+ if (error || !schedule) {
+ throw new Error('Invalid webhook token or inactive schedule');
+ }
+
+ // Validate webhook secret if configured
+ if (schedule.webhook_secret) {
+ const signature = headers['x-webhook-signature'];
+ if (!signature || !this.validateWebhookSignature(payload, schedule.webhook_secret, signature)) {
+ throw new Error('Invalid webhook signature');
+ }
+ }
+
+ // Create execution record in PENDING state
+ const executionId = uuidv4();
+ const { data: execution, error: executionError } = await this.supabase
+ .from('workflow_executions')
+ .insert({
+ id: executionId,
+ workflow_id: schedule.workflow_id,
+ user_id: schedule.user_id,
+ state: STATES.PENDING,
+ status: 'queued',
+ input_data: payload,
+ triggered_by: 'webhook',
+ trigger_data: {
+ scheduleId: schedule.id,
+ webhookPayload: payload,
+ webhookHeaders: headers
+ },
+ execution_mode: 'balanced', // Default mode for webhooks
+ max_retries: 3,
+ retry_count: 0
+ })
+ .select()
+ .single();
+
+ if (executionError) {
+ logger.error('[TriggerService] Failed to create execution record:', executionError);
+ throw new Error(`Failed to create execution: ${executionError.message}`);
+ }
+
+ // Enqueue execution job
+ const queue = getWorkflowQueue();
+ const priority = 7; // Higher priority for webhook triggers
+ 
+ try {
+ await queue.enqueueExecution({
+ executionId,
+ workflowId: schedule.workflow_id,
+ userId: schedule.user_id,
+ inputData: payload,
+ triggeredBy: 'webhook',
+ triggerData: {
+ scheduleId: schedule.id,
+ webhookPayload: payload,
+ webhookHeaders: headers
+ },
+ executionMode: 'balanced'
+ }, { priority });
+
+ logger.info('[TriggerService] Webhook execution queued', {
+ execution_id: executionId,
+ workflow_id: schedule.workflow_id,
+ workflow_name: schedule.workflow.name,
+ schedule_id: schedule.id,
+ priority
+ });
+ } catch (queueError) {
+ // If queue fails, mark execution as failed
+ await this.supabase
+ .from('workflow_executions')
+ .update({
+ state: STATES.FAILED,
+ status: 'failed',
+ error_message: `Failed to enqueue: ${queueError.message}`
+ })
+ .eq('id', executionId);
+
+ logger.error('[TriggerService] Failed to enqueue webhook execution:', {
+ execution_id: executionId,
+ error: queueError.message
+ });
+ throw new Error('Failed to queue webhook execution');
+ }
+
+ // Update schedule stats
+ await this.updateScheduleStats(schedule.id);
+
+ // Return execution details (not waiting for completion)
+ return {
+ success: true,
+ executionId: execution.id,
+ workflowId: schedule.workflow_id,
+ workflowName: schedule.workflow.name,
+ status: 'queued',
+ state: STATES.PENDING,
+ created_at: execution.created_at,
+ location: `/api/executions/${execution.id}`
+ };
+
+ } catch (error) {
+ logger.error('[TriggerService] Webhook trigger failed:', error);
  throw error;
  }
  }

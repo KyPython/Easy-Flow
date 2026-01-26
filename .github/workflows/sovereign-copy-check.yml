@@ -1,0 +1,24 @@
+name: Sovereign Copywriting & Branding Check
+
+on:
+  pull_request:
+    paths:
+      - 'rpa-system/rpa-dashboard/src/i18n/locales/*.json'
+      - 'docs/**/*.md'
+      - 'README.md'
+  push:
+    branches: [main]
+    paths:
+      - 'rpa-system/rpa-dashboard/src/i18n/locales/*.json'
+      - 'docs/**/*.md'
+      - 'README.md'
+  workflow_dispatch:
+
+jobs:
+  validate-sovereign-copy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run Sovereign Copywriting & Branding Check
+        run: bash scripts/validate-sovereign-copy.sh

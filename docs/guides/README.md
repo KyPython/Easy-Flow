@@ -4,35 +4,63 @@ This directory contains comprehensive, in-depth guides for understanding and mas
 
 ## 📚 Available Guides
 
-### [COMPREHENSIVE_STUDY_GUIDE.md](./COMPREHENSIVE_STUDY_GUIDE.md)
+### [easyflow_guide.md](./easyflow_guide.md) - **START HERE**
 
-The complete system architecture and mastery guide. This is the definitive resource for understanding:
+Complete system guide covering everything you need to know about EasyFlow:
 
-- System architecture and layers
-- Technology stack
-- Core components and services
-- Data flow and execution paths
-- Database schema
-- Frontend and backend architecture
-- Integration patterns
-- Observability system
-- Execution modes and cost optimization
-- Development patterns
-- Testing strategy
-- Deployment and infrastructure
-- Key concepts deep dive
-- Learning path
+- What is EasyFlow and core value proposition
+- System architecture and the queue-based pattern
+- Key use cases (Portal CSV automation, Notion automation, etc.)
+- Development guide (how workflows execute, key services)
+- Integration patterns (file-based, database, API/webhook)
+- Observability and monitoring
+- Quick reference for common tasks
 
 **Who should read this:**
 - New developers joining the team
-- Developers who need to understand the full system
-- Architects reviewing the system design
-- Anyone who wants to master EasyFlow
+- Product/business team understanding capabilities
+- Anyone building or using EasyFlow workflows
 
 **How to use:**
-1. Start with Section 1 (System Overview)
-2. Follow the learning path in Section 16
-3. Reference specific sections as needed during development
+1. Start with "What is EasyFlow?" section
+2. Understand the architecture pattern (queue-based)
+3. Explore use cases relevant to your work
+4. Reference development guide when coding
+5. Use quick reference for common tasks
+
+### [COMPREHENSIVE_STUDY_GUIDE.md](./COMPREHENSIVE_STUDY_GUIDE.md)
+
+Deep dive into system architecture and implementation details:
+
+- Technology stack deep dive
+- Database schema and RLS policies
+- Frontend and backend architecture
+- Execution modes and cost optimization
+- Testing strategy
+- Deployment and infrastructure
+- Learning path for mastery
+
+**Who should read this:**
+- Developers who need deep technical understanding
+- Architects reviewing the system design
+- Senior engineers working on complex features
+
+**How to use:**
+1. Read after completing easyflow_guide.md
+2. Focus on sections relevant to your current work
+3. Reference specific sections during deep technical work
+
+---
+
+## Guide Selection
+
+| Your Goal | Read This |
+|-----------|-----------|
+| Understand what EasyFlow does | [easyflow_guide.md](./easyflow_guide.md) - Core Value Proposition |
+| Build a workflow | [easyflow_guide.md](./easyflow_guide.md) - Development Guide |
+| Debug an issue | [easyflow_guide.md](./easyflow_guide.md) - Observability section |
+| Understand architecture deeply | [COMPREHENSIVE_STUDY_GUIDE.md](./COMPREHENSIVE_STUDY_GUIDE.md) |
+| Add a new feature | Both guides + [Architecture docs](../architecture/) |
 
 ---
 

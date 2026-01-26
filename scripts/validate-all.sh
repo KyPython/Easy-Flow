@@ -1,9 +1,7 @@
 #!/bin/bash
 # Comprehensive Validation Script
 # Runs all validation checks: SRP, Dynamic Code, Theme Consistency, Logging Integration,
-# Duplicate Code, Unused Code, Duplicate Features
-
-set -e
+# Duplicate Code, Unused Code, Duplicate Features, Duplicate CI/CD Workflows
 
 # Colors
 GREEN='\033[0;32m'
@@ -66,7 +64,7 @@ run_check "Learning System Validation" "validate-learning-system.sh" "LEARNING_R
 run_check "Duplicate Code Detection" "validate-duplicate-code.sh" "DUPLICATE_CODE_RESULT"
 run_check "Unused Code Detection" "validate-unused-code.sh" "UNUSED_CODE_RESULT"
 run_check "Duplicate Features Detection" "validate-duplicate-features.sh" "DUPLICATE_FEATURES_RESULT"
-run_check "Duplicate CI/CD Workflows Detection" "validate-duplicate-cicd.sh" "DUPLICATE_CICD_RESULT"
+run_check "Duplicate CI/CD Workflows Detection" "validate-cicd-workflows.sh" "DUPLICATE_CICD_RESULT"
 run_check "Code Backup Verification" "verify-backup.sh" "BACKUP_RESULT"
 run_check "Test Coverage Validation" "validate-test-coverage.sh" "TEST_COVERAGE_RESULT"
 

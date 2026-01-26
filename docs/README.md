@@ -4,9 +4,10 @@ Welcome to the EasyFlow documentation hub. All project documentation is organize
 
 ## 📚 Quick Start
 
-- **New to EasyFlow?** Start with [COMPREHENSIVE_STUDY_GUIDE.md](guides/COMPREHENSIVE_STUDY_GUIDE.md) - Complete system architecture guide
+- **New to EasyFlow?** Start with [easyflow_guide.md](guides/easyflow_guide.md) - Complete system guide (architecture, use cases, development)
+- **Deep technical dive?** See [COMPREHENSIVE_STUDY_GUIDE.md](guides/COMPREHENSIVE_STUDY_GUIDE.md) - Architecture and implementation details
 - **Setting up?** Check [Setup & Configuration](setup/) guides
-- **Daily development?** See [DAILY_DEVELOPER_GUIDE.md](development/DAILY_DEVELOPER_GUIDE.md)
+- **Daily development?** See [DAILY_DEVELOPER_GUIDE.md](../DAILY_DEVELOPER_GUIDE.md)
 
 ## 📖 Documentation Index
 
@@ -19,15 +20,17 @@ docs/
 ├── README.md (this file)
 ├── INDEX.md                    # Complete documentation catalog
 ├── guides/                     # Comprehensive guides
-│   └── COMPREHENSIVE_STUDY_GUIDE.md
+│   ├── easyflow_guide.md       # START HERE - Complete system guide
+│   └── COMPREHENSIVE_STUDY_GUIDE.md # Deep technical dive
+├── use-cases/                  # Use case documentation
+│   └── PORTAL_CSV_AUTOMATION.md # Portal CSV automation guide
 ├── setup/                      # Setup & configuration
 ├── architecture/               # System architecture & design
 ├── development/                # Development workflows
 ├── devops/                     # CI/CD & DevOps
 ├── features/                   # Feature documentation
 ├── fixes/                      # Bug fixes & migrations
-├── philosophy/                 # Philosophy & strategy
-└── database/                   # Database schemas & migrations
+└── philosophy/                 # Philosophy & strategy
 ```
 
 ## 🔍 Finding Documentation
@@ -58,9 +61,11 @@ docs/
 ### By Use Case
 
 **I want to...**
-- **Understand the system** → [COMPREHENSIVE_STUDY_GUIDE.md](guides/COMPREHENSIVE_STUDY_GUIDE.md)
+- **Understand EasyFlow** → [easyflow_guide.md](guides/easyflow_guide.md) - Start here
+- **Understand architecture deeply** → [COMPREHENSIVE_STUDY_GUIDE.md](guides/COMPREHENSIVE_STUDY_GUIDE.md)
+- **Learn portal CSV automation** → [PORTAL_CSV_AUTOMATION.md](use-cases/PORTAL_CSV_AUTOMATION.md)
 - **Set up my environment** → [Setup guides](setup/)
-- **Start developing** → [DAILY_DEVELOPER_GUIDE.md](development/DAILY_DEVELOPER_GUIDE.md)
+- **Start developing** → [DAILY_DEVELOPER_GUIDE.md](../DAILY_DEVELOPER_GUIDE.md)
 - **Ship a feature** → [FEATURE_SHIPPING_GUIDE.md](development/FEATURE_SHIPPING_GUIDE.md)
 - **Configure CI/CD** → [CI/CD docs](devops/)
 - **Fix a bug** → [Fixes documentation](fixes/)
