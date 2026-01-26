@@ -118,6 +118,35 @@ for PORT in "${PORTS_TO_CHECK[@]}"; do
 done
 success "Ports cleared"
 
+
+
+# Aggressive self-healing: run lsof and kill in a loop until each port is free
+for PORT in "${PORTS_TO_CHECK[@]}"; do
+    ATTEMPTS=0
+    MAX_ATTEMPTS=15
+    while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+        PIDS=$(lsof -ti:$PORT 2>/dev/null || true)
+        if [ -n "$PIDS" ]; then
+            for PID in $PIDS; do
+                PROC_NAME=$(ps -p $PID -o comm=)
+                warn "Port $PORT is in use by $PROC_NAME (PID: $PID). Killing... (Attempt $((ATTEMPTS+1))/$MAX_ATTEMPTS)"
+                kill -9 $PID 2>/dev/null || true
+            done
+            sleep 2
+        else
+            success "Port $PORT is now free after $((ATTEMPTS+1)) attempt(s)."
+            break
+        fi
+        ATTEMPTS=$((ATTEMPTS+1))
+    done
+    # Final check
+    PIDS=$(lsof -ti:$PORT 2>/dev/null || true)
+    if [ -n "$PIDS" ]; then
+        error "Port $PORT is still in use after $MAX_ATTEMPTS kill attempts. Manual intervention may be required."
+    fi
+done
+success "Ports cleared"
+
 # ==============================================================================
 # 3. Dependency Checks & Auto-Install
 # ==============================================================================
@@ -152,9 +181,7 @@ if [ ! -f "$BACKEND_DIR/.env" ] || [ ! -s "$BACKEND_DIR/.env" ]; then
     fi
 fi
 
-# ==============================================================================
-# 4. Kafka/Zookeeper Cleanup & Infrastructure Start
-# ==============================================================================
+## 4. Kafka/Zookeeper Cleanup & Infrastructure Start
 log "Resetting Kafka/Zookeeper state..."
 
 COMPOSE_FILES=()
@@ -166,13 +193,9 @@ if [ -f "$DOCKER_COMPOSE_FILE" ]; then
 fi
 
 if [ ${#COMPOSE_FILES[@]} -gt 0 ]; then
-    # Remove volumes to ensure clean state for Kafka/Zookeeper
-    ensure_docker_running # Verify docker again before command
+    ensure_docker_running
     docker compose "${COMPOSE_FILES[@]}" down -v --remove-orphans 2>/dev/null || true
-    
     log "Starting infrastructure containers..."
-    
-    # Retry loop for infrastructure start
     MAX_ATTEMPTS=3
     ATTEMPT=1
     while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
@@ -188,10 +211,19 @@ if [ ${#COMPOSE_FILES[@]} -gt 0 ]; then
             ATTEMPT=$((ATTEMPT+1))
         fi
     done
-    
     if [ $ATTEMPT -gt $MAX_ATTEMPTS ]; then error "Failed to start infrastructure after retries."; exit 1; fi
 else
     warn "No Docker compose files found. Skipping infrastructure start."
+fi
+
+# Start observability stack automatically
+MONITORING_COMPOSE_FILE="$RPA_SYSTEM_DIR/docker-compose.monitoring.yml"
+if [ -f "$MONITORING_COMPOSE_FILE" ]; then
+    log "Starting observability stack (Grafana, Prometheus, Loki, etc.)..."
+    docker compose -f "$MONITORING_COMPOSE_FILE" up -d
+    success "Observability stack started."
+else
+    warn "No monitoring compose file found at $MONITORING_COMPOSE_FILE. Skipping observability stack."
 fi
 
 # ==============================================================================
@@ -235,6 +267,9 @@ log "Starting services..."
 if command -v pm2 &> /dev/null; then
     log "Using PM2 process manager"
     pm2 delete all 2>/dev/null || true
+    pm2 kill 2>/dev/null || true
+    pm2 flush 2>/dev/null || true
+    pm2 save --force 2>/dev/null || true
     
     # Start Backend
     cd "$BACKEND_DIR"
@@ -245,7 +280,7 @@ if command -v pm2 &> /dev/null; then
     pm2 start npm --name "easyflow-frontend" -- start
     
     cd "$PROJECT_ROOT"
-    pm2 save
+    pm2 save --force
     [ "$VERBOSE" = true ] && pm2 logs --timestamp --lines 50 &
     success "Services started with PM2"
 else
@@ -337,14 +372,6 @@ while [ $GLOBAL_ATTEMPT -le $MAX_GLOBAL_RETRIES ]; do
     GLOBAL_ATTEMPT=$((GLOBAL_ATTEMPT+1))
 done
 
-if [ "$ALL_SERVICES_UP" = "true" ]; then
-    success "EasyFlow environment is fully up and running! 🚀"
-else
-    error "Environment failed to stabilize after self-healing attempts."
-    error "Please check logs: pm2 logs or docker compose logs"
-    exit 1
-fi
-
 echo ""
 echo "================================================================================"
 echo "   EASYFLOW ENVIRONMENT STATUS"
@@ -360,3 +387,27 @@ echo -e "   ${BLUE}App Logs:${NC}      pm2 logs --no-daemon"
 echo -e "   ${BLUE}Infra Logs:${NC}    (cd rpa-system && docker compose -f docker-compose.yml -f docker-compose.monitoring.yml logs -f)"
 echo -e "   ${BLUE}Stop:${NC}          ./stop-dev.sh"
 echo "================================================================================"
+if [ "$ALL_SERVICES_UP" = "true" ]; then
+    success "EasyFlow environment is fully up and running! 🚀"
+    echo ""
+    echo "================================================================================"
+    echo "   EASYFLOW ENVIRONMENT STATUS"
+    echo "================================================================================"
+    echo -e "   ${GREEN}Frontend:${NC}      http://localhost:3000"
+    echo -e "   ${GREEN}Backend:${NC}       http://localhost:3030"
+    echo -e "   ${GREEN}Grafana:${NC}       http://localhost:3001 (User: admin, Pass: admin123)"
+    echo -e "   ${GREEN}Prometheus:${NC}    http://localhost:9090"
+    echo -e "   ${GREEN}AlertManager:${NC}  http://localhost:9093"
+    echo -e "   ${GREEN}Loki:${NC}          http://localhost:3100"
+    echo -e "   ${GREEN}Tempo:${NC}         http://localhost:3200"
+    echo "================================================================================"
+    echo -e "   To view streaming logs, run one of the following:"
+    echo -e "   ${BLUE}App Logs:${NC}      pm2 logs --no-daemon"
+    echo -e "   ${BLUE}Infra Logs:${NC}    (cd rpa-system && docker compose -f docker-compose.yml -f docker-compose.monitoring.yml logs -f)"
+    echo -e "   ${BLUE}Stop:${NC}          ./stop-dev.sh"
+    echo "================================================================================"
+else
+    error "Environment failed to stabilize after self-healing attempts."
+    error "Please check logs: pm2 logs or docker compose logs"
+    exit 1
+fi

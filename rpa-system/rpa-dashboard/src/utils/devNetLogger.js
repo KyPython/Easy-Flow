@@ -78,47 +78,44 @@ export async function fetchWithAuth(url, options = {}) {
  // Build headers: do not add Content-Type for GET requests without a body
  const incomingHeaders = (options && options.headers) || {};
  const method = (options && options.method) ? String(options.method).toUpperCase() : 'GET';
- const needsContentType = method !== 'GET' && method !== 'HEAD' && (options && ('body' in options));
-
- const headers = {
- ...incomingHeaders,
- ...(needsContentType ? { 'Content-Type': 'application/json' } : {}),
- ...(token ? { 'Authorization': `Bearer ${token}` } : {})
- };
-
- const mergedOptions = {
- // Default to omitting credentials to avoid sending cookies cross-origin in dev.
- // Call sites can still pass an explicit `credentials` option when needed.
- credentials: (options && 'credentials' in options) ? options.credentials : 'omit',
- ...options,
- headers
- };
-
- // Use safe fetch reference (support SSR/tests)
- const _fn = (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function')
- ? globalThis.fetch.bind(globalThis)
- : (typeof window !== 'undefined' && typeof window.fetch === 'function' ? window.fetch.bind(window) : null);
-
- if (!_fn) {
- console.warn('[devNetLogger] fetch() not available in this environment; aborting request');
- return Promise.reject(new Error('fetch not available'));
- }
-
- try {
- const res = await _fn(fullUrl, mergedOptions);
-
- // ✅ ENVIRONMENT-AWARE: Only log 401s in dev if they're unexpected
- const isDevelopment = process.env.NODE_ENV === 'development';
- if (res.status === 401 && isDevelopment) {
- // In dev: Only log 401s occasionally to reduce noise (expected during token refresh)
- if (false) { // Silence 401 logs completely to reduce noise
- console.debug('[devNetLogger] 401 Unauthorized (expected during session refresh)', { url, hasToken: !!token });
- }
- }
-
- // Dev diagnostic: mirror the same detection as the global fetch wrapper
- try {
- const acao = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-origin') : null;
+			const acao = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-origin') : null;
+			const acc = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-credentials') : null;
+			const setCookie = res.headers && typeof res.headers.get === 'function' ? res.headers.get('set-cookie') : null;
+			if ((setCookie) || (acao === '*' && acc !== 'true')) {
+				// Only log CORS warnings occasionally to reduce noise
+				if (shouldLog()) {
+					try {
+						const warn = {
+							message: '[devNetLogger] Potential CORS cookie mismatch detected',
+							url,
+							status: res.status,
+							accessControlAllowOrigin: acao,
+							accessControlAllowCredentials: acc,
+							setCookieHeader: !!setCookie
+						};
+						console.warn(warn.message, warn);
+						if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+							window.dispatchEvent(new CustomEvent('devNetLogger:corsCookieWarning', { detail: { url, status: res.status } }));
+						}
+						// diagnostic non-fatal
+						// (removed stray catch block)
+				}
+			}
+			// ✅ ENVIRONMENT-AWARE: Suppress expected network errors in dev
+			const isNetworkSuspended = err.message?.includes('ERR_NETWORK_IO_SUSPENDED') || err.message?.includes('Failed to fetch');
+			if (isNetworkSuspended && isDevelopment) {
+				// Tab suspended errors are expected - don't throw, just log at debug level
+				console.debug('[devNetLogger] Network request suspended (tab backgrounded - expected)', { url });
+				// Return a mock response to prevent error propagation
+				return new Response(JSON.stringify({ error: 'Network suspended' }), { 
+					status: 0, 
+					statusText: 'Network suspended',
+					headers: { 'Content-Type': 'application/json' }
+				});
+			}
+			throw err;
+		}
+		// diagnostic non-fatal
  const acc = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-credentials') : null;
  const setCookie = res.headers && typeof res.headers.get === 'function' ? res.headers.get('set-cookie') : null;
  if ((setCookie) || (acao === '*' && acc !== 'true')) {
@@ -133,17 +130,15 @@ export async function fetchWithAuth(url, options = {}) {
  setCookieHeader: !!setCookie
  };
  console.warn(warn.message, warn);
- }
- try {
- if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
- window.dispatchEvent(new CustomEvent('devNetLogger:corsCookieWarning', { detail: { url, status: res.status } }));
- }
- } catch (e) {}
- }
- } catch (e) { /* diagnostic non-fatal */ }
-
- return res;
- } catch (err) {
+		if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+			try {
+				window.dispatchEvent(new CustomEvent('devNetLogger:corsCookieWarning', { detail: { url, status: res.status } }));
+			} catch (e) {
+				// non-fatal: ignore dispatch errors
+			}
+		}
+		// diagnostic non-fatal
+	} catch (err) {
  // ✅ ENVIRONMENT-AWARE: Suppress expected network errors in dev
  const isNetworkSuspended = err.message?.includes('ERR_NETWORK_IO_SUSPENDED') || err.message?.includes('Failed to fetch');
  if (isNetworkSuspended && isDevelopment) {
@@ -208,16 +203,39 @@ if (typeof window !== 'undefined') {
  }
  };
 
- try {
- const res = await _origFetch(input, enhancedInit);
+	try {
+		const res = await _origFetch(input, enhancedInit);
 
- // Dev diagnostic: detect responses that set cookies while CORS allows any origin
- try {
- const acao = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-origin') : null;
- const acc = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-credentials') : null;
- // Note: browsers usually do not expose 'set-cookie' to JS; presence is often detectable only server-side.
- // However some proxies/environments might echo a 'set-cookie' header into CORS-exposed headers.
- const setCookie = res.headers && typeof res.headers.get === 'function' ? res.headers.get('set-cookie') : null;
+		// Self-healing: if 401 Unauthorized, clear cookies/localStorage and trigger re-authentication
+		if (res.status === 401) {
+			console.warn('[devNetLogger] 401 Unauthorized detected. Attempting self-heal: clearing auth tokens and cookies, triggering re-authentication.');
+			try {
+				// Clear localStorage tokens
+				localStorage.removeItem('dev_token');
+				localStorage.removeItem('authToken');
+				// Attempt to clear cookies (best effort)
+				if (typeof document !== 'undefined') {
+					document.cookie.split(';').forEach(function(c) {
+						document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
+					});
+				}
+				// Optionally, trigger a login flow or reload
+				if (typeof window !== 'undefined') {
+					window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
+					setTimeout(function() { window.location.reload(); }, 1000);
+				}
+			} catch (e) {
+				console.error('[devNetLogger] Self-heal failed:', e);
+			}
+		}
+
+		// Dev diagnostic: detect responses that set cookies while CORS allows any origin
+		try {
+			const acao = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-origin') : null;
+			const acc = res.headers && typeof res.headers.get === 'function' ? res.headers.get('access-control-allow-credentials') : null;
+			// Note: browsers usually do not expose 'set-cookie' to JS; presence is often detectable only server-side.
+			// However some proxies/environments might echo a 'set-cookie' header into CORS-exposed headers.
+			const setCookie = res.headers && typeof res.headers.get === 'function' ? res.headers.get('set-cookie') : null;
 
  if ((setCookie) || (acao === '*' && acc !== 'true')) {
  const warn = {

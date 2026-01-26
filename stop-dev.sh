@@ -115,9 +115,10 @@ TOTAL_START=$(date +%s)
 log "<current_datetime>$(ts)</current_datetime>"
 log "🛑  Stopping EasyFlow Environment..."
 
-# 1. Stop PM2/Node
+## 1. Stop PM2/Node
 if command -v pm2 &> /dev/null; then
-  run_step "Stopping PM2 processes" bash -lc "pm2 delete all 2>/dev/null || true; pm2 kill 2>/dev/null || true"
+  run_step "Stopping PM2 processes" bash -lc "pm2 delete all 2>/dev/null || true; pm2 kill 2>/dev/null || true; pm2 flush 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
+  run_step "Clearing PM2 dump" bash -lc "pm2 unstartup 2>/dev/null || true; pm2 reset all 2>/dev/null || true"
 fi
 
 # Fallback: Kill any remaining node processes
@@ -126,10 +127,12 @@ run_step "Killing stray node processes" bash -lc "pkill -f 'node' 2>/dev/null ||
 # 2. Stop ngrok
 run_step "Stopping ngrok" bash -lc "pkill ngrok 2>/dev/null || true"
 
-# 3. Stop Docker Infrastructure
+## 3. Stop Docker Infrastructure (including observability stack)
 COMPOSE_FILES=()
 [ -f "$CORE_DOCKER_COMPOSE_FILE" ] && COMPOSE_FILES+=(-f "$CORE_DOCKER_COMPOSE_FILE")
 [ -f "$DOCKER_COMPOSE_FILE" ] && COMPOSE_FILES+=(-f "$DOCKER_COMPOSE_FILE")
+MONITORING_COMPOSE_FILE="$RPA_SYSTEM_DIR/docker-compose.monitoring.yml"
+[ -f "$MONITORING_COMPOSE_FILE" ] && COMPOSE_FILES+=(-f "$MONITORING_COMPOSE_FILE")
 
 if [ ${#COMPOSE_FILES[@]} -gt 0 ]; then
   DOCKER_ARGS=("down" "--remove-orphans" "-t" "30")
@@ -153,7 +156,7 @@ if [ ${#COMPOSE_FILES[@]} -gt 0 ]; then
   trap - INT TERM
   DUR=$(( $(date +%s) - START_D ))
   if [ $RC -eq 0 ]; then
-    success "Docker containers stopped in ${DUR}s"
+    success "Docker containers (including observability stack) stopped in ${DUR}s"
   else
     warn "Docker down exited with code $RC in ${DUR}s"
     warn "Log tail:"
