@@ -35,6 +35,15 @@ else
     DOCKER_COMPOSE_FILE="$RPA_SYSTEM_DIR/docker-compose.monitoring.yml"
 fi
 
+
+# Python logging integration
+py_log() {
+    python3 scripts/human_log.py "$1" "$2"
+}
+py_actionable_log() {
+    python3 scripts/human_log.py "$1" "$2" "$3"
+}
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -42,10 +51,10 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-log() { echo -e "${BLUE}[EasyFlow]${NC} $1"; }
-success() { echo -e "${GREEN}✅ $1${NC}"; }
-warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
-error() { echo -e "${RED}❌ $1${NC}"; }
+log() { py_log "$1" "EasyFlow"; }
+success() { py_log "$1" "✅"; }
+warn() { py_log "$1" "⚠️"; }
+error() { py_log "$1" "❌"; }
 
 # Ensure running from root
 if [ ! -d "$RPA_SYSTEM_DIR" ]; then
@@ -55,9 +64,8 @@ fi
 
 log "Starting self-healing initialization sequence..."
 
-# Timestamp for traceability
-echo ""
-echo "<current_datetime>$(date -u +%Y-%m-%dT%H:%M:%SZ)</current_datetime>"
+log "Starting self-healing initialization sequence..."
+log "<current_datetime>$(date -u +%Y-%m-%dT%H:%M:%SZ)</current_datetime>"
 echo ""
 
 # ==============================================================================

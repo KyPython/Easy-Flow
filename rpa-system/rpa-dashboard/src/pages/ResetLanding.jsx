@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useI18n } from '../i18n';
 import supabase, { initSupabase } from '../utils/supabaseClient';
 import styles from './ResetLanding.module.css';
+import React from 'react';
 
 function parseHashParams(hash) {
  if (!hash) return {};

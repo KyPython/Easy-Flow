@@ -30,6 +30,15 @@ else
   DOCKER_COMPOSE_FILE="$RPA_SYSTEM_DIR/docker-compose.monitoring.yml"
 fi
 
+
+# Python logging integration
+py_log() {
+  python3 scripts/human_log.py "$1" "$2"
+}
+py_actionable_log() {
+  python3 scripts/human_log.py "$1" "$2" "$3"
+}
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -41,15 +50,14 @@ NC='\033[0m'
 LOG_DIR="$PROJECT_ROOT/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/stop-$(date -u +%Y%m%dT%H%M%SZ).log"
-# Mirror all stdout/stderr to both console and logfile
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 # Helpers
 ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
-log() { echo -e "${BLUE}[EasyFlow $(ts)]${NC} $1"; }
-success() { echo -e "${GREEN}\xE2\x9C\x85 $1${NC}"; }
-warn() { echo -e "${YELLOW}\xE2\x9A\xA0\xEF\xB8\x8F  $1${NC}"; }
-error() { echo -e "${RED}\xE2\x9D\x8C $1${NC}"; }
+log() { py_log "$1" "EasyFlow"; }
+success() { py_log "$1" "✅"; }
+warn() { py_log "$1" "⚠️"; }
+error() { py_log "$1" "❌"; }
 
 spinner() {
   local pid=$1
@@ -104,8 +112,8 @@ run_step() {
 }
 
 TOTAL_START=$(date +%s)
-echo "<current_datetime>$(ts)</current_datetime>"
-echo -e "${YELLOW}🛑  Stopping EasyFlow Environment...${NC}"
+log "<current_datetime>$(ts)</current_datetime>"
+log "🛑  Stopping EasyFlow Environment..."
 
 # 1. Stop PM2/Node
 if command -v pm2 &> /dev/null; then

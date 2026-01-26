@@ -399,6 +399,7 @@ function Shell() {
  {user && (
  <>
  <Suspense fallback={null}>
+import React from 'react';
  <AIWorkflowAgent
  isOpen={showAIAgent}
  onClose={() => setShowAIAgent(false)}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { triggerCampaign } from '../../utils/api';
 import { trackOnboardingStep } from '../../utils/onboardingTracking';
+import React from 'react';
 import styles from './OnboardingModal.module.css';
 import PropTypes from 'prop-types';
 import { useI18n } from '../../i18n';

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import React from 'react';
 import { useI18n } from '../i18n';
 import supabase, { initSupabase, signInWithPassword, signUp } from '../utils/supabaseClient';
 import { useAuth } from '../utils/AuthContext';

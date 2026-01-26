@@ -1,0 +1,28 @@
+name: Chaos Human Simulation
+
+on:
+  pull_request:
+    paths:
+      - 'rpa-system/rpa-dashboard/src/**'
+      - 'scripts/chaos-human-simulation.js'
+  push:
+    branches: [main, dev]
+    paths:
+      - 'rpa-system/rpa-dashboard/src/**'
+      - 'scripts/chaos-human-simulation.js'
+  workflow_dispatch:
+
+jobs:
+  chaos-human-simulation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Playwright
+        run: npm install playwright
+      - name: Run Chaos Human Simulation
+        run: node scripts/chaos-human-simulation.js
