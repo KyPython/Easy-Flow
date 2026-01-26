@@ -220,7 +220,7 @@ const checkScheduledAutomationLimit = async (req, res, next) => {
  .from('workflow_schedules')
  .select('id', { count: 'exact', head: true })
  .eq('user_id', userId)
- .eq('schedule_type', 'cron')
+ .in('schedule_type', ['cron', 'interval'])
  .gte('created_at', startOfDay.toISOString());
 
  const scheduledStr = String(scheduledValue || '');
