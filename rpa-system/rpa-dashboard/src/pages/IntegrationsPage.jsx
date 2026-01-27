@@ -273,7 +273,9 @@ const IntegrationsPage = () => {
     setTimeout(() => {
       try {
         if (!popup.closed) popup.close();
-      } catch (e) {}
+      } catch (err) {
+        logger.debug('IntegrationsPage: popup.close failed', { error: err?.message || err });
+      }
       clearInterval(checkClosed);
       setConnecting(null);
       setError('OAuth flow timed out. Please try again.');

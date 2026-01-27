@@ -137,7 +137,7 @@ const EmailCaptureModal = ({
  {showSuccess ? (
  <div className={styles.successContent}>
  <div className={styles.successIcon}>✅</div>
- <h3 className={styles.successTitle}>You're all set!</h3>
+ <h3 className={styles.successTitle}>You&apos;re all set!</h3>
  <p className={styles.successMessage}>
  Check your inbox for automation tips and updates.
  </p>

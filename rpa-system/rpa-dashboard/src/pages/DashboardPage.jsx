@@ -300,10 +300,16 @@ const DashboardPage = () => {
  }
  if (timerId) clearTimeout(timerId);
  if (updateTimeout) clearTimeout(updateTimeout);
- try {
- if (channel && channel.unsubscribe) channel.unsubscribe();
- } catch (e) {}
- try { if (channel && client && typeof client.removeChannel === 'function') client.removeChannel(channel); } catch (e) {}
+		try {
+			if (channel && channel.unsubscribe) channel.unsubscribe();
+		} catch (err) {
+			logger.debug('DashboardPage: channel.unsubscribe failed', { error: err?.message || err });
+		}
+		try {
+			if (channel && client && typeof client.removeChannel === 'function') client.removeChannel(channel);
+		} catch (err) {
+			logger.debug('DashboardPage: client.removeChannel failed', { error: err?.message || err });
+		}
  };
  }
  }, [user?.id, authLoading]); // ✅ FIXED: Removed fetchDashboardData from dependencies

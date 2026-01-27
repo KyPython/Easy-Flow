@@ -26,9 +26,10 @@ const QueueStatusBadge = ({ taskId, queuedAt, timeSinceStart }) => {
  const taskInfo = data.tasks?.find(t => t.task_id === taskId);
  setQueueInfo(taskInfo || null);
  }
- } catch (e) {
- // Silently fail - queue info is nice to have but not critical
- } finally {
+		} catch (e) {
+			// Silently fail - queue info is nice to have but not critical
+			logger.debug('[QueueStatusBadge] fetchQueueStatus failed', { error: e?.message || e });
+		} finally {
  setLoading(false);
  }
  };
@@ -349,7 +350,9 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
  if (result?.data || result?.message) {
  resultPreview = result;
  }
- } catch (e) {}
+	} catch (e) {
+		logger.debug('Error parsing result', { error: e?.message || e });
+	}
  
  return (
  <Fragment key={task.id}>
@@ -480,7 +483,9 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
  if (r?.simulated || r?.mode === 'embedded') {
  return <span style={{ fontSize: 12, padding: '2px 6px', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-muted)' }}>Simulated</span>;
  }
- } catch (_) {}
+		} catch (err) {
+			logger.debug('useMemo parse error', { error: err?.message || err });
+		}
  return null;
  }, [task.result])}
  </div>

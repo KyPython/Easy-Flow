@@ -264,9 +264,14 @@ export const useSchedules = (workflowId) => {
  }
  })();
 
- return () => {
- try { if (subscription && subscription.unsubscribe) subscription.unsubscribe(); } catch (e) {}
- };
+	return () => {
+		try {
+			if (subscription && subscription.unsubscribe) subscription.unsubscribe();
+		} catch (err) {
+			// eslint-disable-next-line no-console
+			console.debug('[useSchedules] unsubscribe failed', err && (err.message || err));
+		}
+	};
  }, [workflowId]);
 
  return {

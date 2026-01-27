@@ -103,13 +103,19 @@ const Chatbot = () => {
  const container = containerRef.current;
  const mount = container?.querySelector('#uchat-widget');
  const obs = mount?.__uchatObserver;
- if (obs) {
- try { obs.disconnect(); } catch {}
- delete mount.__uchatObserver;
- }
- } catch (e) {
- // swallow cleanup errors
- }
+		if (obs) {
+			try { obs.disconnect(); } catch (err) {
+				// avoid swallowing errors silently during cleanup
+				// eslint-disable-next-line no-console
+				console.debug('[Chatbot] observer.disconnect failed', err);
+			}
+			delete mount.__uchatObserver;
+		}
+		} catch (e) {
+			// Log cleanup errors for easier debugging in dev
+			// eslint-disable-next-line no-console
+			console.debug('[Chatbot] cleanup error', e);
+		};
  };
  }, []);
 

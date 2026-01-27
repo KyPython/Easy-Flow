@@ -423,7 +423,12 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
  logger.error('PERMANENT ERROR - stopping reconnection', null, { channelKey, msg, category: 'FATAL_PERMANENT' });
  fatalErrors.current.add(channelKey);
  updateChannelStatus(channelKey, { state: 'permanent_error', lastError: msg, attempts });
- try { if (channel && typeof channel.unsubscribe === 'function') await channel.unsubscribe(); } catch (e) {} // Cleanup
+	try {
+		if (channel && typeof channel.unsubscribe === 'function') await channel.unsubscribe();
+	} catch (err) {
+		// eslint-disable-next-line no-console
+		console.debug('[useRealtimeSync] channel.unsubscribe failed', err && (err.message || err));
+	} // Cleanup
  notifyError({ type: 'REALTIME_FATAL', channel: channelKey, message: 'Real-time updates unavailable due to configuration error', details: msg, action: 'CONTACT_SUPPORT' });
  return; // STOP HERE
 
@@ -434,7 +439,12 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
  const delay = 5000 * Math.pow(2, attempts);
  updateChannelStatus(channelKey, { state: 'reconnecting', lastError: msg, attempts: backoffRef.current.attempts[channelKey] });
  // Cleanup current channel before scheduling reconnect
- try { if (channel && typeof channel.unsubscribe === 'function') await channel.unsubscribe(); } catch (e) {}
+	try {
+		if (channel && typeof channel.unsubscribe === 'function') await channel.unsubscribe();
+	} catch (err) {
+		// eslint-disable-next-line no-console
+		console.debug('[useRealtimeSync] channel.unsubscribe failed', err && (err.message || err));
+	}
  clearReconnectTimer(channelKey);
  const timer = setTimeout(() => scheduleReconnect(channelKey, msg), delay);
  reconnectTimers.current.set(channelKey, timer);
@@ -443,7 +453,12 @@ export const useRealtimeSync = ({ onPlanChange, onUsageUpdate, onWorkflowUpdate,
  logger.error('Config error after 3 attempts - falling back to polling', null, { channelKey, msg, attempts });
  fatalErrors.current.add(channelKey);
  updateChannelStatus(channelKey, { state: 'fallback_polling', lastError: msg, attempts });
- try { if (channel && typeof channel.unsubscribe === 'function') await channel.unsubscribe(); } catch (e) {} // Cleanup
+	try {
+		if (channel && typeof channel.unsubscribe === 'function') await channel.unsubscribe();
+	} catch (err) {
+		// eslint-disable-next-line no-console
+		console.debug('[useRealtimeSync] channel.unsubscribe failed', err && (err.message || err));
+	} // Cleanup
  if (!pollingTimers.current.has(channelKey)) {
  const pollInterval = 30 * 1000;
  const timer = setInterval(async () => {

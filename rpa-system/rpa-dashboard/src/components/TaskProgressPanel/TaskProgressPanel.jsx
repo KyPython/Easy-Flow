@@ -61,9 +61,9 @@ const TaskProgressPanel = ({ runId, onClose, onComplete }) => {
  const transformedMessage = transformToSovereignty(message);
  
  // Extract emoji and action text
- const emojiMatch = transformedMessage.match(/^([🔍🌐✅⚠️📥📤⚙️❌🔄⚡📁]+)/);
- const emoji = emojiMatch ? emojiMatch[1] : '';
- const text = transformedMessage.replace(/^[🔍🌐✅⚠️📥📤⚙️❌🔄⚡📁]+\s*/, '').trim();
+	const emojiMatch = transformedMessage.match(/^([🔍🌐✅⚠️📥📤⚙️❌🔄⚡📁]+)/u);
+	const emoji = emojiMatch ? emojiMatch[1] : '';
+	const text = transformedMessage.replace(/^[🔍🌐✅⚠️📥📤⚙️❌🔄⚡📁]+\s*/u, '').trim();
  
  return { emoji, text, full: transformedMessage };
  }, [transformToSovereignty]);

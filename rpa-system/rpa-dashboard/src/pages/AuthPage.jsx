@@ -156,7 +156,13 @@ export default function AuthPage() {
  }
  })();
 
- return () => { try { subscription.unsubscribe(); } catch (_) {} };
+  return () => {
+    try {
+      subscription.unsubscribe();
+    } catch (err) {
+      logger.debug('AuthPage: subscription.unsubscribe failed', { error: err?.message || err });
+    }
+  };
  }, [navigate, referralCode]);
 
  const handleResetPassword = async () => {

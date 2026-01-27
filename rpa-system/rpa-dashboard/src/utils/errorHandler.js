@@ -324,7 +324,7 @@ export class ApiErrorHandler {
  const errorType = classifyErrorType(error);
  
  switch (errorType) {
- case 'BACKEND_UNREACHABLE':
+ case 'BACKEND_UNREACHABLE': {
  // Extract port from error message if possible
  const portMatch = error?.response?.data?.match?.(/localhost:(\d+)/);
  const port = portMatch ? portMatch[1] : '3030';
@@ -332,6 +332,7 @@ export class ApiErrorHandler {
  `Backend server is offline (connection refused to :${port}). ` +
  `Please start the API server or check your dev proxy configuration.`
  );
+ }
  
  case 'NETWORK':
  return new Error(`Unable to connect to server. Please check your internet connection and try again.`);

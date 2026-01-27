@@ -192,7 +192,13 @@ async function initializeFrontendTelemetry() {
  try {
  if (name === 'open') {
  // store last method/url for any later instrumentation that expects them
- try { this.__easyflow_lastMethod = String(args[0] || 'GET'); this.__easyflow_lastUrl = String(args[1] || '(unknown)'); } catch (e) {}
+						try {
+							this.__easyflow_lastMethod = String(args[0] || 'GET');
+							this.__easyflow_lastUrl = String(args[1] || '(unknown)');
+						} catch (err) {
+							// eslint-disable-next-line no-console
+							console.debug('[Telemetry] failed to set last method/url', err && (err.message || err));
+						}
  }
  if (name === 'send') {
  // no-op send shim; do nothing if original missing
@@ -201,13 +207,23 @@ async function initializeFrontendTelemetry() {
  // swallow any errors -- we must not break app
  }
  };
- try { proto[name][WRAPPED_FLAG] = true; } catch (e) {}
+						try {
+							proto[name][WRAPPED_FLAG] = true;
+						} catch (err) {
+							// eslint-disable-next-line no-console
+							console.debug('[Telemetry] failed to mark proto as wrapped', name, err && (err.message || err));
+						}
  console.warn(`[Telemetry] Installed safe shim for XMLHttpRequest.prototype.${name} to avoid instrumentation errors.`);
  } else {
  // Wrap original idempotently to mark it wrapped (avoid double wraps)
  if (!orig[WRAPPED_FLAG]) {
  const wrapped = function(...args) { return orig.apply(this, args); };
- try { wrapped[WRAPPED_FLAG] = true; } catch (e) {}
+								try {
+									wrapped[WRAPPED_FLAG] = true;
+								} catch (err) {
+									// eslint-disable-next-line no-console
+									console.debug('[Telemetry] failed to mark wrapped function', name, err && (err.message || err));
+								}
  try { proto[name] = wrapped; } catch (e) { /* ignore assignment failures */ }
  }
  }

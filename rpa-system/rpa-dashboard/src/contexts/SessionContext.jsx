@@ -4,7 +4,7 @@
  * to reduce initial request count and prevent rate limiting
  */
 
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../utils/AuthContext';
 import { api } from '../utils/api';
 

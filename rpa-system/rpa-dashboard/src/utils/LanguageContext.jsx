@@ -52,40 +52,53 @@ export const LanguageProvider = ({ children }) => {
  }, [user?.id]);
 
  // Reflect language to <html lang> and body data-language for CSS/hooks
- useEffect(() => {
- try {
- document.documentElement.setAttribute('lang', language);
- document.body.dataset.language = language;
- } catch {}
- }, [language]);
+	useEffect(() => {
+		try {
+			document.documentElement.setAttribute('lang', language);
+			document.body.dataset.language = language;
+		} catch (err) {
+			// eslint-disable-next-line no-console
+			console.debug('[LanguageContext] failed to set document language', err);
+		}
+	}, [language]);
 
- const persist = async (lang) => {
- if (!user) return;
- try {
- // Fetch existing preferences (ignore 401 quietly)
- let existing = {};
- try {
- const current = await api.get('/api/user/preferences');
- existing = current?.data || {};
- } catch (e) {
- if (e?.response?.status === 401) return; // not authenticated yet
- }
- const payload = {
- notification_preferences: existing.notification_preferences || undefined,
- ui_preferences: { ...(existing.ui_preferences || {}), language: lang },
- phone_number: existing.phone_number ?? undefined,
- fcm_token: existing.fcm_token ?? undefined
- };
- await api.put('/api/user/preferences', payload).catch(e => {
- if (e?.response?.status !== 401) throw e;
- });
- } catch (e) {
- // Silent fallback attempted only if authenticated
- if (e?.response?.status !== 401) {
- try { await api.put('/api/user/preferences', { ui_preferences: { language: lang } }); } catch {}
- }
- }
- };
+		const persist = async (lang) => {
+		if (!user) return;
+		try {
+			// Fetch existing preferences (ignore 401 quietly)
+			let existing = {};
+			try {
+				const { api: _api } = await import('./api');
+				const current = await _api.get('/api/user/preferences');
+				existing = current?.data || {};
+			} catch (e) {
+				if (e?.response?.status === 401) return; // not authenticated yet
+			}
+			const payload = {
+				notification_preferences: existing.notification_preferences || undefined,
+				ui_preferences: { ...(existing.ui_preferences || {}), language: lang },
+				phone_number: existing.phone_number ?? undefined,
+				fcm_token: existing.fcm_token ?? undefined
+			};
+			try {
+				const { api: _api2 } = await import('./api');
+				await _api2.put('/api/user/preferences', payload);
+			} catch (e) {
+				if (e?.response?.status !== 401) throw e;
+			}
+		} catch (e) {
+			// Silent fallback attempted only if authenticated
+			if (e?.response?.status !== 401) {
+				try {
+					const { api: _api3 } = await import('./api');
+					await _api3.put('/api/user/preferences', { ui_preferences: { language: lang } });
+				} catch (err) {
+					// eslint-disable-next-line no-console
+					console.debug('[LanguageContext] fallback persist failed', err);
+				}
+			}
+		}
+	};
 
  const setLanguage = (lang) => {
  if (!available.includes(lang)) return;

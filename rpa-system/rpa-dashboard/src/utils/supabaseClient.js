@@ -106,9 +106,16 @@ function adoptRealClient(realClient) {
  _realSupabase = realClient;
  try {
  // Copy enumerable properties (auth, from, channel, etc.)
- Object.keys(realClient).forEach((k) => {
- try { supabase[k] = realClient[k]; } catch (e) {}
- });
+		Object.keys(realClient).forEach((k) => {
+			try {
+				supabase[k] = realClient[k];
+			} catch (e) {
+				if (process.env.NODE_ENV === 'development') {
+					// eslint-disable-next-line no-console
+					console.debug('[supabase] copy property failed', { key: k, error: e && (e.message || e) });
+				}
+			}
+		});
  // Also copy nested auth methods to ensure `supabase.auth.*` is the real functions
  if (realClient.auth && typeof realClient.auth === 'object') {
  supabase.auth = realClient.auth;
@@ -121,11 +128,16 @@ function adoptRealClient(realClient) {
  }
 
  // Expose read-only global for diagnostics in development
- if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && !window._supabase) {
- try { Object.defineProperty(window, '_supabase', { value: supabase, writable: false, configurable: false }); } catch (_) {}
- // eslint-disable-next-line no-console
- console.info('[supabase] client exposed globally as window._supabase');
- }
+		if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && !window._supabase) {
+			try {
+				Object.defineProperty(window, '_supabase', { value: supabase, writable: false, configurable: false });
+			} catch (err) {
+				// eslint-disable-next-line no-console
+				console.debug('[supabase] expose global failed', err && (err.message || err));
+			}
+			// eslint-disable-next-line no-console
+			console.info('[supabase] client exposed globally as window._supabase');
+		}
 }
 
 // Helper: propagate current session token to the global `api` axios instance
@@ -343,9 +355,13 @@ export async function isUserPaid(userId) {
  const status = (data.status || '').toLowerCase();
  if (status === 'active' || status === 'paid' || status === 'trialing') return true;
  }
- } catch (e) {
- // ignore and continue to next table
- }
+		} catch (e) {
+			// ignore and continue to next table, but log in development for diagnostics
+			if (process.env.NODE_ENV === 'development') {
+				// eslint-disable-next-line no-console
+				console.debug('[supabase] table check failed', { table, error: e && (e.message || e) });
+			}
+		}
  }
 
  // Fallback: check auth user's user_metadata or app_metadata for subscription flags
@@ -355,7 +371,12 @@ export async function isUserPaid(userId) {
  const metadata = user.user_metadata || user.app_metadata || {};
  if (metadata && (metadata.subscription === 'active' || metadata.paid === true || metadata.plan)) return true;
  }
- } catch (e) {}
+	} catch (e) {
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.debug('[supabase] auth.getUser check failed', e && (e.message || e));
+		}
+	}
 
  return false;
  } catch (e) {
@@ -382,5 +403,10 @@ if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
  const hasAnon = !!(rawAnon || process.env.REACT_APP_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY);
  // eslint-disable-next-line no-console
  console.info('[Supabase] resolved URL:', safeUrl, ' anonKeyPresent:', hasAnon);
- } catch (e) {}
+	} catch (e) {
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.debug('[supabase] dev diagnostic failed', e && (e.message || e));
+		}
+	}
 }

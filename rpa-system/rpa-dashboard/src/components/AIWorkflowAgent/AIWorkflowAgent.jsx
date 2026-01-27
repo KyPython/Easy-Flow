@@ -229,7 +229,7 @@ const Message = ({ message, isUser, isTyping, onApplyWorkflow, onAction }) => {
             {/* Show workflow preview text if available (non-technical description) */}
             {message.workflowPreview && (
               <div className={styles.workflowPreviewText}>
-                <strong>Here's what this workflow will do:</strong>
+                <strong>Here&apos;s what this workflow will do:</strong>
                 <p>{message.workflowPreview}</p>
               </div>
             )}
@@ -250,7 +250,7 @@ const Message = ({ message, isUser, isTyping, onApplyWorkflow, onAction }) => {
  <span className={styles.stepIcon}>{getStepIcon(node.data?.stepType)}</span>
  <span className={styles.stepLabel}>{node.data?.label}</span>
  {idx < Math.min(message.workflow.nodes.length - 1, 4) && (
- <span className={styles.stepArrow}>-></span>
+ <span className={styles.stepArrow}>&rarr;</span>
  )}
  </div>
  ))}
@@ -480,7 +480,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  case 'link':
  window.open(action.href, '_blank');
  break;
- case 'bookmarklet':
+ case 'bookmarklet': {
  // Show instructions for bookmarklet
  const instructions = action.instructions || 'Drag this button to your bookmarks bar, then click it while on any website!';
  alert(`📌 ${instructions}\n\nAfter adding to bookmarks:\n1. Go to your vendor portal\n2. Click the "EasyFlow Automation" bookmark\n3. EasyFlow opens with the URL pre-filled!`);
@@ -498,6 +498,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  // Fallback if clipboard fails
  console.log('Bookmarklet code:', bookmarkletText);
  });
+ }
  break;
  case 'sendSupport':
  // Send email to support on behalf of user
@@ -571,10 +572,10 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  ];
  break;
 
- case 'openMail':
+ case 'openMail': {
  const emailMatch = userMessage.match(/(?:to|email)\s+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
  const targetEmail = emailMatch ? emailMatch[1] : '';
- 
+
  response.content = targetEmail 
  ? `Opening your email client to compose an email to ${targetEmail}...`
  : "I'll help you open your email client. Click the button below:";
@@ -585,6 +586,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  variant: 'primary'
  }];
  break;
+ }
 
  case 'billing':
  response.content = "For billing inquiries, our team is ready to help! Your account details and subscription information are secure.";
@@ -762,7 +764,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
         }
         break;
  
- case 'action':
+ case 'action': {
  // AI executed an action (scrape, email, etc.)
  content = data.message || `Action "${data.action}" completed.`;
  actionResult = data.actionResult;
@@ -791,6 +793,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  }, 1500); // 1.5 second delay to let user see the success message
  }
  break;
+ }
  
  case 'error':
  content = data.message || data.error || "Something went wrong. Please try again!";
