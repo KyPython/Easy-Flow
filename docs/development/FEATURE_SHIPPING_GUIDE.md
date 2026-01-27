@@ -215,6 +215,123 @@ scoop install jq
 - Check for uncommitted changes: `git status`
 - Verify tests pass: `npm run test:all`
 - Check security scan: `npm run security:scan`
+- Run full validation locally: `./scripts/validate-all.sh` (see checklist below)
+
+---
+
+## Production Validation Checklist (What Must Pass for `npm run ship`)
+
+When `npm run ship` runs, it calls `./scripts/validate-all.sh`. That script runs a set of validators; **all of them must pass** before the ship step will succeed.
+
+At the time of the last run, these were the **main blockers** and the **specific files** involved:
+
+- **SRP Validation (`scripts/validate-srp.sh`)**
+  - **Flagged docs (too many topics/sections)**:
+    - `docs/philosophy/ROCKEFELLER_IMPLEMENTATION_PLAN.md`
+    - `docs/philosophy/SOFTWARE_ENTROPY_INTEGRATION_COMPLETE.md`
+    - `docs/philosophy/SOFTWARE_ENTROPY_PHILOSOPHY.md`
+    - `docs/philosophy/SOFTWARE_ENTROPY_INTEGRATION_PLAN.md`
+    - `docs/visual-design-implementation-guide.md`
+  - **Refactor plan (SRP)**:
+    - Split each of the above into **smaller, focused docs**, e.g.:
+      - Move implementation details into `docs/development/` (or a new implementation doc).
+      - Keep high‑level philosophy in one short file per concept.
+    - For **code SRP issues** (reported in the SRP validator output), follow this pattern per file:
+      - Extract long functions (>100 lines) into helpers in the same folder.
+      - If a file has many responsibilities (e.g. routes + business logic + config), split into:
+        - `*Config.js` – constants and config.
+        - `*Service.js` – pure business logic.
+        - `*Routes.js` / controller – thin HTTP layer calling the service.
+
+- **Dynamic Code Validation (`scripts/validate-dynamic-code.sh`)**
+  - **Backend middleware & core app**:
+    - `rpa-system/backend/app.js`
+    - `rpa-system/backend/middleware/planEnforcement.js`
+    - `rpa-system/backend/middleware/telemetryInit.js`
+    - `rpa-system/backend/middleware/comprehensiveRateLimit.js`
+  - **Backend utility/config files**:
+    - `rpa-system/backend/utils/appConfig.js`
+    - `rpa-system/backend/utils/consumerErrorMessages.js`
+    - `rpa-system/backend/utils/ssrfProtection.js`
+    - `rpa-system/backend/utils/firebaseAdmin.js`
+    - `rpa-system/backend/utils/emailTemplates.js`
+  - **Backend scripts (dev/test tooling)**:
+    - `rpa-system/backend/seed-dev-user.js`
+    - `rpa-system/backend/scripts/create_and_get_token.js`
+    - `rpa-system/backend/scripts/test_event_forwarder.js`
+    - `rpa-system/backend/scripts/get_test_token.js`
+    - `rpa-system/backend/scripts/verify-otel-credentials.js`
+    - `rpa-system/backend/scripts/seed-portal-csv-template.js`
+    - `rpa-system/backend/scripts/seed_templates.js`
+  - **Backend routes with hardcoded URLs/paths/magic numbers**:
+    - `rpa-system/backend/routes/emailCaptureRoutes.js`
+    - `rpa-system/backend/routes/polarRoutes.js`
+    - `rpa-system/backend/routes/dataRetention.js`
+    - `rpa-system/backend/routes/scheduleRoutes.js`
+    - `rpa-system/backend/routes/adminAnalyticsRoutes.js`
+    - `rpa-system/backend/routes/webhookRoutes.js`
+    - `rpa-system/backend/routes/feedbackRoutes.js`
+    - `rpa-system/backend/routes/teamRoutes.js`
+    - `rpa-system/backend/routes/integrationRoutes.js`
+    - `rpa-system/backend/routes/businessRulesRoutes.js`
+    - `rpa-system/backend/routes/roiAnalytics.js`
+    - `rpa-system/backend/routes/accessibleOSTasks.js`
+    - `rpa-system/backend/routes/scrapingRoutes.js`
+    - `rpa-system/backend/routes/trackingRoutes.js`
+    - `rpa-system/backend/routes/executionRoutes.js`
+    - `rpa-system/backend/routes/workflowVersioning.js`
+    - `rpa-system/backend/routes/aiAgentRoutes.js`
+    - `rpa-system/backend/routes/businessMetrics.js`
+    - `rpa-system/backend/routes/demoRoutes.js`
+    - `rpa-system/backend/routes/auditLogs.js`
+    - `rpa-system/backend/routes/workflowRecoveryRoutes.js`
+  - **Backend services with magic numbers / hardcoded URLs**:
+    - `rpa-system/backend/services/costSavingsCalculator.js`
+    - `rpa-system/backend/services/aiDataExtractor.js`
+    - `rpa-system/backend/services/aiWorkflowAgent.js`
+    - `rpa-system/backend/services/proxyManager.js`
+    - `rpa-system/backend/services/workflowExecutor.js`
+    - `rpa-system/backend/services/dataRetentionService.js`
+    - `rpa-system/backend/services/linkDiscoveryService.js`
+    - `rpa-system/backend/services/integrationFramework.js`
+    - `rpa-system/backend/services/companyEnrichmentService.js`
+    - `rpa-system/backend/services/ragClient.js`
+    - `rpa-system/backend/services/antiBotService.js`
+  - **Refactor plan (dynamic code)** – repeat these steps per file above:
+    - **URLs & external endpoints**:
+      - Replace hardcoded URLs with config/env, e.g.:
+        - In config: `const OTEL_EXPORTER_URL = process.env.OTEL_EXPORTER_URL;`
+        - In code: use `OTEL_EXPORTER_URL` instead of inline `"https://..."`.
+    - **Credentials/secrets**:
+      - Move any tokens/passwords into `.env` and reference via `process.env.*`.
+      - Keep sample/example values only in docs or `.env.example`, never in code.
+    - **Magic numbers**:
+      - Extract repeated counts/thresholds/durations into named constants:
+        - e.g. `const MAX_RETRY_ATTEMPTS = 3;`, `const SCRAPING_BATCH_SIZE = 50;`
+      - Group related constants into config objects (`rateLimitConfig`, `roiBuckets`, etc.).
+    - **File paths**:
+      - Replace hardcoded string paths with `path.join` and/or config:
+        - e.g. `path.join(__dirname, '..', 'templates', 'email')`
+      - Where appropriate, make root directories configurable via env/config.
+
+- **Other validators (Theme, Logging, Env‑Aware Messages, RAG, Learning, Duplicates, Backup, Coverage)**
+  - These also run from `scripts/validate-*.sh` and were failing on the last run.
+  - **How to see exact current files**:
+    - Run: `./scripts/validate-all.sh`
+    - Then inspect the section for each validator; every `⚠ path/to/file` line shows a flagged file.
+  - **High‑level refactor themes**:
+    - **Theme consistency**: dashboard components should use the shared theme (hooks or CSS variables), not hardcoded colors/inline styles.
+    - **Logging integration**: use the central logger/telemetry wrapper instead of raw `console.*` in backend and dashboard hot paths.
+    - **Env‑aware messages**: route user‑facing strings through the env‑aware message helper (e.g. `getEnvMessage`) instead of inline literals.
+    - **RAG & learning**: keep `ragClient.js` + AI workflow knowledge up to date with the actual workflow types; ensure learning hooks are invoked on success/failure paths.
+    - **Duplicate features / CI/CD / backup**: consolidate overlapping routes/components/workflows and ensure the backup verification script’s expectations (scheduled backup, bucket/location) are met.
+
+**Workflow for you next time:**
+
+- If `npm run ship` fails:
+  - Run `./scripts/validate-all.sh`.
+  - Use the lists above as your **roadmap of files to touch**.
+  - After refactoring a group (e.g. a couple of routes + one service), re‑run `./scripts/validate-all.sh` until everything is green, then rerun `npm run ship`.
 
 ---
 
