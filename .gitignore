@@ -465,6 +465,9 @@ setup-notion-life-os.py
 scripts/notion-maintenance/
 scripts/notion-integrations/
 
+# Separate projects/repos (not tracked by EasyFlow)
+easyflow-metrics/
+
 # Terraform
 .terraform/
 *.tfstate
