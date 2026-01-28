@@ -1,8 +1,18 @@
 #!/bin/bash
 # Test all major shell validation scripts in scripts/
-# Exits nonzero if any script fails
+# Exits nonzero if any script fails (strict mode on main branch)
+# Permissive mode on feature branches (failures become warnings)
 
 set -e
+
+# Check for permissive mode (non-main branches in CI)
+PERMISSIVE_MODE=false
+if [ -n "$GITHUB_REF" ]; then
+  if [ "$GITHUB_REF" != "refs/heads/main" ] && [ "$GITHUB_BASE_REF" != "main" ]; then
+    PERMISSIVE_MODE=true
+    echo "ℹ️  Running in permissive mode (non-main branch) - failures are warnings"
+  fi
+fi
 
 SCRIPTS=(
   validate-srp.sh
@@ -22,8 +32,12 @@ for script in "${SCRIPTS[@]}"; do
   if [ -x "scripts/$script" ]; then
     echo "Running $script..."
     if ! bash "scripts/$script"; then
-      echo "❌ $script failed"
-      FAILED=1
+      if [ "$PERMISSIVE_MODE" = true ]; then
+        echo "⚠️  $script has issues (non-blocking on feature branch)"
+      else
+        echo "❌ $script failed"
+        FAILED=1
+      fi
     else
       echo "✅ $script passed"
     fi
@@ -36,6 +50,10 @@ if [ $FAILED -ne 0 ]; then
   echo "Some validation scripts failed."
   exit 1
 else
-  echo "All validation scripts passed."
+  if [ "$PERMISSIVE_MODE" = true ]; then
+    echo "⚠️  Validation complete with warnings (permissive mode)"
+  else
+    echo "All validation scripts passed."
+  fi
   exit 0
 fi

@@ -319,6 +319,12 @@ function validateStudyGuide() {
   if (errors.length > 0) {
     log('\n❌ Study guide validation failed!', 'red');
     log('Please update docs/guides/COMPREHENSIVE_STUDY_GUIDE.md to match the codebase.', 'red');
+    
+    // In permissive mode (non-main branch), errors become warnings
+    if (!isStrictMode) {
+      log('\n⚠️  Continuing in permissive mode (errors treated as warnings on feature branch).', 'yellow');
+      process.exit(0);
+    }
     process.exit(1);
   } else if (warnings.length > 0) {
     log('\n⚠️  Study guide has warnings but no critical errors.', 'yellow');
