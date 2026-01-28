@@ -468,6 +468,10 @@ scripts/notion-integrations/
 # Separate projects/repos (not tracked by EasyFlow)
 easyflow-metrics/
 
+# Feature readiness artifacts (generated locally/CI; not needed in production)
+.features/features.json
+.features/readiness-report.txt
+
 # Terraform
 .terraform/
 *.tfstate
