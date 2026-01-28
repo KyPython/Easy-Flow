@@ -121,6 +121,13 @@ if command -v pm2 &> /dev/null; then
   run_step "Clearing PM2 dump" bash -lc "pm2 unstartup 2>/dev/null || true; pm2 reset all 2>/dev/null || true"
 fi
 
+## 1.5 Stop Local Supabase (if running)
+if command -v supabase &> /dev/null; then
+  if supabase status 2>/dev/null | grep -q "API URL"; then
+    run_step "Stopping local Supabase" bash -lc "supabase stop 2>/dev/null || true"
+  fi
+fi
+
 # Fallback: Kill any remaining node processes
 run_step "Killing stray node processes" bash -lc "pkill -f 'node' 2>/dev/null || true"
 
@@ -167,7 +174,8 @@ else
 fi
 
 # 4. Free Ports (Safety net)
-PORTS=(3000 3030 5432 6379 9092 2181 9090 3001 3100 3200)
+# Includes local Supabase ports: 54321 (API), 54322 (DB), 54323 (Studio), 54324 (Inbucket)
+PORTS=(3000 3030 5432 6379 9092 2181 9090 3001 3100 3200 54321 54322 54323 54324)
 log "Ensuring ports are free: ${PORTS[*]}"
 P_START=$(date +%s)
 for PORT in "${PORTS[@]}"; do

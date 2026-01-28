@@ -72,6 +72,97 @@ echo ""
 # 1. Helper Functions
 # ==============================================================================
 
+check_supabase_available() {
+    # Check if cloud Supabase is reachable
+    local SUPABASE_URL="${SUPABASE_URL:-}"
+    
+    # Try to load from .env files if not set
+    if [ -z "$SUPABASE_URL" ]; then
+        if [ -f "$PROJECT_ROOT/.env" ]; then
+            SUPABASE_URL=$(grep -E "^SUPABASE_URL=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' || true)
+        fi
+    fi
+    if [ -z "$SUPABASE_URL" ]; then
+        if [ -f "$BACKEND_DIR/.env" ]; then
+            SUPABASE_URL=$(grep -E "^SUPABASE_URL=" "$BACKEND_DIR/.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' || true)
+        fi
+    fi
+    
+    # If no URL configured, return false (need local)
+    if [ -z "$SUPABASE_URL" ] || [ "$SUPABASE_URL" = "http://127.0.0.1:54321" ]; then
+        return 1
+    fi
+    
+    # Test if cloud Supabase is reachable
+    if curl -s --max-time 5 "$SUPABASE_URL/rest/v1/" -H "apikey: ${SUPABASE_ANON_KEY:-dummy}" > /dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+start_local_supabase() {
+    log "Starting local Supabase..."
+    
+    # Check if supabase CLI is installed
+    if ! command -v supabase &> /dev/null; then
+        warn "Supabase CLI not installed. Installing via Homebrew..."
+        if command -v brew &> /dev/null; then
+            brew install supabase/tap/supabase
+        else
+            error "Please install Supabase CLI: https://supabase.com/docs/guides/cli"
+            return 1
+        fi
+    fi
+    
+    # Check if local Supabase is already running
+    if supabase status 2>/dev/null | grep -q "API URL"; then
+        success "Local Supabase is already running"
+        return 0
+    fi
+    
+    # Start local Supabase
+    cd "$PROJECT_ROOT"
+    if supabase start; then
+        success "Local Supabase started successfully"
+        
+        # Get local Supabase credentials
+        LOCAL_SUPABASE_URL="http://127.0.0.1:54321"
+        LOCAL_SUPABASE_ANON_KEY=$(supabase status 2>/dev/null | grep "anon key" | awk '{print $NF}' || echo "")
+        LOCAL_SUPABASE_SERVICE_ROLE=$(supabase status 2>/dev/null | grep "service_role key" | awk '{print $NF}' || echo "")
+        
+        # Export for docker-compose
+        export SUPABASE_URL="$LOCAL_SUPABASE_URL"
+        export SUPABASE_KEY="$LOCAL_SUPABASE_ANON_KEY"
+        export SUPABASE_SERVICE_ROLE="$LOCAL_SUPABASE_SERVICE_ROLE"
+        export SUPABASE_ANON_KEY="$LOCAL_SUPABASE_ANON_KEY"
+        
+        # Update frontend .env.local if it exists
+        if [ -f "$FRONTEND_DIR/.env.local" ]; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                sed -i '' "s|VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+                sed -i '' "s|VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+            else
+                sed -i "s|VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+                sed -i "s|VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+            fi
+            log "Updated frontend .env.local with local Supabase credentials"
+        fi
+        
+        echo ""
+        log "Local Supabase URLs:"
+        echo -e "   ${GREEN}API:${NC}      $LOCAL_SUPABASE_URL"
+        echo -e "   ${GREEN}Studio:${NC}   http://127.0.0.1:54323"
+        echo -e "   ${GREEN}Inbucket:${NC} http://127.0.0.1:54324 (email testing)"
+        echo ""
+        
+        return 0
+    else
+        error "Failed to start local Supabase"
+        return 1
+    fi
+}
+
 ensure_docker_running() {
     if ! docker info > /dev/null 2>&1; then
         warn "Docker is not running or unresponsive. Attempting to start..."
@@ -107,7 +198,8 @@ ensure_docker_running
 # 2. Port Freeing & Cleanup
 # ==============================================================================
 log "Checking for stuck ports..."
-PORTS_TO_CHECK=(3000 3030 5432 6379 9092 2181 9090 3001)
+# Includes local Supabase ports: 54321 (API), 54322 (DB), 54323 (Studio), 54324 (Inbucket)
+PORTS_TO_CHECK=(3000 3030 5432 6379 9092 2181 9090 3001 54321 54322 54323 54324)
 
 for PORT in "${PORTS_TO_CHECK[@]}"; do
     PID=$(lsof -ti:$PORT 2>/dev/null || true)
@@ -178,6 +270,28 @@ if [ ! -f "$BACKEND_DIR/.env" ] || [ ! -s "$BACKEND_DIR/.env" ]; then
         warn "Created .env from example"
     else
         exit 1
+    fi
+fi
+
+# ==============================================================================
+# 3.5 Supabase Availability Check & Local Fallback
+# ==============================================================================
+log "Checking Supabase availability..."
+
+USE_LOCAL_SUPABASE=false
+if check_supabase_available; then
+    success "Cloud Supabase is reachable"
+else
+    warn "Cloud Supabase is not available or not configured"
+    log "Attempting to start local Supabase as fallback..."
+    
+    ensure_docker_running  # Supabase needs Docker
+    
+    if start_local_supabase; then
+        USE_LOCAL_SUPABASE=true
+        success "Using local Supabase"
+    else
+        warn "Could not start local Supabase. Some features may be unavailable."
     fi
 fi
 
@@ -400,6 +514,13 @@ if [ "$ALL_SERVICES_UP" = "true" ]; then
     echo -e "   ${GREEN}AlertManager:${NC}  http://localhost:9093"
     echo -e "   ${GREEN}Loki:${NC}          http://localhost:3100"
     echo -e "   ${GREEN}Tempo:${NC}         http://localhost:3200"
+    if [ "$USE_LOCAL_SUPABASE" = "true" ]; then
+        echo "--------------------------------------------------------------------------------"
+        echo -e "   ${YELLOW}USING LOCAL SUPABASE (cloud not available)${NC}"
+        echo -e "   ${GREEN}Supabase API:${NC}    http://127.0.0.1:54321"
+        echo -e "   ${GREEN}Supabase Studio:${NC} http://127.0.0.1:54323"
+        echo -e "   ${GREEN}Email Testing:${NC}   http://127.0.0.1:54324 (Inbucket)"
+    fi
     echo "================================================================================"
     echo -e "   To view streaming logs, run one of the following:"
     echo -e "   ${BLUE}App Logs:${NC}      pm2 logs --no-daemon"
