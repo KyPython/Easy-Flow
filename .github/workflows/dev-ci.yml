@@ -54,7 +54,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-      - run: npm ci || npm install --no-audit --no-fund
       - name: Heading hierarchy (h2 before h3)
         run: |
           if [ "${{ needs.setup.outputs.blocking }}" == "true" ]; then
@@ -63,6 +62,7 @@ jobs:
             node scripts/validate-heading-hierarchy.js || echo "⚠️ Heading hierarchy issues (non-blocking on dev)"
           fi
         continue-on-error: ${{ needs.setup.outputs.blocking != 'true' }}
+      - run: npm ci || npm install --no-audit --no-fund
       - name: Lint
         run: |
           chmod +x scripts/lint-and-test.sh || true
