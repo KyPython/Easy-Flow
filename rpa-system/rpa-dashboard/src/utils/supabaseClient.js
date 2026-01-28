@@ -25,7 +25,11 @@ const rawAnon = process.env.REACT_APP_SUPABASE_ANON_KEY
 function looksLikePlaceholder(url) {
  if (!url || typeof url !== 'string') return true;
  const lower = url.toLowerCase();
- return lower.includes('your-project') || lower.includes('example') || !lower.includes('.supabase.co');
+ // Allow local Supabase URLs (127.0.0.1, localhost) as well as cloud (.supabase.co)
+ const isLocal = lower.includes('127.0.0.1') || lower.includes('localhost');
+ const isCloud = lower.includes('.supabase.co');
+ const hasPlaceholder = lower.includes('your-project') || lower.includes('example');
+ return hasPlaceholder || (!isLocal && !isCloud);
 }
 
 function createStubSupabase(reasonMessage) {
