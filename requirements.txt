@@ -1,0 +1,8 @@
+# Root requirements.txt for CI validation workflows
+# Lead magnet and automation dependencies
+
+praw>=7.7.0
+reportlab>=4.0.0
+pandas>=2.0.0
+nltk>=3.8.0
+requests>=2.31.0

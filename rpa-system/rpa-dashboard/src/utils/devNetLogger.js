@@ -93,26 +93,23 @@ export async function fetchWithAuth(url, options = {}) {
 			}
 		});
 
-		// Self-healing: if 401 Unauthorized, clear cookies/localStorage and trigger re-authentication
+		// Self-healing: if 401 Unauthorized, clear auth tokens (but DO NOT reload to prevent infinite loops)
 		if (res.status === 401) {
-			console.warn('[devNetLogger] 401 Unauthorized detected. Attempting self-heal: clearing auth tokens and cookies, triggering re-authentication.');
-			try {
-				// Clear localStorage tokens
-				localStorage.removeItem('dev_token');
-				localStorage.removeItem('authToken');
-				// Attempt to clear cookies (best effort)
-				if (typeof document !== 'undefined') {
-					document.cookie.split(';').forEach(function(c) {
-						document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
-					});
+			// Skip self-heal on auth endpoints to prevent infinite loops
+			const isAuthEndpoint = url.includes('/auth/') || url.includes('/login') || url.includes('/session');
+			if (!isAuthEndpoint) {
+				console.warn('[devNetLogger] 401 Unauthorized detected. Clearing auth tokens.');
+				try {
+					// Clear localStorage tokens
+					localStorage.removeItem('dev_token');
+					localStorage.removeItem('authToken');
+					// Dispatch event for app-level handling (DO NOT reload - let app handle redirect)
+					if (typeof window !== 'undefined') {
+						window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
+					}
+				} catch (e) {
+					console.error('[devNetLogger] Self-heal failed:', e);
 				}
-				// Optionally, trigger a login flow or reload
-				if (typeof window !== 'undefined') {
-					window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
-					setTimeout(function() { window.location.reload(); }, 1000);
-				}
-			} catch (e) {
-				console.error('[devNetLogger] Self-heal failed:', e);
 			}
 		}
 
@@ -155,10 +152,11 @@ export async function fetchWithAuth(url, options = {}) {
 		if (isNetworkSuspended && isDevelopment) {
 			// Tab suspended errors are expected - don't throw, just log at debug level
 			console.debug('[devNetLogger] Network request suspended (tab backgrounded - expected)', { url });
-			// Return a mock response to prevent error propagation
+			// Return a mock response to prevent error propagation.
+			// NOTE: Response status must be within [200, 599]; using 503 to indicate a temporary network condition.
 			return new Response(JSON.stringify({ error: 'Network suspended' }), {
-				status: 0,
-				statusText: 'Network suspended',
+				status: 503,
+				statusText: 'Network suspended (dev stub)',
 				headers: { 'Content-Type': 'application/json' }
 			});
 		}
@@ -222,26 +220,23 @@ if (typeof window !== 'undefined') {
 				try {
 					const res = await _origFetch(input, enhancedInit);
 
-					// Self-healing: if 401 Unauthorized, clear cookies/localStorage and trigger re-authentication
+					// Self-healing: if 401 Unauthorized, clear auth tokens (but DO NOT reload to prevent infinite loops)
 					if (res.status === 401) {
-						console.warn('[devNetLogger] 401 Unauthorized detected. Attempting self-heal: clearing auth tokens and cookies, triggering re-authentication.');
-						try {
-							// Clear localStorage tokens
-							localStorage.removeItem('dev_token');
-							localStorage.removeItem('authToken');
-							// Attempt to clear cookies (best effort)
-							if (typeof document !== 'undefined') {
-								document.cookie.split(';').forEach(function(c) {
-									document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
-								});
+						// Skip self-heal on auth endpoints to prevent infinite loops
+						const isAuthEndpoint = url.includes('/auth/') || url.includes('/login') || url.includes('/session');
+						if (!isAuthEndpoint) {
+							console.warn('[devNetLogger] 401 Unauthorized detected. Clearing auth tokens.');
+							try {
+								// Clear localStorage tokens
+								localStorage.removeItem('dev_token');
+								localStorage.removeItem('authToken');
+								// Dispatch event for app-level handling (DO NOT reload - let app handle redirect)
+								if (typeof window !== 'undefined') {
+									window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
+								}
+							} catch (e) {
+								console.error('[devNetLogger] Self-heal failed:', e);
 							}
-							// Optionally, trigger a login flow or reload
-							if (typeof window !== 'undefined') {
-								window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
-								setTimeout(function() { window.location.reload(); }, 1000);
-							}
-						} catch (e) {
-							console.error('[devNetLogger] Self-heal failed:', e);
 						}
 					}
 
