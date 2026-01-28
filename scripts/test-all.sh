@@ -150,14 +150,15 @@ if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
     cd ../..
 fi
 
-# Python tests (if pytest is available and test files exist)
+# Python tests (optional; only run when pytest is actually available and tests exist)
 if [ -f "rpa-system/automation/automation-service/requirements.txt" ]; then
-    if command -v pytest >/dev/null 2>&1 || command -v python3 -m pytest >/dev/null 2>&1; then
-        # Check if test files exist
-        if find rpa-system/automation -name "test_*.py" -o -name "*_test.py" | grep -q .; then
+    # Check if test files exist first
+    if find rpa-system/automation -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+        # Confirm pytest availability (don't treat missing pytest as a failure in CI)
+        if command -v pytest >/dev/null 2>&1 || python3 -m pytest --version >/dev/null 2>&1; then
             CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
             cd rpa-system/automation/automation-service
-            if python3 -m pytest -v --tb=short || pytest -v --tb=short; then
+            if python3 -m pytest -v --tb=short >/dev/null 2>&1 || pytest -v --tb=short >/dev/null 2>&1; then
                 echo "  ${GREEN}✓ Python tests passed${NC}"
                 TESTS_PASSED=$((TESTS_PASSED + 1))
             else
@@ -167,10 +168,10 @@ if [ -f "rpa-system/automation/automation-service/requirements.txt" ]; then
             fi
             cd ../../..
         else
-            echo "  ${YELLOW}○ Python tests (no test files found)${NC}"
+            echo "  ${YELLOW}○ Python tests skipped (pytest not installed)${NC}"
         fi
     else
-        echo "  ${YELLOW}○ Python tests (pytest not available)${NC}"
+        echo "  ${YELLOW}○ Python tests (no test files found)${NC}"
     fi
 fi
 
