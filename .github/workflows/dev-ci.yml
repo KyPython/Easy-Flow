@@ -9,6 +9,10 @@ on:
     - cron: "0 6 * * *"  # Daily at 06:00 UTC
   workflow_dispatch:
 
+permissions:
+  contents: read
+  statuses: write
+
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -139,3 +143,43 @@ jobs:
         run: |
           chmod +x scripts/validate-ai-knowledge.sh
           ./scripts/validate-ai-knowledge.sh || true
+
+  # Branch protection on `main` expects a required status check context named exactly "Dev CI".
+  # GitHub Actions check-runs are named like "Dev CI / <job>", so we publish an explicit commit status
+  # with context "Dev CI" summarizing the workflow result.
+  dev_ci_status:
+    name: Dev CI
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - setup
+      - lint
+      - test
+      - build
+      - terraform
+      - security
+    steps:
+      - name: Publish required status context (Dev CI)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const needs = ${{ toJson(needs) }};
+            const results = Object.entries(needs).map(([k, v]) => [k, v.result]);
+            const failed = results.filter(([, r]) => r === 'failure' || r === 'cancelled');
+            const state = failed.length ? 'failure' : 'success';
+            const description = failed.length
+              ? `Dev CI failed: ${failed.map(([k]) => k).join(', ')}`
+              : 'Dev CI passed';
+
+            // For pull_request runs, GITHUB_SHA is the merge commit; for push runs it's the pushed commit.
+            const sha = process.env.GITHUB_SHA;
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state,
+              context: 'Dev CI',
+              description: description.slice(0, 140),
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
