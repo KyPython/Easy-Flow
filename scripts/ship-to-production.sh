@@ -40,10 +40,15 @@ if [ "$CURRENT_BRANCH" != "dev" ]; then
     CURRENT_BRANCH="dev"
 fi
 
-# Check for uncommitted changes
-if ! git diff-index --quiet HEAD --; then
-    echo "${RED}✗ You have uncommitted changes. Please commit or stash them first.${NC}"
-    git status --short
+# Check for uncommitted changes (ignore auto-generated .features/* artifacts)
+# `npm run ship:features` runs the readiness assessor first, which regenerates:
+#   - .features/features.json
+#   - .features/readiness-report.txt
+# Those should not block shipping.
+NON_FEATURE_CHANGES=$(git status --porcelain --untracked-files=no -- . ':(exclude).features' ':(exclude).features/**' 2>/dev/null || true)
+if [ -n "$NON_FEATURE_CHANGES" ]; then
+    echo "${RED}✗ You have uncommitted changes (excluding .features/*). Please commit or stash them first.${NC}"
+    echo "$NON_FEATURE_CHANGES"
     exit 1
 fi
 
