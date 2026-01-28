@@ -25,7 +25,7 @@ jobs:
       - name: Branch Awareness
         id: branch_info
         run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             echo "branch=main" >> $GITHUB_OUTPUT
             echo "mode=strict" >> $GITHUB_OUTPUT
             echo "blocking=true" >> $GITHUB_OUTPUT
