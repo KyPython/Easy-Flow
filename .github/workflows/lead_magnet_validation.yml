@@ -492,7 +492,7 @@ jobs:
 
       # STEP 11: UPLOAD ARTIFACTS
       - name: 📤 Upload Validation Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: validation-artifacts-${{ github.run_number }}
