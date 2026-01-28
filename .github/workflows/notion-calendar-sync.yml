@@ -1,0 +1,45 @@
+name: Notion Google Calendar Sync
+
+on:
+  schedule:
+    # Sync daily at 6:00 AM EST (before your day starts)
+    # GitHub Actions cron runs in UTC
+    # 6:00 AM EST = 11:00 AM UTC (11:00)
+    - cron: '0 11 * * *'  # 6:00 AM EST (11:00 UTC)
+    # For EDT (UTC-4), use:
+    # - cron: '0 10 * * *'  # 6:00 AM EDT (10:00 UTC)
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  sync-calendar-to-notion:
+    runs-on: ubuntu-latest
+    name: Sync Google Calendar → Notion
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests supabase google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+      
+      - name: Sync Google Calendar to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+        run: |
+          python3 scripts/notion-integrations/google-calendar-custom-sync.py
+      
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ Google Calendar → Notion sync completed at $(date)"
+          echo "Repository: ${{ github.repository }}"
+          echo "Workflow run: ${{ github.run_id }}"

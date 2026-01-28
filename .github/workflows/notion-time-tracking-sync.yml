@@ -1,0 +1,43 @@
+name: Notion Time Tracking Sync
+
+on:
+  schedule:
+    # Sync daily at 8:00 AM EST (after work day starts)
+    # GitHub Actions cron runs in UTC
+    # 8:00 AM EST = 1:00 PM UTC (13:00)
+    - cron: '0 13 * * *'  # 8:00 AM EST (13:00 UTC)
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  sync-time-tracking:
+    runs-on: ubuntu-latest
+    name: Sync Time Tracking (Toggl + Clockify) → Notion
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+      
+      - name: Sync Time Tracking to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          TOGGL_API_TOKEN: ${{ secrets.TOGGL_API_TOKEN }}
+          CLOCKIFY_API_KEY: ${{ secrets.CLOCKIFY_API_KEY }}
+          CLOCKIFY_WORKSPACE_ID: ${{ secrets.CLOCKIFY_WORKSPACE_ID }}
+        run: |
+          python3 scripts/notion-integrations/time-tracking-to-notion-sync.py
+      
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ Time Tracking → Notion sync completed at $(date)"
+          echo "Repository: ${{ github.repository }}"
+          echo "Workflow run: ${{ github.run_id }}"

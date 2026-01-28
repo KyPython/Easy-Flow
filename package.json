@@ -74,7 +74,8 @@
     "npm": ">=9.0.0"
   },
   "devDependencies": {
-    "husky": "^10.0.0",
-    "dotenv": "^16.0.3"
+    "dotenv": "^16.0.3",
+    "husky": "^9.1.7",
+    "software-entropy": "^1.0.0"
   }
 }

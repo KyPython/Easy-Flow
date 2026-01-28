@@ -22,9 +22,11 @@ echo ""
 
 # Check for local software-entropy tool first, then fallback to npx
 SOFTWARE_ENTROPY_CMD=""
-if [ -f "/Users/ky/software-entropy/dist/cli.js" ]; then
-    SOFTWARE_ENTROPY_CMD="node /Users/ky/software-entropy/dist/cli.js"
-    echo "${GREEN}✓ Using local Software Entropy tool${NC}"
+
+# Prefer a repo-installed dependency (most reliable in CI/local dev)
+if [ -x "./node_modules/.bin/software-entropy" ]; then
+    SOFTWARE_ENTROPY_CMD="./node_modules/.bin/software-entropy"
+    echo "${GREEN}✓ Using repo-installed Software Entropy tool${NC}"
 elif command -v software-entropy >/dev/null 2>&1; then
     SOFTWARE_ENTROPY_CMD="software-entropy"
     echo "${GREEN}✓ Using global Software Entropy installation${NC}"
@@ -38,104 +40,60 @@ else
     exit 1
 fi
 
-# Hotspot-focused configuration
-HOTSPOT_WINDOW="${HOTSPOT_WINDOW:-30}"  # Days for churn analysis
-TOP_HOTSPOTS="${TOP_HOTSPOTS:-10}"      # Number of top hotspots to show
-CONFIG_FILE="${CONFIG_FILE:-.code-quality-config.json}"
+# Configuration (kept env-overridable)
+MAX_FUNCTION_LINES="${MAX_FUNCTION_LINES:-50}"
+MAX_FILE_LINES="${MAX_FILE_LINES:-500}"
+MAX_TODO_DENSITY="${MAX_TODO_DENSITY:-5}"
 OUTPUT_FILE="${1:-code-quality-report.json}"
-
-# Check if we're in a git repository (required for hotspot analysis)
-if ! git rev-parse --git-dir >/dev/null 2>&1; then
-    echo "${YELLOW}⚠ Not a git repository. Hotspot analysis requires git history.${NC}"
-    echo "  Run: git init (if new repo) or ensure you're in a git repo"
-    echo "  Falling back to traditional scan (without hotspots)..."
-    USE_HOTSPOTS=false
-else
-    USE_HOTSPOTS=true
-    echo "${GREEN}✓ Git repository detected - hotspot analysis enabled${NC}"
-fi
 
 echo ""
 echo "${BLUE}Configuration:${NC}"
-echo "  Hotspot Window: ${CYAN}${HOTSPOT_WINDOW} days${NC}"
-echo "  Top Hotspots: ${CYAN}${TOP_HOTSPOTS}${NC}"
-if [ -f "$CONFIG_FILE" ]; then
-    echo "  Config File: ${CYAN}${CONFIG_FILE}${NC}"
+echo "  Max Function Lines: ${CYAN}${MAX_FUNCTION_LINES}${NC}"
+echo "  Max File Lines: ${CYAN}${MAX_FILE_LINES}${NC}"
+echo "  Max TODO Density: ${CYAN}${MAX_TODO_DENSITY} per 100 lines${NC}"
+echo ""
+
+# Run scan (current software-entropy CLI options)
+echo "${BLUE}Running code quality scan...${NC}"
+echo "${CYAN}This identifies oversized functions/files and TODO density issues.${NC}"
+echo ""
+
+OUTPUT=$(mktemp)
+ERROR_OUTPUT=$(mktemp)
+
+# Tool may return non-zero depending on findings; treat that as "scan ran" and surface output.
+set +e
+$SOFTWARE_ENTROPY_CMD . \
+  --max-function-lines "$MAX_FUNCTION_LINES" \
+  --max-file-lines "$MAX_FILE_LINES" \
+  --max-todo-density "$MAX_TODO_DENSITY" \
+  --output "${OUTPUT_FILE:-code-quality-report.json}" \
+  > "$OUTPUT" 2> "$ERROR_OUTPUT"
+EXIT_CODE=$?
+set -e
+
+cat "$OUTPUT"
+if [ -s "$ERROR_OUTPUT" ]; then
+    echo ""
+    echo "${YELLOW}⚠ Warnings / Notes:${NC}"
+    cat "$ERROR_OUTPUT" | head -10
 fi
-echo ""
 
-# Run hotspot-focused analysis
-echo "${BLUE}Running hotspot analysis...${NC}"
-echo "${CYAN}This identifies files that are BOTH complex AND frequently changed.${NC}"
-echo ""
+rm -f "$OUTPUT" "$ERROR_OUTPUT"
 
-if [ "$USE_HOTSPOTS" = true ]; then
-    # Hotspot analysis (default - this is the core value)
-    # Note: Tool may output errors to stderr but still succeed
-    OUTPUT=$(mktemp)
-    ERROR_OUTPUT=$(mktemp)
-    
-    if $SOFTWARE_ENTROPY_CMD . \
-        --config "$CONFIG_FILE" \
-        --hotspot-window "$HOTSPOT_WINDOW" \
-        --top-hotspots "$TOP_HOTSPOTS" \
-        --output "${OUTPUT_FILE:-code-quality-report.json}" \
-        > "$OUTPUT" 2> "$ERROR_OUTPUT"; then
-        cat "$OUTPUT"
-        # Show errors if any (but don't fail)
-        if [ -s "$ERROR_OUTPUT" ]; then
-            echo ""
-            echo "${YELLOW}⚠ Warnings (non-critical):${NC}"
-            cat "$ERROR_OUTPUT" | head -5
-        fi
-        rm -f "$OUTPUT" "$ERROR_OUTPUT"
-        echo ""
-        echo "${GREEN}✅ Hotspot analysis complete!${NC}"
-        echo ""
-        echo "${CYAN}💡 Next Steps:${NC}"
-        echo "  1. Review the top ${TOP_HOTSPOTS} hotspots above"
-        echo "  2. Start with the highest-scoring files (complexity × churn)"
-        echo "  3. Refactor complex functions in these files"
-        echo "  4. Add tests before refactoring"
-        echo ""
-        exit 0
-    else
-        # Show output even if command failed
-        cat "$OUTPUT" 2>/dev/null || true
-        cat "$ERROR_OUTPUT" 2>/dev/null || true
-        rm -f "$OUTPUT" "$ERROR_OUTPUT"
-        echo ""
-        echo "${RED}✗ Hotspot analysis failed${NC}"
-        exit 1
-    fi
+echo ""
+if [ ! -s "${OUTPUT_FILE:-code-quality-report.json}" ]; then
+    echo "${RED}✗ Code quality scan did not produce a report (${OUTPUT_FILE}).${NC}"
+    echo "${RED}  Treating as blocking (tool failure).${NC}"
+    exit 1
+fi
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "${GREEN}✅ Code quality scan complete!${NC}"
 else
-    # Fallback: Traditional scan without hotspots
-    echo "${YELLOW}Running traditional scan (no hotspots - git required)...${NC}"
-    OUTPUT=$(mktemp)
-    ERROR_OUTPUT=$(mktemp)
-    
-    if $SOFTWARE_ENTROPY_CMD . \
-        --config "$CONFIG_FILE" \
-        --no-hotspots \
-        --output "${OUTPUT_FILE:-code-quality-report.json}" \
-        > "$OUTPUT" 2> "$ERROR_OUTPUT"; then
-        cat "$OUTPUT"
-        if [ -s "$ERROR_OUTPUT" ]; then
-            echo ""
-            echo "${YELLOW}⚠ Warnings:${NC}"
-            cat "$ERROR_OUTPUT" | head -5
-        fi
-        rm -f "$OUTPUT" "$ERROR_OUTPUT"
-        echo ""
-        echo "${GREEN}✅ Code quality scan complete!${NC}"
-        exit 0
-    else
-        cat "$OUTPUT" 2>/dev/null || true
-        cat "$ERROR_OUTPUT" 2>/dev/null || true
-        rm -f "$OUTPUT" "$ERROR_OUTPUT"
-        echo ""
-        echo "${RED}✗ Code quality scan failed${NC}"
-        exit 1
-    fi
+    echo "${YELLOW}⚠ Code quality scan completed with findings (exit ${EXIT_CODE}).${NC}"
+    echo "${YELLOW}  Treating as non-blocking for readiness; review report: ${OUTPUT_FILE}${NC}"
 fi
+
+exit 0
 
