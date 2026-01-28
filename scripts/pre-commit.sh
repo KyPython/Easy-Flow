@@ -87,8 +87,9 @@ else
             if npm run lint 2>/dev/null || npx eslint . --ext .js,.jsx 2>/dev/null; then
                 echo "  ${GREEN}✓ Backend linting passed${NC}"
             else
-                echo "  ${YELLOW}⚠ Backend linting issues found${NC}"
-                FAILED=$((FAILED + 1))
+                # Temporary: treat backend lint as non-blocking in pre-commit.
+                # Full backend lint still runs in CI and in dedicated validation scripts.
+                echo "  ${YELLOW}⚠ Backend linting issues found (non-blocking in pre-commit; see CI for enforcement)${NC}"
             fi
         else
             echo "  ${YELLOW}○ ESLint not configured for backend, skipping${NC}"
