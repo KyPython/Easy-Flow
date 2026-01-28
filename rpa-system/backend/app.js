@@ -197,8 +197,9 @@ const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
 // ✅ CORS: Regex patterns for dynamic preview URLs (e.g., Vercel preview deployments)
 // This allows ANY Vercel preview URL for the project without hardcoding each one
 const ALLOWED_ORIGIN_PATTERNS = [
- /^https:\/\/easy-flow-.*-kypythons-projects\.vercel\.app$/, // Vercel preview URLs
- /^https:\/\/.*\.vercel\.app$/ // Any Vercel preview (fallback)
+  /^https:\/\/easy-flow-.*-kypythons-projects\.vercel\.app$/, // Vercel preview URLs
+  // eslint-disable-next-line no-useless-escape
+  /^https:\/\/.*\.vercel\.app$/ // Any Vercel preview (fallback)
 ];
 
 // Debug logging for CORS configuration (quiet in production)
@@ -2263,71 +2264,71 @@ app.post('/api/auth/login', async (req, res) => {
  }
  }
 
- const devUser = {
- id: devUserId,
- email: email,
- user_metadata: { name: 'Developer User' }
- };
+    const devUser = {
+      id: devUserId,
+      email: email,
+      user_metadata: { name: 'Developer User' }
+    };
 
- logger.info('🔧 [Auth] Dev mode login (bypass)', {
- email: email.substring(0, 3) + '***',
- user_id: devUser.id,
- duration_ms: duration,
- request_id: requestId
- });
- await auditLogger.logAuthEvent(devUser.id, 'login', true, {
- method: 'dev_bypass',
- duration_ms: duration
- }, req);
+    logger.info('🔧 [Auth] Dev mode login (bypass)', {
+      email: email.substring(0, 3) + '***',
+      user_id: devUser.id,
+      duration_ms: duration,
+      request_id: requestId
+    });
+    await auditLogger.logAuthEvent(devUser.id, 'login', true, {
+      method: 'dev_bypass',
+      duration_ms: duration
+    }, req);
 
- // Use a configured dev bypass token when available; otherwise generate a secure ephemeral token.
- // Note: Generated tokens are ephemeral and intended for local development only.
- const devAccessToken = process.env.DEV_BYPASS_TOKEN || crypto.randomBytes(24).toString('hex');
+    // Use a configured dev bypass token when available; otherwise generate a secure ephemeral token.
+    // Note: Generated tokens are ephemeral and intended for local development only.
+    const devAccessToken = process.env.DEV_BYPASS_TOKEN || crypto.randomBytes(24).toString('hex');
 
- return res.json({
- user: devUser,
- session: {
- user: devUser,
- access_token: devAccessToken,
- expires_at: Date.now() + 3600000
- }
- });
- }
+    return res.json({
+      user: devUser,
+      session: {
+        user: devUser,
+        access_token: devAccessToken,
+        expires_at: Date.now() + 3600000
+      }
+    });
+  }
 
- const duration = Date.now() - startTime;
- logger.error('❌ [Auth] Authentication not configured', {
- email: email.substring(0, 3) + '***',
- has_supabase: !!supabase,
- node_env: process.env.NODE_ENV,
- duration_ms: duration,
- request_id: requestId
- });
- await auditLogger.logAuthEvent(null, 'login_attempt', false, {
- reason: 'auth_not_configured',
- has_supabase: !!supabase,
- node_env: process.env.NODE_ENV,
- email: email.substring(0, 3) + '***'
- }, req);
- res.status(401).json({ error: 'Authentication not configured' });
- } catch (error) {
- const duration = Date.now() - startTime;
- logger.error('❌ [Auth] Login exception', {
- // ✅ SECURITY: Validate type before using string methods
- email: (email && typeof email === 'string') ? email.substring(0, 3) + '***' : 'missing',
- error: error.message,
- stack: error.stack,
- duration_ms: duration,
- request_id: requestId
- });
- await auditLogger.logAuthEvent(null, 'login_attempt', false, {
- reason: 'exception',
- error: error.message,
- email: email ? email.substring(0, 3) + '***' : 'missing'
- }, req).catch(() => {
- // Best-effort: Don't fail if audit logging fails
- });
- res.status(500).json({ error: 'Login failed' });
- }
+  const duration = Date.now() - startTime;
+  logger.error('❌ [Auth] Authentication not configured', {
+    email: email.substring(0, 3) + '***',
+    has_supabase: !!supabase,
+    node_env: process.env.NODE_ENV,
+    duration_ms: duration,
+    request_id: requestId
+  });
+  await auditLogger.logAuthEvent(null, 'login_attempt', false, {
+    reason: 'auth_not_configured',
+    has_supabase: !!supabase,
+    node_env: process.env.NODE_ENV,
+    email: email.substring(0, 3) + '***'
+  }, req);
+  res.status(401).json({ error: 'Authentication not configured' });
+} catch (error) {
+  const duration = Date.now() - startTime;
+  logger.error('❌ [Auth] Login exception', {
+    // ✅ SECURITY: Validate type before using string methods
+    email: (email && typeof email === 'string') ? email.substring(0, 3) + '***' : 'missing',
+    error: error.message,
+    stack: error.stack,
+    duration_ms: duration,
+    request_id: requestId
+  });
+  await auditLogger.logAuthEvent(null, 'login_attempt', false, {
+    reason: 'exception',
+    error: error.message,
+    email: email ? email.substring(0, 3) + '***' : 'missing'
+  }, req).catch(() => {
+    // Best-effort: Don't fail if audit logging fails
+  });
+  res.status(500).json({ error: 'Login failed' });
+}
 });
 
 app.post('/api/auth/logout', async (req, res) => {
@@ -3554,6 +3555,98 @@ app.post('/api/notifications/create', notificationsCreateDeprecation, authMiddle
  logger.error('[POST /api/notifications/create] error:', error);
  res.status(500).json({ error: 'Internal server error', details: error.message });
  }
+});
+
+// --- Subscription Monitoring API ---
+const subscriptionMonitoringService = require('./services/subscriptionMonitoringService');
+
+// GET /api/subscriptions - Get all subscriptions for user
+app.get('/api/subscriptions', authMiddleware, async (req, res) => {
+  try {
+    const { company_name, service_name } = req.query;
+    const result = await subscriptionMonitoringService.getUserSubscriptions(req.user.id, {
+      company_name,
+      service_name
+    });
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json(result.subscriptions);
+  } catch (error) {
+    logger.error('[GET /api/subscriptions] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// POST /api/subscriptions - Create new subscription
+app.post('/api/subscriptions', authMiddleware, async (req, res) => {
+  try {
+    const result = await subscriptionMonitoringService.createSubscription(req.user.id, req.body);
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json(result.subscription);
+  } catch (error) {
+    logger.error('[POST /api/subscriptions] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// GET /api/subscriptions/export - Export subscriptions data for spreadsheet
+app.get('/api/subscriptions/export', authMiddleware, async (req, res) => {
+  try {
+    const { company } = req.query;
+    const result = await subscriptionMonitoringService.getExportData(req.user.id, company);
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json(result.data);
+  } catch (error) {
+    logger.error('[GET /api/subscriptions/export] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// POST /api/subscriptions/:id/usage-check - Record usage check result
+app.post('/api/subscriptions/:id/usage-check', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { usage_data, execution_id } = req.body;
+
+    const result = await subscriptionMonitoringService.recordUsageCheck(id, usage_data, execution_id);
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json(result.check);
+  } catch (error) {
+    logger.error('[POST /api/subscriptions/:id/usage-check] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// POST /api/subscriptions/alerts/:id/acknowledge - Acknowledge an alert
+app.post('/api/subscriptions/alerts/:id/acknowledge', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await subscriptionMonitoringService.acknowledgeAlert(id, req.user.id);
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('[POST /api/subscriptions/alerts/:id/acknowledge] error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
 });
 
 // --- Task Management API ---
@@ -5364,70 +5457,70 @@ app.post('/api/trigger-campaign', async (req, res) => {
  followup.setHours(followup.getHours() + 24); // Schedule followup 24 hours later
 
  const inserts = [];
+switch (campaign) {
+  case 'welcome': {
+    // Email 1: Welcome (immediate)
+    inserts.push({
+      profile_id: req.user.id,
+      to_email: targetEmail,
+      template: 'welcome',
+      data: { profile_id: req.user.id, email_sequence: 1 },
+      scheduled_at: now.toISOString(),
+      status: 'pending',
+      created_at: now.toISOString()
+    });
 
- switch (campaign) {
- case 'welcome': {
-            // Email 1: Welcome (immediate)
- inserts.push({
- profile_id: req.user.id,
- to_email: targetEmail,
- template: 'welcome',
- data: { profile_id: req.user.id },
- scheduled_at: now.toISOString(),
- status: 'pending',
- created_at: now.toISOString()
- });
+    // Email 2: Getting Started Tips (24 hours)
+    const day1 = new Date(now);
+    day1.setHours(day1.getHours() + 24);
+    inserts.push({
+      profile_id: req.user.id,
+      to_email: targetEmail,
+      template: 'welcome_followup',
+      data: { profile_id: req.user.id, email_sequence: 2 },
+      scheduled_at: day1.toISOString(),
+      status: 'pending',
+      created_at: now.toISOString()
+    });
 
-            // Email 2: Getting Started Tips (24 hours)
-            const day1 = new Date(now);
-            day1.setHours(day1.getHours() + 24);
- inserts.push({
- profile_id: req.user.id,
- to_email: targetEmail,
- template: 'welcome_followup',
-              data: { profile_id: req.user.id, email_sequence: 2 },
-              scheduled_at: day1.toISOString(),
- status: 'pending',
- created_at: now.toISOString()
- });
+    // Email 3: Activation Reminder (3 days if not activated)
+    const day3 = new Date(now);
+    day3.setDate(day3.getDate() + 3);
+    inserts.push({
+      profile_id: req.user.id,
+      to_email: targetEmail,
+      template: 'activation_reminder',
+      data: { profile_id: req.user.id, email_sequence: 3 },
+      scheduled_at: day3.toISOString(),
+      status: 'pending',
+      created_at: now.toISOString()
+    });
 
-            // Email 3: Activation Reminder (3 days if not activated)
-            const day3 = new Date(now);
-            day3.setDate(day3.getDate() + 3);
-            inserts.push({
-              profile_id: req.user.id,
-              to_email: targetEmail,
-              template: 'activation_reminder',
-              data: { profile_id: req.user.id, email_sequence: 3 },
-              scheduled_at: day3.toISOString(),
-              status: 'pending',
-              created_at: now.toISOString()
-            });
+    // Email 4: Success Stories / Tips (7 days)
+    const day7 = new Date(now);
+    day7.setDate(day7.getDate() + 7);
+    inserts.push({
+      profile_id: req.user.id,
+      to_email: targetEmail,
+      template: 'success_tips',
+      data: { profile_id: req.user.id, email_sequence: 4 },
+      scheduled_at: day7.toISOString(),
+      status: 'pending',
+      created_at: now.toISOString()
+    });
 
-            // Email 4: Success Stories / Tips (7 days)
-            const day7 = new Date(now);
-            day7.setDate(day7.getDate() + 7);
-            inserts.push({
-              profile_id: req.user.id,
-              to_email: targetEmail,
-              template: 'success_tips',
-              data: { profile_id: req.user.id, email_sequence: 4 },
-              scheduled_at: day7.toISOString(),
-              status: 'pending',
-              created_at: now.toISOString()
-            });
-
-            logger.info(`[trigger-campaign] Enqueuing welcome email sequence (4 emails) for ${targetEmail}`, {
-              email_count: inserts.length,
-              scheduled_dates: inserts.map(i => i.scheduled_at)
-            });
- break;
- }
- default:
- // Handle other campaigns if you add them
- logger.info(`[trigger-campaign] Unknown campaign: ${campaign}`);
- break;
- }
+    logger.info(`[trigger-campaign] Enqueuing welcome email sequence (4 emails) for ${targetEmail}`, {
+      email_count: inserts.length,
+      scheduled_dates: inserts.map(i => i.scheduled_at)
+    });
+    break;
+  }
+  default: {
+    // Handle other campaigns if you add them
+    logger.info(`[trigger-campaign] Unknown campaign: ${campaign}`);
+    break;
+  }
+}
 
  if (inserts.length > 0 && supabase) {
  const { error } = await supabase
