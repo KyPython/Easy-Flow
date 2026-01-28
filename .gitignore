@@ -66,6 +66,18 @@ pnpm-debug.log*
 **/.stripe_publishable_key
 *.stripe_publishable_key
 **/*stripe_publishable_key*
+.toggl_token
+**/.toggl_token
+*.toggl_token
+**/*toggl_token*
+.clockify_token
+**/.clockify_token
+*.clockify_token
+**/*clockify_token*
+.clockify_workspace_id
+**/.clockify_workspace_id
+*.clockify_workspace_id
+**/*clockify_workspace_id*
 *.token
 **/*.token
 
