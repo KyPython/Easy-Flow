@@ -484,3 +484,6 @@ rpa-system/rpa-dashboard/public/firebase-config.js
 code-quality-report.json
 infrastructure/keys/
 *.json
+
+.features/features.json
+.features/readiness-report.txt
