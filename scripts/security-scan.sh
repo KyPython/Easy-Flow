@@ -115,15 +115,20 @@ if ! snyk auth status >/dev/null 2>&1; then
         fi
     else
         log "WARN" "snyk.auth" "Snyk not authenticated. Set SNYK_TOKEN for CI/CD or run 'snyk auth' locally."
-        # In local dev, don't block if not authenticated (user can run manually)
-        # In CI/CD, this should fail (SNYK_TOKEN should be set)
+        # In local dev, don't block if not authenticated (user can run manually).
+        # In CI/CD, prefer to require auth for push/schedule runs, but PR runs may not have access
+        # to org/repo secrets depending on GitHub settings. In that case, skip rather than hard-fail.
         if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
+            if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
+                log "WARN" "snyk.auth" "Skipping Snyk in pull_request context (no SNYK_TOKEN available)"
+                exit 0
+            fi
             log "ERROR" "snyk.auth" "Snyk authentication required in CI/CD"
             exit 1
-        else
-            log "INFO" "snyk.auth" "Skipping security scan in local dev (non-blocking)"
-            exit 0  # Non-blocking in local dev
         fi
+
+        log "INFO" "snyk.auth" "Skipping security scan in local dev (non-blocking)"
+        exit 0
     fi
 fi
 
