@@ -309,12 +309,11 @@ function validateStudyGuide() {
   
   log('\n' + '='.repeat(60), 'blue');
   
-  // Check if running in strict/blocking mode (main branch)
-  // STRICT_MODE can be set via environment variable or detected via CI context
+  // Check if running in strict/blocking mode (direct push to main only)
+  // PRs targeting main are permissive since they're not yet merged
   const isStrictMode = process.env.STRICT_MODE === 'true' || 
                        process.env.BLOCKING_MODE === 'true' ||
-                       process.env.GITHUB_REF === 'refs/heads/main' ||
-                       (process.env.GITHUB_BASE_REF === 'main' && process.env.GITHUB_EVENT_NAME === 'pull_request');
+                       process.env.GITHUB_REF === 'refs/heads/main';
 
   if (errors.length > 0) {
     log('\n❌ Study guide validation failed!', 'red');

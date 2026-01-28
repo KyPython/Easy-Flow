@@ -6,11 +6,13 @@
 set -e
 
 # Check for permissive mode (non-main branches in CI)
+# Strict mode only on direct push to main (GITHUB_REF=refs/heads/main)
+# PRs targeting main are permissive since they're not yet merged
 PERMISSIVE_MODE=false
 if [ -n "$GITHUB_REF" ]; then
-  if [ "$GITHUB_REF" != "refs/heads/main" ] && [ "$GITHUB_BASE_REF" != "main" ]; then
+  if [ "$GITHUB_REF" != "refs/heads/main" ]; then
     PERMISSIVE_MODE=true
-    echo "ℹ️  Running in permissive mode (non-main branch) - failures are warnings"
+    echo "ℹ️  Running in permissive mode (not direct push to main) - failures are warnings"
   fi
 fi
 

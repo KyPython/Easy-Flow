@@ -1,190 +1,215 @@
-const { getSupabase } = require('./supabaseClient');
-const { logger } = require('./logger');
-
 /**
- * Prometheus Metrics Exporter for Business KPIs
- * Exposes business metrics in Prometheus format for Grafana dashboards
+ * Prometheus Metrics for EasyFlow
+ * Business metrics exposed in Prometheus format for monitoring
  */
 
-class PrometheusMetricsExporter {
- constructor() {
- this.metrics = {
- totalUsers: 0,
- activeUsers: 0,
- newSignups: 0,
- activatedUsers: 0,
- workflowsCreated: 0,
- workflowsRun: 0,
- mrr: 0,
- conversionRate: 0,
- visitToSignupRate: 0
- };
- this.lastUpdate = null;
- this.updateInterval = 60000; // Update every minute
- this.updateTimer = null;
- }
+const promClient = require('prom-client');
 
- /**
- * Start periodic metric updates
- */
- start() {
- this.updateMetrics();
- this.updateTimer = setInterval(() => {
- this.updateMetrics().catch(err => {
- logger.error('[PrometheusMetrics] Failed to update metrics:', err);
- });
- }, this.updateInterval);
- logger.info('✅ [PrometheusMetrics] Started periodic metric updates');
- }
+// Create a Registry
+const register = new promClient.Registry();
 
- /**
- * Stop periodic updates
- */
- stop() {
- if (this.updateTimer) {
- clearInterval(this.updateTimer);
- this.updateTimer = null;
- }
- }
+// Add default metrics (CPU, memory, etc.)
+promClient.collectDefaultMetrics({ register });
 
- /**
- * Update all metrics from database
- */
- async updateMetrics() {
- try {
- const supabase = getSupabase();
- if (!supabase) {
- logger.warn('[PrometheusMetrics] Supabase not available, skipping update');
- return;
- }
+// Custom metrics for EasyFlow
 
- const startDate = new Date();
- startDate.setDate(startDate.getDate() - 30); // Last 30 days
- const startDateISO = startDate.toISOString();
+// HTTP Request Duration
+const httpRequestDuration = new promClient.Histogram({
+  name: 'easyflow_http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+});
+register.registerMetric(httpRequestDuration);
 
- // Fetch all metrics in parallel
- const [
- totalUsersResult,
- activeUsersResult,
- newSignupsResult,
- activatedUsersResult,
- workflowsCreatedResult,
- workflowsRunResult,
- mrrResult,
- visitsResult
- ] = await Promise.allSettled([
- supabase.from('profiles').select('id', { count: 'exact', head: true }),
- supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('last_seen_at', startDateISO),
- supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', startDateISO),
- supabase.from('automation_tasks').select('user_id').eq('is_active', true),
- supabase.from('automation_tasks').select('id', { count: 'exact', head: true }).gte('created_at', startDateISO),
- supabase.from('automation_runs').select('id', { count: 'exact', head: true }).gte('created_at', startDateISO),
- supabase.from('subscriptions').select('plan_id, status').eq('status', 'active'),
- supabase.from('marketing_events').select('id', { count: 'exact', head: true }).eq('event_name', 'page_view').gte('created_at', startDateISO)
- ]);
+// HTTP Request Total
+const httpRequestTotal = new promClient.Counter({
+  name: 'easyflow_http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+register.registerMetric(httpRequestTotal);
 
- // Extract counts
- this.metrics.totalUsers = totalUsersResult.status === 'fulfilled' ? (totalUsersResult.value.count || 0) : 0;
- this.metrics.activeUsers = activeUsersResult.status === 'fulfilled' ? (activeUsersResult.value.count || 0) : 0;
- this.metrics.newSignups = newSignupsResult.status === 'fulfilled' ? (newSignupsResult.value.count || 0) : 0;
+// Active Users
+const activeUsers = new promClient.Gauge({
+  name: 'easyflow_active_users',
+  help: 'Number of active users in the last 5 minutes',
+  labelNames: ['plan']
+});
+register.registerMetric(activeUsers);
 
- if (activatedUsersResult.status === 'fulfilled' && activatedUsersResult.value.data) {
- this.metrics.activatedUsers = new Set(activatedUsersResult.value.data.map(r => r.user_id)).size;
- }
+// Workflow Executions
+const workflowExecutions = new promClient.Counter({
+  name: 'easyflow_workflow_executions_total',
+  help: 'Total number of workflow executions',
+  labelNames: ['status', 'trigger_type']
+});
+register.registerMetric(workflowExecutions);
 
- this.metrics.workflowsCreated = workflowsCreatedResult.status === 'fulfilled' ? (workflowsCreatedResult.value.count || 0) : 0;
- this.metrics.workflowsRun = workflowsRunResult.status === 'fulfilled' ? (workflowsRunResult.value.count || 0) : 0;
+// Workflow Execution Duration
+const workflowDuration = new promClient.Histogram({
+  name: 'easyflow_workflow_duration_seconds',
+  help: 'Duration of workflow executions in seconds',
+  labelNames: ['workflow_name'],
+  buckets: [1, 5, 10, 30, 60, 300, 600, 1800, 3600]
+});
+register.registerMetric(workflowDuration);
 
- // Calculate MRR
- if (mrrResult.status === 'fulfilled' && mrrResult.value.data) {
- const planIds = [...new Set(mrrResult.value.data.map(s => s.plan_id))];
- const { data: plans } = await supabase
- .from('plans')
- .select('id, price_monthly')
- .in('id', planIds);
+// Queue Stats
+const queueJobsWaiting = new promClient.Gauge({
+  name: 'easyflow_queue_jobs_waiting',
+  help: 'Number of jobs waiting in the queue'
+});
+register.registerMetric(queueJobsWaiting);
 
- const planPricing = {};
- if (plans) {
- plans.forEach(plan => {
- planPricing[plan.id] = plan.price_monthly || 0;
- });
- }
+const queueJobsActive = new promClient.Gauge({
+  name: 'easyflow_queue_jobs_active',
+  help: 'Number of jobs currently being processed'
+});
+register.registerMetric(queueJobsActive);
 
- this.metrics.mrr = 0;
- mrrResult.value.data.forEach(sub => {
- this.metrics.mrr += planPricing[sub.plan_id] || 0;
- });
- }
+const queueJobsCompleted = new promClient.Counter({
+  name: 'easyflow_queue_jobs_completed_total',
+  help: 'Total number of completed jobs'
+});
+register.registerMetric(queueJobsCompleted);
 
- // Calculate conversion rate
- if (this.metrics.newSignups > 0) {
- this.metrics.conversionRate = (this.metrics.activatedUsers / this.metrics.newSignups) * 100;
- }
+const queueJobsFailed = new promClient.Counter({
+  name: 'easyflow_queue_jobs_failed_total',
+  help: 'Total number of failed jobs'
+});
+register.registerMetric(queueJobsFailed);
 
- // Calculate visit to signup rate
- const visits = visitsResult.status === 'fulfilled' ? (visitsResult.value.count || 0) : 0;
- if (visits > 0) {
- this.metrics.visitToSignupRate = (this.metrics.newSignups / visits) * 100;
- }
+// Database Connection Pool
+const dbConnectionsActive = new promClient.Gauge({
+  name: 'easyflow_db_connections_active',
+  help: 'Number of active database connections'
+});
+register.registerMetric(dbConnectionsActive);
 
- this.lastUpdate = new Date();
- } catch (error) {
- logger.error('[PrometheusMetrics] Error updating metrics:', error);
- }
- }
+const dbConnectionsIdle = new promClient.Gauge({
+  name: 'easyflow_db_connections_idle',
+  help: 'Number of idle database connections'
+});
+register.registerMetric(dbConnectionsIdle);
 
- /**
- * Get metrics in Prometheus format
- */
- getPrometheusFormat() {
- const lines = [
- '# HELP easyflow_total_users Total number of users',
- '# TYPE easyflow_total_users gauge',
- `easyflow_total_users ${this.metrics.totalUsers}`,
- '',
- '# HELP easyflow_active_users Number of active users (last 30 days)',
- '# TYPE easyflow_active_users gauge',
- `easyflow_active_users ${this.metrics.activeUsers}`,
- '',
- '# HELP easyflow_new_signups Number of new signups (last 30 days)',
- '# TYPE easyflow_new_signups gauge',
- `easyflow_new_signups ${this.metrics.newSignups}`,
- '',
- '# HELP easyflow_activated_users Number of activated users (with workflows)',
- '# TYPE easyflow_activated_users gauge',
- `easyflow_activated_users ${this.metrics.activatedUsers}`,
- '',
- '# HELP easyflow_workflows_created Number of workflows created (last 30 days)',
- '# TYPE easyflow_workflows_created gauge',
- `easyflow_workflows_created ${this.metrics.workflowsCreated}`,
- '',
- '# HELP easyflow_workflows_run Number of workflows run (last 30 days)',
- '# TYPE easyflow_workflows_run gauge',
- `easyflow_workflows_run ${this.metrics.workflowsRun}`,
- '',
- '# HELP easyflow_mrr Monthly recurring revenue in USD',
- '# TYPE easyflow_mrr gauge',
- `easyflow_mrr ${this.metrics.mrr}`,
- '',
- '# HELP easyflow_conversion_rate Activation rate percentage',
- '# TYPE easyflow_conversion_rate gauge',
- `easyflow_conversion_rate ${this.metrics.conversionRate}`,
- '',
- '# HELP easyflow_visit_to_signup_rate Visit to signup conversion rate percentage',
- '# TYPE easyflow_visit_to_signup_rate gauge',
- `easyflow_visit_to_signup_rate ${this.metrics.visitToSignupRate}`,
- '',
- '# HELP easyflow_metrics_last_update Timestamp of last metrics update',
- '# TYPE easyflow_metrics_last_update gauge',
- `easyflow_metrics_last_update ${this.lastUpdate ? Math.floor(this.lastUpdate.getTime() / 1000) : 0}`
- ];
+// API Response Time by Endpoint
+const apiResponseTime = new promClient.Histogram({
+  name: 'easyflow_api_response_time_seconds',
+  help: 'API response time by endpoint',
+  labelNames: ['endpoint', 'method'],
+  buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+});
+register.registerMetric(apiResponseTime);
 
- return lines.join('\n');
- }
+// Error Rate
+const errorRate = new promClient.Counter({
+  name: 'easyflow_errors_total',
+  help: 'Total number of errors',
+  labelNames: ['type', 'endpoint']
+});
+register.registerMetric(errorRate);
+
+// Middleware to track HTTP request metrics
+function metricsMiddleware(req, res, next) {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000;
+    const route = req.route?.path || req.path || 'unknown';
+    const statusCode = res.statusCode.toString();
+    
+    httpRequestDuration.observe({
+      method: req.method,
+      route: route,
+      status_code: statusCode
+    }, duration);
+    
+    httpRequestTotal.inc({
+      method: req.method,
+      route: route,
+      status_code: statusCode
+    });
+  });
+  
+  next();
 }
 
-// Create singleton instance
-const prometheusMetricsExporter = new PrometheusMetricsExporter();
+// Function to update queue metrics
+function updateQueueMetrics(stats) {
+  if (stats) {
+    queueJobsWaiting.set(stats.waiting || 0);
+    queueJobsActive.set(stats.active || 0);
+  }
+}
 
-module.exports = { prometheusMetricsExporter, PrometheusMetricsExporter };
+// Function to increment workflow execution counter
+function recordWorkflowExecution(status, triggerType = 'manual') {
+  workflowExecutions.inc({ status, trigger_type: triggerType });
+}
 
+// Function to record workflow duration
+function recordWorkflowDuration(durationSeconds, workflowName = 'unknown') {
+  workflowDuration.observe({ workflow_name: workflowName }, durationSeconds);
+}
+
+// Function to update active users
+function updateActiveUsers(count, plan = 'unknown') {
+  activeUsers.set({ plan }, count);
+}
+
+// Function to record error
+function recordError(errorType, endpoint) {
+  errorRate.inc({ type: errorType, endpoint });
+}
+
+// Metrics endpoint handler
+async function metricsHandler(req, res) {
+  res.set('Content-Type', register.contentType);
+  res.send(await register.metrics());
+}
+
+// Business metrics endpoint (more detailed)
+async function businessMetricsHandler(req, res) {
+  const metrics = {
+    timestamp: new Date().toISOString(),
+    requests: {
+      total: await httpRequestTotal.get(),
+      duration: await httpRequestDuration.get()
+    },
+    workflows: {
+      executions: await workflowExecutions.get(),
+      duration: await workflowDuration.get()
+    },
+    queue: {
+      waiting: queueJobsWaiting.getValue(),
+      active: queueJobsActive.getValue()
+    },
+    errors: await errorRate.get()
+  };
+  
+  res.json(metrics);
+}
+
+module.exports = {
+  register,
+  metricsMiddleware,
+  updateQueueMetrics,
+  recordWorkflowExecution,
+  recordWorkflowDuration,
+  updateActiveUsers,
+  recordError,
+  metricsHandler,
+  businessMetricsHandler,
+  // Expose individual metrics for direct manipulation
+  httpRequestDuration,
+  httpRequestTotal,
+  workflowExecutions,
+  workflowDuration,
+  queueJobsWaiting,
+  queueJobsActive,
+  queueJobsCompleted,
+  queueJobsFailed,
+  activeUsers,
+  errorRate
+};
