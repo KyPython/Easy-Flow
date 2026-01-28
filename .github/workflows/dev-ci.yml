@@ -102,11 +102,16 @@ jobs:
   terraform:
     runs-on: ubuntu-latest
     needs: setup
-    if: hashFiles('infrastructure/**/*.tf') != ''
     steps:
       - uses: actions/checkout@v4
       - name: Terraform fmt/validate
         run: |
+          # NOTE: `hashFiles()` is not supported in job-level `if:` in all contexts.
+          # Use a runtime check instead to keep the workflow dispatchable and PR-safe.
+          if ! ls infrastructure/**/*.tf >/dev/null 2>&1; then
+            echo "○ No Terraform files found; skipping Terraform checks."
+            exit 0
+          fi
           chmod +x scripts/terraform-fmt.sh scripts/terraform-validate.sh || true
           ./scripts/terraform-fmt.sh --check || true
           ./scripts/terraform-validate.sh || true
