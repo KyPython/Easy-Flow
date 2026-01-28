@@ -503,9 +503,9 @@ jobs:
             data/
           retention-days: 30
 
-      # STEP 12: SLACK NOTIFICATION
+      # STEP 12: SLACK NOTIFICATION (skipped if webhook not configured)
       - name: 📢 Send Slack Notification
-        if: env.SKIP_NOTIFICATIONS != 'true' && always()
+        if: env.SKIP_NOTIFICATIONS != 'true' && always() && secrets.SLACK_WEBHOOK_URL != ''
         uses: 8398a7/action-slack@v3
         with:
           status: custom
