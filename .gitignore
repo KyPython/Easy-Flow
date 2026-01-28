@@ -411,6 +411,16 @@ ccloud-nodejs-client*/
 .cursor/rules/snyk_rules.mdc
 rpa-system/monitoring/alertmanager.yml
 
+# Life OS documentation and scripts (personal system - not part of EasyFlow)
+docs/life-os/
+**/life-os/
+**/LIFE_OS*.md
+**/*LIFE_OS*.md
+setup-notion-life-os.py
+**/setup-notion-life-os.py
+scripts/notion-maintenance/
+scripts/notion-integrations/
+
 # Terraform
 .terraform/
 *.tfstate
