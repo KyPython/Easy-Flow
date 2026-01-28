@@ -12,6 +12,28 @@
  * - Rate-limited warnings for missing plans
  */
 
+// Implement in-memory cache for the plan resolution (Jan 12, 2026)
+// This is to avoid making too many calls to the database for the same user.
+// Cache is cleared on process restart.
+const planCache = new Map();
+const CACHE_TTL = 300000; // 5 minutes (drastically reduces DB load)
+const shouldCache = process.env.NODE_ENV === 'production';
+
+function getPlanFromCache(userId) {
+ const cachedPlan = planCache.get(userId);
+ if (cachedPlan && cachedPlan.expiresAt > Date.now()) {
+ return cachedPlan.plan;
+ }
+ return null;
+}
+
+function setPlanInCache(userId, plan) {
+ planCache.set(userId, {
+ plan,
+ expiresAt: Date.now() + CACHE_TTL
+ });
+}
+
 const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');
 const { createLogger } = require('../middleware/structuredLogging');
 
@@ -22,7 +44,7 @@ const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || process.env.S
 
 let supabase = null;
 if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
-  supabase = createInstrumentedSupabaseClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
+ supabase = createInstrumentedSupabaseClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
 }
 
 // ============================================================================
@@ -34,26 +56,26 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
  * This is the fallback when a user's stored plan_id cannot be resolved.
  */
 const DEFAULT_HOBBYIST_PLAN = {
-  id: 'hobbyist-default',
-  name: 'Hobbyist',
-  slug: 'hobbyist',
-  description: 'Default plan for individual users',
-  limits: {
-    workflows: -1, // Unlimited
-    storage_gb: 5,
-    monthly_runs: 50,
-    team_members: 1
-  },
-  feature_flags: {
-    api_access: 'No',
-    storage_gb: 5,
-    automation_runs: 50,
-    priority_support: 'No',
-    advanced_analytics: 'No',
-    automation_workflows: 'Unlimited',
-    webhook_integrations: 'No',
-    scheduled_automations: 'No'
-  }
+ id: 'hobbyist-default',
+ name: 'Hobbyist',
+ slug: 'hobbyist',
+ description: 'Default plan for individual users',
+ limits: {
+ workflows: -1, // Unlimited
+ storage_gb: 5,
+ monthly_runs: 50,
+ team_members: 1
+ },
+ feature_flags: {
+ api_access: 'No',
+ storage_gb: 5,
+ automation_runs: 50,
+ priority_support: 'No',
+ advanced_analytics: 'No',
+ automation_workflows: 'Unlimited',
+ webhook_integrations: 'No',
+ scheduled_automations: 'No'
+ }
 };
 
 // Track users who have triggered fallback warnings (to avoid log spam)
@@ -69,161 +91,150 @@ const WARN_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
  * Ensures all required fields exist with correct types.
  */
 function validatePlanStructure(plan) {
-  if (!plan || typeof plan !== 'object') {
-    return false;
-  }
+ if (!plan || typeof plan !== 'object') {
+ return false;
+ }
 
-  // Required fields
-  if (!plan.id || !plan.name) {
-    return false;
-  }
+ // Required fields
+ if (!plan.id || !plan.name) {
+ return false;
+ }
 
-  // Ensure limits object exists
-  if (!plan.limits || typeof plan.limits !== 'object') {
-    plan.limits = { ...DEFAULT_HOBBYIST_PLAN.limits };
-  }
+ // Ensure limits object exists
+ if (!plan.limits || typeof plan.limits !== 'object') {
+ plan.limits = { ...DEFAULT_HOBBYIST_PLAN.limits };
+ }
 
-  // Ensure feature_flags object exists
-  if (!plan.feature_flags || typeof plan.feature_flags !== 'object') {
-    plan.feature_flags = { ...DEFAULT_HOBBYIST_PLAN.feature_flags };
-  }
+ // Ensure feature_flags object exists
+ if (!plan.feature_flags || typeof plan.feature_flags !== 'object') {
+ plan.feature_flags = { ...DEFAULT_HOBBYIST_PLAN.feature_flags };
+ }
 
-  return true;
+ return true;
 }
 
 /**
  * Check if we should log a warning for this user (rate-limited).
  */
 function shouldWarnForUser(userId) {
-  const lastWarned = warnedUsers.get(userId);
-  const now = Date.now();
+ const lastWarned = warnedUsers.get(userId);
+ const now = Date.now();
 
-  if (!lastWarned || (now - lastWarned) > WARN_THROTTLE_MS) {
-    warnedUsers.set(userId, now);
-    return true;
-  }
+ if (!lastWarned || (now - lastWarned) > WARN_THROTTLE_MS) {
+ warnedUsers.set(userId, now);
+ return true;
+ }
 
-  return false;
+ return false;
 }
 
 /**
  * Calculate current usage statistics for a user.
  */
 async function calculateUsage(userId) {
-  if (!supabase) {
-    return {
-      monthly_runs: 0,
-      automation_runs: 0,
-      automations: 0,
-      storage_gb: 0,
-      workflows: 0,
-      team_members: 1
-    };
-  }
+ if (!supabase) {
+ return {
+ monthly_runs: 0,
+ automation_runs: 0,
+ automations: 0,
+ storage_gb: 0,
+ workflows: 0,
+ team_members: 1
+ };
+ }
 
-  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+ const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-  const [monthlyRunsResult, storageResult, workflowsResult, automationTasksResult] = await Promise.all([
-    supabase
-      .from('automation_runs')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('status', 'completed')
-      .gte('created_at', startOfMonth),
-    // ✅ OPTIMIZATION: Use RPC function for storage calculation if available, otherwise fallback to aggregation
-    // This avoids fetching all file_size rows and summing in JavaScript
-    (async () => {
-      try {
-        // Try to use a database function for better performance
-        const { data, error } = await supabase.rpc('get_user_storage_total', { user_id: userId });
-        if (!error && data !== null) {
-          return { data: [{ file_size: data }], error: null };
-        }
-      } catch (rpcError) {
-        // RPC function doesn't exist, fall back to aggregation
-      }
+ const [monthlyRunsResult, storageResult, workflowsResult, automationTasksResult, scrapingUsage] = await Promise.all([
+ supabase
+ .from('automation_runs')
+ .select('id', { count: 'exact', head: true })
+ .eq('user_id', userId)
+ .eq('status', 'completed')
+ .gte('created_at', startOfMonth),
+ // ✅ OPTIMIZATION: Use RPC function for storage calculation if available, otherwise fallback to aggregation
+ // This avoids fetching all file_size rows and summing in JavaScript
+ (async () => {
+ try {
+ // Try to use a database function for better performance
+ if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
+ const { data, error } = await supabase.rpc('get_user_storage_total', { user_id: userId });
+ if (!error && data !== null) {
+ return { data: [{ file_size: data }] };
+ }
+ }
+ } catch (rpcError) {
+ logger.warn('Storage calculation RPC failed', { userId, error: rpcError.message });
+ }
+ // Return 0 if RPC fails or is missing - safer than downloading 1000s of rows
+ return { data: [] };
+ })(),
+ // Count workflows from workflows table (canvas-based workflows)
+ supabase
+ .from('workflows')
+ .select('id', { count: 'exact', head: true })
+ .eq('user_id', userId),
+ // Count automation tasks from automation_tasks table (simple automation tasks)
+ // This is what the UI typically shows as "workflows" - combine both for accurate count
+ supabase
+ .from('automation_tasks')
+ .select('id', { count: 'exact', head: true })
+ .eq('user_id', userId)
+ .or('is_active.is.null,is_active.eq.true'), // Count active or null (default active)
+ // ✅ OPTIMIZATION: Parallelize scraping usage query
+ (async () => {
+ try {
+ if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
+ const { data: scrapingData, error: scrapingError } = await supabase
+ .rpc('get_scraping_usage', { user_uuid: userId })
+ .single();
 
-      // Fallback: Use aggregation query (more efficient than fetching all rows)
-      // Note: Supabase PostgREST doesn't support SUM() directly in select, so we fetch and sum
-      // For better performance with many files, consider creating an RPC function:
-      // CREATE FUNCTION get_user_storage_total(user_id UUID) RETURNS BIGINT AS $$
-      //   SELECT COALESCE(SUM(file_size), 0) FROM user_files WHERE user_id = $1;
-      // $$ LANGUAGE SQL;
-      return await supabase
-        .from('user_files')
-        .select('file_size')
-        .eq('user_id', userId);
-    })(),
-    // Count workflows from workflows table (canvas-based workflows)
-    supabase
-      .from('workflows')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId),
-    // Count automation tasks from automation_tasks table (simple automation tasks)
-    // This is what the UI typically shows as "workflows" - combine both for accurate count
-    supabase
-      .from('automation_tasks')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .or('is_active.is.null,is_active.eq.true') // Count active or null (default active)
-  ]);
+ if (!scrapingError && scrapingData) {
+ return scrapingData;
+ }
+ }
+ } catch (scrapingErr) {
+ // Non-fatal - continue with default values
+ logger.debug('Scraping usage calculation failed, using defaults', { userId });
+ }
+ return { domains_scraped_this_month: 0, jobs_created: 0, total_scrapes: 0 };
+ })()
+ ]);
 
-  const monthlyRuns = monthlyRunsResult.count || 0;
-  // ✅ OPTIMIZATION: Sum file sizes efficiently
-  const storageBytes = storageResult.data?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
-  const storageGB = storageBytes / (1024 * 1024 * 1024);
+ const monthlyRuns = monthlyRunsResult.count || 0;
+ // ✅ OPTIMIZATION: Sum file sizes efficiently
+ const storageBytes = storageResult.data?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
+ const storageGB = storageBytes / (1024 * 1024 * 1024);
 
-  // Combine workflows from both tables for accurate count
-  // workflows table = canvas-based workflows
-  // automation_tasks table = simple automation tasks (what users typically see as "workflows")
-  const canvasWorkflows = workflowsResult.count || 0;
-  const automationTasks = automationTasksResult.count || 0;
-  const totalWorkflows = canvasWorkflows + automationTasks;
+ // Combine workflows from both tables for accurate count
+ // workflows table = canvas-based workflows
+ // automation_tasks table = simple automation tasks (what users typically see as "workflows")
+ const canvasWorkflows = workflowsResult.count || 0;
+ const automationTasks = automationTasksResult.count || 0;
+ const totalWorkflows = canvasWorkflows + automationTasks;
 
-  logger.info('Usage calculated', {
-    userId,
-    monthlyRuns,
-    storageGB: Math.round(storageGB * 1000) / 1000,
-    canvasWorkflows,
-    automationTasks,
-    totalWorkflows
-  });
+ logger.info('Usage calculated', {
+ userId,
+ monthlyRuns,
+ storageGB: Math.round(storageGB * 1000) / 1000,
+ canvasWorkflows,
+ automationTasks,
+ totalWorkflows
+ });
 
-  // Calculate scraping usage
-  let scrapingUsage = {
-    domains_scraped_this_month: 0,
-    jobs_created: 0,
-    total_scrapes: 0
-  };
-
-  try {
-    if (supabase && supabase.rpc && typeof supabase.rpc === 'function') {
-      const { data: scrapingData, error: scrapingError } = await supabase
-        .rpc('get_scraping_usage', { user_uuid: userId })
-        .single();
-
-      if (!scrapingError && scrapingData) {
-        scrapingUsage = scrapingData;
-      }
-    }
-  } catch (scrapingErr) {
-    // Non-fatal - continue with default values
-    logger.debug('Scraping usage calculation failed, using defaults', { userId });
-  }
-
-  return {
-    monthly_runs: monthlyRuns,
-    automation_runs: monthlyRuns,
-    automations: monthlyRuns,
-    storage_gb: Math.round(storageGB * 1000) / 1000,
-    workflows: totalWorkflows, // Combined count from both tables
-    automation_workflows: totalWorkflows, // Alias for UI compatibility
-    team_members: 1,
-    // Scraping usage
-    scraping_domains_this_month: scrapingUsage.domains_scraped_this_month || 0,
-    scraping_jobs_created: scrapingUsage.jobs_created || 0,
-    scraping_total_scrapes: scrapingUsage.total_scrapes || 0
-  };
+ return {
+ monthly_runs: monthlyRuns,
+ automation_runs: monthlyRuns,
+ automations: monthlyRuns,
+ storage_gb: Math.round(storageGB * 1000) / 1000,
+ workflows: totalWorkflows, // Combined count from both tables
+ automation_workflows: totalWorkflows, // Alias for UI compatibility
+ team_members: 1,
+ // Scraping usage
+ scraping_domains_this_month: scrapingUsage.domains_scraped_this_month || 0,
+ scraping_jobs_created: scrapingUsage.jobs_created || 0,
+ scraping_total_scrapes: scrapingUsage.total_scrapes || 0
+ };
 }
 
 // ============================================================================
@@ -238,9 +249,9 @@ async function calculateUsage(userId) {
  * 2. If no profile exists, create one with 'free' plan_id
  * 3. Attempt to resolve stored plan_id from plans table
  * 4. If plan not found:
- *    - Log structured warning (rate-limited)
- *    - Optionally normalize profile to default plan_id
- *    - Return fallback Hobbyist plan
+ * - Log structured warning (rate-limited)
+ * - Optionally normalize profile to default plan_id
+ * - Return fallback Hobbyist plan
  * 5. Calculate current usage
  * 6. Return complete plan data with metadata
  *
@@ -250,193 +261,227 @@ async function calculateUsage(userId) {
  * @returns {Promise<Object>} - Complete plan data with metadata
  */
 async function resolveUserPlan(userId, options = {}) {
-  const { normalizeMissingPlan = false } = options;
+ const { normalizeMissingPlan = false } = options;
 
-  if (!supabase) {
-    throw new Error('Database not configured');
-  }
+ // Check cache first
+  // ✅ PERFORMANCE FIX: Always check cache, even if normalizeMissingPlan is true.
+  // This prevents redundant DB queries on every page load/session check.
+  const cached = getPlanFromCache(userId);
+  if (cached) {
+    logger.info('Plan cache hit', { userId });
+ // SAFETY: Reconstruct planData if missing (handles legacy cache from previous deployment)
+ const planData = cached.planData || {
+ plan: cached.plan,
+ usage: cached.usage,
+ limits: cached.limits,
+ features: cached.features,
+ can_run_automation: cached.can_run_automation,
+ can_create_workflow: cached.can_create_workflow
+ };
 
-  logger.info('Resolving user plan', { userId });
+ return {
+ ...cached,
+ planData, // Ensure nested structure exists for backend consumers
+ metadata: {
+ ...cached.metadata,
+ cached: true,
+ resolved_at: new Date().toISOString()
+ }
+ };
+ }
 
-  // -------------------------------------------------------------------------
-  // STEP 1: Fetch or create user profile
-  // -------------------------------------------------------------------------
+ if (!supabase) {
+ throw new Error('Database not configured');
+ }
 
-  const profileQuery = await supabase
-    .from('profiles')
-    .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
-    .eq('id', userId)
-    .limit(1);
+ logger.info('Resolving user plan', { userId });
 
-  let profile = profileQuery.data?.[0] || null;
-  let profileError = profileQuery.error;
+ // -------------------------------------------------------------------------
+ // STEP 1: Fetch or create user profile
+ // -------------------------------------------------------------------------
 
-  if (!profile) {
-    logger.info('No profile found, creating default profile', { userId });
+ const profileQuery = await supabase
+ .from('profiles')
+ .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
+ .eq('id', userId)
+ .limit(1);
 
-    const { error: insertError } = await supabase
-      .from('profiles')
-      .insert([{
-        id: userId,
-        plan_id: 'free',
-        created_at: new Date().toISOString()
-      }]);
+ let profile = profileQuery.data?.[0] || null;
+ let profileError = profileQuery.error;
 
-    if (insertError) {
-      const error = new Error('Failed to create user profile');
-      error.code = 'PROFILE_CREATE_FAILED';
-      error.userId = userId;
-      error.details = insertError;
-      logger.error('Failed to create user profile', error, { userId, database_error: insertError });
-      throw error;
-    }
+ if (!profile) {
+ logger.info('No profile found, creating default profile', { userId });
 
-    // Fetch newly created profile
-    const refetchQuery = await supabase
-      .from('profiles')
-      .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
-      .eq('id', userId)
-      .limit(1);
+ const { error: insertError } = await supabase
+ .from('profiles')
+ .insert([{
+ id: userId,
+ plan_id: 'free',
+ created_at: new Date().toISOString()
+ }]);
 
-    profile = refetchQuery.data?.[0] || null;
-    profileError = refetchQuery.error;
-  }
+ if (insertError) {
+ const error = new Error('Failed to create user profile');
+ error.code = 'PROFILE_CREATE_FAILED';
+ error.userId = userId;
+ error.details = insertError;
+ logger.error('Failed to create user profile', error, { userId, database_error: insertError });
+ throw error;
+ }
 
-  if (profileError) {
-    const error = new Error('Failed to fetch user profile');
-    error.code = 'PROFILE_FETCH_FAILED';
-    error.userId = userId;
-    error.details = profileError;
-    logger.error('Profile fetch error', error, { userId, database_error: profileError });
-    throw error;
-  }
+ // Fetch newly created profile
+ const refetchQuery = await supabase
+ .from('profiles')
+ .select('id, plan_id, is_trial, trial_ends_at, plan_expires_at')
+ .eq('id', userId)
+ .limit(1);
 
-  const storedPlanId = profile?.plan_id || 'Hobbyist';
+ profile = refetchQuery.data?.[0] || null;
+ profileError = refetchQuery.error;
+ }
 
-  // -------------------------------------------------------------------------
-  // STEP 2: Attempt to resolve stored plan from plans table
-  // -------------------------------------------------------------------------
+ if (profileError) {
+ const error = new Error('Failed to fetch user profile');
+ error.code = 'PROFILE_FETCH_FAILED';
+ error.userId = userId;
+ error.details = profileError;
+ logger.error('Profile fetch error', error, { userId, database_error: profileError });
+ throw error;
+ }
 
-  const planQuery = await supabase
-    .from('plans')
-    .select('*')
-    .or(`name.eq.${storedPlanId},slug.eq.${storedPlanId},id.eq.${storedPlanId}`)
-    .limit(1);
+ const storedPlanId = profile?.plan_id || 'Hobbyist';
 
-  let plan = planQuery.data?.[0] || null;
-  let planError = planQuery.error;
+ // -------------------------------------------------------------------------
+ // STEP 2: Attempt to resolve stored plan from plans table
+ // -------------------------------------------------------------------------
 
-  let usedFallback = false;
-  let fallbackReason = null;
+ const planQuery = await supabase
+ .from('plans')
+ .select('*')
+ .or(`name.eq.${storedPlanId},slug.eq.${storedPlanId},id.eq.${storedPlanId}`)
+ .limit(1);
 
-  if (planError || !plan) {
-    // Plan not found - use fallback
-    usedFallback = true;
-    fallbackReason = planError ? 'PLAN_QUERY_ERROR' : 'PLAN_NOT_FOUND';
+ let plan = planQuery.data?.[0] || null;
+ let planError = planQuery.error;
 
-    // Log warning (rate-limited per user)
-    if (shouldWarnForUser(userId)) {
-      logger.warn('Plan not found for user, using fallback plan', {
-        userId,
-        storedPlanId,
-        fallbackPlan: DEFAULT_HOBBYIST_PLAN.name,
-        reason: fallbackReason,
-        database_error: planError || null,
-        business: {
-          operation: {
-            operation_name: 'resolveUserPlan',
-            user_id: userId,
-            stored_plan_id: storedPlanId,
-            fallback_used: true
-          }
-        }
-      });
-    }
+ let usedFallback = false;
+ let fallbackReason = null;
 
-    // Use default Hobbyist plan
-    plan = { ...DEFAULT_HOBBYIST_PLAN };
+ if (planError || !plan) {
+ // Plan not found - use fallback
+ usedFallback = true;
+ fallbackReason = planError ? 'PLAN_QUERY_ERROR' : 'PLAN_NOT_FOUND';
 
-    // -----------------------------------------------------------------------
-    // OPTIONAL: Normalize profile to default plan_id
-    // -----------------------------------------------------------------------
+ // Log warning (rate-limited per user)
+ if (shouldWarnForUser(userId)) {
+ logger.warn('Plan not found for user, using fallback plan', {
+ userId,
+ storedPlanId,
+ fallbackPlan: DEFAULT_HOBBYIST_PLAN.name,
+ reason: fallbackReason,
+ database_error: planError || null,
+ business: {
+ operation: {
+ operation_name: 'resolveUserPlan',
+ user_id: userId,
+ stored_plan_id: storedPlanId,
+ fallback_used: true
+ }
+ }
+ });
+ }
 
-    if (normalizeMissingPlan && storedPlanId !== DEFAULT_HOBBYIST_PLAN.slug) {
-      logger.info('Normalizing user profile to default plan', {
-        userId,
-        oldPlanId: storedPlanId,
-        newPlanId: DEFAULT_HOBBYIST_PLAN.slug
-      });
+ // Use default Hobbyist plan
+ plan = { ...DEFAULT_HOBBYIST_PLAN };
 
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ plan_id: DEFAULT_HOBBYIST_PLAN.slug })
-        .eq('id', userId);
+ // -----------------------------------------------------------------------
+ // OPTIONAL: Normalize profile to default plan_id
+ // -----------------------------------------------------------------------
 
-      if (updateError) {
-        logger.error('Failed to normalize plan_id', { userId, database_error: updateError });
-        // Non-fatal - continue with fallback plan
-      }
-    }
-  } else {
-    logger.info('Plan resolved successfully', {
-      userId,
-      planId: plan.id,
-      planName: plan.name
-    });
-  }
+ if (normalizeMissingPlan && storedPlanId !== DEFAULT_HOBBYIST_PLAN.slug) {
+ logger.info('Normalizing user profile to default plan', {
+ userId,
+ oldPlanId: storedPlanId,
+ newPlanId: DEFAULT_HOBBYIST_PLAN.slug
+ });
 
-  // Validate plan structure
-  if (!validatePlanStructure(plan)) {
-    logger.error('Invalid plan structure, using fallback', { userId, planId: plan?.id });
-    plan = { ...DEFAULT_HOBBYIST_PLAN };
-    usedFallback = true;
-    fallbackReason = 'INVALID_PLAN_STRUCTURE';
-  }
+ const { error: updateError } = await supabase
+ .from('profiles')
+ .update({ plan_id: DEFAULT_HOBBYIST_PLAN.slug })
+ .eq('id', userId);
 
-  // -------------------------------------------------------------------------
-  // STEP 3: Calculate current usage
-  // -------------------------------------------------------------------------
+ if (updateError) {
+ logger.error('Failed to normalize plan_id', { userId, database_error: updateError });
+ // Non-fatal - continue with fallback plan
+ }
+ }
+ } else {
+ logger.info('Plan resolved successfully', {
+ userId,
+ planId: plan.id,
+ planName: plan.name
+ });
+ }
 
-  const usage = await calculateUsage(userId);
+ // Validate plan structure
+ if (!validatePlanStructure(plan)) {
+ logger.error('Invalid plan structure, using fallback', { userId, planId: plan?.id });
+ plan = { ...DEFAULT_HOBBYIST_PLAN };
+ usedFallback = true;
+ fallbackReason = 'INVALID_PLAN_STRUCTURE';
+ }
 
-  logger.info('Usage calculated', {
-    userId,
-    workflows: usage.workflows,
-    monthlyRuns: usage.monthly_runs,
-    storageGB: usage.storage_gb
-  });
+ // -------------------------------------------------------------------------
+ // STEP 3: Calculate current usage
+ // -------------------------------------------------------------------------
 
-  // -------------------------------------------------------------------------
-  // STEP 4: Build response with metadata
-  // -------------------------------------------------------------------------
+ const usage = await calculateUsage(userId);
 
-  const planData = {
-    plan: {
-      id: plan.id,
-      name: plan.name,
-      status: 'active',
-      is_trial: profile?.is_trial || false,
-      expires_at: profile?.trial_ends_at || profile?.plan_expires_at || null
-    },
-    usage,
-    limits: plan.limits,
-    features: plan.feature_flags,
-    can_run_automation: usage.monthly_runs < (plan.limits?.monthly_runs || 50),
-    can_create_workflow: (plan.limits?.workflows || 0) !== 0
-  };
+ logger.info('Usage calculated', {
+ userId,
+ workflows: usage.workflows,
+ monthlyRuns: usage.monthly_runs,
+ storageGB: usage.storage_gb
+ });
 
-  // Include metadata about fallback usage
-  const metadata = {
-    resolved_at: new Date().toISOString(),
-    used_fallback: usedFallback,
-    fallback_reason: fallbackReason,
-    stored_plan_id: storedPlanId
-  };
+ // -------------------------------------------------------------------------
+ // STEP 4: Build response with metadata
+ // -------------------------------------------------------------------------
 
-  return {
-    planData,
-    metadata
-  };
+ const planData = {
+ plan: {
+ id: plan.id,
+ name: plan.name,
+ status: 'active',
+ is_trial: profile?.is_trial || false,
+ expires_at: profile?.trial_ends_at || profile?.plan_expires_at || null
+ },
+ usage,
+ limits: plan.limits,
+ features: plan.feature_flags,
+ can_run_automation: usage.monthly_runs < (plan.limits?.monthly_runs || 50),
+ can_create_workflow: (plan.limits?.workflows || 0) !== 0
+ };
+
+ // Include metadata about fallback usage
+ const metadata = {
+ resolved_at: new Date().toISOString(),
+ used_fallback: usedFallback,
+ fallback_reason: fallbackReason,
+ stored_plan_id: storedPlanId
+ };
+
+ const result = {
+    ...planData, // Flattened for Frontend (fixes infinite spinner)
+    planData,    // Nested for Backend compatibility (fixes 500 error)
+ metadata
+ };
+
+ // Cache the result
+ // ✅ PERFORMANCE FIX: Always cache the result to prevent slow DB queries on every request
+ setPlanInCache(userId, result);
+
+ return result;
 }
 
 /**
@@ -449,30 +494,31 @@ async function resolveUserPlan(userId, options = {}) {
  * - Trial/expiration dates
  */
 function generatePlanETag(planData) {
-  const {plan, usage} = planData;
-  const etagData = [
-    plan.id,
-    plan.name,
-    plan.is_trial,
-    plan.expires_at || 'null',
-    usage.workflows,
-    usage.monthly_runs,
-    usage.storage_gb
-  ].join('|');
+ if (!planData || !planData.plan) return 'W/"0"';
+ const {plan, usage} = planData;
+ const etagData = [
+ plan.id,
+ plan.name,
+ plan.is_trial,
+ plan.expires_at || 'null',
+ usage.workflows,
+ usage.monthly_runs,
+ usage.storage_gb
+ ].join('|');
 
-  // Simple hash (in production, consider crypto.createHash)
-  let hash = 0;
-  for (let i = 0; i < etagData.length; i++) {
-    const char = etagData.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
+ // Simple hash (in production, consider crypto.createHash)
+ let hash = 0;
+ for (let i = 0; i < etagData.length; i++) {
+ const char = etagData.charCodeAt(i);
+ hash = ((hash << 5) - hash) + char;
+ hash = hash & hash; // Convert to 32bit integer
+ }
 
-  return `W/"${Math.abs(hash).toString(16)}"`;
+ return `W/"${Math.abs(hash).toString(16)}"`;
 }
 
 module.exports = {
-  resolveUserPlan,
-  generatePlanETag,
-  DEFAULT_HOBBYIST_PLAN
+ resolveUserPlan,
+ generatePlanETag,
+ DEFAULT_HOBBYIST_PLAN
 };

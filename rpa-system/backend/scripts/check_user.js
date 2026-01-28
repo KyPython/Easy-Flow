@@ -10,21 +10,21 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const EMAIL = 'test-api@local.dev';
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !SUPABASE_ANON_KEY) {
-  logger.error('SUPABASE_URL, SUPABASE_SERVICE_ROLE or SUPABASE_ANON_KEY missing in backend/.env');
-  process.exit(1);
+ logger.error('SUPABASE_URL, SUPABASE_SERVICE_ROLE or SUPABASE_ANON_KEY missing in backend/.env');
+ process.exit(1);
 }
 
 (async () => {
-  const url = `${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`;
-  const resp = await fetch(url, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
-      apikey: SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json'
-    }
-  });
-  const text = await resp.text();
-  logger.info('status', resp.status);
-  try { logger.info(JSON.parse(text)); } catch (e) { logger.info(text); }
+ const url = `${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`;
+ const resp = await fetch(url, {
+ method: 'GET',
+ headers: {
+ Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+ apikey: SUPABASE_ANON_KEY,
+ 'Content-Type': 'application/json'
+ }
+ });
+ const text = await resp.text();
+ logger.info('status', resp.status);
+ try { logger.info(JSON.parse(text)); } catch (e) { logger.info(text); }
 })();

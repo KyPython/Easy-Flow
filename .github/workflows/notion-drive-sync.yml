@@ -1,0 +1,43 @@
+name: Notion Google Drive Sync
+
+on:
+  schedule:
+    # Sync daily at 7:00 AM EST (before work day starts)
+    # GitHub Actions cron runs in UTC
+    # 7:00 AM EST = 12:00 PM UTC (12:00)
+    - cron: '0 12 * * *'  # 7:00 AM EST (12:00 UTC)
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  sync-drive-to-notion:
+    runs-on: ubuntu-latest
+    name: Sync Google Drive → Notion
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+      
+      - name: Sync Google Drive to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+        run: |
+          python3 scripts/notion-integrations/google-drive-to-notion-sync.py
+      
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ Google Drive → Notion sync completed at $(date)"
+          echo "Repository: ${{ github.repository }}"
+          echo "Workflow run: ${{ github.run_id }}"

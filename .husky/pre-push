@@ -1,5 +1,4 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
 
 # EasyFlow Pre-Push Hook
 # Runs different checks based on branch:
@@ -28,12 +27,13 @@ elif [ "$CURRENT_BRANCH" = "dev" ]; then
     # Only run quick checks, skip full test suite and security scan
     ./scripts/dev-env-check.sh >/dev/null 2>&1 || true
     
-    # Quick Terraform format check for dev branch
+    # Quick Terraform format check (non-dev branches)
     if [ -d "infrastructure" ] && [ -f "infrastructure/main.tf" ]; then
         echo "🔍 Quick Terraform format check..."
-        cd infrastructure
+        repo_root=$(git rev-parse --show-toplevel)
+        cd "$repo_root/infrastructure" || exit 0
         ../scripts/terraform-fmt.sh --check >/dev/null 2>&1 || echo "⚠️ Terraform files need formatting (run 'npm run infra:fmt')"
-        cd ..
+        cd "$repo_root" || true
     fi
     
     echo "✅ Dev branch push allowed (full checks skipped for faster workflow)"

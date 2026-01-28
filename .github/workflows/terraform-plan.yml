@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'infrastructure/**'
-    branches: [main, dev]  # Run on both branches with different validation levels
+    branches: [main]  # Only plan on main (dev runs on schedule)
   workflow_dispatch:
     inputs:
       environment:

@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### First Time Setup
 ```bash
@@ -25,7 +25,7 @@
 
 ---
 
-## 📘 Daily Developer Guide
+## Daily Developer Guide
 
 **👉 [DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md)** - **START HERE** - Everything you need for daily work:
 - Quick start and setup
@@ -39,7 +39,7 @@
 ## 🗺️ Codebase Navigation
 
 **👉 [CODEBASE_NAVIGATION.md](CODEBASE_NAVIGATION.md)** - Complete codebase map:
-- Every route → component/handler mapped
+- Every route -> component/handler mapped
 - Click-to-code flow examples
 - Component and service maps
 - Directory structure
@@ -48,10 +48,13 @@
 
 ## 📚 Essential Documentation
 
-### Daily Use
-- **[DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md)** - **START HERE** - Complete daily workflow guide
+### Getting Started
+- **[docs/guides/easyflow_guide.md](docs/guides/easyflow_guide.md)** - **START HERE** - Complete EasyFlow system guide
+- **[DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md)** - Daily workflow and commands
 - **[CODEBASE_NAVIGATION.md](CODEBASE_NAVIGATION.md)** - Find any code by UI click
-- **[BRANCH_AWARE_CI_CD.md](docs/BRANCH_AWARE_CI_CD.md)** - How dev/main branches work
+
+### Use Cases
+- **[docs/use-cases/PORTAL_CSV_AUTOMATION.md](docs/use-cases/PORTAL_CSV_AUTOMATION.md)** - Portal CSV automation guide
 
 ### Client Automation (Revenue)
 - **[CLIENT_AUTOMATION_QUICK_START.md](docs/CLIENT_AUTOMATION_QUICK_START.md)** - **START HERE** - 15-minute action plan
@@ -67,31 +70,31 @@
 
 ### Daily Development
 ```bash
-./start-dev.sh          # Start all services
-./stop-dev.sh           # Stop all services
-npm run logs            # Watch logs
-npm run check-env       # Check environment
+./start-dev.sh # Start all services
+./stop-dev.sh # Stop all services
+npm run logs # Watch logs
+npm run check-env # Check environment
 ```
 
 ### Validation & Quality
 ```bash
-npm run validate:all    # All validations (SRP, Dynamic, Theme, Logging, RAG)
-npm run validate:rag    # RAG knowledge validation
-npm run test:all        # Run all tests
-npm run quality:check   # Code quality scan
+npm run validate:all # All validations (SRP, Dynamic, Theme, Logging, RAG)
+npm run validate:rag # RAG knowledge validation
+npm run test:all # Run all tests
+npm run quality:check # Code quality scan
 ```
 
 ### Git & Deployment
 ```bash
-npm run ship            # Ship to production (dev → main, fully automated)
-npm run git:status      # Git workflow status
+npm run ship # Ship to production (dev -> main, fully automated)
+npm run git:status # Git workflow status
 ```
 
 ### Code Generation
 ```bash
-npm run gen:route       # Generate route boilerplate
-npm run gen:service     # Generate service boilerplate
-npm run gen:component   # Generate component boilerplate
+npm run gen:route # Generate route boilerplate
+npm run gen:service # Generate service boilerplate
+npm run gen:component # Generate component boilerplate
 ```
 
 ### Client Automation
@@ -112,7 +115,7 @@ npm run client:template # Create client workflow template
 
 ---
 
-## 🎯 Branch Strategy
+## Branch Strategy
 
 - **Dev Branch** (`dev`): Permissive validation, allows work-in-progress code
 - **Main Branch** (`main`): Strict validation, production-ready code only

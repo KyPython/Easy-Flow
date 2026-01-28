@@ -17,13 +17,13 @@ except ImportError:
 
 class TestKafkaManager:
     """Test cases for KafkaManager class"""
-    
+
     def test_kafka_manager_exists(self):
         """Test that KafkaManager class exists"""
         if KafkaManager is None:
             pytest.skip("KafkaManager not available")
         assert KafkaManager is not None
-    
+
     def test_placeholder(self):
         """Placeholder test - replace with actual tests"""
         assert True
@@ -31,4 +31,3 @@ class TestKafkaManager:
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
-

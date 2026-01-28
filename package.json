@@ -24,10 +24,12 @@
     "quality:check": "./scripts/code-quality-check.sh",
     "quality:scan": "npx -y software-entropy@latest . --max-function-lines 50 --max-file-lines 500 --max-todo-density 5",
     "quality:report": "./scripts/generate-quality-report.sh",
+    "dev-feedback": "bash ./scripts/dev-feedback.sh",
     "security:scan": "./scripts/security-scan.sh",
     "validate:srp": "./scripts/validate-srp.sh",
     "validate:dynamic": "./scripts/validate-dynamic-code.sh",
     "validate:theme": "./scripts/validate-theme-consistency.sh",
+    "validate:study-guide": "node scripts/validate-study-guide.js",
     "validate:logging": "./scripts/validate-logging-integration.sh",
     "validate:rag": "./scripts/validate-rag-knowledge.sh",
     "validate:all": "./scripts/validate-all.sh",
@@ -68,11 +70,12 @@
     "url": "https://github.com/EasyFlow/lead-magnet-automation"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": "22.x",
     "npm": ">=9.0.0"
   },
   "devDependencies": {
+    "dotenv": "^16.0.3",
     "husky": "^9.1.7",
-    "dotenv": "^16.0.3"
+    "software-entropy": "^1.0.0"
   }
 }

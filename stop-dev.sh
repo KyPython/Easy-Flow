@@ -1,158 +1,200 @@
 #!/bin/bash
-# Stop Development Servers
-# Gracefully stops all EasyFlow development services and infrastructure
 
-# Don't exit on error - we want to clean up as much as possible even if some steps fail
-set +e
+# EasyFlow Stop Script (progress, timing, and full logging)
+set -o pipefail
 
-# Colors for output
+# Verbose flag
+VERBOSE=false
+KEEP_VOLUMES=false
+for arg in "$@"; do
+  case "$arg" in
+    -v|--verbose) VERBOSE=true ;;
+    -k|--keep-volumes) KEEP_VOLUMES=true ;;
+  esac
+done
+[ "$VERBOSE" = true ] && set -x
+
+PROJECT_ROOT=$(pwd)
+RPA_SYSTEM_DIR="$PROJECT_ROOT/rpa-system"
+
+# Detect Docker Compose file locations (root or rpa-system)
+if [ -f "$PROJECT_ROOT/docker-compose.yml" ]; then
+  CORE_DOCKER_COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
+else
+  CORE_DOCKER_COMPOSE_FILE="$RPA_SYSTEM_DIR/docker-compose.yml"
+fi
+
+if [ -f "$PROJECT_ROOT/docker-compose.monitoring.yml" ]; then
+  DOCKER_COMPOSE_FILE="$PROJECT_ROOT/docker-compose.monitoring.yml"
+else
+  DOCKER_COMPOSE_FILE="$RPA_SYSTEM_DIR/docker-compose.monitoring.yml"
+fi
+
+
+# Python logging integration
+py_log() {
+  python3 scripts/human_log.py "$1" "$2"
+}
+py_actionable_log() {
+  python3 scripts/human_log.py "$1" "$2" "$3"
+}
+
+# Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-# Stop all PM2 processes (including RAG service)
-echo -e "${YELLOW}Stopping PM2 processes...${NC}"
+# Logging setup
+LOG_DIR="$PROJECT_ROOT/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/stop-$(date -u +%Y%m%dT%H%M%SZ).log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+# Helpers
+ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+log() { py_log "$1" "EasyFlow"; }
+success() { py_log "$1" "✅"; }
+warn() { py_log "$1" "⚠️"; }
+error() { py_log "$1" "❌"; }
+
+spinner() {
+  local pid=$1
+  local msg="$2"
+  local start=$3
+  local timeout=${4:-120} # Default timeout 120s
+  
+  # Disable xtrace during spinner to avoid flooding output if VERBOSE is on
+  local restore_xtrace=false
+  if [[ $- == *x* ]]; then
+    set +x
+    restore_xtrace=true
+  fi
+
+  local spin='-\\|/'
+  local i=0
+  while kill -0 "$pid" 2>/dev/null; do
+    local current=$(date +%s)
+    local elapsed=$(( current - start ))
+    if [ $elapsed -gt $timeout ]; then
+      printf "\r\033[K"
+      warn "Operation timed out after ${elapsed}s. Forcing stop..."
+      kill -TERM "$pid" 2>/dev/null
+      sleep 2
+      kill -KILL "$pid" 2>/dev/null || true
+      break
+    fi
+    i=$(( (i+1) % 4 ))
+    printf "\r%s %s [%s] %ss\033[K" "$msg" "${spin:$i:1}" "$(ts)" "$elapsed"
+    sleep 0.2
+  done
+  printf "\r\033[K"
+
+  if [ "$restore_xtrace" = true ]; then
+    set -x
+  fi
+}
+
+run_step() {
+  local msg="$1"; shift
+  local start_s=$(date +%s)
+  log "$msg..."
+  "$@"
+  local rc=$?
+  local dur=$(( $(date +%s) - start_s ))
+  if [ $rc -eq 0 ]; then
+    success "$msg done in ${dur}s"
+  else
+    warn "$msg finished with code $rc in ${dur}s"
+  fi
+  return $rc
+}
+
+TOTAL_START=$(date +%s)
+log "<current_datetime>$(ts)</current_datetime>"
+log "🛑  Stopping EasyFlow Environment..."
+
+## 1. Stop PM2/Node
 if command -v pm2 &> /dev/null; then
-    # Stop RAG service specifically if it exists
-    if pm2 list | grep -q "rag-node-ts\|rag-service"; then
-        echo -e "${YELLOW}  Stopping RAG service...${NC}"
-        pm2 stop rag-node-ts 2>/dev/null || pm2 stop rag-service 2>/dev/null || true
-        pm2 delete rag-node-ts 2>/dev/null || pm2 delete rag-service 2>/dev/null || true
-    fi
-    
-    # Stop all other PM2 processes
-    pm2 delete all 2>/dev/null && echo -e "${GREEN}✓ All PM2 processes stopped${NC}" || echo -e "${YELLOW}⚠ No PM2 processes running${NC}"
-else
-    echo -e "${YELLOW}⚠ PM2 not installed, skipping PM2 cleanup${NC}"
+  run_step "Stopping PM2 processes" bash -lc "pm2 delete all 2>/dev/null || true; pm2 kill 2>/dev/null || true; pm2 flush 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
+  run_step "Clearing PM2 dump" bash -lc "pm2 unstartup 2>/dev/null || true; pm2 reset all 2>/dev/null || true"
 fi
 
-# Fallback: Kill RAG service if running on port 3002 (or 3001 for legacy)
-RAG_PORT=${RAG_SERVICE_PORT:-3002}
-for port in $RAG_PORT 3001; do
-    if lsof -ti:$port > /dev/null 2>&1; then
-        echo -e "${YELLOW}Stopping RAG service on port $port...${NC}"
-        lsof -ti:$port | xargs kill -9 2>/dev/null && echo -e "${GREEN}✓ RAG service stopped${NC}" || true
-    fi
+# Fallback: Kill any remaining node processes
+run_step "Killing stray node processes" bash -lc "pkill -f 'node' 2>/dev/null || true"
+
+# 2. Stop ngrok
+run_step "Stopping ngrok" bash -lc "pkill ngrok 2>/dev/null || true"
+
+## 3. Stop Docker Infrastructure (including observability stack)
+COMPOSE_FILES=()
+[ -f "$CORE_DOCKER_COMPOSE_FILE" ] && COMPOSE_FILES+=(-f "$CORE_DOCKER_COMPOSE_FILE")
+[ -f "$DOCKER_COMPOSE_FILE" ] && COMPOSE_FILES+=(-f "$DOCKER_COMPOSE_FILE")
+MONITORING_COMPOSE_FILE="$RPA_SYSTEM_DIR/docker-compose.monitoring.yml"
+[ -f "$MONITORING_COMPOSE_FILE" ] && COMPOSE_FILES+=(-f "$MONITORING_COMPOSE_FILE")
+
+if [ ${#COMPOSE_FILES[@]} -gt 0 ]; then
+  DOCKER_ARGS=("down" "--remove-orphans" "-t" "30")
+  if [ "$KEEP_VOLUMES" = false ]; then
+    log "Stopping Docker containers (docker compose down -v --remove-orphans)..."
+    DOCKER_ARGS+=("-v")
+  else
+    log "Stopping Docker containers (docker compose down --remove-orphans)..."
+  fi
+
+  START_D=$(date +%s)
+  # Add timeout (-t 30) and trap interrupts to ensure clean exit
+  docker compose "${COMPOSE_FILES[@]}" "${DOCKER_ARGS[@]}" >> "$LOG_FILE" 2>&1 &
+  PID=$!
+  trap "kill $PID 2>/dev/null" INT TERM
+  spinner $PID "Docker down in progress" $START_D 120
+  set +e
+  wait $PID
+  RC=$?
+  set -e
+  trap - INT TERM
+  DUR=$(( $(date +%s) - START_D ))
+  if [ $RC -eq 0 ]; then
+    success "Docker containers (including observability stack) stopped in ${DUR}s"
+  else
+    warn "Docker down exited with code $RC in ${DUR}s"
+    warn "Log tail:"
+    tail -n 5 "$LOG_FILE" | sed 's/^/    /'
+  fi
+else
+  warn "No Docker compose files found. Skipping Docker shutdown."
+fi
+
+# 4. Free Ports (Safety net)
+PORTS=(3000 3030 5432 6379 9092 2181 9090 3001 3100 3200)
+log "Ensuring ports are free: ${PORTS[*]}"
+P_START=$(date +%s)
+for PORT in "${PORTS[@]}"; do
+  PID=$(lsof -n -P -ti:$PORT 2>/dev/null || true)
+  if [ -n "$PID" ]; then
+    echo "$PID" | xargs kill -9 2>/dev/null || true
+    log "Freed port $PORT (killed PIDs: $(echo "$PID" | tr '\n' ' '))"
+  fi
+done
+success "Port sweep complete in $(( $(date +%s) - P_START ))s"
+
+# 5. Verification
+log "Verifying shutdown..."
+FAILED=0
+for PORT in "${PORTS[@]}"; do
+  if lsof -ti:$PORT >/dev/null 2>&1; then
+    warn "Port $PORT is still in use!"
+    FAILED=1
+  fi
 done
 
-# Keep ngrok running to preserve stable URL (don't stop it)
-# This prevents OAuth redirect URIs from changing when restarting dev servers
-if [ -f ".ngrok.pid" ]; then
-    NGROK_PID=$(cat .ngrok.pid 2>/dev/null)
-    if [ -n "$NGROK_PID" ] && kill -0 "$NGROK_PID" 2>/dev/null; then
-        NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null | grep -o '"public_url":"https://[^"]*"' | head -1 | cut -d'"' -f4 || echo "")
-        if [ -n "$NGROK_URL" ]; then
-            echo -e "${GREEN}✓ ngrok kept running: $NGROK_URL${NC}"
-            echo -e "${YELLOW}  (Preserved to maintain stable OAuth redirect URLs)${NC}"
-        fi
-    else
-        # PID file exists but process is dead - clean it up
-        rm -f .ngrok.pid
-    fi
+TOTAL_DUR=$(( $(date +%s) - TOTAL_START ))
+if [ $FAILED -eq 1 ]; then
+  warn "Some services could not be stopped completely. Check 'lsof -i :<port>'"
+  warn "Total stop duration: ${TOTAL_DUR}s (log: $LOG_FILE)"
+  exit 1
 fi
 
-# Don't kill ngrok processes - keep them running for stable URLs
-# If you need to stop ngrok, do it manually: pkill -f "ngrok http"
-
-# Fallback: kill by process name (for any orphaned processes)
-echo -e "${YELLOW}Cleaning up any orphaned processes...${NC}"
-pkill -f "node server.js" 2>/dev/null && echo -e "${GREEN}✓ Killed node server.js processes${NC}" || true
-pkill -f "react-scripts start" 2>/dev/null && echo -e "${GREEN}✓ Killed react-scripts processes${NC}" || true
-pkill -f "production_automation_service.py" 2>/dev/null && echo -e "${GREEN}✓ Killed automation service processes${NC}" || true
-
-# Load environment variables from .env file if it exists to get dynamic ports
-if [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | xargs)
-fi
-
-# Set dynamic ports from environment variables with defaults
-FRONTEND_PORT=${FRONTEND_PORT:-3000}
-BACKEND_PORT=${PORT:-3030}
-AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
-BACKEND_METRICS_PORT=${BACKEND_METRICS_PORT:-9091}
-
-# Kill processes on specific ports (matching ports freed in start-dev.sh)
-# Use quoted variables and validate port numbers
-for port in "$FRONTEND_PORT" "$BACKEND_PORT" "$AUTOMATION_PORT" "$BACKEND_METRICS_PORT"; do
-    # Validate port is a number
-    if [[ "$port" =~ ^[0-9]+$ ]]; then
-        if lsof -ti :"$port" > /dev/null 2>&1; then
-            echo -e "${YELLOW}Killing processes on port $port...${NC}"
-            lsof -ti :"$port" | xargs kill -9 2>/dev/null && echo -e "${GREEN}✓ Killed processes on port $port${NC}" || true
-        fi
-    fi
-done
-
-# Check if Docker daemon is running (non-critical - just skip if not)
-if docker info > /dev/null 2>&1; then
-    # Stop Docker containers
-    echo -e "${YELLOW}Stopping Docker containers...${NC}"
-    if docker stop easy-flow-rpa-dashboard-1 2>/dev/null; then
-        echo -e "${GREEN}✓ Docker frontend container stopped${NC}"
-    else
-        echo -e "${YELLOW}⚠ Docker frontend container not running${NC}"
-    fi
-
-    if docker stop easy-flow-automation-worker-1 2>/dev/null; then
-        echo -e "${GREEN}✓ Docker automation worker stopped${NC}"
-    else
-        echo -e "${YELLOW}⚠ Docker automation worker not running${NC}"
-    fi
-
-    # Stop and completely remove Kafka and Zookeeper (prevents stale Zookeeper nodes)
-    echo -e "${YELLOW}Stopping and cleaning up Kafka and Zookeeper...${NC}"
-    # Stop first
-    docker compose stop kafka zookeeper 2>/dev/null || true
-    # Remove containers completely (this clears Zookeeper state and prevents NodeExistsException)
-    if docker compose rm -f kafka zookeeper 2>/dev/null; then
-        echo -e "${GREEN}✓ Kafka and Zookeeper stopped and cleaned up${NC}"
-    else
-        # Fallback: try to remove containers directly by name
-        docker rm -f easy-flow-kafka-1 easy-flow-zookeeper-1 2>/dev/null || true
-        echo -e "${YELLOW}⚠ Kafka/Zookeeper cleanup attempted${NC}"
-    fi
-
-    # Stop Observability Stack
-    echo -e "${YELLOW}Stopping Observability Stack...${NC}"
-    if [ -f rpa-system/docker-compose.monitoring.yml ]; then
-        docker compose -f rpa-system/docker-compose.monitoring.yml down 2>/dev/null && echo -e "${GREEN}✓ Observability stack stopped${NC}" || echo -e "${YELLOW}⚠ Could not stop observability stack${NC}"
-        # Also remove any stale containers (all monitoring services, including manually started ones)
-        docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
-    else
-        echo -e "${YELLOW}⚠ Monitoring compose file not found at rpa-system/docker-compose.monitoring.yml${NC}"
-        # Fallback: try to remove containers directly
-        docker rm -f easyflow-prometheus easyflow-grafana easyflow-loki easyflow-promtail easyflow-tempo easyflow-otel-collector easyflow-alertmanager 2>/dev/null || true
-    fi
-else
-    echo -e "${YELLOW}⚠ Docker daemon not running, skipping Docker container cleanup${NC}"
-fi
-
-sleep 1
-
-# Verify critical ports are free
-echo ""
-echo -e "${YELLOW}Verifying critical ports are free...${NC}"
-
-PORTS_OK=true
-# Check application ports (dynamic) and observability ports (fixed)
-# Use quoted variables and validate port numbers
-RAG_PORT=${RAG_SERVICE_PORT:-3002}
-for port in "$FRONTEND_PORT" "$BACKEND_PORT" "$AUTOMATION_PORT" 9090 3001 $RAG_PORT 3100 3200 4317 4318 "$BACKEND_METRICS_PORT" 9080 9093; do
-    # Validate port is a number
-    if [[ "$port" =~ ^[0-9]+$ ]]; then
-        if lsof -i :"$port" 2>/dev/null | grep LISTEN > /dev/null 2>&1; then
-            echo -e "${RED}✗ Port $port still in use${NC}"
-            PORTS_OK=false
-        else
-            echo -e "${GREEN}✓ Port $port is free${NC}"
-        fi
-    fi
-done
-
-echo ""
-if [ "$PORTS_OK" = true ]; then
-    echo -e "${GREEN}✓ All servers and infrastructure stopped successfully${NC}"
-else
-    echo -e "${YELLOW}⚠ Some ports are still in use. You may need to manually kill processes.${NC}"
-fi
+echo -e "${GREEN}✅ Environment stopped successfully in ${TOTAL_DUR}s.${NC}"
+log "Log file: $LOG_FILE"

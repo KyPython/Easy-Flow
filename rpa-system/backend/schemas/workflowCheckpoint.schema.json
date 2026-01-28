@@ -1,0 +1,249 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://easyflow.io/schemas/workflow-checkpoint.json",
+  "title": "Workflow Execution Checkpoint",
+  "description": "Schema for workflow execution checkpoints that enable resuming failed executions from the last successful step. Designed for CP consistency and stateless API architecture.",
+  "type": "object",
+  "required": [
+    "checkpoint_version",
+    "workflow_execution_id",
+    "last_successful_step_execution_id",
+    "last_successful_step_id",
+    "checkpointed_at",
+    "state_variables",
+    "execution_context"
+  ],
+  "properties": {
+    "checkpoint_version": {
+      "type": "string",
+      "description": "Version of checkpoint schema for backward compatibility",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "examples": ["1.0.0"]
+    },
+    "workflow_execution_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier of the workflow execution being checkpointed"
+    },
+    "last_successful_step_execution_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of the last successfully completed step_execution record. This is the resume point."
+    },
+    "last_successful_step_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of the workflow_step that was last successfully executed"
+    },
+    "last_successful_step_key": {
+      "type": "string",
+      "description": "Canvas node ID or step_key of the last successful step (for debugging and UI display)",
+      "examples": ["node-start-123", "step-abc"]
+    },
+    "last_successful_step_name": {
+      "type": "string",
+      "description": "Human-readable name of the last successful step",
+      "examples": ["Extract User Data", "Send Email"]
+    },
+    "checkpointed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this checkpoint was created"
+    },
+    "state_variables": {
+      "type": "object",
+      "description": "The complete state of data flow between steps. This is the output_data from the last successful step, which becomes input_data for the next step.",
+      "additionalProperties": true,
+      "examples": [
+        {
+          "scraped_data": [{"name": "John", "email": "john@example.com"}],
+          "user_id": "123",
+          "processed_count": 10
+        }
+      ]
+    },
+    "execution_context": {
+      "type": "object",
+      "description": "Contextual information needed to resume execution",
+      "required": [
+        "workflow_id",
+        "user_id",
+        "execution_mode",
+        "steps_total",
+        "steps_executed"
+      ],
+      "properties": {
+        "workflow_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "ID of the workflow being executed"
+        },
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "ID of the user who triggered this execution"
+        },
+        "execution_mode": {
+          "type": "string",
+          "enum": ["realtime", "balanced", "cost_optimized"],
+          "description": "Execution mode that affects timeouts and resource allocation"
+        },
+        "steps_total": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of steps in the workflow"
+        },
+        "steps_executed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of steps successfully executed before this checkpoint"
+        },
+        "execution_order": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Execution order of the last successful step (1-indexed)"
+        },
+        "triggered_by": {
+          "type": "string",
+          "enum": ["manual", "schedule", "webhook", "retry", "api"],
+          "description": "How the workflow execution was triggered"
+        },
+        "trigger_data": {
+          "type": "object",
+          "description": "Data associated with the trigger (e.g., webhook payload, schedule metadata)",
+          "additionalProperties": true
+        }
+      }
+    },
+    "resume_metadata": {
+      "type": "object",
+      "description": "Metadata specifically for resuming execution",
+      "properties": {
+        "next_step_id": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "description": "ID of the next step to execute (null if at end of workflow or conditional branch)"
+        },
+        "next_step_key": {
+          "type": ["string", "null"],
+          "description": "Canvas node ID of the next step (for conditional branches, this may need evaluation)"
+        },
+        "visited_steps": {
+          "type": "array",
+          "description": "Array of step IDs that have been executed (for loop detection and path tracking)",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "branch_history": {
+          "type": "array",
+          "description": "History of conditional branches taken (for deterministic resumption)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "condition_evaluated": {
+                "type": "string",
+                "description": "The condition expression that was evaluated"
+              },
+              "condition_result": {
+                "type": "boolean",
+                "description": "Result of the condition evaluation"
+              },
+              "branch_taken": {
+                "type": "string",
+                "description": "Which branch was taken (e.g., 'true', 'false', 'default')"
+              }
+            }
+          }
+        },
+        "loop_iterations": {
+          "type": "object",
+          "description": "For loop steps, track iteration count and loop variables",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "iteration_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "loop_variables": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "step_output": {
+      "type": "object",
+      "description": "Complete output from the last successful step (duplicated from state_variables for convenience, but with step-specific metadata)",
+      "properties": {
+        "data": {
+          "description": "The actual output data (same as state_variables but step-specific)",
+          "additionalProperties": true
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Step-specific metadata",
+          "properties": {
+            "duration_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Duration of step execution in milliseconds"
+            },
+            "step_details": {
+              "type": "string",
+              "description": "Human-readable summary of what the step accomplished"
+            },
+            "external_resources": {
+              "type": "array",
+              "description": "List of external resources created/modified (e.g., file URLs, API responses)",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["file", "api_response", "database_record", "email"]
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "resource_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "description": "Validation metadata for checkpoint integrity",
+      "properties": {
+        "checksum": {
+          "type": "string",
+          "description": "SHA-256 checksum of critical checkpoint data for integrity verification"
+        },
+        "schema_version_validated": {
+          "type": "boolean",
+          "description": "Whether this checkpoint was validated against the schema"
+        },
+        "validation_timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
+

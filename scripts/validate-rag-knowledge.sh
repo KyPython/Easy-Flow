@@ -38,8 +38,9 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-# Create temporary validation script
-VALIDATION_SCRIPT=$(cat << 'NODE_SCRIPT'
+# Create temporary validation script file
+TEMP_SCRIPT=$(mktemp)
+cat > "$TEMP_SCRIPT" << 'NODE_SCRIPT_END'
 const fs = require('fs');
 const path = require('path');
 
@@ -204,15 +205,15 @@ try {
   const extraSteps = ragKnowledge.steps.filter(step => !actualSteps.includes(step));
   
   if (missingSteps.length > 0) {
-    console.log(`  ${'❌'} Missing in RAG: ${missingSteps.join(', ')}`);
+    console.log('  ❌ Missing in RAG: ' + missingSteps.join(', '));
     hasErrors = true;
   }
   if (extraSteps.length > 0) {
-    console.log(`  ${'⚠️'} Extra in RAG (may be outdated): ${extraSteps.join(', ')}`);
+    console.log('  ⚠️ Extra in RAG (may be outdated): ' + extraSteps.join(', '));
     hasWarnings = true;
   }
   if (missingSteps.length === 0 && extraSteps.length === 0) {
-    console.log(`  ${'✅'} All workflow steps documented in RAG`);
+    console.log('  ✅ All workflow steps documented in RAG');
   }
   
   // Check task types
@@ -221,31 +222,31 @@ try {
   const extraTaskTypes = ragKnowledge.taskTypes.filter(type => !actualTaskTypes.includes(type));
   
   if (missingTaskTypes.length > 0) {
-    console.log(`  ${'❌'} Missing in RAG: ${missingTaskTypes.join(', ')}`);
+    console.log('  ❌ Missing in RAG: ' + missingTaskTypes.join(', '));
     hasErrors = true;
   }
   if (extraTaskTypes.length > 0) {
-    console.log(`  ${'⚠️'} Extra in RAG (may be outdated): ${extraTaskTypes.join(', ')}`);
+    console.log('  ⚠️ Extra in RAG (may be outdated): ' + extraTaskTypes.join(', '));
     hasWarnings = true;
   }
   if (missingTaskTypes.length === 0 && extraTaskTypes.length === 0) {
-    console.log(`  ${'✅'} All task types documented in RAG`);
+    console.log('  ✅ All task types documented in RAG');
   }
   
   // Check integrations
   console.log('\n📊 Integrations:');
   if (actualIntegrations.length > 0) {
-    console.log(`  ${'✅'} Found ${actualIntegrations.length} integrations: ${actualIntegrations.join(', ')}`);
-    console.log(`  ${'ℹ️'} Integration knowledge is managed separately in addIntegrationKnowledge.js`);
+    console.log('  ✅ Found ' + actualIntegrations.length + ' integrations: ' + actualIntegrations.join(', '));
+    console.log('  ℹ️ Integration knowledge is managed separately in addIntegrationKnowledge.js');
   } else {
-    console.log(`  ${'⚠️'} No integrations found (may need to check integrationRoutes.js)`);
+    console.log('  ⚠️ No integrations found (may need to check integrationRoutes.js)');
     hasWarnings = true;
   }
   
   // Check system prompt features
   console.log('\n📊 System Prompt Features:');
   if (systemPromptFeatures.length > 0) {
-    console.log(`  ${'✅'} Found ${systemPromptFeatures.length} features in system prompt`);
+    console.log('  ✅ Found ' + systemPromptFeatures.length + ' features in system prompt');
     // Check if features are in RAG knowledge
     const missingFeatures = systemPromptFeatures.filter(f => {
       // Simple check - see if feature name appears in RAG knowledge
@@ -253,11 +254,11 @@ try {
       return !ragContent.includes(f.substring(0, 20)); // Check first 20 chars
     });
     if (missingFeatures.length > 0) {
-      console.log(`  ${'⚠️'} Some features may not be in RAG: ${missingFeatures.length} features`);
+      console.log('  ⚠️ Some features may not be in RAG: ' + missingFeatures.length + ' features');
       hasWarnings = true;
     }
   } else {
-    console.log(`  ${'⚠️'} No features found in system prompt`);
+    console.log('  ⚠️ No features found in system prompt');
     hasWarnings = true;
   }
   
@@ -277,16 +278,11 @@ try {
   }
   
 } catch (error) {
-  console.error(`\n❌ Validation error: ${error.message}`);
+  console.error('\n❌ Validation error: ' + error.message);
   console.error(error.stack);
   process.exit(1);
 }
-NODE_SCRIPT
-)
-
-# Write validation script to temp file
-TEMP_SCRIPT=$(mktemp)
-echo "$VALIDATION_SCRIPT" > "$TEMP_SCRIPT"
+NODE_SCRIPT_END
 
 # Run validation
 cd "$PROJECT_ROOT"

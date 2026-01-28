@@ -1,0 +1,45 @@
+name: Notion Gmail Sync
+
+on:
+  schedule:
+    # Sync twice daily: 8:00 AM and 5:00 PM EST
+    # GitHub Actions cron runs in UTC
+    # 8:00 AM EST = 1:00 PM UTC (13:00)
+    # 5:00 PM EST = 10:00 PM UTC (22:00)
+    - cron: '0 13 * * *'  # 8:00 AM EST (13:00 UTC)
+    - cron: '0 22 * * *'  # 5:00 PM EST (22:00 UTC)
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  sync-gmail-to-notion:
+    runs-on: ubuntu-latest
+    name: Sync Gmail → Notion
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+      
+      - name: Sync Gmail to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+        run: |
+          python3 scripts/notion-integrations/gmail-to-notion-sync.py
+      
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ Gmail → Notion sync completed at $(date)"
+          echo "Repository: ${{ github.repository }}"
+          echo "Workflow run: ${{ github.run_id }}"

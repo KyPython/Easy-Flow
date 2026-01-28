@@ -1,0 +1,43 @@
+name: Notion Stripe Sync
+
+on:
+  schedule:
+    # Sync daily at 9:00 AM EST (UTC-5)
+    # GitHub Actions cron runs in UTC
+    # 9:00 AM EST = 2:00 PM UTC (14:00)
+    - cron: '0 14 * * *'  # 9:00 AM EST (14:00 UTC)
+    # For EDT (UTC-4), use:
+    # - cron: '0 13 * * *'  # 9:00 AM EDT (13:00 UTC)
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  sync-stripe-to-notion:
+    runs-on: ubuntu-latest
+    name: Sync Stripe → Notion
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests stripe
+      
+      - name: Sync Stripe to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: |
+          python3 scripts/notion-integrations/stripe-to-notion-sync.py
+      
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ Stripe → Notion sync completed at $(date)"
+          echo "Repository: ${{ github.repository }}"
+          echo "Workflow run: ${{ github.run_id }}"

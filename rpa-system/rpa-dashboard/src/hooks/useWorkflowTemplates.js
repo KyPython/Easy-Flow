@@ -3,518 +3,518 @@ import supabase, { initSupabase } from '../utils/supabaseClient';
 
 // Emergency fallback templates - only used when database is completely unavailable
 const emergencyFallbackTemplates = [
-  {
-    id: 'fallback-1',
-    name: 'Basic Web Scraping',
-    description: 'Simple web scraping template (emergency fallback)',
-    category: 'web_automation',
-    rating: 4.0,
-    usage_count: 0,
-    author: 'System',
-    tags: ['web', 'scraping'],
-    estimated_time: '10 minutes',
-    complexity: 'Easy',
-    steps: 3,
-    is_public: true,
-    is_featured: false,
-    is_fallback: true
-  }
+ {
+ id: 'fallback-1',
+ name: 'Basic Web Scraping',
+ description: 'Simple web scraping template (emergency fallback)',
+ category: 'web_automation',
+ rating: 4.0,
+ usage_count: 0,
+ author: 'System',
+ tags: ['web', 'scraping'],
+ estimated_time: '10 minutes',
+ complexity: 'Easy',
+ steps: 3,
+ is_public: true,
+ is_featured: false,
+ is_fallback: true
+ }
 ];
 
 export const useWorkflowTemplates = (options = {}) => {
-  const { autoLoad = true } = options;
-  const [templates, setTemplates] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(24);
-  const [total, setTotal] = useState(0);
-  const inFlightRef = useRef(false);
-  // Shared UUID validator
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  // Safe mock templates placeholder to avoid reference errors in special ID branches
-  const mockTemplates = [];
+ const { autoLoad = true } = options;
+ const [templates, setTemplates] = useState([]);
+ const [loading, setLoading] = useState(true);
+ const [error, setError] = useState(null);
+ const [page, setPage] = useState(1);
+ const [pageSize, setPageSize] = useState(24);
+ const [total, setTotal] = useState(0);
+ const inFlightRef = useRef(false);
+ // Shared UUID validator
+ const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+ // Safe mock templates placeholder to avoid reference errors in special ID branches
+ const mockTemplates = [];
 
-  // Load workflow templates
-  const loadTemplates = useCallback(async (opts = {}) => {
-    if (inFlightRef.current) return; // prevent overlapping fetches
-    try {
-      inFlightRef.current = true;
-      setLoading(true);
-      setError(null);
-      const {
-        search = '',
-        category = 'all',
-        industry = 'all', // ✅ NEW: Industry filter
-        sortBy = 'popularity',
-        page: p = page,
-        pageSize: ps = pageSize
-      } = opts;
+ // Load workflow templates
+ const loadTemplates = useCallback(async (opts = {}) => {
+ if (inFlightRef.current) return; // prevent overlapping fetches
+ try {
+ inFlightRef.current = true;
+ setLoading(true);
+ setError(null);
+ const {
+ search = '',
+ category = 'all',
+ industry = 'all', // ✅ NEW: Industry filter
+ sortBy = 'popularity',
+ page: p = page,
+ pageSize: ps = pageSize
+ } = opts;
 
-      const from = (p - 1) * ps;
-      const to = from + ps - 1;
+ const from = (p - 1) * ps;
+ const to = from + ps - 1;
 
-      // Try ranked view first for popularity scoring; include search and filters
-        const client = await initSupabase();
-        let qry = client
-        .from('workflow_templates_ranked')
-        .select('*', { count: 'exact' })
-        .order(sortBy === 'recent' ? 'updated_at' : (sortBy === 'name' ? 'name' : 'popularity_score'), { ascending: sortBy === 'name' })
-        .range(from, to);
+ // Try ranked view first for popularity scoring; include search and filters
+ const client = await initSupabase();
+ let qry = client
+ .from('workflow_templates_ranked')
+ .select('*', { count: 'exact' })
+ .order(sortBy === 'recent' ? 'updated_at' : (sortBy === 'name' ? 'name' : 'popularity_score'), { ascending: sortBy === 'name' })
+ .range(from, to);
 
-      if (category && category !== 'all') {
-        qry = qry.eq('category', category);
-      }
-      // ✅ NEW: Industry filter (if industry column exists in templates table)
-      if (industry && industry !== 'all') {
-        // Try to filter by industry - gracefully handle if column doesn't exist
-        try {
-          qry = qry.eq('industry', industry);
-        } catch (e) {
-          // Industry column may not exist yet - that's ok, just skip the filter
-          console.debug('[Templates] Industry filter skipped (column may not exist)');
-        }
-      }
-      if (search) {
-        // name/description search (avoid tags.cs which can 400 if type mismatch)
-        qry = qry.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
-      }
+ if (category && category !== 'all') {
+ qry = qry.eq('category', category);
+ }
+ // ✅ NEW: Industry filter (if industry column exists in templates table)
+ if (industry && industry !== 'all') {
+ // Try to filter by industry - gracefully handle if column doesn't exist
+ try {
+ qry = qry.eq('industry', industry);
+ } catch (e) {
+ // Industry column may not exist yet - that's ok, just skip the filter
+ console.debug('[Templates] Industry filter skipped (column may not exist)');
+ }
+ }
+ if (search) {
+ // name/description search (avoid tags.cs which can 400 if type mismatch)
+ qry = qry.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+ }
 
-      let { data, error: templatesError, count } = await qry;
+ let { data, error: templatesError, count } = await qry;
 
-      if (templatesError) {
-        console.warn('[Templates] Ranked view query error:', {
-          code: templatesError.code,
-          message: templatesError.message,
-          details: templatesError.details,
-          hint: templatesError.hint
-        });
-      } else {
-        console.debug('[Templates] Ranked view query ok:', {
-          count,
-          rows: Array.isArray(data) ? data.length : 0
-        });
-      }
+ if (templatesError) {
+ console.warn('[Templates] Ranked view query error:', {
+ code: templatesError.code,
+ message: templatesError.message,
+ details: templatesError.details,
+ hint: templatesError.hint
+ });
+ } else {
+ console.debug('[Templates] Ranked view query ok:', {
+ count,
+ rows: Array.isArray(data) ? data.length : 0
+ });
+ }
 
-      // If ranked view is missing or has schema issues, try a safer re-query, then fall back to base templates table
-      if (templatesError && (templatesError.code === '42P01' || templatesError.code === '42703')) {
-        // If it's an undefined column (likely popularity_score), try again ordering by updated_at
-        if (templatesError.code === '42703') {
-          try {
-            let safeQry = client
-              .from('workflow_templates_ranked')
-              .select('*', { count: 'exact' })
-              .order(sortBy === 'name' ? 'name' : 'updated_at', { ascending: sortBy === 'name' })
-              .range(from, to);
-            if (category && category !== 'all') safeQry = safeQry.eq('category', category);
-            if (search) safeQry = safeQry.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
-            const safeRes = await safeQry;
-            if (!safeRes.error) {
-              data = Array.isArray(safeRes.data) ? safeRes.data : [];
-              count = typeof safeRes.count === 'number' ? safeRes.count : (Array.isArray(safeRes.data) ? safeRes.data.length : 0);
-              // Use the successful re-query and skip deeper fallbacks
-            } else {
-              // Continue to base table fallback
-              throw safeRes.error;
-            }
-          } catch (_reErr) {
-            // proceed to base table fallback below
-          }
-        }
-        // If data is still undefined from the safe retry, proceed with base table fallback
-        if (!Array.isArray(data)) {
-        try {
-          let baseQry = client
-            .from('workflow_templates')
-            .select('*', { count: 'exact' })
-            // Prefer sensible sort mapping when popularity_score is unavailable
-            .order(
-              sortBy === 'recent' ? 'updated_at' : (sortBy === 'name' ? 'name' : 'rating'),
-              { ascending: sortBy === 'name' }
-            )
-            .range(from, to);
+ // If ranked view is missing or has schema issues, try a safer re-query, then fall back to base templates table
+ if (templatesError && (templatesError.code === '42P01' || templatesError.code === '42703')) {
+ // If it's an undefined column (likely popularity_score), try again ordering by updated_at
+ if (templatesError.code === '42703') {
+ try {
+ let safeQry = client
+ .from('workflow_templates_ranked')
+ .select('*', { count: 'exact' })
+ .order(sortBy === 'name' ? 'name' : 'updated_at', { ascending: sortBy === 'name' })
+ .range(from, to);
+ if (category && category !== 'all') safeQry = safeQry.eq('category', category);
+ if (search) safeQry = safeQry.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+ const safeRes = await safeQry;
+ if (!safeRes.error) {
+ data = Array.isArray(safeRes.data) ? safeRes.data : [];
+ count = typeof safeRes.count === 'number' ? safeRes.count : (Array.isArray(safeRes.data) ? safeRes.data.length : 0);
+ // Use the successful re-query and skip deeper fallbacks
+ } else {
+ // Continue to base table fallback
+ throw safeRes.error;
+ }
+ } catch (_reErr) {
+ // proceed to base table fallback below
+ }
+ }
+ // If data is still undefined from the safe retry, proceed with base table fallback
+ if (!Array.isArray(data)) {
+ try {
+ let baseQry = client
+ .from('workflow_templates')
+ .select('*', { count: 'exact' })
+ // Prefer sensible sort mapping when popularity_score is unavailable
+ .order(
+ sortBy === 'recent' ? 'updated_at' : (sortBy === 'name' ? 'name' : 'rating'),
+ { ascending: sortBy === 'name' }
+ )
+ .range(from, to);
 
-          // Only show public templates by default
-          baseQry = baseQry.eq('is_public', true);
+ // Only show public templates by default
+ baseQry = baseQry.eq('is_public', true);
 
-          if (category && category !== 'all') {
-            baseQry = baseQry.eq('category', category);
-          }
-          if (search) {
-            // Safe search across name/description; avoid relying on tags.cs which may not exist
-            baseQry = baseQry.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
-          }
+ if (category && category !== 'all') {
+ baseQry = baseQry.eq('category', category);
+ }
+ if (search) {
+ // Safe search across name/description; avoid relying on tags.cs which may not exist
+ baseQry = baseQry.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+ }
 
-          const baseRes = await baseQry;
-            if (baseRes.error) {
-            // If base table query still has schema/permission issues, fall back to public workflows
-            if (baseRes.error.code === '42P01' || baseRes.error.code === '42703' || String(baseRes.error.message || '').toLowerCase().includes('permission')) {
-              const { data: workflowData, error: workflowError } = await client
-                  .from('workflows')
-                .select(`
-                  id,
-                  name,
-                  description,
-                  tags,
-                  created_at,
-                  updated_at,
-                  total_executions,
-                  successful_executions
-                `)
-                .eq('is_public', true)
-                .eq('status', 'active')
-                .order('total_executions', { ascending: false })
-                .range(from, to);
+ const baseRes = await baseQry;
+ if (baseRes.error) {
+ // If base table query still has schema/permission issues, fall back to public workflows
+ if (baseRes.error.code === '42P01' || baseRes.error.code === '42703' || String(baseRes.error.message || '').toLowerCase().includes('permission')) {
+ const { data: workflowData, error: workflowError } = await client
+ .from('workflows')
+ .select(`
+ id,
+ name,
+ description,
+ tags,
+ created_at,
+ updated_at,
+ total_executions,
+ successful_executions
+ `)
+ .eq('is_public', true)
+ .eq('status', 'active')
+ .order('total_executions', { ascending: false })
+ .range(from, to);
 
-              if (workflowError) throw workflowError;
+ if (workflowError) throw workflowError;
 
-              // Transform workflows to template-like format
-              data = workflowData?.map(workflow => ({
-                id: workflow.id,
-                name: workflow.name,
-                description: workflow.description || 'No description available',
-                category: 'general',
-                popularity: Math.min(100, Math.round((workflow.successful_executions / Math.max(1, workflow.total_executions)) * 100)),
-                usage_count: workflow.total_executions || 0,
-                created_at: workflow.created_at,
-                updated_at: workflow.updated_at,
-                author: 'EasyFlow Community',
-                tags: workflow.tags || [],
-                estimated_time: '10-15 minutes',
-                complexity: workflow.total_executions > 50 ? 'Medium' : 'Easy',
-                steps: 5,
-                is_public: true,
-                is_featured: workflow.total_executions > 100
-              })) || [];
-              count = data.length;
-            } else {
-              // Other errors bubble up to be handled by catch
-              throw baseRes.error;
-            }
-          } else {
-            data = Array.isArray(baseRes.data) ? baseRes.data : [];
-            count = typeof baseRes.count === 'number' ? baseRes.count : (Array.isArray(baseRes.data) ? baseRes.data.length : 0);
-          }
-        } catch (fallbackErr) {
-          // Re-throw to be handled by the outer catch, which may decide on mock fallback
-          throw fallbackErr;
-        }
-        }
-      } else if (templatesError) {
-        throw templatesError;
-      }
+ // Transform workflows to template-like format
+ data = workflowData?.map(workflow => ({
+ id: workflow.id,
+ name: workflow.name,
+ description: workflow.description || 'No description available',
+ category: 'general',
+ popularity: Math.min(100, Math.round((workflow.successful_executions / Math.max(1, workflow.total_executions)) * 100)),
+ usage_count: workflow.total_executions || 0,
+ created_at: workflow.created_at,
+ updated_at: workflow.updated_at,
+ author: 'EasyFlow Community',
+ tags: workflow.tags || [],
+ estimated_time: '10-15 minutes',
+ complexity: workflow.total_executions > 50 ? 'Medium' : 'Easy',
+ steps: 5,
+ is_public: true,
+ is_featured: workflow.total_executions > 100
+ })) || [];
+ count = data.length;
+ } else {
+ // Other errors bubble up to be handled by catch
+ throw baseRes.error;
+ }
+ } else {
+ data = Array.isArray(baseRes.data) ? baseRes.data : [];
+ count = typeof baseRes.count === 'number' ? baseRes.count : (Array.isArray(baseRes.data) ? baseRes.data.length : 0);
+ }
+ } catch (fallbackErr) {
+ // Re-throw to be handled by the outer catch, which may decide on mock fallback
+ throw fallbackErr;
+ }
+ }
+ } else if (templatesError) {
+ throw templatesError;
+ }
 
-      // Ensure data is always an array and filter out any invalid entries
-      data = Array.isArray(data) ? data.filter(template => 
-        template && 
-        typeof template === 'object' && 
-        template.name && 
-        template.id
-      ) : [];
+ // Ensure data is always an array and filter out any invalid entries
+ data = Array.isArray(data) ? data.filter(template => 
+ template && 
+ typeof template === 'object' && 
+ template.name && 
+ template.id
+ ) : [];
 
-  // If no templates found, keep empty results; only use fallback on actual errors
-  setTemplates(data);
-  if (typeof count === 'number') setTotal(count);
-  else setTotal(Array.isArray(data) ? data.length : 0);
-  setPage(p);
-  setPageSize(ps);
-    } catch (err) {
-      // Normalize error details for logging and UI
-      const normalized = {
-        code: err?.code,
-        message: err?.message || String(err),
-        details: err?.details,
-        hint: err?.hint
-      };
-      console.error('Error loading templates:', normalized);
-      setError(`${normalized.message}${normalized.code ? ` (code ${normalized.code})` : ''}`);
-      // Provide fallback templates only if the schema is missing or access denied
-      if (err?.code === '42P01' || err?.code === '42703' || String(err?.message || '').toLowerCase().includes('permission')) {
-        setTemplates(emergencyFallbackTemplates);
-        setTotal(emergencyFallbackTemplates.length);
-      } else {
-        setTemplates([]);
-        setTotal(0);
-      }
-    } finally {
-    inFlightRef.current = false;
-      setLoading(false);
-    }
-  }, []);
+ // If no templates found, keep empty results; only use fallback on actual errors
+ setTemplates(data);
+ if (typeof count === 'number') setTotal(count);
+ else setTotal(Array.isArray(data) ? data.length : 0);
+ setPage(p);
+ setPageSize(ps);
+ } catch (err) {
+ // Normalize error details for logging and UI
+ const normalized = {
+ code: err?.code,
+ message: err?.message || String(err),
+ details: err?.details,
+ hint: err?.hint
+ };
+ console.error('Error loading templates:', normalized);
+ setError(`${normalized.message}${normalized.code ? ` (code ${normalized.code})` : ''}`);
+ // Provide fallback templates only if the schema is missing or access denied
+ if (err?.code === '42P01' || err?.code === '42703' || String(err?.message || '').toLowerCase().includes('permission')) {
+ setTemplates(emergencyFallbackTemplates);
+ setTotal(emergencyFallbackTemplates.length);
+ } else {
+ setTemplates([]);
+ setTotal(0);
+ }
+ } finally {
+ inFlightRef.current = false;
+ setLoading(false);
+ }
+ }, []);
 
-  // Create workflow from template
-  const createFromTemplate = useCallback(async (templateId, workflowName) => {
-    try {
-      const idStr = String(templateId);
+ // Create workflow from template
+ const createFromTemplate = useCallback(async (templateId, workflowName) => {
+ try {
+ const idStr = String(templateId);
 
-      // Try to find in-memory first (normalize id types)
-      let template = templates.find(t => String(t.id) === idStr);
+ // Try to find in-memory first (normalize id types)
+ let template = templates.find(t => String(t.id) === idStr);
 
-      // If not found in memory, attempt to fetch from DB depending on ID shape
-      if (!template) {
-        // Fallback/mock ids produce a minimal template
-        if (idStr.startsWith('fallback-') || idStr.startsWith('template-')) {
-          template = emergencyFallbackTemplates[0];
-        } else if (uuidRegex.test(idStr)) {
-          // Fetch base template row
-          const clientForTemplate = await initSupabase();
-          const { data: tRow, error: tErr } = await clientForTemplate
-            .from('workflow_templates')
-            .select('*')
-            .eq('id', idStr)
-            .single();
-          if (tErr) throw tErr;
+ // If not found in memory, attempt to fetch from DB depending on ID shape
+ if (!template) {
+ // Fallback/mock ids produce a minimal template
+ if (idStr.startsWith('fallback-') || idStr.startsWith('template-')) {
+ template = emergencyFallbackTemplates[0];
+ } else if (uuidRegex.test(idStr)) {
+ // Fetch base template row
+ const clientForTemplate = await initSupabase();
+ const { data: tRow, error: tErr } = await clientForTemplate
+ .from('workflow_templates')
+ .select('*')
+ .eq('id', idStr)
+ .single();
+ if (tErr) throw tErr;
 
-          // Try to get latest version config
-          let latestConfig = null;
-          try {
-            const { data: ver, error: vErr } = await clientForTemplate
-              .from('template_versions')
-              .select('config')
-              .eq('template_id', idStr)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .single();
-            if (!vErr) latestConfig = ver?.config || null;
-          } catch (_) {
-            // ignore, we'll rely on template_config if present
-          }
+ // Try to get latest version config
+ let latestConfig = null;
+ try {
+ const { data: ver, error: vErr } = await clientForTemplate
+ .from('template_versions')
+ .select('config')
+ .eq('template_id', idStr)
+ .order('created_at', { ascending: false })
+ .limit(1)
+ .single();
+ if (!vErr) latestConfig = ver?.config || null;
+ } catch (_) {
+ // ignore, we'll rely on template_config if present
+ }
 
-          template = {
-            ...tRow,
-            // Some schemas store config on the template row as template_config
-            template_config: tRow?.template_config || latestConfig || null
-          };
-        } else {
-          // Unknown id shape
-          throw new Error('Template not found');
-        }
-      }
+ template = {
+ ...tRow,
+ // Some schemas store config on the template row as template_config
+ template_config: tRow?.template_config || latestConfig || null
+ };
+ } else {
+ // Unknown id shape
+ throw new Error('Template not found');
+ }
+ }
 
-      // Build canvas config (nodes/edges/viewport)
-      let canvasConfig = { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } };
-      const cfg = template.template_config || template.config || null;
-      if (cfg && typeof cfg === 'object') {
-        // Support both flattened and nested canvas_config
-        const c = cfg.canvas_config && typeof cfg.canvas_config === 'object' ? cfg.canvas_config : cfg;
-        canvasConfig = {
-          nodes: Array.isArray(c.nodes) ? c.nodes : [],
-          edges: Array.isArray(c.edges) ? c.edges : [],
-          viewport: c.viewport && typeof c.viewport === 'object' ? c.viewport : { x: 0, y: 0, zoom: 1 }
-        };
-      } else if (template.is_fallback || idStr.startsWith('fallback-') || idStr.startsWith('template-')) {
-        // Minimal default for fallbacks
-        canvasConfig = {
-          nodes: [
-            { id: 'start-1', type: 'start', position: { x: 100, y: 100 }, data: { label: 'Start' } },
-            { id: 'end-1', type: 'end', position: { x: 100, y: 300 }, data: { label: 'End' } }
-          ],
-          edges: [
-            { id: 'edge-1', source: 'start-1', target: 'end-1' }
-          ],
-          viewport: { x: 0, y: 0, zoom: 1 }
-        };
-      }
+ // Build canvas config (nodes/edges/viewport)
+ let canvasConfig = { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } };
+ const cfg = template.template_config || template.config || null;
+ if (cfg && typeof cfg === 'object') {
+ // Support both flattened and nested canvas_config
+ const c = cfg.canvas_config && typeof cfg.canvas_config === 'object' ? cfg.canvas_config : cfg;
+ canvasConfig = {
+ nodes: Array.isArray(c.nodes) ? c.nodes : [],
+ edges: Array.isArray(c.edges) ? c.edges : [],
+ viewport: c.viewport && typeof c.viewport === 'object' ? c.viewport : { x: 0, y: 0, zoom: 1 }
+ };
+ } else if (template.is_fallback || idStr.startsWith('fallback-') || idStr.startsWith('template-')) {
+ // Minimal default for fallbacks
+ canvasConfig = {
+ nodes: [
+ { id: 'start-1', type: 'start', position: { x: 100, y: 100 }, data: { label: 'Start' } },
+ { id: 'end-1', type: 'end', position: { x: 100, y: 300 }, data: { label: 'End' } }
+ ],
+ edges: [
+ { id: 'edge-1', source: 'start-1', target: 'end-1' }
+ ],
+ viewport: { x: 0, y: 0, zoom: 1 }
+ };
+ }
 
-      // Get current user for RLS policy
-        const clientForCreate = await initSupabase();
-        const { data: { user } } = await clientForCreate.auth.getUser();
-      if (!user) {
-        throw new Error('User must be authenticated to create workflows');
-      }
+ // Get current user for RLS policy
+ const clientForCreate = await initSupabase();
+ const { data: { user } } = await clientForCreate.auth.getUser();
+ if (!user) {
+ throw new Error('User must be authenticated to create workflows');
+ }
 
-      // Create new workflow based on template
-      const { data, error } = await clientForCreate
-        .from('workflows')
-        .insert({
-          user_id: user.id,
-          name: workflowName || `${template.name || 'Untitled Template'} (Copy)`,
-          description: template.description,
-          tags: Array.isArray(template.tags) ? template.tags : [],
-          status: 'draft',
-          is_public: false,
-          canvas_config: canvasConfig,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+ // Create new workflow based on template
+ const { data, error } = await clientForCreate
+ .from('workflows')
+ .insert({
+ user_id: user.id,
+ name: workflowName || `${template.name || 'Untitled Template'} (Copy)`,
+ description: template.description,
+ tags: Array.isArray(template.tags) ? template.tags : [],
+ status: 'draft',
+ is_public: false,
+ canvas_config: canvasConfig,
+ created_at: new Date().toISOString(),
+ updated_at: new Date().toISOString()
+ })
+ .select()
+ .single();
 
-      if (error) throw error;
+ if (error) throw error;
 
-      // Telemetry: record install via RPC (increments usage_count) only for UUID templates
-      if (uuidRegex.test(idStr)) {
-        try {
-            await clientForCreate.rpc('record_template_install', { p_template_id: idStr });
-        } catch (e) {
-          console.warn('record_template_install RPC failed or unavailable:', e?.message || e);
-        }
-      }
+ // Telemetry: record install via RPC (increments usage_count) only for UUID templates
+ if (uuidRegex.test(idStr)) {
+ try {
+ await clientForCreate.rpc('record_template_install', { p_template_id: idStr });
+ } catch (e) {
+ console.warn('record_template_install RPC failed or unavailable:', e?.message || e);
+ }
+ }
 
-      return data;
-    } catch (err) {
-      console.error('Error creating workflow from template:', err);
-      throw err;
-    }
-  }, [templates]);
+ return data;
+ } catch (err) {
+ console.error('Error creating workflow from template:', err);
+ throw err;
+ }
+ }, [templates]);
 
-  // Get template details
-  const getTemplateDetails = useCallback(async (templateId) => {
-    try {
-      // Handle demo/mock template IDs (template-1, template-2, etc.)
-      if (templateId.startsWith('template-')) {
-        const mockTemplate = mockTemplates.find(t => t.id === templateId);
-        if (mockTemplate) {
-          return mockTemplate;
-        }
-        // If not found in mock templates, it might be an actual UUID with template- prefix
-      }
+ // Get template details
+ const getTemplateDetails = useCallback(async (templateId) => {
+ try {
+ // Handle demo/mock template IDs (template-1, template-2, etc.)
+ if (templateId.startsWith('template-')) {
+ const mockTemplate = mockTemplates.find(t => t.id === templateId);
+ if (mockTemplate) {
+ return mockTemplate;
+ }
+ // If not found in mock templates, it might be an actual UUID with template- prefix
+ }
 
-      // If it's a workflow-based template, get workflow details
-      if (templateId.startsWith('workflow-')) {
-        const workflowId = templateId.replace('workflow-', '');
-        const client3 = await initSupabase();
-        const { data, error } = await client3
-          .from('workflows')
-          .select(`
-            *,
-            workflow_steps(*),
-            workflow_connections(*)
-          `)
-          .eq('id', workflowId)
-          .single();
+ // If it's a workflow-based template, get workflow details
+ if (templateId.startsWith('workflow-')) {
+ const workflowId = templateId.replace('workflow-', '');
+ const client3 = await initSupabase();
+ const { data, error } = await client3
+ .from('workflows')
+ .select(`
+ *,
+ workflow_steps(*),
+ workflow_connections(*)
+ `)
+ .eq('id', workflowId)
+ .single();
 
-        if (error) throw error;
-        return data;
-      }
+ if (error) throw error;
+ return data;
+ }
 
-      // Validate UUID format before querying database
-  if (!uuidRegex.test(templateId)) {
-        throw new Error(`Invalid template ID format: ${templateId}`);
-      }
+ // Validate UUID format before querying database
+ if (!uuidRegex.test(templateId)) {
+ throw new Error(`Invalid template ID format: ${templateId}`);
+ }
 
-      // Otherwise get from templates table plus versions
-      const client4 = await initSupabase();
-      const { data: template, error: tErr } = await client4
-        .from('workflow_templates')
-        .select('*')
-        .eq('id', templateId)
-        .single();
-      if (tErr) throw tErr;
+ // Otherwise get from templates table plus versions
+ const client4 = await initSupabase();
+ const { data: template, error: tErr } = await client4
+ .from('workflow_templates')
+ .select('*')
+ .eq('id', templateId)
+ .single();
+ if (tErr) throw tErr;
 
-      const { data: versions, error: vErr } = await client4
-        .from('template_versions')
-        .select('*')
-        .eq('template_id', templateId)
-        .order('created_at', { ascending: false });
-      if (vErr) throw vErr;
+ const { data: versions, error: vErr } = await client4
+ .from('template_versions')
+ .select('*')
+ .eq('template_id', templateId)
+ .order('created_at', { ascending: false });
+ if (vErr) throw vErr;
 
-      return { ...template, versions };
-    } catch (err) {
-      console.error('Error loading template details:', err);
-      throw err;
-    }
-  }, []);
+ return { ...template, versions };
+ } catch (err) {
+ console.error('Error loading template details:', err);
+ throw err;
+ }
+ }, []);
 
-  // Publish a template (owner flow): create template + version (pending_review)
-  const publishTemplate = useCallback(async ({ name, description, category = 'general', tags = [], is_public = false, version = '1.0.0', changelog = '', config, dependencies = [], screenshots = [] }) => {
-    const client5 = await initSupabase();
-    const { data: { user } } = await client5.auth.getUser();
-    if (!user) throw new Error('User must be authenticated');
+ // Publish a template (owner flow): create template + version (pending_review)
+ const publishTemplate = useCallback(async ({ name, description, category = 'general', tags = [], is_public = false, version = '1.0.0', changelog = '', config, dependencies = [], screenshots = [] }) => {
+ const client5 = await initSupabase();
+ const { data: { user } } = await client5.auth.getUser();
+ if (!user) throw new Error('User must be authenticated');
 
-    // Insert template draft
-    const { data: template, error: tErr } = await client5
-      .from('workflow_templates')
-      .insert({
-        owner_id: user.id,
-        name,
-        description,
-        category,
-        tags,
-        is_public,
-        status: 'pending_review',
-        preview_images: screenshots
-      })
-      .select('*')
-      .single();
-    if (tErr) throw tErr;
+ // Insert template draft
+ const { data: template, error: tErr } = await client5
+ .from('workflow_templates')
+ .insert({
+ owner_id: user.id,
+ name,
+ description,
+ category,
+ tags,
+ is_public,
+ status: 'pending_review',
+ preview_images: screenshots
+ })
+ .select('*')
+ .single();
+ if (tErr) throw tErr;
 
-    // Insert initial version
-    const { data: ver, error: vErr } = await client5
-      .from('template_versions')
-      .insert({
-        template_id: template.id,
-        version,
-        changelog,
-        config,
-        dependencies,
-        screenshots,
-        submitted_by: user.id
-      })
-      .select('*')
-      .single();
-    if (vErr) throw vErr;
+ // Insert initial version
+ const { data: ver, error: vErr } = await client5
+ .from('template_versions')
+ .insert({
+ template_id: template.id,
+ version,
+ changelog,
+ config,
+ dependencies,
+ screenshots,
+ submitted_by: user.id
+ })
+ .select('*')
+ .single();
+ if (vErr) throw vErr;
 
-    // Set latest version pointer
-    await client5
-      .from('workflow_templates')
-      .update({ latest_version_id: ver.id })
-      .eq('id', template.id);
+ // Set latest version pointer
+ await client5
+ .from('workflow_templates')
+ .update({ latest_version_id: ver.id })
+ .eq('id', template.id);
 
-    return { template, version: ver };
-  }, []);
+ return { template, version: ver };
+ }, []);
 
-  // Rate a template (1-5 stars)
-  const rateTemplate = useCallback(async (templateId, rating) => {
-    try {
-      if (rating < 1 || rating > 5) {
-        throw new Error('Rating must be between 1 and 5');
-      }
+ // Rate a template (1-5 stars)
+ const rateTemplate = useCallback(async (templateId, rating) => {
+ try {
+ if (rating < 1 || rating > 5) {
+ throw new Error('Rating must be between 1 and 5');
+ }
 
-      // In a real app, you'd track individual user ratings and calculate averages
-      // For now, we'll update the rating directly (simplified approach)
-      const client6 = await initSupabase();
-      const { error } = await client6
-        .from('workflow_templates')
-        .update({ 
-          rating: rating,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', templateId);
+ // In a real app, you'd track individual user ratings and calculate averages
+ // For now, we'll update the rating directly (simplified approach)
+ const client6 = await initSupabase();
+ const { error } = await client6
+ .from('workflow_templates')
+ .update({ 
+ rating: rating,
+ updated_at: new Date().toISOString()
+ })
+ .eq('id', templateId);
 
-      if (error) throw error;
+ if (error) throw error;
 
-      // Refresh templates to show updated rating
-      await loadTemplates();
-      
-      return true;
-    } catch (err) {
-      console.error('Error rating template:', err);
-      throw err;
-    }
-  }, [loadTemplates]);
+ // Refresh templates to show updated rating
+ await loadTemplates();
+ 
+ return true;
+ } catch (err) {
+ console.error('Error rating template:', err);
+ throw err;
+ }
+ }, [loadTemplates]);
 
-  // Load templates on mount (optional)
-  useEffect(() => {
-    if (autoLoad) {
-      loadTemplates();
-    }
-  }, [autoLoad, loadTemplates]);
+ // Load templates on mount (optional)
+ useEffect(() => {
+ if (autoLoad) {
+ loadTemplates();
+ }
+ }, [autoLoad, loadTemplates]);
 
-  return {
-    templates,
-    loading,
-    error,
-  loadTemplates,
-    createFromTemplate,
-    getTemplateDetails,
-    rateTemplate,
-  publishTemplate,
-  page,
-  pageSize,
-  total,
-  setPage,
-  setPageSize,
-  refreshTemplates: loadTemplates
-  };
+ return {
+ templates,
+ loading,
+ error,
+ loadTemplates,
+ createFromTemplate,
+ getTemplateDetails,
+ rateTemplate,
+ publishTemplate,
+ page,
+ pageSize,
+ total,
+ setPage,
+ setPageSize,
+ refreshTemplates: loadTemplates
+ };
 };

@@ -21,11 +21,11 @@ const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || 'EasyFlow'; // Opti
 
 // Build FROM address with optional name: "Name <email@domain.com>" or just "email@domain.com"
 const getFromAddress = () => {
-  if (!SENDGRID_FROM_EMAIL) return '';
-  if (SENDGRID_FROM_NAME && SENDGRID_FROM_NAME !== 'EasyFlow') {
-    return `${SENDGRID_FROM_NAME} <${SENDGRID_FROM_EMAIL}>`;
-  }
-  return SENDGRID_FROM_EMAIL;
+ if (!SENDGRID_FROM_EMAIL) return '';
+ if (SENDGRID_FROM_NAME && SENDGRID_FROM_NAME !== 'EasyFlow') {
+ return `${SENDGRID_FROM_NAME} <${SENDGRID_FROM_EMAIL}>`;
+ }
+ return SENDGRID_FROM_EMAIL;
 };
 
 if (SENDGRID_API_KEY) {

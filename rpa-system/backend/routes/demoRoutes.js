@@ -11,31 +11,31 @@ const logger = getLogger('demo');
 const isDevelopment = process.env.NODE_ENV === 'development';
 const isTest = process.env.NODE_ENV === 'test';
 const fileOperationLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: isDevelopment || isTest ? 1000 : 10, // Much higher in dev/test
-  message: 'Too many file operations, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: () => isDevelopment || isTest // Skip entirely in dev/test
+ windowMs: 60 * 1000, // 1 minute
+ max: isDevelopment || isTest ? 1000 : 10, // Much higher in dev/test
+ message: 'Too many file operations, please try again later',
+ standardHeaders: true,
+ legacyHeaders: false,
+ skip: () => isDevelopment || isTest // Skip entirely in dev/test
 });
 
 // Serve demo portal page
 router.get('/demo', (req, res) => {
-  logger.info('[Demo] Portal accessed', {
-    ip: req.ip,
-    userAgent: req.get('user-agent'),
-    referrer: req.get('referer')
-  });
-  res.sendFile(path.join(__dirname, '../public/demo/index.html'));
+ logger.info('[Demo] Portal accessed', {
+ ip: req.ip,
+ userAgent: req.get('user-agent'),
+ referrer: req.get('referer')
+ });
+ res.sendFile(path.join(__dirname, '../public/demo/index.html'));
 });
 
 // Generate PDF invoice with observability
 router.get('/demo/invoice-:id.pdf', fileOperationLimiter, (req, res) => {
-  const { id } = req.params;
+ const { id } = req.params;
 
-  logger.info('[Demo] PDF requested', { invoiceId: id, ip: req.ip });
+ logger.info('[Demo] PDF requested', { invoiceId: id, ip: req.ip });
 
-  const pdfContent = `%PDF-1.4
+ const pdfContent = `%PDF-1.4
 1 0 obj
 <<
 /Type /Catalog
@@ -109,11 +109,11 @@ startxref
 601
 %%EOF`;
 
-  logger.info('[Demo] PDF generated', { invoiceId: id, size: pdfContent.length });
+ logger.info('[Demo] PDF generated', { invoiceId: id, size: pdfContent.length });
 
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="invoice-${id}.pdf"`);
-  res.send(Buffer.from(pdfContent));
+ res.setHeader('Content-Type', 'application/pdf');
+ res.setHeader('Content-Disposition', `attachment; filename="invoice-${id}.pdf"`);
+ res.send(Buffer.from(pdfContent));
 });
 
 module.exports = router;

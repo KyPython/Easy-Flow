@@ -38,9 +38,9 @@
 Each component directory typically contains:
 ```
 ComponentName/
-├── ComponentName.jsx      # Main component
-├── ComponentName.module.css # Styles
-└── index.js              # Export (optional)
++── ComponentName.jsx # Main component
++── ComponentName.module.css # Styles
++── index.js # Export (optional)
 ```
 
 ## Usage Pattern
@@ -64,7 +64,7 @@ All components should:
 
 1. Create directory: `components/NewComponent/`
 2. Create files:
-   - `NewComponent.jsx` - Component code
-   - `NewComponent.module.css` - Styles
-   - `index.js` - Export (optional)
+ - `NewComponent.jsx` - Component code
+ - `NewComponent.module.css` - Styles
+ - `index.js` - Export (optional)
 3. Import and use in pages/components

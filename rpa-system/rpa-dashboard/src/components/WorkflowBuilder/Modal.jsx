@@ -5,87 +5,87 @@ import styles from './Modal.module.css';
 import { FaTimes } from 'react-icons/fa';
 
 const Modal = ({ 
-  isOpen, 
-  onClose, 
-  title, 
-  children, 
-  size = 'medium',
-  showCloseButton = true,
-  closeOnOverlayClick = true,
-  className = ''
+ isOpen, 
+ onClose, 
+ title, 
+ children, 
+ size = 'medium',
+ showCloseButton = true,
+ closeOnOverlayClick = true,
+ className = ''
 }) => {
-  // Handle escape key and auto-scroll
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
+ // Handle escape key and auto-scroll
+ useEffect(() => {
+ const handleEscape = (e) => {
+ if (e.key === 'Escape' && isOpen) {
+ onClose();
+ }
+ };
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-      
-      // ✅ AUTO-SCROLL: Ensure modal is in view when it opens
-      setTimeout(() => {
-        const modalElement = document.querySelector(`.${styles.modal}`);
-        if (modalElement) {
-          modalElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 100);
-    }
+ if (isOpen) {
+ document.addEventListener('keydown', handleEscape);
+ document.body.style.overflow = 'hidden';
+ 
+ // ✅ AUTO-SCROLL: Ensure modal is in view when it opens
+ setTimeout(() => {
+ const modalElement = document.querySelector(`.${styles.modal}`);
+ if (modalElement) {
+ modalElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+ }
+ }, 100);
+ }
 
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, onClose]);
+ return () => {
+ document.removeEventListener('keydown', handleEscape);
+ document.body.style.overflow = 'unset';
+ };
+ }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+ if (!isOpen) return null;
 
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget && closeOnOverlayClick) {
-      onClose();
-    }
-  };
+ const handleOverlayClick = (e) => {
+ if (e.target === e.currentTarget && closeOnOverlayClick) {
+ onClose();
+ }
+ };
 
-  const modalContent = (
-    <div className={styles.modalOverlay} onClick={handleOverlayClick}>
-      <div className={`${styles.modal} ${styles[size]} ${className}`}>
-        {(title || showCloseButton) && (
-          <div className={styles.modalHeader}>
-            {title && <h2 className={styles.modalTitle}>{title}</h2>}
-            {showCloseButton && (
-              <button 
-                className={styles.closeButton}
-                onClick={onClose}
-                aria-label="Close modal"
-              >
-                <FaTimes />
-              </button>
-            )}
-          </div>
-        )}
-        
-        <div className={styles.modalContent}>
-          {children}
-        </div>
-      </div>
-    </div>
-  );
+ const modalContent = (
+ <div className={styles.modalOverlay} onClick={handleOverlayClick}>
+ <div className={`${styles.modal} ${styles[size]} ${className}`}>
+ {(title || showCloseButton) && (
+ <div className={styles.modalHeader}>
+ {title && <h2 className={styles.modalTitle}>{title}</h2>}
+ {showCloseButton && (
+ <button 
+ className={styles.closeButton}
+ onClick={onClose}
+ aria-label="Close modal"
+ >
+ <FaTimes />
+ </button>
+ )}
+ </div>
+ )}
+ 
+ <div className={styles.modalContent}>
+ {children}
+ </div>
+ </div>
+ </div>
+ );
 
-  return createPortal(modalContent, document.body);
+ return createPortal(modalContent, document.body);
 };
 
 export default Modal;
 
 Modal.propTypes = {
-  isOpen: PropTypes.bool.isRequired,
-  onClose: PropTypes.func.isRequired,
-  title: PropTypes.node,
-  children: PropTypes.node,
-  size: PropTypes.string,
-  showCloseButton: PropTypes.bool,
-  closeOnOverlayClick: PropTypes.bool,
-  className: PropTypes.string
+ isOpen: PropTypes.bool.isRequired,
+ onClose: PropTypes.func.isRequired,
+ title: PropTypes.node,
+ children: PropTypes.node,
+ size: PropTypes.string,
+ showCloseButton: PropTypes.bool,
+ closeOnOverlayClick: PropTypes.bool,
+ className: PropTypes.string
 };

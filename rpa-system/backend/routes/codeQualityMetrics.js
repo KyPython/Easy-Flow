@@ -14,12 +14,12 @@ const execAsync = promisify(exec);
 const isDevelopment = process.env.NODE_ENV === 'development';
 const isTest = process.env.NODE_ENV === 'test';
 const systemCommandLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: isDevelopment || isTest ? 500 : 5, // Much higher in dev/test
-  message: 'Too many requests, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: () => isDevelopment || isTest // Skip entirely in dev/test
+ windowMs: 60 * 1000, // 1 minute
+ max: isDevelopment || isTest ? 500 : 5, // Much higher in dev/test
+ message: 'Too many requests, please try again later',
+ standardHeaders: true,
+ legacyHeaders: false,
+ skip: () => isDevelopment || isTest // Skip entirely in dev/test
 });
 
 /**
@@ -28,28 +28,28 @@ const systemCommandLimiter = rateLimit({
  * This endpoint is scraped by Prometheus to track code quality over time
  */
 router.get('/code-quality', systemCommandLimiter, async (req, res) => {
-  try {
-    // Run the export script to generate metrics
-    const scriptPath = path.join(__dirname, '../../../scripts/export-quality-metrics.sh');
-    const metricsFile = '/tmp/easyflow-code-quality-metrics.prom';
+ try {
+ // Run the export script to generate metrics
+ const scriptPath = path.join(__dirname, '../../../scripts/export-quality-metrics.sh');
+ const metricsFile = '/tmp/easyflow-code-quality-metrics.prom';
 
-    try {
-      // Run export script
-      await execAsync(`bash "${scriptPath}"`);
+ try {
+ // Run export script
+ await execAsync(`bash "${scriptPath}"`);
 
-      // Read metrics file
-      const metrics = await fs.readFile(metricsFile, 'utf-8');
+ // Read metrics file
+ const metrics = await fs.readFile(metricsFile, 'utf-8');
 
-      res.set('Content-Type', 'text/plain; version=0.0.4');
-      res.send(metrics);
+ res.set('Content-Type', 'text/plain; version=0.0.4');
+ res.send(metrics);
 
-      logger.debug('Code quality metrics exported successfully');
-    } catch (error) {
-      logger.warn('Failed to export code quality metrics, returning empty metrics', { error: error.message });
+ logger.debug('Code quality metrics exported successfully');
+ } catch (error) {
+ logger.warn('Failed to export code quality metrics, returning empty metrics', { error: error.message });
 
-      // Return empty metrics so Prometheus doesn't fail
-      res.set('Content-Type', 'text/plain; version=0.0.4');
-      res.send(`# Code quality metrics temporarily unavailable
+ // Return empty metrics so Prometheus doesn't fail
+ res.set('Content-Type', 'text/plain; version=0.0.4');
+ res.send(`# Code quality metrics temporarily unavailable
 # HELP easyflow_code_quality_total_files Total number of files scanned
 # TYPE easyflow_code_quality_total_files gauge
 easyflow_code_quality_total_files 0
@@ -65,11 +65,11 @@ easyflow_code_quality_issues_by_severity{severity="low"} 0
 # TYPE easyflow_code_quality_last_scan gauge
 easyflow_code_quality_last_scan 0
 `);
-    }
-  } catch (error) {
-    logger.error('Error in code quality metrics endpoint', { error: error.message });
-    res.status(500).send('# Error generating code quality metrics\n');
-  }
+ }
+ } catch (error) {
+ logger.error('Error in code quality metrics endpoint', { error: error.message });
+ res.status(500).send('# Error generating code quality metrics\n');
+ }
 });
 
 module.exports = router;

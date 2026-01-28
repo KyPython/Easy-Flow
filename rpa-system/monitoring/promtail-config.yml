@@ -13,37 +13,25 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  # Docker container discovery - automatically discovers and collects logs via Docker API
-  # CRITICAL: Using Docker API directly (not file tailing) eliminates filesystem buffering delays
-  # This ensures logs are captured in real-time without the 5-10 second delay from file I/O buffering
-  # By NOT setting __path__ to a file path, Promtail uses Docker's API to stream logs directly
-  #
-  # Note: No name filters - relabel_configs below handle categorization more robustly
-  # This ensures we don't accidentally miss logs from new services
+  # -----------------------------
+  # 1) Docker containers (unchanged)
+  # -----------------------------
   - job_name: easyflow-services
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
         refresh_interval: 5s
 
     relabel_configs:
-      # Extract container name (remove leading slash)
       - source_labels: [__meta_docker_container_name]
         regex: '/(.*)'
         target_label: container_name
         replacement: '${1}'
 
-      # Default job name (use container name) - MUST come first
-      # This sets a default job label for all containers, which can then be overwritten
-      # by more specific rules below. This ensures consistent labeling.
       - source_labels: [__meta_docker_container_name]
         regex: '/(.*)'
         target_label: job
         replacement: '${1}'
 
-      # Map container names to job names for better organization
-      # These specific rules run AFTER the default rule, so they can overwrite it
-      # Matches various naming patterns: easy-flow-backend-1, easyflow-backend, rpa-system-backend, backend
-      # Note: Docker container names include leading slash, so "backend" becomes "/backend"
       - source_labels: [__meta_docker_container_name]
         regex: '.*(easy-flow-backend|easyflow-backend|rpa-system-backend|/backend$).*'
         target_label: job
@@ -59,34 +47,31 @@ scrape_configs:
         target_label: job
         replacement: 'easyflow-automation'
 
-      # Set service label based on job
       - source_labels: [job]
         target_label: service
         replacement: '${1}'
 
-      # Set environment label
       - target_label: environment
         replacement: 'development'
 
-      # CRITICAL: Do NOT set __path__ to a file path
-      # By omitting __path__, Promtail uses Docker's API directly to stream logs
-      # This eliminates filesystem buffering delays and provides real-time log capture
-      # The docker_sd_configs automatically provides the correct target for Docker API log streaming
-
     pipeline_stages:
-      # Stage 0: Parse Docker's JSON log format
-      # Docker wraps each log line in JSON: {"log":"<application log>","stream":"stdout","time":"<timestamp>"}
-      # Extract Docker wrapper fields AND preserve them for timestamp parsing
       - json:
           expressions:
             docker_log: log
             docker_stream: stream
             docker_time: time
 
-      # Stage 1: Parse application log JSON without discarding Docker fields
-      # Parse the docker_log field as JSON to extract application log fields
-      # CRITICAL: Using source: docker_log preserves docker_time field from Stage 0
-      # Rename application timestamps to app_time and app_timestamp to avoid conflicts
+      # 1) Robust JSON extraction: Find the first '{' and take everything until the end
+      # This handles prefixes like "2026-01-16 12:14:43: " in Docker logs
+      - regex:
+          expression: '(?P<json_content>\{.*\})'
+          source: docker_log
+
+      # 2) Use extracted JSON if found, otherwise fallback to original message
+      - template:
+          source: docker_log
+          template: '{{ if .json_content }}{{ .json_content }}{{ else }}{{ .docker_log }}{{ end }}'
+
       - json:
           source: docker_log
           expressions:
@@ -104,40 +89,19 @@ scrape_configs:
             execution_id: error.execution_id
             workflow_id: error.workflow_id
 
-      # Stage 2: Regex fallback - Extract trace ID if JSON parsing didn't find it
-      # This handles non-JSON logs or logs where traceId is in a different format
-      # Looks for any 32-character hexadecimal string (standard trace ID format)
       - regex:
           expression: '(?P<trace_id_fallback>[0-9a-fA-F]{32})'
           source: msg
 
-      # Merge: Use JSON-extracted trace_id if available, otherwise use regex fallback
       - template:
           source: trace_id
           template: '{{ if .trace_id }}{{ .trace_id }}{{ else if .trace_id_fallback }}{{ .trace_id_fallback }}{{ end }}'
 
-      # Stage 3: Trace stage - Extract trace_id as internal field (label) for Loki
-      # This tells Loki to treat trace_id as a trace identifier, making it discoverable by Grafana
-      # The label enables fast filtering: {trace_id="75ae2874a1cf402204aa76b473332b6f"}
-      #
-      # CRITICAL: Do NOT extract 'service' label here - it's already set in relabel_configs
-      # If application log doesn't contain service field, this would overwrite the correct
-      # service label with empty value, causing Loki indexing issues and "no logs found" errors
       - labels:
           level:
           logger:
           trace_id:
 
-      # Stage 4: Timestamp handling - Ensure logs have correct timestamps
-      # CRITICAL FIX: Use Docker's timestamp as primary source (most accurate)
-      #
-      # Priority order (stops at first successful parse):
-      # 1. Docker's timestamp (RFC3339Nano) - Most reliable, represents actual log capture time
-      # 2. Application timestamp field (RFC3339 ISO format from Pino) - Fallback if Docker time missing
-      # 3. Application time field (UnixMs - milliseconds) - Fallback if timestamp field missing
-      #
-      # Note: Promtail processes timestamp stages sequentially. If a timestamp stage fails,
-      # it continues to the next one. We use 'skip' to prevent overwriting a successfully parsed timestamp.
       - timestamp:
           source: docker_time
           format: RFC3339Nano
@@ -151,10 +115,6 @@ scrape_configs:
           format: UnixMs
           action_on_failure: skip
 
-      # Stage 5: Output formatting - Use original Docker log content with traceId appended
-      # CRITICAL: Use docker_log (original application log) instead of reconstructing from msg
-      # This preserves the original log structure while using the accurate Docker timestamp
-      # Append traceId to the log content for Grafana derived fields to extract
       - template:
           source: output
           template: '{{ .docker_log }}{{ if .trace_id }} traceId="{{ .trace_id }}"{{ end }}'
@@ -162,11 +122,11 @@ scrape_configs:
       - output:
           source: output
 
-  # PM2 log file collection - collects logs from PM2-managed services
-  # These services run outside Docker, so we need to tail their log files
+  # -----------------------------
+  # 2) PM2 file logs (FIXED)
+  # -----------------------------
   - job_name: easyflow-pm2-logs
     static_configs:
-      # Backend logs (includes all log levels)
       - targets:
           - localhost
         labels:
@@ -175,7 +135,6 @@ scrape_configs:
           environment: development
           __path__: /app/logs/backend.log
 
-      # Backend error logs (separate stream for error-only logs)
       - targets:
           - localhost
         labels:
@@ -185,7 +144,6 @@ scrape_configs:
           log_type: error
           __path__: /app/logs/backend-error.log
 
-      # Frontend logs (includes all log levels)
       - targets:
           - localhost
         labels:
@@ -194,7 +152,6 @@ scrape_configs:
           environment: development
           __path__: /app/logs/frontend.log
 
-      # Frontend error logs (separate stream for error-only logs)
       - targets:
           - localhost
         labels:
@@ -204,7 +161,6 @@ scrape_configs:
           log_type: error
           __path__: /app/logs/frontend-error.log
 
-      # Automation worker logs
       - targets:
           - localhost
         labels:
@@ -214,23 +170,21 @@ scrape_configs:
           __path__: /app/logs/automation-worker.log
 
     pipeline_stages:
-      # CRITICAL: Strip PM2 timestamp prefix before JSON parsing
-      # PM2 adds timestamp prefix like "2025-12-16 22:10:24: " before JSON logs
-      # Some logs may not have this prefix (e.g., direct JSON output)
-      # This regex extracts just the JSON part after the timestamp if present
+      # 1) Robust JSON extraction: Find the first '{' and take everything until the end
       - regex:
-          expression: '^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}:\s+(?P<json_line>.*)$'
+          # Match from the first '{' to the end of the line
+          # This handles prefixes like "0|backend | 2026-01-16 12:14:43: "
+          expression: '(?P<json_content>\{.*\})'
           source: message
-      
-      # Use extracted JSON line if regex matched, otherwise use original message
-      # This handles both PM2-prefixed logs and direct JSON logs
+
+      # 2) Use extracted JSON if found, otherwise fallback to original message
       - template:
-          source: message
-          template: '{{ if .json_line }}{{ .json_line }}{{ else }}{{ .message }}{{ end }}'
-      
-      # Parse JSON logs from PM2 (Pino logger format)
-      # Only parse if we have valid JSON (after timestamp stripping)
+          source: json_source
+          template: '{{ if .json_content }}{{ .json_content }}{{ else }}{{ .message }}{{ end }}'
+
+      # 3) Parse JSON (Pino-style)
       - json:
+          source: json_source
           expressions:
             level: level
             msg: msg
@@ -245,25 +199,24 @@ scrape_configs:
             path: trace.path
             execution_id: error.execution_id
             workflow_id: error.workflow_id
-          drop_malformed: false  # Keep lines even if JSON parsing fails
+          drop_malformed: false
 
-      # Extract trace ID via regex fallback if JSON parsing didn't find it
+      # 4) Fallback trace id
       - regex:
           expression: '(?P<trace_id_fallback>[0-9a-fA-F]{32})'
           source: msg
 
-      # Merge: Use JSON-extracted trace_id if available, otherwise use regex fallback
       - template:
           source: trace_id
           template: '{{ if .trace_id }}{{ .trace_id }}{{ else if .trace_id_fallback }}{{ .trace_id_fallback }}{{ end }}'
 
-      # Extract labels for filtering
+      # 5) Labels
       - labels:
           level:
           logger:
           trace_id:
 
-      # Parse timestamps (Pino uses UnixMs format)
+      # 6) Timestamps
       - timestamp:
           source: timestamp
           format: RFC3339
@@ -273,20 +226,11 @@ scrape_configs:
           format: UnixMs
           action_on_failure: skip
 
-      # CRITICAL: Drop empty lines AFTER timestamp stripping but BEFORE JSON parsing
-      # This prevents empty messages from being processed further
+      # 7) Drop empty lines
       - drop:
           expression: '^\s*$'
           drop_counter_reason: "empty_message_after_timestamp_strip"
-      
-      # Output the log line - use msg if available (from JSON), otherwise use original message
-      # CRITICAL: The output stage will use the message field by default, but we want to use
-      # the parsed msg field if JSON parsing succeeded, otherwise fall back to the original message
-      # We create a new field 'output_line' that contains the final log content
-      - template:
-          source: output_line
-          template: '{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}'
-      
-      # Output the final log line using output_line field
+
+      # 8) Final output: use full JSON as the message
       - output:
-          source: output_line
+          source: json_source

@@ -1,0 +1,25 @@
+name: Sovereign Complexity Analysis
+
+on:
+  pull_request:
+    paths:
+      - '**.py'
+  push:
+    branches: [main]
+    paths:
+      - '**.py'
+
+jobs:
+  complexity-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run complexity analysis
+        run: |
+          python scripts/complexity_analysis.py rpa-system/automation
+        continue-on-error: false

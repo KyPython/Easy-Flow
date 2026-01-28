@@ -68,6 +68,14 @@ if [ -z "$FEATURE_COMMITS" ]; then
     FEATURE_COMMITS=$(git log --oneline --grep="feat:" --grep="feature:" -i 2>/dev/null || echo "")
 fi
 
+# Count features found
+FEATURE_COUNT=$(echo "$FEATURE_COMMITS" | grep -v '^$' | wc -l | tr -d ' ')
+if [ "$FEATURE_COUNT" -gt 0 ]; then
+    echo "${GREEN}Found ${FEATURE_COUNT} feature commit(s)${NC}\n"
+else
+    echo "${YELLOW}No feature commits found${NC}\n"
+fi
+
 # Function to check if feature has tests
 check_feature_tests() {
     local feature_name="$1"
@@ -75,6 +83,35 @@ check_feature_tests() {
     
     # Check if any test files exist for this feature
     local has_tests=false
+
+    # Normalize the feature file list:
+    # - stored as semicolon-separated paths in the temp file
+    # - but we want to iterate one path per line
+    local normalized_files
+    normalized_files=$(echo "$feature_files" | tr ';' '\n')
+
+    # If the commit only touched non-runtime assets (docs/config/workflows),
+    # don't block readiness on "tests".
+    local requires_tests=false
+    while IFS= read -r file; do
+        if [ -z "$file" ]; then
+            continue
+        fi
+        case "$file" in
+            *.md|*.txt|*.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.pdf) ;;
+            *.yml|*.yaml|*.json|*.toml|*.ini|*.env|*.example|*.lock) ;;
+            .github/workflows/*) ;;
+            docs/*) ;;
+            *)
+                requires_tests=true
+                break
+                ;;
+        esac
+    done <<< "$normalized_files"
+    if [ "$requires_tests" = "false" ]; then
+        echo "true"
+        return 0
+    fi
     
     # Look for test files that might relate to this feature
     while IFS= read -r file; do
@@ -84,12 +121,41 @@ check_feature_tests() {
             local dir=$(dirname "$file")
             
             # Look for test files
-            if find "$dir" -name "*test*" -o -name "*spec*" 2>/dev/null | grep -q .; then
+            if find "$dir" -maxdepth 5 -type f \( -name "*test*" -o -name "*spec*" \) 2>/dev/null | grep -q .; then
                 has_tests=true
                 break
             fi
+
+            # Also consider the commit as having tests if it directly includes test/spec files.
+            if echo "$file" | grep -qiE '(test|spec)'; then
+                has_tests=true
+                break
+            fi
+
+            # Heuristic: if this change is within a known subproject, look for tests within that subproject root.
+            # This avoids "false negatives" when tests live in centralized `tests/` dirs.
+            case "$file" in
+                rpa-system/backend/*)
+                    if find "rpa-system/backend" -maxdepth 6 -type f \( -name "*test*" -o -name "*spec*" \) 2>/dev/null | grep -q .; then
+                        has_tests=true
+                        break
+                    fi
+                    ;;
+                rpa-system/rpa-dashboard/*)
+                    if find "rpa-system/rpa-dashboard" -maxdepth 6 -type f \( -name "*test*" -o -name "*spec*" \) 2>/dev/null | grep -q .; then
+                        has_tests=true
+                        break
+                    fi
+                    ;;
+                easyflow-metrics/*)
+                    if find "easyflow-metrics" -maxdepth 6 -type f \( -name "test_*.py" -o -name "*_test.py" -o -name "*test*" -o -name "*spec*" \) 2>/dev/null | grep -q .; then
+                        has_tests=true
+                        break
+                    fi
+                    ;;
+            esac
         fi
-    done <<< "$feature_files"
+    done <<< "$normalized_files"
     
     echo "$has_tests"
 }
@@ -122,25 +188,44 @@ else
 fi
 trap "rm -f $TEMP_FEATURES_FILE" EXIT INT TERM
 
+# Track unique features to avoid duplicates (using temp file for cross-platform compatibility)
+SEEN_FEATURES_FILE="${TEMP_FEATURES_FILE}.seen"
+touch "$SEEN_FEATURES_FILE"
+trap "rm -f $SEEN_FEATURES_FILE" EXIT INT TERM
+
 while IFS= read -r commit; do
     if [ -z "$commit" ]; then
         continue
     fi
     
-    COMMIT_HASH=$(echo "$commit" | cut -d' ' -f1)
+    COMMIT_HASH=$(echo "$commit" | awk '{print $1}')
     COMMIT_MSG=$(echo "$commit" | cut -d' ' -f2-)
     
-    # Extract feature name from commit message
-    FEATURE_NAME=$(echo "$COMMIT_MSG" | sed -n 's/.*[Ff]eat[ure]*[:]\s*\([^:]*\).*/\1/p' | head -1 | xargs)
+    # Extract feature name from commit message (after "feat:" or "feature:")
+    # Remove "feat:" or "feature:" prefix and clean up
+    FEATURE_NAME=$(echo "$COMMIT_MSG" | sed -E 's/.*[Ff]eat[ure]*:\s*//' | sed 's/;.*$//' | sed 's/\s*$//' | head -c 100)
+    FEATURE_NAME=$(echo "$FEATURE_NAME" | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     
-    if [ -z "$FEATURE_NAME" ]; then
-        # Try to extract from commit message more broadly
-        FEATURE_NAME=$(echo "$COMMIT_MSG" | sed 's/^[^:]*:\s*//' | head -c 50 | xargs)
+    # Skip if feature name is empty or too short
+    if [ -z "$FEATURE_NAME" ] || [ ${#FEATURE_NAME} -lt 5 ]; then
+        continue
     fi
     
+    # Skip file paths (check for common patterns)
+    if echo "$FEATURE_NAME" | grep -qE '^[./]|\.(js|ts|jsx|tsx|py|sh|yml|yaml|json|md|css)$|^[a-z]+/[a-z]+/|^[a-z]+\.[a-z]+$'; then
+        continue
+    fi
+    
+    # Skip if we've already seen this feature (deduplicate)
+    FEATURE_KEY=$(echo "$FEATURE_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
+    if grep -q "^${FEATURE_KEY}$" "$SEEN_FEATURES_FILE" 2>/dev/null; then
+        continue
+    fi
+    echo "$FEATURE_KEY" >> "$SEEN_FEATURES_FILE"
+    
     if [ -n "$FEATURE_NAME" ] && [ -n "$COMMIT_HASH" ]; then
-        # Get files changed in this commit
-        FILES_CHANGED=$(git diff-tree --no-commit-id --name-only -r "$COMMIT_HASH" 2>/dev/null || echo "")
+        # Get files changed in this commit (replace newlines with semicolons to avoid parsing issues)
+        FILES_CHANGED=$(git diff-tree --no-commit-id --name-only -r "$COMMIT_HASH" 2>/dev/null | tr '\n' ';' | sed 's/;$//' || echo "")
         
         # Store in temp file: feature_name|commit_hash|files_changed
         echo "${FEATURE_NAME}|${COMMIT_HASH}|${FILES_CHANGED}" >> "$TEMP_FEATURES_FILE"
@@ -183,7 +268,7 @@ while IFS='|' read -r feature_name commit_hash files_changed; do
     fi
     
     # Check if feature is already in manifest
-    FEATURE_EXISTS=$(jq -r ".[] | select(.name == \"$feature_name\") | .name" "$FEATURES_MANIFEST" 2>/dev/null || echo "")
+    FEATURE_EXISTS=$(jq -r --arg feature_name "$feature_name" '.[] | select(.name == $feature_name) | .name' "$FEATURES_MANIFEST" 2>/dev/null || echo "")
     
     if [ -z "$FEATURE_EXISTS" ]; then
         # Add new feature to manifest
@@ -202,7 +287,11 @@ while IFS='|' read -r feature_name commit_hash files_changed; do
     else
         # Update existing feature
         if command -v jq >/dev/null 2>&1; then
-            jq "map(if .name == \"$feature_name\" then .has_tests = ($HAS_TESTS == \"true\") | .validation_passed = ($VALIDATION_PASSED == \"true\") else . end)" "$FEATURES_MANIFEST" > "${FEATURES_MANIFEST}.tmp" && mv "${FEATURES_MANIFEST}.tmp" "$FEATURES_MANIFEST"
+            jq --arg feature_name "$feature_name" \
+               --argjson has_tests "$HAS_TESTS" \
+               --argjson validation_passed "$VALIDATION_PASSED" \
+               'map(if .name == $feature_name then .has_tests = $has_tests | .validation_passed = $validation_passed else . end)' \
+               "$FEATURES_MANIFEST" > "${FEATURES_MANIFEST}.tmp" && mv "${FEATURES_MANIFEST}.tmp" "$FEATURES_MANIFEST"
         fi
     fi
     
@@ -212,7 +301,10 @@ while IFS='|' read -r feature_name commit_hash files_changed; do
         
         # Update status to ready
         if command -v jq >/dev/null 2>&1; then
-            jq "map(if .name == \"$feature_name\" then .status = \"ready\" | .date_ready = \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\" else . end)" "$FEATURES_MANIFEST" > "${FEATURES_MANIFEST}.tmp" && mv "${FEATURES_MANIFEST}.tmp" "$FEATURES_MANIFEST"
+            jq --arg feature_name "$feature_name" \
+               --arg date_ready "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+               'map(if .name == $feature_name then .status = "ready" | .date_ready = $date_ready else . end)' \
+               "$FEATURES_MANIFEST" > "${FEATURES_MANIFEST}.tmp" && mv "${FEATURES_MANIFEST}.tmp" "$FEATURES_MANIFEST"
         fi
     else
         echo "  ${YELLOW}⚠ Not ready: ${REASONS[*]}${NC}"
@@ -248,15 +340,28 @@ REPORT_FILE="${FEATURES_DIR}/readiness-report.txt"
     echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
     echo "Branch: $CURRENT_BRANCH"
     echo ""
+    echo "Total Features Assessed: $(jq 'length' "$FEATURES_MANIFEST" 2>/dev/null || echo "0")"
+    echo ""
     echo "Ready for Production: ${#READY_FEATURES[@]}"
-    for feature in "${READY_FEATURES[@]}"; do
-        echo "  - $feature"
-    done
+    if [ ${#READY_FEATURES[@]} -gt 0 ]; then
+        for feature in "${READY_FEATURES[@]}"; do
+            echo "  - $feature"
+        done
+    else
+        echo "  (none)"
+    fi
     echo ""
     echo "Not Ready: ${#NOT_READY_FEATURES[@]}"
-    for feature in "${NOT_READY_FEATURES[@]}"; do
-        echo "  - $feature"
-    done
+    if [ ${#NOT_READY_FEATURES[@]} -gt 0 ]; then
+        for feature in "${NOT_READY_FEATURES[@]}"; do
+            echo "  - $feature"
+        done
+    else
+        echo "  (none)"
+    fi
+    echo ""
+    echo "All Features:"
+    jq -r '.[] | "  - \(.name) [\(.status)] - Tests: \(.has_tests), Validation: \(.validation_passed)"' "$FEATURES_MANIFEST" 2>/dev/null || echo "  (unable to parse manifest)"
 } > "$REPORT_FILE"
 
 echo "${BLUE}Report saved to: ${CYAN}$REPORT_FILE${NC}"

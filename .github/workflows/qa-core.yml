@@ -2,9 +2,9 @@ name: QA — core feature tests
 
 on:
   push:
-    branches: [main]  # Only run strict checks on main branch
+    branches: ["**"]
   pull_request:
-    branches: [main]  # Only run strict checks on PRs targeting main
+    branches: ["**"]
   workflow_dispatch:
 
 jobs:
@@ -31,13 +31,20 @@ jobs:
             rpa-system/rpa-dashboard/package-lock.json
             rpa-system/backend/package-lock.json
 
-      - name: Branch Check - Main Only
+      - name: Branch Awareness
+        id: branch_info
         run: |
-          if [ "${{ github.ref }}" != "refs/heads/main" ] && [ "${{ github.base_ref }}" != "main" ]; then
-            echo "❌ This workflow only runs on main branch. Use qa-dev.yml for dev branch."
-            exit 1
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+            echo "✅ Running strict validation on main branch (production)"
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Running permissive validation on non-main branch"
           fi
-          echo "✅ Running strict validation on main branch (production)"
 
       - name: Check development environment
         run: |
@@ -49,10 +56,13 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           chmod +x scripts/security-scan.sh
-          # Install Snyk CLI if not available
           npm install -g snyk || true
-          # Run security scan (blocks on high+ vulnerabilities)
-          ./scripts/security-scan.sh || (echo "❌ Security scan failed - high+ vulnerabilities found" && exit 1)
+          if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
+            ./scripts/security-scan.sh || (echo "❌ Security scan failed. BLOCKING: High+ vulnerabilities found. Run './scripts/security-scan.sh' locally to fix." && exit 1)
+          else
+            ./scripts/security-scan.sh || echo "⚠️ Security scan issues (non-blocking on dev branches)"
+          fi
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
 
       - name: Auto-fix code formatting (before tests)
         run: |
@@ -78,17 +88,27 @@ jobs:
       - name: Run comprehensive test suite
         run: |
           chmod +x scripts/test-all.sh scripts/lint-and-test.sh scripts/code-quality-check.sh
-          ./scripts/test-all.sh || (echo "❌ Test suite failed - tests must pass before production deployment" && exit 1)
+          if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
+            ./scripts/test-all.sh || (echo "❌ Tests failed. BLOCKING: Run './scripts/test-all.sh' locally to debug." && exit 1)
+          else
+            ./scripts/test-all.sh || echo "⚠️ Tests failed (non-blocking on dev branches)"
+          fi
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
 
       - name: Run code quality check
         run: |
           chmod +x scripts/code-quality-check.sh scripts/generate-quality-report.sh
-          ./scripts/code-quality-check.sh || echo "⚠️ Code quality issues found (non-blocking)"
+          ./scripts/code-quality-check.sh || echo "⚠️ Code quality issues found. Run './scripts/code-quality-check.sh' locally to improve."
 
       - name: Run comprehensive code validation (SRP, Dynamic, Theme, Logging)
         run: |
           chmod +x scripts/validate-all.sh scripts/validate-srp.sh scripts/validate-dynamic-code.sh scripts/validate-theme-consistency.sh scripts/validate-logging-integration.sh
-          ./scripts/validate-all.sh || (echo "❌ Code validation failed - SRP, dynamic code, theme consistency, or logging integration issues found" && exit 1)
+          if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-all.sh || (echo "❌ Validation failed. BLOCKING: Run './scripts/validate-all.sh' locally to fix SRP/Dynamic/Theme/Logging issues." && exit 1)
+          else
+            ./scripts/validate-all.sh || echo "⚠️ Validation issues (non-blocking on dev branches)"
+          fi
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
 
       - name: Run accessibility checks - CRITICAL
         run: |
@@ -103,7 +123,6 @@ jobs:
           npx serve -s build -l 3000 > /dev/null 2>&1 &
           SERVER_PID=$!
           sleep 5
-          # Wait for server
           for i in {1..30}; do
             if curl -f http://localhost:3000 >/dev/null 2>&1; then
               break
@@ -111,19 +130,35 @@ jobs:
             sleep 2
           done
           mkdir -p results
-          npx pa11y-ci --config .pa11yci.json || (kill $SERVER_PID 2>/dev/null || true; echo "❌ Accessibility tests failed - WCAG2AA violations found" && exit 1)
-          npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --exit --save results/axe-report.json || (kill $SERVER_PID 2>/dev/null || true; echo "❌ Axe-core accessibility tests failed" && exit 1)
+          if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
+            npx pa11y-ci --config .pa11yci.json || (kill $SERVER_PID 2>/dev/null || true; echo "❌ Accessibility failed. BLOCKING: WCAG2AA violations. Run 'npx pa11y-ci' locally." && exit 1)
+            npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --exit --save results/axe-report.json || (kill $SERVER_PID 2>/dev/null || true; echo "❌ Axe-core failed. BLOCKING: Run axe-core locally." && exit 1)
+          else
+            npx pa11y-ci --config .pa11yci.json || (kill $SERVER_PID 2>/dev/null || true; echo "⚠️ Accessibility issues (non-blocking on dev branches)" && true)
+            npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --save results/axe-report.json || (kill $SERVER_PID 2>/dev/null || true; echo "⚠️ Axe-core issues (non-blocking on dev branches)" && true)
+          fi
           kill $SERVER_PID 2>/dev/null || true
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
 
       - name: Validate RAG Knowledge Base - CRITICAL
         run: |
           chmod +x scripts/validate-rag-knowledge.sh
-          ./scripts/validate-rag-knowledge.sh || (echo "❌ RAG knowledge validation failed - AI Agent knowledge is outdated or missing. Please update ragClient.js seedEasyFlowKnowledge() and aiWorkflowAgent.js system prompts." && exit 1)
+          if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-rag-knowledge.sh || (echo "❌ RAG validation failed. BLOCKING: Knowledge outdated. Update ragClient.js seedEasyFlowKnowledge() and aiWorkflowAgent.js prompts." && exit 1)
+          else
+            ./scripts/validate-rag-knowledge.sh || echo "⚠️ RAG validation issues (non-blocking on dev branches)"
+          fi
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
 
       - name: Validate Analytics Tracking - CRITICAL (Business Metrics)
         run: |
           chmod +x scripts/validate-analytics-tracking.sh
-          ./scripts/validate-analytics-tracking.sh || (echo "❌ Analytics tracking validation failed - Feature tracking, signup tracking, or login tracking is missing. This is critical for business metrics." && exit 1)
+          if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-analytics-tracking.sh || (echo "❌ Analytics validation failed. BLOCKING: Critical tracking missing. Run './scripts/validate-analytics-tracking.sh' locally." && exit 1)
+          else
+            ./scripts/validate-analytics-tracking.sh || echo "⚠️ Analytics validation issues (non-blocking on dev branches)"
+          fi
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
 
       - name: Terraform Validation (if infrastructure changes)
         if: contains(github.event.head_commit.modified, 'infrastructure/') || contains(github.event.head_commit.added, 'infrastructure/')
@@ -132,10 +167,15 @@ jobs:
             echo "🔍 Validating Terraform configuration..."
             chmod +x scripts/terraform-validate.sh
             cd infrastructure
-            ../scripts/terraform-validate.sh || (echo "❌ Terraform validation failed - infrastructure must be valid before production deployment" && exit 1)
+            if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
+              ../scripts/terraform-validate.sh || (echo "❌ Terraform validation failed. BLOCKING: Run 'terraform validate' locally." && exit 1)
+            else
+              ../scripts/terraform-validate.sh || echo "⚠️ Terraform validation issues (non-blocking on dev branches)"
+            fi
           else
             echo "○ No infrastructure changes detected, skipping Terraform validation"
           fi
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
 
       - name: Generate quality report
         run: |
@@ -344,8 +384,10 @@ jobs:
         if: always()
         run: |
           echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ steps.branch_info.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode**: ${{ steps.branch_info.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.start_services.outputs.backend_ready }}" == "true" ]; then
-            echo "✅ All services were available - tests executed" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Services were available - tests executed" >> $GITHUB_STEP_SUMMARY
           else
             echo "⚠️ Services were unavailable - tests were skipped" >> $GITHUB_STEP_SUMMARY
             echo "This is expected when Render services are suspended." >> $GITHUB_STEP_SUMMARY

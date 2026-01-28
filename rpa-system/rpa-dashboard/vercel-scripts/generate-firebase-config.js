@@ -8,30 +8,30 @@ const path = require('path');
 // ✅ CRITICAL: Load .env.local file for local development
 // React's build system loads .env.local, but Node scripts don't automatically
 try {
-  // Try to load dotenv if available (it's in the root package.json)
-  const dotenvPath = path.join(__dirname, '../../../node_modules/dotenv');
-  if (fs.existsSync(dotenvPath)) {
-    require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
-  } else {
-    // Fallback: manually parse .env.local if dotenv is not available
-    const envLocalPath = path.join(__dirname, '../.env.local');
-    if (fs.existsSync(envLocalPath)) {
-      const envContent = fs.readFileSync(envLocalPath, 'utf8');
-      envContent.split('\n').forEach(line => {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('#')) {
-          const [key, ...valueParts] = trimmed.split('=');
-          if (key && valueParts.length > 0) {
-            const value = valueParts.join('=').replace(/^["']|["']$/g, '');
-            process.env[key] = value;
-          }
-        }
-      });
-    }
-  }
+ // Try to load dotenv if available (it's in the root package.json)
+ const dotenvPath = path.join(__dirname, '../../../node_modules/dotenv');
+ if (fs.existsSync(dotenvPath)) {
+ require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
+ } else {
+ // Fallback: manually parse .env.local if dotenv is not available
+ const envLocalPath = path.join(__dirname, '../.env.local');
+ if (fs.existsSync(envLocalPath)) {
+ const envContent = fs.readFileSync(envLocalPath, 'utf8');
+ envContent.split('\n').forEach(line => {
+ const trimmed = line.trim();
+ if (trimmed && !trimmed.startsWith('#')) {
+ const [key, ...valueParts] = trimmed.split('=');
+ if (key && valueParts.length > 0) {
+ const value = valueParts.join('=').replace(/^["']|["']$/g, '');
+ process.env[key] = value;
+ }
+ }
+ });
+ }
+ }
 } catch (e) {
-  // If dotenv fails, continue - environment variables may be set via other means
-  console.warn('[generate-firebase-config] Could not load .env.local, using process.env only');
+ // If dotenv fails, continue - environment variables may be set via other means
+ console.warn('[generate-firebase-config] Could not load .env.local, using process.env only');
 }
 
 const templatePath = path.join(__dirname, '../public/firebase-config.js.template');
@@ -45,13 +45,13 @@ const env = process.env;
 
 // Replace placeholders with environment variables
 const config = {
-  apiKey: env.REACT_APP_FIREBASE_API_KEY || '',
-  authDomain: env.REACT_APP_FIREBASE_AUTH_DOMAIN || '',
-  databaseURL: env.REACT_APP_FIREBASE_DATABASE_URL || '',
-  projectId: env.REACT_APP_FIREBASE_PROJECT_ID || '',
-  storageBucket: env.REACT_APP_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: env.REACT_APP_FIREBASE_APP_ID || ''
+ apiKey: env.REACT_APP_FIREBASE_API_KEY || '',
+ authDomain: env.REACT_APP_FIREBASE_AUTH_DOMAIN || '',
+ databaseURL: env.REACT_APP_FIREBASE_DATABASE_URL || '',
+ projectId: env.REACT_APP_FIREBASE_PROJECT_ID || '',
+ storageBucket: env.REACT_APP_FIREBASE_STORAGE_BUCKET || '',
+ messagingSenderId: env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || '',
+ appId: env.REACT_APP_FIREBASE_APP_ID || ''
 };
 
 // Replace template variables
@@ -78,42 +78,42 @@ const isStart = process.env.npm_lifecycle_event === 'start' || process.env.npm_l
 const missingRequired = [];
 
 if (!config.apiKey || !config.apiKey.trim()) {
-  missingRequired.push('REACT_APP_FIREBASE_API_KEY');
+ missingRequired.push('REACT_APP_FIREBASE_API_KEY');
 }
 if (!config.projectId || !config.projectId.trim()) {
-  missingRequired.push('REACT_APP_FIREBASE_PROJECT_ID');
+ missingRequired.push('REACT_APP_FIREBASE_PROJECT_ID');
 }
 
 if (missingRequired.length > 0) {
-  const errorMessage = `\n\n🔥 FATAL: Firebase service worker configuration is missing required values!\n\n` +
-    `Missing: ${missingRequired.join(', ')}\n\n` +
-    `Impact: Service worker cannot initialize Firebase, causing uncaught errors.\n\n` +
-    `Fix: Set these environment variables in .env.local (local) or Vercel (production):\n` +
-    `  ${missingRequired.join('\n  ')}\n\n` +
-    `For local development:\n` +
-    `  1. Edit rpa-system/rpa-dashboard/.env.local\n` +
-    `  2. Add the missing variables\n` +
-    `  3. Restart the dev server (./stop-dev.sh && ./start-dev.sh)\n\n`;
-  
-  // ✅ DEVELOPMENT: Fail loudly when starting dev server (not during builds or CI)
-  if (isDevelopment && isStart && !isCI) {
-    console.error(errorMessage);
-    console.error('Current config values:', {
-      apiKey: config.apiKey ? '(present)' : '(missing)', // nosemgrep: hardcoded-secret - Error message placeholder, not actual secret
-      projectId: config.projectId ? '(present)' : '(missing)', // nosemgrep: hardcoded-secret - Error message placeholder, not actual secret
-      authDomain: config.authDomain ? '(present)' : '(missing)', // nosemgrep: hardcoded-secret - Error message placeholder, not actual secret
-      appId: config.appId ? '(present)' : '(missing)'
-    });
-    process.exit(1); // Exit with error code to fail the start
-  } else {
-    // Build/CI: Warn but don't fail (to avoid breaking builds)
-    console.warn('⚠️  Warning: Firebase config is missing required values:', missingRequired.join(', '));
-    console.warn('   Service worker may not function correctly without these values.');
-    if (isBuild && !isCI) {
-      console.warn('   This is a build - consider setting these values before deploying.');
-    }
-  }
+ const errorMessage = `\n\n🔥 FATAL: Firebase service worker configuration is missing required values!\n\n` +
+ `Missing: ${missingRequired.join(', ')}\n\n` +
+ `Impact: Service worker cannot initialize Firebase, causing uncaught errors.\n\n` +
+ `Fix: Set these environment variables in .env.local (local) or Vercel (production):\n` +
+ ` ${missingRequired.join('\n ')}\n\n` +
+ `For local development:\n` +
+ ` 1. Edit rpa-system/rpa-dashboard/.env.local\n` +
+ ` 2. Add the missing variables\n` +
+ ` 3. Restart the dev server (./stop-dev.sh && ./start-dev.sh)\n\n`;
+ 
+ // ✅ DEVELOPMENT: Fail loudly when starting dev server (not during builds or CI)
+ if (isDevelopment && isStart && !isCI) {
+ console.error(errorMessage);
+ console.error('Current config values:', {
+ apiKey: config.apiKey ? '(present)' : '(missing)',
+ projectId: config.projectId ? '(present)' : '(missing)',
+ authDomain: config.authDomain ? '(present)' : '(missing)',
+ appId: config.appId ? '(present)' : '(missing)'
+ });
+ process.exit(1); // Exit with error code to fail the start
+ } else {
+ // Build/CI: Warn but don't fail (to avoid breaking builds)
+ console.warn('⚠️ Warning: Firebase config is missing required values:', missingRequired.join(', '));
+ console.warn(' Service worker may not function correctly without these values.');
+ if (isBuild && !isCI) {
+ console.warn(' This is a build - consider setting these values before deploying.');
+ }
+ }
 } else {
-  console.log('✓ Firebase config validation passed');
+ console.log('✓ Firebase config validation passed');
 }
 

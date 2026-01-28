@@ -199,6 +199,46 @@ else
     SECURITY_BLOCKED=true
 fi
 
+# Step 5.1: Design System Validator
+echo "\n${BLUE}Step 5.1: Validating design system...${NC}"
+CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
+if node scripts/validate-design-system.js >/dev/null 2>&1; then
+    echo "  ${GREEN}\u2713 Design system validation ran${NC}"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+    echo "  ${YELLOW}\u26a0 Design system validation issues (non-blocking)${NC}"
+fi
+
+# Step 5.2: Typography Validator
+echo "\n${BLUE}Step 5.2: Validating typography...${NC}"
+CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
+if node scripts/validate-typography.js >/dev/null 2>&1; then
+    echo "  ${GREEN}\u2713 Typography validation ran${NC}"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+    echo "  ${YELLOW}\u26a0 Typography validation issues (non-blocking)${NC}"
+fi
+
+# Step 5.3: Performance Budget Validator
+echo "\n${BLUE}Step 5.3: Validating performance budget...${NC}"
+CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
+if node scripts/validate-performance-budget.js >/dev/null 2>&1; then
+    echo "  ${GREEN}\u2713 Performance budget validation ran${NC}"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+    echo "  ${YELLOW}\u26a0 Performance budget validation issues (non-blocking)${NC}"
+fi
+
+# Step 5.4: Dev Feedback Script
+echo "\n${BLUE}Step 5.4: Running developer feedback script...${NC}"
+CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
+if bash scripts/dev-feedback.sh >/dev/null 2>&1; then
+    echo "  ${GREEN}\u2713 Dev feedback script ran${NC}"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+    echo "  ${YELLOW}\u26a0 Dev feedback script encountered issues (non-blocking)${NC}"
+fi
+
 # Step 7: Build Verification
 echo "\n${BLUE}Step 7: Verifying builds...${NC}"
 

@@ -1,0 +1,20 @@
+name: CI/CD Workflow Validation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/*.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/*.yml'
+  workflow_dispatch:
+
+jobs:
+  validate-cicd-workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run CI/CD workflow validation
+        run: bash scripts/validate-cicd-workflows.sh

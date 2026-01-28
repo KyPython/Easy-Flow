@@ -1,0 +1,465 @@
+/**
+ * ✅ DASHBOARD RULE OF THIRDS + C.R.A.P. STYLES
+ * 
+ * FOCAL POINT HIERARCHY:
+ * 1. Hero card (status or CTA) - Highest contrast, largest size
+ * 2. Metric cards - Supporting data, dimmed
+ * 3. Recent activity - Details, low contrast
+ * 
+ * COLOR STRATEGY:
+ * - Status colors: High saturation for hero card
+ * - Metrics: Muted backgrounds (gray-50 vs white)
+ * - Activity: Gray text, minimal contrast
+ * 
+ * REPETITION:
+ * - Status color echoed in:
+ *   * Hero card border/background
+ *   * Activity item badges
+ *   * View Details button hover state
+ */
+
+/* ============================================
+   BASE LAYOUT
+   ============================================ */
+
+.dashboard {
+  padding: var(--spacing-2xl);
+  max-width: var(--container-max-width, 1400px);
+  margin: 0 auto;
+}
+
+/* ============================================
+   RULE OF THIRDS GRID
+   ============================================ */
+
+.heroGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr; /* Hero 2/3, Metrics 1/3 */
+  gap: var(--spacing-3xl);
+  margin-bottom: var(--spacing-3xl);
+  align-items: start;
+}
+
+/* ============================================
+   HERO COLUMN (Focal Point - Left 2/3)
+   ============================================ */
+
+.heroColumn {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hero card base styles */
+.heroCardCTA,
+.heroCardStatus {
+  background: var(--card-bg, white);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-3xl);
+  box-shadow: var(--shadow-xl);
+  border: 2px solid var(--color-gray-200);
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  min-height: 320px;
+}
+
+/* ✅ CONTRAST: CTA card has bright gradient border */
+.heroCardCTA {
+  border: 3px solid transparent;
+  background-image: 
+    linear-gradient(white, white),
+    linear-gradient(135deg, #0066FF 0%, #00CC88 100%);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+.heroCardCTA:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-2xl);
+}
+
+/* ✅ CONTRAST: Status card border uses status color */
+.heroCardStatus {
+  border-color: var(--status-color);
+  border-width: 3px;
+  background: linear-gradient(
+    135deg,
+    var(--card-bg) 0%,
+    color-mix(in srgb, var(--status-color) 5%, var(--card-bg)) 100%
+  );
+}
+
+/* Hero icon (for CTA variant) */
+.heroIcon {
+  font-size: 64px;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0066FF 0%, #00CC88 100%);
+  border-radius: var(--radius-2xl);
+  align-self: center;
+}
+
+/* Status badge (for status variant) */
+.statusBadgeLarge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: var(--status-color);
+  color: white;
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+  align-self: flex-start;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--status-color) 30%, transparent);
+}
+
+.statusIcon {
+  font-size: var(--font-size-2xl);
+}
+
+.statusLabel {
+  text-transform: capitalize;
+}
+
+/* Hero content */
+.heroContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  flex: 1;
+}
+
+/* ✅ SIZE HIERARCHY: Hero title is LARGEST text on page */
+.heroTitle {
+  font-size: var(--font-size-3xl); /* 36px */
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  line-height: 1.2;
+  margin: 0;
+}
+
+.heroSubtitle {
+  font-size: var(--font-size-lg);
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.heroTime {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ✅ ALIGNMENT: Button grouped with content, full-width */
+.viewDetailsButton {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: var(--status-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: auto; /* Push to bottom of flex container */
+}
+
+.viewDetailsButton:hover {
+  filter: brightness(1.1);
+  transform: translateX(4px);
+}
+
+.viewDetailsButton:active {
+  transform: translateX(2px);
+}
+
+/* ============================================
+   METRICS COLUMN (Supporting - Right 1/3)
+   ============================================ */
+
+.metricsColumn {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ✅ CONTRAST: Metrics are dimmed (lower priority) */
+.metricsGridCompact {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg);
+  opacity: 0.8; /* Subtle dimming */
+}
+
+/* Override metric card styles to be more compact */
+.metricsGridCompact :global(.metric-card) {
+  padding: var(--spacing-lg);
+  background: var(--color-gray-50); /* Lower contrast than white */
+}
+
+/* Loading state */
+.metricsLoading {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg);
+}
+
+.metricSkeleton {
+  height: 120px;
+  background: linear-gradient(
+    90deg,
+    var(--color-gray-100) 0%,
+    var(--color-gray-200) 50%,
+    var(--color-gray-100) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-lg);
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ============================================
+   ACTIVITY SECTION (Supporting Content)
+   ============================================ */
+
+.activitySection {
+  background: var(--card-bg);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-2xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-gray-200);
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* ✅ REPETITION: View All button uses same style as hero button */
+.viewAllButton {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  border: 1px solid var(--color-primary-200);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.viewAllButton:hover {
+  background: var(--color-primary-200);
+  transform: translateX(2px);
+}
+
+/* Activity list */
+.activityList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* ✅ CONTRAST: Activity items are low contrast (supporting content) */
+.activityItem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s ease;
+}
+
+.activityItem:hover {
+  background: var(--color-gray-50);
+}
+
+.activityIcon {
+  font-size: var(--font-size-xl);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-gray-100);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.activityContent {
+  flex: 1;
+  min-width: 0; /* Allow text truncation */
+}
+
+.activityText {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityTime {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* ✅ REPETITION: Status badge echoes hero card status color */
+.activityStatus {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: color-mix(in srgb, var(--status-color) 10%, transparent);
+  color: var(--status-color);
+  border: 1px solid var(--status-color);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: capitalize;
+  flex-shrink: 0;
+}
+
+.noActivity {
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--spacing-2xl);
+  font-size: var(--font-size-md);
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+
+@media (max-width: 1024px) {
+  /* Stack hero and metrics vertically on tablets */
+  .heroGrid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-2xl);
+  }
+
+  .metricsGridCompact {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .heroTitle {
+    font-size: var(--font-size-2xl);
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard {
+    padding: var(--spacing-lg);
+  }
+
+  /* 2x2 grid for metrics on mobile */
+  .metricsGridCompact {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
+  }
+
+  .heroCardCTA,
+  .heroCardStatus {
+    padding: var(--spacing-xl);
+    min-height: 280px;
+  }
+
+  .heroTitle {
+    font-size: var(--font-size-xl);
+  }
+
+  .heroIcon {
+    width: 72px;
+    height: 72px;
+    font-size: 48px;
+  }
+
+  .activityItem {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .activityStatus {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .heroTitle {
+    font-size: var(--font-size-lg);
+  }
+
+  .metricsGridCompact {
+    grid-template-columns: 1fr;
+  }
+
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+.viewDetailsButton:focus-visible,
+.viewAllButton:focus-visible {
+  outline: none;
+  box-shadow: 
+    0 0 0 3px var(--color-primary-200),
+    0 0 0 6px white;
+}
+
+/* Reduce motion for users with vestibular disorders */
+@media (prefers-reduced-motion: reduce) {
+  .heroCardCTA,
+  .heroCardStatus,
+  .viewDetailsButton,
+  .viewAllButton,
+  .activityItem {
+    transition: none;
+  }
+
+  .metricSkeleton {
+    animation: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .heroCardCTA,
+  .heroCardStatus {
+    border-width: 3px;
+  }
+
+  .activityStatus {
+    border-width: 2px;
+  }
+}

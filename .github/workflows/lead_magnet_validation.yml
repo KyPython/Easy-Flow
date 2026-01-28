@@ -84,6 +84,23 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # STEP 1.5: DETERMINE BRANCH AND VALIDATION MODE
+      - name: 🔍 Determine Branch and Validation Mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+          echo "🔍 Branch: ${{ steps.branch-info.outputs.branch }}"
+          echo "🔍 Mode: ${{ steps.branch-info.outputs.mode }}"
+          echo "🔍 Blocking: ${{ steps.branch-info.outputs.blocking }}"
+
       # STEP 2: ENVIRONMENT SETUP WITH CACHING
       - name: 🐍 Set up Python Environment
         uses: actions/setup-python@v4

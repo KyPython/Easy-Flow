@@ -12,42 +12,42 @@ import supabase from './supabaseClient';
  * @param {object} additionalProps - Additional properties to track
  */
 export async function trackOnboardingStep(stepName, additionalProps = {}) {
-  if (!stepName) return;
+ if (!stepName) return;
 
-  try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.debug('[onboardingTracking] No user found, skipping step tracking');
-      return;
-    }
+ try {
+ // Get current user
+ const { data: { user } } = await supabase.auth.getUser();
+ if (!user) {
+ console.debug('[onboardingTracking] No user found, skipping step tracking');
+ return;
+ }
 
-    // Insert into onboarding_events table
-    const { error } = await supabase.from('onboarding_events').insert({
-      user_id: user.id,
-      step: stepName,
-      completed_at: new Date().toISOString(),
-      properties: additionalProps || {}
-    });
+ // Insert into onboarding_events table
+ const { error } = await supabase.from('onboarding_events').insert({
+ user_id: user.id,
+ step: stepName,
+ completed_at: new Date().toISOString(),
+ properties: additionalProps || {}
+ });
 
-    if (error) {
-      console.warn('[onboardingTracking] Failed to insert onboarding event:', error);
-    }
+ if (error) {
+ console.warn('[onboardingTracking] Failed to insert onboarding event:', error);
+ }
 
-    // Also track as analytics event
-    await trackEvent({
-      event_name: 'onboarding_step',
-      user_id: user.id,
-      properties: {
-        step: stepName,
-        timestamp: new Date().toISOString(),
-        ...additionalProps
-      }
-    });
-  } catch (error) {
-    // Silently fail - tracking should never break the app
-    console.debug('[onboardingTracking] Error tracking step:', error);
-  }
+ // Also track as analytics event
+ await trackEvent({
+ event_name: 'onboarding_step',
+ user_id: user.id,
+ properties: {
+ step: stepName,
+ timestamp: new Date().toISOString(),
+ ...additionalProps
+ }
+ });
+ } catch (error) {
+ // Silently fail - tracking should never break the app
+ console.debug('[onboardingTracking] Error tracking step:', error);
+ }
 }
 
 /**
@@ -57,16 +57,17 @@ export async function trackOnboardingStep(stepName, additionalProps = {}) {
 export async function getOnboardingProgress() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return {};
+    if (!user) return { progress: {}, completion_percentage: 0, is_complete: false };
 
     const { data, error } = await supabase
       .from('onboarding_events')
-      .select('step, completed_at')
-      .eq('user_id', user.id);
+      .select('step, completed_at, properties')
+      .eq('user_id', user.id)
+      .order('completed_at', { ascending: true });
 
     if (error) {
       console.warn('[onboardingTracking] Failed to fetch onboarding progress:', error);
-      return {};
+      return { progress: {}, completion_percentage: 0, is_complete: false };
     }
 
     const progress = {};
@@ -74,15 +75,35 @@ export async function getOnboardingProgress() {
       data.forEach(event => {
         progress[event.step] = {
           completed: true,
-          completed_at: event.completed_at
+          completed_at: event.completed_at,
+          properties: event.properties || {}
         };
       });
     }
 
-    return progress;
+    // Define key onboarding steps
+    const keySteps = [
+      'email_verified',
+      'first_login',
+      'tutorial_started',
+      'tutorial_completed',
+      'first_workflow_created'
+    ];
+
+    const completedSteps = keySteps.filter(step => progress[step]?.completed);
+    const completionPercentage = Math.round((completedSteps.length / keySteps.length) * 100);
+    const isComplete = completedSteps.length === keySteps.length;
+
+    return {
+      progress,
+      completed_steps: completedSteps,
+      total_steps: keySteps.length,
+      completion_percentage: completionPercentage,
+      is_complete: isComplete
+    };
   } catch (error) {
     console.debug('[onboardingTracking] Error fetching progress:', error);
-    return {};
+    return { progress: {}, completion_percentage: 0, is_complete: false };
   }
 }
 

@@ -1,0 +1,74 @@
+name: E2E Tests (Cypress)
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install backend deps
+        working-directory: rpa-system/backend
+        run: npm ci
+
+      - name: Install frontend deps
+        working-directory: rpa-system/rpa-dashboard
+        run: npm ci && npm i --save-dev cypress
+
+      - name: Start backend
+        working-directory: rpa-system/backend
+        env:
+          NODE_ENV: test
+          PORT: 3030
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_SERVICE_ROLE: test-key
+          SUPABASE_SERVICE_ROLE_KEY: test-key
+          SUPABASE_KEY: test-key
+          SUPABASE_ANON_KEY: test-key
+          INTEGRATION_ENCRYPTION_KEY: dev-insecure-key-do-not-use-in-prod-32chars
+          DEV_BYPASS_TOKEN: test-token
+          SESSION_SECRET: test-session-secret-32-characters-long
+        run: |
+          nohup node server.js > backend.log 2>&1 &
+          npx wait-on tcp:3030
+
+      - name: Start frontend
+        working-directory: rpa-system/rpa-dashboard
+        env:
+          PORT: 3000
+          CI: true
+        run: |
+          nohup npm start > frontend.log 2>&1 &
+          npx wait-on http://localhost:3000
+
+      - name: Run Cypress E2E
+        working-directory: rpa-system/rpa-dashboard
+        env:
+          CYPRESS_BASE_URL: http://localhost:3000
+        run: npx cypress run
+
+      - name: Archive logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-logs
+          path: |
+            rpa-system/backend/backend.log
+            rpa-system/rpa-dashboard/frontend.log
