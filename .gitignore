@@ -46,6 +46,14 @@ pnpm-debug.log*
 **/.notion_token
 *.notion_token
 **/*notion_token*
+.stripe_token
+**/.stripe_token
+*.stripe_token
+**/*stripe_token*
+.stripe_publishable_key
+**/.stripe_publishable_key
+*.stripe_publishable_key
+**/*stripe_publishable_key*
 *.token
 **/*.token
 
