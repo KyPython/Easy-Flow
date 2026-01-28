@@ -61,10 +61,8 @@ class KafkaManager:
 
         if self.kafka_enabled:
             logger.info(
-
-                f"📡 Bootstrap servers: {
-                    ', '.join(
-                        self.bootstrap_servers)}")
+                f"📡 Bootstrap servers: {', '.join(self.bootstrap_servers)}"
+            )
             logger.info(f"📋 Task topic: {self.task_topic}")
             logger.info(f"📤 Result topic: {self.result_topic}")
 
@@ -170,8 +168,8 @@ class KafkaManager:
                 # Test connection by fetching partitions
                 partitions = await self.consumer.partitions_for_topic(self.task_topic)
                 logger.info(
-    f"📋 Topic '{
-        self.task_topic}' partitions: {partitions}")
+                    f"📋 Topic '{self.task_topic}' partitions: {partitions}"
+                )
 
                 return True
             except KafkaError as e:

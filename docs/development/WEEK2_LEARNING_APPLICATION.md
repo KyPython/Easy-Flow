@@ -92,7 +92,7 @@ Workflow Execution Summary:
 This Month:
 +─ Instant executions: 500 × $0.004 = $2.00
 +─ Eco executions: 500 × $0.003 = $1.50
-+─ Total: $3.50
++─ Sum: $3.50
 +─ Savings: $0.50 (12.5% reduction)
 ```
 

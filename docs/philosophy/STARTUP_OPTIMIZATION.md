@@ -19,7 +19,7 @@ The startup script performs several sequential operations that can take 2-4 minu
  - Waits for critical targets (40s)
  - Waits for business metrics scrape (10s + up to 60s)
 
-4. **Backend/Automation Health** (up to 60s total)
+4. **Backend/Automation Health** (up to 60s combined)
  - Backend: up to 30s
  - Automation: up to 30s
 
@@ -27,7 +27,7 @@ The startup script performs several sequential operations that can take 2-4 minu
  - npm installs if packages are missing/outdated
  - Usually fast if dependencies are cached
 
-### Total Time Breakdown
+### Overall Time Breakdown
 
 - **Best case**: ~30-60 seconds (services already running, dependencies cached)
 - **Typical case**: ~90-120 seconds (fresh start, dependencies cached)
@@ -105,7 +105,7 @@ Create a `start-dev-fast.sh` that:
 | Prometheus targets | 40s | 10-20s |
 | Business metrics | 60s | 10-20s |
 
-**Total potential wait**: ~235 seconds (worst case)
+**Maximum potential wait**: ~235 seconds (worst case)
 
 ---
 

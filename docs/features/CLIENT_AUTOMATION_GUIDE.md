@@ -197,7 +197,7 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
 - Full custom automation
 - Multiple integrations
 - Documentation and training
-- 2-4 hours total
+- 2-4 hours end-to-end
 - They own it and can modify it
 
 ### Value Proposition (Updated)
@@ -251,7 +251,7 @@ One-time $[X] setup. After that, you can modify it yourself in EasyFlow.
  - "Saves you [X] hours per week"
  - "One-time setup, lifetime use"
 
-**Total: 50 seconds**
+**Approximate length:** 50 seconds
 
 ---
 

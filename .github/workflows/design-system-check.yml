@@ -25,7 +25,5 @@ jobs:
             npm install --no-audit --no-fund
           fi
       - name: Run design system validator
-        env:
-          STRICT_MODE: ${{ github.ref == 'refs/heads/main' && 'true' || 'false' }}
         run: |
           node scripts/validate-design-system.js

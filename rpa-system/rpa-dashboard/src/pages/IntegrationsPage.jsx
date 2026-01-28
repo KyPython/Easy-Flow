@@ -559,7 +559,7 @@ const IntegrationsPage = () => {
                       {integration.icon}
                     </div>
                     <div className={styles.cardInfo}>
-                      <h3 className={styles.cardTitle}>{integration.name}</h3>
+                      <h2 className={styles.cardTitle}>{integration.name}</h2>
                       <p className={styles.cardDescription}>{integration.description}</p>
                     </div>
                   </div>

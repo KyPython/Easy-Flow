@@ -1,6 +1,6 @@
 # AI Agent Capability Audit Report
 **Date:** 2025-01-XX  
-**Purpose:** Systematic audit of "English-to-API" translation layer for EasyFlow
+**Purpose:** Systematic audit of "English-to-API" translation layer for EasyFlow, with a focus on keeping automation decisions and data flow sovereign to the user.
 
 ## Executive Summary
 

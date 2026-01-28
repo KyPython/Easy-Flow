@@ -1,4 +1,6 @@
 // ...existing code...
+// NOTE: Responsive design is implemented in LandingPage.module.css using
+// mobile breakpoints (e.g. @media (max-width: 768px)) for layout adjustments.
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styles from './LandingPage.module.css';

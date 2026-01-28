@@ -46,7 +46,6 @@ jobs:
 
       - name: Terraform Format Check
         run: |
-          cd infrastructure
           if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
             terraform fmt -check -recursive || (echo "❌ Terraform files need formatting. Run 'terraform fmt' to fix." && exit 1)
           else
@@ -56,12 +55,10 @@ jobs:
 
       - name: Terraform Init
         run: |
-          cd infrastructure
           terraform init -backend=false
 
       - name: Terraform Validate
         run: |
-          cd infrastructure
           if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
             terraform validate -no-color || (echo "❌ Terraform validation failed - infrastructure must be valid before production deployment" && exit 1)
           else
@@ -73,7 +70,7 @@ jobs:
         continue-on-error: true
         run: |
           pip install checkov
-          checkov -d infrastructure --framework terraform --quiet || echo "⚠️ Security issues found (non-blocking)"
+          checkov -d . --framework terraform --quiet || echo "⚠️ Security issues found (non-blocking)"
 
       - name: Comment PR with Plan
         if: github.event_name == 'pull_request'
