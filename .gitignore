@@ -37,6 +37,14 @@ pnpm-debug.log*
 !**/.env.sample
 !**/.env.template
 
+# API Keys and Tokens (NEVER commit these)
+.github_token
+**/.github_token
+*.github_token
+**/*github_token*
+*.token
+**/*.token
+
 ## Block all other env files
 .env
 .env.local
