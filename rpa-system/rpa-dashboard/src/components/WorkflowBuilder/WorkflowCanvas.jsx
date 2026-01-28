@@ -122,7 +122,9 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
  } else {
  startStepCheckedRef.current = true; // Mark as checked even if Start step exists
  }
- } else if (workflow && workflow.canvas_config && nodes.length > 0 && !startStepCheckedRef.current) {
+ }
+
+  if (workflow && workflow.canvas_config && nodes.length > 0 && !startStepCheckedRef.current) {
  // ✅ UX: Check if existing workflow is missing Start step and add it (only once)
  const hasStartStep = nodes.some(node => 
  node.data?.stepType === 'start' || node.data?.stepType === 'trigger'
