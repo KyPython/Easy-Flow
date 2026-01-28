@@ -9,13 +9,15 @@ set -e
 # Reporting / progress logging
 # ---------------------------------------------------------------------------
 # Always write a local run report so you can see "what failed" after the run.
+# Keep a single rolling report file instead of many timestamped files.
 REPORT_DIR="${REPORT_DIR:-diagnostics/ship}"
-RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
-REPORT_FILE="${REPORT_DIR}/ship-to-production-${RUN_ID}.log"
+REPORT_FILE="${REPORT_DIR}/ship-to-production-latest.log"
 mkdir -p "$REPORT_DIR" 2>/dev/null || true
 
-# Mirror all output to the report file (and keep it visible in the terminal).
-exec > >(tee -a "$REPORT_FILE") 2>&1
+# Truncate the report file at the start of each run, then mirror all output
+# to the report file (and keep it visible in the terminal).
+: > "$REPORT_FILE"
+exec > >(tee "$REPORT_FILE") 2>&1
 
 on_exit() {
   exit_code=$?
