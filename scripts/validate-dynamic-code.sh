@@ -24,6 +24,7 @@ CHANGED_FILES=""
 if [ -n "$GITHUB_EVENT_NAME" ] && [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
   CHANGED_FILES_ONLY=true
   if [ -n "$GITHUB_BASE_REF" ]; then
+    git fetch origin "$GITHUB_BASE_REF" --depth=1 2>/dev/null || true
     CHANGED_FILES=$(git diff --name-only "origin/$GITHUB_BASE_REF"...HEAD 2>/dev/null || echo "")
   fi
   if [ -n "$CHANGED_FILES" ]; then

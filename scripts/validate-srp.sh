@@ -32,6 +32,8 @@ if [ -n "$GITHUB_EVENT_NAME" ] && [ "$GITHUB_EVENT_NAME" = "pull_request" ]; the
   CHANGED_FILES_ONLY=true
   # Get list of changed files in the PR
   if [ -n "$GITHUB_BASE_REF" ]; then
+    # Fetch base branch if needed
+    git fetch origin "$GITHUB_BASE_REF" --depth=1 2>/dev/null || true
     CHANGED_FILES=$(git diff --name-only "origin/$GITHUB_BASE_REF"...HEAD 2>/dev/null || echo "")
   fi
   if [ -n "$CHANGED_FILES" ]; then
