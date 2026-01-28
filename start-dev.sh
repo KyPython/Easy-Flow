@@ -6,11 +6,19 @@
 set -e # Exit on error
 set -o pipefail
 
-# Verbose mode
+# Command line arguments
 VERBOSE=false
+FORCE_LOCAL=false
+FORCE_CLOUD=false
+RESTORE_CLOUD=false
+
 for arg in "$@"; do
   case "$arg" in
     -v|--verbose) VERBOSE=true ;;
+    --local) FORCE_LOCAL=true ;;
+    --cloud) FORCE_CLOUD=true ;;
+    --restore-cloud) RESTORE_CLOUD=true ;;
+    --sync-to-cloud) SYNC_TO_CLOUD=true ;;
   esac
 done
 [ "$VERBOSE" = true ] && set -x
@@ -71,6 +79,202 @@ echo ""
 # ==============================================================================
 # 1. Helper Functions
 # ==============================================================================
+
+# Cloud credentials backup file
+CLOUD_BACKUP_FILE="$PROJECT_ROOT/.supabase-cloud-backup"
+
+backup_cloud_credentials() {
+    # Save original cloud Supabase credentials before switching to local
+    if [ -f "$BACKEND_DIR/.env" ]; then
+        local CLOUD_URL=$(grep -E "^SUPABASE_URL=" "$BACKEND_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' || true)
+        local CLOUD_ANON=$(grep -E "^SUPABASE_ANON_KEY=" "$BACKEND_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' || true)
+        local CLOUD_SERVICE=$(grep -E "^SUPABASE_SERVICE_ROLE=" "$BACKEND_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' || true)
+        
+        # Only backup if it's a cloud URL (not local)
+        if [ -n "$CLOUD_URL" ] && [[ "$CLOUD_URL" != *"127.0.0.1"* ]] && [[ "$CLOUD_URL" != *"localhost"* ]]; then
+            cat > "$CLOUD_BACKUP_FILE" << EOF
+# Cloud Supabase credentials backup
+# Created: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+CLOUD_SUPABASE_URL=$CLOUD_URL
+CLOUD_SUPABASE_ANON_KEY=$CLOUD_ANON
+CLOUD_SUPABASE_SERVICE_ROLE=$CLOUD_SERVICE
+EOF
+            log "Backed up cloud Supabase credentials to $CLOUD_BACKUP_FILE"
+        fi
+    fi
+}
+
+check_cloud_supabase_available() {
+    # Check if we have backed up cloud credentials and if cloud is now reachable
+    if [ ! -f "$CLOUD_BACKUP_FILE" ]; then
+        return 1
+    fi
+    
+    source "$CLOUD_BACKUP_FILE"
+    
+    if [ -z "$CLOUD_SUPABASE_URL" ]; then
+        return 1
+    fi
+    
+    # Test if cloud Supabase is reachable
+    if curl -s --max-time 5 "$CLOUD_SUPABASE_URL/rest/v1/" -H "apikey: ${CLOUD_SUPABASE_ANON_KEY:-dummy}" > /dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+restore_cloud_supabase() {
+    # Restore cloud Supabase credentials from backup
+    if [ ! -f "$CLOUD_BACKUP_FILE" ]; then
+        error "No cloud backup found at $CLOUD_BACKUP_FILE"
+        return 1
+    fi
+    
+    source "$CLOUD_BACKUP_FILE"
+    
+    log "Restoring cloud Supabase credentials..."
+    
+    # Update backend .env
+    if [ -f "$BACKEND_DIR/.env" ]; then
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|^SUPABASE_URL=.*|SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^SUPABASE_SERVICE_ROLE=.*|SUPABASE_SERVICE_ROLE=$CLOUD_SUPABASE_SERVICE_ROLE|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^SUPABASE_KEY=.*|SUPABASE_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+        else
+            sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i "s|^SUPABASE_SERVICE_ROLE=.*|SUPABASE_SERVICE_ROLE=$CLOUD_SUPABASE_SERVICE_ROLE|g" "$BACKEND_DIR/.env"
+            sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i "s|^SUPABASE_KEY=.*|SUPABASE_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+        fi
+    fi
+    
+    # Update frontend .env.local
+    if [ -f "$FRONTEND_DIR/.env.local" ]; then
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i '' "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+            sed -i '' "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i '' "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+        else
+            sed -i "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+            sed -i "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+        fi
+    fi
+    
+    # Stop local Supabase
+    if command -v supabase &> /dev/null; then
+        log "Stopping local Supabase..."
+        supabase stop 2>/dev/null || true
+    fi
+    
+    success "Cloud Supabase credentials restored"
+    return 0
+}
+
+sync_local_to_cloud() {
+    # Sync data created locally to cloud Supabase
+    if [ ! -f "$CLOUD_BACKUP_FILE" ]; then
+        error "No cloud backup found"
+        return 1
+    fi
+    
+    source "$CLOUD_BACKUP_FILE"
+    
+    log "Syncing local data to cloud Supabase..."
+    
+    # Tables to sync (excluding auth tables which can't be synced)
+    TABLES_TO_SYNC="workflows automation_tasks workflow_steps workflow_executions"
+    
+    for TABLE in $TABLES_TO_SYNC; do
+        log "Syncing table: $TABLE..."
+        
+        # Export from local
+        LOCAL_DATA=$(psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -t -A -c "SELECT row_to_json(t) FROM public.$TABLE t;" 2>/dev/null || echo "")
+        
+        if [ -n "$LOCAL_DATA" ] && [ "$LOCAL_DATA" != "" ]; then
+            ROW_COUNT=$(echo "$LOCAL_DATA" | wc -l | tr -d ' ')
+            log "  Found $ROW_COUNT rows in $TABLE"
+            
+            # For each row, upsert to cloud
+            echo "$LOCAL_DATA" | while read -r ROW; do
+                if [ -n "$ROW" ]; then
+                    # Use Supabase REST API to upsert
+                    curl -s -X POST "$CLOUD_SUPABASE_URL/rest/v1/$TABLE" \
+                        -H "apikey: $CLOUD_SUPABASE_SERVICE_ROLE" \
+                        -H "Authorization: Bearer $CLOUD_SUPABASE_SERVICE_ROLE" \
+                        -H "Content-Type: application/json" \
+                        -H "Prefer: resolution=merge-duplicates" \
+                        -d "$ROW" > /dev/null 2>&1 || true
+                fi
+            done
+            success "  Synced $TABLE"
+        else
+            log "  No data in $TABLE (or table doesn't exist locally)"
+        fi
+    done
+    
+    success "Local data sync complete"
+    warn "Note: User accounts cannot be synced. Users will need to sign in with their cloud credentials."
+    return 0
+}
+
+prompt_cloud_restore() {
+    # Interactive prompt to restore cloud Supabase
+    echo ""
+    echo "================================================================================"
+    echo -e "   ${GREEN}☁️  CLOUD SUPABASE IS BACK ONLINE!${NC}"
+    echo "================================================================================"
+    echo ""
+    echo "   Your cloud Supabase instance is now reachable."
+    echo "   You are currently using local Supabase."
+    echo ""
+    echo "   Options:"
+    echo "     1) Switch back to cloud Supabase (recommended)"
+    echo "     2) Sync local data to cloud, then switch"
+    echo "     3) Continue using local Supabase"
+    echo ""
+    
+    # Check if running interactively
+    if [ -t 0 ]; then
+        read -p "   Enter choice [1/2/3]: " CHOICE
+        case "$CHOICE" in
+            1)
+                restore_cloud_supabase
+                USING_CLOUD_SUPABASE=true
+                ;;
+            2)
+                sync_local_to_cloud
+                restore_cloud_supabase
+                USING_CLOUD_SUPABASE=true
+                ;;
+            3)
+                log "Continuing with local Supabase"
+                USE_LOCAL_SUPABASE=true
+                ;;
+            *)
+                log "Invalid choice. Continuing with local Supabase"
+                USE_LOCAL_SUPABASE=true
+                ;;
+        esac
+    else
+        # Non-interactive mode - just notify
+        warn "Cloud Supabase is available. Run './start-dev.sh --restore-cloud' to switch back."
+        USE_LOCAL_SUPABASE=true
+    fi
+    echo ""
+}
 
 check_supabase_available() {
     # Check if cloud Supabase is reachable
@@ -452,19 +656,78 @@ fi
 log "Checking Supabase availability..."
 
 USE_LOCAL_SUPABASE=false
-if check_supabase_available; then
-    success "Cloud Supabase is reachable"
-else
-    warn "Cloud Supabase is not available or not configured"
-    log "Attempting to start local Supabase as fallback..."
-    
-    ensure_docker_running  # Supabase needs Docker
-    
+USING_CLOUD_SUPABASE=false
+
+# Handle command line flags first
+if [ "$RESTORE_CLOUD" = true ]; then
+    log "Restoring cloud Supabase (--restore-cloud flag)..."
+    if check_cloud_supabase_available; then
+        if [ "$SYNC_TO_CLOUD" = true ]; then
+            sync_local_to_cloud
+        fi
+        restore_cloud_supabase
+        USING_CLOUD_SUPABASE=true
+    else
+        error "Cloud Supabase is not reachable. Cannot restore."
+        exit 1
+    fi
+elif [ "$FORCE_LOCAL" = true ]; then
+    log "Forcing local Supabase (--local flag)..."
+    ensure_docker_running
+    backup_cloud_credentials
     if start_local_supabase; then
         USE_LOCAL_SUPABASE=true
-        success "Using local Supabase"
     else
-        warn "Could not start local Supabase. Some features may be unavailable."
+        error "Could not start local Supabase."
+        exit 1
+    fi
+elif [ "$FORCE_CLOUD" = true ]; then
+    log "Forcing cloud Supabase (--cloud flag)..."
+    if check_supabase_available; then
+        success "Cloud Supabase is reachable"
+        USING_CLOUD_SUPABASE=true
+    else
+        error "Cloud Supabase is not reachable. Cannot force cloud mode."
+        exit 1
+    fi
+else
+    # Auto-detect mode
+    # First check if we're currently using local and cloud is back
+    CURRENT_URL=$(grep -E "^SUPABASE_URL=" "$BACKEND_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' || true)
+    
+    if [[ "$CURRENT_URL" == *"127.0.0.1"* ]] || [[ "$CURRENT_URL" == *"localhost"* ]]; then
+        # Currently using local - check if cloud is back
+        if check_cloud_supabase_available; then
+            prompt_cloud_restore
+        else
+            # Cloud still not available, continue with local
+            log "Cloud Supabase still not available. Continuing with local..."
+            ensure_docker_running
+            if start_local_supabase; then
+                USE_LOCAL_SUPABASE=true
+            else
+                warn "Could not start local Supabase. Some features may be unavailable."
+            fi
+        fi
+    else
+        # Currently configured for cloud - check if it's reachable
+        if check_supabase_available; then
+            success "Cloud Supabase is reachable"
+            USING_CLOUD_SUPABASE=true
+        else
+            warn "Cloud Supabase is not available or not configured"
+            log "Attempting to start local Supabase as fallback..."
+            
+            ensure_docker_running  # Supabase needs Docker
+            backup_cloud_credentials  # Save cloud creds before switching
+            
+            if start_local_supabase; then
+                USE_LOCAL_SUPABASE=true
+                success "Using local Supabase"
+            else
+                warn "Could not start local Supabase. Some features may be unavailable."
+            fi
+        fi
     fi
 fi
 
@@ -693,6 +956,14 @@ if [ "$ALL_SERVICES_UP" = "true" ]; then
         echo -e "   ${GREEN}Supabase API:${NC}    http://127.0.0.1:54321"
         echo -e "   ${GREEN}Supabase Studio:${NC} http://127.0.0.1:54323"
         echo -e "   ${GREEN}Email Testing:${NC}   http://127.0.0.1:54324 (Inbucket)"
+        echo ""
+        echo -e "   ${BLUE}To restore cloud when available:${NC}"
+        echo -e "     ./start-dev.sh --restore-cloud"
+        echo -e "   ${BLUE}To sync local data to cloud first:${NC}"
+        echo -e "     ./start-dev.sh --restore-cloud --sync-to-cloud"
+    elif [ "$USING_CLOUD_SUPABASE" = "true" ]; then
+        echo "--------------------------------------------------------------------------------"
+        echo -e "   ${GREEN}USING CLOUD SUPABASE${NC}"
     fi
     echo "================================================================================"
     echo -e "   To view streaming logs, run one of the following:"
