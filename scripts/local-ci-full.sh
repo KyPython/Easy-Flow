@@ -71,8 +71,23 @@ npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,wcag21aa --exit --
 
 echo ""
 echo "4.3) Chaos Human Simulation (Playwright)"
-cd "$ROOT_DIR"
-node scripts/chaos-human-simulation.js
+RPA_SYSTEM_DIR="$ROOT_DIR/rpa-system"
+cd "$RPA_SYSTEM_DIR"
+
+if [ -f package-lock.json ]; then
+  npm ci
+else
+  npm install --no-audit --no-fund
+fi
+
+echo "📦 Ensuring Playwright browsers are installed..."
+if [[ "$(uname -s)" == "Linux" ]]; then
+  npx playwright install --with-deps
+else
+  npx playwright install
+fi
+
+node ../scripts/chaos-human-simulation.js
 
 echo ""
 echo "✅ Local CI gate passed."
