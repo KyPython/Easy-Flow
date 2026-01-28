@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # EasyFlow Security Scan with Snyk
 # Scans code and dependencies for security vulnerabilities before code reaches public
 # Adapted from workspace security best practices
