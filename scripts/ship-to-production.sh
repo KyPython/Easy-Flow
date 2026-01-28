@@ -5,6 +5,33 @@
 
 set -e
 
+# ---------------------------------------------------------------------------
+# Reporting / progress logging
+# ---------------------------------------------------------------------------
+# Always write a local run report so you can see "what failed" after the run.
+REPORT_DIR="${REPORT_DIR:-diagnostics/ship}"
+RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+REPORT_FILE="${REPORT_DIR}/ship-to-production-${RUN_ID}.log"
+mkdir -p "$REPORT_DIR" 2>/dev/null || true
+
+# Mirror all output to the report file (and keep it visible in the terminal).
+exec > >(tee -a "$REPORT_FILE") 2>&1
+
+on_exit() {
+  exit_code=$?
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "Ship run report: ${REPORT_FILE}"
+  echo "Exit code: ${exit_code}"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  exit "$exit_code"
+}
+trap on_exit EXIT
+
+# GitHub Actions log grouping helpers
+group_start() { [ -n "${GITHUB_ACTIONS:-}" ] && echo "::group::$1" || true; }
+group_end() { [ -n "${GITHUB_ACTIONS:-}" ] && echo "::endgroup::" || true; }
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -14,6 +41,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo "${BLUE}=== 🚀 Shipping Dev to Production ===${NC}\n"
+echo "${CYAN}Report will be saved to: ${REPORT_FILE}${NC}\n"
 
 # Validate we're in a git repository
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
@@ -54,37 +82,45 @@ if [ "$SKIP_CHECKS" = "true" ]; then
     echo "${YELLOW}⚠️  SKIP_CHECKS=true: Skipping validation checks (fast mode)${NC}"
 else
     # Step 1: Quick lint check (fast)
+    group_start "Step 1: Lint"
     echo "\n${BLUE}Step 1: Running quick lint check...${NC}"
-    if npm run lint 2>/dev/null || npm run lint:fix 2>/dev/null; then
+    if npm run lint || npm run lint:fix; then
         echo "${GREEN}✓ Lint check passed${NC}"
     else
         echo "${YELLOW}⚠️  Lint issues found (non-blocking, will be fixed in CI)${NC}"
     fi
+    group_end
 
     # Step 2: Run security scan (critical, but fast)
+    group_start "Step 2: Security scan"
     echo "\n${BLUE}Step 2: Running security scan...${NC}"
-    if npm run security:scan 2>/dev/null || echo "Security scan skipped (install snyk if needed)"; then
+    if npm run security:scan || echo "Security scan skipped (install snyk if needed)"; then
         echo "${GREEN}✓ Security scan passed${NC}"
     else
         echo "${YELLOW}⚠️  Security scan skipped or failed (non-blocking, CI will catch issues)${NC}"
     fi
+    group_end
 
     # Step 2.25: Run comprehensive code validation (SRP, Dynamic, Theme, Logging, RAG)
+    group_start "Step 2.25: validate-all"
     echo "\n${BLUE}Step 2.25: Running comprehensive code validation...${NC}"
-    if ./scripts/validate-all.sh 2>/dev/null; then
+    if ./scripts/validate-all.sh; then
         echo "${GREEN}✓ All code validation checks passed${NC}"
     else
         echo "${YELLOW}⚠️  Code validation issues found (non-blocking, CI will catch critical issues)${NC}"
         echo "${YELLOW}  Run './scripts/validate-all.sh' for details${NC}"
     fi
+    group_end
 
     # Step 2.3: Validate RAG Knowledge Base (skip if slow)
+    group_start "Step 2.3: validate-rag-knowledge (optional)"
     echo "\n${BLUE}Step 2.3: Validating RAG Knowledge Base (optional)...${NC}"
-    if ./scripts/validate-rag-knowledge.sh 2>/dev/null; then
+    if ./scripts/validate-rag-knowledge.sh; then
         echo "${GREEN}✓ RAG knowledge validation passed${NC}"
     else
         echo "${YELLOW}○ RAG knowledge validation skipped (optional check)${NC}"
     fi
+    group_end
 fi
 
 # Step 2.5: Validate Terraform (if infrastructure exists)
