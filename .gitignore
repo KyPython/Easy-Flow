@@ -37,6 +37,50 @@ pnpm-debug.log*
 !**/.env.sample
 !**/.env.template
 
+# API Keys and Tokens (NEVER commit these)
+.github_token
+**/.github_token
+*.github_token
+**/*github_token*
+.notion_token
+**/.notion_token
+*.notion_token
+**/*notion_token*
+.stripe_token
+**/.stripe_token
+*.stripe_token
+**/*stripe_token*
+.google_refresh_token
+**/.google_refresh_token
+*.google_refresh_token
+**/*google_refresh_token*
+.google_client_id
+**/.google_client_id
+*.google_client_id
+**/*google_client_id*
+.google_client_secret
+**/.google_client_secret
+*.google_client_secret
+**/*google_client_secret*
+.stripe_publishable_key
+**/.stripe_publishable_key
+*.stripe_publishable_key
+**/*stripe_publishable_key*
+.toggl_token
+**/.toggl_token
+*.toggl_token
+**/*toggl_token*
+.clockify_token
+**/.clockify_token
+*.clockify_token
+**/*clockify_token*
+.clockify_workspace_id
+**/.clockify_workspace_id
+*.clockify_workspace_id
+**/*clockify_workspace_id*
+*.token
+**/*.token
+
 ## Block all other env files
 .env
 .env.local
@@ -411,6 +455,23 @@ ccloud-nodejs-client*/
 .cursor/rules/snyk_rules.mdc
 rpa-system/monitoring/alertmanager.yml
 
+# Life OS documentation and scripts (personal system - not part of EasyFlow)
+docs/life-os/
+**/life-os/
+**/LIFE_OS*.md
+**/*LIFE_OS*.md
+setup-notion-life-os.py
+**/setup-notion-life-os.py
+scripts/notion-maintenance/
+scripts/notion-integrations/
+
+# Separate projects/repos (not tracked by EasyFlow)
+easyflow-metrics/
+
+# Feature readiness artifacts (generated locally/CI; not needed in production)
+.features/features.json
+.features/readiness-report.txt
+
 # Terraform
 .terraform/
 *.tfstate
@@ -421,3 +482,8 @@ rpa-system/monitoring/alertmanager.yml
 .terraform.lock.hcl
 rpa-system/rpa-dashboard/public/firebase-config.js
 code-quality-report.json
+infrastructure/keys/
+*.json
+
+.features/features.json
+.features/readiness-report.txt

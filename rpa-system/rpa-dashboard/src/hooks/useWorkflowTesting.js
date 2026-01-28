@@ -45,32 +45,28 @@ export const useWorkflowTesting = (workflowId) => {
 
   // Create a new test scenario
   const createTestScenario = async (scenarioData) => {
-    try {
-      const client2 = await initSupabase();
-      const { data: { user } } = await client2.auth.getUser();
-      if (!user) throw new Error('User must be authenticated');
-      const { data, error } = await client2
-        .from('workflow_test_scenarios')
-        .insert({
-          workflow_id: workflowId,
-          user_id: user.id,
-          name: scenarioData.name,
-          description: scenarioData.description,
-          input_data: scenarioData.inputData,
-          expected_outputs: scenarioData.expectedOutputs,
-          test_steps: scenarioData.testSteps,
-          mock_config: scenarioData.mockConfig,
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      // Reload scenarios
-      await loadTestScenarios();
-      return data;
-    } catch (err) {
-      throw err;
-    }
+    const client2 = await initSupabase();
+    const { data: { user } } = await client2.auth.getUser();
+    if (!user) throw new Error('User must be authenticated');
+    const { data, error } = await client2
+      .from('workflow_test_scenarios')
+      .insert({
+        workflow_id: workflowId,
+        user_id: user.id,
+        name: scenarioData.name,
+        description: scenarioData.description,
+        input_data: scenarioData.inputData,
+        expected_outputs: scenarioData.expectedOutputs,
+        test_steps: scenarioData.testSteps,
+        mock_config: scenarioData.mockConfig,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    // Reload scenarios
+    await loadTestScenarios();
+    return data;
   };
 
   // Execute a test scenario using real automation endpoints
@@ -85,7 +81,8 @@ export const useWorkflowTesting = (workflowId) => {
       if (!session) throw new Error('Authentication required');
       // Execute workflow using real automation endpoint
       const executionStart = Date.now();
-      const { data: result } = await api.post('/api/automation/execute', {
+      // ✅ PHASE 1: Use new REST endpoint
+      const { data: result } = await api.post('/api/automation/executions', {
         workflow_id: workflowId,
         test_scenario_id: scenarioId,
         input_data: scenario.input_data,
@@ -113,8 +110,6 @@ export const useWorkflowTesting = (workflowId) => {
       // Reload scenarios to get updated results
       await loadTestScenarios();
       return data;
-    } catch (err) {
-      throw err;
     } finally {
       setExecuting(false);
     }
@@ -122,15 +117,11 @@ export const useWorkflowTesting = (workflowId) => {
 
   // Get real execution results from backend
   const getExecutionResults = async (executionId) => {
-    try {
-      const client5 = await initSupabase();
-      const { data: { session } } = await client5.auth.getSession();
-      if (!session) throw new Error('Authentication required');
-      const { data } = await api.get(`/api/executions/${executionId}`);
-      return data;
-    } catch (err) {
-      throw err;
-    }
+    const client5 = await initSupabase();
+    const { data: { session } } = await client5.auth.getSession();
+    if (!session) throw new Error('Authentication required');
+    const { data } = await api.get(`/api/executions/${executionId}`);
+    return data;
   };
 
   // Execute workflow step using real automation
@@ -158,28 +149,20 @@ export const useWorkflowTesting = (workflowId) => {
 
   // Get workflow execution status
   const getWorkflowExecutionStatus = async (executionId) => {
-    try {
-      const client7 = await initSupabase();
-      const { data: { session } } = await client7.auth.getSession();
-      if (!session) throw new Error('Authentication required');
-      const { data } = await api.get(`/api/executions/${executionId}/steps`);
-      return data;
-    } catch (err) {
-      throw err;
-    }
+    const client7 = await initSupabase();
+    const { data: { session } } = await client7.auth.getSession();
+    if (!session) throw new Error('Authentication required');
+    const { data } = await api.get(`/api/executions/${executionId}/steps`);
+    return data;
   };
 
   // Cancel workflow execution
   const cancelWorkflowExecution = async (executionId) => {
-    try {
-      const client8 = await initSupabase();
-      const { data: { session } } = await client8.auth.getSession();
-      if (!session) throw new Error('Authentication required');
-      const { data } = await api.post(`/api/executions/${executionId}/cancel`);
-      return data;
-    } catch (err) {
-      throw err;
-    }
+    const client8 = await initSupabase();
+    const { data: { session } } = await client8.auth.getSession();
+    if (!session) throw new Error('Authentication required');
+    const { data } = await api.post(`/api/executions/${executionId}/cancel`);
+    return data;
   };
 
   // Run all test scenarios using real automation
@@ -207,17 +190,13 @@ export const useWorkflowTesting = (workflowId) => {
 
   // Delete test scenario
   const deleteTestScenario = async (scenarioId) => {
-    try {
-      const client8 = await initSupabase();
-      const { error } = await client8
-        .from('workflow_test_scenarios')
-        .delete()
-        .eq('id', scenarioId);
-      if (error) throw error;
-      await loadTestScenarios();
-    } catch (err) {
-      throw err;
-    }
+    const client8 = await initSupabase();
+    const { error } = await client8
+      .from('workflow_test_scenarios')
+      .delete()
+      .eq('id', scenarioId);
+    if (error) throw error;
+    await loadTestScenarios();
   };
 
   return {

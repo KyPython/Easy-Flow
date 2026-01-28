@@ -8,17 +8,17 @@
  * @returns {object} Object with UTM parameters
  */
 export function captureUTMParams() {
-  const urlParams = new URLSearchParams(window.location.search);
-  
-  return {
-    source: urlParams.get('utm_source') || null,
-    medium: urlParams.get('utm_medium') || null,
-    campaign: urlParams.get('utm_campaign') || null,
-    term: urlParams.get('utm_term') || null,
-    content: urlParams.get('utm_content') || null,
-    referrer: document.referrer || null,
-    landing_page: window.location.pathname
-  };
+ const urlParams = new URLSearchParams(window.location.search);
+ 
+ return {
+ source: urlParams.get('utm_source') || null,
+ medium: urlParams.get('utm_medium') || null,
+ campaign: urlParams.get('utm_campaign') || null,
+ term: urlParams.get('utm_term') || null,
+ content: urlParams.get('utm_content') || null,
+ referrer: document.referrer || null,
+ landing_page: window.location.pathname
+ };
 }
 
 /**
@@ -26,14 +26,14 @@ export function captureUTMParams() {
  * @param {object} utmParams - UTM parameters object
  */
 export function storeUTMParams(utmParams) {
-  try {
-    sessionStorage.setItem('utm_params', JSON.stringify({
-      ...utmParams,
-      captured_at: new Date().toISOString()
-    }));
-  } catch (e) {
-    console.debug('[utmCapture] Failed to store UTM params:', e);
-  }
+ try {
+ sessionStorage.setItem('utm_params', JSON.stringify({
+ ...utmParams,
+ captured_at: new Date().toISOString()
+ }));
+ } catch (e) {
+ console.debug('[utmCapture] Failed to store UTM params:', e);
+ }
 }
 
 /**
@@ -41,13 +41,13 @@ export function storeUTMParams(utmParams) {
  * @returns {object|null} Stored UTM parameters or null
  */
 export function getStoredUTMParams() {
-  try {
-    const stored = sessionStorage.getItem('utm_params');
-    return stored ? JSON.parse(stored) : null;
-  } catch (e) {
-    console.debug('[utmCapture] Failed to retrieve UTM params:', e);
-    return null;
-  }
+ try {
+ const stored = sessionStorage.getItem('utm_params');
+ return stored ? JSON.parse(stored) : null;
+ } catch (e) {
+ console.debug('[utmCapture] Failed to retrieve UTM params:', e);
+ return null;
+ }
 }
 
 /**
@@ -55,13 +55,13 @@ export function getStoredUTMParams() {
  * Call this on component mount or page load
  */
 export function captureAndStoreUTM() {
-  const utmParams = captureUTMParams();
-  
-  // Only store if we have at least one UTM parameter
-  if (utmParams.source || utmParams.medium || utmParams.campaign) {
-    storeUTMParams(utmParams);
-  }
-  
-  return utmParams;
+ const utmParams = captureUTMParams();
+ 
+ // Only store if we have at least one UTM parameter
+ if (utmParams.source || utmParams.medium || utmParams.campaign) {
+ storeUTMParams(utmParams);
+ }
+ 
+ return utmParams;
 }
 

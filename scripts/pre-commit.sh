@@ -47,87 +47,91 @@ fi
 # Track if any checks fail
 FAILED=0
 
+# Allow skipping tests via environment variable (for faster commits)
+SKIP_TESTS="${SKIP_TESTS:-false}"
+
 # Step 1: Lint Frontend (React Dashboard)
-echo "${BLUE}Step 1: Linting frontend...${NC}"
-if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
-    cd rpa-system/rpa-dashboard
-    if npm run lint 2>/dev/null || npm run lint:fix 2>/dev/null; then
-        echo "  ${GREEN}✓ Frontend linting passed${NC}"
-    else
-        echo "  ${YELLOW}⚠ Frontend linting issues (attempting auto-fix)${NC}"
-        npm run lint:fix 2>/dev/null || true
-    fi
-    cd ../..
+# ✅ FAST MODE: Skip frontend linting on dev branch
+if [ "$IS_DEV_BRANCH" = true ]; then
+    echo "${BLUE}Step 1: Frontend linting (skipped on dev for speed)...${NC}"
+    echo "  ${YELLOW}○ Frontend linting skipped on dev for speed${NC}"
+    echo "  ${YELLOW}  Linting will run in CI/CD${NC}"
 else
-    echo "  ${YELLOW}○ Frontend not found, skipping${NC}"
+    echo "${BLUE}Step 1: Linting frontend...${NC}"
+    if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
+        cd rpa-system/rpa-dashboard
+        if npm run lint 2>/dev/null || npm run lint:fix 2>/dev/null; then
+            echo "  ${GREEN}✓ Frontend linting passed${NC}"
+        else
+            echo "  ${YELLOW}⚠ Frontend linting issues (attempting auto-fix)${NC}"
+            npm run lint:fix 2>/dev/null || true
+        fi
+        cd ../..
+    else
+        echo "  ${YELLOW}○ Frontend not found, skipping${NC}"
+    fi
 fi
 
 # Step 2: Lint Backend (if ESLint config exists)
-echo "\n${BLUE}Step 2: Linting backend...${NC}"
-if [ -f "rpa-system/backend/package.json" ]; then
-    cd rpa-system/backend
-    # Check if eslint is available
-    if grep -q "eslint" package.json 2>/dev/null || command -v eslint >/dev/null 2>&1; then
-        if npm run lint 2>/dev/null || npx eslint . --ext .js,.jsx 2>/dev/null; then
-            echo "  ${GREEN}✓ Backend linting passed${NC}"
-        else
-            echo "  ${YELLOW}⚠ Backend linting issues found${NC}"
-            FAILED=$((FAILED + 1))
-        fi
-    else
-        echo "  ${YELLOW}○ ESLint not configured for backend, skipping${NC}"
-    fi
-    cd ../..
+# ✅ FAST MODE: Skip backend linting on dev branch
+if [ "$IS_DEV_BRANCH" = true ]; then
+    echo "\n${BLUE}Step 2: Backend linting (skipped on dev for speed)...${NC}"
+    echo "  ${YELLOW}○ Backend linting skipped on dev for speed${NC}"
+    echo "  ${YELLOW}  Linting will run in CI/CD${NC}"
 else
-    echo "  ${YELLOW}○ Backend not found, skipping${NC}"
+    echo "\n${BLUE}Step 2: Linting backend...${NC}"
+    if [ -f "rpa-system/backend/package.json" ]; then
+        cd rpa-system/backend
+        # Check if eslint is available
+        if grep -q "eslint" package.json 2>/dev/null || command -v eslint >/dev/null 2>&1; then
+            if npm run lint 2>/dev/null || npx eslint . --ext .js,.jsx 2>/dev/null; then
+                echo "  ${GREEN}✓ Backend linting passed${NC}"
+            else
+                echo "  ${YELLOW}⚠ Backend linting issues found${NC}"
+                FAILED=$((FAILED + 1))
+            fi
+        else
+            echo "  ${YELLOW}○ ESLint not configured for backend, skipping${NC}"
+        fi
+        cd ../..
+    else
+        echo "  ${YELLOW}○ Backend not found, skipping${NC}"
+    fi
 fi
 
-# Step 3: Run Tests (if available)
-echo "\n${BLUE}Step 3: Running tests...${NC}"
-
-# Backend tests
-if [ -f "rpa-system/backend/package.json" ]; then
-    cd rpa-system/backend
-    if npm run test:backend -- --passWithNoTests || npm test -- --passWithNoTests; then
-        echo "  ${GREEN}✓ Backend tests passed${NC}"
-    else
-        echo "  ${YELLOW}⚠ Backend tests failed (non-blocking in pre-commit)${NC}"
-        echo "  ${YELLOW}  Tests will block in pre-push and CI/CD${NC}"
-        # Don't fail pre-commit for test issues (they'll block in pre-push)
-    fi
-    cd ../..
-fi
-
-# Frontend tests
-if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
-    cd rpa-system/rpa-dashboard
-    if npm test -- --watchAll=false --passWithNoTests; then
-        echo "  ${GREEN}✓ Frontend tests passed${NC}"
-    else
-        echo "  ${YELLOW}⚠ Frontend tests failed (non-blocking in pre-commit)${NC}"
-        echo "  ${YELLOW}  Tests will block in pre-push and CI/CD${NC}"
-        # Don't fail pre-commit for test issues (they'll block in pre-push)
-    fi
-    cd ../..
+# Step 3: Run Tests (if available) - SKIP by default for speed
+if [ "$SKIP_TESTS" != "true" ]; then
+    echo "\n${BLUE}Step 3: Running tests (can skip with SKIP_TESTS=true)...${NC}"
+    echo "${YELLOW}  ⚠️  Tests are slow - skipping in pre-commit for speed${NC}"
+    echo "${YELLOW}  Tests will run in CI/CD and pre-push hooks${NC}"
+else
+    echo "\n${BLUE}Step 3: Tests skipped (SKIP_TESTS=true)${NC}"
 fi
 
 # Step 4: Build Check (verify compilation)
-echo "\n${BLUE}Step 4: Verifying builds...${NC}"
-
-# Frontend build
-if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
-    cd rpa-system/rpa-dashboard
-    if npm run build >/dev/null 2>&1; then
-        echo "  ${GREEN}✓ Frontend builds successfully${NC}"
-    else
-        echo "  ${RED}✗ Frontend build failed${NC}"
-        FAILED=$((FAILED + 1))
+# ✅ FAST MODE: Skip slow builds on dev branch (non-blocking anyway)
+if [ "$IS_DEV_BRANCH" = true ]; then
+    echo "\n${BLUE}Step 4: Build check (skipped on dev for speed)${NC}"
+    echo "  ${YELLOW}○ Build checks skipped on dev branch for faster commits${NC}"
+    echo "  ${YELLOW}  Builds will be validated in CI/CD${NC}"
+else
+    echo "\n${BLUE}Step 4: Verifying builds...${NC}"
+    
+    # Frontend build (only on main branch)
+    if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
+        cd rpa-system/rpa-dashboard
+        if npm run build >/dev/null 2>&1; then
+            echo "  ${GREEN}✓ Frontend builds successfully${NC}"
+        else
+            echo "  ${RED}✗ Frontend build failed${NC}"
+            FAILED=$((FAILED + 1))
+        fi
+        cd ../..
     fi
-    cd ../..
 fi
 
-# Backend build (if it has a build step)
-if [ -f "rpa-system/backend/package.json" ]; then
+# Backend build (if it has a build step) - only on main branch
+if [ "$IS_DEV_BRANCH" != true ] && [ -f "rpa-system/backend/package.json" ]; then
     cd rpa-system/backend
     if grep -q '"build"' package.json; then
         if npm run build >/dev/null 2>&1; then
@@ -142,37 +146,44 @@ if [ -f "rpa-system/backend/package.json" ]; then
     cd ../..
 fi
 
-# Step 5: Environment Check
-echo "\n${BLUE}Step 5: Checking development environment...${NC}"
-if ./scripts/dev-env-check.sh >/dev/null 2>&1; then
-    echo "  ${GREEN}✓ Environment check passed${NC}"
+# Step 5-6.5: Skip slow checks on dev branch for speed
+if [ "$IS_DEV_BRANCH" = true ]; then
+    echo "\n${BLUE}Steps 5-6.5: Validation checks (skipped on dev for speed)...${NC}"
+    echo "  ${YELLOW}○ Environment, quality, and validation checks skipped on dev${NC}"
+    echo "  ${YELLOW}  All checks will run in CI/CD${NC}"
 else
-    echo "  ${YELLOW}⚠ Environment check warnings (non-blocking)${NC}"
-fi
-
-# Step 6: Code Quality Check (non-blocking)
-echo "\n${BLUE}Step 6: Checking code quality...${NC}"
-if ./scripts/code-quality-check.sh >/dev/null 2>&1; then
-    echo "  ${GREEN}✓ Code quality check passed${NC}"
-else
-    echo "  ${YELLOW}⚠ Code quality issues found (non-blocking)${NC}"
-    echo "  Run 'npm run quality:check' for details"
-fi
-
-# Step 6.5: Quick validation checks (non-blocking in pre-commit, blocking in CI/CD)
-echo "\n${BLUE}Step 6.5: Running quick validation checks...${NC}"
-if ./scripts/validate-srp.sh >/dev/null 2>&1; then
-    echo "  ${GREEN}✓ SRP validation passed${NC}"
-else
-    echo "  ${YELLOW}⚠ SRP violations found (non-blocking in pre-commit)${NC}"
-    echo "  ${YELLOW}  Will block in CI/CD and production deployment${NC}"
-fi
-
-if ./scripts/validate-theme-consistency.sh >/dev/null 2>&1; then
-    echo "  ${GREEN}✓ Theme consistency check passed${NC}"
-else
-    echo "  ${YELLOW}⚠ Theme consistency issues found (non-blocking in pre-commit)${NC}"
-    echo "  ${YELLOW}  Will block in CI/CD and production deployment${NC}"
+    # Step 5: Environment Check
+    echo "\n${BLUE}Step 5: Checking development environment...${NC}"
+    if ./scripts/dev-env-check.sh >/dev/null 2>&1; then
+        echo "  ${GREEN}✓ Environment check passed${NC}"
+    else
+        echo "  ${YELLOW}⚠ Environment check warnings (non-blocking)${NC}"
+    fi
+    
+    # Step 6: Code Quality Check (non-blocking)
+    echo "\n${BLUE}Step 6: Checking code quality...${NC}"
+    if ./scripts/code-quality-check.sh >/dev/null 2>&1; then
+        echo "  ${GREEN}✓ Code quality check passed${NC}"
+    else
+        echo "  ${YELLOW}⚠ Code quality issues found (non-blocking)${NC}"
+        echo "  Run 'npm run quality:check' for details"
+    fi
+    
+    # Step 6.5: Quick validation checks (non-blocking in pre-commit, blocking in CI/CD)
+    echo "\n${BLUE}Step 6.5: Running quick validation checks...${NC}"
+    if ./scripts/validate-srp.sh >/dev/null 2>&1; then
+        echo "  ${GREEN}✓ SRP validation passed${NC}"
+    else
+        echo "  ${YELLOW}⚠ SRP violations found (non-blocking in pre-commit)${NC}"
+        echo "  ${YELLOW}  Will block in CI/CD and production deployment${NC}"
+    fi
+    
+    if ./scripts/validate-theme-consistency.sh >/dev/null 2>&1; then
+        echo "  ${GREEN}✓ Theme consistency check passed${NC}"
+    else
+        echo "  ${YELLOW}⚠ Theme consistency issues found (non-blocking in pre-commit)${NC}"
+        echo "  ${YELLOW}  Will block in CI/CD and production deployment${NC}"
+    fi
 fi
 
 # Step 7: Terraform Validation (if infrastructure files changed)

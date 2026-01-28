@@ -11,41 +11,41 @@ import styles from '../components/Analytics/AnalyticsPage.module.css';
 
 
 const AnalyticsPage = () => {
-  const { theme } = useTheme();
-  const navigate = useNavigate();
-  const { data, loading, error } = useAnalyticsDashboard();
-  
-  return (
-    <PlanGate 
-      requiredPlan="Professional"
-      feature="advanced_analytics"
-      upgradeMessage="Advanced Analytics provides detailed insights into your automation performance, usage trends, and ROI metrics. Upgrade to Professional or Enterprise plan to unlock comprehensive reporting."
-      onPaywallClose={() => {
-        console.log('[AnalyticsPage] Paywall dismissed, navigating back');
-        navigate(-1);
-      }}
-    >
-      <div className={styles.analyticsPage} data-theme={theme}>
-        <header className={styles.header}>
-          <h1 className={styles.title}>Analytics Dashboard</h1>
-        </header>
-        {loading && (
-          <div className={styles.loadingContainer}>
-            <div className={styles.spinner}></div>
-            <p>Loading analytics...</p>
-          </div>
-        )}
-        {error && <div className={styles.error}>Error loading analytics: {error.message || 'Unknown error'}</div>}
-        {!loading && !error && (
-          <>
-            <UsageCharts data={data} />
-            <PerformanceMetrics data={data} />
-            <ReportsGenerator data={data} />
-          </>
-        )}
-      </div>
-    </PlanGate>
-  );
+ const { theme } = useTheme();
+ const navigate = useNavigate();
+ const { data, loading, error } = useAnalyticsDashboard();
+ 
+ return (
+ <PlanGate 
+ requiredPlan="Professional"
+ feature="advanced_analytics"
+ upgradeMessage="Advanced Analytics provides detailed insights into your automation performance, usage trends, and ROI metrics. Upgrade to Professional or Enterprise plan to unlock comprehensive reporting."
+ onPaywallClose={() => {
+ console.log('[AnalyticsPage] Paywall dismissed, navigating back');
+ navigate(-1);
+ }}
+ >
+ <div className={styles.analyticsPage} data-theme={theme}>
+ <header className={styles.header}>
+ <h1 className={styles.title}>Analytics Dashboard</h1>
+ </header>
+ {loading && (
+ <div className={styles.loadingContainer}>
+ <div className={styles.spinner}></div>
+ <p>Loading analytics...</p>
+ </div>
+ )}
+ {error && <div className={styles.error}>Error loading analytics: {error.message || 'Unknown error'}</div>}
+ {!loading && !error && (
+ <>
+ <UsageCharts data={data} />
+ <PerformanceMetrics data={data} />
+ <ReportsGenerator data={data} />
+ </>
+ )}
+ </div>
+ </PlanGate>
+ );
 };
 
 export default AnalyticsPage;

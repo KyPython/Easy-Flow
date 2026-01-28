@@ -1,0 +1,32 @@
+name: Documentation Sync Check
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - 'docs/**'
+      - '**.js'
+      - '**.ts'
+      - '**.sh'
+      - '**.py'
+  push:
+    branches: [main, dev]
+    paths:
+      - '**.md'
+      - 'docs/**'
+      - '**.js'
+      - '**.ts'
+      - '**.sh'
+      - '**.py'
+  workflow_dispatch:
+
+jobs:
+  docs-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate documentation sync
+        run: bash scripts/validate-docs-sync.sh

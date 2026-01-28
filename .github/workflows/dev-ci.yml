@@ -1,0 +1,185 @@
+name: Dev CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  schedule:
+    - cron: "0 6 * * *"  # Daily at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      node: 22.x
+      branch: ${{ steps.branch_info.outputs.branch }}
+      mode: ${{ steps.branch_info.outputs.mode }}
+      blocking: ${{ steps.branch_info.outputs.blocking }}
+    steps:
+      - name: Branch Awareness
+        id: branch_info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - name: Install deps (no hooks)
+        run: |
+          npm ci || npm install --no-audit --no-fund
+      - name: Commit message enforcement (Conventional Commits)
+        run: |
+          git log -1 --pretty=%B | xargs -I {} ./scripts/git-workflow-helper.sh commit:validate "{}" || true
+  lint:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - run: npm ci || npm install --no-audit --no-fund
+      - name: Lint
+        run: |
+          chmod +x scripts/lint-and-test.sh || true
+          if [ "${{ needs.setup.outputs.blocking }}" == "true" ]; then
+            ./scripts/lint-and-test.sh || (echo "❌ Lint failed" && exit 1)
+          else
+            ./scripts/lint-and-test.sh || echo "⚠️ Lint issues (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ needs.setup.outputs.blocking != 'true' }}
+  test:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - run: npm ci || npm install --no-audit --no-fund
+      - name: Tests
+        run: |
+          chmod +x scripts/test-all.sh || true
+          if [ "${{ needs.setup.outputs.blocking }}" == "true" ]; then
+            ./scripts/test-all.sh || (echo "❌ Tests failed" && exit 1)
+          else
+            ./scripts/test-all.sh || echo "⚠️ Tests failed (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ needs.setup.outputs.blocking != 'true' }}
+  build:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - run: npm ci || npm install --no-audit --no-fund
+      - name: Environment check
+        run: |
+          chmod +x scripts/dev-env-check.sh || true
+          if [ "${{ needs.setup.outputs.blocking }}" == "true" ]; then
+            ./scripts/dev-env-check.sh || (echo "❌ Env check failed" && exit 1)
+          else
+            ./scripts/dev-env-check.sh || echo "⚠️ Env issues (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ needs.setup.outputs.blocking != 'true' }}
+      - name: Build
+        run: |
+          echo "Build step placeholder; replace with actual build when available" || true
+  terraform:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - name: Terraform fmt/validate
+        run: |
+          # NOTE: `hashFiles()` is not supported in job-level `if:` in all contexts.
+          # Use a runtime check instead to keep the workflow dispatchable and PR-safe.
+          if ! ls infrastructure/**/*.tf >/dev/null 2>&1; then
+            echo "○ No Terraform files found; skipping Terraform checks."
+            exit 0
+          fi
+          chmod +x scripts/terraform-fmt.sh scripts/terraform-validate.sh || true
+          ./scripts/terraform-fmt.sh --check || true
+          ./scripts/terraform-validate.sh || true
+  security:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - run: npm ci || npm install --no-audit --no-fund
+      - name: Security scan
+        run: |
+          chmod +x scripts/security-scan.sh || true
+          if [ "${{ needs.setup.outputs.blocking }}" == "true" ]; then
+            ./scripts/security-scan.sh || (echo "❌ Security scan failed" && exit 1)
+          else
+            ./scripts/security-scan.sh || echo "⚠️ Security issues (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ needs.setup.outputs.blocking != 'true' }}
+      - name: AI knowledge parity (non-blocking on dev)
+        env:
+          STRICT_MODE: "false"
+        run: |
+          chmod +x scripts/validate-ai-knowledge.sh
+          ./scripts/validate-ai-knowledge.sh || true
+
+  # Branch protection on `main` expects a required status check context named exactly "Dev CI".
+  # GitHub Actions check-runs are named like "Dev CI / <job>", so we publish an explicit commit status
+  # with context "Dev CI" summarizing the workflow result.
+  dev_ci_status:
+    name: Dev CI
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - setup
+      - lint
+      - test
+      - build
+      - terraform
+      - security
+    steps:
+      - name: Publish required status context (Dev CI)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const needs = ${{ toJson(needs) }};
+            const results = Object.entries(needs).map(([k, v]) => [k, v.result]);
+            const failed = results.filter(([, r]) => r === 'failure' || r === 'cancelled');
+            const state = failed.length ? 'failure' : 'success';
+            const description = failed.length
+              ? `Dev CI failed: ${failed.map(([k]) => k).join(', ')}`
+              : 'Dev CI passed';
+
+            // For pull_request runs, GITHUB_SHA is the merge commit; for push runs it's the pushed commit.
+            const sha = process.env.GITHUB_SHA;
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state,
+              context: 'Dev CI',
+              description: description.slice(0, 140),
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });

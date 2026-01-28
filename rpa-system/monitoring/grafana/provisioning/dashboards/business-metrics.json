@@ -137,7 +137,7 @@
       },
       {
         "id": 7,
-        "title": "Visit → Signup Conversion Rate",
+        "title": "Visit -> Signup Conversion Rate",
         "type": "stat",
         "gridPos": {"h": 4, "w": 6, "x": 0, "y": 4},
         "targets": [

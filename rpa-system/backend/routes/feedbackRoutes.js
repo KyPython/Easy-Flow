@@ -2,7 +2,7 @@
 const { logger, getLogger } = require('../utils/logger');
 /*
 Backend API Routes for Feedback Collection & Checklist Downloads
-==============================================================
+---
 
 FUNCTIONALITY:
 - Accepts survey responses from SurveyComponent
@@ -32,12 +32,12 @@ const router = express.Router();
 const isDevelopment = process.env.NODE_ENV === 'development';
 const isTest = process.env.NODE_ENV === 'test';
 const fileSystemLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: isDevelopment || isTest ? 1000 : 20, // Much higher in dev/test
-  message: 'Too many file operations, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: () => isDevelopment || isTest // Skip entirely in dev/test
+ windowMs: 60 * 1000, // 1 minute
+ max: isDevelopment || isTest ? 1000 : 20, // Much higher in dev/test
+ message: 'Too many file operations, please try again later',
+ standardHeaders: true,
+ legacyHeaders: false,
+ skip: () => isDevelopment || isTest // Skip entirely in dev/test
 });
 
 // Feedback storage configuration
@@ -47,12 +47,12 @@ const FEEDBACK_FILE = path.join(FEEDBACK_DIR, 'survey_responses.json');
 
 // Ensure directories exist
 const ensureDirectories = async () => {
-  try {
-    await fs.mkdir(FEEDBACK_DIR, { recursive: true });
-    await fs.mkdir(CHECKLISTS_DIR, { recursive: true });
-  } catch (error) {
-    logger.warn('Directory creation failed:', error.message);
-  }
+ try {
+ await fs.mkdir(FEEDBACK_DIR, { recursive: true });
+ await fs.mkdir(CHECKLISTS_DIR, { recursive: true });
+ } catch (error) {
+ logger.warn('Directory creation failed:', error.message);
+ }
 };
 
 // Initialize directories
@@ -63,55 +63,55 @@ ensureDirectories();
  * Submit user feedback from SurveyComponent
  */
 router.post('/feedback', fileSystemLimiter, async (req, res) => {
-  try {
-    const feedback = {
-      ...req.body,
-      timestamp: new Date().toISOString(),
-      ip_address: req.ip,
-      user_agent: req.get('User-Agent'),
-      id: `feedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    };
+ try {
+ const feedback = {
+ ...req.body,
+ timestamp: new Date().toISOString(),
+ ip_address: req.ip,
+ user_agent: req.get('User-Agent'),
+ id: `feedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+ };
 
-    // Validate required fields
-    if (!feedback.painPoints && !feedback.featurePriorities && !feedback.qualitativeFeedback) {
-      return res.status(400).json({
-        error: 'At least one feedback section is required',
-        code: 'INVALID_FEEDBACK'
-      });
-    }
+ // Validate required fields
+ if (!feedback.painPoints && !feedback.featurePriorities && !feedback.qualitativeFeedback) {
+ return res.status(400).json({
+ error: 'At least one feedback section is required',
+ code: 'INVALID_FEEDBACK'
+ });
+ }
 
-    // Load existing feedback
-    let existingFeedback = [];
-    try {
-      const data = await fs.readFile(FEEDBACK_FILE, 'utf-8');
-      existingFeedback = JSON.parse(data);
-    } catch (error) {
-      // File doesn't exist yet, start with empty array
-      logger.info('Creating new feedback file');
-    }
+ // Load existing feedback
+ let existingFeedback = [];
+ try {
+ const data = await fs.readFile(FEEDBACK_FILE, 'utf-8');
+ existingFeedback = JSON.parse(data);
+ } catch (error) {
+ // File doesn't exist yet, start with empty array
+ logger.info('Creating new feedback file');
+ }
 
-    // Add new feedback
-    existingFeedback.push(feedback);
+ // Add new feedback
+ existingFeedback.push(feedback);
 
-    // Save updated feedback
-    await fs.writeFile(FEEDBACK_FILE, JSON.stringify(existingFeedback, null, 2));
+ // Save updated feedback
+ await fs.writeFile(FEEDBACK_FILE, JSON.stringify(existingFeedback, null, 2));
 
-    // Log successful submission
-    logger.info(`✅ Feedback submitted: ${feedback.id} from ${feedback.user_id || 'anonymous'}`);
+ // Log successful submission
+ logger.info(`✅ Feedback submitted: ${feedback.id} from ${feedback.user_id || 'anonymous'}`);
 
-    res.json({
-      success: true,
-      id: feedback.id,
-      message: 'Feedback submitted successfully'
-    });
+ res.json({
+ success: true,
+ id: feedback.id,
+ message: 'Feedback submitted successfully'
+ });
 
-  } catch (error) {
-    logger.error('Failed to save feedback:', error);
-    res.status(500).json({
-      error: 'Failed to save feedback',
-      code: 'STORAGE_ERROR'
-    });
-  }
+ } catch (error) {
+ logger.error('Failed to save feedback:', error);
+ res.status(500).json({
+ error: 'Failed to save feedback',
+ code: 'STORAGE_ERROR'
+ });
+ }
 });
 
 /**
@@ -119,58 +119,58 @@ router.post('/feedback', fileSystemLimiter, async (req, res) => {
  * Sync offline feedback responses
  */
 router.post('/feedback/offline-sync', fileSystemLimiter, async (req, res) => {
-  try {
-    const { offlineResponses } = req.body;
+ try {
+ const { offlineResponses } = req.body;
 
-    if (!Array.isArray(offlineResponses)) {
-      return res.status(400).json({
-        error: 'offlineResponses must be an array',
-        code: 'INVALID_SYNC_DATA'
-      });
-    }
+ if (!Array.isArray(offlineResponses)) {
+ return res.status(400).json({
+ error: 'offlineResponses must be an array',
+ code: 'INVALID_SYNC_DATA'
+ });
+ }
 
-    // Load existing feedback
-    let existingFeedback = [];
-    try {
-      const data = await fs.readFile(FEEDBACK_FILE, 'utf-8');
-      existingFeedback = JSON.parse(data);
-    } catch (error) {
-      logger.info('Creating new feedback file for sync');
-    }
+ // Load existing feedback
+ let existingFeedback = [];
+ try {
+ const data = await fs.readFile(FEEDBACK_FILE, 'utf-8');
+ existingFeedback = JSON.parse(data);
+ } catch (error) {
+ logger.info('Creating new feedback file for sync');
+ }
 
-    // Process each offline response
-    let syncedCount = 0;
-    for (const response of offlineResponses) {
-      // Add sync metadata
-      const syncedResponse = {
-        ...response,
-        synced_at: new Date().toISOString(),
-        was_offline: true,
-        sync_ip: req.ip
-      };
+ // Process each offline response
+ let syncedCount = 0;
+ for (const response of offlineResponses) {
+ // Add sync metadata
+ const syncedResponse = {
+ ...response,
+ synced_at: new Date().toISOString(),
+ was_offline: true,
+ sync_ip: req.ip
+ };
 
-      existingFeedback.push(syncedResponse);
-      syncedCount++;
-    }
+ existingFeedback.push(syncedResponse);
+ syncedCount++;
+ }
 
-    // Save updated feedback
-    await fs.writeFile(FEEDBACK_FILE, JSON.stringify(existingFeedback, null, 2));
+ // Save updated feedback
+ await fs.writeFile(FEEDBACK_FILE, JSON.stringify(existingFeedback, null, 2));
 
-    logger.info(`✅ Synced ${syncedCount} offline feedback responses`);
+ logger.info(`✅ Synced ${syncedCount} offline feedback responses`);
 
-    res.json({
-      success: true,
-      synced_count: syncedCount,
-      message: `Successfully synced ${syncedCount} offline responses`
-    });
+ res.json({
+ success: true,
+ synced_count: syncedCount,
+ message: `Successfully synced ${syncedCount} offline responses`
+ });
 
-  } catch (error) {
-    logger.error('Failed to sync offline feedback:', error);
-    res.status(500).json({
-      error: 'Failed to sync offline feedback',
-      code: 'SYNC_ERROR'
-    });
-  }
+ } catch (error) {
+ logger.error('Failed to sync offline feedback:', error);
+ res.status(500).json({
+ error: 'Failed to sync offline feedback',
+ code: 'SYNC_ERROR'
+ });
+ }
 });
 
 /**
@@ -178,52 +178,52 @@ router.post('/feedback/offline-sync', fileSystemLimiter, async (req, res) => {
  * List available downloadable checklists
  */
 router.get('/checklists', fileSystemLimiter, async (req, res) => {
-  try {
-    // Check for summary file first
-    const summaryFile = path.join(CHECKLISTS_DIR, 'checklists_summary.json');
+ try {
+ // Check for summary file first
+ const summaryFile = path.join(CHECKLISTS_DIR, 'checklists_summary.json');
 
-    try {
-      const summaryData = await fs.readFile(summaryFile, 'utf-8');
-      const summary = JSON.parse(summaryData);
+ try {
+ const summaryData = await fs.readFile(summaryFile, 'utf-8');
+ const summary = JSON.parse(summaryData);
 
-      // Update download URLs
-      summary.checklists = summary.checklists.map(checklist => ({
-        ...checklist,
-        download_url: `/api/checklists/download/${checklist.filename}`
-      }));
+ // Update download URLs
+ summary.checklists = summary.checklists.map(checklist => ({
+ ...checklist,
+ download_url: `/api/checklists/download/${checklist.filename}`
+ }));
 
-      return res.json(summary);
-    } catch (summaryError) {
-      logger.info('No summary file found, scanning directory...');
-    }
+ return res.json(summary);
+ } catch (summaryError) {
+ logger.info('No summary file found, scanning directory...');
+ }
 
-    // Fallback: scan directory for PDF files
-    const files = await fs.readdir(CHECKLISTS_DIR);
-    const pdfFiles = files.filter(file => file.endsWith('.pdf'));
+ // Fallback: scan directory for PDF files
+ const files = await fs.readdir(CHECKLISTS_DIR);
+ const pdfFiles = files.filter(file => file.endsWith('.pdf'));
 
-    const checklists = pdfFiles.map(filename => {
-      const name = filename.replace('-checklist.pdf', '').replace(/-/g, ' ');
-      return {
-        filename,
-        title: name.charAt(0).toUpperCase() + name.slice(1) + ' Checklist',
-        category: name.split(' ')[0],
-        download_url: `/api/checklists/download/${filename}`
-      };
-    });
+ const checklists = pdfFiles.map(filename => {
+ const name = filename.replace('-checklist.pdf', '').replace(/-/g, ' ');
+ return {
+ filename,
+ title: name.charAt(0).toUpperCase() + name.slice(1) + ' Checklist',
+ category: name.split(' ')[0],
+ download_url: `/api/checklists/download/${filename}`
+ };
+ });
 
-    res.json({
-      total_checklists: checklists.length,
-      checklists,
-      generated_date: new Date().toISOString()
-    });
+ res.json({
+ total_checklists: checklists.length,
+ checklists,
+ generated_date: new Date().toISOString()
+ });
 
-  } catch (error) {
-    logger.error('Failed to list checklists:', error);
-    res.status(500).json({
-      error: 'Failed to load checklists',
-      code: 'CHECKLIST_ERROR'
-    });
-  }
+ } catch (error) {
+ logger.error('Failed to list checklists:', error);
+ res.status(500).json({
+ error: 'Failed to load checklists',
+ code: 'CHECKLIST_ERROR'
+ });
+ }
 });
 
 /**
@@ -231,79 +231,79 @@ router.get('/checklists', fileSystemLimiter, async (req, res) => {
  * Download a specific checklist PDF
  */
 router.get('/checklists/download/:filename', fileSystemLimiter, async (req, res) => {
-  try {
-    const { filename } = req.params;
+ try {
+ const { filename } = req.params;
 
-    // Validate filename (security check)
-    if (!filename || !filename.endsWith('.pdf') || filename.includes('..')) {
-      return res.status(400).json({
-        error: 'Invalid filename',
-        code: 'INVALID_FILENAME'
-      });
-    }
+ // Validate filename (security check)
+ if (!filename || !filename.endsWith('.pdf') || filename.includes('..')) {
+ return res.status(400).json({
+ error: 'Invalid filename',
+ code: 'INVALID_FILENAME'
+ });
+ }
 
-    // ✅ SECURITY: Prevent path traversal attacks
-    // Normalize filename and ensure it doesn't contain path separators
-    const normalizedFilename = path.basename(filename);
-    if (normalizedFilename !== filename || normalizedFilename.includes('..') || normalizedFilename.includes('/') || normalizedFilename.includes('\\')) {
-      logger.warn(`[feedbackRoutes] Path traversal attempt blocked: ${filename}`);
-      return res.status(400).json({
-        error: 'Invalid filename',
-        code: 'INVALID_FILENAME'
-      });
-    }
+ // ✅ SECURITY: Prevent path traversal attacks
+ // Normalize filename and ensure it doesn't contain path separators
+ const normalizedFilename = path.basename(filename);
+ if (normalizedFilename !== filename || normalizedFilename.includes('..') || normalizedFilename.includes('/') || normalizedFilename.includes('\\')) {
+ logger.warn(`[feedbackRoutes] Path traversal attempt blocked: ${filename}`);
+ return res.status(400).json({
+ error: 'Invalid filename',
+ code: 'INVALID_FILENAME'
+ });
+ }
 
-    // Ensure filename ends with .pdf
-    if (!normalizedFilename.endsWith('.pdf')) {
-      logger.warn(`[feedbackRoutes] Invalid file extension: ${normalizedFilename}`);
-      return res.status(400).json({
-        error: 'Only PDF files are allowed',
-        code: 'INVALID_FILE_TYPE'
-      });
-    }
+ // Ensure filename ends with .pdf
+ if (!normalizedFilename.endsWith('.pdf')) {
+ logger.warn(`[feedbackRoutes] Invalid file extension: ${normalizedFilename}`);
+ return res.status(400).json({
+ error: 'Only PDF files are allowed',
+ code: 'INVALID_FILE_TYPE'
+ });
+ }
 
-    const filePath = path.join(CHECKLISTS_DIR, normalizedFilename);
+ const filePath = path.join(CHECKLISTS_DIR, normalizedFilename);
 
-    // ✅ SECURITY: Ensure resolved path is within CHECKLISTS_DIR (prevent directory traversal)
-    const resolvedPath = path.resolve(filePath);
-    const resolvedDir = path.resolve(CHECKLISTS_DIR);
-    if (!resolvedPath.startsWith(resolvedDir)) {
-      logger.warn(`[feedbackRoutes] Path traversal attempt blocked: ${filename} -> ${resolvedPath}`);
-      return res.status(400).json({
-        error: 'Invalid file path',
-        code: 'INVALID_PATH'
-      });
-    }
+ // ✅ SECURITY: Ensure resolved path is within CHECKLISTS_DIR (prevent directory traversal)
+ const resolvedPath = path.resolve(filePath);
+ const resolvedDir = path.resolve(CHECKLISTS_DIR);
+ if (!resolvedPath.startsWith(resolvedDir)) {
+ logger.warn(`[feedbackRoutes] Path traversal attempt blocked: ${filename} -> ${resolvedPath}`);
+ return res.status(400).json({
+ error: 'Invalid file path',
+ code: 'INVALID_PATH'
+ });
+ }
 
-    // Check if file exists
-    try {
-      await fs.access(filePath);
-    } catch (error) {
-      return res.status(404).json({
-        error: 'Checklist not found',
-        code: 'FILE_NOT_FOUND'
-      });
-    }
+ // Check if file exists
+ try {
+ await fs.access(filePath);
+ } catch (error) {
+ return res.status(404).json({
+ error: 'Checklist not found',
+ code: 'FILE_NOT_FOUND'
+ });
+ }
 
-    // Set appropriate headers for PDF download
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${normalizedFilename}"`);
-    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+ // Set appropriate headers for PDF download
+ res.setHeader('Content-Type', 'application/pdf');
+ res.setHeader('Content-Disposition', `attachment; filename="${normalizedFilename}"`);
+ res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 
-    // Stream the file
-    const fileBuffer = await fs.readFile(filePath);
-    res.send(fileBuffer);
+ // Stream the file
+ const fileBuffer = await fs.readFile(filePath);
+ res.send(fileBuffer);
 
-    // Log download
-    logger.info(`📥 Checklist downloaded: ${filename} by ${req.ip}`);
+ // Log download
+ logger.info(`📥 Checklist downloaded: ${filename} by ${req.ip}`);
 
-  } catch (error) {
-    logger.error('Failed to serve checklist:', error);
-    res.status(500).json({
-      error: 'Failed to download checklist',
-      code: 'DOWNLOAD_ERROR'
-    });
-  }
+ } catch (error) {
+ logger.error('Failed to serve checklist:', error);
+ res.status(500).json({
+ error: 'Failed to download checklist',
+ code: 'DOWNLOAD_ERROR'
+ });
+ }
 });
 
 /**
@@ -311,90 +311,90 @@ router.get('/checklists/download/:filename', fileSystemLimiter, async (req, res)
  * Get basic feedback analytics (admin only)
  */
 router.get('/feedback/analytics', fileSystemLimiter, async (req, res) => {
-  try {
-    // Simple admin check (could be enhanced with proper auth)
-    const adminKey = req.header('X-Admin-Key');
-    if (!adminKey || adminKey !== process.env.ADMIN_API_KEY) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        code: 'ADMIN_ONLY'
-      });
-    }
+ try {
+ // Simple admin check (could be enhanced with proper auth)
+ const adminKey = req.header('X-Admin-Key');
+ if (!adminKey || adminKey !== process.env.ADMIN_API_KEY) {
+ return res.status(401).json({
+ error: 'Unauthorized',
+ code: 'ADMIN_ONLY'
+ });
+ }
 
-    // Load feedback data
-    let feedbackData = [];
-    try {
-      const data = await fs.readFile(FEEDBACK_FILE, 'utf-8');
-      feedbackData = JSON.parse(data);
-    } catch (error) {
-      // No feedback yet
-    }
+ // Load feedback data
+ let feedbackData = [];
+ try {
+ const data = await fs.readFile(FEEDBACK_FILE, 'utf-8');
+ feedbackData = JSON.parse(data);
+ } catch (error) {
+ // No feedback yet
+ }
 
-    // Basic analytics
-    const analytics = {
-      total_responses: feedbackData.length,
-      responses_last_24h: feedbackData.filter(f => {
-        const responseDate = new Date(f.timestamp);
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        return responseDate > yesterday;
-      }).length,
-      user_segments: {},
-      avg_pain_ratings: {},
-      avg_feature_ratings: {}
-    };
+ // Basic analytics
+ const analytics = {
+ total_responses: feedbackData.length,
+ responses_last_24h: feedbackData.filter(f => {
+ const responseDate = new Date(f.timestamp);
+ const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+ return responseDate > yesterday;
+ }).length,
+ user_segments: {},
+ avg_pain_ratings: {},
+ avg_feature_ratings: {}
+ };
 
-    // Analyze user segments
-    feedbackData.forEach(feedback => {
-      const role = feedback.metadata?.user_role || 'unknown';
-      const size = feedback.metadata?.company_size || 'unknown';
-      const segment = `${role}_${size}`;
-      analytics.user_segments[segment] = (analytics.user_segments[segment] || 0) + 1;
-    });
+ // Analyze user segments
+ feedbackData.forEach(feedback => {
+ const role = feedback.metadata?.user_role || 'unknown';
+ const size = feedback.metadata?.company_size || 'unknown';
+ const segment = `${role}_${size}`;
+ analytics.user_segments[segment] = (analytics.user_segments[segment] || 0) + 1;
+ });
 
-    // Calculate average ratings
-    const painRatings = {};
-    const featureRatings = {};
+ // Calculate average ratings
+ const painRatings = {};
+ const featureRatings = {};
 
-    feedbackData.forEach(feedback => {
-      // Pain point ratings
-      if (feedback.painPoints) {
-        Object.entries(feedback.painPoints).forEach(([key, value]) => {
-          if (value !== null) {
-            if (!painRatings[key]) painRatings[key] = [];
-            painRatings[key].push(value);
-          }
-        });
-      }
+ feedbackData.forEach(feedback => {
+ // Pain point ratings
+ if (feedback.painPoints) {
+ Object.entries(feedback.painPoints).forEach(([key, value]) => {
+ if (value !== null) {
+ if (!painRatings[key]) painRatings[key] = [];
+ painRatings[key].push(value);
+ }
+ });
+ }
 
-      // Feature priority ratings
-      if (feedback.featurePriorities) {
-        Object.entries(feedback.featurePriorities).forEach(([key, value]) => {
-          if (value !== null) {
-            if (!featureRatings[key]) featureRatings[key] = [];
-            featureRatings[key].push(value);
-          }
-        });
-      }
-    });
+ // Feature priority ratings
+ if (feedback.featurePriorities) {
+ Object.entries(feedback.featurePriorities).forEach(([key, value]) => {
+ if (value !== null) {
+ if (!featureRatings[key]) featureRatings[key] = [];
+ featureRatings[key].push(value);
+ }
+ });
+ }
+ });
 
-    // Calculate averages
-    Object.entries(painRatings).forEach(([key, values]) => {
-      analytics.avg_pain_ratings[key] = values.reduce((a, b) => a + b, 0) / values.length;
-    });
+ // Calculate averages
+ Object.entries(painRatings).forEach(([key, values]) => {
+ analytics.avg_pain_ratings[key] = values.reduce((a, b) => a + b, 0) / values.length;
+ });
 
-    Object.entries(featureRatings).forEach(([key, values]) => {
-      analytics.avg_feature_ratings[key] = values.reduce((a, b) => a + b, 0) / values.length;
-    });
+ Object.entries(featureRatings).forEach(([key, values]) => {
+ analytics.avg_feature_ratings[key] = values.reduce((a, b) => a + b, 0) / values.length;
+ });
 
-    res.json(analytics);
+ res.json(analytics);
 
-  } catch (error) {
-    logger.error('Failed to generate analytics:', error);
-    res.status(500).json({
-      error: 'Failed to generate analytics',
-      code: 'ANALYTICS_ERROR'
-    });
-  }
+ } catch (error) {
+ logger.error('Failed to generate analytics:', error);
+ res.status(500).json({
+ error: 'Failed to generate analytics',
+ code: 'ANALYTICS_ERROR'
+ });
+ }
 });
 
 module.exports = router;

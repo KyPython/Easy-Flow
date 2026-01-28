@@ -47,8 +47,8 @@
     "uuid": "^9.0.1"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "node": "22.x",
+    "npm": ">=9.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.28.3",

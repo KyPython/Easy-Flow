@@ -1,0 +1,47 @@
+name: Notion GitHub Sync
+
+on:
+  schedule:
+    # Sync at 7:30 AM and 3:00 PM EST (UTC-5)
+    # GitHub Actions cron runs in UTC
+    # 7:30 AM EST = 12:30 PM UTC
+    # 3:00 PM EST = 8:00 PM UTC (20:00)
+    - cron: '30 12 * * *'  # 7:30 AM EST (12:30 UTC)
+    - cron: '0 20 * * *'   # 3:00 PM EST (20:00 UTC)
+    # For EDT (UTC-4), use:
+    # - cron: '30 11 * * *'  # 7:30 AM EDT (11:30 UTC)
+    # - cron: '0 19 * * *'   # 3:00 PM EDT (19:00 UTC)
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  sync-github-to-notion:
+    runs-on: ubuntu-latest
+    name: Sync GitHub → Notion
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+      
+      - name: Sync GitHub Issues to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+        run: |
+          python3 scripts/notion-integrations/comprehensive-github-sync.py
+      
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ GitHub → Notion sync completed at $(date)"
+          echo "Repository: ${{ github.repository }}"
+          echo "Workflow run: ${{ github.run_id }}"

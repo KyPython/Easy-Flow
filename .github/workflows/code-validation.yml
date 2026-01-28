@@ -2,9 +2,11 @@ name: Code Validation — SRP, Dynamic, Theme, Logging (Branch-Aware)
 
 on:
   push:
-    branches: [main, dev]
+    branches: ["**"]
   pull_request:
-    branches: [main, dev]
+    branches: ["**"]
+  schedule:
+    - cron: "0 3 * * *"
   workflow_dispatch:
 
 jobs:
@@ -53,6 +55,13 @@ jobs:
           chmod +x scripts/validate-env-aware-messages.sh
           chmod +x scripts/validate-rag-knowledge.sh
           chmod +x scripts/validate-learning-system.sh
+          chmod +x scripts/validate-duplicate-code.sh
+          chmod +x scripts/validate-unused-code.sh
+          chmod +x scripts/validate-duplicate-features.sh
+          chmod +x scripts/validate-duplicate-cicd.sh
+          chmod +x scripts/verify-backup.sh
+          chmod +x scripts/validate-test-coverage.sh
+          chmod +x scripts/validate-ui-backend-parity.sh
 
       - name: Run Single Responsibility Principle (SRP) Validation
         run: |
@@ -124,6 +133,141 @@ jobs:
           fi
         continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
+      - name: Validate Duplicate Code
+        env:
+          STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
+        run: |
+          echo "🔍 Checking for duplicate code blocks..."
+          chmod +x scripts/validate-duplicate-code.sh
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-duplicate-code.sh || (echo "❌ Duplicate code validation failed" && exit 1)
+          else
+            ./scripts/validate-duplicate-code.sh || echo "⚠️ Duplicate code detected (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Validate Unused Code
+        env:
+          STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
+        run: |
+          echo "🔍 Checking for unused code (imports, variables, exports)..."
+          chmod +x scripts/validate-unused-code.sh
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-unused-code.sh || (echo "❌ Unused code validation failed" && exit 1)
+          else
+            ./scripts/validate-unused-code.sh || echo "⚠️ Unused code detected (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Validate Duplicate Features
+        env:
+          STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
+        run: |
+          echo "🔍 Checking for duplicate features (routes, components, utilities)..."
+          chmod +x scripts/validate-duplicate-features.sh
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-duplicate-features.sh || (echo "❌ Duplicate features validation failed" && exit 1)
+          else
+            ./scripts/validate-duplicate-features.sh || echo "⚠️ Duplicate features detected (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Validate Duplicate CI/CD Workflows
+        env:
+          STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
+        run: |
+          echo "🔍 Checking for duplicate CI/CD workflows..."
+          chmod +x scripts/validate-duplicate-cicd.sh
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-duplicate-cicd.sh || (echo "❌ Duplicate CI/CD workflows validation failed" && exit 1)
+          else
+            ./scripts/validate-duplicate-cicd.sh || echo "⚠️ Duplicate CI/CD workflows detected (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Verify Code Backup (GitHub Repository)
+        run: |
+          echo "💾 Verifying code is backed up to GitHub..."
+          chmod +x scripts/verify-backup.sh
+          # Only check GitHub remote and critical files (skip unpushed commits check in CI)
+          if git remote -v | grep -q "github.com"; then
+            echo "✅ GitHub remote configured"
+          else
+            echo "❌ No GitHub remote found - code is not backed up!"
+            exit 1
+          fi
+          
+          # Check critical files exist in git
+          CRITICAL_FILES=(
+            "render.yaml"
+            "docker-compose.yml"
+            ".github/workflows"
+          )
+          
+          MISSING=0
+          for file in "${CRITICAL_FILES[@]}"; do
+            if ! git ls-files --error-unmatch "$file" >/dev/null 2>&1; then
+              echo "❌ Critical file missing from git: $file"
+              MISSING=1
+            fi
+          done
+          
+          if [ $MISSING -eq 0 ]; then
+            echo "✅ All critical files are in git"
+          else
+            echo "❌ Some critical files are missing from git!"
+            exit 1
+          fi
+          
+          # Security: Check .env files are NOT in git
+          if git ls-files | grep -q "\.env$"; then
+            echo "❌ .env files found in git! This is a security risk."
+            exit 1
+          else
+            echo "✅ No .env files in git (secure)"
+          fi
+          
+          echo "✅ Code backup verification passed - code is safe in GitHub"
+
+      - name: Validate Test Coverage
+        env:
+          STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
+        run: |
+          echo "🧪 Checking test coverage for all code..."
+          chmod +x scripts/validate-test-coverage.sh
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-test-coverage.sh || (echo "❌ Test coverage validation failed" && exit 1)
+          else
+            ./scripts/validate-test-coverage.sh || echo "⚠️ Test coverage thresholds not met (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Validate UI/Backend Feature Parity
+        env:
+          STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
+        run: |
+          echo "🔍 Checking UI/Backend feature parity..."
+          chmod +x scripts/validate-ui-backend-parity.sh
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-ui-backend-parity.sh || (echo "❌ UI/Backend feature parity validation failed" && exit 1)
+          else
+            ./scripts/validate-ui-backend-parity.sh || echo "⚠️ UI/Backend feature parity issues found (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Validate Study Guide
+        env:
+          STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
+        run: |
+          echo "📚 Checking that study guide matches codebase..."
+          chmod +x scripts/validate-study-guide.js
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            node scripts/validate-study-guide.js || (echo "❌ Study guide validation failed" && exit 1)
+          else
+            node scripts/validate-study-guide.js || echo "⚠️ Study guide may need updates (non-blocking on dev branch)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
       - name: Validation Summary
         if: always()
         run: |
@@ -145,4 +289,12 @@ jobs:
           echo "- **Environment-Aware Messages**: All user-facing messages use getEnvMessage() for dev/prod differentiation" >> $GITHUB_STEP_SUMMARY
           echo "- **RAG Knowledge**: RAG knowledge base is up-to-date with latest features" >> $GITHUB_STEP_SUMMARY
           echo "- **Learning System**: App learns from every automation and workflow execution" >> $GITHUB_STEP_SUMMARY
+          echo "- **Duplicate Code**: No duplicate code blocks (threshold: 3%)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Unused Code**: No unused imports, variables, or exports" >> $GITHUB_STEP_SUMMARY
+          echo "- **Duplicate Features**: No duplicate routes, components, or utilities" >> $GITHUB_STEP_SUMMARY
+          echo "- **Duplicate CI/CD Workflows**: No duplicate workflow files, job names, or triggers" >> $GITHUB_STEP_SUMMARY
+          echo "- **Code Backup**: All code is backed up to GitHub repository" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Coverage**: All code has adequate test coverage (thresholds: Lines 80%, Functions 70%, Branches 70%, Statements 80%)" >> $GITHUB_STEP_SUMMARY
+          echo "- **UI/Backend Feature Parity**: Backend API endpoints have corresponding UI implementations, frontend calls reference existing endpoints" >> $GITHUB_STEP_SUMMARY
+          echo "- **Study Guide**: docs/guides/COMPREHENSIVE_STUDY_GUIDE.md matches actual codebase implementation" >> $GITHUB_STEP_SUMMARY
 

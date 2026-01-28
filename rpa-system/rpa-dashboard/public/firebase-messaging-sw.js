@@ -26,7 +26,7 @@ try {
 
 // ✅ CRITICAL: Validate config before initializing Firebase
 // This prevents "Missing App configuration value: projectId" errors
-// This also prevents the authentication cascade (401 → FCM 400 → Supabase instability)
+// This also prevents the authentication cascade (401 -> FCM 400 -> Supabase instability)
 const hasProjectId = firebaseConfig && firebaseConfig.projectId && firebaseConfig.projectId.trim();
 const hasApiKey = firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey.trim();
 
@@ -67,7 +67,7 @@ if (!hasProjectId || !hasApiKey) {
     // Create a proper error object that will be caught by unhandledrejection handler
     const fatalError = new Error(errorMessage);
     fatalError.name = 'FirebaseConfigurationError';
-    fatalError.cascadeImpact = '401 auth → FCM 400 → Supabase instability → Polling fallback';
+    fatalError.cascadeImpact = '401 auth -> FCM 400 -> Supabase instability -> Polling fallback';
     throw fatalError; // This will be caught by the unhandledrejection handler below
   }
   

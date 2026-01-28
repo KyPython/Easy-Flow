@@ -17,58 +17,28 @@ const ROOT_DIR = __dirname;
 
 module.exports = {
   apps: [
+    // Backend API Server (Node.js)
     {
       name: 'easyflow-backend',
       script: 'server.js',
       cwd: 'rpa-system/backend',
       watch: ['rpa-system/backend'],
       ignore_watch: ['node_modules', 'logs'],
-      error_file: path.join(ROOT_DIR, 'logs/backend-error.log'),
+      error_file: path.join(ROOT_DIR, 'logs/backend.log'),
       out_file: path.join(ROOT_DIR, 'logs/backend.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       merge_logs: true,
       env: {
-        NODE_ENV: process.env.NODE_ENV || 'development',
         PORT: process.env.PORT || '3030',
-        KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
-        AUTOMATION_URL: process.env.AUTOMATION_URL || 'http://127.0.0.1:' + (process.env.AUTOMATION_PORT || '7070'),
-        KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID || 'easyflow-backend',
-        KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
-        KAFKA_BROKERS: process.env.KAFKA_BROKERS || '127.0.0.1:9092',
+        NODE_ENV: process.env.NODE_ENV || 'development',
         SUPABASE_URL: process.env.SUPABASE_URL,
-        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE,
         SUPABASE_KEY: process.env.SUPABASE_KEY,
-        SESSION_SECRET: process.env.SESSION_SECRET,
-        ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
-        SUPABASE_BUCKET: process.env.SUPABASE_BUCKET,
-        DEV_BYPASS_TOKEN: process.env.DEV_BYPASS_TOKEN,
-        DEV_USER_ID: process.env.DEV_USER_ID,
-        RAG_SERVICE_URL: process.env.RAG_SERVICE_URL || 'http://localhost:3002',
+        SUPABASE_SERVICE_ROLE: process.env.SUPABASE_SERVICE_ROLE,
+        KAFKA_ENABLED: process.env.KAFKA_ENABLED || 'true',
+        KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS || '127.0.0.1:9092',
       },
     },
-    {
-      name: 'easyflow-frontend',
-      script: 'node_modules/.bin/react-scripts',
-      args: 'start',
-      cwd: 'rpa-system/rpa-dashboard',
-      error_file: path.join(ROOT_DIR, 'logs/frontend-error.log'),
-      out_file: path.join(ROOT_DIR, 'logs/frontend.log'),
-      log_date_format: 'YYYY-MM-DD HH:mm:ss',
-      merge_logs: true,
-      env: {
-        PORT: process.env.FRONTEND_PORT || '3000',
-        BROWSER: process.env.BROWSER || 'none',
-        REACT_APP_API_BASE: process.env.REACT_APP_API_BASE,
-        PUBLIC_URL: process.env.PUBLIC_URL,
-        // Load all REACT_APP_ and VITE_ variables from .env.local
-        ...Object.keys(process.env)
-          .filter(key => key.startsWith('REACT_APP_') || key.startsWith('VITE_'))
-          .reduce((acc, key) => {
-            acc[key] = process.env[key];
-            return acc;
-          }, {}),
-      },
-    },
+    // Automation Worker (Python)
     {
       name: 'easyflow-automation',
       script: 'production_automation_service.py',
@@ -90,6 +60,22 @@ module.exports = {
         SUPABASE_KEY: process.env.SUPABASE_KEY,
         ENV: process.env.ENV || process.env.NODE_ENV || 'development',
         NODE_ENV: process.env.NODE_ENV || process.env.ENV || 'development',
+      },
+    },
+    // Frontend (React)
+    {
+      name: 'easyflow-frontend',
+      script: 'npm',
+      args: 'start',
+      cwd: 'rpa-system/rpa-dashboard',
+      error_file: path.join(ROOT_DIR, 'logs/frontend.log'),
+      out_file: path.join(ROOT_DIR, 'logs/frontend.log'),
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      env: {
+        PORT: '3000',
+        BROWSER: 'none',
+        NODE_ENV: process.env.NODE_ENV || 'development',
       },
     },
   ],

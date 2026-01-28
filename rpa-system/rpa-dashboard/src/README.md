@@ -15,35 +15,35 @@ All routes are defined in `App.dashboard.jsx`. See [CODEBASE_NAVIGATION.md](../.
 
 ### Quick Route Reference
 
-- `/` → `LandingPage.jsx`
-- `/auth` → `AuthPage.jsx`
-- `/app` → `DashboardPage.jsx`
-- `/app/tasks` → `TasksPage.jsx`
-- `/app/workflows` → `WorkflowPage.jsx` (in `components/WorkflowBuilder/`)
+- `/` -> `LandingPage.jsx`
+- `/auth` -> `AuthPage.jsx`
+- `/app` -> `DashboardPage.jsx`
+- `/app/tasks` -> `TasksPage.jsx`
+- `/app/workflows` -> `WorkflowPage.jsx` (in `components/WorkflowBuilder/`)
 
 ## 📁 Directory Structure
 
 ```
 src/
-├── pages/              # Route components (one per URL)
-│   ├── LandingPage.jsx
-│   ├── DashboardPage.jsx
-│   └── ...
-├── components/         # Reusable components
-│   ├── Header/         # Navigation header
-│   ├── WorkflowBuilder/ # Workflow UI
-│   └── ...
-├── hooks/              # React hooks
-│   ├── useWorkflow.js
-│   └── ...
-├── utils/              # Utilities
-│   ├── api.js          # API client
-│   ├── logger.js       # Logging
-│   └── ThemeContext.jsx # Theme provider
-└── App.dashboard.jsx   # Main router
++── pages/ # Route components (one per URL)
+| +── LandingPage.jsx
+| +── DashboardPage.jsx
+| +── ...
++── components/ # Reusable components
+| +── Header/ # Navigation header
+| +── WorkflowBuilder/ # Workflow UI
+| +── ...
++── hooks/ # React hooks
+| +── useWorkflow.js
+| +── ...
++── utils/ # Utilities
+| +── api.js # API client
+| +── logger.js # Logging
+| +── ThemeContext.jsx # Theme provider
++── App.dashboard.jsx # Main router
 ```
 
-## 🎨 Theming
+## Theming
 
 All components should use `ThemeContext`:
 
@@ -51,8 +51,8 @@ All components should use `ThemeContext`:
 import { useTheme } from './utils/ThemeContext';
 
 const MyComponent = () => {
-  const { theme } = useTheme();
-  return <div data-theme={theme}>...</div>;
+ const { theme } = useTheme();
+ return <div data-theme={theme}>...</div>;
 };
 ```
 

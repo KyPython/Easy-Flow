@@ -53,14 +53,14 @@ const { createLogger } = require('../middleware/structuredLogging');
 const logger = createLogger('serviceName');
 
 async function doSomething(data) {
-  try {
-    logger.info('Doing something', { data });
-    // Service logic
-    return result;
-  } catch (error) {
-    logger.error('Failed to do something', { error, data });
-    throw error;
-  }
+ try {
+ logger.info('Doing something', { data });
+ // Service logic
+ return result;
+ } catch (error) {
+ logger.error('Failed to do something', { error, data });
+ throw error;
+ }
 }
 
 module.exports = { doSomething };

@@ -34,11 +34,11 @@ Workflow pages are in `components/WorkflowBuilder/WorkflowPage.jsx` (not in this
 
 1. Create `NewPage.jsx` in this directory
 2. Add route to `App.dashboard.jsx`:
-   ```jsx
-   const NewPage = lazy(() => import('./pages/NewPage'));
-   // ...
-   <Route path="/app/new-page" element={<Protected><NewPage /></Protected>} />
-   ```
+ ```jsx
+ const NewPage = lazy(() => import('./pages/NewPage'));
+ // ...
+ <Route path="/app/new-page" element={<Protected><NewPage /></Protected>} />
+ ```
 3. Add navigation link to `components/Header/Header.jsx` if needed
 
 ## File Structure

@@ -5,7 +5,9 @@ on:
     paths:
       - 'infrastructure/**'
       - 'scripts/terraform-*.sh'
-    branches: [main, dev]
+    branches: [main]  # Only validate on main (dev runs on schedule)
+  schedule:
+    - cron: "0 5 * * *" # Daily validation at 5 AM UTC
   pull_request:
     paths:
       - 'infrastructure/**'

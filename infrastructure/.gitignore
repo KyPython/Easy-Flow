@@ -1,1 +1,4 @@
 *.plan
+**/infrastructure/keys/*.json
+**/firebase-service-account.json
+**/firebase-adminsdk-*.json

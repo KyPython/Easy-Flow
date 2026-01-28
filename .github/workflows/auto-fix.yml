@@ -1,14 +1,13 @@
-name: Auto-Fix Code Formatting
+name: Auto-Fix Code Formatting (Branch-Aware)
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]  # Only auto-fix on main (dev runs on schedule)
   pull_request:
-    branches: [main, dev]
-  workflow_dispatch:
+    branches: [main, dev]  # Run on PRs
   schedule:
-    # Run daily at 2 AM UTC to auto-fix any accumulated issues
-    - cron: '0 2 * * *'
+    - cron: "0 1 * * *" # Daily at 1 AM UTC (before other checks)
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,6 +16,9 @@ permissions:
 jobs:
   auto-fix:
     runs-on: ubuntu-latest
+    env:
+      CI: true
+      NODE_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,6 +36,22 @@ jobs:
             rpa-system/package-lock.json
             rpa-system/rpa-dashboard/package-lock.json
             rpa-system/backend/package-lock.json
+
+      - name: Determine branch and validation mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+          echo "🔍 Branch: ${{ steps.branch-info.outputs.branch }}"
+          echo "🔍 Mode: ${{ steps.branch-info.outputs.mode }}"
+          echo "🔍 Blocking: ${{ steps.branch-info.outputs.blocking }}"
 
       - name: Configure Git
         run: |
@@ -138,7 +156,7 @@ jobs:
           fi
 
       - name: Comment on PR
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -148,4 +166,3 @@ jobs:
               repo: context.repo.repo,
               body: '✅ **Auto-fix applied!**\n\nI\'ve automatically fixed formatting issues:\n- ESLint auto-fixes\n- Terraform formatting\n- Shell script formatting\n\nThe changes have been committed to this PR.'
             })
-

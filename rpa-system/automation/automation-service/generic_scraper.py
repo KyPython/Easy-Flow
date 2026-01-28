@@ -29,22 +29,24 @@ try:
     from opentelemetry import trace
     from opentelemetry.trace import Status, StatusCode, SpanKind
     OTEL_AVAILABLE = True
-    
+
     # ✅ INSTRUCTION 3: Get tracer for browser automation operations
     tracer = trace.get_tracer('browser.automation')
 except ImportError:
     OTEL_AVAILABLE = False
     tracer = None
-    logging.warning("⚠️ OpenTelemetry not available - browser automation spans disabled")
+    logging.warning(
+        "⚠️ OpenTelemetry not available - browser automation spans disabled")
 
 logger = logging.getLogger(__name__)
+
 
 def create_webdriver():
     """✅ INSTRUCTION 3: Create a headless Chrome WebDriver instance with span instrumentation."""
     if not OTEL_AVAILABLE or tracer is None:
         # Fallback without instrumentation
         return _create_webdriver_impl()
-    
+
     # ✅ INSTRUCTION 3: Create span for WebDriver initialization
     with tracer.start_as_current_span(
         "browser.action.initialize_driver",
@@ -57,16 +59,17 @@ def create_webdriver():
     ) as span:
         try:
             driver = _create_webdriver_impl()
-            
+
             span.set_status(Status(StatusCode.OK))
             span.set_attribute('browser.initialized', driver is not None)
-            
+
             return driver
         except Exception as e:
             span.record_exception(e)
             span.set_status(Status(StatusCode.ERROR, str(e)))
             span.set_attribute('error', True)
             raise
+
 
 def _create_webdriver_impl():
     """Internal implementation of WebDriver creation."""
@@ -76,7 +79,7 @@ def _create_webdriver_impl():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
-    
+
     try:
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
@@ -84,6 +87,7 @@ def _create_webdriver_impl():
     except Exception as e:
         logger.error(f"Failed to create WebDriver: {e}")
         return None
+
 
 def scrape_web_page(url, task_data=None):
     """
@@ -93,34 +97,35 @@ def scrape_web_page(url, task_data=None):
     """
     if task_data is None:
         task_data = {}
-    
+
     # Handle API/JSON endpoints
     if task_data.get('extract_json') or task_data.get('method') == 'GET':
-        try:
-            # ✅ SECURITY: Validate URL to prevent SSRF attacks
-            from urllib.parse import urlparse
-            parsed_url = urlparse(url)
-            if parsed_url.scheme not in ('http', 'https'):
+        # ✅ SECURITY: Validate URL to prevent SSRF attacks
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        if parsed_url.scheme not in ('http', 'https'):
+            return {
+                'status': 'error',
+                'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'
+            }
+        # Block private/internal IP addresses to prevent SSRF
+        hostname = parsed_url.hostname
+        if hostname:
+            # Block localhost and private IP ranges
+            blocked_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1']
+            if hostname.lower() in blocked_hosts or hostname.startswith(
+                    '192.168.') or hostname.startswith('10.') or hostname.startswith('172.'):
                 return {
                     'status': 'error',
-                    'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'
+                    'error': 'Access to private/internal IP addresses is not allowed for security reasons.'
                 }
-            # Block private/internal IP addresses to prevent SSRF
-            hostname = parsed_url.hostname
-            if hostname:
-                # Block localhost and private IP ranges
-                blocked_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1']
-                if hostname.lower() in blocked_hosts or hostname.startswith('192.168.') or hostname.startswith('10.') or hostname.startswith('172.'):
-                    return {
-                        'status': 'error',
-                        'error': 'Access to private/internal IP addresses is not allowed for security reasons.'
-                    }
-            
-            import requests
+
+        import requests
+        try:
             response = requests.get(url, timeout=10)
             if response.headers.get('content-type', '').startswith('application/json'):
                 data = response.json()
-                
+
                 # Apply filters if specified
                 if task_data.get('filters'):
                     filters = task_data['filters']
@@ -128,10 +133,11 @@ def scrape_web_page(url, task_data=None):
                         data = data[:filters['limit']]
                     if filters.get('fields') and isinstance(data, (list, dict)):
                         if isinstance(data, list) and data:
-                            data = [{k: item.get(k) for k in filters['fields']} for item in data if isinstance(item, dict)]
+                            data = [{k: item.get(k) for k in filters['fields']}
+                                    for item in data if isinstance(item, dict)]
                         elif isinstance(data, dict):
                             data = {k: data.get(k) for k in filters['fields']}
-                
+
                 return {
                     'status': 'success',
                     'data': data,
@@ -141,18 +147,19 @@ def scrape_web_page(url, task_data=None):
                     'response_code': response.status_code
                 }
         except Exception as e:
-            logger.warning(f"JSON extraction failed, falling back to HTML scraping: {e}")
-    
+            logger.warning(
+                f"JSON extraction failed, falling back to HTML scraping: {e}")
+
     # Continue with regular HTML scraping
     driver = create_webdriver()
     if not driver:
         return {"error": "Failed to create WebDriver"}
-    
+
     # ✅ INSTRUCTION 3: Wrap main scraping sequence with span
     if not OTEL_AVAILABLE or tracer is None:
         # Fallback without instrumentation
         return _scrape_web_page_impl(driver, url, task_data)
-    
+
     with tracer.start_as_current_span(
         "browser.action.scrape_page",
         kind=SpanKind.INTERNAL,
@@ -164,12 +171,12 @@ def scrape_web_page(url, task_data=None):
     ) as span:
         try:
             result = _scrape_web_page_impl(driver, url, task_data)
-            
+
             span.set_status(Status(StatusCode.OK))
             span.set_attribute('scraping.status', result.get('status', 'unknown'))
             span.set_attribute('scraping.tables_found', len(result.get('tables', [])))
             span.set_attribute('scraping.links_found', len(result.get('links', [])))
-            
+
             return result
         except Exception as e:
             span.record_exception(e)
@@ -183,7 +190,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
     """Internal implementation of web page scraping."""
     try:
         logger.info(f"Scraping web page: {url}")
-        
+
         # ✅ INSTRUCTION 3: Create span for page load
         if OTEL_AVAILABLE and tracer is not None:
             with tracer.start_as_current_span(
@@ -204,7 +211,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
-        
+
         # ✅ INSTRUCTION 3: Create span for HTML parsing
         if OTEL_AVAILABLE and tracer is not None:
             with tracer.start_as_current_span(
@@ -222,7 +229,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
             "title": soup.title.get_text() if soup.title else "No title found",
             "timestamp": datetime.now().isoformat()
         }
-        
+
         # ✅ INSTRUCTION 3: Create span for basic data extraction
         if OTEL_AVAILABLE and tracer is not None:
             with tracer.start_as_current_span(
@@ -232,7 +239,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
                 # Extract meta description
                 meta_description_tag = soup.find("meta", attrs={"name": "description"})
                 scraped_data["description"] = meta_description_tag["content"].strip() if meta_description_tag and meta_description_tag.get("content") else "No meta description found"
-                
+
                 # Extract headings (h1, h2, h3)
                 headings = [h.get_text().strip() for h in soup.find_all(['h1', 'h2', 'h3']) if h.get_text().strip()]
                 scraped_data["headings"] = headings
@@ -241,7 +248,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
                 paragraphs = [p.get_text().strip() for p in soup.find_all('p') if p.get_text().strip()]
                 scraped_data["paragraphs"] = paragraphs
                 scraped_data["raw_body_text"] = driver.find_element(By.TAG_NAME, "body").text
-                
+
                 extract_span.set_status(Status(StatusCode.OK))
                 extract_span.set_attribute('extraction.headings_found', len(headings))
                 extract_span.set_attribute('extraction.paragraphs_found', len(paragraphs))
@@ -253,7 +260,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
             paragraphs = [p.get_text().strip() for p in soup.find_all('p') if p.get_text().strip()]
             scraped_data["paragraphs"] = paragraphs
             scraped_data["raw_body_text"] = driver.find_element(By.TAG_NAME, "body").text
-        
+
         # ✅ INSTRUCTION 3: Create span for structured data extraction (tables, lists, links)
         if OTEL_AVAILABLE and tracer is not None:
             with tracer.start_as_current_span(
@@ -278,7 +285,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
                             'total_columns': len(table_data[0]) if table_data else 0
                         })
                 scraped_data["tables"] = tables
-                
+
                 # Extract lists (ul, ol)
                 lists = []
                 for list_elem in soup.find_all(['ul', 'ol']):
@@ -290,7 +297,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
                             'item_count': len(list_items)
                         })
                 scraped_data["lists"] = lists
-                
+
                 # Extract links
                 links = []
                 for link in soup.find_all('a', href=True):
@@ -302,7 +309,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
                             'is_external': link['href'].startswith('http') and not any(domain in link['href'] for domain in [url])
                         })
                 scraped_data["links"] = links[:50]  # Limit to first 50 links
-                
+
                 struct_span.set_status(Status(StatusCode.OK))
                 struct_span.set_attribute('extraction.tables_found', len(tables))
                 struct_span.set_attribute('extraction.lists_found', len(lists))
@@ -326,7 +333,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
                         'total_columns': len(table_data[0]) if table_data else 0
                     })
             scraped_data["tables"] = tables
-            
+
             lists = []
             for list_elem in soup.find_all(['ul', 'ol']):
                 list_items = [li.get_text().strip() for li in list_elem.find_all('li')]
@@ -337,7 +344,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
                         'item_count': len(list_items)
                     })
             scraped_data["lists"] = lists
-            
+
             links = []
             for link in soup.find_all('a', href=True):
                 link_text = link.get_text().strip()
@@ -348,7 +355,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
                         'is_external': link['href'].startswith('http') and not any(domain in link['href'] for domain in [url])
                     })
             scraped_data["links"] = links[:50]
-        
+
         # Extract images with alt text
         images = []
         for img in soup.find_all('img'):
@@ -359,11 +366,11 @@ def _scrape_web_page_impl(driver, url, task_data=None):
                     'title': img.get('title', '')
                 })
         scraped_data["images"] = images[:20]  # Limit to first 20 images
-        
+
         # Extract prices (common patterns)
         price_patterns = [
             r'\$[\d,]+\.?\d*',
-            r'€[\d,]+\.?\d*', 
+            r'€[\d,]+\.?\d*',
             r'£[\d,]+\.?\d*',
             r'[\d,]+\.?\d*\s*USD',
             r'[\d,]+\.?\d*\s*EUR'
@@ -394,7 +401,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
             
             if extracted_elements:
                 scraped_data["targeted_elements"] = extracted_elements
-        
+
         # Legacy single selector support
         selector = task_data.get('selector')
         if selector:
@@ -406,7 +413,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
             except Exception as e:
                 logger.warning(f"Could not find element with selector '{selector}': {e}")
                 scraped_data["targeted_element_text"] = f"Element with selector '{selector}' not found"
-        
+
         # Handle table data extraction
         if task_data.get('extract_table_data'):
             table_config = task_data.get('table_config', {})
@@ -425,9 +432,9 @@ def _scrape_web_page_impl(driver, url, task_data=None):
 
         scraped_data["status"] = "success"
         scraped_data["scraped_at"] = datetime.now().isoformat()
-        
+
         return scraped_data
-        
+
     except Exception as e:
         logger.error(f"Error scraping web page: {e}")
         return {
@@ -442,15 +449,15 @@ def _scrape_web_page_impl(driver, url, task_data=None):
 
 def generate_files(scraped_data):
     """
-    Generate downloadable files (CSV, JSON, TXT) from scraped data.
-    """
+ Generate downloadable files (CSV, JSON, TXT) from scraped data.
+ """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     files_created = []
-    
+
     try:
         output_dir = "/tmp/automation_output"
         os.makedirs(output_dir, exist_ok=True)
-        
+
         # Generate CSV file
         csv_filename = f"web_scrape_report_{timestamp}.csv"
         csv_path = os.path.join(output_dir, csv_filename)
@@ -464,7 +471,7 @@ def generate_files(scraped_data):
             writer.writerow(['Status', scraped_data.get('status', 'N/A')])
             if scraped_data.get('targeted_element_text'):
                 writer.writerow(['Targeted Element', scraped_data['targeted_element_text']])
-            writer.writerow([]) # blank line for readability
+            writer.writerow([])  # blank line for readability
             writer.writerow(['Headings', ''])
             for heading in scraped_data.get('headings', []):
                 writer.writerow(['', heading])
@@ -477,7 +484,7 @@ def generate_files(scraped_data):
             'filename': csv_filename, 'path': csv_path, 'type': 'text/csv',
             'size': os.path.getsize(csv_path)
         })
-        
+
         # Generate JSON file
         json_filename = f"web_scrape_data_{timestamp}.json"
         json_path = os.path.join(output_dir, json_filename)
@@ -487,7 +494,7 @@ def generate_files(scraped_data):
             'filename': json_filename, 'path': json_path, 'type': 'application/json',
             'size': os.path.getsize(json_path)
         })
-        
+
         # Generate text report
         txt_filename = f"web_scrape_text_{timestamp}.txt"
         txt_path = os.path.join(output_dir, txt_filename)
@@ -503,48 +510,48 @@ def generate_files(scraped_data):
             txtfile.write("\n\n".join(scraped_data.get('headings', [])))
             txtfile.write(f"\n\nExtracted Paragraphs:\n")
             txtfile.write("\n\n".join(scraped_data.get('paragraphs', [])))
-            
+
         files_created.append({
             'filename': txt_filename, 'path': txt_path, 'type': 'text/plain',
             'size': os.path.getsize(txt_path)
         })
-        
+
         logger.info(f"Generated {len(files_created)} files for scraped data")
         return files_created
-        
+
     except Exception as e:
         logger.error(f"Error generating files: {e}")
         return []
 
 def submit_form(url, form_data, selectors, wait_after_submit=3):
     """
-    Submit a form with provided data using Selenium automation.
-    
-    Args:
-        url (str): URL of the page with the form
-        form_data (dict): Data to fill in the form fields
-        selectors (dict): CSS selectors for form fields and submit button
-        wait_after_submit (int): Seconds to wait after form submission
-    
-    Returns:
-        dict: Result of form submission including success status and response data
-    """
+ Submit a form with provided data using Selenium automation.
+ 
+ Args:
+     url (str): URL of the page with the form
+ form_data (dict): Data to fill in the form fields
+ selectors (dict): CSS selectors for form fields and submit button
+ wait_after_submit (int): Seconds to wait after form submission
+ 
+ Returns:
+     dict: Result of form submission including success status and response data
+ """
     driver = create_webdriver()
     if not driver:
         return {"error": "Failed to create WebDriver", "status": "failed"}
-    
+
     try:
         logger.info(f"Submitting form at: {url}")
         driver.get(url)
-        
+
         # Wait for the page to load
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.TAG_NAME, "body"))
         )
-        
+
         # Wait a bit more for dynamic content
         time.sleep(2)
-        
+
         # Fill form fields
         filled_fields = []
         for field_name, field_value in form_data.items():
@@ -554,7 +561,7 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
                     element = WebDriverWait(driver, 10).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, selector))
                     )
-                    
+
                     # Handle different input types
                     if element.tag_name.lower() == 'select':
                         # Handle dropdown/select elements
@@ -564,7 +571,7 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
                         except:
                             select.select_by_value(str(field_value))
                         filled_fields.append(f"{field_name}: {field_value} (select)")
-                        
+
                     elif element.get_attribute('type') == 'checkbox':
                         # Handle checkboxes
                         if field_value and not element.is_selected():
@@ -572,32 +579,32 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
                         elif not field_value and element.is_selected():
                             element.click()
                         filled_fields.append(f"{field_name}: {field_value} (checkbox)")
-                        
+
                     elif element.get_attribute('type') == 'radio':
                         # Handle radio buttons
                         if field_value:
                             element.click()
                         filled_fields.append(f"{field_name}: {field_value} (radio)")
-                        
+
                     elif element.get_attribute('type') == 'file':
                         # Handle file uploads
                         if field_value and os.path.exists(str(field_value)):
                             element.send_keys(str(field_value))
-                            filled_fields.append(f"{field_name}: {field_value} (file)")
-                        
+                        filled_fields.append(f"{field_name}: {field_value} (file)")
+
                     else:
                         # Handle text inputs, textareas, etc.
                         element.clear()
                         element.send_keys(str(field_value))
                         filled_fields.append(f"{field_name}: {field_value} (text)")
-                        
+
                 except Exception as e:
                     logger.warning(f"Could not fill field '{field_name}' with selector '{selector}': {e}")
-                    
+
         # Submit the form
         submit_success = False
         submit_method = "unknown"
-        
+
         if 'submit' in selectors:
             try:
                 # Use provided submit button selector
@@ -609,7 +616,7 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
                 submit_method = "button_click"
             except Exception as e:
                 logger.warning(f"Could not click submit button: {e}")
-        
+
         if not submit_success:
             try:
                 # Try to find and click any submit button
@@ -626,19 +633,19 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
                     submit_method = "enter_key"
                 except Exception as e:
                     logger.error(f"Could not submit form: {e}")
-        
+
         # Wait after submission to let the page process
         time.sleep(wait_after_submit)
-        
+
         # Get the result page content
         result_soup = BeautifulSoup(driver.page_source, 'html.parser')
         current_url = driver.current_url
         page_title = result_soup.title.get_text() if result_soup.title else "No title"
-        
+
         # Look for success/error indicators
         success_indicators = result_soup.find_all(text=re.compile(r'success|submitted|thank you|confirmation', re.IGNORECASE))
         error_indicators = result_soup.find_all(text=re.compile(r'error|failed|invalid|required', re.IGNORECASE))
-        
+
         result_data = {
             "url": url,
             "final_url": current_url,
@@ -649,16 +656,16 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
             "submit_success": submit_success,
             "wait_after_submit": wait_after_submit,
             "success_indicators": success_indicators[:5],  # Limit to first 5
-            "error_indicators": error_indicators[:5],      # Limit to first 5
+            "error_indicators": error_indicators[:5],  # Limit to first 5
             "status": "success" if submit_success else "failed"
         }
-        
+
         # Extract any form result messages
         message_selectors = [
-            ".message", ".alert", ".notification", ".success", ".error", 
+            ".message", ".alert", ".notification", ".success", ".error",
             "#message", "#alert", "#notification", "[role='alert']"
         ]
-        
+
         messages = []
         for selector in message_selectors:
             try:
@@ -669,11 +676,11 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
                         messages.append(text)
             except:
                 continue
-                
+
         result_data["result_messages"] = messages
-        
+
         return result_data
-        
+
     except Exception as e:
         logger.error(f"Error submitting form: {e}")
         return {

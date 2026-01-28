@@ -7,49 +7,49 @@ const taskController = new TaskController();
 
 // Validation rules
 const taskValidationRules = [
-  body('title')
-    .trim()
-    .notEmpty()
-    .withMessage('Title is required')
-    .isLength({ min: 1, max: 255 })
-    .withMessage('Title must be between 1 and 255 characters'),
-  body('description')
-    .optional()
-    .isLength({ max: 1000 })
-    .withMessage('Description must be less than 1000 characters'),
-  body('status')
-    .optional()
-    .isIn(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'])
-    .withMessage('Invalid status value'),
-  body('dueDate')
-    .optional()
-    .isISO8601()
-    .withMessage('dueDate must be a valid ISO 8601 date'),
-  body('hasMedia')
-    .optional()
-    .isBoolean()
-    .withMessage('hasMedia must be a boolean'),
-  body('altText')
-    .optional()
-    .custom((value, { req }) => {
-      // Accessibility constraint: altText is required when hasMedia is true
-      if (req.body.hasMedia === true && (!value || value.trim() === '')) {
-        throw new Error('altText is required when hasMedia is true');
-      }
-      return true;
-    })
-    .isLength({ max: 500 })
-    .withMessage('altText must be less than 500 characters'),
-  body('labels')
-    .optional()
-    .isArray()
-    .withMessage('labels must be an array')
+ body('title')
+ .trim()
+ .notEmpty()
+ .withMessage('Title is required')
+ .isLength({ min: 1, max: 255 })
+ .withMessage('Title must be between 1 and 255 characters'),
+ body('description')
+ .optional()
+ .isLength({ max: 1000 })
+ .withMessage('Description must be less than 1000 characters'),
+ body('status')
+ .optional()
+ .isIn(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'])
+ .withMessage('Invalid status value'),
+ body('dueDate')
+ .optional()
+ .isISO8601()
+ .withMessage('dueDate must be a valid ISO 8601 date'),
+ body('hasMedia')
+ .optional()
+ .isBoolean()
+ .withMessage('hasMedia must be a boolean'),
+ body('altText')
+ .optional()
+ .custom((value, { req }) => {
+ // Accessibility constraint: altText is required when hasMedia is true
+ if (req.body.hasMedia === true && (!value || value.trim() === '')) {
+ throw new Error('altText is required when hasMedia is true');
+ }
+ return true;
+ })
+ .isLength({ max: 500 })
+ .withMessage('altText must be less than 500 characters'),
+ body('labels')
+ .optional()
+ .isArray()
+ .withMessage('labels must be an array')
 ];
 
 const idValidationRule = [
-  param('id')
-    .isUUID()
-    .withMessage('Invalid task ID format')
+ param('id')
+ .isUUID()
+ .withMessage('Invalid task ID format')
 ];
 
 // Routes

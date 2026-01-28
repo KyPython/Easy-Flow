@@ -1,0 +1,83 @@
+name: Validate Study Guide (Branch-Aware)
+
+on:
+  push:
+    branches: [main]  # Only validate on main (dev runs on schedule)
+    paths:
+      - 'docs/guides/COMPREHENSIVE_STUDY_GUIDE.md'
+      - 'rpa-system/**'
+      - 'scripts/validate-study-guide.js'
+  pull_request:
+    branches: [main, dev]  # Run on PRs
+  schedule:
+    - cron: "0 6 * * *" # Daily validation at 6 AM UTC
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Determine branch and validation mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+          echo "🔍 Branch: ${{ steps.branch-info.outputs.branch }}"
+          echo "🔍 Mode: ${{ steps.branch-info.outputs.mode }}"
+          echo "🔍 Blocking: ${{ steps.branch-info.outputs.blocking }}"
+
+      - name: Validate Study Guide
+        id: validate
+        env:
+          STRICT_MODE: ${{ steps.branch-info.outputs.blocking == 'true' && 'true' || 'false' }}
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+        run: |
+          chmod +x scripts/validate-study-guide.js
+          node scripts/validate-study-guide.js
+          exit_code=$?
+          if [ $exit_code -ne 0 ]; then
+            echo "validation_failed=true" >> $GITHUB_OUTPUT
+            if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+              exit 1
+            else
+              echo "⚠️ Study guide validation failed (non-blocking on dev branch)"
+              exit 0
+            fi
+          else
+            echo "validation_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on PR (if validation failed)
+        if: github.event_name == 'pull_request' && steps.validate.outputs.validation_failed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **Study Guide Validation Failed**\n\nThe study guide does not match the codebase. Please update `docs/guides/COMPREHENSIVE_STUDY_GUIDE.md` to reflect the current implementation.\n\nRun `node scripts/validate-study-guide.js` locally to see detailed errors.'
+            })
+
+      - name: Fail job if validation failed (strict mode)
+        if: steps.validate.outputs.validation_failed == 'true' && steps.branch-info.outputs.blocking == 'true'
+        run: |
+          echo "❌ Study Guide validation failed. Please update the study guide to match the codebase."
+          exit 1

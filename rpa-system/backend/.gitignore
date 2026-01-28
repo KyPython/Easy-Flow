@@ -5,6 +5,9 @@
 **/.environment*
 *.env*
 *.environment*
+**/infrastructure/keys/*.json
+**/firebase-service-account.json
+**/firebase-adminsdk-*.json
 # allow examples/templates to be tracked
 !.env.example
 !.env.sample

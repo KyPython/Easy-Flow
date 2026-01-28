@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # EasyFlow Development Environment Check
 # Adapted from shell-games toolkit: https://github.com/KyPython/shell-games
 # Verifies that all required development tools are installed for EasyFlow
