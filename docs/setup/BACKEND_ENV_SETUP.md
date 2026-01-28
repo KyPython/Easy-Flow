@@ -92,6 +92,36 @@ Free tier Supabase projects pause after 7 days of inactivity. Symptoms:
 4. Wait 1-2 minutes for DNS to propagate
 5. Restart backend: `pm2 restart easyflow-backend`
 
+**⚠️ BLOCKED BY UNPAID INVOICES?**
+
+If you see: `"This organization has unpaid invoices. Settle outstanding payments before trying to restore project."`
+
+**Option A: Run Supabase Locally (FREE, recommended for dev)**
+```bash
+# Install Supabase CLI (one-time)
+brew install supabase/tap/supabase
+
+# Initialize and start local Supabase
+cd /Users/ky/Easy-Flow
+supabase init   # Only first time
+supabase start  # Starts local Supabase in Docker
+```
+Then update `rpa-system/backend/.env`:
+```bash
+SUPABASE_URL=http://localhost:54321
+SUPABASE_KEY=<anon-key-from-terminal-output>
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key-from-terminal-output>
+```
+
+**Option B: Create New Free Account**
+1. Sign up at https://supabase.com with a DIFFERENT email
+2. Create a new free project
+3. Update `.env` with new project credentials
+4. Run database migrations to set up schema
+
+**Option C: Settle Invoice**
+Go to https://supabase.com/dashboard → Organization Settings → Billing
+
 **How to get Supabase credentials:**
 1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
 2. Select your project
