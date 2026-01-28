@@ -28,13 +28,23 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.x
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
             rpa-system/package-lock.json
             rpa-system/rpa-dashboard/package-lock.json
             rpa-system/backend/package-lock.json
+
+      - name: Install dashboard dependencies
+        if: hashFiles('rpa-system/rpa-dashboard/package.json') != ''
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
 
       - name: Quick syntax check
         run: |

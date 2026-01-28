@@ -123,7 +123,6 @@ export const useWorkflowTemplates = (options = {}) => {
  }
  // If data is still undefined from the safe retry, proceed with base table fallback
  if (!Array.isArray(data)) {
- try {
  let baseQry = client
  .from('workflow_templates')
  .select('*', { count: 'exact' })
@@ -194,10 +193,6 @@ export const useWorkflowTemplates = (options = {}) => {
  } else {
  data = Array.isArray(baseRes.data) ? baseRes.data : [];
  count = typeof baseRes.count === 'number' ? baseRes.count : (Array.isArray(baseRes.data) ? baseRes.data.length : 0);
- }
- } catch (fallbackErr) {
- // Re-throw to be handled by the outer catch, which may decide on mock fallback
- throw fallbackErr;
  }
  }
  } else if (templatesError) {

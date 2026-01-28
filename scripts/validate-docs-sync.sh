@@ -17,8 +17,9 @@ if [ -n "$CODE_FILES_CHANGED" ] && [ -z "$DOC_FILES_CHANGED" ]; then
   exit 1
 fi
 
-# Check for TODOs or outdated references in docs
-OUTDATED=$(grep -rniE 'TODO|FIXME|outdated|update' docs/ README.md || true)
+# Check for TODOs or explicit "outdated" markers in docs.
+# NOTE: Do not match generic words like "update" which appear in normal documentation.
+OUTDATED=$(grep -rniE '\\b(TODO|FIXME|TBD|OUTDATED)\\b' docs/ README.md || true)
 if [ -n "$OUTDATED" ]; then
   echo "❌ Found TODOs or outdated references in documentation:"
   echo "$OUTDATED"

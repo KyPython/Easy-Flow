@@ -22,21 +22,16 @@ if [ "$CURRENT_BRANCH" = "main" ]; then
     echo ""
     exit 1
 elif [ "$CURRENT_BRANCH" = "dev" ]; then
-    echo "💾 Running light pre-push checks for dev branch (work-in-progress)..."
-    echo "ℹ️  Full checks will run when you ship to production (npm run ship)"
-    # Only run quick checks, skip full test suite and security scan
-    ./scripts/dev-env-check.sh >/dev/null 2>&1 || true
-    
-    # Quick Terraform format check (non-dev branches)
-    if [ -d "infrastructure" ] && [ -f "infrastructure/main.tf" ]; then
-        echo "🔍 Quick Terraform format check..."
-        repo_root=$(git rev-parse --show-toplevel)
-        cd "$repo_root/infrastructure" || exit 0
-        ../scripts/terraform-fmt.sh --check >/dev/null 2>&1 || echo "⚠️ Terraform files need formatting (run 'npm run infra:fmt')"
-        cd "$repo_root" || true
+    if [ "${FAST_PUSH:-false}" = "true" ]; then
+        echo "💾 FAST_PUSH=true → skipping full local CI gate for dev."
+        echo "⚠️  CI will run on GitHub; use this only when you intentionally accept slower feedback."
+        exit 0
     fi
-    
-    echo "✅ Dev branch push allowed (full checks skipped for faster workflow)"
+
+    echo "🧪 Running FULL local CI gate for dev (blocks push on failure)..."
+    chmod +x scripts/local-ci-full.sh || true
+    ./scripts/local-ci-full.sh
+    echo "✅ Dev push allowed (local CI gate passed)"
 else
     echo "⚠️  Unknown branch: $CURRENT_BRANCH"
     echo "Running full checks to be safe..."

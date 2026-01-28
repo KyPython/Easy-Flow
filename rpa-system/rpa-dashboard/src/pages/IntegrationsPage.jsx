@@ -511,6 +511,10 @@ const IntegrationsPage = () => {
           <h1 className={styles.title}>Integrations</h1>
           <p className={styles.subtitle}>Connect EasyFlow with your favorite tools</p>
         </header>
+
+        <h2 style={{ fontSize: '18px', margin: '24px 0 12px', fontWeight: 600 }}>
+          Available Integrations
+        </h2>
         
         {error && (
           <div 
@@ -555,7 +559,7 @@ const IntegrationsPage = () => {
                       {integration.icon}
                     </div>
                     <div className={styles.cardInfo}>
-                      <h3 className={styles.cardTitle}>{integration.name}</h3>
+                      <h2 className={styles.cardTitle}>{integration.name}</h2>
                       <p className={styles.cardDescription}>{integration.description}</p>
                     </div>
                   </div>
@@ -648,7 +652,7 @@ const IntegrationsPage = () => {
         )}
 
         <div className={styles.infoSection}>
-          <h3>How Integrations Work</h3>
+          <h2>How Integrations Work</h2>
           <ul>
             <li>Connect your accounts securely via OAuth (no passwords stored)</li>
             <li>Use integrations in workflows to send messages, read data, and collect feedback</li>

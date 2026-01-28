@@ -1,6 +1,6 @@
 # EasyFlow
 
-**RPA Automation Platform - Stop Doing Boring Work & Save on Costs**
+An RPA automation platform focused on sovereign workflows, helping you reduce repetitive work while keeping control of your own data and processes.
 
 ---
 

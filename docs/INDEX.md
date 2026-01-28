@@ -58,6 +58,13 @@ This directory contains all project documentation organized by category.
 ### Use Cases (`docs/use-cases/`)
 - **PORTAL_CSV_AUTOMATION.md** - Portal CSV automation use case (the "robot intern")
 
+### Operations & Maintenance (`docs/operations/`)
+- **SATURDAY_MAINTENANCE_PLAN.md** - 24/7 operations with 4-hour Saturday maintenance window
+  - Self-healing infrastructure (health checks, auto-restart)
+  - Customer support SOPs and SLAs
+  - Monitoring & alerting thresholds
+  - Backup & disaster recovery
+
 ### Philosophy & Strategy (`docs/philosophy/`)
 - **SOFTWARE_ENTROPY_PHILOSOPHY.md** - Software entropy philosophy
 - **SOFTWARE_ENTROPY_INTEGRATION_PLAN.md** - Integration plan for software entropy
@@ -90,11 +97,12 @@ Component-specific READMEs are kept in their respective directories:
 docs/
 ├── INDEX.md (this file)
 ├── setup/          # Setup & configuration guides
-├── architecture/    # System architecture & design
+├── architecture/   # System architecture & design
 ├── development/    # Development workflows & guides
 ├── devops/         # CI/CD & DevOps documentation
 ├── features/       # Feature documentation & guides
 ├── fixes/          # Bug fixes & migration guides
+├── operations/     # Operations & maintenance (SOPs, runbooks)
 └── philosophy/     # Philosophy & strategic planning
 ```
 
@@ -106,4 +114,4 @@ docs/
 
 ---
 
-*Last updated: 2026-01-07*
+*Last updated: 2026-01-28*

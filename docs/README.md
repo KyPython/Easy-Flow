@@ -30,6 +30,7 @@ docs/
 ├── devops/                     # CI/CD & DevOps
 ├── features/                   # Feature documentation
 ├── fixes/                      # Bug fixes & migrations
+├── operations/                 # Operations & maintenance (SOPs, runbooks)
 └── philosophy/                 # Philosophy & strategy
 ```
 
@@ -55,6 +56,9 @@ docs/
 - **Fixes & Migrations** → [`fixes/`](fixes/)
   - Critical fixes, authentication fixes, deployment fixes
 
+- **Operations & Maintenance** → [`operations/`](operations/)
+  - Saturday maintenance plan, SOPs, runbooks, monitoring thresholds
+
 - **Philosophy & Strategy** → [`philosophy/`](philosophy/)
   - Software entropy, decision frameworks, optimization strategies
 
@@ -68,6 +72,7 @@ docs/
 - **Start developing** → [DAILY_DEVELOPER_GUIDE.md](../DAILY_DEVELOPER_GUIDE.md)
 - **Ship a feature** → [FEATURE_SHIPPING_GUIDE.md](development/FEATURE_SHIPPING_GUIDE.md)
 - **Configure CI/CD** → [CI/CD docs](devops/)
+- **Run Saturday maintenance** → [SATURDAY_MAINTENANCE_PLAN.md](operations/SATURDAY_MAINTENANCE_PLAN.md)
 - **Fix a bug** → [Fixes documentation](fixes/)
 
 ## 📝 Component Documentation

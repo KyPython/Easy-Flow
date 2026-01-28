@@ -244,7 +244,7 @@ export async function initSupabase() {
  if (process.env.NODE_ENV === 'development') {
  console.info('[supabase] realtime auth seeded from storage');
  }
- } catch(e) {}
+ } catch(e) { /* ignore */ }
  }
  } catch (e) {
  // ignore JSON parse errors

@@ -47,6 +47,21 @@ fi
 # Track if any checks fail
 FAILED=0
 
+# Step 0: Quick accessibility heading hierarchy check (fast, static)
+echo "${BLUE}Step 0: Heading hierarchy check (h2 before h3)...${NC}"
+if command -v node >/dev/null 2>&1 && [ -f "scripts/validate-heading-hierarchy.js" ]; then
+  if node scripts/validate-heading-hierarchy.js >/dev/null 2>&1; then
+    echo "  ${GREEN}✓ Heading hierarchy passed${NC}"
+  else
+    echo "  ${YELLOW}⚠ Heading hierarchy issues found${NC}"
+    if [ "$BLOCKING" = true ]; then
+      FAILED=$((FAILED + 1))
+    fi
+  fi
+else
+  echo "  ${YELLOW}○ Node or validator not available, skipping${NC}"
+fi
+
 # Allow skipping tests via environment variable (for faster commits)
 SKIP_TESTS="${SKIP_TESTS:-false}"
 

@@ -5,7 +5,7 @@
 ### Scenario Analysis
 
 **Assumptions:**
-- Background workflows: 50% of total
+- Background workflows: 50% of all executions
 - Low power mode savings: 21% cheaper compute cost
 - Average workflow cost: $0.10 per execution (real-time mode)
 
@@ -13,16 +13,16 @@
 
 #### Current State (All Real-Time)
 ```
-Total workflows: 1000/month
+Workflows per month: 1000
 All run in real-time: 1000 × $0.10 = $100/month
 ```
 
 #### With Execution Modes
 ```
-Total workflows: 1000/month
+Workflows per month: 1000
 - Time-sensitive (50%): 500 workflows × $0.10 = $50/month
 - Background (50%): 500 workflows × $0.079 = $39.50/month (21% savings)
-Total cost: $89.50/month
+Combined cost: $89.50/month
 ```
 
 **Savings: $10.50/month (10.5% overall reduction)**
@@ -31,21 +31,21 @@ Total cost: $89.50/month
 
 #### Small User (100 workflows/month)
 ```
-Current: 100 × $0.10 = $10/month
+Current spend: 100 × $0.10 = $10/month
 With modes: (50 × $0.10) + (50 × $0.079) = $8.95/month
 Savings: $1.05/month (10.5%)
 ```
 
 #### Medium User (1,000 workflows/month)
 ```
-Current: 1,000 × $0.10 = $100/month
+Current spend: 1,000 × $0.10 = $100/month
 With modes: (500 × $0.10) + (500 × $0.079) = $89.50/month
 Savings: $10.50/month (10.5%)
 ```
 
 #### Large User (10,000 workflows/month)
 ```
-Current: 10,000 × $0.10 = $1,000/month
+Current spend: 10,000 × $0.10 = $1,000/month
 With modes: (5,000 × $0.10) + (5,000 × $0.079) = $895/month
 Savings: $105/month (10.5%)
 ```
@@ -99,7 +99,7 @@ Annual savings: $1,260/year
 ### Implementation Cost
 - Development time: ~8 hours
 - Testing: ~4 hours
-- Total: ~12 hours
+- Estimated engineering time: ~12 hours
 
 ### Break-Even Analysis
 

@@ -192,7 +192,7 @@ Checkpoints are validated against the JSON schema on creation and resume to ensu
 ### Storage Impact
 - Each checkpoint includes full `state_variables` (may be large)
 - Stored in `step_executions.result.checkpoint` (JSONB)
-- Total storage: ~1-10KB per checkpoint
+- Approximate storage footprint: ~1-10KB per checkpoint
 
 ### Resume Performance
 - Resuming from checkpoint: ~20-100ms (database read + validation)

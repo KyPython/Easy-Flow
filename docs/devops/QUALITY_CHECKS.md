@@ -88,11 +88,16 @@ This project enforces code quality, complexity, and web best practices via autom
 
 ---
 
-**To run all checks locally:**
+**To run all checks locally (most common ones):**
 ```bash
 python scripts/complexity_analysis.py rpa-system/automation
 python scripts/web_best_practices_check.py rpa-system/rpa-dashboard/src
 python scripts/test_web_best_practices_check.py
 ```
+
+**Security Scan (Snyk) behavior:**
+- The `qa-core.yml` workflow attempts to run `scripts/security-scan.sh` with Snyk when `SNYK_TOKEN` is available.
+- If `SNYK_TOKEN` is **not** configured for the current repository/organization (for example, due to plan limits), the workflow step logs a warning and **skips the scan** instead of failing the job.
+- On `main`, Snyk is treated as a blocking check when configured; on `dev` it is permissive.
 
 **For more details, see the documentation above.**

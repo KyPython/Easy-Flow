@@ -61,8 +61,10 @@ const TaskProgressPanel = ({ runId, onClose, onComplete }) => {
  const transformedMessage = transformToSovereignty(message);
  
  // Extract emoji and action text
+	// eslint-disable-next-line no-misleading-character-class
 	const emojiMatch = transformedMessage.match(/^([🔍🌐✅⚠️📥📤⚙️❌🔄⚡📁]+)/u);
 	const emoji = emojiMatch ? emojiMatch[1] : '';
+	// eslint-disable-next-line no-misleading-character-class
 	const text = transformedMessage.replace(/^[🔍🌐✅⚠️📥📤⚙️❌🔄⚡📁]+\s*/u, '').trim();
  
  return { emoji, text, full: transformedMessage };

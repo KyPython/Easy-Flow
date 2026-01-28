@@ -274,6 +274,17 @@
   margin: 0 auto;
 }
 
+/* Ensure secondary CTA buttons inside pricing section meet WCAG contrast on light backgrounds */
+.pricingSection .ctaSecondary {
+  color: var(--color-primary-600);
+  border-color: var(--color-primary-600);
+}
+
+.pricingSection .ctaSecondary:hover {
+  background: var(--color-primary-600);
+  color: var(--on-primary);
+}
+
 .pricingGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

@@ -574,8 +574,8 @@ def download_pdf(pdf_url, task_data):
         if parsed_url.scheme not in ('http', 'https'):
             return {
                 "success": False,
-                "error": f"Invalid URL scheme: {
-                    parsed_url.scheme}. Only http and https are allowed."}
+                "error": f"Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed."
+            }
 
         # Block private IP addresses and localhost (unless in development mode)
         hostname = parsed_url.hostname
@@ -751,10 +751,11 @@ def download_pdf(pdf_url, task_data):
                     # ✅ FIX: Upload to Supabase storage with better error handling
                     # Log which key is being used (masked for security)
                     key_type = "SUPABASE_SERVICE_ROLE" if os.environ.get('SUPABASE_SERVICE_ROLE') else (
-                        "SUPABASE_SERVICE_ROLE_KEY" if os.environ.get('SUPABASE_SERVICE_ROLE_KEY') else "SUPABASE_KEY")
+                        "SUPABASE_SERVICE_ROLE_KEY" if os.environ.get('SUPABASE_SERVICE_ROLE_KEY') else "SUPABASE_KEY"
+                    )
                     logger.info(
-                        f"📤 Uploading to Supabase storage using {key_type} (key present: {
-                            bool(supabase_key)})")
+                        f"📤 Uploading to Supabase storage using {key_type} (key present: {bool(supabase_key)})"
+                    )
 
                     upload_result = supabase.storage.from_('user-files').upload(
                         storage_path, file_content, file_options={

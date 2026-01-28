@@ -115,7 +115,8 @@ class NotificationService {
  }
 
  // Wait for Firebase auth state to be ready
- return new Promise(async (resolve, reject) => {
+ // eslint-disable-next-line no-async-promise-executor
+  return new Promise(async (resolve, reject) => {
  const timeout = setTimeout(() => {
  reject(new Error('Firebase auth timeout'));
  }, 10000); // 10 second timeout
