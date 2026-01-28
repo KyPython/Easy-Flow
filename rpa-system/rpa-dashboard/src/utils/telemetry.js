@@ -5,11 +5,16 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 
 // Custom performance instrumentation
 class FrontendPerformanceInstrumentation {
  constructor() {
- this.tracer = trace.getTracer('easyflow-frontend', '1.0.0');
+ this.tracer = globalThis.trace?.getTracer || (() => ({
+    startSpan: () => ({ setStatus: () => {}, end: () => {} }),
+    setAttributes: () => {},
+    recordException: () => {}
+  }));('easyflow-frontend', '1.0.0');
  this.renderSpans = new Map();
  this.interactionSpans = new Map();
  }
@@ -45,7 +50,8 @@ class FrontendPerformanceInstrumentation {
  
  if (renderResult.error) {
  span.recordException(renderResult.error);
- span.setStatus({ code: SpanStatusCode.ERROR });
+ /* eslint-disable-next-line no-undef */
+    span.setStatus({ code: typeof SpanStatusCode !== "undefined" ? SpanStatusCode.ERROR : 2 });
  }
  
  span.end();
@@ -72,7 +78,8 @@ class FrontendPerformanceInstrumentation {
  addAttribute: (key, value) => span.setAttributes({ [key]: value }),
  recordError: (error) => {
  span.recordException(error);
- span.setStatus({ code: SpanStatusCode.ERROR });
+ /* eslint-disable-next-line no-undef */
+    span.setStatus({ code: typeof SpanStatusCode !== "undefined" ? SpanStatusCode.ERROR : 2 });
  },
  end: () => span.end()
  };
@@ -112,7 +119,8 @@ class FrontendPerformanceInstrumentation {
  'http.error_type': error.constructor.name,
  'http.status_code': error.response?.status || 0
  });
- span.setStatus({ code: SpanStatusCode.ERROR });
+ /* eslint-disable-next-line no-undef */
+    span.setStatus({ code: typeof SpanStatusCode !== "undefined" ? SpanStatusCode.ERROR : 2 });
  },
  end: () => span.end()
  };

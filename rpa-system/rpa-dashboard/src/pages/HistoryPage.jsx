@@ -184,7 +184,8 @@ const HistoryPage = () => {
  environment: process.env.NODE_ENV,
  stack: isDevelopment ? err.stack : undefined // Only include stack in dev
  });
- } else if (isAuthError && isDevelopment) {
+ // eslint-disable-next-line no-dupe-else-if
+  } else if (isAuthError && isDevelopment) {
  // Auth errors in dev: debug level (less noisy)
  logger.debug('Authentication error (expected during session refresh)', {
  user_id: user.id,

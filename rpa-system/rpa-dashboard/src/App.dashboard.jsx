@@ -9,7 +9,7 @@
  * REVERT: Replace lazy() with direct imports and remove Suspense wrappers
  */
 
-import { useEffect, useState, lazy, Suspense } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import PropTypes from 'prop-types';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 // Restore usage tracking and analytics hooks (gated at runtime where necessary)
