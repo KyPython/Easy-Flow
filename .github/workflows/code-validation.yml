@@ -32,9 +32,9 @@ jobs:
       - name: Determine branch and validation mode
         id: branch-info
         run: |
-          # Strict mode only on direct push to main (not PRs targeting main)
-          # PRs are permissive so devs can see issues and fix before merge
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          # Strict mode for main branch and PRs targeting main
+          # Scripts handle scoping to changed files only in PR context
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
             echo "branch=main" >> $GITHUB_OUTPUT
             echo "mode=strict" >> $GITHUB_OUTPUT
             echo "blocking=true" >> $GITHUB_OUTPUT

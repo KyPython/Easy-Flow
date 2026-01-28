@@ -1,6 +1,7 @@
 #!/bin/bash
 # Dynamic Code Validation
 # Ensures code is dynamic and flexible without breaking functionality
+# In PR context: only checks files changed in the PR
 
 set -e
 
@@ -16,6 +17,21 @@ echo "${BLUE}=== Dynamic Code Validation ===${NC}\n"
 
 FAILED=0
 TOTAL_VIOLATIONS=0
+
+# In PR context, only check changed files
+CHANGED_FILES_ONLY=false
+CHANGED_FILES=""
+if [ -n "$GITHUB_EVENT_NAME" ] && [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+  CHANGED_FILES_ONLY=true
+  if [ -n "$GITHUB_BASE_REF" ]; then
+    CHANGED_FILES=$(git diff --name-only "origin/$GITHUB_BASE_REF"...HEAD 2>/dev/null || echo "")
+  fi
+  if [ -n "$CHANGED_FILES" ]; then
+    echo "${CYAN}ℹ️  PR mode: Only checking files changed in this PR${NC}\n"
+  else
+    CHANGED_FILES_ONLY=false
+  fi
+fi
 
 # Directories to check
 CODE_DIRS=(
@@ -100,6 +116,12 @@ for dir in "${CODE_DIRS[@]}"; do
     
     echo "${BLUE}Scanning ${dir}...${NC}"
     while IFS= read -r -d '' file; do
+        # In PR mode, skip files not changed in this PR
+        if [ "$CHANGED_FILES_ONLY" = true ]; then
+            if ! echo "$CHANGED_FILES" | grep -q "^${file}$"; then
+                continue
+            fi
+        fi
         check_file_dynamic "$file" || FAILED=$((FAILED + 1))
     done < <(find "$dir" -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" \) \
         ! -path "*/node_modules/*" \
