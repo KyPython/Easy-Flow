@@ -42,6 +42,10 @@ pnpm-debug.log*
 **/.github_token
 *.github_token
 **/*github_token*
+.notion_token
+**/.notion_token
+*.notion_token
+**/*notion_token*
 *.token
 **/*.token
 
