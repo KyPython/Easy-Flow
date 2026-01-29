@@ -94,8 +94,7 @@ for dir in "${TARGET_DIRS[@]}"; do
         --threshold ${THRESHOLD} \
         --format ${FORMAT} \
         --reporters console \
-        ${IGNORE_FLAG} \
-        --ignore-case" > "$OUTPUT" 2> "$ERROR_OUTPUT"; then
+        ${IGNORE_FLAG}" > "$OUTPUT" 2> "$ERROR_OUTPUT"; then
         
         # Check if duplicates were found
         if grep -q "found" "$OUTPUT" && grep -q "%" "$OUTPUT"; then
