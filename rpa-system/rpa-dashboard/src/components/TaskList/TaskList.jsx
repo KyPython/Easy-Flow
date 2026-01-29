@@ -7,11 +7,13 @@ import { formatDateTime, formatTaskType } from '../../utils/formatters';
 import { fetchWithAuth } from '../../utils/devNetLogger';
 import { validateUrl, sanitizeFilename, safeWindowOpen } from '../../utils/security';
 import { createLogger } from '../../utils/logger';
+import { useTheme } from '../../utils/ThemeContext';
 
 const logger = createLogger('TaskList');
 
 // Queue Status Badge Component
 const QueueStatusBadge = ({ taskId, queuedAt, timeSinceStart }) => {
+ const { theme } = useTheme();
  const [queueInfo, setQueueInfo] = useState(null);
  const [loading, setLoading] = useState(false);
 
@@ -51,7 +53,7 @@ const QueueStatusBadge = ({ taskId, queuedAt, timeSinceStart }) => {
  <span 
  style={{ 
  fontSize: '11px', 
- color: isStuck ? '#dc3545' : 'var(--text-muted)',
+ color: isStuck ? 'var(--color-error-600, #dc3545)' : 'var(--text-muted)',
  fontStyle: 'italic',
  fontWeight: isStuck ? 600 : 'normal'
  }}

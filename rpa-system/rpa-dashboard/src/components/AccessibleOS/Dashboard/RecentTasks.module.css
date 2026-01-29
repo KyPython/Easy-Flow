@@ -57,15 +57,15 @@
 }
 
 .completedIcon {
-  color: #10b981;
+  color: var(--color-success-600, #10b981);
 }
 
 .inProgressIcon {
-  color: #f59e0b;
+  color: var(--color-warning-600, #f59e0b);
 }
 
 .pendingIcon {
-  color: #6b7280;
+  color: var(--color-muted-text, #6b7280);
 }
 
 .taskInfo {

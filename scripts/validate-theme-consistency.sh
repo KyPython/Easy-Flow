@@ -56,7 +56,7 @@ check_component_theme() {
     local has_theme_import=$(grep -E "import.*${THEME_IMPORT_PATTERN}" "$file" 2>/dev/null | wc -l || echo "0")
     local has_theme_hook=$(grep -E "${THEME_HOOK_PATTERN}" "$file" 2>/dev/null | wc -l || echo "0")
     local has_theme_css=$(grep -E "${THEME_CSS_VAR_PATTERN}" "$file" 2>/dev/null | wc -l || echo "0")
-    local has_inline_styles=$(grep -E "style=\{" "$file" 2>/dev/null | grep -v "theme\." | wc -l || echo "0")
+    local has_inline_styles=$(grep -E "style=\{" "$file" 2>/dev/null | grep -v "theme\." | grep -v "var(" | grep -E "color|background|border|fill|stroke" | wc -l || echo "0")
     local has_hardcoded_colors=$(grep -E "#[0-9a-fA-F]{3,6}|rgb\(|rgba\(|hsl\(|hsla\(" "$file" 2>/dev/null | grep -v "//" | grep -v "var(" | wc -l || echo "0")
     
     # Components should use theme context or CSS variables

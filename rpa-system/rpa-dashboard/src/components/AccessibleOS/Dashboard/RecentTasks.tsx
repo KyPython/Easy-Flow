@@ -3,12 +3,14 @@ import { Task } from '../../types';
 import { formatDateTime } from '../../utils/formatters';
 import { Clock, CheckCircle, AlertCircle } from '../../Icons/Icons';
 import styles from './RecentTasks.module.css';
+import { useTheme } from '../../utils/ThemeContext';
 
 interface RecentTasksProps {
  tasks: Task[];
 }
 
 const RecentTasks: React.FC<RecentTasksProps> = ({ tasks }) => {
+ const { theme } = useTheme();
  const getStatusIcon = (status: Task['status']) => {
  switch (status) {
  case 'completed':
@@ -21,17 +23,23 @@ const RecentTasks: React.FC<RecentTasksProps> = ({ tasks }) => {
  };
 
  const getPriorityColor = (priority: Task['priority']) => {
+ // Use theme colors or fallback to CSS variables
+ if (theme?.colors) {
  switch (priority) {
- case 'urgent':
- return '#dc2626';
- case 'high':
- return '#ea580c';
- case 'medium':
- return '#ca8a04';
- case 'low':
- return '#16a34a';
- default:
- return '#6b7280';
+ case 'urgent': return theme.colors.error || '#dc2626';
+ case 'high': return theme.colors.warning || '#ea580c';
+ case 'medium': return theme.colors.medium || '#ca8a04';
+ case 'low': return theme.colors.success || '#16a34a';
+ default: return theme.colors.muted || '#6b7280';
+ }
+ }
+ // Fallback to CSS variables
+ switch (priority) {
+ case 'urgent': return 'var(--color-error-600, #dc2626)';
+ case 'high': return 'var(--color-warning-600, #ea580c)';
+ case 'medium': return 'var(--color-warning-500, #ca8a04)';
+ case 'low': return 'var(--color-success-600, #16a34a)';
+ default: return 'var(--color-muted-text, #6b7280)';
  }
  };
 

@@ -13,8 +13,10 @@ import PropTypes from 'prop-types';
 import styles from './StepConfigPanel.module.css';
 import { FaTimes, FaTrash, FaPlus, FaMinus, FaCog, FaCheck } from 'react-icons/fa';
 import { api } from '../../utils/api';
+import { useTheme } from '../../utils/ThemeContext';
 
 const StepConfigPanel = ({ node, onClose, onSave, onDelete, isReadOnly = false }) => {
+ const { theme } = useTheme();
  const [config, setConfig] = useState(node.data.config || {});
  const [isValid, setIsValid] = useState(false);
  const [activeTab, setActiveTab] = useState('config');

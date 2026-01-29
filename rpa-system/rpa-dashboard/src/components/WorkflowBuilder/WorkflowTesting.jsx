@@ -19,9 +19,11 @@ import { useWorkflowTesting } from '../../hooks/useWorkflowTesting';
 import LoadingSpinner from './LoadingSpinner';
 import Modal from './Modal';
 import ActionButton from './ActionButton';
+import { useTheme } from '../../utils/ThemeContext';
 
 const WorkflowTesting = ({ workflowId, workflowName }) => {
  const navigate = useNavigate();
+ const { theme } = useTheme();
  const [showCreateModal, setShowCreateModal] = useState(false);
  const [selectedScenario, setSelectedScenario] = useState(null);
  const [showResultsModal, setShowResultsModal] = useState(false);

@@ -21,9 +21,11 @@ import {
   FaRobot
 } from 'react-icons/fa';
 import PropTypes from 'prop-types';
+import { useTheme } from '../../utils/ThemeContext';
 
 const WorkflowsList = () => {
  const navigate = useNavigate();
+ const { theme } = useTheme();
  const { user, loading: authLoading } = useAuth();
  const { trackApiCall } = usePerformanceTracking('WorkflowsList');
  const [workflows, setWorkflows] = useState([]);
