@@ -2,8 +2,9 @@
 
 # EasyFlow Pre-Push Hook
 # Runs different checks based on branch:
-# - dev branch: Light checks only (allows saving work)
-# - main branch: Full strict checks (production safety)
+# - main branch: BLOCKED (must go through PR)
+# - dev branch: Full local CI gate (with FAST_PUSH override)
+# - feature branches (fix/*, feat/*, etc.): Light checks, CI will gatekeep
 
 CURRENT_BRANCH=$(git branch --show-current)
 
@@ -11,12 +12,10 @@ if [ "$CURRENT_BRANCH" = "main" ]; then
     echo "❌ ERROR: Direct pushes to 'main' branch are BLOCKED for production safety"
     echo ""
     echo "🔒 Production deployments must go through the proper workflow:"
-    echo "   1. Work on 'dev' branch"
-    echo "   2. Run: npm run ship"
-    echo "   3. The ship script will:"
-    echo "      - Run all tests and validations"
-    echo "      - Merge dev → main"
-    echo "      - Push to main (triggers production deployment)"
+    echo "   1. Work on a feature branch or 'dev' branch"
+    echo "   2. Create a PR to main"
+    echo "   3. CI must pass before merge"
+    echo "   4. Branch protection enforces this"
     echo ""
     echo "💡 This prevents non-production-ready code from reaching users"
     echo ""
@@ -33,8 +32,22 @@ elif [ "$CURRENT_BRANCH" = "dev" ]; then
     ./scripts/local-ci-full.sh
     echo "✅ Dev push allowed (local CI gate passed)"
 else
-    echo "⚠️  Unknown branch: $CURRENT_BRANCH"
-    echo "Running full checks to be safe..."
-    npm run test:all
+    # Feature branches (fix/*, feat/*, etc.) - run light checks, CI will be the gatekeeper
+    echo "📋 Feature branch detected: $CURRENT_BRANCH"
+    echo "🔍 Running light pre-push checks (CI will run full checks)..."
+    
+    # Only check that the code builds - CI will run full tests
+    echo "  → Verifying frontend builds..."
+    if command -v npm >/dev/null 2>&1 && [ -d "rpa-system/rpa-dashboard" ]; then
+        (cd rpa-system/rpa-dashboard && npm run build --silent 2>/dev/null) || {
+            echo "❌ Frontend build failed - please fix before pushing"
+            exit 1
+        }
+        echo "  ✓ Frontend builds successfully"
+    fi
+    
+    echo ""
+    echo "✅ Feature branch push allowed"
+    echo "📌 CI will run full tests on GitHub - check PR status before merging"
 fi
 
