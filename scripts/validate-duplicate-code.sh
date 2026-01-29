@@ -95,7 +95,6 @@ for dir in "${TARGET_DIRS[@]}"; do
         --format ${FORMAT} \
         --reporters console \
         ${IGNORE_FLAG} \
-        --skip-comments \
         --ignore-case" > "$OUTPUT" 2> "$ERROR_OUTPUT"; then
         
         # Check if duplicates were found

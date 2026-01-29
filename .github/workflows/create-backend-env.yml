@@ -17,4 +17,7 @@ jobs:
           echo "REDIS_URL=${{ secrets.REDIS_URL }}" >> rpa-system/backend/.env
           echo "KAFKA_BROKERS=${{ secrets.KAFKA_BROKERS }}" >> rpa-system/backend/.env
           echo "AUTOMATION_URL=${{ secrets.AUTOMATION_URL }}" >> rpa-system/backend/.env
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> rpa-system/backend/.env
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> rpa-system/backend/.env
+          echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> rpa-system/backend/.env
           echo "ALLOW_DRAFT_EXECUTION=true" >> rpa-system/backend/.env
