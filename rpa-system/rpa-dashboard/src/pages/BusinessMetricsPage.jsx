@@ -19,32 +19,13 @@ const BusinessMetricsPage = () => {
  const [error, setError] = useState(null);
  const [lastUpdated, setLastUpdated] = useState(null);
 
- // Owner-only access check
- const OWNER_EMAILS = ['kyjahntsmith@gmail.com', 'kyjahnsmith36@gmail.com'];
- const isOwner = user?.email && OWNER_EMAILS.some(email => 
- user.email.toLowerCase() === email.toLowerCase()
- );
+	// Owner-only access check
+	const OWNER_EMAILS = ['kyjahntsmith@gmail.com', 'kyjahnsmith36@gmail.com'];
+	const isOwner = user?.email && OWNER_EMAILS.some(email => 
+		user.email.toLowerCase() === email.toLowerCase()
+	);
 
- // Show access denied if not owner
- if (!loading && user && !isOwner) {
- return (
- <div className={styles.page} data-theme={theme}>
- <div className={styles.error}>
- <h2>🔒 Access Denied</h2>
- <p>This page is only accessible to the owner.</p>
- </div>
- </div>
- );
- }
-
- useEffect(() => {
- loadMetrics();
- // Auto-refresh every 5 minutes
- const interval = setInterval(loadMetrics, 5 * 60 * 1000);
- return () => clearInterval(interval);
- }, []);
-
- const loadMetrics = async () => {
+	const loadMetrics = async () => {
  try {
  setLoading(true);
  setError(null);
@@ -58,12 +39,31 @@ const BusinessMetricsPage = () => {
  } catch (err) {
  console.error('Failed to load metrics:', err);
  setError(err.message || 'Failed to load metrics');
- } finally {
- setLoading(false);
- }
- };
+	} finally {
+			setLoading(false);
+		}
+	};
 
- const formatNumber = (num) => {
+	useEffect(() => {
+		loadMetrics();
+		// Auto-refresh every 5 minutes
+		const interval = setInterval(loadMetrics, 5 * 60 * 1000);
+		return () => clearInterval(interval);
+	}, []);
+
+	// Show access denied if not owner (after hooks)
+	if (!loading && user && !isOwner) {
+		return (
+			<div className={styles.page} data-theme={theme}>
+				<div className={styles.error}>
+					<h2>🔒 Access Denied</h2>
+					<p>This page is only accessible to the owner.</p>
+				</div>
+			</div>
+		);
+	}
+
+	const formatNumber = (num) => {
  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
  return num?.toLocaleString() || '0';

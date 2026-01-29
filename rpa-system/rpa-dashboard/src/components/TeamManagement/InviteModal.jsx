@@ -266,10 +266,10 @@ const InviteModal = React.memo(({
  </p>
  </div>
  </div>
- </div>
- </div>
- );
-};
+		</div>
+	</div>
+	);
+});
 
 InviteModal.propTypes = {
  isOpen: PropTypes.bool.isRequired,
@@ -281,6 +281,6 @@ InviteModal.propTypes = {
  description: PropTypes.string.isRequired,
  })),
  isLoading: PropTypes.bool,
-});
+};
 
 export default InviteModal;

@@ -284,11 +284,11 @@ const RoleManager = React.memo(({
  />
  ))}
  </div>
- </div>
- )}
- </div>
- );
-};
+		</div>
+		)}
+		</div>
+	);
+});
 
 /**
  * Individual Member Row Component
@@ -460,6 +460,6 @@ MemberRow.propTypes = {
  onRemove: PropTypes.func.isRequired,
  formatLastActive: PropTypes.func.isRequired,
  getRoleInfo: PropTypes.func.isRequired,
-});
+};
 
 export default RoleManager;

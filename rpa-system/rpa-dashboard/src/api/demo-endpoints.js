@@ -15,8 +15,8 @@
  * ✅ INSTRUCTION 3: Helper function to inject trace context into fetch/axios headers
  * This should be called before every API request to propagate frontend trace context
  */
-const getTraceHeaders = () => {
- const headers = {};
+const getTraceHeaders = async () => {
+	const headers = {};
  
  try {
  // Attempt to load OpenTelemetry API dynamically. If not present or not

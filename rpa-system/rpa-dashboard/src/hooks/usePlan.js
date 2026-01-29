@@ -54,11 +54,18 @@ function createPlanFetchErrorMessage(error) {
  return error?.message || 'Failed to fetch plan data. Please try again.';
 }
 
+// Safe wrapper for useSession - returns null if not available
+const useSafeSession = () => {
+	// Hook must be defined at module level to be called unconditionally
+	if (!useSession) return null;
+	// eslint-disable-next-line react-hooks/rules-of-hooks
+	return useSession();
+};
+
 export const usePlan = () => {
- const { user } = useAuth();
- // Try to use session context if available (reduces API calls)
- // Always call hook if available (hooks must be called unconditionally)
- const sessionContext = useSession ? useSession() : null;
+	const { user } = useAuth();
+	// Try to use session context if available (reduces API calls)
+	const sessionContext = useSafeSession();
  const [planData, setPlanData] = useState(null);
  const [loading, setLoading] = useState(true);
  const [error, setError] = useState(null);

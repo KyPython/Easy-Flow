@@ -285,9 +285,9 @@ const TaskProgressPanel = ({ runId, onClose, onComplete }) => {
  }
  }}
  disabled={screenshots.findIndex(s => s.timestamp === currentScreenshot.timestamp) === screenshots.length - 1}
- >
- Next ->
- </button>
+>
+							Next →
+						</button>
  </div>
  )}
  </div>

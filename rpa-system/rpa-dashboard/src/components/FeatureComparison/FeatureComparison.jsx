@@ -121,9 +121,9 @@ const FeatureComparison = ({ compact = false }) => {
  onClick={handleUpgradeClick}
  className={styles.upgradeButton}
  >
- <FiZap />
- Upgrade to Pro - 50% Off ->
- </button>
+<FiZap />
+				Upgrade to Pro - 50% Off →
+			</button>
  <div className={styles.ctaSubtext}>
  🔥 Limited time: First 10 customers only
  </div>
