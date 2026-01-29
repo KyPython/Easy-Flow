@@ -112,8 +112,8 @@
   display: inline-flex;
   align-items: center;
   background: transparent;
-  color: var(--on-primary);
-  border: 2px solid var(--on-primary);
+  color: var(--color-primary-600);
+  border: 2px solid var(--color-primary-600);
   padding: calc(var(--spacing-lg) - 2px) calc(var(--spacing-2xl) - 2px);
   border-radius: var(--radius-full);
   text-decoration: none;
@@ -123,8 +123,8 @@
 }
 
 .ctaSecondary:hover {
-  background: var(--on-primary);
-  color: var(--color-primary-600);
+  background: var(--color-primary-600);
+  color: var(--on-primary);
   transform: translateY(-2px);
 }
 
@@ -272,6 +272,17 @@
   background: var(--bg);
   max-width: var(--container-max-width);
   margin: 0 auto;
+}
+
+/* Ensure secondary CTA buttons inside pricing section meet WCAG contrast on light backgrounds */
+.pricingSection .ctaSecondary {
+  color: var(--color-primary-600);
+  border-color: var(--color-primary-600);
+}
+
+.pricingSection .ctaSecondary:hover {
+  background: var(--color-primary-600);
+  color: var(--on-primary);
 }
 
 .pricingGrid {
@@ -553,8 +564,8 @@
 }
 
 .page[data-theme="dark"] .ctaSecondary {
-  color: var(--text-primary);
-  border-color: rgba(255,255,255,0.12);
+  color: var(--color-primary-400);
+  border-color: var(--color-primary-400);
 }
 
 .page[data-theme="dark"] .featureCard {

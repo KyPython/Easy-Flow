@@ -299,6 +299,165 @@ function getCustomEmail(data = {}) {
   return { subject, html, text };
 }
 
+/**
+ * Outage Notification Email Template
+ * Sent to affected users during service interruptions
+ */
+function getOutageNotificationEmail(data = {}) {
+  const { estimatedDuration = 'within 1 hour', affectedSystems = ['All services'], startTime = new Date().toISOString() } = data;
+  const subject = '⚠️ EasyFlow Service Outage Notification';
+  
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center" style="padding: 20px 0;">
+        <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="padding: 40px; text-align: center; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 8px 8px 0 0;">
+              <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">Service Outage Update</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px;">
+              <p style="margin: 0 0 20px; color: #4b5563; font-size: 16px; line-height: 1.6;">
+                We experienced a service interruption starting at <strong>${startTime}</strong>.
+              </p>
+              <div style="margin: 20px 0; padding: 20px; background-color: #fef3c7; border-radius: 8px;">
+                <p style="margin: 0 0 10px; color: #92400e; font-size: 14px; font-weight: 600;">AFFECTED SYSTEMS:</p>
+                <ul style="margin: 0; padding-left: 20px; color: #78350f;">
+                  ${affectedSystems.map(s => `<li>${s}</li>`).join('')}
+                </ul>
+              </div>
+              <p style="margin: 20px 0; color: #4b5563; font-size: 16px; line-height: 1.6;">
+                <strong>Estimated Resolution:</strong> ${estimatedDuration}
+              </p>
+              <p style="margin: 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                Our team is working to restore full service as quickly as possible. We apologize for any inconvenience.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+  
+  const text = `Service Outage Notification\n\nWe experienced a service interruption starting at ${startTime}.\n\nAffected Systems: ${affectedSystems.join(', ')}\nEstimated Resolution: ${estimatedDuration}\n\nOur team is working to restore full service. We apologize for any inconvenience.`;
+  
+  return { subject, html, text };
+}
+
+/**
+ * Support Response Email Template
+ * Auto-response for support tickets
+ */
+function getSupportResponseEmail(data = {}) {
+  const { ticketNumber = 'N/A', category = 'technical', name = 'there' } = data;
+  const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
+  
+  const templates = {
+    'technical': {
+      subject: `EasyFlow Support: Ticket #${ticketNumber} - Technical Issue`,
+      response: `Hi ${name},\n\nThank you for reaching out about this technical issue. I'm investigating this now and will provide an update within 4 hours during business hours.\n\nIn the meantime, you may want to:\n1. Check our status page at ${appUrl}/status\n2. Review our documentation at ${appUrl}/docs\n\nBest regards,\nEasyFlow Support Team`,
+      priority: 'high'
+    },
+    'billing': {
+      subject: `EasyFlow Support: Ticket #${ticketNumber} - Billing Question`,
+      response: `Hi ${name},\n\nThanks for your billing question. I'll look into this and respond within 8 business hours.\n\nFor urgent billing matters, please reply with your phone number and I can call you.\n\nBest regards,\nEasyFlow Support Team`,
+      priority: 'normal'
+    },
+    'feature': {
+      subject: `EasyFlow Support: Ticket #${ticketNumber} - Feature Request`,
+      response: `Hi ${name},\n\nThanks for the feature suggestion! I've added it to our product roadmap for consideration.\n\nWe prioritize features based on customer demand, so your input is valuable.\n\nBest regards,\nEasyFlow Support Team`,
+      priority: 'low'
+    }
+  };
+  
+  const template = templates[category] || templates['technical'];
+  
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #1f2937;">Support Ticket #${ticketNumber}</h2>
+    <p style="color: #4b5563; white-space: pre-line;">${template.response}</p>
+  </div>
+</body>
+</html>
+  `.trim();
+  
+  return { subject: template.subject, html, text: template.response };
+}
+
+/**
+ * Maintenance Window Notification Email Template
+ * Sent before scheduled maintenance
+ */
+function getMaintenanceNotificationEmail(data = {}) {
+  const { startTime = 'Saturday 6:00 AM UTC', duration = '4 hours', affectedFeatures = ['Workflow execution may be delayed', 'Dashboard may be temporarily unavailable'] } = data;
+  const subject = '🔧 Scheduled Maintenance Notice - EasyFlow';
+  
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center" style="padding: 20px 0;">
+        <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="padding: 40px; text-align: center; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-radius: 8px 8px 0 0;">
+              <div style="font-size: 48px; margin-bottom: 10px;">🔧</div>
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">Scheduled Maintenance</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px;">
+              <p style="margin: 0 0 20px; color: #4b5563; font-size: 16px; line-height: 1.6;">
+                We'll be performing scheduled maintenance on EasyFlow to improve performance and reliability.
+              </p>
+              <div style="margin: 20px 0; padding: 20px; background-color: #f3f4f6; border-radius: 8px;">
+                <p style="margin: 0 0 10px;"><strong>📅 Date/Time:</strong> ${startTime}</p>
+                <p style="margin: 0;"><strong>⏱️ Duration:</strong> Approximately ${duration}</p>
+              </div>
+              <p style="margin: 20px 0 10px; color: #1f2937; font-size: 16px; font-weight: 600;">What this means for you:</p>
+              <ul style="margin: 0; padding-left: 20px; color: #4b5563; line-height: 1.8;">
+                ${affectedFeatures.map(f => `<li>${f}</li>`).join('')}
+              </ul>
+              <p style="margin: 20px 0 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                All services will be fully operational after maintenance completes. Thank you for your patience!
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+  
+  const text = `Scheduled Maintenance Notice\n\nWe'll be performing scheduled maintenance on EasyFlow.\n\nDate/Time: ${startTime}\nDuration: Approximately ${duration}\n\nWhat this means for you:\n${affectedFeatures.map(f => `- ${f}`).join('\n')}\n\nAll services will be fully operational after maintenance completes.`;
+  
+  return { subject, html, text };
+}
+
 module.exports = {
   getAutomationTipsEmail,
   getEmailTemplate,
@@ -307,6 +466,10 @@ module.exports = {
   getFollowupEmail,
   getActivationReminderEmail,
   getSuccessTipsEmail,
-  getCustomEmail
+  getCustomEmail,
+  // Support & Operations templates
+  getOutageNotificationEmail,
+  getSupportResponseEmail,
+  getMaintenanceNotificationEmail
 };
 

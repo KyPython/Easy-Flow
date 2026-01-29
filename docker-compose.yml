@@ -52,6 +52,7 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./rpa-system/backend/.env
+    restart: unless-stopped
     # For local development we enable a safe bind-mount pattern that preserves the
     # container-installed `node_modules` while allowing live edits of source files.
     volumes:
@@ -59,10 +60,19 @@ services:
       - backend_node_modules:/usr/src/app/node_modules
     ports:
       - '3000:3030'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3030/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
-      - postgres
-      - redis
-      - kafka
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
     environment:
       DATABASE_URL: "postgres://easyflow:easyflow@postgres:5432/easyflow"
       REDIS_URL: "redis://redis:6379"
@@ -71,6 +81,14 @@ services:
       AUTOMATION_URL: "http://automation-worker:5000"
       ALLOW_DRAFT_EXECUTION: 'true'
       KAFKA_ENABLED: 'true'
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
   automation-worker:
     build:

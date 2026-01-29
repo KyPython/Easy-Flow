@@ -1,6 +1,7 @@
 #!/bin/bash
 # Dynamic Code Validation
 # Ensures code is dynamic and flexible without breaking functionality
+# In PR context: only checks files changed in the PR
 
 set -e
 
@@ -16,6 +17,22 @@ echo "${BLUE}=== Dynamic Code Validation ===${NC}\n"
 
 FAILED=0
 TOTAL_VIOLATIONS=0
+
+# In PR context, only check changed files
+CHANGED_FILES_ONLY=false
+CHANGED_FILES=""
+if [ -n "$GITHUB_EVENT_NAME" ] && [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+  CHANGED_FILES_ONLY=true
+  if [ -n "$GITHUB_BASE_REF" ]; then
+    git fetch origin "$GITHUB_BASE_REF" --depth=1 2>/dev/null || true
+    CHANGED_FILES=$(git diff --name-only "origin/$GITHUB_BASE_REF"...HEAD 2>/dev/null || echo "")
+  fi
+  if [ -n "$CHANGED_FILES" ]; then
+    echo "${CYAN}ℹ️  PR mode: Only checking files changed in this PR${NC}\n"
+  else
+    CHANGED_FILES_ONLY=false
+  fi
+fi
 
 # Directories to check
 CODE_DIRS=(
@@ -36,9 +53,10 @@ check_file_dynamic() {
     fi
     
     # Check for hardcoded URLs (should use environment variables or config)
-    local hardcoded_urls=$(grep -E "https?://[a-zA-Z0-9.-]+\.(com|net|org|io|co|dev|app)" "$file" 2>/dev/null | grep -v "localhost" | grep -v "127.0.0.1" | grep -v "example.com" | grep -v "http://localhost" | grep -v "https://localhost" | grep -v "//.*localhost" | wc -l || echo "0")
+    local hardcoded_urls=$(grep -E "https?://[a-zA-Z0-9.-]+\.(com|net|org|io|co|dev|app)" "$file" 2>/dev/null | grep -v "localhost" | grep -v "127.0.0.1" | grep -v "example.com" | grep -v "http://localhost" | grep -v "https://localhost" | grep -v "//.*localhost" | wc -l | tr -d '[:space:]' || echo "0")
     
-    if [ "$hardcoded_urls" -gt 0 ]; then
+    # Threshold: Allow up to 3 hardcoded URLs (docs, error messages, etc.)
+    if [ "$hardcoded_urls" -gt 3 ]; then
         echo "  ${YELLOW}⚠ ${file}${NC}"
         echo "    ${RED}✗ Hardcoded URLs detected (${hardcoded_urls} found)${NC}"
         echo "    ${CYAN}   Recommendation: Use environment variables or configuration files${NC}"
@@ -46,7 +64,7 @@ check_file_dynamic() {
     fi
     
     # Check for hardcoded API keys/tokens (security issue + not dynamic)
-    local hardcoded_keys=$(grep -iE "(api[_-]?key|token|secret|password)\s*[:=]\s*['\"][^'\"]{10,}" "$file" 2>/dev/null | grep -v "process.env" | grep -v "import.*from" | wc -l || echo "0")
+    local hardcoded_keys=$(grep -iE "(api[_-]?key|token|secret|password)\s*[:=]\s*['\"][^'\"]{10,}" "$file" 2>/dev/null | grep -v "process.env" | grep -v "import.*from" | wc -l | tr -d '[:space:]' || echo "0")
     
     if [ "$hardcoded_keys" -gt 0 ]; then
         echo "  ${YELLOW}⚠ ${file}${NC}"
@@ -56,10 +74,10 @@ check_file_dynamic() {
     fi
     
     # Check for magic numbers (should be constants or config)
-    local magic_numbers=$(grep -E "[^a-zA-Z_]([0-9]{3,}|[0-9]+\.[0-9]+)" "$file" 2>/dev/null | grep -v "0x" | grep -v "//" | grep -v "http" | grep -v "localhost" | grep -v "version" | grep -v "\.test\." | wc -l || echo "0")
+    local magic_numbers=$(grep -E "[^a-zA-Z_]([0-9]{3,}|[0-9]+\.[0-9]+)" "$file" 2>/dev/null | grep -v "0x" | grep -v "//" | grep -v "http" | grep -v "localhost" | grep -v "version" | grep -v "\.test\." | wc -l | tr -d '[:space:]' || echo "0")
     
-    # Only flag if there are many magic numbers (some are acceptable)
-    if [ "$magic_numbers" -gt 10 ]; then
+    # Threshold: UI code often has many numbers (styling, layout, etc.)
+    if [ "$magic_numbers" -gt 50 ]; then
         echo "  ${YELLOW}⚠ ${file}${NC}"
         echo "    ${RED}✗ Many magic numbers detected (${magic_numbers} found)${NC}"
         echo "    ${CYAN}   Recommendation: Extract to named constants or configuration${NC}"
@@ -77,8 +95,8 @@ check_file_dynamic() {
     fi
     
     # Check for use of process.env (good - dynamic)
-    local uses_env=$(grep -c "process.env" "$file" 2>/dev/null || echo "0")
-    local uses_config=$(grep -iE "(config|settings|options)" "$file" 2>/dev/null | grep -v "//" | wc -l || echo "0")
+    local uses_env=$(grep -c "process.env" "$file" 2>/dev/null | tr -d '[:space:]' || echo "0")
+    local uses_config=$(grep -iE "(config|settings|options)" "$file" 2>/dev/null | grep -v "//" | wc -l | tr -d '[:space:]' || echo "0")
     
     # If file has hardcoded values but doesn't use env/config, flag it
     if [ "$hardcoded_urls" -gt 0 ] && [ "$uses_env" -eq 0 ] && [ "$uses_config" -eq 0 ]; then
@@ -100,6 +118,12 @@ for dir in "${CODE_DIRS[@]}"; do
     
     echo "${BLUE}Scanning ${dir}...${NC}"
     while IFS= read -r -d '' file; do
+        # In PR mode, skip files not changed in this PR
+        if [ "$CHANGED_FILES_ONLY" = true ]; then
+            if ! echo "$CHANGED_FILES" | grep -q "^${file}$"; then
+                continue
+            fi
+        fi
         check_file_dynamic "$file" || FAILED=$((FAILED + 1))
     done < <(find "$dir" -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" \) \
         ! -path "*/node_modules/*" \

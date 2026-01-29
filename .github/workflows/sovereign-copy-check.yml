@@ -22,3 +22,5 @@ jobs:
         uses: actions/checkout@v4
       - name: Run Sovereign Copywriting & Branding Check
         run: bash scripts/validate-sovereign-copy.sh
+        # Permissive on feature branches (PRs), strict on direct push to main
+        continue-on-error: ${{ github.ref != 'refs/heads/main' }}

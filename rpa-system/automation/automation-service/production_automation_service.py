@@ -337,9 +337,9 @@ def send_result_to_kafka(task_id, result, status='completed', run_id=None):
             message['run_id'] = run_id
 
         logger.info(
-            f"📤 Sending result to Kafka for task {task_id}: status={status}, success={
-                result.get('success') if isinstance(
-                    result, dict) else 'N/A'}")
+            f"📤 Sending result to Kafka for task {task_id}: "
+            f"status={status}, success={result.get('success') if isinstance(result, dict) else 'N/A'}"
+        )
 
         # ✅ INSTRUCTION 2: Inject trace context into Kafka message headers
         # Note: Headers require Kafka API v0.11.0+
@@ -349,8 +349,7 @@ def send_result_to_kafka(task_id, result, status='completed', run_id=None):
             carrier = {}
             propagate.inject(carrier)
 
-            # Convert carrier to Kafka headers format (list of tuples with
-            # bytes)
+            # Convert carrier to Kafka headers format (list of tuples with bytes)
             for key, value in carrier.items():
                 # Ensure value is bytes - handle both str and bytes
                 if isinstance(value, str):
@@ -359,7 +358,7 @@ def send_result_to_kafka(task_id, result, status='completed', run_id=None):
                     value_bytes = value
                 else:
                     value_bytes = str(value).encode('utf-8')
-        headers.append((key, value_bytes))
+                headers.append((key, value_bytes))
 
         # Pass task_id as-is (key_serializer will handle encoding)
         # No need to pre-encode since key_serializer handles both str and bytes

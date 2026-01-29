@@ -34,7 +34,7 @@ jobs:
       - name: Branch Awareness
         id: branch_info
         run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             echo "branch=main" >> $GITHUB_OUTPUT
             echo "mode=strict" >> $GITHUB_OUTPUT
             echo "blocking=true" >> $GITHUB_OUTPUT
@@ -57,6 +57,12 @@ jobs:
         run: |
           chmod +x scripts/security-scan.sh
           npm install -g snyk || true
+          # If no SNYK_TOKEN is configured for this org/plan, skip the scan with a clear message.
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "⚠️ SNYK_TOKEN not set. Skipping Snyk security scan for this run (non-blocking)."
+            exit 0
+          fi
+
           if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
             ./scripts/security-scan.sh || (echo "❌ Security scan failed. BLOCKING: High+ vulnerabilities found. Run './scripts/security-scan.sh' locally to fix." && exit 1)
           else

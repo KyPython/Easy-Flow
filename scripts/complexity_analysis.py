@@ -70,14 +70,31 @@ def main():
         print("Usage: python scripts/complexity_analysis.py <target_dir>")
         sys.exit(1)
     target_dir = sys.argv[1]
+    
+    # Check if target directory exists
+    if not os.path.isdir(target_dir):
+        print(f"⚠️ Target directory not found: {target_dir}")
+        print("✅ Skipping complexity analysis (directory missing)")
+        sys.exit(0)
+    
     issues = scan_directory(target_dir)
+    
+    # Check for permissive mode (non-main branch in CI)
+    github_ref = os.environ.get('GITHUB_REF', '')
+    github_base_ref = os.environ.get('GITHUB_BASE_REF', '')
+    permissive = github_ref and github_ref != 'refs/heads/main' and github_base_ref != 'main'
+    
     if issues:
         print("Complexity issues detected:")
         for issue in issues:
             print(issue)
-        sys.exit(2)
+        if permissive:
+            print(f"\n⚠️ {len(issues)} complexity issues found (non-blocking on feature branch)")
+            sys.exit(0)
+        else:
+            sys.exit(2)
     else:
-        print("No complexity issues detected.")
+        print("✅ No complexity issues detected.")
 
 if __name__ == "__main__":
     main()

@@ -6,11 +6,19 @@
 set -e # Exit on error
 set -o pipefail
 
-# Verbose mode
+# Command line arguments
 VERBOSE=false
+FORCE_LOCAL=false
+FORCE_CLOUD=false
+RESTORE_CLOUD=false
+
 for arg in "$@"; do
   case "$arg" in
     -v|--verbose) VERBOSE=true ;;
+    --local) FORCE_LOCAL=true ;;
+    --cloud) FORCE_CLOUD=true ;;
+    --restore-cloud) RESTORE_CLOUD=true ;;
+    --sync-to-cloud) SYNC_TO_CLOUD=true ;;
   esac
 done
 [ "$VERBOSE" = true ] && set -x
@@ -72,6 +80,466 @@ echo ""
 # 1. Helper Functions
 # ==============================================================================
 
+# Cloud credentials backup file
+CLOUD_BACKUP_FILE="$PROJECT_ROOT/.supabase-cloud-backup"
+
+backup_cloud_credentials() {
+    # Save original cloud Supabase credentials before switching to local
+    if [ -f "$BACKEND_DIR/.env" ]; then
+        local CLOUD_URL=$(grep -E "^SUPABASE_URL=" "$BACKEND_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' || true)
+        local CLOUD_ANON=$(grep -E "^SUPABASE_ANON_KEY=" "$BACKEND_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' || true)
+        local CLOUD_SERVICE=$(grep -E "^SUPABASE_SERVICE_ROLE=" "$BACKEND_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' || true)
+        
+        # Only backup if it's a cloud URL (not local)
+        if [ -n "$CLOUD_URL" ] && [[ "$CLOUD_URL" != *"127.0.0.1"* ]] && [[ "$CLOUD_URL" != *"localhost"* ]]; then
+            cat > "$CLOUD_BACKUP_FILE" << EOF
+# Cloud Supabase credentials backup
+# Created: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+CLOUD_SUPABASE_URL=$CLOUD_URL
+CLOUD_SUPABASE_ANON_KEY=$CLOUD_ANON
+CLOUD_SUPABASE_SERVICE_ROLE=$CLOUD_SERVICE
+EOF
+            log "Backed up cloud Supabase credentials to $CLOUD_BACKUP_FILE"
+        fi
+    fi
+}
+
+check_cloud_supabase_available() {
+    # Check if we have backed up cloud credentials and if cloud is now reachable
+    if [ ! -f "$CLOUD_BACKUP_FILE" ]; then
+        return 1
+    fi
+    
+    source "$CLOUD_BACKUP_FILE"
+    
+    if [ -z "$CLOUD_SUPABASE_URL" ]; then
+        return 1
+    fi
+    
+    # Test if cloud Supabase is reachable
+    if curl -s --max-time 5 "$CLOUD_SUPABASE_URL/rest/v1/" -H "apikey: ${CLOUD_SUPABASE_ANON_KEY:-dummy}" > /dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+restore_cloud_supabase() {
+    # Restore cloud Supabase credentials from backup
+    if [ ! -f "$CLOUD_BACKUP_FILE" ]; then
+        error "No cloud backup found at $CLOUD_BACKUP_FILE"
+        return 1
+    fi
+    
+    source "$CLOUD_BACKUP_FILE"
+    
+    log "Restoring cloud Supabase credentials..."
+    
+    # Update backend .env
+    if [ -f "$BACKEND_DIR/.env" ]; then
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|^SUPABASE_URL=.*|SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^SUPABASE_SERVICE_ROLE=.*|SUPABASE_SERVICE_ROLE=$CLOUD_SUPABASE_SERVICE_ROLE|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^SUPABASE_KEY=.*|SUPABASE_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+        else
+            sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i "s|^SUPABASE_SERVICE_ROLE=.*|SUPABASE_SERVICE_ROLE=$CLOUD_SUPABASE_SERVICE_ROLE|g" "$BACKEND_DIR/.env"
+            sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i "s|^SUPABASE_KEY=.*|SUPABASE_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+        fi
+    fi
+    
+    # Update frontend .env.local
+    if [ -f "$FRONTEND_DIR/.env.local" ]; then
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i '' "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+            sed -i '' "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i '' "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+        else
+            sed -i "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+            sed -i "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$CLOUD_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$CLOUD_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+        fi
+    fi
+    
+    # Stop local Supabase
+    if command -v supabase &> /dev/null; then
+        log "Stopping local Supabase..."
+        supabase stop 2>/dev/null || true
+    fi
+    
+    success "Cloud Supabase credentials restored"
+    return 0
+}
+
+sync_local_to_cloud() {
+    # Sync data created locally to cloud Supabase
+    if [ ! -f "$CLOUD_BACKUP_FILE" ]; then
+        error "No cloud backup found"
+        return 1
+    fi
+    
+    source "$CLOUD_BACKUP_FILE"
+    
+    log "Syncing local data to cloud Supabase..."
+    
+    # Tables to sync (excluding auth tables which can't be synced)
+    TABLES_TO_SYNC="workflows automation_tasks workflow_steps workflow_executions"
+    
+    for TABLE in $TABLES_TO_SYNC; do
+        log "Syncing table: $TABLE..."
+        
+        # Export from local
+        LOCAL_DATA=$(psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -t -A -c "SELECT row_to_json(t) FROM public.$TABLE t;" 2>/dev/null || echo "")
+        
+        if [ -n "$LOCAL_DATA" ] && [ "$LOCAL_DATA" != "" ]; then
+            ROW_COUNT=$(echo "$LOCAL_DATA" | wc -l | tr -d ' ')
+            log "  Found $ROW_COUNT rows in $TABLE"
+            
+            # For each row, upsert to cloud
+            echo "$LOCAL_DATA" | while read -r ROW; do
+                if [ -n "$ROW" ]; then
+                    # Use Supabase REST API to upsert
+                    curl -s -X POST "$CLOUD_SUPABASE_URL/rest/v1/$TABLE" \
+                        -H "apikey: $CLOUD_SUPABASE_SERVICE_ROLE" \
+                        -H "Authorization: Bearer $CLOUD_SUPABASE_SERVICE_ROLE" \
+                        -H "Content-Type: application/json" \
+                        -H "Prefer: resolution=merge-duplicates" \
+                        -d "$ROW" > /dev/null 2>&1 || true
+                fi
+            done
+            success "  Synced $TABLE"
+        else
+            log "  No data in $TABLE (or table doesn't exist locally)"
+        fi
+    done
+    
+    success "Local data sync complete"
+    warn "Note: User accounts cannot be synced. Users will need to sign in with their cloud credentials."
+    return 0
+}
+
+prompt_cloud_restore() {
+    # Interactive prompt to restore cloud Supabase
+    echo ""
+    echo "================================================================================"
+    echo -e "   ${GREEN}☁️  CLOUD SUPABASE IS BACK ONLINE!${NC}"
+    echo "================================================================================"
+    echo ""
+    echo "   Your cloud Supabase instance is now reachable."
+    echo "   You are currently using local Supabase."
+    echo ""
+    echo "   Options:"
+    echo "     1) Switch back to cloud Supabase (recommended)"
+    echo "     2) Sync local data to cloud, then switch"
+    echo "     3) Continue using local Supabase"
+    echo ""
+    
+    # Check if running interactively
+    if [ -t 0 ]; then
+        read -p "   Enter choice [1/2/3]: " CHOICE
+        case "$CHOICE" in
+            1)
+                restore_cloud_supabase
+                USING_CLOUD_SUPABASE=true
+                ;;
+            2)
+                sync_local_to_cloud
+                restore_cloud_supabase
+                USING_CLOUD_SUPABASE=true
+                ;;
+            3)
+                log "Continuing with local Supabase"
+                USE_LOCAL_SUPABASE=true
+                ;;
+            *)
+                log "Invalid choice. Continuing with local Supabase"
+                USE_LOCAL_SUPABASE=true
+                ;;
+        esac
+    else
+        # Non-interactive mode - just notify
+        warn "Cloud Supabase is available. Run './start-dev.sh --restore-cloud' to switch back."
+        USE_LOCAL_SUPABASE=true
+    fi
+    echo ""
+}
+
+check_supabase_available() {
+    # Check if cloud Supabase is reachable
+    local SUPABASE_URL="${SUPABASE_URL:-}"
+    
+    # Try to load from .env files if not set
+    if [ -z "$SUPABASE_URL" ]; then
+        if [ -f "$PROJECT_ROOT/.env" ]; then
+            SUPABASE_URL=$(grep -E "^SUPABASE_URL=" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' || true)
+        fi
+    fi
+    if [ -z "$SUPABASE_URL" ]; then
+        if [ -f "$BACKEND_DIR/.env" ]; then
+            SUPABASE_URL=$(grep -E "^SUPABASE_URL=" "$BACKEND_DIR/.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' || true)
+        fi
+    fi
+    
+    # If no URL configured, return false (need local)
+    if [ -z "$SUPABASE_URL" ] || [ "$SUPABASE_URL" = "http://127.0.0.1:54321" ]; then
+        return 1
+    fi
+    
+    # Test if cloud Supabase is reachable
+    if curl -s --max-time 5 "$SUPABASE_URL/rest/v1/" -H "apikey: ${SUPABASE_ANON_KEY:-dummy}" > /dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+start_local_supabase() {
+    log "Starting local Supabase..."
+    
+    # Check if supabase CLI is installed
+    if ! command -v supabase &> /dev/null; then
+        warn "Supabase CLI not installed. Installing via Homebrew..."
+        if command -v brew &> /dev/null; then
+            brew install supabase/tap/supabase
+        else
+            error "Please install Supabase CLI: https://supabase.com/docs/guides/cli"
+            return 1
+        fi
+    fi
+    
+    # Check if local Supabase is already running with all services
+    local SUPABASE_RUNNING=false
+    if supabase status 2>/dev/null | grep -q "API URL: http"; then
+        # Check if auth service is also running (not just DB)
+        if ! supabase status 2>/dev/null | grep -q "Stopped services"; then
+            SUPABASE_RUNNING=true
+            success "Local Supabase is already running"
+        else
+            warn "Local Supabase partially running. Restarting..."
+            supabase stop 2>/dev/null || true
+        fi
+    fi
+    
+    # Start local Supabase if not running
+    cd "$PROJECT_ROOT"
+    if [ "$SUPABASE_RUNNING" = false ]; then
+        if ! supabase start; then
+            error "Failed to start local Supabase"
+            return 1
+        fi
+        success "Local Supabase started successfully"
+    fi
+    
+    # Get local Supabase credentials
+    LOCAL_SUPABASE_URL="http://127.0.0.1:54321"
+    LOCAL_SUPABASE_ANON_KEY=$(supabase status 2>/dev/null | grep "anon key" | awk '{print $NF}' || echo "")
+    LOCAL_SUPABASE_SERVICE_ROLE=$(supabase status 2>/dev/null | grep "service_role key" | awk '{print $NF}' || echo "")
+    
+    # Export for docker-compose and current shell
+    export SUPABASE_URL="$LOCAL_SUPABASE_URL"
+    export SUPABASE_KEY="$LOCAL_SUPABASE_ANON_KEY"
+    export SUPABASE_SERVICE_ROLE="$LOCAL_SUPABASE_SERVICE_ROLE"
+    export SUPABASE_ANON_KEY="$LOCAL_SUPABASE_ANON_KEY"
+    
+    # Update backend .env with local Supabase credentials
+    if [ -f "$BACKEND_DIR/.env" ]; then
+        log "Updating backend .env with local Supabase credentials..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|^SUPABASE_URL=.*|SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^SUPABASE_SERVICE_ROLE=.*|SUPABASE_SERVICE_ROLE=$LOCAL_SUPABASE_SERVICE_ROLE|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^SUPABASE_KEY=.*|SUPABASE_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i '' "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+        else
+            sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i "s|^SUPABASE_SERVICE_ROLE=.*|SUPABASE_SERVICE_ROLE=$LOCAL_SUPABASE_SERVICE_ROLE|g" "$BACKEND_DIR/.env"
+            sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i "s|^SUPABASE_KEY=.*|SUPABASE_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+            sed -i "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$BACKEND_DIR/.env"
+            sed -i "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$BACKEND_DIR/.env"
+        fi
+        success "Backend .env updated"
+    fi
+    
+    # Update frontend .env.local with local Supabase credentials
+    if [ -f "$FRONTEND_DIR/.env.local" ]; then
+        log "Updating frontend .env.local with local Supabase credentials..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i '' "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+            sed -i '' "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i '' "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+        else
+            sed -i "s|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i "s|^VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+            sed -i "s|^REACT_APP_SUPABASE_URL=.*|REACT_APP_SUPABASE_URL=$LOCAL_SUPABASE_URL|g" "$FRONTEND_DIR/.env.local"
+            sed -i "s|^REACT_APP_SUPABASE_ANON_KEY=.*|REACT_APP_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY|g" "$FRONTEND_DIR/.env.local"
+        fi
+        success "Frontend .env.local updated"
+    fi
+    
+    # Run essential database migrations for local Supabase
+    log "Setting up local Supabase database schema..."
+    setup_local_supabase_schema
+    
+    echo ""
+    log "Local Supabase URLs:"
+    echo -e "   ${GREEN}API:${NC}      $LOCAL_SUPABASE_URL"
+    echo -e "   ${GREEN}Studio:${NC}   http://127.0.0.1:54323"
+    echo -e "   ${GREEN}Inbucket:${NC} http://127.0.0.1:54324 (email testing)"
+    echo ""
+    
+    return 0
+}
+
+setup_local_supabase_schema() {
+    # Create essential tables for local Supabase
+    log "Creating essential database tables..."
+    
+    psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" << 'EOSQL' 2>/dev/null || true
+-- Create profiles table (required for user management)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id uuid NOT NULL,
+  email text UNIQUE,
+  full_name text,
+  avatar_url text,
+  created_at timestamp with time zone DEFAULT now(),
+  notification_preferences jsonb DEFAULT '{"sms_alerts": false, "system_alerts": true, "task_failures": true, "weekly_reports": true, "security_alerts": true, "task_completion": true, "marketing_emails": true, "push_notifications": true, "email_notifications": true}'::jsonb,
+  ui_preferences jsonb DEFAULT '{"theme": "light", "language": "en", "timezone": "UTC", "date_format": "MM/DD/YYYY", "dashboard_layout": "grid"}'::jsonb,
+  fcm_token text,
+  phone_number text,
+  plan_id text DEFAULT 'free'::text,
+  updated_at timestamp with time zone DEFAULT now(),
+  plan_changed_at timestamp with time zone DEFAULT now(),
+  plan_expires_at timestamp with time zone,
+  billing_cycle_start date DEFAULT CURRENT_DATE,
+  subscription_id uuid,
+  is_trial boolean DEFAULT false,
+  trial_ends_at timestamp with time zone,
+  first_automation_setup_at timestamp with time zone,
+  setup_completion_time_seconds integer,
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
+);
+
+-- Enable RLS on profiles
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies for profiles
+DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Enable insert for service role" ON public.profiles;
+
+CREATE POLICY "Users can read own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Enable insert for service role" ON public.profiles FOR INSERT WITH CHECK (true);
+
+-- Create function to auto-create profile on user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name)
+  VALUES (new.id, new.email, COALESCE(new.raw_user_meta_data->>'full_name', ''))
+  ON CONFLICT (id) DO NOTHING;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger for auto-profile creation
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create workflows table (core table for the app)
+CREATE TABLE IF NOT EXISTS public.workflows (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  version integer NOT NULL DEFAULT 1,
+  status text NOT NULL DEFAULT 'draft'::text,
+  canvas_config jsonb DEFAULT '{"edges": [], "nodes": [], "viewport": {"x": 0, "y": 0, "zoom": 1}}'::jsonb,
+  settings jsonb DEFAULT '{"retry_count": 3, "retry_delay": 5, "error_handling": "stop", "max_executions": null, "timeout_minutes": 60, "parallel_execution": false}'::jsonb,
+  total_executions integer DEFAULT 0,
+  successful_executions integer DEFAULT 0,
+  failed_executions integer DEFAULT 0,
+  last_executed_at timestamp with time zone,
+  tags text[],
+  is_template boolean DEFAULT false,
+  is_public boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workflows_pkey PRIMARY KEY (id),
+  CONSTRAINT workflows_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+);
+
+ALTER TABLE public.workflows ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage own workflows" ON public.workflows;
+CREATE POLICY "Users can manage own workflows" ON public.workflows USING (auth.uid() = user_id);
+
+-- Create automation_tasks table
+CREATE TABLE IF NOT EXISTS public.automation_tasks (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  name text NOT NULL,
+  description text,
+  url text,
+  parameters jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  task_type text,
+  is_active boolean NOT NULL DEFAULT true,
+  CONSTRAINT automation_tasks_pkey PRIMARY KEY (id),
+  CONSTRAINT automation_tasks_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+);
+
+ALTER TABLE public.automation_tasks ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage own tasks" ON public.automation_tasks;
+CREATE POLICY "Users can manage own tasks" ON public.automation_tasks USING (auth.uid() = user_id);
+
+-- Create email_queue table (for email worker)
+CREATE TABLE IF NOT EXISTS public.email_queue (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  profile_id uuid,
+  to_email text NOT NULL,
+  template text NOT NULL,
+  data jsonb,
+  status text NOT NULL DEFAULT 'pending'::text,
+  attempts integer NOT NULL DEFAULT 0,
+  last_error text,
+  scheduled_at timestamp with time zone NOT NULL DEFAULT now(),
+  claimed_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT email_queue_pkey PRIMARY KEY (id)
+);
+
+EOSQL
+
+    if [ $? -eq 0 ]; then
+        success "Database schema initialized"
+    else
+        warn "Some schema migrations may have failed (tables might already exist)"
+    fi
+}
+
 ensure_docker_running() {
     if ! docker info > /dev/null 2>&1; then
         warn "Docker is not running or unresponsive. Attempting to start..."
@@ -107,7 +575,8 @@ ensure_docker_running
 # 2. Port Freeing & Cleanup
 # ==============================================================================
 log "Checking for stuck ports..."
-PORTS_TO_CHECK=(3000 3030 5432 6379 9092 2181 9090 3001)
+# Includes local Supabase ports: 54321 (API), 54322 (DB), 54323 (Studio), 54324 (Inbucket)
+PORTS_TO_CHECK=(3000 3030 5432 6379 9092 2181 9090 3001 54321 54322 54323 54324)
 
 for PORT in "${PORTS_TO_CHECK[@]}"; do
     PID=$(lsof -ti:$PORT 2>/dev/null || true)
@@ -178,6 +647,87 @@ if [ ! -f "$BACKEND_DIR/.env" ] || [ ! -s "$BACKEND_DIR/.env" ]; then
         warn "Created .env from example"
     else
         exit 1
+    fi
+fi
+
+# ==============================================================================
+# 3.5 Supabase Availability Check & Local Fallback
+# ==============================================================================
+log "Checking Supabase availability..."
+
+USE_LOCAL_SUPABASE=false
+USING_CLOUD_SUPABASE=false
+
+# Handle command line flags first
+if [ "$RESTORE_CLOUD" = true ]; then
+    log "Restoring cloud Supabase (--restore-cloud flag)..."
+    if check_cloud_supabase_available; then
+        if [ "$SYNC_TO_CLOUD" = true ]; then
+            sync_local_to_cloud
+        fi
+        restore_cloud_supabase
+        USING_CLOUD_SUPABASE=true
+    else
+        error "Cloud Supabase is not reachable. Cannot restore."
+        exit 1
+    fi
+elif [ "$FORCE_LOCAL" = true ]; then
+    log "Forcing local Supabase (--local flag)..."
+    ensure_docker_running
+    backup_cloud_credentials
+    if start_local_supabase; then
+        USE_LOCAL_SUPABASE=true
+    else
+        error "Could not start local Supabase."
+        exit 1
+    fi
+elif [ "$FORCE_CLOUD" = true ]; then
+    log "Forcing cloud Supabase (--cloud flag)..."
+    if check_supabase_available; then
+        success "Cloud Supabase is reachable"
+        USING_CLOUD_SUPABASE=true
+    else
+        error "Cloud Supabase is not reachable. Cannot force cloud mode."
+        exit 1
+    fi
+else
+    # Auto-detect mode
+    # First check if we're currently using local and cloud is back
+    CURRENT_URL=$(grep -E "^SUPABASE_URL=" "$BACKEND_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' || true)
+    
+    if [[ "$CURRENT_URL" == *"127.0.0.1"* ]] || [[ "$CURRENT_URL" == *"localhost"* ]]; then
+        # Currently using local - check if cloud is back
+        if check_cloud_supabase_available; then
+            prompt_cloud_restore
+        else
+            # Cloud still not available, continue with local
+            log "Cloud Supabase still not available. Continuing with local..."
+            ensure_docker_running
+            if start_local_supabase; then
+                USE_LOCAL_SUPABASE=true
+            else
+                warn "Could not start local Supabase. Some features may be unavailable."
+            fi
+        fi
+    else
+        # Currently configured for cloud - check if it's reachable
+        if check_supabase_available; then
+            success "Cloud Supabase is reachable"
+            USING_CLOUD_SUPABASE=true
+        else
+            warn "Cloud Supabase is not available or not configured"
+            log "Attempting to start local Supabase as fallback..."
+            
+            ensure_docker_running  # Supabase needs Docker
+            backup_cloud_credentials  # Save cloud creds before switching
+            
+            if start_local_supabase; then
+                USE_LOCAL_SUPABASE=true
+                success "Using local Supabase"
+            else
+                warn "Could not start local Supabase. Some features may be unavailable."
+            fi
+        fi
     fi
 fi
 
@@ -400,6 +950,21 @@ if [ "$ALL_SERVICES_UP" = "true" ]; then
     echo -e "   ${GREEN}AlertManager:${NC}  http://localhost:9093"
     echo -e "   ${GREEN}Loki:${NC}          http://localhost:3100"
     echo -e "   ${GREEN}Tempo:${NC}         http://localhost:3200"
+    if [ "$USE_LOCAL_SUPABASE" = "true" ]; then
+        echo "--------------------------------------------------------------------------------"
+        echo -e "   ${YELLOW}USING LOCAL SUPABASE (cloud not available)${NC}"
+        echo -e "   ${GREEN}Supabase API:${NC}    http://127.0.0.1:54321"
+        echo -e "   ${GREEN}Supabase Studio:${NC} http://127.0.0.1:54323"
+        echo -e "   ${GREEN}Email Testing:${NC}   http://127.0.0.1:54324 (Inbucket)"
+        echo ""
+        echo -e "   ${BLUE}To restore cloud when available:${NC}"
+        echo -e "     ./start-dev.sh --restore-cloud"
+        echo -e "   ${BLUE}To sync local data to cloud first:${NC}"
+        echo -e "     ./start-dev.sh --restore-cloud --sync-to-cloud"
+    elif [ "$USING_CLOUD_SUPABASE" = "true" ]; then
+        echo "--------------------------------------------------------------------------------"
+        echo -e "   ${GREEN}USING CLOUD SUPABASE${NC}"
+    fi
     echo "================================================================================"
     echo -e "   To view streaming logs, run one of the following:"
     echo -e "   ${BLUE}App Logs:${NC}      pm2 logs --no-daemon"

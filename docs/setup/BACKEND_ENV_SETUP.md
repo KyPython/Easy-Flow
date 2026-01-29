@@ -1,5 +1,41 @@
 # Backend .env Configuration Guide
 
+## 🚨 BEFORE YOU DEVELOP - Pre-Flight Checklist
+
+Run this checklist every time before starting development:
+
+### 1. Check Supabase Status
+```bash
+# Test if Supabase is reachable
+curl -s https://YOUR_PROJECT_ID.supabase.co/rest/v1/ -H "apikey: YOUR_ANON_KEY" | head -1
+```
+- If you get `NXDOMAIN` or connection refused → **Supabase project is paused/deleted**
+- Go to https://supabase.com/dashboard and restore your project (free tier pauses after 7 days inactivity)
+
+### 2. Start Backend
+```bash
+cd /Users/ky/Easy-Flow
+./start-dev.sh
+# OR manually:
+pm2 start ecosystem.config.js
+```
+
+### 3. Verify Backend Health
+```bash
+curl http://localhost:3030/health/live
+# Should return: {"status":"ok"}
+```
+
+### 4. Check for Errors
+```bash
+pm2 logs easyflow-backend --lines 20 --nostream
+```
+- `ENOTFOUND supabase.co` → Supabase is down, restore project
+- `Firebase Admin initialized` → Firebase OK
+- `fetch failed` → Check internet/Supabase status
+
+---
+
 ## 🔥 CRITICAL: Authentication Cascade Prevention
 
 The 401 Firebase errors and 500 integration errors are caused by missing or incorrect configuration in `/rpa-system/backend/.env`.
@@ -40,6 +76,65 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 # OR use any of these alternative names:
 # SUPABASE_SERVICE_ROLE=your-service-role-key-here
 # SUPABASE_KEY=your-service-role-key-here
+```
+
+**⚠️ COMMON ISSUE: Supabase Project Paused**
+
+Free tier Supabase projects pause after 7 days of inactivity. Symptoms:
+- Sign-in returns `500 Internal Server Error`
+- Backend logs show `ENOTFOUND [project-id].supabase.co`
+- `nslookup [project-id].supabase.co` returns `NXDOMAIN`
+
+**How to fix:**
+1. Go to https://supabase.com/dashboard
+2. Find your project (it will show "Paused")
+3. Click the project → Click "Restore project"
+4. Wait 1-2 minutes for DNS to propagate
+5. Restart backend: `pm2 restart easyflow-backend`
+
+**⚠️ BLOCKED BY UNPAID INVOICES?**
+
+If you see: `"This organization has unpaid invoices. Settle outstanding payments before trying to restore project."`
+
+**Option A: Run Supabase Locally (FREE, recommended for dev)**
+```bash
+# Install Supabase CLI (one-time)
+brew install supabase/tap/supabase
+
+# Initialize and start local Supabase
+cd /Users/ky/Easy-Flow
+supabase init   # Only first time
+supabase start  # Starts local Supabase in Docker
+```
+Then update `rpa-system/backend/.env`:
+```bash
+SUPABASE_URL=http://localhost:54321
+SUPABASE_KEY=<anon-key-from-terminal-output>
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key-from-terminal-output>
+```
+
+**Option B: Create New Free Account**
+1. Sign up at https://supabase.com with a DIFFERENT email
+2. Create a new free project
+3. Update `.env` with new project credentials
+4. Run database migrations to set up schema
+
+**Option C: Settle Invoice**
+Go to https://supabase.com/dashboard → Organization Settings → Billing
+
+**How to get Supabase credentials:**
+1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
+2. Select your project
+3. Go to Settings → API
+4. Copy:
+   - `Project URL` → `SUPABASE_URL`
+   - `service_role` key (under "Project API keys") → `SUPABASE_SERVICE_ROLE_KEY`
+
+**Local Development Alternative (no account needed):**
+```bash
+# Run Supabase locally with Docker
+npx supabase start
+# Uses: SUPABASE_URL=http://localhost:54321
 ```
 
 ### 3. Integration OAuth (REQUIRED - Prevents 500 errors on /api/integrations/*)
@@ -212,3 +307,86 @@ The `.env` file must be located at:
 ```
 
 **Note:** This file is git-ignored for security. You must create it manually.
+
+---
+
+## 🔧 Troubleshooting Guide
+
+### Sign-in returns 500 Internal Server Error
+
+**Check 1: Is Supabase reachable?**
+```bash
+pm2 logs easyflow-backend --lines 20 --nostream | grep -i "supabase\|ENOTFOUND"
+```
+If you see `ENOTFOUND [project].supabase.co`:
+1. Your Supabase project is paused
+2. Go to https://supabase.com/dashboard → Restore project
+3. Run `pm2 restart easyflow-backend`
+
+**Check 2: Are credentials correct?**
+```bash
+# Verify SUPABASE_URL resolves
+nslookup $(grep SUPABASE_URL rpa-system/backend/.env | cut -d'/' -f3)
+```
+
+### Backend won't start
+
+**Check PM2 status:**
+```bash
+pm2 status
+pm2 logs easyflow-backend --err --lines 50
+```
+
+**Common fixes:**
+```bash
+# Kill and restart
+pm2 delete all
+pm2 start ecosystem.config.js
+
+# Or use the dev script
+./start-dev.sh
+```
+
+### Frontend can't connect to backend
+
+**Verify backend is running:**
+```bash
+curl http://localhost:3030/health/live
+```
+
+**Check CORS/ports:**
+- Frontend runs on `:3000`
+- Backend runs on `:3030`
+- Both must be running
+
+### Quick Recovery Commands
+
+```bash
+# Full restart
+./stop-dev.sh && ./start-dev.sh
+
+# Check all services
+pm2 status
+
+# View recent errors
+pm2 logs --err --lines 100
+
+# Restart just backend
+pm2 restart easyflow-backend
+```
+
+---
+
+## 📋 Development Session Checklist
+
+Copy this checklist for every dev session:
+
+```
+[ ] 1. Check Supabase dashboard - project active?
+[ ] 2. Run ./start-dev.sh
+[ ] 3. Verify: curl http://localhost:3030/health/live
+[ ] 4. Verify: curl http://localhost:3000 (frontend)
+[ ] 5. Check pm2 logs for errors
+[ ] 6. Test sign-in works
+[ ] 7. Ready to develop!
+```

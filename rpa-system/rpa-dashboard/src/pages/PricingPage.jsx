@@ -289,10 +289,11 @@ export default function PricingPage() {
  {/* Trust Badges */}
  <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center' }}>
  <TrustBadges />
- </div>
- </header>
+      </div>
+    </header>
 
- <div className={styles.plansGrid}>
+    <h2>Available Plans</h2>
+    <div className={styles.plansGrid}>
  {plans.length === 0 ? (
  <div className={styles.noPlans}>No plans available at this time. Please check back later.</div>
  ) : (

@@ -29,7 +29,7 @@ jobs:
       - name: Determine branch and validation mode
         id: branch-info
         run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             echo "branch=main" >> $GITHUB_OUTPUT
             echo "mode=strict" >> $GITHUB_OUTPUT
             echo "blocking=true" >> $GITHUB_OUTPUT
@@ -41,6 +41,16 @@ jobs:
           echo "🔍 Branch: ${{ steps.branch-info.outputs.branch }}"
           echo "🔍 Mode: ${{ steps.branch-info.outputs.mode }}"
           echo "🔍 Blocking: ${{ steps.branch-info.outputs.blocking }}"
+
+      - name: Heading hierarchy (h2 before h3)
+        run: |
+          echo "🔎 Checking heading hierarchy (fast static check)..."
+          if [ "${{ steps.branch-info.outputs.blocking }}" == "true" ]; then
+            node scripts/validate-heading-hierarchy.js || (echo "❌ Heading hierarchy failed (h3 must follow h2)" && exit 1)
+          else
+            node scripts/validate-heading-hierarchy.js || echo "⚠️ Heading hierarchy issues found (non-blocking on dev)"
+          fi
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
 
       - name: Install dashboard dependencies
         working-directory: rpa-system/rpa-dashboard

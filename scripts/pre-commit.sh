@@ -47,6 +47,21 @@ fi
 # Track if any checks fail
 FAILED=0
 
+# Step 0: Quick accessibility heading hierarchy check (fast, static)
+echo "${BLUE}Step 0: Heading hierarchy check (h2 before h3)...${NC}"
+if command -v node >/dev/null 2>&1 && [ -f "scripts/validate-heading-hierarchy.js" ]; then
+  if node scripts/validate-heading-hierarchy.js >/dev/null 2>&1; then
+    echo "  ${GREEN}✓ Heading hierarchy passed${NC}"
+  else
+    echo "  ${YELLOW}⚠ Heading hierarchy issues found${NC}"
+    if [ "$BLOCKING" = true ]; then
+      FAILED=$((FAILED + 1))
+    fi
+  fi
+else
+  echo "  ${YELLOW}○ Node or validator not available, skipping${NC}"
+fi
+
 # Allow skipping tests via environment variable (for faster commits)
 SKIP_TESTS="${SKIP_TESTS:-false}"
 
@@ -87,8 +102,9 @@ else
             if npm run lint 2>/dev/null || npx eslint . --ext .js,.jsx 2>/dev/null; then
                 echo "  ${GREEN}✓ Backend linting passed${NC}"
             else
-                echo "  ${YELLOW}⚠ Backend linting issues found${NC}"
-                FAILED=$((FAILED + 1))
+                # Temporary: treat backend lint as non-blocking in pre-commit.
+                # Full backend lint still runs in CI and in dedicated validation scripts.
+                echo "  ${YELLOW}⚠ Backend linting issues found (non-blocking in pre-commit; see CI for enforcement)${NC}"
             fi
         else
             echo "  ${YELLOW}○ ESLint not configured for backend, skipping${NC}"

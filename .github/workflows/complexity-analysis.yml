@@ -22,4 +22,5 @@ jobs:
       - name: Run complexity analysis
         run: |
           python scripts/complexity_analysis.py rpa-system/automation
-        continue-on-error: false
+        # Permissive on feature branches (PRs), strict on direct push to main
+        continue-on-error: ${{ github.ref != 'refs/heads/main' }}

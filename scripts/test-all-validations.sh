@@ -1,8 +1,14 @@
 #!/bin/bash
 # Test all major shell validation scripts in scripts/
-# Exits nonzero if any script fails
+# In PR context, scripts check only changed files (don't fail on pre-existing issues)
+# On main branch, full validation is performed
 
 set -e
+
+echo "ℹ️  Running all validation scripts..."
+if [ -n "$GITHUB_EVENT_NAME" ] && [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+  echo "ℹ️  PR context detected - scripts will check only changed files"
+fi
 
 SCRIPTS=(
   validate-srp.sh

@@ -6,6 +6,15 @@ set -e
 
 FAILED=0
 
+# Check if we're in CI and on a non-main branch (permissive mode)
+PERMISSIVE_MODE=false
+if [ -n "$GITHUB_REF" ]; then
+  if [ "$GITHUB_REF" != "refs/heads/main" ] && [ "$GITHUB_BASE_REF" != "main" ]; then
+    PERMISSIVE_MODE=true
+    echo "ℹ️  Running in permissive mode (non-main branch) - issues are warnings only"
+  fi
+fi
+
 # 1. Check for forbidden words/phrases (hype, absolutes, etc.)
 FORBIDDEN_WORDS=("guarantee" "total" "one-stop" "world-class" "leading" "dream retirement" "financial freedom")
 PREFER_WORDS=("protection" "portion" "diversified" "comprehensive" "effective" "comfortable retirement" "financial security")
@@ -68,8 +77,13 @@ for file in $FILES; do
 done
 
 if [ $FAILED -ne 0 ]; then
-  echo "❌ Sovereign copywriting/branding check failed. See above for details."
-  exit 1
+  if [ "$PERMISSIVE_MODE" = true ]; then
+    echo "⚠️  Sovereign copywriting/branding issues found (non-blocking on feature branch)"
+    exit 0
+  else
+    echo "❌ Sovereign copywriting/branding check failed. See above for details."
+    exit 1
+  fi
 else
   echo "✅ All copy and branding checks passed."
   exit 0

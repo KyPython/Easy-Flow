@@ -1665,6 +1665,36 @@ app.get('/health', async (_req, res) => {
  res.status(statusCode).json(health);
 });
 
+// ✅ KUBERNETES PROBES: Liveness and Readiness endpoints for container orchestration
+// /health/live - Simple liveness probe (is the process running?)
+app.get('/health/live', (_req, res) => {
+  res.send('OK');
+});
+
+// /health/ready - Readiness probe (is the service ready to accept traffic?)
+app.get('/health/ready', async (_req, res) => {
+  try {
+    const { getSupabase, isSupabaseConfigured } = require('./utils/supabaseClient');
+    const configured = isSupabaseConfigured();
+    const supabase = getSupabase();
+
+    // Check if database is accessible
+    if (!configured || !supabase) {
+      return res.status(503).send('Not Ready - Database not configured');
+    }
+
+    // Quick connectivity test
+    const { error } = await supabase.from('profiles').select('id').limit(1);
+    if (error) {
+      return res.status(503).send('Not Ready - Database unavailable');
+    }
+
+    res.send('OK');
+  } catch (error) {
+    res.status(503).send('Not Ready');
+  }
+});
+
 // Enhanced health check endpoint for database services
 // ✅ DIAGNOSTIC: Add Supabase connectivity check endpoint
 app.get('/api/health/supabase', async (_req, res) => {
@@ -3555,98 +3585,6 @@ app.post('/api/notifications/create', notificationsCreateDeprecation, authMiddle
  logger.error('[POST /api/notifications/create] error:', error);
  res.status(500).json({ error: 'Internal server error', details: error.message });
  }
-});
-
-// --- Subscription Monitoring API ---
-const subscriptionMonitoringService = require('./services/subscriptionMonitoringService');
-
-// GET /api/subscriptions - Get all subscriptions for user
-app.get('/api/subscriptions', authMiddleware, async (req, res) => {
-  try {
-    const { company_name, service_name } = req.query;
-    const result = await subscriptionMonitoringService.getUserSubscriptions(req.user.id, {
-      company_name,
-      service_name
-    });
-
-    if (!result.success) {
-      return res.status(500).json({ error: result.error });
-    }
-
-    res.json(result.subscriptions);
-  } catch (error) {
-    logger.error('[GET /api/subscriptions] error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
-  }
-});
-
-// POST /api/subscriptions - Create new subscription
-app.post('/api/subscriptions', authMiddleware, async (req, res) => {
-  try {
-    const result = await subscriptionMonitoringService.createSubscription(req.user.id, req.body);
-
-    if (!result.success) {
-      return res.status(500).json({ error: result.error });
-    }
-
-    res.json(result.subscription);
-  } catch (error) {
-    logger.error('[POST /api/subscriptions] error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
-  }
-});
-
-// GET /api/subscriptions/export - Export subscriptions data for spreadsheet
-app.get('/api/subscriptions/export', authMiddleware, async (req, res) => {
-  try {
-    const { company } = req.query;
-    const result = await subscriptionMonitoringService.getExportData(req.user.id, company);
-
-    if (!result.success) {
-      return res.status(500).json({ error: result.error });
-    }
-
-    res.json(result.data);
-  } catch (error) {
-    logger.error('[GET /api/subscriptions/export] error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
-  }
-});
-
-// POST /api/subscriptions/:id/usage-check - Record usage check result
-app.post('/api/subscriptions/:id/usage-check', authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { usage_data, execution_id } = req.body;
-
-    const result = await subscriptionMonitoringService.recordUsageCheck(id, usage_data, execution_id);
-
-    if (!result.success) {
-      return res.status(500).json({ error: result.error });
-    }
-
-    res.json(result.check);
-  } catch (error) {
-    logger.error('[POST /api/subscriptions/:id/usage-check] error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
-  }
-});
-
-// POST /api/subscriptions/alerts/:id/acknowledge - Acknowledge an alert
-app.post('/api/subscriptions/alerts/:id/acknowledge', authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await subscriptionMonitoringService.acknowledgeAlert(id, req.user.id);
-
-    if (!result.success) {
-      return res.status(500).json({ error: result.error });
-    }
-
-    res.json({ success: true });
-  } catch (error) {
-    logger.error('[POST /api/subscriptions/alerts/:id/acknowledge] error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
-  }
 });
 
 // --- Task Management API ---

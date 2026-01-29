@@ -124,14 +124,17 @@ def initialize_telemetry():
 
         # ✅ PART 2.3: Verification - Print success message
         logger.info(
-            "✅ [Telemetry] OpenTelemetry Python worker instrumentation initialized")
+            "✅ [Telemetry] OpenTelemetry Python worker instrumentation initialized"
+        )
         logger.info(f"✅ [Telemetry] Service Name: {SERVICE_NAME}")
         logger.info(
-            f"✅ [Telemetry] OTLP Endpoint: {OTEL_EXPORTER_OTLP_ENDPOINT}")
-        sampler_type = 'AlwaysOnSampler' if use_always_on else f'TraceIdRatioBasedSampler({
-            int(
-                sampling_ratio *
-                100)}%)'
+            f"✅ [Telemetry] OTLP Endpoint: {OTEL_EXPORTER_OTLP_ENDPOINT}"
+        )
+        sampler_type = (
+            'AlwaysOnSampler'
+            if use_always_on
+            else f"TraceIdRatioBasedSampler({int(sampling_ratio * 100)}%)"
+        )
         env_label = ' (development - always sample)' if is_development else ' (production)'
         logger.info(
             f"✅ [Telemetry] Trace Sampler: ParentBased with {sampler_type}{env_label}")

@@ -26,7 +26,7 @@ const WebhooksPage = () => {
  
  <div className={styles.content}>
  <div className={styles.placeholder}>
- <h3>🔔 Webhook Builder Coming Soon</h3>
+ <h2>🔔 Webhook Builder Coming Soon</h2>
  <p>Manage webhooks with:</p>
  <ul>
  <li>Unlimited webhook endpoints</li>

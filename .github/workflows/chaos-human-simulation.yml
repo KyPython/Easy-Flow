@@ -21,8 +21,77 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Install Playwright
-        run: npm install playwright
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            rpa-system/package-lock.json
+            rpa-system/rpa-dashboard/package-lock.json
+      - name: Install root deps (for scripts)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Install rpa-system deps (Playwright)
+        working-directory: rpa-system
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Install dashboard deps
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Build dashboard
+        working-directory: rpa-system/rpa-dashboard
+        run: npm run build
+
+      - name: Start dashboard server
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          npx serve -s build -l 3000 > /tmp/serve.log 2>&1 &
+          echo $! > /tmp/serve.pid
+          echo "🚀 Started server PID=$(cat /tmp/serve.pid)"
+
+      - name: Wait for http://localhost:3000
+        run: |
+          for i in {1..45}; do
+            if curl -fsS http://localhost:3000 >/dev/null 2>&1; then
+              echo "✅ Server is ready"
+              exit 0
+            fi
+            echo "⏳ Waiting for server... ($i/45)"
+            sleep 2
+          done
+          echo "❌ Server did not become ready. Last logs:"
+          tail -200 /tmp/serve.log || true
+          exit 1
+
+      - name: Install Playwright browsers
+        run: |
+          # Install for both root and rpa-system to cover all cases
+          npx playwright install chromium --with-deps
+        
       - name: Run Chaos Human Simulation
-        run: node scripts/chaos-human-simulation.js
+        working-directory: rpa-system
+        run: node ../scripts/chaos-human-simulation.js
+        # Permissive on feature branches
+        continue-on-error: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Stop dashboard server
+        if: always()
+        run: |
+          if [ -f /tmp/serve.pid ]; then
+            kill "$(cat /tmp/serve.pid)" 2>/dev/null || true
+          fi

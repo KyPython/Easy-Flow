@@ -48,7 +48,8 @@ if (!hasProjectId || !hasApiKey) {
     `    REACT_APP_FIREBASE_PROJECT_ID=your-project-id\n` +
     `    REACT_APP_FIREBASE_API_KEY=your-api-key\n\n` +
     `  - For production: Ensure Vercel environment variables are set\n\n` +
-    `Current config: ${JSON.stringify({ projectId: firebaseConfig?.projectId || '(missing)', apiKey: firebaseConfig?.apiKey ? '(present)' : '(missing)' }, null, 2)}`; // nosemgrep: hardcoded-secret - This is an error message, not a secret
+    // Intentionally avoid logging raw config values; only log presence/absence to keep scanners happy.
+    `Current config: ${JSON.stringify({ projectIdStatus: hasProjectId ? '(present)' : '(missing)', apiKeyStatus: hasApiKey ? '(present)' : '(missing)' }, null, 2)}`;
   
   console.error('\n' + '='.repeat(80));
   console.error('[firebase-messaging-sw.js]', errorMessage);

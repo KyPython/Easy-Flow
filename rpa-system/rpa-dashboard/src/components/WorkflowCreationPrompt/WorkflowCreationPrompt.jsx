@@ -85,7 +85,7 @@ const WorkflowCreationPrompt = ({ workflowsCount = 0, onDismiss }) => {
         <div className={styles.promptContent}>
           <div className={styles.icon}>🚀</div>
           <div className={styles.text}>
-            <h3>Create Your First Workflow</h3>
+            <h2>Create Your First Workflow</h2>
             <p>Start automating your repetitive tasks in minutes. No coding required!</p>
             <div className={styles.examples}>
               <span>✨ Portal CSV Export (Login → Scrape → Export)</span>
