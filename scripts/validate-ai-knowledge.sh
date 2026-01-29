@@ -14,7 +14,7 @@ trap "rm -f $TMP_TASKS $TMP_ENDPOINTS" EXIT
 # Task types seen in automation code
 grep -RniE "task_type\s*[:=]|accepted_types" "$BACKEND_DIR" | sed -E 's/.*(web_automation|form_submission|data_extraction|file_download|invoice_download).*/\1/;' | sort -u | grep -E '^[a-z_]+' > "$TMP_TASKS" || true
 # Endpoints
-grep -RniE "app\.(post|get|delete)\s*\(\s*'\/api\/[^"]+" "$BACKEND_DIR" | sed -E "s/.*'(\/api\/[a-zA-Z0-9_:\/\-]+)'.*/\1/" | sort -u > "$TMP_ENDPOINTS" || true
+grep -RniE "app\.(post|get|delete)\s*\(\s*'/api/[^\\\"]+" "$BACKEND_DIR" | sed -E "s/.*('/api/[a-zA-Z0-9_:\/-]+)'.*/\1/" | sort -u > "$TMP_ENDPOINTS" || true
 KB_TASKS=$(jq -r '.supported_task_types[]' "$KB_FILE" 2>/dev/null || true)
 KB_ENDPOINTS=$(jq -r '.supported_endpoints[]' "$KB_FILE" 2>/dev/null || true)
 MISSING_TASKS=()
