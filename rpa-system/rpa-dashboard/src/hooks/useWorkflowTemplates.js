@@ -72,7 +72,7 @@ export const useWorkflowTemplates = (options = {}) => {
  qry = qry.eq('industry', industry);
  } catch (e) {
  // Industry column may not exist yet - that's ok, just skip the filter
- console.debug('[Templates] Industry filter skipped (column may not exist)');
+ logger.debug('Templates industry filter skipped (column may not exist)');
  }
  }
  if (search) {
@@ -83,14 +83,14 @@ export const useWorkflowTemplates = (options = {}) => {
  let { data, error: templatesError, count } = await qry;
 
  if (templatesError) {
- console.warn('[Templates] Ranked view query error:', {
+ logger.warn('Templates ranked view query error:', {
  code: templatesError.code,
  message: templatesError.message,
  details: templatesError.details,
  hint: templatesError.hint
  });
  } else {
- console.debug('[Templates] Ranked view query ok:', {
+ logger.debug('Templates ranked view query ok:', {
  count,
  rows: Array.isArray(data) ? data.length : 0
  });
@@ -221,7 +221,7 @@ export const useWorkflowTemplates = (options = {}) => {
  details: err?.details,
  hint: err?.hint
  };
- console.error('Error loading templates:', normalized);
+ logger.error('Error loading templates:', normalized);
  setError(`${normalized.message}${normalized.code ? ` (code ${normalized.code})` : ''}`);
  // Provide fallback templates only if the schema is missing or access denied
  if (err?.code === '42P01' || err?.code === '42703' || String(err?.message || '').toLowerCase().includes('permission')) {
@@ -342,13 +342,13 @@ export const useWorkflowTemplates = (options = {}) => {
  try {
  await clientForCreate.rpc('record_template_install', { p_template_id: idStr });
  } catch (e) {
- console.warn('record_template_install RPC failed or unavailable:', e?.message || e);
+ logger.warn('record_template_install RPC failed or unavailable:', e?.message || e);
  }
  }
 
  return data;
  } catch (err) {
- console.error('Error creating workflow from template:', err);
+ logger.error('Error creating workflow from template:', err);
  throw err;
  }
  }, [templates]);
@@ -406,7 +406,7 @@ export const useWorkflowTemplates = (options = {}) => {
 
  return { ...template, versions };
  } catch (err) {
- console.error('Error loading template details:', err);
+ logger.error('Error loading template details:', err);
  throw err;
  }
  }, []);
@@ -484,7 +484,7 @@ export const useWorkflowTemplates = (options = {}) => {
  
  return true;
  } catch (err) {
- console.error('Error rating template:', err);
+ logger.error('Error rating template:', err);
  throw err;
  }
  }, [loadTemplates]);

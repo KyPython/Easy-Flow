@@ -4,8 +4,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../utils/ThemeContext';
 import styles from './Header.module.css';
 import supabase, { initSupabase } from '../../utils/supabaseClient';
+import { createLogger } from '../../utils/logger';
 import PropTypes from 'prop-types';
 import { usePlan } from '../../hooks/usePlan';
+
+const logger = createLogger('Header');
 
 // PERFORMANCE: Lazy-load heavy components not needed for initial render
 const NotificationCenter = lazy(() => import('../NotificationCenter/NotificationCenter'));
@@ -30,7 +33,7 @@ const Header = ({ user }) => {
       const client = await initSupabase();
       await client.auth.signOut();
     } catch (e) {
-      console.error('Sign out error:', e);
+      logger.error('Sign out error:', e);
     } finally {
       navigate('/auth');
     }

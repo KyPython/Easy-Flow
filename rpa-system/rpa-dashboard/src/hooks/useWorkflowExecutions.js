@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import supabase, { initSupabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
 import { api } from '../utils/api';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('useWorkflowExecutions');
 
 // UUID validation regex (matches Supabase UUID format)
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,7 +35,7 @@ export const useWorkflowExecutions = (workflowId) => {
  setStats({ total: 0, completed: 0, failed: 0, running: 0, cancelled: 0 });
  setLoading(false);
  if (workflowId && !isValidWorkflowId(workflowId)) {
- console.warn(`[useWorkflowExecutions] Invalid workflowId format: "${workflowId}". Expected UUID format.`);
+    logger.warn(`useWorkflowExecutions invalid workflowId: "${workflowId}". Expected UUID format.`);
  setError(`Invalid workflow ID format: "${workflowId}"`);
  }
  return;
@@ -101,7 +103,7 @@ export const useWorkflowExecutions = (workflowId) => {
  setStats(newStats);
 
  } catch (err) {
- console.error('Error loading executions:', err);
+ logger.error('Error loading executions:', err);
  setError(err.message);
  } finally {
  setLoading(false);
@@ -134,7 +136,7 @@ export const useWorkflowExecutions = (workflowId) => {
  }
  } catch (apiError) {
  // If API fails, fall back to direct Supabase query
- console.warn('[getExecutionDetails] API call failed, falling back to direct query:', apiError?.message);
+ logger.warn('getExecutionDetails API call failed, falling back to direct query:', apiError?.message);
  }
  }
  
@@ -195,7 +197,7 @@ export const useWorkflowExecutions = (workflowId) => {
  if (execError) throw execError;
  return execution;
  } catch (err) {
- console.error('[getExecutionDetails] Error loading execution details:', err);
+ logger.error('getExecutionDetails error loading details:', err);
  throw err;
  }
  };
@@ -236,7 +238,7 @@ export const useWorkflowExecutions = (workflowId) => {
  // Add 100ms buffer to account for timing variations
  const waitTime = Math.max(100, 600 - timeSinceFirebaseToken); // Wait at least 100ms, or until 600ms total has passed
  
- console.log(`⏳ Workflow execution blocked by Firebase token check (${timeSinceFirebaseToken}ms since token). Auto-retrying in ${waitTime}ms...`);
+ logger.debug(`Workflow execution blocked by Firebase token check (${timeSinceFirebaseToken}ms since token). Auto-retrying in ${waitTime}ms...`);
  
  // Wait and retry once
  await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -275,14 +277,14 @@ export const useWorkflowExecutions = (workflowId) => {
  // Add 500ms buffer to account for timing variations
  const waitTime = Math.max(2000, 8500 - timeSinceFirebaseToken); // Wait at least 2s, or until 8.5s total has passed
  
- console.log(`⏳ Workflow execution blocked by Firebase token check (${timeSinceFirebaseToken}ms since token). Auto-retrying in ${waitTime}ms...`);
+ logger.debug(`Workflow execution blocked by Firebase token check (${timeSinceFirebaseToken}ms since token). Auto-retrying in ${waitTime}ms...`);
  
  // Wait and retry once
  await new Promise(resolve => setTimeout(resolve, waitTime));
  return startExecution(inputData, retryCount + 1);
  }
  
- console.error('Error starting execution:', err);
+ logger.error('Error starting execution:', err);
  // ✅ UX: Preserve enhanced error messages
  throw err;
  }
@@ -317,7 +319,7 @@ export const useWorkflowExecutions = (workflowId) => {
 
  return true;
  } catch (err) {
- console.error('Error cancelling execution:', err);
+ logger.error('Error cancelling execution:', err);
  throw err;
  }
  };
@@ -335,7 +337,7 @@ export const useWorkflowExecutions = (workflowId) => {
  // Start a new execution with the same input data
  return await startExecution(originalExecution.input_data || {});
  } catch (err) {
- console.error('Error retrying execution:', err);
+ logger.error('Error retrying execution:', err);
  throw err;
  }
  };
@@ -376,7 +378,7 @@ export const useWorkflowExecutions = (workflowId) => {
  if (error) throw error;
  return data || [];
  } catch (err) {
- console.error('Error loading execution logs:', err);
+ logger.error('Error loading execution logs:', err);
  throw err;
  }
  };
@@ -453,7 +455,7 @@ export const useWorkflowExecutions = (workflowId) => {
 
  return true;
  } catch (err) {
- console.error('Error exporting executions:', err);
+ logger.error('Error exporting executions:', err);
  throw err;
  }
  };
@@ -487,7 +489,7 @@ export const useWorkflowExecutions = (workflowId) => {
  filter: `workflow_id=eq.${workflowId}`
  },
  (payload) => {
- console.log('Execution change detected:', payload);
+ logger.debug('Execution change detected:', payload);
  
  switch (payload.eventType) {
  case 'INSERT':
@@ -534,7 +536,7 @@ export const useWorkflowExecutions = (workflowId) => {
  )
  .subscribe();
  } catch (err) {
- console.warn('[useWorkflowExecutions] realtime init failed', err);
+ logger.warn('useWorkflowExecutions realtime init failed', err);
  }
  })();
 
@@ -543,7 +545,7 @@ export const useWorkflowExecutions = (workflowId) => {
       if (subscription && subscription.unsubscribe) subscription.unsubscribe();
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.debug('[useWorkflowExecutions] unsubscribe failed', err && (err.message || err));
+      logger.debug('useWorkflowExecutions unsubscribe failed', err && (err.message || err));
     }
   };
  }, [workflowId]);

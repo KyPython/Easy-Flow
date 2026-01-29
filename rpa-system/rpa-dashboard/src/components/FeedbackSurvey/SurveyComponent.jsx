@@ -1,4 +1,6 @@
 /*
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('SurveyComponent');
 In-App Feedback Survey Component
 ---
 
@@ -199,7 +201,7 @@ const SurveyComponent = memo(({
  }, 2000);
  
  } catch (error) {
- console.error('Failed to submit feedback:', error);
+ logger.error('Failed to submit feedback:', error);
  
  // Store locally if backend fails
  const offlineResponses = JSON.parse(localStorage.getItem('offline_feedback') || '[]');

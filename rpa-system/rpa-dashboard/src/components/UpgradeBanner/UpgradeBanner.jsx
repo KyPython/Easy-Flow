@@ -83,9 +83,9 @@ const UpgradeBanner = () => {
  <button 
  onClick={handleUpgradeClick}
  className={styles.upgradeButton}
- >
- Upgrade to Pro ->
- </button>
+>
+				Upgrade to Pro →
+			</button>
  
  <DemoBookingButton
  buttonText="📅 Book Demo"

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import supabase, { initSupabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
 import { api } from '../utils/api';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('useSchedules');
 
 export const useSchedules = (workflowId) => {
  const [schedules, setSchedules] = useState([]);
@@ -41,7 +43,7 @@ export const useSchedules = (workflowId) => {
  setSchedules([]);
  }
  } catch (err) {
- console.error('Error loading schedules:', err);
+ logger.error('Error loading schedules:', err);
  // Check for 403 (plan restriction), 401 (auth), or 429 (rate limit) errors
  // Handle both axios errors (err.response) and direct status codes
  const status = err.response?.status || err.status || 
@@ -103,7 +105,7 @@ export const useSchedules = (workflowId) => {
  
  return result.schedule;
  } catch (err) {
- console.error('Error creating schedule:', err);
+ logger.error('Error creating schedule:', err);
  throw err;
  }
  };
@@ -128,7 +130,7 @@ export const useSchedules = (workflowId) => {
  
  return result.schedule;
  } catch (err) {
- console.error('Error updating schedule:', err);
+ logger.error('Error updating schedule:', err);
  throw err;
  }
  };
@@ -149,7 +151,7 @@ export const useSchedules = (workflowId) => {
  
  return true;
  } catch (err) {
- console.error('Error deleting schedule:', err);
+ logger.error('Error deleting schedule:', err);
  throw err;
  }
  };
@@ -166,7 +168,7 @@ export const useSchedules = (workflowId) => {
  const { data: result } = await api.post(buildApiUrl(`/api/schedules/${scheduleId}/trigger`));
  return result;
  } catch (err) {
- console.error('Error triggering schedule:', err);
+ logger.error('Error triggering schedule:', err);
  throw err;
  }
  };
@@ -183,7 +185,7 @@ export const useSchedules = (workflowId) => {
  const { data: result } = await api.get(buildApiUrl(`/api/schedules/${scheduleId}/executions?limit=${limit}&offset=${offset}`));
  return result.executions;
  } catch (err) {
- console.error('Error fetching schedule executions:', err);
+ logger.error('Error fetching schedule executions:', err);
  throw err;
  }
  };
@@ -194,7 +196,7 @@ export const useSchedules = (workflowId) => {
  await updateSchedule(scheduleId, { isActive });
  return true;
  } catch (err) {
- console.error('Error toggling schedule:', err);
+ logger.error('Error toggling schedule:', err);
  throw err;
  }
  };
@@ -216,7 +218,7 @@ export const useSchedules = (workflowId) => {
  (async () => {
  try {
  const client = await initSupabase();
- console.info('[useSchedules] creating realtime channel for workflow', workflowId);
+ logger.info('useSchedules creating realtime channel for workflow', workflowId);
  subscription = client
  .channel('workflow_schedules')
  .on(
@@ -228,7 +230,7 @@ export const useSchedules = (workflowId) => {
  filter: `workflow_id=eq.${workflowId}`
  },
  (payload) => {
- console.info('[useSchedules] Schedule change payload:', payload);
+ logger.info('useSchedules Schedule change payload:', payload);
  switch (payload.eventType) {
  case 'INSERT':
  setSchedules(prev => [payload.new, ...prev]);
@@ -253,14 +255,14 @@ export const useSchedules = (workflowId) => {
 
  try {
  const sub = subscription.subscribe((status) => {
- console.info('[useSchedules] realtime subscription status', status);
+ logger.info('useSchedules realtime subscription status', status);
  });
- console.info('[useSchedules] subscribe() called for workflow_schedules', sub || subscription);
+ logger.info('useSchedules subscribe() called for workflow_schedules', sub || subscription);
  } catch (sErr) {
- console.warn('[useSchedules] subscribe call failed', sErr && sErr.message ? sErr.message : sErr);
+ logger.warn('useSchedules subscribe call failed', sErr && sErr.message ? sErr.message : sErr);
  }
  } catch (err) {
- console.warn('[useSchedules] realtime init failed', err);
+ logger.warn('useSchedules realtime init failed', err);
  }
  })();
 
@@ -269,7 +271,7 @@ export const useSchedules = (workflowId) => {
 			if (subscription && subscription.unsubscribe) subscription.unsubscribe();
 		} catch (err) {
 			// eslint-disable-next-line no-console
-			console.debug('[useSchedules] unsubscribe failed', err && (err.message || err));
+			logger.debug('useSchedules unsubscribe failed', err && (err.message || err));
 		}
 	};
  }, [workflowId]);

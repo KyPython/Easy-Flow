@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('useTasks');
 import { Task, TaskCategory, TaskStats, TaskStatus } from '../types';
 import { mockQuery } from '../data/accessibleOSMockData';
 import { useAuth } from '../utils/AuthContext';
@@ -71,7 +73,7 @@ export const useTasks = (options: UseTasksOptions = {}): UseTasksReturn => {
  }
  } catch (e) {
  // fall back to mock
- console.warn('API fetch tasks failed, falling back to mock', e);
+ logger.warn('API fetch tasks failed, falling back to mock', e);
  }
 
  // Simulate API call fallback
@@ -164,13 +166,12 @@ export const useTasks = (options: UseTasksOptions = {}): UseTasksReturn => {
  }
  };
 
- const createTask = async (taskData: Partial<Task>): Promise<Task> => {
- setLoading(true);
- setError(null);
- 
- try {
- const auth = useAuth();
- const token = auth?.session?.access_token || null;
+const createTask = async (taskData: Partial<Task>): Promise<Task> => {
+	setLoading(true);
+	setError(null);
+	
+	try {
+		const token = auth?.session?.access_token || null;
  const body = await apiClient.post('/accessibleos/tasks', taskData, token);
  const newTask = body.data as Task;
  setTasks(prev => [newTask, ...prev]);
@@ -183,13 +184,12 @@ export const useTasks = (options: UseTasksOptions = {}): UseTasksReturn => {
  }
  };
 
- const updateTask = async (taskId: string, updates: Partial<Task>): Promise<Task> => {
- setLoading(true);
- setError(null);
- 
- try {
- const auth = useAuth();
- const token = auth?.session?.access_token || null;
+const updateTask = async (taskId: string, updates: Partial<Task>): Promise<Task> => {
+	setLoading(true);
+	setError(null);
+	
+	try {
+		const token = auth?.session?.access_token || null;
  const body = await apiClient.put(`/accessibleos/tasks/${taskId}`, updates, token);
  const updated = body.data as Task;
  setTasks(prev => prev.map(tk => tk.id === taskId ? updated : tk));
@@ -202,13 +202,12 @@ export const useTasks = (options: UseTasksOptions = {}): UseTasksReturn => {
  }
  };
 
- const deleteTask = async (taskId: string): Promise<void> => {
- setLoading(true);
- setError(null);
- 
- try {
- const auth = useAuth();
- const token = auth?.session?.access_token || null;
+const deleteTask = async (taskId: string): Promise<void> => {
+	setLoading(true);
+	setError(null);
+	
+	try {
+		const token = auth?.session?.access_token || null;
  await apiClient.del(`/accessibleos/tasks/${taskId}`, token);
  setTasks(prev => prev.filter(task => task.id !== taskId));
  } catch (err) {

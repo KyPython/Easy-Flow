@@ -1,4 +1,6 @@
 import React from 'react';
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('TaskEditPage');
 import { useParams, useNavigate } from 'react-router-dom';
 import TaskForm from './TaskForm';
 import { useTasks } from '../../hooks/useTasks';
@@ -16,7 +18,7 @@ const TaskEditPage: React.FC = () => {
  await updateTask(id, data);
  navigate(`/tasks/${id}`);
  } catch (e) {
- console.error('Failed to update task', e);
+ logger.error('Failed to update task', e);
  }
  };
 

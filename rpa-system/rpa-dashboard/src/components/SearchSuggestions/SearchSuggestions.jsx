@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('SearchSuggestions');
 import PropTypes from 'prop-types';
 import styles from './SearchSuggestions.module.css';
 
@@ -16,7 +18,7 @@ const SearchSuggestions = ({ query, onSelect, placeholder = "Search the web..." 
  return;
  }
 
- console.log('[SearchSuggestions] Searching web', { query: searchQuery });
+ logger.debug('[SearchSuggestions] Searching web', { query: searchQuery });
  setLoading(true);
 
  try {
@@ -26,7 +28,7 @@ const SearchSuggestions = ({ query, onSelect, placeholder = "Search the web..." 
  );
  
  const data = await response.json();
- console.log('[SearchSuggestions] Search results', { 
+ logger.debug('[SearchSuggestions] Search results', { 
  query: searchQuery, 
  resultsCount: data.RelatedTopics?.length || 0 
  });
@@ -72,7 +74,7 @@ const SearchSuggestions = ({ query, onSelect, placeholder = "Search the web..." 
  setShowDropdown(true);
  
  } catch (error) {
- console.error('[SearchSuggestions] Search failed', error);
+ logger.error('[SearchSuggestions] Search failed', error);
  // Fallback: provide search engine links
  setSuggestions([
  {
@@ -129,7 +131,7 @@ const SearchSuggestions = ({ query, onSelect, placeholder = "Search the web..." 
  }, []);
 
  const handleSelect = (suggestion) => {
- console.log('[SearchSuggestions] Selected', { url: suggestion.url });
+ logger.debug('[SearchSuggestions] Selected', { url: suggestion.url });
  onSelect(suggestion.url);
  setShowDropdown(false);
  };

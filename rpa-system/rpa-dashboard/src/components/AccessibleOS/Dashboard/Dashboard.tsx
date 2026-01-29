@@ -5,7 +5,7 @@ import TaskStats from './TaskStats';
 import RecentTasks from './RecentTasks';
 import GameProgress from './GameProgress';
 import QuickActions from './QuickActions';
-import { ChartBar, CheckCircle, Clock, AlertTriangle } from '../Icons/Icons';
+import { ChartBar, CheckCircle, Clock, AlertTriangle } from '../../Icons/Icons';
 import styles from './Dashboard.module.css';
 
 const Dashboard: React.FC = () => {

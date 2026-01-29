@@ -24,7 +24,7 @@ export default class ErrorBoundary extends React.Component {
  const errorCount = this.state.errorCount + 1;
  
  // Log for remote debugging (console visible via remote inspect on mobile)
- console.error('[GlobalErrorBoundary] Error caught:', {
+ logger.error('[GlobalErrorBoundary] Error caught:', {
  error: error.message,
  stack: error.stack,
  componentStack: info.componentStack,
@@ -36,7 +36,7 @@ export default class ErrorBoundary extends React.Component {
  if (error.message?.includes('Network Error') || 
  error.message?.includes('ECONNREFUSED') ||
  error.message?.includes('fetch')) {
- console.warn('[ErrorBoundary] Network-related error detected. App should continue functioning.');
+ logger.warn('[ErrorBoundary] Network-related error detected. App should continue functioning.');
  }
 
  // Store error analytics
@@ -69,7 +69,7 @@ export default class ErrorBoundary extends React.Component {
  };
 
  attemptRecovery = () => {
- console.log('[ErrorBoundary] Attempting auto-recovery from network error...');
+ logger.info('[ErrorBoundary] Attempting auto-recovery from network error...');
  this.setState({ 
  hasError: false, 
  error: null, 
@@ -84,7 +84,7 @@ export default class ErrorBoundary extends React.Component {
  };
 
  handleRetry = () => {
- console.log('[ErrorBoundary] Manual retry initiated');
+ logger.info('[ErrorBoundary] Manual retry initiated');
  this.setState({ 
  hasError: false, 
  error: null, 

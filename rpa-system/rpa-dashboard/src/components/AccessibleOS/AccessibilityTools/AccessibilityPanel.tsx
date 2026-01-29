@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('AccessibilityPanel');
 import {
  Shield,
  AlertTriangle,
@@ -7,7 +9,7 @@ import {
  X,
  Play,
  Pause,
-} from '../Icons/Icons';
+} from '../../Icons/Icons';
 import {
  auditAccessibility,
  AccessibilityReport,
@@ -16,8 +18,10 @@ import {
 import Button from '../UI/Button';
 import Modal from '../UI/Modal';
 import styles from './AccessibilityPanel.module.css';
+import { useTheme } from '../../../utils/ThemeContext';
 
 const AccessibilityPanel: React.FC = () => {
+ const { theme } = useTheme();
  const [isOpen, setIsOpen] = useState(false);
  const [report, setReport] = useState<AccessibilityReport | null>(null);
  const [isAuditing, setIsAuditing] = useState(false);
@@ -36,7 +40,7 @@ const AccessibilityPanel: React.FC = () => {
  const auditReport = await auditAccessibility();
  setReport(auditReport);
  } catch (error) {
- console.error('Accessibility audit failed:', error);
+ logger.error('Accessibility audit failed:', error);
  } finally {
  setIsAuditing(false);
  }
@@ -55,9 +59,16 @@ const AccessibilityPanel: React.FC = () => {
  };
 
  const getScoreColor = (score: number) => {
- if (score >= 90) return '#10b981';
- if (score >= 70) return '#f59e0b';
- return '#ef4444';
+ // Use theme colors or fallback to CSS variables
+ if (theme?.colors) {
+  if (score >= 90) return theme.colors.success || '#10b981';
+  if (score >= 70) return theme.colors.warning || '#f59e0b';
+  return theme.colors.error || '#ef4444';
+ }
+ // Fallback to CSS variables
+ if (score >= 90) return 'var(--color-success-600, #10b981)';
+ if (score >= 70) return 'var(--color-warning-600, #f59e0b)';
+ return 'var(--color-error-600, #ef4444)';
  };
 
  const getImpactIcon = (impact: string) => {

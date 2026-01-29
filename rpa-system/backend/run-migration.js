@@ -8,11 +8,15 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: '.env' });
 
+// Use structured logging
+const { createLogger } = require('./middleware/structuredLogging');
+const logger = createLogger('migration');
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('❌ Missing Supabase credentials');
+  logger.error('Missing Supabase credentials');
   process.exit(1);
 }
 
@@ -23,8 +27,7 @@ async function runMigration() {
     const migrationPath = path.join(__dirname, '../../migrations/add_team_management_columns.sql');
     const sql = fs.readFileSync(migrationPath, 'utf8');
     
-    console.log('🔧 Running team management migration...');
-    console.log('📄 SQL:', sql.substring(0, 200) + '...');
+    logger.info({ migrationPath }, 'Running team management migration');
     
     // Split by semicolons and run each statement
     const statements = sql
@@ -34,31 +37,29 @@ async function runMigration() {
     
     for (const statement of statements) {
       if (statement.toLowerCase().includes('comment on')) {
-        // Skip comments for now
         continue;
       }
       
-      console.log(`\n⚙️  Executing: ${statement.substring(0, 60)}...`);
+      logger.debug({ statement: statement.substring(0, 60) }, 'Executing statement');
       
       const { error } = await supabase.rpc('exec_sql', {
         query: statement
       });
       
       if (error) {
-        // Try direct execution
-        console.log('⚠️  RPC failed, trying direct execution...');
+        logger.warn({ error: error.message }, 'RPC failed, trying direct execution');
         const { error: directError } = await supabase
           .from('_migrations')
           .insert({ name: 'add_team_management_columns', executed_at: new Date() });
         
         if (directError && !directError.message.includes('already exists')) {
-          console.error('❌ Error:', directError.message);
+          logger.error({ error: directError.message }, 'Error');
         }
       }
     }
     
-    console.log('\n✅ Migration completed successfully!');
-    console.log('ℹ️  Checking user role...');
+    logger.info('Migration completed successfully');
+    logger.info('Checking user role');
     
     const { data: user } = await supabase
       .from('profiles')
@@ -67,11 +68,11 @@ async function runMigration() {
       .single();
     
     if (user) {
-      console.log(`✅ User ${user.email} has role: ${user.role || '(none)'}`);
+      logger.info({ email: user.email, role: user.role || '(none)' }, 'User role');
     }
     
   } catch (err) {
-    console.error('❌ Unexpected error:', err.message);
+    logger.error({ error: err.message }, 'Unexpected error');
     process.exit(1);
   }
 }

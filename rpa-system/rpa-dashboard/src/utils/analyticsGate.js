@@ -1,10 +1,14 @@
+import { getEnvVariable } from './commonEnv';
+import { createLogger } from './logger';
+
+const logger = createLogger('analyticsGate');
+
 export async function enableAnalyticsForUser(user) {
  try {
  if (!user || !user.id) return false;
 
  // Idempotent guard - exit early if already injected
- const env = (typeof window !== 'undefined' && window._env) ? window._env : {};
- const gaId = env.VITE_GA_MEASUREMENT_ID || env.REACT_APP_GA_MEASUREMENT_ID || '';
+ const gaId = getEnvVariable(['VITE_GA_MEASUREMENT_ID', 'REACT_APP_GA_MEASUREMENT_ID']);
  if (window && window.__GTM_INJECTED__ === gaId) {
  return true; // Already injected for this GA ID
  }
@@ -42,7 +46,7 @@ export async function enableAnalyticsForUser(user) {
  window.__GTM_INJECTED__ = gaId;
  return true;
  } catch (e) {
- console.warn('[analyticsGate] failed', e && e.message ? e.message : e);
+ logger.warn('Failed to enable analytics', { error: e?.message || String(e) });
  return false;
  }
 }

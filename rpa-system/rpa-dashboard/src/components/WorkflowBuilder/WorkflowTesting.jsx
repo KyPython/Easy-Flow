@@ -19,9 +19,11 @@ import { useWorkflowTesting } from '../../hooks/useWorkflowTesting';
 import LoadingSpinner from './LoadingSpinner';
 import Modal from './Modal';
 import ActionButton from './ActionButton';
+import { useTheme } from '../../utils/ThemeContext';
 
 const WorkflowTesting = ({ workflowId, workflowName }) => {
  const navigate = useNavigate();
+ const { theme } = useTheme();
  const [showCreateModal, setShowCreateModal] = useState(false);
  const [selectedScenario, setSelectedScenario] = useState(null);
  const [showResultsModal, setShowResultsModal] = useState(false);
@@ -49,7 +51,7 @@ const WorkflowTesting = ({ workflowId, workflowName }) => {
  await createTestScenario(scenarioData);
  setShowCreateModal(false);
  } catch (err) {
- console.error('Failed to create test scenario:', err);
+ logger.error('Failed to create test scenario:', err);
  alert('Failed to create test scenario: ' + err.message);
  }
  };
@@ -57,9 +59,9 @@ const WorkflowTesting = ({ workflowId, workflowName }) => {
  const handleExecuteTest = async (scenarioId) => {
  try {
  const result = await executeTestScenario(scenarioId);
- console.log('Test executed:', result);
+ logger.info('Test executed:', result);
  } catch (err) {
- console.error('Failed to execute test:', err);
+ logger.error('Failed to execute test:', err);
  alert('Failed to execute test: ' + err.message);
  }
  };
@@ -67,9 +69,9 @@ const WorkflowTesting = ({ workflowId, workflowName }) => {
  const handleRunAllTests = async () => {
  try {
  const results = await runAllTests();
- console.log('All tests completed:', results);
+ logger.info('All tests completed:', results);
  } catch (err) {
- console.error('Failed to run all tests:', err);
+ logger.error('Failed to run all tests:', err);
  alert('Failed to run all tests: ' + err.message);
  }
  };
@@ -80,7 +82,7 @@ const WorkflowTesting = ({ workflowId, workflowName }) => {
  try {
  await deleteTestScenario(scenarioId);
  } catch (err) {
- console.error('Failed to delete test scenario:', err);
+ logger.error('Failed to delete test scenario:', err);
  alert('Failed to delete test scenario: ' + err.message);
  }
  };

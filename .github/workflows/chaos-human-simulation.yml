@@ -24,16 +24,8 @@ jobs:
           node-version: 22.x
           cache: npm
           cache-dependency-path: |
-            package-lock.json
             rpa-system/package-lock.json
             rpa-system/rpa-dashboard/package-lock.json
-      - name: Install root deps (for scripts)
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install --no-audit --no-fund
-          fi
 
       - name: Install rpa-system deps (Playwright)
         working-directory: rpa-system
@@ -82,7 +74,7 @@ jobs:
         run: |
           # Install for both root and rpa-system to cover all cases
           npx playwright install chromium --with-deps
-        
+
       - name: Run Chaos Human Simulation
         working-directory: rpa-system
         run: node ../scripts/chaos-human-simulation.js

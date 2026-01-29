@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { createPortal } from 'react-dom';
 import styles from './Toast.module.css';
 import { FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaTimes } from 'react-icons/fa';
+import { useTheme } from '../../utils/ThemeContext';
 
 const ToastContext = createContext();
 

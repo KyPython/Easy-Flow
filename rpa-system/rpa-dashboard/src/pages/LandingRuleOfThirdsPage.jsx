@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import styles from './LandingPageRuleOfThirds.module.css';
+import styles from './LandingRuleOfThirdsPage.module.css';
 import { useTheme } from '../utils/ThemeContext';
 import { useI18n } from '../i18n';
 import { UserCountBadge, ActivityCounter, TrustBadges } from '../components/SocialProof';
 import { getABTestVariant, trackABTestView } from '../utils/abTesting';
 import { captureAndStoreUTM } from '../utils/utmCapture';
+import { getEnvVariable } from '../utils/commonEnv';
+
+// Get calendly URL from environment (uses process.env via commonEnv utility)
+// Configure via REACT_APP_CALENDLY_URL or VITE_CALENDLY_URL environment variables
+const CALENDLY_URL = getEnvVariable(['REACT_APP_CALENDLY_URL', 'VITE_CALENDLY_URL']) || 'https://calendly.com/kyjahn-smith/consultation';
 
 /**
  * ✅ RULE OF THIRDS + C.R.A.P. REDESIGN
@@ -24,7 +29,7 @@ import { captureAndStoreUTM } from '../utils/utmCapture';
  * - Proximity: Secondary CTA far below, separated by whitespace
  */
 
-export default function LandingPageRuleOfThirds() {
+export default function LandingRuleOfThirdsPage() {
   const { theme, toggle } = useTheme();
   const { t } = useI18n();
   const [headlineVariant, setHeadlineVariant] = useState('A');
@@ -126,10 +131,10 @@ export default function LandingPageRuleOfThirds() {
 
         {/* ✅ SEPARATION: Secondary CTA far below, separated by space */}
         <div className={styles.secondaryCTAWrapper}>
-          <a 
-            href="https://calendly.com/kyjahn-smith/consultation" 
-            target="_blank" 
-            rel="noopener noreferrer" 
+          <a
+            href={CALENDLY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             className={styles.ctaSecondary}
           >
             Need help getting started? Book a free setup call →

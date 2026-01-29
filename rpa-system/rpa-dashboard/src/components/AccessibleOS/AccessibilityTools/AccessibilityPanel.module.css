@@ -5,7 +5,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background-color: #3b82f6;
+  background-color: var(--color-primary-600, #3b82f6);
   color: white;
   border: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -18,12 +18,12 @@
 }
 
 .floatingButton:hover {
-  background-color: #2563eb;
+  background-color: var(--color-primary-700, #2563eb);
   transform: scale(1.05);
 }
 
 .floatingButton:focus {
-  outline: 3px solid #93c5fd;
+  outline: 3px solid var(--color-primary-300, #93c5fd);
   outline-offset: 2px;
 }
 
@@ -31,7 +31,7 @@
   position: absolute;
   top: -4px;
   right: -4px;
-  background-color: #ef4444;
+  background-color: var(--color-error-600, #ef4444);
   color: white;
   border-radius: 50%;
   width: 20px;
@@ -143,23 +143,23 @@
 }
 
 .issue.critical {
-  border-left: 4px solid #ef4444;
-  background-color: #fef2f2;
+  border-left: 4px solid var(--color-error-600, #ef4444);
+  background-color: var(--color-error-50, #fef2f2);
 }
 
 .issue.serious {
-  border-left: 4px solid #f59e0b;
-  background-color: #fffbeb;
+  border-left: 4px solid var(--color-warning-600, #f59e0b);
+  background-color: var(--color-warning-50, #fffbeb);
 }
 
 .issue.moderate {
-  border-left: 4px solid #3b82f6;
-  background-color: #eff6ff;
+  border-left: 4px solid var(--color-primary-600, #3b82f6);
+  background-color: var(--color-primary-50, #eff6ff);
 }
 
 .issue.minor {
-  border-left: 4px solid #6b7280;
-  background-color: #f9fafb;
+  border-left: 4px solid var(--color-muted-text, #6b7280);
+  background-color: var(--color-muted-50, #f9fafb);
 }
 
 .issueHeader {
@@ -214,19 +214,19 @@
 }
 
 .criticalIcon {
-  color: #ef4444;
+  color: var(--color-error-600, #ef4444);
 }
 
 .seriousIcon {
-  color: #f59e0b;
+  color: var(--color-warning-600, #f59e0b);
 }
 
 .moderateIcon {
-  color: #3b82f6;
+  color: var(--color-primary-600, #3b82f6);
 }
 
 .minorIcon {
-  color: #6b7280;
+  color: var(--color-muted-text, #6b7280);
 }
 
 .noIssues {
@@ -239,7 +239,7 @@
 }
 
 .successIcon {
-  color: #10b981;
+  color: var(--color-success-600, #10b981);
 }
 
 .noIssues h3 {

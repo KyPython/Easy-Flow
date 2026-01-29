@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('WorkflowCreationPrompt');
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../utils/AuthContext';
 import { trackEvent } from '../../utils/api';
@@ -31,7 +33,7 @@ const WorkflowCreationPrompt = ({ workflowsCount = 0, onDismiss }) => {
         properties: { source: 'dashboard_prompt', workflows_count: workflowsCount, action: 'create_new' }
       });
     } catch (e) {
-      console.debug('trackEvent failed', e);
+      logger.debug('trackEvent failed', e);
     }
 
     // Show wizard for first workflow
@@ -51,7 +53,7 @@ const WorkflowCreationPrompt = ({ workflowsCount = 0, onDismiss }) => {
         properties: { source: 'dashboard_prompt', workflows_count: workflowsCount, action: 'browse_templates' }
       });
     } catch (e) {
-      console.debug('trackEvent failed', e);
+      logger.debug('trackEvent failed', e);
     }
 
     // Show wizard for first workflow, otherwise go to templates

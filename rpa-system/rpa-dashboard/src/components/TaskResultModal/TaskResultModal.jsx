@@ -7,55 +7,58 @@ import { createLogger } from '../../utils/logger';
 import { getConfig } from '../../utils/dynamicConfig';
 
 const TaskResultModal = ({ task, onClose }) => {
- // ✅ FIX: Early return must be BEFORE hooks to avoid "Rendered fewer hooks" error
- if (!task) return null;
- 
- // All hooks must be called after early return check
- const navigate = useNavigate();
- const [downloading, setDownloading] = useState(false);
- const [autoRedirecting, setAutoRedirecting] = useState(false);
- const [redirectCountdown, setRedirectCountdown] = useState(5);
- const logger = createLogger('TaskResultModal');
- 
- // ✅ AUTO-REDIRECT: After viewing results, auto-redirect to history
- useEffect(() => {
- // Only auto-redirect if task is completed or failed (not queued/running)
- const shouldAutoRedirect = task.status === 'completed' || task.status === 'failed';
- 
- if (!shouldAutoRedirect) return;
- 
- // Start countdown after 2 seconds of viewing
- const startTimer = setTimeout(() => {
- setAutoRedirecting(true);
- 
- // Countdown from 5 to 0
- let countdown = 5;
- setRedirectCountdown(countdown);
- 
- const countdownInterval = setInterval(() => {
- countdown--;
- setRedirectCountdown(countdown);
- 
- if (countdown <= 0) {
- clearInterval(countdownInterval);
- // Redirect to history page
- navigate('/app/history');
- }
- }, 1000);
- 
- // Store interval ID for cleanup
- window._taskResultModalInterval = countdownInterval;
- }, 2000);
- 
- // Cleanup function
- return () => {
- clearTimeout(startTimer);
- if (window._taskResultModalInterval) {
- clearInterval(window._taskResultModalInterval);
- window._taskResultModalInterval = null;
- }
- };
- }, [task.status, navigate]);
+	// All hooks must be called unconditionally (before any early returns)
+	const navigate = useNavigate();
+	const [downloading, setDownloading] = useState(false);
+	const [autoRedirecting, setAutoRedirecting] = useState(false);
+	const [redirectCountdown, setRedirectCountdown] = useState(5);
+	const logger = createLogger('TaskResultModal');
+	
+	// ✅ AUTO-REDIRECT: After viewing results, auto-redirect to history
+	useEffect(() => {
+		// Guard for null task
+		if (!task) return;
+		
+		// Only auto-redirect if task is completed or failed (not queued/running)
+		const shouldAutoRedirect = task.status === 'completed' || task.status === 'failed';
+		
+		if (!shouldAutoRedirect) return;
+		
+		// Start countdown after 2 seconds of viewing
+		const startTimer = setTimeout(() => {
+			setAutoRedirecting(true);
+			
+			// Countdown from 5 to 0
+			let countdown = 5;
+			setRedirectCountdown(countdown);
+			
+			const countdownInterval = setInterval(() => {
+				countdown--;
+				setRedirectCountdown(countdown);
+				
+				if (countdown <= 0) {
+					clearInterval(countdownInterval);
+					// Redirect to history page
+					navigate('/app/history');
+				}
+			}, 1000);
+			
+			// Store interval ID for cleanup
+			window._taskResultModalInterval = countdownInterval;
+		}, 2000);
+		
+		// Cleanup function
+		return () => {
+			clearTimeout(startTimer);
+			if (window._taskResultModalInterval) {
+				clearInterval(window._taskResultModalInterval);
+				window._taskResultModalInterval = null;
+			}
+		};
+	}, [task, navigate]);
+	
+	// Early return after hooks
+	if (!task) return null;
 
  // ✅ OBSERVABILITY: Unified download handler that matches TaskList behavior
  const handleDownload = async (artifactUrl, filename) => {

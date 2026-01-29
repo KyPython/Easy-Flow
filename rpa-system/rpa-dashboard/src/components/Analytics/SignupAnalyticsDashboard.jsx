@@ -1,4 +1,6 @@
 /**
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('SignupAnalyticsDashboard');
  * Signup Analytics Dashboard Component
  * Displays marketing events analytics including signup funnel, A/B test performance, and failure alerts
  */
@@ -29,7 +31,7 @@ export default function SignupAnalyticsDashboard() {
       setData(response.data);
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Failed to load analytics');
-      console.error('Signup analytics error:', err);
+      logger.error('Signup analytics error:', err);
     } finally {
       setLoading(false);
     }

@@ -62,7 +62,7 @@ const DataRetentionDashboard = ({ user }) => {
  setPolicies(policiesRes.data?.data || policiesRes.data || null);
 
  } catch (err) {
- console.error('Failed to load data retention dashboard:', err);
+ logger.error('Failed to load data retention dashboard:', err);
  setError(err.message);
  } finally {
  setLoading(false);
@@ -87,7 +87,7 @@ const DataRetentionDashboard = ({ user }) => {
  setTimeout(loadDashboardData, 1000);
 
  } catch (err) {
- console.error('Cleanup failed:', err);
+ logger.error('Cleanup failed:', err);
  setError(err.message);
  } finally {
  setIsRunningCleanup(false);
@@ -108,7 +108,7 @@ const DataRetentionDashboard = ({ user }) => {
  loadDashboardData();
 
  } catch (err) {
- console.error('Failed to toggle scheduler:', err);
+ logger.error('Failed to toggle scheduler:', err);
  setError(err.message);
  }
  };
@@ -129,7 +129,7 @@ const DataRetentionDashboard = ({ user }) => {
  feature="data_retention"
  upgradeMessage="Data retention management requires a Professional or Enterprise plan to ensure compliance and automated data cleanup."
  onPaywallClose={() => {
- console.log('[DataRetentionDashboard] Paywall dismissed, navigating back');
+ logger.info('[DataRetentionDashboard] Paywall dismissed, navigating back');
  navigate(-1);
  }}
  >

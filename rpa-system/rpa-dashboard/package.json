@@ -68,7 +68,11 @@
   },
   "devDependencies": {
     "@axe-core/cli": "^4.9.0",
+    "@babel/eslint-parser": "^7.28.6",
+    "@babel/preset-react": "^7.28.5",
     "@eslint/js": "^9.34.0",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
     "ajv": "^8.17.1",
     "ajv-keywords": "^5.1.0",
     "baseline-browser-mapping": "^2.9.19",

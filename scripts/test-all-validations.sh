@@ -1,14 +1,11 @@
 #!/bin/bash
 # Test all major shell validation scripts in scripts/
-# In PR context, scripts check only changed files (don't fail on pre-existing issues)
-# On main branch, full validation is performed
+# ALL validations are BLOCKING - code quality matters for production
 
 set -e
 
 echo "ℹ️  Running all validation scripts..."
-if [ -n "$GITHUB_EVENT_NAME" ] && [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-  echo "ℹ️  PR context detected - scripts will check only changed files"
-fi
+echo "🔒 ALL validations are BLOCKING - every check must pass"
 
 SCRIPTS=(
   validate-srp.sh
@@ -39,9 +36,11 @@ for script in "${SCRIPTS[@]}"; do
 done
 
 if [ $FAILED -ne 0 ]; then
-  echo "Some validation scripts failed."
+  echo ""
+  echo "❌ Some validation scripts failed. Fix issues before merging."
   exit 1
 else
-  echo "All validation scripts passed."
+  echo ""
+  echo "✅ All validation scripts passed."
   exit 0
 fi

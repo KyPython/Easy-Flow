@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import styles from './LandingPage.module.css';
 
-export default function LandingPageClean() {
+export default function LandingCleanPage() {
  return (
  <div className={styles.page}>
  <div style={{ position: 'relative' }}>
@@ -35,7 +35,7 @@ export default function LandingPageClean() {
  <h3 className={styles.featureTitle}>Send Welcome Emails Automatically</h3>
  <p className={styles.featureText}>
  <strong>Before:</strong> Copy each new customer's info, write personalized email, send manually (15 minutes per customer)<br/><br/>
- <strong>After:</strong> New customer signs up -> Welcome email with their name and account details sent instantly
+ <strong>After:</strong> New customer signs up → Welcome email with their name and account details sent instantly
  </p>
  </div>
  <div className={styles.featureCard}>
@@ -43,7 +43,7 @@ export default function LandingPageClean() {
  <h3 className={styles.featureTitle}>Create Weekly Sales Reports Without Copying Data</h3>
  <p className={styles.featureText}>
  <strong>Before:</strong> Download data from 4 different systems, copy into Excel, calculate totals, format charts (2 hours every Monday)<br/><br/>
- <strong>After:</strong> Click one button -> Professional report with charts emailed to you automatically
+ <strong>After:</strong> Click one button → Professional report with charts emailed to you automatically
  </p>
  </div>
  <div className={styles.featureCard}>
@@ -51,7 +51,7 @@ export default function LandingPageClean() {
  <h3 className={styles.featureTitle}>Update Your CRM When Someone Fills Out a Form</h3>
  <p className={styles.featureText}>
  <strong>Before:</strong> Check website forms hourly, copy contact info to CRM, assign to sales rep, send follow-up (45 minutes daily)<br/><br/>
- <strong>After:</strong> Form submitted -> Contact added to CRM -> Sales rep notified -> Follow-up email sent
+ <strong>After:</strong> Form submitted → Contact added to CRM → Sales rep notified → Follow-up email sent
  </p>
  </div>
  </div>

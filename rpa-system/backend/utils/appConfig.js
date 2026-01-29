@@ -162,11 +162,64 @@ const appConfig = {
  sampleRate: getEnvNumber('LOG_SAMPLE_RATE', 1) // 1 = 100%, 0.1 = 10%
  },
 
- // Cache Configuration
- cache: {
- ttl: getEnvNumber('CACHE_TTL', 300000), // 5 minutes
- maxSize: getEnvNumber('CACHE_MAX_SIZE', 1000)
- }
+	// Cache Configuration
+	cache: {
+		ttl: getEnvNumber('CACHE_TTL', 300000), // 5 minutes
+		maxSize: getEnvNumber('CACHE_MAX_SIZE', 1000)
+	},
+
+	// CORS Origins
+	cors: {
+		productionOrigins: [
+			'https://www.tryeasyflow.com',
+			'https://tryeasyflow.com',
+			'https://easy-flow-lac.vercel.app'
+		],
+		developmentOrigins: (frontendPort, backendPort, vitePort) => [
+			`http://localhost:${frontendPort}`,
+			`http://127.0.0.1:${frontendPort}`,
+			`http://localhost:${vitePort}`,
+			`http://127.0.0.1:${vitePort}`,
+			`http://localhost:${backendPort}`,
+			`http://127.0.0.1:${backendPort}`
+		]
+	},
+
+	// Security Configuration
+	security: {
+		bcryptRounds: getEnvNumber('BCRYPT_ROUNDS', 12),
+		sessionSecret: getEnv('SESSION_SECRET', 'dev-session-secret-change-in-prod'),
+		jwtExpiryHours: getEnvNumber('JWT_EXPIRY_HOURS', 24),
+		csrfEnabled: getEnvBoolean('CSRF_ENABLED', true)
+	},
+
+	// File Upload Configuration
+	upload: {
+		maxFileSizeMb: getEnvNumber('MAX_FILE_SIZE_MB', 100),
+		maxFileSizeBytes: getEnvNumber('MAX_FILE_SIZE_MB', 100) * 1024 * 1024,
+		allowedMimeTypes: [
+			'application/pdf',
+			'image/jpeg',
+			'image/png',
+			'image/gif',
+			'text/csv',
+			'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+			'application/vnd.ms-excel'
+		]
+	},
+
+	// Pagination
+	pagination: {
+		defaultPageSize: getEnvNumber('DEFAULT_PAGE_SIZE', 20),
+		maxPageSize: getEnvNumber('MAX_PAGE_SIZE', 100)
+	},
+
+	// Stuck Task Configuration
+	tasks: {
+		stuckThresholdHours: getEnvNumber('STUCK_TASK_THRESHOLD_HOURS', 24),
+		cleanupIntervalMs: getEnvNumber('TASK_CLEANUP_INTERVAL_MS', 3600000), // 1 hour
+		maxQueuedTime: getEnvNumber('MAX_QUEUED_TIME_SECONDS', 300) // 5 minutes
+	}
 };
 
 /**

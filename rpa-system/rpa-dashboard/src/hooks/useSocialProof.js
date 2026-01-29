@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getSocialProofMetrics } from '../utils/api';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('useSocialProof');
 
 // Custom hook for social proof data with robust error handling and offline support
 export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes default
@@ -21,14 +23,14 @@ export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes d
  // Listen for online/offline events
  useEffect(() => {
  const handleOnline = () => {
- console.log('🌐 [SocialProof] Connection restored, attempting to refresh data');
+ logger.info('SocialProof connection restored Connection restored, attempting to refresh data');
  setIsOnline(true);
  setError(null);
  // Don't call fetchMetrics directly here - let the main effect handle it
  };
  
  const handleOffline = () => {
- console.log('📡 [SocialProof] Gone offline, using cached data');
+ logger.info('SocialProof gone offline Gone offline, using cached data');
  setIsOnline(false);
  };
 
@@ -46,7 +48,7 @@ export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes d
  setLoading(true);
  setError(null);
 
- console.log('📊 [SocialProof] Fetching metrics...');
+ logger.debug('SocialProof fetching metrics...');
  const result = await getSocialProofMetrics();
  
  if (result && result.metrics) {
@@ -73,13 +75,13 @@ export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes d
  });
  }
 
- console.log('📊 [SocialProof] Data updated successfully:', validatedData);
+ logger.debug('SocialProof data updated successfully:', validatedData);
  } else {
  throw new Error('Invalid response structure');
  }
 
  } catch (err) {
- console.warn('⚠️ [SocialProof] Fetch failed:', err.message);
+ logger.warn('SocialProof fetch failed Fetch failed:', err.message);
  setError(err.message);
  setRetryCount(prev => prev + 1);
  
@@ -111,7 +113,7 @@ export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes d
  useEffect(() => {
  if (error && retryCount > 0 && retryCount < 3 && isOnline) {
  const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 30000); // Max 30s
- console.log(`🔄 [SocialProof] Retrying in ${delay}ms (attempt ${retryCount + 1})`);
+    logger.debug(`SocialProof retrying in ${delay}ms (attempt ${retryCount + 1})`);
  
  const timer = setTimeout(() => {
  fetchMetricsRef.current?.();
@@ -131,7 +133,7 @@ export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes d
  const scheduleInitialFetch = () => {
  // Suppress if another tab/component already started the fetch recently
  if (window.__SOCIAL_PROOF_LOADING__ || (window.__SOCIAL_PROOF_LAST_FETCH__ && Date.now() - window.__SOCIAL_PROOF_LAST_FETCH__ < 30000)) {
- console.log('📊 [SocialProof] Initial fetch suppressed by global guard/cache');
+ logger.debug('SocialProof initial fetch suppressed by global guard/cache');
  return;
  }
 
@@ -186,7 +188,7 @@ export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes d
  // Manually trigger refresh
  const refresh = useCallback(() => {
  if (!isOnline) {
- console.log('📡 [SocialProof] Cannot refresh while offline');
+ logger.info('SocialProof gone offline Cannot refresh while offline');
  return;
  }
  

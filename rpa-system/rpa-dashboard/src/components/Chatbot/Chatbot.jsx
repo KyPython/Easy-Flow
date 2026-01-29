@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('ChatbotUChatbot');
 import styles from './Chatbot.module.css';
 
 const Chatbot = () => {
@@ -25,7 +27,7 @@ const Chatbot = () => {
  const runtimeEnv = (typeof window !== 'undefined' && window._env) ? window._env : {};
  const widgetId = runtimeEnv.REACT_APP_UCHAT_WIDGET_ID || process.env.REACT_APP_UCHAT_WIDGET_ID || '3cpyqxve97diqnsu';
  if (!widgetId || widgetId.includes('xxxx')) {
- console.warn('[Chatbot] No valid widget ID configured (REACT_APP_UCHAT_WIDGET_ID). Skipping load.');
+ logger.warn('[Chatbot] No valid widget ID configured (REACT_APP_UCHAT_WIDGET_ID). Skipping load.');
  return;
  }
  
@@ -39,7 +41,7 @@ const Chatbot = () => {
  // - Verify widget ID '${widgetId}' exists and is active
  // - Check domain whitelist includes '${window.location.hostname}'
  // - Regenerate widget if necessary and update REACT_APP_UCHAT_WIDGET_ID
- console.info('[Chatbot] Loading widget', { widgetId, domain: window.location.hostname });
+ logger.info('[Chatbot] Loading widget', { widgetId, domain: window.location.hostname });
  // Check if the script is already loaded (by id or src)
  if (document.getElementById('uchat-script') || document.querySelector('script[src*="uchat.com.au"]')) {
  // Verify widget mount exists if script is present
@@ -53,12 +55,12 @@ const Chatbot = () => {
  script.src = src;
  script.id = 'uchat-script';
  script.onload = () => {
- console.info('[Chatbot] uChat script loaded');
+ logger.info('[Chatbot] uChat script loaded');
  // Post-load verification after a short delay
  setTimeout(() => {
  const injected = document.querySelector('#uchat-widget');
  if (!injected) {
- console.warn('[Chatbot] Script loaded but widget DOM not found. Possible domain mismatch or CSP frame restriction.');
+ logger.warn('[Chatbot] Script loaded but widget DOM not found. Possible domain mismatch or CSP frame restriction.');
  } else {
  // If iframe exists, ensure it does not request fullscreen permission to avoid policy violations
  const iframe = injected.querySelector('iframe');
@@ -74,7 +76,7 @@ const Chatbot = () => {
  }, 1500);
  };
  script.onerror = (e) => {
- console.error('[Chatbot] failed to load uChat script', e);
+ logger.error('[Chatbot] failed to load uChat script', e);
  };
  document.head.appendChild(script);
 
@@ -90,9 +92,9 @@ const Chatbot = () => {
  });
  observer.observe(mount, { childList: true, subtree: true });
  mount.__uchatObserver = observer;
- console.info('[Chatbot] Injecting uChat script', { src, widgetId, origin: window.location.origin });
+ logger.info('[Chatbot] Injecting uChat script', { src, widgetId, origin: window.location.origin });
  } catch (e) {
- console.error('[Chatbot] unexpected error setting up script', e);
+ logger.error('[Chatbot] unexpected error setting up script', e);
  }
  return () => {
  try {
@@ -107,14 +109,14 @@ const Chatbot = () => {
 			try { obs.disconnect(); } catch (err) {
 				// avoid swallowing errors silently during cleanup
 				// eslint-disable-next-line no-console
-				console.debug('[Chatbot] observer.disconnect failed', err);
+				logger.debug('[Chatbot] observer.disconnect failed', err);
 			}
 			delete mount.__uchatObserver;
 		}
 		} catch (e) {
 			// Log cleanup errors for easier debugging in dev
 			// eslint-disable-next-line no-console
-			console.debug('[Chatbot] cleanup error', e);
+			logger.debug('[Chatbot] cleanup error', e);
 		};
  };
  }, []);

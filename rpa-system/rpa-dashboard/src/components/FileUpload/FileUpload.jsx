@@ -137,7 +137,7 @@ const FileUpload = ({
  setShowAdvanced(false);
  
  } catch (error) {
- console.error('File upload error:', error);
+ logger.error('File upload error:', error);
  onUploadError?.(error.message || 'Upload failed');
  } finally {
  setUploading(false);

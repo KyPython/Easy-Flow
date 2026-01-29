@@ -275,13 +275,13 @@ export const useFormValidation = (initialValues, schema) => {
  }
  }, [touched, validate]);
 
- const setTouched = React.useCallback((fieldName) => {
- setTouched(prev => ({
- ...prev,
- [fieldName]: true
- }));
- validate(fieldName, values[fieldName]);
- }, [validate, values]);
+	const markFieldTouched = React.useCallback((fieldName) => {
+		setTouched(prev => ({
+			...prev,
+			[fieldName]: true
+		}));
+		validate(fieldName, values[fieldName]);
+	}, [validate, values]);
 
  const reset = React.useCallback(() => {
  setValues(initialValues);
@@ -289,15 +289,15 @@ export const useFormValidation = (initialValues, schema) => {
  setTouched({});
  }, [initialValues]);
 
- return {
- values,
- errors,
- touched,
- setValue,
- setTouched,
- validate,
- validateAll,
- reset,
- isValid: Object.keys(errors).length === 0
- };
+	return {
+		values,
+		errors,
+		touched,
+		setValue,
+		setTouched: markFieldTouched,
+		validate,
+		validateAll,
+		reset,
+		isValid: Object.keys(errors).length === 0
+	};
 };

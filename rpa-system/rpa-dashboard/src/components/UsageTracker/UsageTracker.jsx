@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('UsageTracker');
 
 // Canonical feature order (shared with PricingPage and PaywallModal)
 const featureOrder = [
@@ -150,11 +152,11 @@ function UsageTracker({ showUpgrade = true, compact = false }) {
  
  // Debug logging (can be removed in production)
  if (process.env.NODE_ENV === 'development') {
- console.log('UsageTracker - planData:', planData);
- console.log('UsageTracker - extracted plan:', plan);
- console.log('UsageTracker - plan.name:', plan.name);
- console.log('UsageTracker - limits:', limits);
- console.log('UsageTracker - usage:', usage);
+ logger.debug('UsageTracker - planData:', planData);
+ logger.debug('UsageTracker - extracted plan:', plan);
+ logger.debug('UsageTracker - plan.name:', plan.name);
+ logger.debug('UsageTracker - limits:', limits);
+ logger.debug('UsageTracker - usage:', usage);
  }
  
  // Build usageItems dynamically from available limits and usage data

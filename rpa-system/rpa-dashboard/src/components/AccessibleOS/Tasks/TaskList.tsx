@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('TaskList');
 import { useNavigate } from 'react-router-dom';
 import { Task } from '../../types';
 import { useTasks } from '../../hooks/useTasks';
@@ -33,7 +35,7 @@ const TaskList: React.FC<TaskListProps> = ({ status, categoryId }) => {
  await createTask(taskData);
  setShowForm(false);
  } catch (error) {
- console.error('Failed to create task:', error);
+ logger.error('Failed to create task:', error);
  }
  };
 
@@ -47,7 +49,7 @@ const TaskList: React.FC<TaskListProps> = ({ status, categoryId }) => {
  await updateTask(editingTask.id, taskData);
  setEditingTask(null);
  } catch (error) {
- console.error('Failed to update task:', error);
+ logger.error('Failed to update task:', error);
  }
  };
 
@@ -57,7 +59,7 @@ const TaskList: React.FC<TaskListProps> = ({ status, categoryId }) => {
  try {
  await deleteTask(taskId);
  } catch (error) {
- console.error('Failed to delete task:', error);
+ logger.error('Failed to delete task:', error);
  }
  };
 

@@ -7,11 +7,13 @@ import { formatDateTime, formatTaskType } from '../../utils/formatters';
 import { fetchWithAuth } from '../../utils/devNetLogger';
 import { validateUrl, sanitizeFilename, safeWindowOpen } from '../../utils/security';
 import { createLogger } from '../../utils/logger';
+import { useTheme } from '../../utils/ThemeContext';
 
 const logger = createLogger('TaskList');
 
 // Queue Status Badge Component
 const QueueStatusBadge = ({ taskId, queuedAt, timeSinceStart }) => {
+ const { theme } = useTheme();
  const [queueInfo, setQueueInfo] = useState(null);
  const [loading, setLoading] = useState(false);
 
@@ -51,7 +53,7 @@ const QueueStatusBadge = ({ taskId, queuedAt, timeSinceStart }) => {
  <span 
  style={{ 
  fontSize: '11px', 
- color: isStuck ? '#dc3545' : 'var(--text-muted)',
+ color: isStuck ? 'var(--color-error-600, #dc3545)' : 'var(--text-muted)',
  fontStyle: 'italic',
  fontWeight: isStuck ? 600 : 'normal'
  }}
@@ -477,17 +479,17 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
  </div>
  );
  })()}
- {useMemo(() => {
- try {
- const r = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
- if (r?.simulated || r?.mode === 'embedded') {
- return <span style={{ fontSize: 12, padding: '2px 6px', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-muted)' }}>Simulated</span>;
- }
-		} catch (err) {
-			logger.debug('useMemo parse error', { error: err?.message || err });
-		}
- return null;
- }, [task.result])}
+				{(() => {
+					try {
+						const r = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
+						if (r?.simulated || r?.mode === 'embedded') {
+							return <span style={{ fontSize: 12, padding: '2px 6px', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-muted)' }}>Simulated</span>;
+						}
+					} catch (err) {
+						logger.debug('Result parse for simulated badge', { error: err?.message || err });
+					}
+					return null;
+				})()}
  </div>
  </td>
  <td>
@@ -610,9 +612,9 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
  cursor: 'pointer',
  fontWeight: 600
  }}
- >
- View Full Details ->
- </button>
+>
+					View Full Details →
+				</button>
  </div>
  </td>
  </tr>

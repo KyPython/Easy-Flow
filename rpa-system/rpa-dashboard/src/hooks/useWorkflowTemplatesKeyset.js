@@ -358,7 +358,7 @@ export const useWorkflowTemplatesKeyset = () => {
  }
 
  } catch (err) {
- console.error('Error loading templates:', err);
+ logger.error('Error loading templates:', err);
  setError(err.message);
  
  // Provide fallback templates on error
@@ -442,12 +442,12 @@ export const useWorkflowTemplatesKeyset = () => {
  try {
  await client.rpc('record_template_install', { p_template_id: template.id });
  } catch (e) {
- console.warn('record_template_install RPC failed:', e?.message);
+ logger.warn('record_template_install RPC failed:', e?.message);
  }
 
  return data;
  } catch (err) {
- console.error('Error creating workflow from template:', err);
+ logger.error('Error creating workflow from template:', err);
  throw err;
  }
  }, [templates]);

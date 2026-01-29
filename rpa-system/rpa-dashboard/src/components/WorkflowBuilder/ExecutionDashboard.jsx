@@ -17,6 +17,8 @@ import {
 } from 'react-icons/fa';
 import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
 import { api } from '../../utils/api';
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('ExecutionDashboard');
 import MetricCard from '../MetricCard/MetricCard';
 import WorkflowStatusBadge from './WorkflowStatusBadge';
 import ExecutionCard from './ExecutionCard';
@@ -59,7 +61,7 @@ const ExecutionDashboard = ({ workflowId, workflowName }) => {
  setSelectedExecution(details);
  setShowExecutionDetails(true);
  } catch (error) {
- console.error('Failed to load execution details:', error);
+ logger.error('Failed to load execution details:', error);
  }
  };
 
@@ -68,7 +70,7 @@ const ExecutionDashboard = ({ workflowId, workflowName }) => {
  try {
  await cancelExecution(executionId);
  } catch (error) {
- console.error('Failed to cancel execution:', error);
+ logger.error('Failed to cancel execution:', error);
  }
  }
  };
@@ -296,7 +298,7 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
  // Mock data for now
  setStepExecutions(execution.step_executions || []);
  } catch (error) {
- console.error('Failed to load step executions:', error);
+ logger.error('Failed to load step executions:', error);
  } finally {
  setLoading(false);
  }
@@ -316,7 +318,7 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
  setDecisionLogs(data.data || []);
  }
  } catch (error) {
- console.error('Failed to load decision logs:', error);
+ logger.error('Failed to load decision logs:', error);
  setDecisionLogs([]);
  } finally {
  setLoadingDecisions(false);
@@ -669,7 +671,7 @@ const ExecutionDetailsModal = ({ execution, onClose }) => {
  document.body.removeChild(link);
  window.URL.revokeObjectURL(url);
  } catch (error) {
- console.error('Export failed:', error);
+ logger.error('Export failed:', error);
  alert('Failed to export data. Please try again.');
  }
  }}

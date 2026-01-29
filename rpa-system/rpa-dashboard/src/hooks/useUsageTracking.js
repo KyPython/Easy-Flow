@@ -73,7 +73,7 @@ export const useUsageTracking = (userId) => {
  lastActiveDate
  };
  } catch (error) {
- console.warn('⚠️ Failed to load usage metrics from localStorage:', error);
+ logger.warn('Failed to load usage metrics from localStorage:', error);
  return {
  tasksCompleted: 0,
  workflowsCreated: 0,
@@ -89,7 +89,7 @@ export const useUsageTracking = (userId) => {
  try {
  localStorage.setItem(getStorageKey(metric), value.toString());
  } catch (error) {
- console.warn('⚠️ Failed to save usage metric to localStorage:', error);
+ logger.warn('Failed to save usage metric to localStorage:', error);
  // Continue without persistence - tracking still works in memory
  }
  }, [getStorageKey]);
@@ -108,7 +108,7 @@ export const useUsageTracking = (userId) => {
  try {
  localStorage.setItem(getMilestoneKey(type, threshold), 'true');
  } catch (error) {
- console.warn('⚠️ Failed to mark milestone as shown:', error);
+ logger.warn('Failed to mark milestone as shown:', error);
  }
  }, [getMilestoneKey]);
 
@@ -177,7 +177,7 @@ export const useUsageTracking = (userId) => {
  // Check for milestone
  checkMilestone('tasks_completed', newCount);
  
- console.log('✅ Task completed! Total:', newCount);
+ logger.info('Task completed Total:', newCount);
  }, [loadMetrics, saveMetric, checkMilestone]);
 
  // Increment workflow count
@@ -191,7 +191,7 @@ export const useUsageTracking = (userId) => {
  // Check for milestone
  checkMilestone('workflows_created', newCount);
  
- console.log('✅ Workflow created! Total:', newCount);
+ logger.info('Workflow created Total:', newCount);
  }, [loadMetrics, saveMetric, checkMilestone]);
 
  // Increment session count
@@ -202,7 +202,7 @@ export const useUsageTracking = (userId) => {
  saveMetric('sessions_count', newCount);
  setMetrics(prev => ({ ...prev, sessionsCount: newCount }));
  
- console.log('✅ Session started! Total:', newCount);
+ logger.info('Session started Total:', newCount);
  }, [loadMetrics, saveMetric]);
 
  // Dismiss milestone prompt
@@ -246,9 +246,9 @@ export const useUsageTracking = (userId) => {
  setShowMilestonePrompt(false);
  setCurrentMilestone(null);
  
- console.log('🔄 Usage metrics reset');
+ logger.info('Usage metrics reset');
  } catch (error) {
- console.warn('⚠️ Failed to reset metrics:', error);
+ logger.warn('Failed to reset metrics:', error);
  }
  }, [getStorageKey, getMilestoneKey]);
 

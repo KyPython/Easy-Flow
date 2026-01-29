@@ -5,6 +5,8 @@ import { supabase, initSupabase } from '../utils/supabaseClient';
 import { useRealtimeSync } from './useRealtimeSync';
 import { api, requestWithRetry } from '../utils/api';
 import { classifyErrorType } from '../utils/errorHandler';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('usePlan');
 
 // Try to import useSession - will be null if SessionProvider not available
 let useSession = null;
@@ -54,11 +56,18 @@ function createPlanFetchErrorMessage(error) {
  return error?.message || 'Failed to fetch plan data. Please try again.';
 }
 
+// Safe wrapper for useSession - returns null if not available
+const useSafeSession = () => {
+	// Hook must be defined at module level to be called unconditionally
+	if (!useSession) return null;
+	// eslint-disable-next-line react-hooks/rules-of-hooks
+	return useSession();
+};
+
 export const usePlan = () => {
- const { user } = useAuth();
- // Try to use session context if available (reduces API calls)
- // Always call hook if available (hooks must be called unconditionally)
- const sessionContext = useSession ? useSession() : null;
+	const { user } = useAuth();
+	// Try to use session context if available (reduces API calls)
+	const sessionContext = useSafeSession();
  const [planData, setPlanData] = useState(null);
  const [loading, setLoading] = useState(true);
  const [error, setError] = useState(null);
@@ -118,7 +127,7 @@ export const usePlan = () => {
  }
 
  if (!response.data.planData) {
- console.warn('No plan data returned from API');
+ logger.warn('No plan data returned from API');
  setPlanData(null);
  return;
  }
@@ -147,7 +156,7 @@ export const usePlan = () => {
  if (isBackendUnreachable(err)) {
  // Only log once when backend becomes unreachable
  if (backendStatus !== 'unreachable') {
- console.error('❌ Plan service backend unreachable:', friendlyMessage);
+ logger.error('Plan service backend unreachable:', friendlyMessage);
  setBackendStatus('unreachable');
  }
  // Set a user-friendly error that can be displayed in the UI
@@ -162,7 +171,7 @@ export const usePlan = () => {
  const errorKey = `plan_fetch_error:${err.code || 'UNKNOWN'}`;
  const now = Date.now();
  if (!fetchPlanData._lastErrorLog || now - fetchPlanData._lastErrorLog > 10000) {
- console.error('Error fetching plan data:', err);
+ logger.error('Error fetching plan data:', err);
  fetchPlanData._lastErrorLog = now;
  }
  setBackendStatus('unknown');
@@ -301,7 +310,7 @@ export const usePlan = () => {
  .eq('id', user.id);
 
  if (error) {
- console.error('Error updating plan:', error);
+ logger.error('Error updating plan:', error);
  return false;
  }
 
@@ -309,14 +318,14 @@ export const usePlan = () => {
  await fetchPlanData();
  return true;
  } catch (err) {
- console.error('Error updating user plan:', err);
+ logger.error('Error updating user plan:', err);
  return false;
  }
  };
 
  // Realtime sync callbacks
  const handlePlanChange = useCallback((planChangeData) => {
- console.log('Plan changed in realtime:', planChangeData);
+ logger.info('Plan changed in realtime:', planChangeData);
  // Immediately refresh plan data when plan changes
  fetchPlanData();
  }, [fetchPlanData]);
@@ -370,7 +379,7 @@ export const usePlan = () => {
  visibilityPollInterval = setInterval(async () => {
  // Circuit breaker: stop polling after 3 consecutive failures
  if (consecutiveFailures >= 3) {
- console.error('❌ Stopping polling - backend appears down');
+ logger.error('Stopping polling - backend appears down');
  if (visibilityPollInterval) {
  clearInterval(visibilityPollInterval);
  visibilityPollInterval = null;
@@ -383,7 +392,7 @@ export const usePlan = () => {
  consecutiveFailures = 0; // Reset on success
  } catch (err) {
  consecutiveFailures++;
- console.warn(`⚠️ Poll attempt failed (${consecutiveFailures}/3)`);
+    logger.warn(`Poll attempt failed (${consecutiveFailures}/3)`);
  }
  }, 15000); // Poll every 15 seconds (reduced from 5s)
 
@@ -453,7 +462,7 @@ export const usePlan = () => {
 
  // Handle realtime errors - if realtime fails, we still have polling as fallback
  const handleRealtimeError = useCallback((errorInfo) => {
- console.warn('[usePlan] Realtime error:', errorInfo);
+ logger.warn('usePlan realtime error:', errorInfo);
  // Could trigger a UI notification here if needed
  }, []);
 

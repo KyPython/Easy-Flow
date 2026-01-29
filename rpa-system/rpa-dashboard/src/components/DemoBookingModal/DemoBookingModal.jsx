@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('DemoBookingModal');
 import { FiX, FiCalendar, FiUser, FiMail, FiBuilding, FiClock, FiMessageSquare } from 'react-icons/fi';
 import { usePlan } from '../../hooks/usePlan';
 import conversionTracker from '../../utils/conversionTracking';
@@ -101,7 +103,7 @@ const DemoBookingModal = ({
  }, 2000);
 
  } catch (error) {
- console.error('Demo booking submission failed:', error);
+ logger.error('Demo booking submission failed:', error);
  setErrors({ submit: 'Failed to submit request. Please try again.' });
  } finally {
  setIsSubmitting(false);

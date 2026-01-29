@@ -1,4 +1,6 @@
 /**
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('QuickStartDemo');
  * Quick Start Demo Button Component
  * Provides a quick way for new users to create a demo workflow
  */
@@ -75,7 +77,7 @@ const QuickStartDemo = ({ className = '' }) => {
  throw new Error('Failed to create demo workflow');
  }
  } catch (error) {
- console.error('[QuickStartDemo] Failed to create demo workflow:', error);
+ logger.error('[QuickStartDemo] Failed to create demo workflow:', error);
  // Navigate to workflow builder anyway
  navigate('/app/workflows/new');
  } finally {

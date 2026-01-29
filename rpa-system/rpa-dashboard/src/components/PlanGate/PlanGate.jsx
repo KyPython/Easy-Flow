@@ -34,7 +34,7 @@ const PlanGate = ({
  // Fetch plan hierarchy dynamically
  React.useEffect(() => {
  getPlanHierarchy().then(setPlanHierarchy).catch(err => {
- console.error('[PlanGate] Error fetching plan hierarchy:', err);
+ logger.error('[PlanGate] Error fetching plan hierarchy:', err);
  // Use fallback hierarchy
  setPlanHierarchy({
  'hobbyist': 0,
@@ -67,11 +67,11 @@ const PlanGate = ({
  };
 
  if (isDevelopment) {
- console.log('[PlanGate] Development bypass enabled', logContext);
+ logger.info('[PlanGate] Development bypass enabled', logContext);
  return true;
  }
  if (!planData) {
- console.log('[PlanGate] No plan data available, denying access', logContext);
+ logger.info('[PlanGate] No plan data available, denying access', logContext);
  return false;
  }
 
@@ -82,7 +82,7 @@ const PlanGate = ({
  // Boolean feature flag (e.g. audit_logs: true)
  if (typeof featureValue === 'boolean') {
  const access = featureValue === true;
- console.log(`[PlanGate] Feature "${feature}" boolean check:`, access, logContext);
+ logger.info(`[PlanGate] Feature "${feature}" boolean check:`, access, logContext);
  return access;
  }
  
@@ -90,19 +90,19 @@ const PlanGate = ({
  if (typeof featureValue === 'string') {
  const normalized = featureValue.toLowerCase().trim();
  const access = normalized !== 'no' && normalized !== 'false' && normalized !== '';
- console.log(`[PlanGate] Feature "${feature}" string check:`, { value: featureValue, normalized, access }, logContext);
+ logger.info(`[PlanGate] Feature "${feature}" string check:`, { value: featureValue, normalized, access }, logContext);
  return access;
  }
  
  // Numeric feature limit (e.g. workflows: 0 or >0)
  if (typeof featureValue === 'number') {
  const access = featureValue > 0;
- console.log(`[PlanGate] Feature "${feature}" numeric check:`, { limit: featureValue, access }, logContext);
+ logger.info(`[PlanGate] Feature "${feature}" numeric check:`, { limit: featureValue, access }, logContext);
  return access;
  }
  
  // Fallback: not present or unknown type
- console.log(`[PlanGate] Feature "${feature}" not found in limits, denying access`, logContext);
+ logger.info(`[PlanGate] Feature "${feature}" not found in limits, denying access`, logContext);
  return false;
  }
 
@@ -113,12 +113,12 @@ const PlanGate = ({
  const currentLevel = planHierarchy[currentPlan] ?? 0;
  const requiredLevel = planHierarchy[required] ?? 0;
  const access = currentLevel >= requiredLevel;
- console.log(`[PlanGate] Plan hierarchy check:`, { currentPlan, required, currentLevel, requiredLevel, access, hierarchy: planHierarchy });
+ logger.info(`[PlanGate] Plan hierarchy check:`, { currentPlan, required, currentLevel, requiredLevel, access, hierarchy: planHierarchy });
  return access;
  }
 
  // If neither, default to allowing access (or could default to Hobbyist restrictions)
- console.log('[PlanGate] No feature or requiredPlan specified, denying access', logContext);
+ logger.info('[PlanGate] No feature or requiredPlan specified, denying access', logContext);
  return false;
  })();
 
@@ -147,7 +147,7 @@ const PlanGate = ({
  // Show upgrade modal if enabled
  if (showUpgrade) {
  const handleModalClose = () => {
- console.log('[PlanGate] Modal dismissed by user');
+ logger.info('[PlanGate] Modal dismissed by user');
  setModalDismissed(true);
  if (onPaywallClose) {
  onPaywallClose();
