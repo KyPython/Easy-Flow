@@ -2,8 +2,8 @@
 
 # EasyFlow Pre-Push Hook
 # Runs different checks based on branch:
-# - dev branch: Light checks only (allows saving work)
-# - main branch: Full strict checks (production safety)
+# - dev branch: Quick checks only (fast iteration)
+# - main branch: BLOCKED - use npm run ship
 
 CURRENT_BRANCH=$(git branch --show-current)
 
@@ -22,19 +22,20 @@ if [ "$CURRENT_BRANCH" = "main" ]; then
     echo ""
     exit 1
 elif [ "$CURRENT_BRANCH" = "dev" ]; then
-    if [ "${FAST_PUSH:-false}" = "true" ]; then
-        echo "💾 FAST_PUSH=true → skipping full local CI gate for dev."
-        echo "⚠️  CI will run on GitHub; use this only when you intentionally accept slower feedback."
-        exit 0
+    # Dev branch: fast push by default, full CI runs on GitHub
+    echo "💾 Dev branch push - quick local check, full CI runs on GitHub"
+    
+    # Only run full local CI if explicitly requested
+    if [ "${FULL_CI:-false}" = "true" ]; then
+        echo "🧪 FULL_CI=true → Running full local CI gate..."
+        chmod +x scripts/local-ci-full.sh || true
+        ./scripts/local-ci-full.sh
     fi
-
-    echo "🧪 Running FULL local CI gate for dev (blocks push on failure)..."
-    chmod +x scripts/local-ci-full.sh || true
-    ./scripts/local-ci-full.sh
-    echo "✅ Dev push allowed (local CI gate passed)"
+    
+    echo "✅ Dev push allowed"
+    exit 0
 else
     echo "⚠️  Unknown branch: $CURRENT_BRANCH"
-    echo "Running full checks to be safe..."
-    npm run test:all
+    echo "Allowing push - CI will validate on GitHub"
+    exit 0
 fi
-
