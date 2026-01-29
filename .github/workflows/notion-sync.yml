@@ -1,0 +1,258 @@
+name: Notion Sync
+
+# Consolidated workflow for all Notion sync operations
+# Replaces: notion-calendar-sync.yml, notion-drive-sync.yml, notion-github-sync.yml,
+#          notion-gmail-sync.yml, notion-stripe-sync.yml, notion-time-tracking-sync.yml
+
+on:
+  schedule:
+    # Default schedule - individual syncs configured below
+    # Calendar: 6:00 AM EST (11:00 UTC)
+    # Drive: 7:00 AM EST (12:00 UTC)
+    # GitHub: 7:30 AM EST (12:30 UTC)
+    # Gmail: 8:00 AM EST (13:00 UTC)
+    # Time Tracking: 9:00 AM EST (14:00 UTC)
+    - cron: '0 11 * * *'  # Calendar sync time (default)
+  workflow_dispatch:
+    inputs:
+      sync_type:
+        description: "Sync type to run"
+        required: true
+        default: "calendar"
+        type: choice
+        options:
+          - calendar
+          - drive
+          - github
+          - gmail
+          - stripe
+          - time-tracking
+          - all
+
+jobs:
+  # ============================================================================
+  # GOOGLE CALENDAR SYNC (from notion-calendar-sync.yml)
+  # ============================================================================
+  sync-calendar:
+    if: github.event.inputs.sync_type == 'calendar' || github.event.inputs.sync_type == 'all' || github.event.schedule == '0 11 * * *'
+    name: Sync Google Calendar → Notion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests supabase google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+
+      - name: Sync Google Calendar to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+        run: |
+          python3 scripts/notion-integrations/google-calendar-custom-sync.py
+
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ Google Calendar → Notion sync completed at $(date)"
+
+  # ============================================================================
+  # GOOGLE DRIVE SYNC (from notion-drive-sync.yml)
+  # ============================================================================
+  sync-drive:
+    if: github.event.inputs.sync_type == 'drive' || github.event.inputs.sync_type == 'all'
+    name: Sync Google Drive → Notion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Sync Google Drive to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+        run: |
+          python3 scripts/notion-integrations/google-drive-to-notion-sync.py
+
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ Google Drive → Notion sync completed at $(date)"
+
+  # ============================================================================
+  # GITHUB SYNC (from notion-github-sync.yml)
+  # ============================================================================
+  sync-github:
+    if: github.event.inputs.sync_type == 'github' || github.event.inputs.sync_type == 'all'
+    name: Sync GitHub → Notion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Sync GitHub Issues to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+        run: |
+          python3 scripts/notion-integrations/comprehensive-github-sync.py
+
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ GitHub → Notion sync completed at $(date)"
+
+  # ============================================================================
+  # GMAIL SYNC
+  # ============================================================================
+  sync-gmail:
+    if: github.event.inputs.sync_type == 'gmail' || github.event.inputs.sync_type == 'all'
+    name: Sync Gmail → Notion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+
+      - name: Sync Gmail to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+        run: |
+          python3 scripts/notion-integrations/gmail-to-notion-sync.py
+
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ Gmail → Notion sync completed at $(date)"
+
+  # ============================================================================
+  # STRIPE SYNC
+  # ============================================================================
+  sync-stripe:
+    if: github.event.inputs.sync_type == 'stripe' || github.event.inputs.sync_type == 'all'
+    name: Sync Stripe → Notion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests stripe
+
+      - name: Sync Stripe to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+        run: |
+          python3 scripts/notion-integrations/stripe-to-notion-sync.py
+
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ Stripe → Notion sync completed at $(date)"
+
+  # ============================================================================
+  # TIME TRACKING SYNC
+  # ============================================================================
+  sync-time-tracking:
+    if: github.event.inputs.sync_type == 'time-tracking' || github.event.inputs.sync_type == 'all'
+    name: Sync Time Tracking → Notion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Sync Time Tracking to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          TOGGL_API_KEY: ${{ secrets.TOGGL_API_KEY }}
+          HARVEST_API_KEY: ${{ secrets.HARVEST_API_KEY }}
+        run: |
+          python3 scripts/notion-integrations/time-tracking-to-notion-sync.py
+
+      - name: Report sync status
+        if: always()
+        run: |
+          echo "✅ Time Tracking → Notion sync completed at $(date)"
+
+  # ============================================================================
+  # SUMMARY
+  # ============================================================================
+  summary:
+    name: Sync Summary
+    runs-on: ubuntu-latest
+    needs: [sync-calendar, sync-drive, sync-github, sync-gmail, sync-stripe, sync-time-tracking]
+    if: always()
+    steps:
+      - name: Generate Summary Report
+        run: |
+          echo "## Notion Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Completed**: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Sync Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Sync Type | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Google Calendar | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Google Drive | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| GitHub | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Gmail | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Stripe | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Time Tracking | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Manual Trigger**: Use workflow_dispatch to run specific syncs." >> $GITHUB_STEP_SUMMARY

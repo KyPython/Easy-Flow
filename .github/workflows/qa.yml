@@ -1,0 +1,473 @@
+name: QA — Unified Test Suite
+
+# Consolidated workflow combining:
+# - qa-dev.yml (dev branch permissive checks)
+# - qa-core.yml (core feature tests, branch-aware)
+# - qa-integration.yml (integration tests)
+# - qa-nightly.yml (nightly full test suite with matrix)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  schedule:
+    # Nightly full test suite at 3 AM UTC (from qa-nightly.yml)
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: "Test type (full/performance/security/integration)"
+        required: false
+        default: "full"
+        type: choice
+        options:
+          - full
+          - performance
+          - security
+          - integration
+      mode:
+        description: "Validation mode"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - strict
+          - permissive
+
+jobs:
+  # ============================================================================
+  # DEV BRANCH — Quick Permissive Checks (from qa-dev.yml)
+  # ============================================================================
+  qa-dev:
+    if: github.ref != 'refs/heads/main' && github.event.inputs.mode != 'strict'
+    name: QA — Dev Branch (Permissive)
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            rpa-system/package-lock.json
+            rpa-system/rpa-dashboard/package-lock.json
+            rpa-system/backend/package-lock.json
+
+      - name: Check development environment
+        run: |
+          chmod +x scripts/dev-env-check.sh
+          ./scripts/dev-env-check.sh || echo "⚠️ Some optional tools missing (continuing anyway)"
+        continue-on-error: true
+
+      - name: Auto-fix code formatting
+        run: |
+          echo "🔧 Auto-fixing code formatting issues..."
+          # Frontend ESLint
+          if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
+            cd rpa-system/rpa-dashboard
+            npm run lint:fix 2>/dev/null || npx eslint . --ext .js,.jsx --fix 2>/dev/null || true
+            cd ../..
+          fi
+          # Backend ESLint
+          if [ -f "rpa-system/backend/package.json" ]; then
+            cd rpa-system/backend
+            npm run lint:fix 2>/dev/null || npx eslint . --ext .js --fix 2>/dev/null || true
+            cd ../..
+          fi
+        continue-on-error: true
+
+      - name: Run comprehensive test suite (non-blocking)
+        run: |
+          chmod +x scripts/test-all.sh scripts/lint-and-test.sh
+          ./scripts/test-all.sh || echo "⚠️ Tests failed. ACTION: Run './scripts/test-all.sh' locally. (Non-blocking on dev)"
+        continue-on-error: true
+
+      - name: Run code quality check (non-blocking)
+        run: |
+          chmod +x scripts/code-quality-check.sh
+          ./scripts/code-quality-check.sh || echo "⚠️ Quality issues found. ACTION: Run './scripts/code-quality-check.sh' locally."
+        continue-on-error: true
+
+      - name: Run comprehensive code validation (non-blocking)
+        run: |
+          chmod +x scripts/validate-all.sh
+          ./scripts/validate-all.sh || echo "⚠️ Validation failed. ACTION: Run './scripts/validate-all.sh' locally."
+        continue-on-error: true
+
+      - name: Validate RAG Knowledge Base (non-blocking)
+        run: |
+          chmod +x scripts/validate-rag-knowledge.sh
+          ./scripts/validate-rag-knowledge.sh || echo "⚠️ RAG knowledge outdated."
+        continue-on-error: true
+
+      - name: Dev Branch Summary
+        if: always()
+        run: |
+          echo "## Dev Branch Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Dev branch validation completed (all checks are non-blocking)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Before merging to main**: All checks must pass in strict mode." >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # CORE FEATURE TESTS — Branch-Aware (from qa-core.yml)
+  # ============================================================================
+  qa-core:
+    name: QA — Core Feature Tests
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            rpa-system/package-lock.json
+            rpa-system/rpa-dashboard/package-lock.json
+            rpa-system/backend/package-lock.json
+
+      - name: Branch Awareness
+        id: branch_info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.event.inputs.mode }}" == "strict" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+            echo "✅ Running strict validation"
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Running permissive validation"
+          fi
+
+      - name: Run security scan (Snyk)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          chmod +x scripts/security-scan.sh
+          npm install -g snyk || true
+          if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
+            ./scripts/security-scan.sh || (echo "❌ Security scan failed" && exit 1)
+          else
+            ./scripts/security-scan.sh || echo "⚠️ Security scan issues (non-blocking)"
+          fi
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
+
+      - name: Run comprehensive test suite
+        run: |
+          chmod +x scripts/test-all.sh
+          if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
+            ./scripts/test-all.sh || (echo "❌ Tests failed" && exit 1)
+          else
+            ./scripts/test-all.sh || echo "⚠️ Tests failed (non-blocking)"
+          fi
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
+
+      - name: Run accessibility checks
+        run: |
+          echo "🔍 Running accessibility tests..."
+          cd rpa-system/rpa-dashboard
+          npm ci && npm run build
+          npx serve -s build -l 3000 > /dev/null 2>&1 &
+          SERVER_PID=$!
+          sleep 5
+          for i in {1..30}; do curl -f http://localhost:3000 >/dev/null 2>&1 && break || sleep 2; done
+          npx pa11y-ci --config .pa11yci.json || echo "⚠️ Accessibility issues"
+          kill $SERVER_PID 2>/dev/null || true
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
+
+      - name: Validate RAG Knowledge Base
+        run: |
+          chmod +x scripts/validate-rag-knowledge.sh
+          if [ "${{ steps.branch_info.outputs.blocking }}" == "true" ]; then
+            ./scripts/validate-rag-knowledge.sh || (echo "❌ RAG validation failed" && exit 1)
+          else
+            ./scripts/validate-rag-knowledge.sh || echo "⚠️ RAG validation issues"
+          fi
+        continue-on-error: ${{ steps.branch_info.outputs.blocking != 'true' }}
+
+      - name: Create backend .env file from secrets
+        run: |
+          mkdir -p rpa-system/backend
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> rpa-system/backend/.env
+          echo "REDIS_URL=${{ secrets.REDIS_URL }}" >> rpa-system/backend/.env
+          echo "ALLOW_DRAFT_EXECUTION=true" >> rpa-system/backend/.env
+
+      - name: Start test services (docker-compose)
+        working-directory: rpa-system
+        run: |
+          docker compose -f docker-compose.test.yml up -d
+          BACKEND_READY=false
+          for i in {1..30}; do
+            if curl -f http://localhost:3030/api/health >/dev/null 2>&1; then
+              BACKEND_READY=true
+              break
+            fi
+            sleep 2
+          done
+          echo "backend_ready=$BACKEND_READY" >> $GITHUB_OUTPUT
+
+      - name: Run backend unit tests
+        if: steps.start_services.outputs.backend_ready == 'true'
+        working-directory: rpa-system
+        run: npm run test:backend -- --passWithNoTests
+
+      - name: Run dashboard tests
+        working-directory: rpa-system/rpa-dashboard
+        run: CI=true npm test -- --watchAll=false --passWithNoTests
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ steps.branch_info.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode**: ${{ steps.branch_info.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # INTEGRATION TESTS (from qa-integration.yml)
+  # ============================================================================
+  integration:
+    name: QA — Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+      CI: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 0
+
+      - name: Determine branch and validation mode
+        id: branch-info
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "mode=strict" >> $GITHUB_OUTPUT
+            echo "blocking=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch=dev" >> $GITHUB_OUTPUT
+            echo "mode=permissive" >> $GITHUB_OUTPUT
+            echo "blocking=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver
+
+      - name: Create backend .env file from secrets
+        run: |
+          mkdir -p rpa-system/backend
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> rpa-system/backend/.env
+          echo "ALLOW_DRAFT_EXECUTION=true" >> rpa-system/backend/.env
+
+      - name: Clean up conflicting containers and start Docker services
+        working-directory: rpa-system
+        run: |
+          docker compose -f docker-compose.test.yml down -v || true
+          docker compose -f docker-compose.test.yml up -d
+          sleep 15
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd rpa-system && npm ci && cd ..
+          cd rpa-system/backend && npm ci --legacy-peer-deps && cd ../..
+          cd rpa-system/rpa-dashboard && npm ci && cd ../..
+          pip install pytest selenium requests webdriver-manager
+
+      - name: Check service availability
+        id: check_services
+        run: |
+          BACKEND_HEALTHY=false
+          for i in {1..30}; do
+            if curl -fsS http://localhost:3030/api/health >/dev/null 2>&1; then
+              BACKEND_HEALTHY=true
+              break
+            fi
+            sleep 2
+          done
+          echo "backend_healthy=$BACKEND_HEALTHY" >> $GITHUB_OUTPUT
+
+      - name: Run backend integration tests
+        if: steps.check_services.outputs.backend_healthy == 'true'
+        working-directory: rpa-system
+        run: npm run test:backend -- --testTimeout=10000 --passWithNoTests
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Run frontend integration tests
+        if: steps.check_services.outputs.backend_healthy == 'true'
+        working-directory: rpa-system/rpa-dashboard
+        run: CI=true npm test -- --watchAll=false --testTimeout=15000 --passWithNoTests
+        continue-on-error: ${{ steps.branch-info.outputs.blocking != 'true' }}
+
+      - name: Run Python integration tests
+        if: steps.check_services.outputs.backend_healthy == 'true'
+        working-directory: rpa-system/automation
+        run: |
+          export CHROME_BIN=/usr/bin/chromium-browser
+          pytest -v -x --tb=short || echo "⚠️ Some tests may require services"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f rpa-system/docker-compose.test.yml down -v || true
+
+  # ============================================================================
+  # NIGHTLY FULL TEST SUITE — Matrix Strategy (from qa-nightly.yml)
+  # ============================================================================
+  nightly:
+    name: QA — Nightly Full Tests
+    if: github.event.schedule == '0 3 * * *' || github.event.inputs.mode == 'nightly' || github.event.inputs.test_type != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: write
+
+    strategy:
+      matrix:
+        node-version: [20, 22]
+        python-version: [3.11, 3.12]
+        test_type: ["${{ github.event.inputs.test_type || 'full' }}"]
+      fail-fast: false
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+      CI: true
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver
+
+      - name: Create backend .env file from secrets
+        run: |
+          mkdir -p rpa-system/backend
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> rpa-system/backend/.env
+          echo "ALLOW_DRAFT_EXECUTION=true" >> rpa-system/backend/.env
+
+      - name: Start test services
+        working-directory: rpa-system
+        run: |
+          docker compose -f docker-compose.test.yml up -d
+          BACKEND_READY=false
+          for i in {1..30}; do
+            if curl -f http://localhost:3030/api/health >/dev/null 2>&1; then
+              BACKEND_READY=true
+              break
+            fi
+            sleep 2
+          done
+          echo "backend_ready=$BACKEND_READY" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd rpa-system && npm ci && cd ..
+          cd rpa-system/backend && npm ci --legacy-peer-deps && cd ../..
+          cd rpa-system/rpa-dashboard && npm ci && cd ../..
+
+      - name: Run backend unit tests
+        if: steps.start_services.outputs.backend_ready == 'true'
+        working-directory: rpa-system
+        run: npm run test:backend --silent -- --passWithNoTests || true
+
+      - name: Run dashboard tests
+        working-directory: rpa-system/rpa-dashboard
+        run: |
+          CI=true npm test --silent -- --watchAll=false || true
+
+      - name: Run Snyk security scan
+        if: ${{ matrix.test_type == 'full' || matrix.test_type == 'security' }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          chmod +x scripts/security-scan.sh
+          npm install -g snyk || true
+          ./scripts/security-scan.sh || (echo "❌ Security scan failed" && exit 1)
+
+      - name: Run load testing
+        if: ${{ matrix.test_type == 'full' || matrix.test_type == 'performance' }}
+        working-directory: rpa-system
+        run: |
+          npm install -g artillery@latest
+          if [ -f "load-test.yml" ]; then
+            artillery run load-test.yml || true
+          fi
+
+      - name: Collect logs
+        if: always() && steps.start_services.outputs.backend_ready == 'true'
+        run: |
+          mkdir -p nightly-artifacts
+          docker compose -f rpa-system/docker-compose.test.yml logs --no-color > nightly-artifacts/docker-logs.txt 2>/dev/null || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-qa-node${{ matrix.node-version }}-py${{ matrix.python-version }}
+          path: nightly-artifacts/
+          retention-days: 14
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f rpa-system/docker-compose.test.yml down -v || true
