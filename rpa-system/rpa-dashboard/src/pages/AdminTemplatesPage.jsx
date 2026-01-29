@@ -1,10 +1,10 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import styles from './AdminTemplates.module.css';
+import styles from './AdminTemplatesPage.module.css';
 import PlanGate from '../components/PlanGate/PlanGate';
 
-const AdminTemplates = () => {
+const AdminTemplatesPage = () => {
  const navigate = useNavigate();
  const [items, setItems] = useState([]);
  const [loading, setLoading] = useState(false);
@@ -115,4 +115,4 @@ const AdminTemplates = () => {
  );
 };
 
-export default AdminTemplates;
+export default AdminTemplatesPage;

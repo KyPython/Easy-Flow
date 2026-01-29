@@ -108,6 +108,48 @@ Easy-Flow/
 - **Terraform**: [`infrastructure/`](./infrastructure/)
 - **Markdown Docs**: [`docs/`](./docs/)
 
+## Frontend Routes
+
+| Route | Component | Description |
+|------|-----------|-------------|
+| `/` | LandingPage | Public landing page |
+| `/auth` | AuthPage | Authentication page |
+| `/auth/reset` | ResetLandingPage | Password reset / sign-in |
+| `/pricing` | PricingPage | Pricing information |
+| `/privacy` | PrivacyPage | Privacy policy |
+| `/terms` | TermsPage | Terms of service |
+| `/shared/:token` | SharedFilePage | Shared file access |
+| `/app` | DashboardPage | Main dashboard |
+| `/app/tasks` | TasksPage | Task management |
+| `/app/history` | HistoryPage | Execution history |
+| `/app/files` | FilesPage | File management |
+| `/app/settings` | SettingsPage | User settings |
+| `/app/teams` | TeamsPage | Team management |
+| `/app/analytics` | AnalyticsPage | Analytics dashboard |
+| `/app/metrics` | BusinessMetricsPage | Business metrics |
+| `/app/integrations` | IntegrationsPage | Integration management |
+| `/app/unified-dashboard` | UnifiedDashboardPage | Unified dashboard view |
+| `/app/webhooks` | WebhooksPage | Webhook management |
+| `/app/rules` | RulesPage | Business rules |
+| `/app/subscriptions` | SubscriptionMonitoringPage | Subscription monitoring |
+| `/app/workflows` | WorkflowPage | Workflow builder |
+| `/app/admin/templates` | AdminTemplatesPage | Admin template moderation |
+| `/app/admin/analytics` | AdminAnalyticsPage | Admin analytics |
+
+See [`App.dashboard.jsx`](./rpa-system/rpa-dashboard/src/App.dashboard.jsx) for complete route definitions.
+
+## Backend API Routes
+
+| File | Description |
+|------|-------------|
+| [`tasks.js`](./rpa-system/backend/routes/tasks.js) | Task CRUD operations |
+| [`workflowRoutes.js`](./rpa-system/backend/routes/workflowRoutes.js) | Workflow management |
+| [`aiAgentRoutes.js`](./rpa-system/backend/routes/aiAgentRoutes.js) | AI agent endpoints |
+| [`teamRoutes.js`](./rpa-system/backend/routes/teamRoutes.js) | Team management |
+| [`businessMetrics.js`](./rpa-system/backend/routes/businessMetrics.js) | Business metrics |
+| [`usageRoutes.js`](./rpa-system/backend/routes/usageRoutes.js) | Usage tracking |
+| See [`routes/`](./rpa-system/backend/routes/) for complete list.
+
 ## Validation & Testing
 
 - **Run All Validations**: [`scripts/validate-all.sh`](./scripts/validate-all.sh)

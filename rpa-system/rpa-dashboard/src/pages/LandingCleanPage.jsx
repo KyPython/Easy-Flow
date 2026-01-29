@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import styles from './LandingPage.module.css';
 
-export default function LandingPageClean() {
+export default function LandingCleanPage() {
  return (
  <div className={styles.page}>
  <div style={{ position: 'relative' }}>

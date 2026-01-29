@@ -36,7 +36,7 @@ import './App.css';
 // Public Pages (loaded when unauthenticated users visit)
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const AuthPage = lazy(() => import('./pages/AuthPage'));
-const ResetLanding = lazy(() => import('./pages/ResetLanding'));
+const ResetLandingPage = lazy(() => import('./pages/ResetLandingPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
 const SharedFilePage = lazy(() => import('./pages/SharedFilePage'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
@@ -54,7 +54,7 @@ const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'));
 const UnifiedDashboardPage = lazy(() => import('./pages/UnifiedDashboardPage'));
 const WebhooksPage = lazy(() => import('./pages/WebhooksPage'));
 const RulesPage = lazy(() => import('./pages/RulesPage'));
-const AdminTemplates = lazy(() => import('./pages/AdminTemplates'));
+const AdminTemplatesPage = lazy(() => import('./pages/AdminTemplatesPage'));
 const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'));
 const UsageDebugPage = lazy(() => import('./pages/debug/UsageDebugPage'));
 const BusinessMetricsPage = lazy(() => import('./pages/BusinessMetricsPage'));
@@ -323,7 +323,7 @@ function Shell() {
           <Routes>
             {/* Public Routes - Lazy loaded */}
             <Route path="/auth" element={<AuthPage />} />
-            <Route path="/auth/reset" element={<ResetLanding />} />
+            <Route path="/auth/reset" element={<ResetLandingPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
@@ -367,7 +367,7 @@ function Shell() {
             <Route path="/app/workflows/testing" element={<Protected><WorkflowPage /></Protected>} />
 
             {/* Admin routes (protect via env secret at backend) */}
-            <Route path="/app/admin/templates" element={<Protected><AdminTemplates /></Protected>} />
+            <Route path="/app/admin/templates" element={<Protected><AdminTemplatesPage /></Protected>} />
             <Route path="/app/admin/analytics" element={<Protected><AdminAnalyticsPage /></Protected>} />
 
             {/* Debug route - development only */}

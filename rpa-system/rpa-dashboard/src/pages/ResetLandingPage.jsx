@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useI18n } from '../i18n';
 import supabase, { initSupabase } from '../utils/supabaseClient';
-import styles from './ResetLanding.module.css';
+import styles from './ResetLandingPage.module.css';
 import React from 'react';
 
 function parseHashParams(hash) {
@@ -15,7 +15,7 @@ function parseHashParams(hash) {
  }, {});
 }
 
-export default function ResetLanding() {
+export default function ResetLandingPage() {
  const [loading, setLoading] = useState(false);
  const [error, setError] = useState('');
  const [done, setDone] = useState(false);
