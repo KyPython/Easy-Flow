@@ -7,6 +7,16 @@ Dev Network Logger
 
 /* eslint-disable no-console */
 
+<<<<<<< Updated upstream
+=======
+import { isDevelopment, getApiBaseUrl, getBackendPort } from './commonEnv';
+import { getAuthToken, clearAuthTokens, dispatchAuthEvent, isAuthEndpoint as checkAuthEndpoint } from './tokenHelpers';
+
+// Configuration constants - extracted magic numbers
+const DEFAULT_LOG_SAMPLE_RATE = 10; // Sample 10% of logs
+const DEFAULT_NETWORK_ERROR_STATUS = 503;
+const DEFAULT_BACKEND_PORT = '3030';
+>>>>>>> Stashed changes
 
 // Log sampling configuration - reduce log volume in development
 const LOG_SAMPLE_RATE = parseInt(localStorage.getItem('DEV_LOG_SAMPLE_RATE') || '10', 10); // Sample 10% of logs
@@ -60,15 +70,8 @@ function getApiBaseUrl() {
 
 // Export a fetch wrapper for consistent use in app (top-level)
 export async function fetchWithAuth(url, options = {}) {
-	// Normalize token retrieval: support several storage keys and guard against string 'null'/'undefined'
-	let rawToken = null;
-	try {
-		rawToken = localStorage.getItem('dev_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
-	} catch (e) {
-		// localStorage may be unavailable in some environments (SSR/tests)
-		rawToken = null;
-	}
-	const token = (rawToken && rawToken !== 'undefined' && rawToken !== 'null') ? rawToken : null;
+	// Use shared token retrieval from tokenHelpers
+	const token = getAuthToken();
 
 	// Build full URL: if url is relative, prepend API base URL
 	let fullUrl = url;
@@ -95,6 +98,7 @@ export async function fetchWithAuth(url, options = {}) {
 
 		// Self-healing: if 401 Unauthorized, clear cookies/localStorage and trigger re-authentication
 		if (res.status === 401) {
+<<<<<<< Updated upstream
 			console.warn('[devNetLogger] 401 Unauthorized detected. Attempting self-heal: clearing auth tokens and cookies, triggering re-authentication.');
 			try {
 				// Clear localStorage tokens
@@ -113,6 +117,13 @@ export async function fetchWithAuth(url, options = {}) {
 				}
 			} catch (e) {
 				console.error('[devNetLogger] Self-heal failed:', e);
+=======
+			// Skip self-heal on auth endpoints to prevent infinite loops
+			if (!checkAuthEndpoint(url)) {
+				console.warn('[devNetLogger] 401 Unauthorized detected. Clearing auth tokens.');
+				clearAuthTokens();
+				dispatchAuthEvent('devNetLogger:selfHealAuth');
+>>>>>>> Stashed changes
 			}
 		}
 
@@ -206,7 +217,7 @@ if (typeof window !== 'undefined') {
 
 				// Only add Authorization from localStorage if not already present in incoming headers
 				const hasAuth = incomingHeaders && (incomingHeaders['Authorization'] || incomingHeaders['authorization']);
-				const token = !hasAuth ? (localStorage.getItem('dev_token') || localStorage.getItem('authToken') || (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_KEY)) : null;
+				const wrappedToken = !hasAuth ? (getAuthToken() || (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_KEY)) : null;
 
 				const enhancedInit = {
 					...init,
@@ -215,7 +226,7 @@ if (typeof window !== 'undefined') {
 					headers: {
 						'Content-Type': 'application/json',
 						...incomingHeaders,
-						...(token ? { 'Authorization': `Bearer ${token}` } : {})
+							...(wrappedToken ? { 'Authorization': `Bearer ${wrappedToken}` } : {})
 					}
 				};
 
@@ -224,6 +235,7 @@ if (typeof window !== 'undefined') {
 
 					// Self-healing: if 401 Unauthorized, clear cookies/localStorage and trigger re-authentication
 					if (res.status === 401) {
+<<<<<<< Updated upstream
 						console.warn('[devNetLogger] 401 Unauthorized detected. Attempting self-heal: clearing auth tokens and cookies, triggering re-authentication.');
 						try {
 							// Clear localStorage tokens
@@ -242,6 +254,13 @@ if (typeof window !== 'undefined') {
 							}
 						} catch (e) {
 							console.error('[devNetLogger] Self-heal failed:', e);
+=======
+						// Skip self-heal on auth endpoints to prevent infinite loops
+						if (!checkAuthEndpoint(url)) {
+							console.warn('[devNetLogger] 401 Unauthorized detected. Clearing auth tokens.');
+							clearAuthTokens();
+							dispatchAuthEvent('devNetLogger:selfHealAuth');
+>>>>>>> Stashed changes
 						}
 					}
 

@@ -48,6 +48,29 @@ An RPA automation platform focused on sovereign workflows, helping you reduce re
 
 ## 📚 Essential Documentation
 
+### Architecture & Design
+- **[docs/architecture/AI_AGENT_IMPLEMENTATION_PLAN.md](docs/architecture/AI_AGENT_IMPLEMENTATION_PLAN.md)** - AI Agent architecture and implementation
+- **[docs/architecture/BACKEND_AUDIT_REPORT.md](docs/architecture/BACKEND_AUDIT_REPORT.md)** - Backend architecture audit
+- **[docs/architecture/PHASE1_REFACTORING_IMPLEMENTATION.md](docs/architecture/PHASE1_REFACTORING_IMPLEMENTATION.md)** - Refactoring plan and progress
+
+### Features
+- **[docs/features/REDDIT_MONITORING_IMPLEMENTATION.md](docs/features/REDDIT_MONITORING_IMPLEMENTATION.md)** - Reddit monitoring integration
+- **[docs/features/RAG_KNOWLEDGE_VALIDATION.md](docs/features/RAG_KNOWLEDGE_VALIDATION.md)** - RAG knowledge validation
+- **[docs/features/CLIENT_AUTOMATION_QUICK_START.md](docs/features/CLIENT_AUTOMATION_QUICK_START.md)** - Client automation quick start
+
+### DevOps & Operations
+- **[docs/devops/DEVOPS_PRODUCTIVITY_SUITE_INTEGRATION.md](docs/devops/DEVOPS_PRODUCTIVITY_SUITE_INTEGRATION.md)** - DevOps integration
+- **[docs/operations/SATURDAY_MAINTENANCE_PLAN.md](docs/operations/SATURDAY_MAINTENANCE_PLAN.md)** - Maintenance procedures
+
+### Setup & Configuration
+- **[docs/setup/BACKEND_ENV_SETUP.md](docs/setup/BACKEND_ENV_SETUP.md)** - Backend environment setup
+- **[docs/setup/FRONTEND_ENV_SETUP.md](docs/setup/FRONTEND_ENV_SETUP.md)** - Frontend environment setup
+- **[docs/setup/GOOGLE_VERIFICATION_STEPS.md](docs/setup/GOOGLE_VERIFICATION_STEPS.md)** - Google verification
+
+### Philosophy & Strategy
+- **[docs/philosophy/SOFTWARE_ENTROPY_PHILOSOPHY.md](docs/philosophy/SOFTWARE_ENTROPY_PHILOSOPHY.md)** - Software entropy philosophy
+- **[docs/philosophy/STARTUP_OPTIMIZATION.md](docs/philosophy/STARTUP_OPTIMIZATION.md)** - Startup optimization strategies
+
 ### Getting Started
 - **[docs/guides/easyflow_guide.md](docs/guides/easyflow_guide.md)** - **START HERE** - Complete EasyFlow system guide
 - **[DAILY_DEVELOPER_GUIDE.md](DAILY_DEVELOPER_GUIDE.md)** - Daily workflow and commands
