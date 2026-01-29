@@ -61,7 +61,7 @@ run_migration() {
                 echo -e "${YELLOW}⚠ Neither supabase CLI nor psql available${NC}"
                 echo "Please run the migration manually or start a local Supabase instance."
                 return 1
-            }
+            fi
         }
     else
         echo -e "${RED}✗ Supabase CLI not available${NC}"
