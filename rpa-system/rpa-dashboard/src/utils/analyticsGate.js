@@ -1,4 +1,7 @@
 import { getEnvVariable } from './commonEnv';
+import { createLogger } from './logger';
+
+const logger = createLogger('analyticsGate');
 
 export async function enableAnalyticsForUser(user) {
  try {
@@ -43,7 +46,7 @@ export async function enableAnalyticsForUser(user) {
  window.__GTM_INJECTED__ = gaId;
  return true;
  } catch (e) {
- console.warn('[analyticsGate] failed', e && e.message ? e.message : e);
+ logger.warn('Failed to enable analytics', { error: e?.message || String(e) });
  return false;
  }
 }
