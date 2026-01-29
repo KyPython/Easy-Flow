@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('UsageTracker');
 
 // Canonical feature order (shared with PricingPage and PaywallModal)

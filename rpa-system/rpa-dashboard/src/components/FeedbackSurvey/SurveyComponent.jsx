@@ -1,5 +1,5 @@
 /*
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('SurveyComponent');
 In-App Feedback Survey Component
 ---

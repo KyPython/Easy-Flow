@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('TeamManagementUTeamManagement');
 import { useTheme } from '../../utils/ThemeContext';
 import RoleManager from './RoleManager';

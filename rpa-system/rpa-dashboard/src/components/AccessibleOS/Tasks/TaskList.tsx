@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('TaskList');
 import { useNavigate } from 'react-router-dom';
 import { Task } from '../../types';

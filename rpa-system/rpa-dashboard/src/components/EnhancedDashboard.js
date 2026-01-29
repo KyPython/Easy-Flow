@@ -1,5 +1,5 @@
 /**
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('EnhancedDashboard');
  * Enhanced Dashboard component with comprehensive UX metrics tracking
  * Demonstrates Phase 4 frontend observability implementation

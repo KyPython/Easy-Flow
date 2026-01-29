@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('UrlInput');
 import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext';

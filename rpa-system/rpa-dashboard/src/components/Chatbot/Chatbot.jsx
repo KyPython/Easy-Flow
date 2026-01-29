@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('ChatbotUChatbot');
 import styles from './Chatbot.module.css';
 

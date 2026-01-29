@@ -1,5 +1,5 @@
 /**
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('QuickStartDemo');
  * Quick Start Demo Button Component
  * Provides a quick way for new users to create a demo workflow

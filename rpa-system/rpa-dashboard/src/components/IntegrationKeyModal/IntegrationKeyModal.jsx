@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('IntegrationKeyModal');
 import Modal from '../WorkflowBuilder/Modal';
 import styles from './IntegrationKeyModal.module.css';

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('DemoBookingButtonUDemoBookingButton');
 import { FiCalendar, FiExternalLink } from 'react-icons/fi';
 import { usePlan } from '../../hooks/usePlan';

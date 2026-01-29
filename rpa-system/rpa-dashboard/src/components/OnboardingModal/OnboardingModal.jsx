@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('OnboardingModalUOnboardingModal');
 import { triggerCampaign } from '../../utils/api';
 import { trackOnboardingStep } from '../../utils/onboardingTracking';

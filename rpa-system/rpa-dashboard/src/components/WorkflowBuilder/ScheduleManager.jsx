@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('ScheduleManager');
 import PropTypes from 'prop-types';
 import styles from './ScheduleManager.module.css';

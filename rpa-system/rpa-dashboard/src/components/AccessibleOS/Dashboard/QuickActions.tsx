@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('QuickActions');
 import { Plus, Filter, Search } from '../../Icons/Icons';
 import Button from '../UI/Button';

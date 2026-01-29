@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('TeamManagementURoleManager');
 import { FiUsers, FiEdit3, FiTrash2, FiShield, FiMoreHorizontal, FiUserCheck } from 'react-icons/fi';
 import { useTheme } from '../../utils/ThemeContext';

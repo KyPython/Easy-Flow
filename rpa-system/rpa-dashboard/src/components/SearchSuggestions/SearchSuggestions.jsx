@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('SearchSuggestions');
 import PropTypes from 'prop-types';
 import styles from './SearchSuggestions.module.css';

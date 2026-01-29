@@ -1,5 +1,5 @@
 /**
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('FirstWorkflowWizard');
  * First Workflow Wizard
  * Guided workflow creation experience for new users

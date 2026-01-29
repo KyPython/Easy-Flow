@@ -1,5 +1,5 @@
 /**
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('SignupAnalyticsDashboard');
  * Signup Analytics Dashboard Component
  * Displays marketing events analytics including signup funnel, A/B test performance, and failure alerts

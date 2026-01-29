@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../../utils/logger';
 const logger = createLogger('EmailCaptureModal');
 import { FiX, FiMail, FiArrowRight } from 'react-icons/fi';
 import { usePlan } from '../../hooks/usePlan';
