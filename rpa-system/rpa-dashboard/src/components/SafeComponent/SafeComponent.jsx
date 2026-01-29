@@ -1,5 +1,7 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('SafeComponent');
 
 /**
  * Higher-Order Component that wraps components with error boundaries
@@ -23,7 +25,7 @@ class SafeComponentWrapper extends Component {
  componentDidCatch(error, errorInfo) {
  const { componentName = 'Unknown' } = this.props;
  
- console.warn(`[SafeComponent:${componentName}] Error caught:`, {
+ logger.warn(`[SafeComponent:${componentName}] Error caught:`, {
  error: error.message,
  component: componentName,
  retryCount: this.state.retryCount
@@ -42,7 +44,7 @@ class SafeComponentWrapper extends Component {
  }
 
  handleRetry = () => {
- console.log(`[SafeComponent] Retrying ${this.props.componentName}`);
+ logger.info(`[SafeComponent] Retrying ${this.props.componentName}`);
  this.setState({
  hasError: false,
  error: null,

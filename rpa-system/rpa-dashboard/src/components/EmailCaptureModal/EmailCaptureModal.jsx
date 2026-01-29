@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('EmailCaptureModal');
 import { FiX, FiMail, FiArrowRight } from 'react-icons/fi';
 import { usePlan } from '../../hooks/usePlan';
 import conversionTracker from '../../utils/conversionTracking';
@@ -75,7 +77,7 @@ const EmailCaptureModal = ({
  }, 2000);
 
  } catch (error) {
- console.error('[EmailCaptureModal] Submission failed:', error);
+ logger.error('[EmailCaptureModal] Submission failed:', error);
 
  // Provide user-friendly error messages based on error type
  let userMessage = 'Failed to save email. Please try again.';

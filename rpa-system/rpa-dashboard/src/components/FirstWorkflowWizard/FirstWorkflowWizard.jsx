@@ -1,4 +1,6 @@
 /**
+import { createLogger } from '../utils/logger';
+const logger = createLogger('FirstWorkflowWizard');
  * First Workflow Wizard
  * Guided workflow creation experience for new users
  * Helps users create their first workflow step-by-step
@@ -60,7 +62,7 @@ const FirstWorkflowWizard = ({ isOpen, onClose, onComplete }) => {
   useEffect(() => {
     if (isOpen && !hasTrackedStart) {
       trackOnboardingStep('first_workflow_wizard_started', {}).catch(e => 
-        console.debug('Failed to track wizard start', e)
+        logger.debug('Failed to track wizard start', e)
       );
       setHasTrackedStart(true);
     }
@@ -142,7 +144,7 @@ const FirstWorkflowWizard = ({ isOpen, onClose, onComplete }) => {
       trackOnboardingStep('first_workflow_wizard_step_viewed', {
         step_number: currentStep + 2,
         total_steps: steps.length
-      }).catch(e => console.debug('Failed to track step', e));
+      }).catch(e => logger.debug('Failed to track step', e));
     }
   };
 
@@ -164,7 +166,7 @@ const FirstWorkflowWizard = ({ isOpen, onClose, onComplete }) => {
         trackOnboardingStep('first_workflow_wizard_completed', {
           template: 'blank',
           workflow_name: finalName
-        }).catch(e => console.debug('Failed to track completion', e));
+        }).catch(e => logger.debug('Failed to track completion', e));
 
         navigate('/app/workflows/builder/new');
         if (onComplete) onComplete();
@@ -194,7 +196,7 @@ const FirstWorkflowWizard = ({ isOpen, onClose, onComplete }) => {
         }
       } catch (e) {
         // Template not found, continue with basic workflow
-        console.debug('Template not found, creating basic workflow', e);
+        logger.debug('Template not found, creating basic workflow', e);
       }
 
       const response = await api.post('/api/workflows', workflowData);
@@ -227,7 +229,7 @@ const FirstWorkflowWizard = ({ isOpen, onClose, onComplete }) => {
         throw new Error('Failed to create workflow');
       }
     } catch (error) {
-      console.error('[FirstWorkflowWizard] Failed to create workflow:', error);
+      logger.error('[FirstWorkflowWizard] Failed to create workflow:', error);
       alert('Failed to create workflow. Please try again.');
     } finally {
       setLoading(false);

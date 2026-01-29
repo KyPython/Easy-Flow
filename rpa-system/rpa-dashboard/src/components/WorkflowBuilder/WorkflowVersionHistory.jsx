@@ -19,6 +19,8 @@ import {
 } from 'react-icons/fa';
 import supabase, { initSupabase } from '../../utils/supabaseClient';
 import { api } from '../../utils/api';
+import { createLogger } from '../../utils/logger';
+const logger = createLogger('WorkflowVersionHistory');
 import PlanGate from '../PlanGate/PlanGate';
 import { useTheme } from '../../utils/ThemeContext';
 
@@ -67,7 +69,7 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
  const versionsErr = versionsResult.reason;
  // ✅ UX: Handle 404 gracefully - feature may not be implemented yet
  if (versionsErr.response?.status === 404) {
- console.warn('Workflow versioning endpoint not available:', versionsErr.response?.status);
+ logger.warn('Workflow versioning endpoint not available:', versionsErr.response?.status);
  setVersions([]); // Set empty array instead of showing error
  } else {
  throw versionsErr; // Re-throw non-404 errors
@@ -81,7 +83,7 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
  const statsErr = statsResult.reason;
  // ✅ UX: Handle 404 gracefully - feature may not be implemented yet
  if (statsErr.response?.status === 404) {
- console.warn('Workflow version statistics endpoint not available:', statsErr.response?.status);
+ logger.warn('Workflow version statistics endpoint not available:', statsErr.response?.status);
  setStatistics(null); // Set null instead of showing error
  } else {
  // Only set error if versions also failed (to avoid duplicate error messages)
@@ -110,7 +112,7 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
  }
 
  } catch (err) {
- console.error('Failed to load version data:', err);
+ logger.error('Failed to load version data:', err);
  
  // ✅ UX: Handle 403 errors with user-friendly message
  if (err.response?.status === 403 || err.message?.includes('403')) {
@@ -159,7 +161,7 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
  setComparisonData(resp?.data?.data || null);
 
  } catch (err) {
- console.error('Failed to compare versions:', err);
+ logger.error('Failed to compare versions:', err);
  
  // ✅ UX: Handle 403 errors with user-friendly message
  if (err.response?.status === 403 || err.message?.includes('403')) {
@@ -180,7 +182,7 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
  setRollbackPreview(resp?.data?.data || null);
 
  } catch (err) {
- console.error('Failed to preview rollback:', err);
+ logger.error('Failed to preview rollback:', err);
  
  // ✅ UX: Handle 403 errors with user-friendly message
  if (err.response?.status === 403 || err.message?.includes('403')) {
@@ -208,7 +210,7 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
  alert(`Successfully rolled back to version ${version.version_number}`);
 
  } catch (err) {
- console.error('Failed to rollback version:', err);
+ logger.error('Failed to rollback version:', err);
  
  // ✅ UX: Handle 403 errors with user-friendly message
  if (err.response?.status === 403 || err.message?.includes('403')) {
@@ -240,7 +242,7 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
  URL.revokeObjectURL(url);
 
  } catch (err) {
- console.error('Failed to export version:', err);
+ logger.error('Failed to export version:', err);
  
  // ✅ UX: Handle 403 errors with user-friendly message
  if (err.response?.status === 403 || err.message?.includes('403')) {
@@ -280,7 +282,7 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
  feature="workflow_versioning"
  upgradeMessage="Workflow versioning and rollback requires a Professional or Enterprise plan for advanced workflow management."
  onPaywallClose={() => {
- console.log('[WorkflowVersionHistory] Paywall dismissed, closing modal');
+ logger.info('WorkflowVersionHistory paywall dismissed, closing modal');
  onClose();
  }}
  >

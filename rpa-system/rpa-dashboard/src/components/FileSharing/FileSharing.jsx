@@ -91,7 +91,7 @@ const FileSharing = ({
  setTimeout(() => setCopiedLink(''), 2000);
  }
  } catch (error) {
- console.error('Failed to create share:', error);
+ logger.error('Failed to create share:', error);
  } finally {
  setIsCreating(false);
  }
@@ -114,7 +114,7 @@ const FileSharing = ({
  }
  
  if (!shareUrl) {
- console.error('Cannot copy link: shareUrl is undefined', share);
+ logger.error('Cannot copy link: shareUrl is undefined', share);
  alert('Unable to copy link: Share URL not available');
  return;
  }
@@ -123,7 +123,7 @@ const FileSharing = ({
  setCopiedLink(shareId);
  setTimeout(() => setCopiedLink(''), 2000);
  } catch (error) {
- console.error('Failed to copy link:', error);
+ logger.error('Failed to copy link:', error);
  alert('Failed to copy link to clipboard');
  }
  };

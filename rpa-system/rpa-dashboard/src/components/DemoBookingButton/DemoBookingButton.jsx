@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('DemoBookingButtonUDemoBookingButton');
 import { FiCalendar, FiExternalLink } from 'react-icons/fi';
 import { usePlan } from '../../hooks/usePlan';
 import conversionTracker from '../../utils/conversionTracking';
@@ -48,7 +50,7 @@ const DemoBookingButton = ({
  window.open('https://calendly.com/your-link/15min', '_blank', 'noopener,noreferrer');
  }
  } catch (error) {
- console.error('Failed to open demo booking:', error);
+ logger.error('Failed to open demo booking:', error);
  // Fallback: Try direct link
  window.open('https://calendly.com/your-link/15min', '_blank', 'noopener,noreferrer');
  } finally {

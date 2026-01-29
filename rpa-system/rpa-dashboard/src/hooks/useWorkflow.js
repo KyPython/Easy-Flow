@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase, initSupabase } from '../utils/supabaseClient';
 import { buildApiUrl } from '../utils/config';
 import { api } from '../utils/api';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('useWorkflow');
 
 // UUID validation regex (matches Supabase UUID format)
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -25,7 +27,7 @@ export const useWorkflow = (workflowId) => {
  if (!workflowId || !isValidWorkflowId(workflowId)) {
  setLoading(false);
  if (workflowId && !isValidWorkflowId(workflowId)) {
- console.warn(`[useWorkflow] Invalid workflowId format: "${workflowId}". Expected UUID format.`);
+    logger.warn(`useWorkflow invalid workflowId: "${workflowId}". Expected UUID format.`);
  setError(`Invalid workflow ID format: "${workflowId}"`);
  }
  return;
@@ -57,7 +59,7 @@ export const useWorkflow = (workflowId) => {
  setWorkflow(data);
  setError(null);
  } catch (err) {
- console.error('Error loading workflow:', err);
+ logger.error('Error loading workflow:', err);
  setError(err.message);
  } finally {
  setLoading(false);
@@ -118,7 +120,7 @@ export const useWorkflow = (workflowId) => {
  setWorkflow(prev => ({ ...prev, ...data }));
  return data;
  } catch (err) {
- console.error('Error updating workflow:', err);
+ logger.error('Error updating workflow:', err);
  throw err;
  } finally {
  setSaving(false);
@@ -239,7 +241,7 @@ export const useWorkflow = (workflowId) => {
  setWorkflow(reloadedWorkflow);
  return reloadedWorkflow;
  } catch (err) {
- console.error('Error saving workflow:', err);
+ logger.error('Error saving workflow:', err);
  throw err;
  } finally {
  setSaving(false);
@@ -266,7 +268,7 @@ export const useWorkflow = (workflowId) => {
  setWorkflow(data);
  return data;
  } catch (err) {
- console.error('Error creating workflow:', err);
+ logger.error('Error creating workflow:', err);
  throw err;
  } finally {
  setSaving(false);
@@ -289,7 +291,7 @@ export const useWorkflow = (workflowId) => {
  setWorkflow(null);
  return true;
  } catch (err) {
- console.error('Error deleting workflow:', err);
+ logger.error('Error deleting workflow:', err);
  throw err;
  }
  };
@@ -305,7 +307,7 @@ export const useWorkflow = (workflowId) => {
    });
  return result;
  } catch (err) {
- console.error('Error executing workflow:', err);
+ logger.error('Error executing workflow:', err);
  throw err;
  }
  };
@@ -330,7 +332,7 @@ export const useWorkflow = (workflowId) => {
 
  return data;
  } catch (err) {
- console.error('Error loading executions:', err);
+ logger.error('Error loading executions:', err);
  throw err;
  }
  };
@@ -394,7 +396,7 @@ export const useWorkflow = (workflowId) => {
 
  return newWorkflow;
  } catch (err) {
- console.error('Error duplicating workflow:', err);
+ logger.error('Error duplicating workflow:', err);
  throw err;
  } finally {
  setSaving(false);

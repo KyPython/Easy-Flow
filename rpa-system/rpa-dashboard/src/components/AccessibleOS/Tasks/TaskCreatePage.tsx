@@ -1,4 +1,6 @@
 import React from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('TaskCreatePage');
 import { useNavigate } from 'react-router-dom';
 import TaskForm from './TaskForm';
 import { useTasks } from '../../hooks/useTasks';
@@ -12,7 +14,7 @@ const TaskCreatePage: React.FC = () => {
  const newTask = await createTask(data);
  navigate(`/tasks/${newTask.id}`);
  } catch (e) {
- console.error('Failed to create task', e);
+ logger.error('Failed to create task', e);
  }
  };
 

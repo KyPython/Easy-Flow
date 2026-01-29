@@ -28,6 +28,7 @@ import ExecutionDashboard from './ExecutionDashboard';
 import WorkflowTesting from './WorkflowTesting';
 import WorkflowVersionHistory from './WorkflowVersionHistory';
 import ExecutionModeSelector from './ExecutionModeSelector'; // ✅ EXECUTION MODES: Import execution mode selector
+import { createLogger } from '../../utils/logger';
 import { useWorkflow } from '../../hooks/useWorkflow';
 import { useWorkflowExecutions } from '../../hooks/useWorkflowExecutions';
 import { useWorkflowValidation } from '../../hooks/useWorkflowValidation';
@@ -107,7 +108,7 @@ const WorkflowBuilder = () => {
  };
  
  // ✅ OBSERVABILITY: Log what we're about to save for debugging
- console.log('💾 Saving workflow canvas state:', {
+ logger.debug('Saving workflow canvas state:', {
  workflow_id: workflowId,
  nodes_count: currentCanvasState.nodes?.length || 0,
  edges_count: currentCanvasState.edges?.length || 0,
@@ -122,7 +123,7 @@ const WorkflowBuilder = () => {
  };
  
  await saveWorkflow(workflowToSave);
- console.log('✅ Workflow saved successfully');
+ logger.info('Workflow saved successfully');
 
  // ✅ ANALYTICS: Track workflow save for feature usage metrics
  trackFeatureUsage('workflow_builder', { action: 'save', workflow_id: workflowId });
@@ -193,7 +194,7 @@ const WorkflowBuilder = () => {
  newWorkflowData.user_id = user.id;
  
  const newWorkflow = await createWorkflow(newWorkflowData);
- console.log('New workflow created successfully:', newWorkflow);
+ logger.info('New workflow created:', newWorkflow);
 
  // Track workflow creation for milestone system
  incrementWorkflowCount();
@@ -259,18 +260,18 @@ const WorkflowBuilder = () => {
                   time_to_activate_hours: timeToActivate?.hours || 0,
                   time_to_activate_days: timeToActivate?.days || 0
                 }
-              }).catch(e => console.debug('Failed to store activation event:', e));
+              }).catch(e => logger.debug('Failed to store activation event:', e));
 
               // Track onboarding step
               const { trackOnboardingStep } = await import('../../utils/onboardingTracking');
               await trackOnboardingStep('first_workflow_created', {
                 workflow_id: newWorkflow.id,
                 time_to_activate_minutes: timeToActivate?.minutes || 0
-              }).catch(e => console.debug('Failed to track onboarding step:', e));
+              }).catch(e => logger.debug('Failed to track onboarding step:', e));
             }
           }
         } catch (e) {
-          console.debug('Failed to track activation:', e);
+          logger.debug('Failed to track activation:', e);
         }
 
  // ✅ UX: Show helpful success message with clear next steps
@@ -280,7 +281,7 @@ const WorkflowBuilder = () => {
  navigate(`/app/workflows/builder/${newWorkflow.id}`);
  }
  } catch (error) {
- console.error('Failed to save workflow:', error);
+ logger.error('Failed to save workflow:', error);
  alert('Failed to save workflow: ' + error.message);
  }
  }, [currentWorkflow, workflowId, saveWorkflow, createWorkflow, navigate, canCreateWorkflow, showSuccess, canvasRef]);
@@ -360,7 +361,7 @@ const WorkflowBuilder = () => {
  const initialDetails = await getExecutionDetails(execId);
  if (initialDetails) setExecutionDetails(initialDetails);
  } catch (err) {
- console.error('Failed to load initial execution details:', err);
+ logger.error('Failed to load initial execution details:', err);
  }
  }
  // ✅ TIME ESTIMATION: Calculate initial time estimate before execution
@@ -407,7 +408,7 @@ const WorkflowBuilder = () => {
  : '✅ Workflow execution started! You can continue working while it runs.'
  );
  } catch (error) {
- console.error('Failed to start workflow execution:', error);
+ logger.error('Failed to start workflow execution:', error);
  
  // Parse error messages for user-friendly display
  let errorMessage = error?.message || 'Unknown error';
@@ -440,9 +441,9 @@ const WorkflowBuilder = () => {
  await cancelExecution(currentExecutionId);
  setIsExecuting(false);
  setCurrentExecutionId(null);
- console.log('Workflow execution cancellation requested');
+ logger.info('Workflow execution cancellation requested');
  } catch (error) {
- console.error('Failed to stop workflow execution:', error);
+ logger.error('Failed to stop workflow execution:', error);
  alert('Failed to stop execution: ' + (error.message || error));
  }
  }
@@ -465,7 +466,7 @@ const WorkflowBuilder = () => {
  
  // ✅ DIAGNOSTIC: Log execution state for debugging
  if (process.env.NODE_ENV !== 'production') {
- console.log('[Execution Poll] Workflow status:', {
+ logger.debug('Execution Poll workflow status:', {
  execution_id: currentExecutionId,
  elapsed_seconds: execution.started_at 
  ? Math.floor((Date.now() - new Date(execution.started_at).getTime()) / 1000)
@@ -550,7 +551,7 @@ const WorkflowBuilder = () => {
  
  // Display next step actions if available
  if (nextSteps.actions && nextSteps.actions.length > 0) {
- console.log('[WorkflowExecutor] Next steps:', nextSteps.actions);
+ logger.debug('WorkflowExecutor next steps:', nextSteps.actions);
  
  // ✅ FIX: Handle both path navigation and tab switching
  const primaryAction = nextSteps.actions[0];
@@ -639,7 +640,7 @@ const WorkflowBuilder = () => {
  
  if (elapsed > 120 && (!execution.step_executions || execution.step_executions.length === 0)) {
  // Workflow has been running for > 2 minutes with no step executions
- console.warn('[Execution Poll] Workflow appears stuck:', {
+ logger.warn('Execution Poll workflow appears stuck:', {
  execution_id: currentExecutionId,
  elapsed_seconds: elapsed,
  status_message: execution.status_message,
@@ -654,7 +655,7 @@ const WorkflowBuilder = () => {
  }
  }
  } catch (error) {
- console.error('Error polling execution status:', error);
+ logger.error('Error polling execution status:', error);
  }
  };
  
@@ -685,14 +686,14 @@ const WorkflowBuilder = () => {
 
  const handleTemplateSelect = useCallback(async (newWorkflow) => {
  try {
- console.log('Created workflow from template:', newWorkflow);
+ logger.info('Created workflow from template:', newWorkflow);
  setShowTemplateGallery(false);
  
  // Navigate to the newly created workflow
  navigate(`/app/workflows/builder/${newWorkflow.id}`);
  
  } catch (error) {
- console.error('Failed to handle template selection:', error);
+ logger.error('Failed to handle template selection:', error);
  alert('Failed to create workflow from template: ' + error.message);
  }
  }, [navigate]);
@@ -700,7 +701,7 @@ const WorkflowBuilder = () => {
  // Handle AI-generated workflow
  const handleAIWorkflowGenerated = useCallback(async (aiWorkflow) => {
  try {
- console.log('AI generated workflow:', aiWorkflow);
+ logger.info('AI generated workflow:', aiWorkflow);
  
  // If we have an existing workflow, update its canvas config
  if (currentWorkflow && workflowId) {
@@ -725,14 +726,14 @@ const WorkflowBuilder = () => {
  };
 
  const newWorkflow = await createWorkflow(newWorkflowData);
- console.log('AI workflow created:', newWorkflow);
+ logger.info('AI workflow created:', newWorkflow);
  
  incrementWorkflowCount();
  showSuccess('🤖 AI workflow created! Review and customize as needed.');
  navigate(`/app/workflows/builder/${newWorkflow.id}`);
  }
  } catch (error) {
- console.error('Failed to apply AI workflow:', error);
+ logger.error('Failed to apply AI workflow:', error);
  showError('Failed to apply AI workflow: ' + error.message);
  }
  }, [currentWorkflow, workflowId, updateWorkflow, createWorkflow, navigate, showSuccess, showError, incrementWorkflowCount]);
@@ -802,7 +803,7 @@ const WorkflowBuilder = () => {
  const nextStatus = isActive ? 'draft' : 'active';
  await updateWorkflow({ status: nextStatus });
  } catch (e) {
- console.error('Failed to update workflow status:', e);
+ logger.error('Failed to update workflow status:', e);
  alert('Failed to update workflow status: ' + (e.message || e));
  }
  }, [hasWorkflowId, isActive, updateWorkflow]);

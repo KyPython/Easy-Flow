@@ -41,11 +41,11 @@ const WorkflowsList = () => {
  // Observability: Track component lifecycle
  useEffect(() => {
  const startTime = performance.now();
- console.log('[WorkflowsList] Component mounted, authLoading:', authLoading, 'user:', user?.email || 'none');
+ logger.debug('WorkflowsList component mounted, authLoading:', authLoading, 'user:', user?.email || 'none');
  
  return () => {
  const duration = performance.now() - startTime;
- console.log('[WorkflowsList] Component unmounted after', duration.toFixed(2), 'ms');
+ logger.debug('WorkflowsList component unmounted after', duration.toFixed(2), 'ms');
  };
  }, [authLoading, user]);
 
@@ -53,25 +53,25 @@ const WorkflowsList = () => {
  useEffect(() => {
  // Don't load if auth is still loading
  if (authLoading) {
- console.log('[WorkflowsList] Waiting for auth to finish loading...');
+ logger.debug('WorkflowsList waiting for auth to finish loading...');
  return;
  }
 
  // Don't load if user is not authenticated (will be redirected by parent)
  if (!user) {
- console.log('[WorkflowsList] No user, skipping workflow load');
+ logger.debug('WorkflowsList no user, skipping workflow load');
  setLoading(false);
  return;
  }
 
  // Load workflows once auth is ready
- console.log('[WorkflowsList] Auth ready, loading workflows for user:', user.email);
+ logger.debug('WorkflowsList auth ready, loading workflows for user:', user.email);
  loadWorkflows();
  }, [user, authLoading]);
 
  const loadWorkflows = async (retryAttempt = 0) => {
  const loadStartTime = performance.now();
- console.log(`[WorkflowsList] loadWorkflows called (attempt ${retryAttempt + 1}/${maxRetries + 1})`);
+  logger.debug(`WorkflowsList loadWorkflows called (attempt ${retryAttempt + 1}/${maxRetries + 1})`);
  
  // OpenTelemetry tracing
  const apiTracker = trackApiCall('GET', 'supabase/workflows', {
@@ -93,7 +93,7 @@ const WorkflowsList = () => {
  )
  ]);
  const initDuration = performance.now() - initStartTime;
- console.log(`[WorkflowsList] Supabase initialized in ${initDuration.toFixed(2)}ms`);
+ logger.debug(`WorkflowsList Supabase initialized in ${initDuration.toFixed(2)}ms`);
  apiTracker.addAttribute('supabase.init_duration_ms', initDuration);
 
  // Check if we got a real client or a stub
@@ -133,13 +133,13 @@ const WorkflowsList = () => {
  )
  ]);
  const queryDuration = performance.now() - queryStartTime;
- console.log(`[WorkflowsList] Query completed in ${queryDuration.toFixed(2)}ms, found ${data?.length || 0} workflows`);
+ logger.debug(`WorkflowsList query completed in ${queryDuration.toFixed(2)}ms, found ${data?.length || 0} workflows`);
  
  apiTracker.addAttribute('supabase.query_duration_ms', queryDuration);
  apiTracker.addAttribute('workflows.count', data?.length || 0);
 
  if (queryError) {
- console.error('[WorkflowsList] Query error:', queryError);
+ logger.error('WorkflowsList query error:', queryError);
  apiTracker.setError(queryError);
  throw queryError;
  }
@@ -149,7 +149,7 @@ const WorkflowsList = () => {
  setLoading(false); // ✅ FIX: Explicitly set loading to false on success
  
  const totalDuration = performance.now() - loadStartTime;
- console.log(`[WorkflowsList] Successfully loaded ${data?.length || 0} workflows in ${totalDuration.toFixed(2)}ms`);
+ logger.debug(`WorkflowsList successfully loaded ${data?.length || 0} workflows in ${totalDuration.toFixed(2)}ms`);
  
  apiTracker.addAttribute('total_duration_ms', totalDuration);
  apiTracker.setResponseData({ status: 200, workflows: data?.length || 0 });
@@ -157,7 +157,7 @@ const WorkflowsList = () => {
  
  } catch (err) {
  const errorMessage = err?.message || err?.toString() || 'Unknown error';
- console.error(`[WorkflowsList] Error loading workflows (attempt ${retryAttempt + 1}):`, errorMessage, err);
+ logger.error(`WorkflowsList error loading workflows: (attempt ${retryAttempt + 1}): ${errorMessage}`, err);
  
  apiTracker.addAttribute('error.message', errorMessage);
  apiTracker.addAttribute('error.retry_attempt', retryAttempt + 1);
@@ -171,7 +171,7 @@ const WorkflowsList = () => {
  errorMessage.includes('Supabase initialization timeout')
  )) {
  const delay = retryDelay * (retryAttempt + 1); // Exponential backoff
- console.log(`[WorkflowsList] Retrying in ${delay}ms...`);
+ logger.debug(`WorkflowsList retrying in ${delay}ms...`);
  apiTracker.addAttribute('retry.delay_ms', delay);
  apiTracker.addAttribute('retry.will_retry', true);
  apiTracker.end();
@@ -193,7 +193,7 @@ const WorkflowsList = () => {
  retryCountRef.current = 0; // Reset retry count
  
  const totalDuration = performance.now() - loadStartTime;
- console.error(`[WorkflowsList] Failed to load workflows after ${retryAttempt + 1} attempts in ${totalDuration.toFixed(2)}ms`);
+ logger.error('WorkflowsList failed to load: workflows after ${retryAttempt + 1} attempts in ${totalDuration.toFixed(2)}ms`);
  }
  };
 
@@ -224,7 +224,7 @@ const WorkflowsList = () => {
  setConfirmOpen(false);
  setDeletingId(null);
  } catch (err) {
- console.error('Error deleting workflow:', err);
+ logger.error('Error deleting workflow:', err);
  alert(`Failed to delete workflow: ${err.message || err}`);
  } finally {
  setDeleting(false);

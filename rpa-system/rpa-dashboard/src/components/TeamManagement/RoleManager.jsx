@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('TeamManagementURoleManager');
 import { FiUsers, FiEdit3, FiTrash2, FiShield, FiMoreHorizontal, FiUserCheck } from 'react-icons/fi';
 import { useTheme } from '../../utils/ThemeContext';
 import PropTypes from 'prop-types';
@@ -118,7 +120,7 @@ const RoleManager = React.memo(({
  );
  setSelectedMembers(new Set());
  } catch (error) {
- console.error('Bulk role update failed:', error);
+ logger.error('Bulk role update failed:', error);
  }
  };
 
@@ -131,7 +133,7 @@ const RoleManager = React.memo(({
  );
  setSelectedMembers(new Set());
  } catch (error) {
- console.error('Bulk remove failed:', error);
+ logger.error('Bulk remove failed:', error);
  }
  }
  };
@@ -316,7 +318,7 @@ const MemberRow = React.memo(({
  try {
  await onUpdateRole(newRole);
  } catch (error) {
- console.error('Role update failed:', error);
+ logger.error('Role update failed:', error);
  } finally {
  setIsUpdating(false);
  }

@@ -184,7 +184,7 @@ export const useWorkflowValidation = () => {
  };
 
  } catch (error) {
- console.error('Workflow validation error:', error);
+ logger.error('Workflow validation error:', error);
  const systemError = {
  type: 'system_error',
  message: 'Unable to validate workflow. Please try again.'

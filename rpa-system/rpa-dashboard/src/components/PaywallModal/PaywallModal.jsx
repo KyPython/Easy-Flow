@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('PaywallModal');
 import { useNavigate } from 'react-router-dom';
 import { usePlan } from '../../hooks/usePlan';
 import { useTheme } from '../../utils/ThemeContext';
@@ -29,7 +31,7 @@ const PaywallModal = ({
  // Track paywall shown event
  useEffect(() => {
  if (feature || requiredPlan) {
- console.log('[PaywallModal] Showing upgrade modal', {
+ logger.debug('[PaywallModal] Showing upgrade modal', {
  feature,
  requiredPlan,
  currentPlan: planData?.plan?.name || 'hobbyist',
@@ -94,7 +96,7 @@ const PaywallModal = ({
  }
 
  // Log gate dismissal for debugging
- console.log('[PaywallModal] User dismissed upgrade modal', {
+ logger.debug('[PaywallModal] User dismissed upgrade modal', {
  feature,
  requiredPlan,
  currentPlan: planData?.plan?.name || 'hobbyist',
@@ -110,7 +112,7 @@ const PaywallModal = ({
  onClose();
  } else {
  // Default behavior: navigate back or to dashboard
- console.log('[PaywallModal] No onClose callback, navigating back or to /app');
+ logger.debug('[PaywallModal] No onClose callback, navigating back or to /app');
  setTimeout(() => {
  // Try to go back if there's history, otherwise go to dashboard
  if (window.history.length > 1) {

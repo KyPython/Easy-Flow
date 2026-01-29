@@ -26,7 +26,7 @@ export const useNotifications = (user) => {
  // Early return if no user
  if (!user) {
  if (isInitialized || notificationService.isInitialized) {
- console.log('🔔 User logged out, cleaning up notifications');
+ logger.info('Notifications user logged out, cleaning up notifications');
  notificationService.cleanup();
  if (mounted) {
  setIsInitialized(false);
@@ -44,19 +44,19 @@ export const useNotifications = (user) => {
 
  // Prevent redundant initialization
  if (initializingRef.current) {
- console.log('🔔 Initialization already in progress, skipping...');
+ logger.debug('Notifications initialization already in progress, skipping...');
  return;
  }
 
  // Check if already initialized for the same user
  if (lastUserIdRef.current === user.id && isInitialized) {
- console.log('🔔 Already initialized for user:', user.id);
+ logger.debug('Notifications already initialized:', user.id);
  return;
  }
 
  // Check notification service state
  if (notificationService.isInitialized && notificationService.currentUser?.id === user.id) {
- console.log('🔔 NotificationService already initialized for user:', user.id);
+ logger.debug('Notifications already initialized for user:', user.id);
  if (mounted) {
  setIsInitialized(true);
  const perm = typeof Notification !== 'undefined' ? Notification.permission === 'granted' : false;
@@ -69,7 +69,7 @@ export const useNotifications = (user) => {
  }
 
  initializingRef.current = true;
- console.log('🔔 Starting notification initialization for user:', user.id);
+ logger.debug('Notifications starting initialization for user:', user.id);
  
  // Add a small delay to ensure auth context is fully ready
  if (authTimeoutRef.current) {
@@ -78,7 +78,7 @@ export const useNotifications = (user) => {
  
  authTimeoutRef.current = setTimeout(async () => {
  try {
- console.log('🔔 Authentication ready, initializing notifications...');
+ logger.debug('Notifications auth ready, initializing notifications...');
  setAuthReady(true);
  
  const success = await notificationService.initialize(user);
@@ -91,11 +91,11 @@ export const useNotifications = (user) => {
  
  if (success) {
  lastUserIdRef.current = user.id;
- console.log('🔔 Notifications initialized successfully');
+ logger.info('Notifications initialized successfully');
  }
  }
  } catch (error) {
- console.error('🔔 Failed to initialize notifications:', error);
+ logger.error('Notifications failed to initialize:', error);
  if (mounted) {
  setIsInitialized(false);
  setAuthReady(false);
@@ -131,7 +131,7 @@ export const useNotifications = (user) => {
 
  // Handle individual notifications
  const handleNotification = (event) => {
- console.log('🔔 New notification received:', event);
+ logger.debug('Notifications new notification', event);
  
  // Add to notifications list if it's a new notification
  if (event.type !== 'notifications_updated') {
@@ -151,7 +151,7 @@ export const useNotifications = (user) => {
 
  // Handle notification clicks
  const handleNotificationClick = (event) => {
- console.log('🔔 Notification clicked:', event.data);
+ logger.debug('Notifications clicked', event.data);
  
  // You can add custom navigation logic here
  if (event.data?.url) {
@@ -180,7 +180,7 @@ export const useNotifications = (user) => {
  setStatus(notificationService.getStatus());
  return granted;
  } catch (error) {
- console.error('🔔 Error requesting permission:', error);
+ logger.error('Notifications error requesting permission:', error);
  return false;
  }
  }, []);
@@ -230,7 +230,7 @@ export const useNotifications = (user) => {
  
  return true;
  } catch (error) {
- console.error('🔔 Error marking all as read:', error);
+ logger.error('Notifications error marking all as read:', error);
  return false;
  }
  }, [notifications]);

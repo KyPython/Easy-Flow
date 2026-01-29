@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('QuickActions');
 import { Plus, Filter, Search } from '../../Icons/Icons';
 import Button from '../UI/Button';
 import Modal from '../UI/Modal';
@@ -15,7 +17,7 @@ const QuickActions: React.FC = () => {
  await createTask(taskData);
  setShowTaskForm(false);
  } catch (error) {
- console.error('Failed to create task:', error);
+ logger.error('Failed to create task:', error);
  }
  };
 

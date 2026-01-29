@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('ScheduleManager');
 import PropTypes from 'prop-types';
 import styles from './ScheduleManager.module.css';
 // Added missing icons actually used in this file
@@ -48,7 +50,7 @@ const ScheduleManager = ({ workflowId, workflowName }) => {
  await deleteSchedule(deleteConfirm.id);
  setDeleteConfirm(null);
  } catch (error) {
- console.error('Failed to delete schedule:', error);
+ logger.error('Failed to delete schedule:', error);
  } finally {
  setIsDeleting(false);
  }
@@ -59,7 +61,7 @@ const ScheduleManager = ({ workflowId, workflowName }) => {
  await triggerSchedule(scheduleId);
  // Show success message or refresh executions
  } catch (error) {
- console.error('Failed to trigger schedule:', error);
+ logger.error('Failed to trigger schedule:', error);
  }
  };
 
@@ -614,7 +616,7 @@ const ExecutionHistoryModal = ({ schedule, onClose }) => {
  const resp = await api.get(`/api/schedules/${schedule.id}/executions`, { headers: { Authorization: `Bearer ${token}` } });
  setExecutions(resp?.data?.executions || []);
  } catch (error) {
- console.error('Error loading execution history:', error);
+ logger.error('Error loading execution history:', error);
  } finally {
  setLoading(false);
  }

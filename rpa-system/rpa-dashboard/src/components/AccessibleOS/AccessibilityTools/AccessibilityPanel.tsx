@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('AccessibilityPanel');
 import {
  Shield,
  AlertTriangle,
@@ -38,7 +40,7 @@ const AccessibilityPanel: React.FC = () => {
  const auditReport = await auditAccessibility();
  setReport(auditReport);
  } catch (error) {
- console.error('Accessibility audit failed:', error);
+ logger.error('Accessibility audit failed:', error);
  } finally {
  setIsAuditing(false);
  }

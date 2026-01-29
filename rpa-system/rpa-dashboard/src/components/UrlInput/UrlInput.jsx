@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('UrlInput');
 import PropTypes from 'prop-types';
 import { useTheme } from '../../utils/ThemeContext';
 import { SearchSuggestions } from '../LazyLoader';
@@ -230,7 +232,7 @@ const UrlInput = ({ onUrlSubmit, onUrlChange, onClear }) => {
 
  // Handle search result selection
  const handleSearchSelect = useCallback((selectedUrl) => {
- console.log('[UrlInput] Search selected', { url: selectedUrl });
+ logger.debug('[UrlInput] Search selected', { url: selectedUrl });
  setUrl(selectedUrl);
  setError('');
  if (isValidUrl(selectedUrl)) {

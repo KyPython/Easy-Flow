@@ -71,8 +71,8 @@ const WorkflowPage = () => {
  // Determine what to show based on path and workflow ID
  const getCurrentView = () => {
  const path = location.pathname;
- console.log('WorkflowPage - current path:', path);
- console.log('WorkflowPage - workflowId:', workflowId);
+ logger.debug('WorkflowPage current path:', path);
+ logger.debug('WorkflowPage workflowId:', workflowId);
  
  // IMPORTANT: Let WorkflowBuilder handle all /builder subroutes
  if (path.includes('/builder')) return 'builder';
@@ -89,13 +89,13 @@ const WorkflowPage = () => {
  const handleToggleSchedule = async (scheduleId, enabled) => {
  try {
  // Mock API call - replace with actual API integration
- console.log('Toggling schedule:', scheduleId, enabled);
+ logger.debug('Toggling schedule:', scheduleId, enabled);
  
  setSchedules(prev => prev.map(schedule => 
  schedule.id === scheduleId ? { ...schedule, enabled } : schedule
  ));
  } catch (error) {
- console.error('Failed to toggle schedule:', error);
+ logger.error('Failed to toggle schedule:', error);
  }
  };
 
@@ -108,11 +108,11 @@ const WorkflowPage = () => {
  const handleDeleteSchedule = async (scheduleId) => {
  try {
  // Mock API call - replace with actual API integration
- console.log('Deleting schedule:', scheduleId);
+ logger.debug('Deleting schedule:', scheduleId);
  
  setSchedules(prev => prev.filter(schedule => schedule.id !== scheduleId));
  } catch (error) {
- console.error('Failed to delete schedule:', error);
+ logger.error('Failed to delete schedule:', error);
  }
  };
 
@@ -124,7 +124,7 @@ const WorkflowPage = () => {
  const handleSaveSchedule = async (scheduleData) => {
  try {
  // Mock API call - replace with actual API integration
- console.log('Saving schedule:', scheduleData);
+ logger.debug('Saving schedule:', scheduleData);
  
  if (editingSchedule) {
  // Update existing schedule
@@ -147,7 +147,7 @@ const WorkflowPage = () => {
  setShowScheduleEditor(false);
  setEditingSchedule(null);
  } catch (error) {
- console.error('Failed to save schedule:', error);
+ logger.error('Failed to save schedule:', error);
  }
  };
 
@@ -162,7 +162,7 @@ const WorkflowPage = () => {
 
  const handleTemplateSelect = (newWorkflow) => {
  // This is called after a workflow is created from template
- console.log('Selected template, created workflow:', newWorkflow);
+ logger.info('Selected template, created workflow:', newWorkflow);
  // Navigate to the new workflow builder with the workflow ID
  navigate(`/app/workflows/builder/${newWorkflow.id}`);
  };
@@ -187,7 +187,7 @@ const WorkflowPage = () => {
 
  const currentView = getCurrentView();
 
- console.log('Rendering WorkflowPage with view:', currentView);
+ logger.debug('Rendering WorkflowPage with view:', currentView);
 
  return (
  <div className={styles.workflowPage}>

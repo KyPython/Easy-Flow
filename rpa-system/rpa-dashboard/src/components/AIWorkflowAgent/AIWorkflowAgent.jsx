@@ -1,4 +1,6 @@
 /**
+import { createLogger } from '../utils/logger';
+const logger = createLogger('AIWorkflowAgent');
  * AI Workflow Agent Component
  * 
  * A unified AI assistant for creating workflows AND handling support.
@@ -423,7 +425,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  }
  setConversationLoaded(true);
  } catch (error) {
- console.error('Failed to load conversations:', error);
+ logger.error('Failed to load conversations:', error);
  // Show welcome message on error
  setMessages([welcomeMessage]);
  setConversationLoaded(true);
@@ -440,7 +442,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  const data = response.data;
  setAiEnabled(data.aiEnabled);
  } catch (error) {
- console.error('AI health check failed:', error);
+ logger.error('AI health check failed:', error);
  setAiEnabled(false);
  }
  };
@@ -457,7 +459,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  suggestions: message.suggestions
  });
  } catch (error) {
- console.error('Failed to save message:', error);
+ logger.error('Failed to save message:', error);
  }
  }, []);
 
@@ -467,7 +469,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  await api.delete('/api/ai-agent/conversations');
  setMessages([welcomeMessage]);
  } catch (error) {
- console.error('Failed to clear conversation:', error);
+ logger.error('Failed to clear conversation:', error);
  }
  }, []);
 
@@ -496,7 +498,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  }]);
  }).catch(() => {
  // Fallback if clipboard fails
- console.log('Bookmarklet code:', bookmarkletText);
+ logger.debug('Bookmarklet code:', bookmarkletText);
  });
  }
  break;
@@ -505,7 +507,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  sendSupportEmail(action.subject, action.body);
  break;
  default:
- console.log('Unknown action:', action);
+ logger.debug('Unknown action:', action);
  }
  }, [setMessages]);
 
@@ -827,7 +829,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  }
 
  } catch (error) {
- console.error('Error sending message:', error);
+ logger.error('Error sending message:', error);
  
  // Try to handle as support query if API fails
  const supportIntent = detectSupportIntent(userMessage.content);

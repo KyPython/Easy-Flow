@@ -225,13 +225,13 @@ const BulkInvoiceProcessor = () => {
  if (error) throw error;
  await loadVendors();
  } catch (error) {
- console.error('Error deleting vendor:', error);
+ logger.error('Error deleting vendor:', { error: error.message, stack: error.stack, vendor_id: vendorId });
  }
  };
 
  // Handler to route back when paywall is closed
  const handlePaywallClose = () => {
- console.log('[BulkProcessor] Paywall dismissed, navigating back');
+ logger.info('Paywall dismissed, navigating back');
  navigate(-1); // Go back to previous page
  };
 

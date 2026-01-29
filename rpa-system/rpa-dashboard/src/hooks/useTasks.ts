@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('useTasks');
 import { Task, TaskCategory, TaskStats, TaskStatus } from '../types';
 import { mockQuery } from '../data/accessibleOSMockData';
 import { useAuth } from '../utils/AuthContext';
@@ -71,7 +73,7 @@ export const useTasks = (options: UseTasksOptions = {}): UseTasksReturn => {
  }
  } catch (e) {
  // fall back to mock
- console.warn('API fetch tasks failed, falling back to mock', e);
+ logger.warn('API fetch tasks failed, falling back to mock', e);
  }
 
  // Simulate API call fallback

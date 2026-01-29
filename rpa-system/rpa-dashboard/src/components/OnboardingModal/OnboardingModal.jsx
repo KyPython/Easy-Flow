@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('OnboardingModalUOnboardingModal');
 import { triggerCampaign } from '../../utils/api';
 import { trackOnboardingStep } from '../../utils/onboardingTracking';
 import React from 'react';
@@ -17,7 +19,7 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
  useEffect(() => {
  if (isOpen && !hasTrackedStart) {
  trackOnboardingStep('tutorial_started', { modal_opened: true }).catch(e => 
- console.debug('Failed to track tutorial_started:', e)
+ logger.debug('Failed to track tutorial_started:', e)
  );
  setHasTrackedStart(true);
  }
@@ -163,7 +165,7 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
  step_number: nextStep + 1,
  step_name: steps[nextStep]?.title || `step_${nextStep + 1}`,
  total_steps: steps.length
- }).catch(e => console.debug('Failed to track tutorial step:', e));
+ }).catch(e => logger.debug('Failed to track tutorial step:', e));
  }
  };
 
@@ -184,9 +186,9 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
  await trackOnboardingStep('tutorial_completed', {
  total_steps: steps.length,
  completed_at: new Date().toISOString()
- }).catch(e => console.debug('Failed to track tutorial_completed:', e));
+ }).catch(e => logger.debug('Failed to track tutorial_completed:', e));
  
- console.log('Triggering welcome campaign...');
+ logger.info('Triggering welcome campaign...');
  
  // Make sure we're sending the campaign parameter correctly
  const response = await triggerCampaign({ 
@@ -194,7 +196,7 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
  // The backend will automatically use the authenticated user's email
  });
  
- console.log('Campaign triggered successfully:', response);
+ logger.info('Campaign triggered successfully:', response);
  
  // Close modal after a brief delay to show completion
  setTimeout(() => {
@@ -202,7 +204,7 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
  alert('🎉 Onboarding complete! Welcome emails are on their way.');
  }, 1000);
  } catch (error) {
- console.error('Failed to trigger welcome campaign:', error);
+ logger.error('Failed to trigger welcome campaign:', error);
  // Still complete onboarding even if email fails
  alert('Onboarding complete! You can start using EasyFlow now.');
  onClose();

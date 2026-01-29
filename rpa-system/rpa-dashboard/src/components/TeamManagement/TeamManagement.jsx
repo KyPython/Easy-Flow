@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('TeamManagementUTeamManagement');
 import { useTheme } from '../../utils/ThemeContext';
 import RoleManager from './RoleManager';
 import InviteModal from './InviteModal';
@@ -37,7 +39,7 @@ export default function TeamManagement() {
  setLoading(true);
  try {
  // Mock API call - replace with actual API integration
- console.log('Sending invite:', inviteData);
+ logger.debug('Sending invite:', inviteData);
  
  // Simulate API delay
  await new Promise(resolve => setTimeout(resolve, 1000));
@@ -55,7 +57,7 @@ export default function TeamManagement() {
  const handleUpdateRole = async (memberId, newRole) => {
  try {
  // Mock API call - replace with actual API integration
- console.log('Updating role:', memberId, newRole);
+ logger.debug('Updating role:', memberId, newRole);
  
  setTeamMembers(prev => prev.map(member => 
  member.id === memberId ? { ...member, role: newRole } : member
@@ -63,7 +65,7 @@ export default function TeamManagement() {
  
  alert(`Role updated to: ${newRole}`);
  } catch (error) {
- console.error('Failed to update role:', error);
+ logger.error('Failed to update role:', error);
  alert('Failed to update role');
  }
  };
@@ -71,13 +73,13 @@ export default function TeamManagement() {
  const handleRemoveMember = async (memberId) => {
  try {
  // Mock API call - replace with actual API integration
- console.log('Removing member:', memberId);
+ logger.debug('Removing member:', memberId);
  
  setTeamMembers(prev => prev.filter(member => member.id !== memberId));
  
  alert('Member removed successfully');
  } catch (error) {
- console.error('Failed to remove member:', error);
+ logger.error('Failed to remove member:', error);
  alert('Failed to remove member');
  }
  };

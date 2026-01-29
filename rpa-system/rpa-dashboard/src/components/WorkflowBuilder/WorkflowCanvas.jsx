@@ -96,7 +96,7 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
  fitView({ duration: 200 });
  } catch (err) {
  // swallow; fitView may not be ready synchronously in some versions
- console.debug('fitView failed during initial load', err);
+ logger.warn('fitView failed during initial load', err);
  }
  initialFitRef.current = true;
  }
@@ -184,12 +184,12 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
  });
  // ✅ UX: Log successful saves (only in dev to avoid noise)
  if (process.env.NODE_ENV === 'development') {
- console.debug(`✅ Auto-saved canvas state (attempt ${saveAttemptsRef.current})`);
+  logger.debug(`Auto-saved canvas state (attempt ${saveAttemptsRef.current})`);
  }
  } catch (error) {
- console.error('Failed to save canvas state:', error);
+ logger.error('Failed to save canvas state:', error);
  // ✅ OBSERVABILITY: Log save failures for debugging
- console.error('Save attempt:', saveAttemptsRef.current, 'Workflow ID:', workflow?.id);
+ logger.error('Save attempt:', saveAttemptsRef.current, 'Workflow ID:', workflow?.id);
  } finally {
  // ✅ UX: Add small delay before hiding "Saving..." to show feedback
  setTimeout(() => setIsSaving(false), 300);
@@ -518,7 +518,7 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
  id?.includes('start');
  // Debug logging in development
  if (process.env.NODE_ENV === 'development' && isStart) {
- console.debug('[Guidance] Found Start step:', { stepType, label, id, node });
+ logger.debug('Guidance found Start step:', { stepType, label, id, node });
  }
  return isStart;
  });
@@ -535,7 +535,7 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
  if (hasStartStep && hasConnections) {
  // Debug logging in development
  if (process.env.NODE_ENV === 'development') {
- console.debug('[Guidance] Workflow complete - hiding guidance', { 
+ logger.debug('Guidance workflow complete - hiding guidance', { 
  hasStartStep, 
  hasConnections, 
  nodesCount: nodes.length, 
@@ -554,7 +554,7 @@ const WorkflowCanvas = forwardRef(({ workflowId, isReadOnly = false }, ref) => {
  
  // Debug logging in development
  if (process.env.NODE_ENV === 'development' && guidanceKey) {
- console.debug('[Guidance] Showing guidance', { 
+ logger.debug('Guidance showing guidance', { 
  guidanceKey, 
  hasStartStep, 
  hasConnections, 
