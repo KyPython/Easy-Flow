@@ -24,9 +24,7 @@ if (process.env.NEW_RELIC_LICENSE_KEY && process.env.NEW_RELIC_ENABLED !== 'fals
 }
 
 // Minimal HTTP server bootstrap for production
-// Use factory to avoid side effects during tests
-const { createApp } = require('./app');
-const app = createApp();
+const app = require('./app');
 
 const PORT = process.env.PORT || 3030;
 const HOST = process.env.HOST || '0.0.0.0';
