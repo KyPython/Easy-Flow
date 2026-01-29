@@ -193,7 +193,7 @@ const WorkflowsList = () => {
  retryCountRef.current = 0; // Reset retry count
  
  const totalDuration = performance.now() - loadStartTime;
- logger.error('WorkflowsList failed to load: workflows after ${retryAttempt + 1} attempts in ${totalDuration.toFixed(2)}ms`);
+ logger.error(`WorkflowsList failed to load: workflows after ${retryAttempt + 1} attempts in ${totalDuration.toFixed(2)}ms`);
  }
  };
 
