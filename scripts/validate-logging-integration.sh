@@ -38,7 +38,7 @@ check_backend_logging() {
     local file="$1"
     local violations=0
     
-    if [[ "$file" == *".test."* ]] || [[ "$file" == *".spec."* ]] || [[ "$file" == *"node_modules"* ]] || [[ "$file" == *"dist"* ]] || [[ "$file" == *"build"* ]]; then
+    if [[ "$file" == *".test."* ]] || [[ "$file" == *".spec."* ]] || [[ "$file" == *"jest.setup"* ]] || [[ "$file" == *"node_modules"* ]] || [[ "$file" == *"dist"* ]] || [[ "$file" == *"build"* ]]; then
         return 0
     fi
     
@@ -81,7 +81,7 @@ check_frontend_logging() {
     local file="$1"
     local violations=0
     
-    if [[ "$file" == *".test."* ]] || [[ "$file" == *".spec."* ]] || [[ "$file" == *"node_modules"* ]] || [[ "$file" == *"dist"* ]] || [[ "$file" == *"build"* ]]; then
+    if [[ "$file" == *".test."* ]] || [[ "$file" == *".spec."* ]] || [[ "$file" == *"jest.setup"* ]] || [[ "$file" == *"node_modules"* ]] || [[ "$file" == *"dist"* ]] || [[ "$file" == *"build"* ]]; then
         return 0
     fi
     
@@ -166,6 +166,7 @@ if [ -d "$BACKEND_DIR" ]; then
         ! -path "*/build/*" \
         ! -name "*.test.js" \
         ! -name "*.spec.js" \
+        ! -name "jest.setup.js" \
         -print0 2>/dev/null)
 fi
 
@@ -180,6 +181,7 @@ if [ -d "$FRONTEND_DIR" ]; then
         ! -path "*/build/*" \
         ! -name "*.test.js" \
         ! -name "*.spec.js" \
+        ! -name "jest.setup.js" \
         -print0 2>/dev/null)
 fi
 

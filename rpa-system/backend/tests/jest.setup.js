@@ -148,12 +148,13 @@ const axios = require('axios');
 
 // Silence console logs in tests except warnings/errors
 // Route selected test logs to the structured logger instead of calling console.log
-const logger = require('../middleware/structuredLogging');
+const { createLogger } = require('../middleware/structuredLogging');
+const testLogger = createLogger('jest-test');
 console.log = (...args) => {
   try {
     const first = String(args[0] || '');
     if (first.includes('CORS Debug Info') || process.env.VERBOSE_TEST_LOGS === 'true') {
-      logger.info(first, { args: args.slice(1) });
+      testLogger.info(first, { args: args.slice(1) });
     }
   } catch (e) {
     // swallow errors during test bootstrap
