@@ -7,7 +7,7 @@ import {
  X,
  Play,
  Pause,
-} from '../Icons/Icons';
+} from '../../Icons/Icons';
 import {
  auditAccessibility,
  AccessibilityReport,

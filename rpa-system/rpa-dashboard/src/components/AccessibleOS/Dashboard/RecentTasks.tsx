@@ -1,7 +1,7 @@
 import React from 'react';
 import { Task } from '../../types';
 import { formatDateTime } from '../../utils/formatters';
-import { Clock, CheckCircle, AlertCircle } from '../Icons/Icons';
+import { Clock, CheckCircle, AlertCircle } from '../../Icons/Icons';
 import styles from './RecentTasks.module.css';
 
 interface RecentTasksProps {

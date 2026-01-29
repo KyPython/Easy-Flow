@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Filter, Search } from '../Icons/Icons';
+import { Plus, Filter, Search } from '../../Icons/Icons';
 import Button from '../UI/Button';
 import Modal from '../UI/Modal';
 import TaskForm from '../Tasks/TaskForm';

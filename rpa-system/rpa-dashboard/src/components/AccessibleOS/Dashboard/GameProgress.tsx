@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Zap, Target, Calendar } from '../Icons/Icons';
+import { Trophy, Zap, Target, Calendar } from '../../Icons/Icons';
 import { mockStore } from '../../data/accessibleOSMockData';
 import styles from './GameProgress.module.css';
 
