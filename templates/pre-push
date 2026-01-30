@@ -26,11 +26,54 @@ if [ "$CURRENT_BRANCH" = "dev" ]; then
   exit 0
 fi
 
-echo "📋 Feature branch detected: $CURRENT_BRANCH — running light checks"
-# Example: verify top-level frontend builds if present
-if command -v npm >/dev/null 2>&1 && [ -d "rpa-system/rpa-dashboard" ]; then
-  (cd rpa-system/rpa-dashboard && npm run build --silent 2>/dev/null) || {
-    echo "❌ Frontend build failed - please fix before pushing"
+echo "📋 Feature branch detected: $CURRENT_BRANCH — running stricter pre-push checks"
+
+# 1) Validate docs sync if script present
+if [ -x "scripts/validate-docs-sync.sh" ]; then
+  ./scripts/validate-docs-sync.sh || {
+    echo "❌ Documentation sync check failed - update README.md or docs/"
+    exit 1
+  }
+fi
+
+# 2) Run lint & tests/build where applicable
+if command -v npm >/dev/null 2>&1 && [ -f "package.json" ]; then
+  echo "  → Installing dependencies (npm ci)"
+  npm ci --silent || {
+    echo "❌ npm ci failed - fix before pushing"
+    exit 1
+  }
+
+  if npm run -s lint >/dev/null 2>&1; then
+    echo "  → Running lint"
+    npm run lint || {
+      echo "❌ Lint failed - fix before pushing"
+      exit 1
+    }
+  fi
+
+  if npm test --silent >/dev/null 2>&1; then
+    echo "  → Running tests (quick run)"
+    npm test --silent || {
+      echo "❌ Tests failed - fix before pushing"
+      exit 1
+    }
+  fi
+
+  echo "  → Building project (if applicable)"
+  if npm run -s build >/dev/null 2>&1; then
+    npm run build --silent || {
+      echo "❌ Build failed - fix before pushing"
+      exit 1
+    }
+  fi
+fi
+
+# 3) If a more comprehensive local CI gate exists, run it
+if [ -x "scripts/local-ci-full.sh" ]; then
+  echo "  → Running full local CI gate"
+  ./scripts/local-ci-full.sh || {
+    echo "❌ Local CI gate failed - fix before pushing"
     exit 1
   }
 fi
