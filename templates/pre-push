@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+# Template pre-push hook for EasyFlow-style projects
+
+CURRENT_BRANCH=$(git branch --show-current)
+
+if [ "$CURRENT_BRANCH" = "main" ]; then
+  echo "❌ ERROR: Direct pushes to 'main' are BLOCKED. Create a PR instead."
+  exit 1
+fi
+
+if [ "$CURRENT_BRANCH" = "dev" ]; then
+  if [ "${FAST_PUSH:-false}" = "true" ]; then
+    echo "⚠️ FAST_PUSH=true → skipping full local CI gate for dev. Use intentionally."
+    exit 0
+  fi
+
+  echo "🧪 Running local CI gate for dev..."
+  if [ -x "scripts/local-ci-full.sh" ]; then
+    ./scripts/local-ci-full.sh || {
+      echo "❌ Local CI gate failed - fix before pushing"
+      exit 1
+    }
+  else
+    echo "⚠️ No local CI script found at scripts/local-ci-full.sh — skipping"
+  fi
+  exit 0
+fi
+
+echo "📋 Feature branch detected: $CURRENT_BRANCH — running light checks"
+# Example: verify top-level frontend builds if present
+if command -v npm >/dev/null 2>&1 && [ -d "rpa-system/rpa-dashboard" ]; then
+  (cd rpa-system/rpa-dashboard && npm run build --silent 2>/dev/null) || {
+    echo "❌ Frontend build failed - please fix before pushing"
+    exit 1
+  }
+fi
+
+echo "✅ Pre-push checks passed"
