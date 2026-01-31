@@ -8,6 +8,7 @@ Dev Network Logger
 /* eslint-disable no-console */
 
 import { isDevelopment, getApiBaseUrl, getBackendPort } from './commonEnv';
+import { getAuthToken, clearAuthTokens } from './auth';
 
 // Configuration constants - extracted magic numbers
 const DEFAULT_LOG_SAMPLE_RATE = 10; // Sample 10% of logs
@@ -26,14 +27,7 @@ function shouldLog() {
 // Export a fetch wrapper for consistent use in app (top-level)
 export async function fetchWithAuth(url, options = {}) {
 	// Normalize token retrieval: support several storage keys and guard against string 'null'/'undefined'
-	let rawToken = null;
-	try {
-		rawToken = localStorage.getItem('dev_token') || localStorage.getItem('authToken') || localStorage.getItem('token');
-	} catch (e) {
-		// localStorage may be unavailable in some environments (SSR/tests)
-		rawToken = null;
-	}
-	const token = (rawToken && rawToken !== 'undefined' && rawToken !== 'null') ? rawToken : null;
+	const token = getAuthToken();
 
 	// Build full URL: if url is relative, prepend API base URL
 	let fullUrl = url;
@@ -61,21 +55,18 @@ export async function fetchWithAuth(url, options = {}) {
 		// Self-healing: if 401 Unauthorized, clear auth tokens (but DO NOT reload to prevent infinite loops)
 		if (res.status === 401) {
 			// Skip self-heal on auth endpoints to prevent infinite loops
-			const isAuthEndpoint = url.includes('/auth/') || url.includes('/login') || url.includes('/session');
-			if (!isAuthEndpoint) {
-				console.warn('[devNetLogger] 401 Unauthorized detected. Clearing auth tokens.');
-				try {
-					// Clear localStorage tokens
-					localStorage.removeItem('dev_token');
-					localStorage.removeItem('authToken');
-					// Dispatch event for app-level handling (DO NOT reload - let app handle redirect)
-					if (typeof window !== 'undefined') {
-						window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
+				const isAuthEndpoint = url.includes('/auth/') || url.includes('/login') || url.includes('/session');
+				if (!isAuthEndpoint) {
+					console.warn('[devNetLogger] 401 Unauthorized detected. Clearing auth tokens.');
+					try {
+						clearAuthTokens();
+						if (typeof window !== 'undefined') {
+							window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
+						}
+					} catch (e) {
+						console.error('[devNetLogger] Self-heal failed:', e);
 					}
-				} catch (e) {
-					console.error('[devNetLogger] Self-heal failed:', e);
 				}
-			}
 		}
 
 		// Dev diagnostic: detect responses that set cookies while CORS allows any origin
@@ -169,7 +160,7 @@ if (typeof window !== 'undefined') {
 
 				// Only add Authorization from localStorage if not already present in incoming headers
 				const hasAuth = incomingHeaders && (incomingHeaders['Authorization'] || incomingHeaders['authorization']);
-				const token = !hasAuth ? (localStorage.getItem('dev_token') || localStorage.getItem('authToken') || (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_KEY)) : null;
+				const token = !hasAuth ? (getAuthToken() || (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_KEY)) : null;
 
 				const enhancedInit = {
 					...init,
@@ -186,23 +177,20 @@ if (typeof window !== 'undefined') {
 					const res = await _origFetch(input, enhancedInit);
 
 					// Self-healing: if 401 Unauthorized, clear auth tokens (but DO NOT reload to prevent infinite loops)
-					if (res.status === 401) {
+							if (res.status === 401) {
 						// Skip self-heal on auth endpoints to prevent infinite loops
 						const isAuthEndpoint = url.includes('/auth/') || url.includes('/login') || url.includes('/session');
-						if (!isAuthEndpoint) {
-							console.warn('[devNetLogger] 401 Unauthorized detected. Clearing auth tokens.');
-							try {
-								// Clear localStorage tokens
-								localStorage.removeItem('dev_token');
-								localStorage.removeItem('authToken');
-								// Dispatch event for app-level handling (DO NOT reload - let app handle redirect)
-								if (typeof window !== 'undefined') {
-									window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
+								if (!isAuthEndpoint) {
+									console.warn('[devNetLogger] 401 Unauthorized detected. Clearing auth tokens.');
+									try {
+										clearAuthTokens();
+										if (typeof window !== 'undefined') {
+											window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
+										}
+									} catch (e) {
+										console.error('[devNetLogger] Self-heal failed:', e);
+									}
 								}
-							} catch (e) {
-								console.error('[devNetLogger] Self-heal failed:', e);
-							}
-						}
 					}
 
 					// Dev diagnostic: detect responses that set cookies while CORS allows any origin
