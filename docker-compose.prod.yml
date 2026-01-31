@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  rag-service:
+    image: ${DOCKER_REGISTRY:-docker.io/yourorg}/easyflow-rag:${TAG:-latest}
+    environment:
+      - PORT=3002
+      - LLM_API_URL=${LLM_API_URL}
+      - LANGSMITH_API_URL=${LANGSMITH_API_URL}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
+    ports:
+      - "3002:3002"
