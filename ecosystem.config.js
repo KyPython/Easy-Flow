@@ -123,3 +123,29 @@ if (fs.existsSync(RAG_DIR) && fs.existsSync(path.join(RAG_DIR, 'package.json')))
     // RAG service config failed, continue without it (non-critical)
   }
 }
+
+// Also support in-repo RAG service at ./services/rag (factory pattern for dev)
+const LOCAL_RAG = path.join(__dirname, 'services', 'rag');
+if (fs.existsSync(LOCAL_RAG) && fs.existsSync(path.join(LOCAL_RAG, 'package.json'))) {
+  try {
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(LOCAL_RAG, 'package.json'), 'utf8'));
+    const scriptName = pkgJson.scripts?.start ? 'start' : (pkgJson.scripts?.dev ? 'dev' : 'start');
+    module.exports.apps.push({
+      name: 'rag-service',
+      script: 'npm',
+      args: 'run ' + scriptName,
+      cwd: LOCAL_RAG,
+      interpreter: 'node',
+      error_file: path.join(ROOT_DIR, 'logs/rag-error.log'),
+      out_file: path.join(ROOT_DIR, 'logs/rag.log'),
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      env: {
+        PORT: process.env.RAG_SERVICE_PORT || '3002',
+        NODE_ENV: process.env.NODE_ENV || 'development',
+      },
+    });
+  } catch (e) {
+    // ignore
+  }
+}

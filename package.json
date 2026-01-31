@@ -55,6 +55,7 @@
     "infra:hooks": "./scripts/setup-terraform-pre-commit.sh",
     "prepare": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('husky').install(); } catch(e) { process.exit(0); } }\"",
     "postinstall": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('husky').install(); } catch(e) { process.exit(0); } }\""
+    ,"install:subdeps": "bash ./scripts/install-subdeps.sh"
   },
   "keywords": [
     "automation",
