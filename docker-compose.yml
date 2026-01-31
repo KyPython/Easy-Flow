@@ -108,8 +108,33 @@ services:
     depends_on:
       - backend
 
+  chroma:
+    image: ghcr.io/chroma-core/chroma:latest
+    environment:
+      - CHROMA_DB_IMPL=duckdb+parquet
+    ports:
+      - '8000:8000'
+    volumes:
+      - chroma_data:/var/lib/chroma
+
+  rag-service:
+    build:
+      context: ./services/rag
+      dockerfile: Dockerfile
+    env_file:
+      - ./services/rag/.env
+    ports:
+      - '3002:3002'
+    depends_on:
+      - chroma
+    environment:
+      LLM_API_URL: "${LLM_API_URL}"
+      LANGSMITH_API_URL: "${LANGSMITH_API_URL}"
+      LANGSMITH_API_KEY: "${LANGSMITH_API_KEY}"
+
 volumes:
   pgdata:
   redisdata:
   backend_node_modules:
   dashboard_node_modules:
+  chroma_data:
