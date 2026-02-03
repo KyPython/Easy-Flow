@@ -263,7 +263,7 @@ export default function AuthPage() {
       return;
     }
 
-    // ✅ TRACKING: Track signup attempt (user clicked submit)
+    // ✅ TRACKING: Track signup/waitlist attempt (user clicked submit)
     if (mode === 'signup' || mode === 'register') {
       trackSignupAttempt({
         variant: signupFormVariant,
@@ -276,8 +276,8 @@ export default function AuthPage() {
     }
 
     setLoading(true);
- try {
- if (mode === 'login') {
+    try {
+      if (mode === 'login') {
  // Use AuthContext.signIn which tries backend first, then Supabase fallback
  const result = await signIn(email, password);
  // AuthContext.signIn returns { data: { user, session }, error: null }
@@ -328,81 +328,45 @@ export default function AuthPage() {
  setTimeout(() => {
  navigate(redirectPath);
  }, 1500);
- } else {
- // Capture UTM parameters and send to signup API
- const utmParams = getStoredUTMParams() || captureAndStoreUTM();
- 
-        const { error } = await signUp({ email, password });
-        if (error) throw error;
-        
-        // ✅ TRACKING: Track signup success
-        await trackSignupSuccess({
-          variant: signupFormVariant,
-          referral_code: referralCode || null,
-          utm_source: utmParams?.source,
-          utm_medium: utmParams?.medium,
-          utm_campaign: utmParams?.campaign,
-          email_domain: email.split('@')[1] || null
-        });
-
-        // Set flag to indicate this was a signup (will be converted to tracking flag on successful auth)
-        sessionStorage.setItem('just_signed_up_pending', 'true');
-        // If confirmations are enabled, inform the user
-        setSuccess(getEnvMessage({
-          dev: 'Sign-up successful! Please check your email to confirm your account.',
-          prod: 'Sign-up successful! Please check your email to confirm your account.'
-        }));
-
-        // Send UTM parameters to backend signup endpoint
+      } else {
+        // WAITLIST FLOW: Capture email and put on waitlist instead of creating account
+        const utmParams = getStoredUTMParams() || captureAndStoreUTM();
         try {
           const { api } = await import('../utils/api');
-          await api.post('/api/tracking/signup-source', {
-            email: email,
+          await api.post('/api/capture-email', {
+            email: email.trim(),
+            source: 'waitlist',
+            sessionCount: 0,
+            userPlan: 'waitlist',
+            timestamp: new Date().toISOString(),
             utm_source: utmParams?.source,
             utm_medium: utmParams?.medium,
-            utm_campaign: utmParams?.campaign,
-            referrer: utmParams?.referrer,
-            landing_page: utmParams?.landing_page
-          }).catch(e => logger.debug('Failed to send UTM params to backend', { error: e, email }));
-        } catch (e) {
-          logger.debug('Failed to send signup source data', { error: e, email });
-        }
+            utm_campaign: utmParams?.campaign
+          });
 
-        // ✅ OBSERVABILITY: Track signup event with email and UTM for correlation
-        // Note: user_id will be null until first login, but email allows correlation
-        try { 
-          trackEvent({ 
-            event_name: 'user_signup', 
-            properties: { 
-              email: email,
-              timestamp: new Date().toISOString(),
-              source: 'auth_page',
-              variant: signupFormVariant,
-              referral_code: referralCode || null,
-              utm_source: utmParams?.source,
-              utm_medium: utmParams?.medium,
-              utm_campaign: utmParams?.campaign,
-              referrer: utmParams?.referrer,
-              landing_page: utmParams?.landing_page
-            } 
-          }); 
-        } catch (e) { 
-          logger.error('Failed to track signup event', { error: e, email }); 
+          // Track a waitlist-specific success event
+          try { trackEvent({ event_name: 'waitlist_entry', properties: { email_domain: email.split('@')[1] || null, source: 'auth_page' } }); } catch (e) { logger.debug('trackEvent waitlist_entry failed', { error: e }); }
+
+          setSuccess('Thanks — you are on the waitlist. We will email you when we open enrollment.');
+        } catch (err) {
+          logger.error('Waitlist capture error', { error: err, email });
+          setError('Unable to add to waitlist at this time. Please try again later.');
         }
-        try { triggerCampaign({ email, reason: 'signup' }); } catch (e) { logger.debug('triggerCampaign failed', { error: e, reason: 'signup', email }); }
- }
-      } catch (err) {
+      }
+    } catch (err) {
         logger.error('Authentication error', { error: err, mode, email: email ? email.substring(0, 3) + '***' : 'none' });
         
-        // ✅ TRACKING: Track signup failure with error categorization
+        // ✅ TRACKING: Track signup/waitlist failure with error categorization
         if (mode === 'signup' || mode === 'register') {
-          trackSignupFailure(err, {
-            variant: signupFormVariant,
-            referral_code: referralCode || null,
-            utm_source: utmParams?.source,
-            utm_medium: utmParams?.medium,
-            email_domain: email.split('@')[1] || null
-          }).catch(e => logger.debug('Failed to track signup_failure', { error: e }));
+          try {
+            trackSignupFailure(err, {
+              variant: signupFormVariant,
+              referral_code: referralCode || null,
+              utm_source: (getStoredUTMParams() || {}).source || null,
+              utm_medium: (getStoredUTMParams() || {}).medium || null,
+              email_domain: email.split('@')[1] || null
+            });
+          } catch (e) { logger.debug('Failed to track signup_failure', { error: e }); }
         }
 
         const msg = typeof err?.message === 'string' ? err.message : String(err || 'Authentication failed');
