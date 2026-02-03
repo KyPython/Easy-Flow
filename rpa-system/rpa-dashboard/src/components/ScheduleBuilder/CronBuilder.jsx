@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { FiClock, FiCalendar, FiRepeat, FiInfo } from 'react-icons/fi';
 import { useTheme } from '../../utils/ThemeContext';

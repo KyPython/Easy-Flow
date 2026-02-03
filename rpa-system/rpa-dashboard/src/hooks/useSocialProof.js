@@ -83,23 +83,25 @@ export function useSocialProof(refreshInterval = 5 * 60 * 1000) { // 5 minutes d
  } catch (err) {
  logger.warn('SocialProof fetch failed Fetch failed:', err.message);
  setError(err.message);
- setRetryCount(prev => prev + 1);
- 
- // Keep existing data on error - better UX than showing nothing
- // Only update source to indicate we're using cached data
- setData(prev => ({
- ...prev,
- source: 'cached',
- lastUpdated: prev.lastUpdated // Keep original timestamp
- }));
+      // Increment retry count and use the new value for analytics
+      setRetryCount(prev => {
+         const newCount = prev + 1;
+         if (window.gtag) {
+            window.gtag('event', 'social_proof_fetch_failed', {
+               error_message: err.message,
+               retry_count: newCount
+            });
+         }
+         return newCount;
+      });
 
- // Track fetch failures for debugging
- if (window.gtag) {
- window.gtag('event', 'social_proof_fetch_failed', {
- error_message: err.message,
- retry_count: retryCount + 1
- });
- }
+      // Keep existing data on error - better UX than showing nothing
+      // Only update source to indicate we're using cached data
+      setData(prev => ({
+         ...prev,
+         source: 'cached',
+         lastUpdated: prev.lastUpdated // Keep original timestamp
+      }));
  
  } finally {
  setLoading(false);

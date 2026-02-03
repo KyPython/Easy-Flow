@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import supabase, { initSupabase } from '../utils/supabaseClient';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('useWorkflowTemplates');
 
 // Emergency fallback templates - only used when database is completely unavailable
 const emergencyFallbackTemplates = [
@@ -235,7 +237,7 @@ export const useWorkflowTemplates = (options = {}) => {
  inFlightRef.current = false;
  setLoading(false);
  }
- }, []);
+ }, [page, pageSize]);
 
  // Create workflow from template
  const createFromTemplate = useCallback(async (templateId, workflowName) => {

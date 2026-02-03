@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import conversionTracker from '../utils/conversionTracking';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('useUsageTracking');
 
 /**
  * useUsageTracking - Monitors user activity and triggers milestone prompts
@@ -286,7 +288,7 @@ export const useUsageTracking = (userId) => {
  if (effectiveUserId) {
  incrementSessionCount();
  }
- }, []); // Only run once on mount
+}, [incrementSessionCount]); // Only run once on mount; include stable callback
 
  return {
  // Current metrics

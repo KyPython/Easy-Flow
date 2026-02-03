@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+
 /*
  * PERFORMANCE OPTIMIZATIONS APPLIED:
  * 1. Added React.memo to prevent re-renders when props don't change

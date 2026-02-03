@@ -153,10 +153,8 @@ class RedditIntegration {
  */
  async analyzeContent(content, context = {}) {
  try {
- const OpenAI = require('openai');
- const openai = new OpenAI({
- apiKey: process.env.OPENAI_API_KEY
- });
+				const { createAIClient } = require('../../utils/aiClient');
+				const openai = createAIClient();
 
  const prompt = `Analyze the following Reddit content and provide:
 1. Sentiment: positive, negative, or neutral
