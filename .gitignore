@@ -1,3 +1,10 @@
+# Ignore personal interview tasks used for practice
+interview_tasks/
+
+# Common local envs
+.env
+venv/
+__pycache__/
 # Ignore all test files
 **/tests/
 **/*.test.js

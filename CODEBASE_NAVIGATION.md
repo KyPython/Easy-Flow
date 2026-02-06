@@ -55,6 +55,11 @@ Easy-Flow/
 │   ├── architecture/         # Architecture docs
 │   ├── development/          # Development guides
 │   ├── setup/                # Setup guides
+│   ├── interview_tasks/      # Personal practice + interview docs (gitignored)
+│   │   └── [INTERVIEW_TASKS.md](./docs/INTERVIEW_TASKS.md)
+│   ├── EVALUATION_RUBRIC.md  # Interview evaluation rubric
+│   ├── AI_USAGE_GUIDELINES.md # AI usage guidelines for interviews
+│   ├── INTERVIEWER_CHEATSHEET.md # Interviewer quick-reference
 │   └── [更多...](./docs/)
 │
 ├── scripts/                  # CI/CD and utility scripts

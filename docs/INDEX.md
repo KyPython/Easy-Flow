@@ -72,12 +72,20 @@ This directory contains all project documentation organized by category.
 - **STARTUP_OPTIMIZATION.md** - Startup optimization strategies
 - **ROCKEFELLER_DECISION_ANALYSIS.md** - Decision-making framework
 - **ROCKEFELLER_IMPLEMENTATION_PLAN.md** - Implementation planning framework
+- **ENGINEERING_PHILOSOPHY.md** - Guiding principles: problem-solving, business impact, AI use
 
 ## 📖 Main Documentation
 
 - **README.md** (root) - Project overview and quick start
 - **docs/README.md** - Documentation hub and navigation guide
 - **COMPREHENSIVE_STUDY_GUIDE.md** (`docs/guides/`) - Complete system architecture guide
+
+## ✏️ Practice & Interview Tasks
+
+- **INTERVIEW_TASKS.md** - Where personal IDE-style interview tasks live (`docs/INTERVIEW_TASKS.md`)
+- **EVALUATION_RUBRIC.md** - Scoring rubric for IDE-style interviews (`docs/EVALUATION_RUBRIC.md`)
+- **AI_USAGE_GUIDELINES.md** - Guidelines for AI-assisted edits and provenance (`docs/AI_USAGE_GUIDELINES.md`)
+- **INTERVIEWER_CHEATSHEET.md** - Quick interviewer checklist and probes (`docs/INTERVIEWER_CHEATSHEET.md`)
 
 ## 📝 Component Documentation
 

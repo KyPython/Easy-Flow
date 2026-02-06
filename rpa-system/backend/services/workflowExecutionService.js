@@ -26,7 +26,8 @@ class WorkflowExecutionService {
       inputData = {},
       triggeredBy = 'manual',
       triggerData = {},
-      executionMode = 'balanced'
+      executionMode = 'balanced',
+      maxRetries = 3
     } = params;
 
     // Create execution record in PENDING state
@@ -45,8 +46,12 @@ class WorkflowExecutionService {
         triggered_by: triggeredBy,
         trigger_data: triggerData,
         execution_mode: executionMode,
-        max_retries: 3,
-        retry_count: 0
+        max_retries: maxRetries,
+        retry_count: 0,
+        // Failure memory fields initialized
+        last_error: null,
+        last_error_at: null,
+        error_category: null
       })
       .select()
       .single();
@@ -135,16 +140,19 @@ class WorkflowExecutionService {
       throw new Error('Execution not found');
     }
 
-    if (originalExecution.state !== STATES.FAILED) {
+    // Support retrying from FAILED or other terminal states
+    const terminalStates = ['FAILED', 'COMPLETED', 'CANCELLED'];
+    if (!terminalStates.includes(originalExecution.state)) {
       throw new Error(`Cannot retry execution in ${originalExecution.state} state`);
     }
 
-    // Check retry limit
-    if (originalExecution.retry_count >= (originalExecution.max_retries || 3)) {
-      throw new Error('Maximum retry limit reached');
+    // Check retry limit - for FAILED jobs, check retry_count against max_retries
+    if (originalExecution.state === 'FAILED' && 
+        (originalExecution.retry_count || 0) >= (originalExecution.max_retries || 3)) {
+      throw new Error('Maximum retry limit reached - job is in DLQ. Use replay instead.');
     }
 
-    // Create new execution
+    // Create new execution with original payload
     return await this.createAndQueueExecution({
       workflowId: originalExecution.workflow_id,
       userId,
@@ -152,10 +160,162 @@ class WorkflowExecutionService {
       triggeredBy: 'retry',
       triggerData: {
         retry_of: executionId,
-        original_error: originalExecution.error_message
+        original_error: originalExecution.last_error,
+        original_error_category: originalExecution.error_category
       },
-      executionMode: originalExecution.execution_mode || 'balanced'
+      executionMode: originalExecution.execution_mode || 'balanced',
+      maxRetries: originalExecution.max_retries || 3
     });
+  }
+
+  /**
+   * Record a job failure using RPC function
+   * Handles bounded retries and DLQ transition
+   * @param {string} executionId - Execution ID
+   * @param {Error} error - The error that occurred
+   * @param {string} errorCategory - Error category
+   * @returns {Promise<Object>} - Updated execution
+   */
+  async recordJobFailure(executionId, error, errorCategory) {
+    try {
+      // Try to use the RPC function
+      const { data, error: rpcError } = await this.supabase
+        .rpc('record_job_failure', {
+          p_execution_id: executionId,
+          p_error_message: error.message,
+          p_error_category: errorCategory,
+          p_max_retries: 3
+        });
+
+      if (rpcError) {
+        // Fallback to direct update if RPC doesn't exist
+        logger.warn('RPC function not available, using direct update', { rpcError });
+        return await this._fallbackRecordFailure(executionId, error, errorCategory);
+      }
+
+      return data;
+    } catch (err) {
+      logger.error('Failed to record job failure', { executionId, error: err.message });
+      throw err;
+    }
+  }
+
+  /**
+   * Fallback failure recording when RPC is not available
+   */
+  async _fallbackRecordFailure(executionId, error, errorCategory) {
+    // Get current execution to determine retry state
+    const { data: execution } = await this.supabase
+      .from('workflow_executions')
+      .select('retry_count, max_retries')
+      .eq('id', executionId)
+      .single();
+
+    const retryCount = (execution?.retry_count || 0) + 1;
+    const maxRetries = execution?.max_retries || 3;
+    const isTerminal = retryCount >= maxRetries;
+
+    const updateData = {
+      last_error: error.message,
+      last_error_at: new Date().toISOString(),
+      error_category: errorCategory,
+      retry_count: retryCount,
+      updated_at: new Date().toISOString()
+    };
+
+    if (isTerminal) {
+      updateData.state = 'FAILED';
+      updateData.completed_at = new Date().toISOString();
+    }
+
+    const { data, error: updateError } = await this.supabase
+      .from('workflow_executions')
+      .update(updateData)
+      .eq('id', executionId)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return data;
+  }
+
+  /**
+   * Replay a job from the DLQ (creates new execution)
+   * @param {string} executionId - Original failed execution ID
+   * @param {string} userId - User ID
+   * @param {Object} newInputData - Optional new input data
+   * @returns {Promise<Object>} - New execution
+   */
+  async replayFromDLQ(executionId, userId, newInputData = {}) {
+    // Get original execution from DLQ
+    const { data: failedExecution, error } = await this.supabase
+      .from('workflow_executions')
+      .select('*')
+      .eq('id', executionId)
+      .eq('user_id', userId)
+      .eq('state', 'FAILED')
+      .single();
+
+    if (error || !failedExecution) {
+      throw new Error('DLQ entry not found');
+    }
+
+    // Create new execution with same config
+    return await this.createAndQueueExecution({
+      workflowId: failedExecution.workflow_id,
+      userId,
+      inputData: { ...failedExecution.input_data, ...newInputData },
+      triggeredBy: 'dlq_replay',
+      triggerData: {
+        replay_of: executionId,
+        original_error: failedExecution.last_error,
+        original_error_category: failedExecution.error_category,
+        original_failed_at: failedExecution.last_error_at
+      },
+      executionMode: failedExecution.execution_mode || 'balanced',
+      maxRetries: failedExecution.max_retries || 3
+    });
+  }
+
+  /**
+   * Get DLQ statistics for monitoring
+   * @param {string} userId - User ID for filtering
+   * @param {string} workflowId - Optional workflow filter
+   * @returns {Promise<Object>} - DLQ stats
+   */
+  async getDLQStats(userId, workflowId = null) {
+    let query = this.supabase
+      .from('workflow_executions')
+      .select('error_category', { count: 'exact' })
+      .eq('state', 'FAILED')
+      .eq('user_id', userId);
+
+    if (workflowId) {
+      query = query.eq('workflow_id', workflowId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    // Group by error category
+    const stats = {};
+    let total = 0;
+    data.forEach(row => {
+      const category = row.error_category || 'unknown';
+      stats[category] = (stats[category] || 0) + 1;
+      total++;
+    });
+
+    return {
+      total_failed: total,
+      by_category: stats
+    };
   }
 }
 
