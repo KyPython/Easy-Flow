@@ -1,3 +1,27 @@
+<!-- Pull Request Template - include AI provenance when applicable -->
+
+## Summary
+- Short description of the change and why.
+
+## Changes
+- Bullet list of major changes.
+
+## Testing
+- How to run tests and any manual verification steps.
+
+## AI Provenance (if any)
+- `AI-assisted: prompt="<one-line prompt>"`, reviewed-by=`<your-name>`, notes=`<one-line on verification>`
+
+Example:
+```
+AI-assisted: prompt="generate put/get for LRU cache using OrderedDict", reviewed-by=kevin, notes="ran pytest and added edge-case tests; simplified generated code"
+```
+
+## Rollout / Backwards compatibility
+- Migration steps or notes.
+
+## Related
+- Issue/PR references
 ## Description
 
 <!-- Provide a clear and concise description of what this PR does -->
