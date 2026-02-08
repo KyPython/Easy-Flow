@@ -1,4 +1,4 @@
-for/**
+/**
  * Generic OAuth Integration Stub
  * - Provides minimal authenticate() and testConnection() methods
  * - Validates that some credentials are present (accessToken, token, apiKey, clientId, etc.)
