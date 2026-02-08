@@ -1,7 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import conversionTracker from '../utils/conversionTracking';
-import { createLogger } from '../utils/logger';
-const logger = createLogger('useUsageTracking');
+
+let logger = null;
+const getLogger = () => {
+  if (!logger) {
+    try {
+      const { createLogger } = require('../utils/logger');
+      logger = createLogger('useUsageTracking');
+    } catch (e) {
+      logger = {
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {}
+      };
+    }
+  }
+  return logger;
+};
 
 /**
  * useUsageTracking - Monitors user activity and triggers milestone prompts
@@ -75,7 +91,7 @@ export const useUsageTracking = (userId) => {
  lastActiveDate
  };
  } catch (error) {
- logger.warn('Failed to load usage metrics from localStorage:', error);
+ getLogger().warn('Failed to load usage metrics from localStorage:', error);
  return {
  tasksCompleted: 0,
  workflowsCreated: 0,
@@ -91,7 +107,7 @@ export const useUsageTracking = (userId) => {
  try {
  localStorage.setItem(getStorageKey(metric), value.toString());
  } catch (error) {
- logger.warn('Failed to save usage metric to localStorage:', error);
+ getLogger().warn('Failed to save usage metric to localStorage:', error);
  // Continue without persistence - tracking still works in memory
  }
  }, [getStorageKey]);
@@ -110,7 +126,7 @@ export const useUsageTracking = (userId) => {
  try {
  localStorage.setItem(getMilestoneKey(type, threshold), 'true');
  } catch (error) {
- logger.warn('Failed to mark milestone as shown:', error);
+ getLogger().warn('Failed to mark milestone as shown:', error);
  }
  }, [getMilestoneKey]);
 
@@ -179,7 +195,7 @@ export const useUsageTracking = (userId) => {
  // Check for milestone
  checkMilestone('tasks_completed', newCount);
  
- logger.info('Task completed Total:', newCount);
+ getLogger().info('Task completed Total:', newCount);
  }, [loadMetrics, saveMetric, checkMilestone]);
 
  // Increment workflow count
@@ -193,7 +209,7 @@ export const useUsageTracking = (userId) => {
  // Check for milestone
  checkMilestone('workflows_created', newCount);
  
- logger.info('Workflow created Total:', newCount);
+ getLogger().info('Workflow created Total:', newCount);
  }, [loadMetrics, saveMetric, checkMilestone]);
 
  // Increment session count
@@ -204,7 +220,7 @@ export const useUsageTracking = (userId) => {
  saveMetric('sessions_count', newCount);
  setMetrics(prev => ({ ...prev, sessionsCount: newCount }));
  
- logger.info('Session started Total:', newCount);
+ getLogger().info('Session started Total:', newCount);
  }, [loadMetrics, saveMetric]);
 
  // Dismiss milestone prompt
@@ -248,9 +264,9 @@ export const useUsageTracking = (userId) => {
  setShowMilestonePrompt(false);
  setCurrentMilestone(null);
  
- logger.info('Usage metrics reset');
+ getLogger().info('Usage metrics reset');
  } catch (error) {
- logger.warn('Failed to reset metrics:', error);
+ getLogger().warn('Failed to reset metrics:', error);
  }
  }, [getStorageKey, getMilestoneKey]);
 
