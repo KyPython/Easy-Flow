@@ -501,7 +501,11 @@ rpa-system/rpa-dashboard/public/firebase-config.js
 code-quality-report.json
 infrastructure/keys/
 *.json
+!.github/rockefeller-rules.json
 
 .features/features.json
 .features/readiness-report.txt
 interview_practice.sh
+
+# Rockefeller audit data (private business intelligence)
+.rockefeller-audits/
