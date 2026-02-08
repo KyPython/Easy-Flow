@@ -1,0 +1,216 @@
+-- Phase 1: Failure Memory Migration
+-- Adds failure memory columns and indexes for DLQ support
+-- Generated for EasyFlow Phase 1 Technical Hardening
+
+-- ============================================
+-- 1. Add Failure Memory Columns to workflow_executions
+-- ============================================
+
+-- Add retry_count if not exists (should already exist, but ensure consistency)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'workflow_executions' AND column_name = 'retry_count'
+    ) THEN
+        ALTER TABLE workflow_executions ADD COLUMN retry_count INTEGER DEFAULT 0;
+    END IF;
+END $$;
+
+-- Add last_error column for error context
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'workflow_executions' AND column_name = 'last_error'
+    ) THEN
+        ALTER TABLE workflow_executions ADD COLUMN last_error TEXT;
+    END IF;
+END $$;
+
+-- Add last_error_at timestamp for failure timing
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'workflow_executions' AND column_name = 'last_error_at'
+    ) THEN
+        ALTER TABLE workflow_executions ADD COLUMN last_error_at TIMESTAMPTZ;
+    END IF;
+END $$;
+
+-- Add error_category for DLQ filtering and analysis
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'workflow_executions' AND column_name = 'error_category'
+    ) THEN
+        ALTER TABLE workflow_executions ADD COLUMN error_category VARCHAR(50);
+    END IF;
+END $$;
+
+-- ============================================
+-- 2. Add Partial Indexes for DLQ Queries
+-- ============================================
+
+-- Partial index for FAILED jobs (DLQ queries)
+-- Only indexes FAILED rows, keeping index small and efficient
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_failed_dlq
+ON workflow_executions(id, created_at, workflow_id, last_error, error_category)
+WHERE status = 'FAILED';
+
+-- Partial index for jobs ready for retry (PENDING status)
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_pending_retry
+ON workflow_executions(id, created_at, workflow_id, retry_count)
+WHERE status = 'PENDING';
+
+-- Index for recent failures (for monitoring/alerting)
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_recent_failures
+ON workflow_executions(created_at DESC)
+WHERE status = 'FAILED'
+
+-- Index for error category aggregation
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_error_category
+ON workflow_executions(error_category)
+WHERE status = 'FAILED';
+
+-- ============================================
+-- 3. Create RPC Function for Atomic Job Claiming
+-- ============================================
+
+-- Drop existing function if exists (for clean re-deployment)
+DROP FUNCTION IF EXISTS claim_pending_job(VARCHAR, INTEGER);
+
+-- Atomic job claiming using FOR UPDATE SKIP LOCKED
+-- This is the primitive used in production systems to prevent double-processing
+CREATE OR REPLACE FUNCTION claim_pending_job(
+    p_worker_id VARCHAR,
+    p_3 INTEGER DEFAULT 3
+)
+RETURNS workflow_executions
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_job workflow_executions;
+BEGIN
+    -- Atomically claim the oldest PENDING job that hasn't exhausted retries
+    -- FOR UPDATE SKIP LOCKED prevents workers from waiting on locked rows
+    -- Other workers immediately skip to the next available row
+    SELECT * INTO v_job
+    FROM workflow_executions
+    WHERE status = 'PENDING'
+      AND (retry_count < 3 OR 3 IS NULL OR 3 = 0)
+    ORDER BY created_at ASC
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1;
+
+    IF v_job IS NOT NULL THEN
+        -- Update to PROCESSING with worker info
+        UPDATE workflow_executions
+        SET status = 'PROCESSING',
+            started_at = NOW(),
+            worker_id = p_worker_id,
+            updated_at = NOW()
+        WHERE id = v_job.id
+        RETURNING * INTO v_job;
+    END IF;
+
+    RETURN v_job;
+END;
+$$;
+
+COMMENT ON FUNCTION claim_pending_job IS '
+Atomic job claiming primitive using FOR UPDATE SKIP LOCKED.
+Prevents double-processing in multi-worker deployments.
+Workers skip already-locked rows instead of waiting.
+';
+
+-- ============================================
+-- 4. Create Function to Record Job Failure
+-- ============================================
+
+DROP FUNCTION IF EXISTS record_job_failure(VARCHAR, TEXT, VARCHAR, INTEGER);
+
+CREATE OR REPLACE FUNCTION record_job_failure(
+    p_execution_id VARCHAR,
+    p_error_message TEXT,
+    p_error_category VARCHAR,
+    p_3 INTEGER DEFAULT 3
+)
+RETURNS workflow_executions
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_execution workflow_executions;
+    v_new_retry_count INTEGER;
+BEGIN
+    -- Get current execution
+    SELECT * INTO v_execution
+    FROM workflow_executions
+    WHERE id = p_execution_id
+    FOR UPDATE;
+
+    IF v_execution IS NULL THEN
+        RAISE EXCEPTION 'Execution not found: %', p_execution_id;
+    END IF;
+
+    -- Calculate new retry count
+    v_new_retry_count = COALESCE(v_execution.retry_count, 0) + 1;
+
+    -- Determine if we've exhausted retries
+    IF v_new_retry_count >= p_3 THEN
+        -- Move to FAILED terminal state (Dead Letter Queue)
+        UPDATE workflow_executions
+        SET status = 'FAILED',
+            last_error = p_error_message,
+            last_error_at = NOW(),
+            error_category = p_error_category,
+            retry_count = v_new_retry_count,
+            completed_at = NOW(),
+            updated_at = NOW()
+        WHERE id = p_execution_id
+        RETURNING * INTO v_execution;
+    ELSE
+        -- Increment retry count, stay in PENDING for retry
+        UPDATE workflow_executions
+        SET status = 'PENDING',
+            last_error = p_error_message,
+            last_error_at = NOW(),
+            error_category = p_error_category,
+            retry_count = v_new_retry_count,
+            updated_at = NOW()
+        WHERE id = p_execution_id
+        RETURNING * INTO v_execution;
+    END IF;
+
+    RETURN v_execution;
+END;
+$$;
+
+COMMENT ON FUNCTION record_job_failure IS '
+Records a job failure and handles retry logic.
+If retries exhausted, moves job to FAILED (DLQ).
+Otherwise, increments retry_count and stays PENDING for retry.
+';
+
+-- ============================================
+-- 5. Add Comments for Documentation
+-- ============================================
+
+COMMENT ON COLUMN workflow_executions.retry_count IS 'Number of retry attempts made for this execution';
+COMMENT ON COLUMN workflow_executions.last_error IS 'Error message from the last failure';
+COMMENT ON COLUMN workflow_executions.last_error_at IS 'Timestamp of the last failure';
+COMMENT ON COLUMN workflow_executions.error_category IS 'Error category for DLQ filtering (e.g., timeout, validation, external_api)';
+
+-- ============================================
+-- 6. Verification Query (run this to verify migration)
+-- ============================================
+
+-- SELECT 
+--     column_name,
+--     data_type,
+--     is_nullable
+-- FROM information_schema.columns
+-- WHERE table_name = 'workflow_executions'
+-- ORDER BY ordinal_position;
