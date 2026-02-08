@@ -438,6 +438,7 @@ docs/internal/
 docs/notes/
 docs/drafts/
 docs/scratch/
+docs/architecture/
 
 # Non-public files (any extension)
 **/*.private
