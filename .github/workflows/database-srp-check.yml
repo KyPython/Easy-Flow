@@ -1,0 +1,166 @@
+name: Database SRP Check
+
+on:
+  pull_request:
+    paths:
+      - 'migrations/**/*.sql'
+      - 'supabase/migrations/**/*.sql'
+      - 'docs/database/**/*.sql'
+      - '.github/database-srp-rules.json'
+      - 'scripts/analyze-database-srp.js'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'migrations/**/*.sql'
+      - 'supabase/migrations/**/*.sql'
+      - 'docs/database/**/*.sql'
+  workflow_dispatch:
+
+jobs:
+  analyze-database-srp:
+    name: Analyze Database Schema SRP
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Check schema file exists
+        id: check_schema
+        run: |
+          if [ -f "docs/database/master_schema.sql" ]; then
+            echo "schema_exists=true" >> $GITHUB_OUTPUT
+            echo "✓ Master schema found"
+          else
+            echo "schema_exists=false" >> $GITHUB_OUTPUT
+            echo "⚠ Master schema not found, will skip detailed analysis"
+          fi
+          
+      - name: Analyze Database SRP
+        if: steps.check_schema.outputs.schema_exists == 'true'
+        id: srp_check
+        run: |
+          node scripts/analyze-database-srp.js \
+            .github/database-srp-rules.json \
+            docs/database/master_schema.sql
+        continue-on-error: true
+        
+      - name: Check for new migration files
+        if: github.event_name == 'pull_request'
+        id: check_migrations
+        run: |
+          NEW_MIGRATIONS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.(sql)$' | grep -E '(migration|schema)' || echo "")
+          if [ -n "$NEW_MIGRATIONS" ]; then
+            echo "new_migrations=true" >> $GITHUB_OUTPUT
+            echo "### New Migration Files Detected" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "$NEW_MIGRATIONS" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please ensure these migrations maintain Single Responsibility Principle:" >> $GITHUB_STEP_SUMMARY
+            echo "- Each table should have one clear responsibility" >> $GITHUB_STEP_SUMMARY
+            echo "- Avoid God objects with too many columns" >> $GITHUB_STEP_SUMMARY
+            echo "- Separate concerns (auth, data, audit, config)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "new_migrations=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Verify SRP rules file
+        run: |
+          if [ ! -f ".github/database-srp-rules.json" ]; then
+            echo "❌ SRP rules file not found"
+            exit 1
+          fi
+          
+          if ! node -e "JSON.parse(require('fs').readFileSync('.github/database-srp-rules.json', 'utf8'))"; then
+            echo "❌ Invalid JSON in SRP rules file"
+            exit 1
+          fi
+          
+          echo "✓ SRP rules file is valid"
+          
+      - name: Generate SRP Report Summary
+        if: always() && steps.check_schema.outputs.schema_exists == 'true'
+        run: |
+          echo "## Database SRP Analysis Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Analyzed schema for Single Responsibility Principle compliance." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Key Principles Checked:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Tables have focused, single responsibilities" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Reasonable column counts" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Appropriate number of foreign key relationships" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Minimal use of JSONB catch-all columns" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Clear naming without 'and', 'with', etc." >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Separation of concerns (auth, data, audit, config)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.srp_check.outcome }}" == "success" ]; then
+            echo "### Result: ✅ PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "All tables follow Single Responsibility Principle!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### Result: ⚠️ ISSUES FOUND" >> $GITHUB_STEP_SUMMARY
+            echo "Please review the violations and warnings above." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### Common Fixes:" >> $GITHUB_STEP_SUMMARY
+            echo "1. **Too many columns**: Split into focused tables" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Too many foreign keys**: Use junction tables" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Excessive JSONB columns**: Normalize into typed columns" >> $GITHUB_STEP_SUMMARY
+            echo "4. **Mixed concerns**: Separate auth, data, audit, and config" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && steps.check_schema.outputs.schema_exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const outcome = '${{ steps.srp_check.outcome }}';
+            
+            let comment = '## 🗄️ Database SRP Check\n\n';
+            
+            if (outcome === 'success') {
+              comment += '✅ **All database tables follow Single Responsibility Principle!**\n\n';
+              comment += 'Your schema changes maintain good separation of concerns.\n';
+            } else {
+              comment += '⚠️ **Database schema has SRP violations or warnings**\n\n';
+              comment += 'Please review the CI logs for detailed analysis.\n\n';
+              comment += '### What to check:\n';
+              comment += '- Tables should have one clear responsibility\n';
+              comment += '- Avoid tables with too many columns (>25 is error, >15 is warning)\n';
+              comment += '- Limit foreign keys per table (>10 is error, >5 is warning)\n';
+              comment += '- Minimize JSONB catch-all columns (>4 is error, >2 is warning)\n';
+              comment += '- Separate concerns: auth, data, audit, configuration\n\n';
+              comment += '### Common solutions:\n';
+              comment += '1. **Vertical split**: Separate different concerns into different tables\n';
+              comment += '2. **Extension tables**: Move optional features to separate tables\n';
+              comment += '3. **Junction tables**: Replace multiple foreign keys with association tables\n';
+              comment += '4. **Normalize JSONB**: Extract structured JSONB data into proper columns/tables\n';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+            
+      - name: Fail if violations found
+        if: steps.check_schema.outputs.schema_exists == 'true' && steps.srp_check.outcome == 'failure'
+        run: |
+          echo "❌ Database schema has SRP violations"
+          echo "Please review the analysis above and fix the violations before merging"
+          exit 1
+          
+      - name: Success message
+        if: steps.srp_check.outcome == 'success'
+        run: |
+          echo "✅ Database schema follows Single Responsibility Principle"
+          echo "Great job maintaining clean database design!"
