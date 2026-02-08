@@ -1,8 +1,8 @@
 const axios = require('axios');
-const { getLogger } = require('../middleware/structuredLogging');
+const { getLogger } = require('../utils/logger');
 const { validateUrlForSSRF } = require('../utils/ssrfProtection');
 
-const logger = getLogger('automationQueue');
+const queueLogger = getLogger('automationQueue');
 
 /**
  * Validates that the automation service URL is configured in environment
@@ -13,7 +13,7 @@ function validateAutomationServiceConfig() {
   const automationUrl = process.env.AUTOMATION_URL;
   if (!automationUrl) {
     const errorMessage = 'Automation service is not configured. Please contact support to enable this feature.';
-    logger.error(`[automationQueue] ${errorMessage}`);
+    queueLogger.error(`[automationQueue] ${errorMessage}`);
     throw new Error(errorMessage);
   }
   return { automationUrl };
@@ -30,14 +30,14 @@ function validateAutomationServiceConfig() {
  */
 async function performHealthCheckWithRetry(automationUrl, runId, taskData, supabase, queueTaskRunFn) {
   const healthCheckStartTime = Date.now();
-  
+
   try {
     let normalizedUrl = automationUrl.trim();
     if (!/^https?:\/\//i.test(normalizedUrl)) {
       normalizedUrl = `http://${normalizedUrl}`;
     }
 
-    logger.info(`[automationQueue] 🔍 Health check: ${normalizedUrl}`, {
+    queueLogger.info(`[automationQueue] 🔍 Health check: ${normalizedUrl}`, {
       run_id: runId,
       automation_url: normalizedUrl,
       timestamp: new Date().toISOString()
@@ -48,21 +48,21 @@ async function performHealthCheckWithRetry(automationUrl, runId, taskData, supab
     });
 
     const healthCheckDuration = Date.now() - healthCheckStartTime;
-    
-    logger.info('[automationQueue] ✅ Health check passed', {
+
+    queueLogger.info('[automationQueue] ✅ Health check passed', {
       run_id: runId,
       automation_url: normalizedUrl,
       duration_ms: healthCheckDuration,
       timestamp: new Date().toISOString()
     });
-    
+
     return { passed: true, shouldContinue: true };
-    
+
   } catch (healthError) {
     const healthCheckDuration = Date.now() - healthCheckStartTime;
     const retryAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    logger.warn('[automationQueue] ⚠️ Automation service health check failed, scheduling retry in 5 minutes', {
+    queueLogger.warn('[automationQueue] ⚠️ Automation service health check failed, scheduling retry in 5 minutes', {
       run_id: runId,
       error: healthError.message,
       error_code: healthError.code,
@@ -87,16 +87,16 @@ async function performHealthCheckWithRetry(automationUrl, runId, taskData, supab
         })
         .eq('id', runId);
     } catch (updateErr) {
-      logger.error('[automationQueue] Failed to update run status for retry:', updateErr.message);
+      queueLogger.error('[automationQueue] Failed to update run status for retry:', updateErr.message);
     }
 
     setTimeout(async () => {
-      logger.info(`[automationQueue] 🔄 Retrying automation run ${runId} after health check failure`);
+      queueLogger.info(`[automationQueue] 🔄 Retrying automation run ${runId} after health check failure`);
       try {
         await queueTaskRunFn(runId, taskData);
       } catch (retryError) {
-        logger.error(`[automationQueue] Retry failed for run ${runId}:`, retryError.message);
-        
+        queueLogger.error(`[automationQueue] Retry failed for run ${runId}:`, retryError.message);
+
         try {
           await supabase
             .from('automation_runs')
@@ -111,7 +111,7 @@ async function performHealthCheckWithRetry(automationUrl, runId, taskData, supab
             })
             .eq('id', runId);
         } catch (finalErr) {
-          logger.error('[automationQueue] Failed to mark run as failed after retry:', finalErr.message);
+          queueLogger.error('[automationQueue] Failed to mark run as failed after retry:', finalErr.message);
         }
       }
     }, 5 * 60 * 1000);
@@ -136,7 +136,7 @@ async function performHealthCheckWithRetry(automationUrl, runId, taskData, supab
  * @throws {Error} If URL is missing or fails SSRF validation
  */
 function extractAndValidateTargetUrl(taskData) {
-  logger.info('[automationQueue] Task data received:', {
+  queueLogger.info('[automationQueue] Task data received:', {
     has_url: !!taskData.url,
     url: taskData.url,
     task_type: taskData.task_type,
@@ -147,17 +147,17 @@ function extractAndValidateTargetUrl(taskData) {
 
   let urlToValidate = taskData.url;
   if (!urlToValidate && taskData.parameters) {
-    urlToValidate = taskData.parameters.url || 
-                    taskData.parameters.targetUrl || 
+    urlToValidate = taskData.parameters.url ||
+                    taskData.parameters.targetUrl ||
                     taskData.parameters.websiteUrl;
     if (urlToValidate) {
-      logger.info(`[automationQueue] URL found in parameters, extracting to top level: ${urlToValidate}`);
+      queueLogger.info(`[automationQueue] URL found in parameters, extracting to top level: ${urlToValidate}`);
       taskData.url = urlToValidate;
     }
   }
 
   if (!urlToValidate) {
-    logger.error('[automationQueue] CRITICAL ERROR: No URL found in task data!', {
+    queueLogger.error('[automationQueue] CRITICAL ERROR: No URL found in task data!', {
       taskData_keys: Object.keys(taskData),
       has_parameters: !!taskData.parameters,
       parameters_keys: taskData.parameters ? Object.keys(taskData.parameters) : []
@@ -167,7 +167,7 @@ function extractAndValidateTargetUrl(taskData) {
 
   const urlValidation = validateUrlForSSRF(urlToValidate);
   if (!urlValidation.valid) {
-    logger.error('[automationQueue] SSRF validation failed', {
+    queueLogger.error('[automationQueue] SSRF validation failed', {
       url: urlToValidate,
       reason: urlValidation.reason
     });
@@ -200,19 +200,19 @@ function buildAutomationPayload(taskData, validatedUrl, runId) {
   if (payload.type === 'invoice_download' || payload.type === 'invoice-download') {
     const params = payload.parameters || {};
     const pdfUrl = params.pdf_url;
-    
+
     if (pdfUrl) {
       payload.pdf_url = pdfUrl;
-      logger.info('[automationQueue] Invoice download task - PDF URL extracted:', { pdf_url: pdfUrl });
+      queueLogger.info('[automationQueue] Invoice download task - PDF URL extracted:', { pdf_url: pdfUrl });
     } else {
-      logger.warn('[automationQueue] Invoice download task missing pdf_url parameter!', {
+      queueLogger.warn('[automationQueue] Invoice download task missing pdf_url parameter!', {
         run_id: runId,
         available_params: Object.keys(params)
       });
     }
   }
 
-  logger.info('[automationQueue] Payload being sent to worker:', {
+  queueLogger.info('[automationQueue] Payload being sent to worker:', {
     run_id: runId,
     type: payload.type,
     has_url: !!payload.url,
@@ -240,7 +240,7 @@ function buildEndpointCandidates(automationUrl, taskType) {
     .toLowerCase()
     .replace(/\s+/g, '-')
     .replace(/_/g, '-');
-    
+
   const candidates = [
     `/automate/${encodeURIComponent(taskTypeSlug)}`,
     '/automate'
@@ -262,7 +262,7 @@ function buildEndpointCandidates(automationUrl, taskType) {
 async function handleDirectResult(automationResult, runId, taskData, supabase, usageTracker, firebaseNotificationService, NotificationTemplates) {
   const finalStatus = automationResult.success ? 'completed' : 'failed';
   const sb2 = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
-  
+
   await sb2
     .from('automation_runs')
     .update({
@@ -279,10 +279,10 @@ async function handleDirectResult(automationResult, runId, taskData, supabase, u
       const taskName = taskData.title || 'Automation Task';
       const errorMessage = automationResult.result?.error || automationResult.error || 'Task failed';
       const notification = NotificationTemplates.taskFailed(taskName, errorMessage);
-      
-      const isRetryable = errorMessage.toLowerCase().includes('timeout') || 
+
+      const isRetryable = errorMessage.toLowerCase().includes('timeout') ||
                           errorMessage.toLowerCase().includes('network');
-      
+
       if (!isRetryable) {
         await firebaseNotificationService.sendNotification(
           taskData.user_id,
@@ -292,11 +292,11 @@ async function handleDirectResult(automationResult, runId, taskData, supabase, u
         );
       }
     } catch (notificationError) {
-      logger.error('[automationQueue] Failed to send failure notification:', notificationError.message);
+      queueLogger.error('[automationQueue] Failed to send failure notification:', notificationError.message);
     }
   }
 
-  logger.info(`[automationQueue] Direct result handled: ${finalStatus}`, { run_id: runId });
+  queueLogger.info(`[automationQueue] Direct result handled: ${finalStatus}`, { run_id: runId });
 }
 
 /**
@@ -312,7 +312,7 @@ async function handleDirectResult(automationResult, runId, taskData, supabase, u
  */
 async function executeAutomationWithRetry(normalizedUrl, candidates, payload, runId, taskData, dependencies) {
   const { supabase, usageTracker, firebaseNotificationService, NotificationTemplates } = dependencies;
-  
+
   let automationResult;
   const maxRetries = 3;
   const backoffDelays = [0, 5000, 15000];
@@ -325,7 +325,7 @@ async function executeAutomationWithRetry(normalizedUrl, candidates, payload, ru
 
     if (attempt > 1) {
       const waitMs = backoffDelays[attempt - 1];
-      logger.info(`[automationQueue] ⏳ Waiting ${waitMs}ms before retry attempt ${attempt}/${maxRetries}`);
+      queueLogger.info(`[automationQueue] ⏳ Waiting ${waitMs}ms before retry attempt ${attempt}/${maxRetries}`);
       await new Promise(resolve => setTimeout(resolve, waitMs));
     }
 
@@ -339,7 +339,7 @@ async function executeAutomationWithRetry(normalizedUrl, candidates, payload, ru
           headers['X-API-Key'] = process.env.AUTOMATION_API_KEY;
         }
 
-        logger.info(`[automationQueue] 📤 Attempt ${attempt}/${maxRetries}, endpoint: ${fullAutomationUrl}`, {
+        queueLogger.info(`[automationQueue] 📤 Attempt ${attempt}/${maxRetries}, endpoint: ${fullAutomationUrl}`, {
           run_id: runId,
           payload_type: payload.type
         });
@@ -355,7 +355,7 @@ async function executeAutomationWithRetry(normalizedUrl, candidates, payload, ru
         const attemptDuration = Date.now() - attemptStartTime;
         const totalDuration = Date.now() - automationStartTime;
 
-        logger.info('[automationQueue] ✅ Automation request successful', {
+        queueLogger.info('[automationQueue] ✅ Automation request successful', {
           run_id: runId,
           attempt,
           endpoint: fullAutomationUrl,
@@ -366,24 +366,24 @@ async function executeAutomationWithRetry(normalizedUrl, candidates, payload, ru
 
         if (automationResult.result || automationResult.success !== undefined) {
           await handleDirectResult(
-            automationResult, 
-            runId, 
-            taskData, 
-            supabase, 
-            usageTracker, 
-            firebaseNotificationService, 
+            automationResult,
+            runId,
+            taskData,
+            supabase,
+            usageTracker,
+            firebaseNotificationService,
             NotificationTemplates
           );
           return { success: true, isDirect: true, result: automationResult };
         } else {
           return { success: true, isDirect: false };
         }
-        
+
       } catch (err) {
         lastError = err;
         const attemptDuration = Date.now() - attemptStartTime;
-        
-        logger.warn(`[automationQueue] ⚠️ Automation attempt ${attempt}/${maxRetries} failed`, {
+
+        queueLogger.warn(`[automationQueue] ⚠️ Automation attempt ${attempt}/${maxRetries} failed`, {
           run_id: runId,
           endpoint: fullAutomationUrl,
           error: err.message,
@@ -392,8 +392,8 @@ async function executeAutomationWithRetry(normalizedUrl, candidates, payload, ru
           duration_ms: attemptDuration
         });
 
-        const isRetryable = err.code === 'ECONNREFUSED' || 
-                           err.code === 'ETIMEDOUT' || 
+        const isRetryable = err.code === 'ECONNREFUSED' ||
+                           err.code === 'ETIMEDOUT' ||
                            err.code === 'ECONNRESET' ||
                            (err.response && err.response.status >= 500);
 
@@ -405,7 +405,7 @@ async function executeAutomationWithRetry(normalizedUrl, candidates, payload, ru
   }
 
   if (lastError) {
-    logger.error(`[automationQueue] ❌ All automation attempts exhausted`, {
+    queueLogger.error('[automationQueue] ❌ All automation attempts exhausted', {
       run_id: runId,
       total_attempts: maxRetries * candidates.length,
       final_error: lastError.message
@@ -426,11 +426,11 @@ async function executeAutomationWithRetry(normalizedUrl, candidates, payload, ru
  */
 async function handleAutomationFailure(error, runId, taskData, dependencies) {
   const { supabase, usageTracker, firebaseNotificationService, NotificationTemplates } = dependencies;
-  
-  logger.error('[automationQueue] Automation service error:', error.message);
+
+  queueLogger.error('[automationQueue] Automation service error:', error.message);
 
   const sb2 = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
-  
+
   try {
     await sb2
       .from('automation_runs')
@@ -457,10 +457,10 @@ async function handleAutomationFailure(error, runId, taskData, dependencies) {
         { run_id: runId, type: 'task_failed', workflow_id: taskData.workflow_id }
       );
     } catch (notificationError) {
-      logger.error('[automationQueue] Failed to send notification:', notificationError.message);
+      queueLogger.error('[automationQueue] Failed to send notification:', notificationError.message);
     }
   } catch (cleanupError) {
-    logger.error('[automationQueue] Failed during error cleanup:', cleanupError.message);
+    queueLogger.error('[automationQueue] Failed during error cleanup:', cleanupError.message);
   }
 
   throw error;
