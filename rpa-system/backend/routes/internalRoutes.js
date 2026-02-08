@@ -32,6 +32,7 @@ router.post('/front-logs', async (req, res) => {
 
  // Process each log entry through our structured logging pipeline
  logs.forEach(entry => {
+ try {
  const { level, component, message, data, trace, user, timestamp } = entry;
  const logData = {
  frontend_component: component,
@@ -55,11 +56,18 @@ router.post('/front-logs', async (req, res) => {
  default:
  frontendLogger.info(`[FE:${component}] ${message}`, logData);
  }
+ } catch (logErr) {
+ console.error('[internal/front-logs] failed to log entry:', logErr?.message || logErr);
+ }
  });
 
  return res.status(204).send();
  } catch (err) {
+ try {
  logger.error('[internal/front-logs] failed to process logs', { error: err?.message || err });
+ } catch (e) {
+ console.error('[internal/front-logs] critical error:', e?.message || e);
+ }
  return res.status(500).json({ error: 'failed' });
  }
 });

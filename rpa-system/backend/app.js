@@ -2777,13 +2777,13 @@ async function queueTaskRun(runId, taskData) {
 
     // Step 2: Perform health check with automatic retry scheduling
     const healthCheck = await automationQueueService.performHealthCheckWithRetry(
-      automationUrl, 
-      runId, 
-      taskData, 
+      automationUrl,
+      runId,
+      taskData,
       supabase,
       queueTaskRun // Pass reference for retry scheduling
     );
-    
+
     if (!healthCheck.shouldContinue) {
       // Health check failed, retry scheduled
       return healthCheck.retryInfo;
@@ -2817,7 +2817,7 @@ async function queueTaskRun(runId, taskData) {
       );
 
       logger.info(`[queueTaskRun] Task ${runId} successfully dispatched`);
-      
+
       return {
         success: true,
         message: 'Task dispatched to automation worker',
@@ -2825,11 +2825,11 @@ async function queueTaskRun(runId, taskData) {
         queued: true,
         worker_response: result.result
       };
-      
+
     } catch (error) {
       await automationQueueService.handleAutomationFailure(error, runId, taskData, dependencies);
     }
-    
+
   } catch (error) {
     logger.error(`[queueTaskRun] Error: ${error.message || error}`);
 

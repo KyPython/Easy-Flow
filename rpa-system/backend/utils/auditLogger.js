@@ -12,6 +12,7 @@ const { createClient } = require('@supabase/supabase-js');
 class AuditLogger {
  constructor() {
  // Make Supabase optional for local development
+ try {
  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
  this.supabase = createClient(
  process.env.SUPABASE_URL,
@@ -19,6 +20,10 @@ class AuditLogger {
  );
  } else {
  logger.warn('⚠️ Supabase not configured - audit logging disabled for local dev');
+ this.supabase = null;
+ }
+ } catch (err) {
+ logger.warn('⚠️ Failed to initialize Supabase for audit logging:', err.message || err);
  this.supabase = null;
  }
 
@@ -187,7 +192,7 @@ class AuditLogger {
  async writeToDatabase(logs) {
  try {
  if (!this.supabase) {
- logger.info(`📝 [LOCAL DEV] Would write ${logs.length} audit logs to database`);
+ logger.debug(`📝 [LOCAL DEV] Would write ${logs.length} audit logs to database`);
  return;
  }
 
@@ -196,16 +201,13 @@ class AuditLogger {
  .insert(logs);
 
  if (error) {
- logger.error('Failed to write audit logs:', error);
- // Re-add failed logs to buffer for retry
- this.logBuffer = [...logs, ...this.logBuffer];
- throw error;
+ logger.warn('Failed to write audit logs (non-critical):', error.message || error);
+ return;
  }
 
- logger.info(`✅ Wrote ${logs.length} audit logs to database`);
+ logger.debug(`✅ Wrote ${logs.length} audit logs to database`);
  } catch (error) {
- logger.error('Audit logging error:', error);
- throw error;
+ logger.warn('Audit logging error (non-critical, continuing):', error.message || error);
  }
  }
 
@@ -233,7 +235,7 @@ class AuditLogger {
  async getUserAuditLogs(userId, filters = {}) {
  try {
  if (!this.supabase) {
- logger.info('📝 [LOCAL DEV] Would query audit logs for user:', userId);
+ logger.debug('📝 [LOCAL DEV] Would query audit logs for user:', userId);
  return { data: [], count: 0 };
  }
 
@@ -271,7 +273,10 @@ class AuditLogger {
  const { data, error, count } = await query
  .range(offset, offset + limit - 1);
 
- if (error) throw error;
+ if (error) {
+ logger.warn('Failed to fetch user audit logs:', error.message || error);
+ return { data: [], count: 0, logs: [], total: 0, limit, offset };
+ }
 
  return {
  logs: data,
@@ -280,8 +285,8 @@ class AuditLogger {
  offset: offset
  };
  } catch (error) {
- logger.error('Failed to fetch user audit logs:', error);
- throw error;
+ logger.warn('Failed to fetch user audit logs (non-critical):', error.message || error);
+ return { data: [], count: 0, logs: [], total: 0, limit, offset };
  }
  }
 
@@ -290,6 +295,11 @@ class AuditLogger {
  */
  async getSystemAuditLogs(filters = {}) {
  try {
+ if (!this.supabase) {
+ logger.debug('📝 [LOCAL DEV] Would query system audit logs');
+ return { data: [], count: 0 };
+ }
+
  const {
  startDate,
  endDate,
@@ -328,7 +338,10 @@ class AuditLogger {
  const { data, error, count } = await query
  .range(offset, offset + limit - 1);
 
- if (error) throw error;
+ if (error) {
+ logger.warn('Failed to fetch system audit logs:', error.message || error);
+ return { data: [], count: 0, logs: [], total: 0, limit, offset };
+ }
 
  return {
  logs: data,
@@ -337,8 +350,8 @@ class AuditLogger {
  offset: offset
  };
  } catch (error) {
- logger.error('Failed to fetch system audit logs:', error);
- throw error;
+ logger.warn('Failed to fetch system audit logs (non-critical):', error.message || error);
+ return { data: [], count: 0, logs: [], total: 0, limit, offset };
  }
  }
 
@@ -347,6 +360,17 @@ class AuditLogger {
  */
  async getAuditStatistics(userId = null, timeframe = '24h') {
  try {
+ if (!this.supabase) {
+ logger.debug('📝 [LOCAL DEV] Would query audit statistics');
+ return {
+ total_actions: 0,
+ by_action_type: {},
+ by_action: {},
+ automation_stats: { total_executions: 0, successful: 0, failed: 0, by_type: {} },
+ timeframe: timeframe
+ };
+ }
+
  const timeframes = {
  '1h': new Date(Date.now() - 60 * 60 * 1000),
  '24h': new Date(Date.now() - 24 * 60 * 60 * 1000),
@@ -367,7 +391,16 @@ class AuditLogger {
 
  const { data, error } = await query;
 
- if (error) throw error;
+ if (error) {
+ logger.warn('Failed to fetch audit statistics:', error.message || error);
+ return {
+ total_actions: 0,
+ by_action_type: {},
+ by_action: {},
+ automation_stats: { total_executions: 0, successful: 0, failed: 0, by_type: {} },
+ timeframe: timeframe
+ };
+ }
 
  // Process statistics
  const stats = {
@@ -413,8 +446,14 @@ class AuditLogger {
 
  return stats;
  } catch (error) {
- logger.error('Failed to generate audit statistics:', error);
- throw error;
+ logger.warn('Failed to generate audit statistics (non-critical):', error.message || error);
+ return {
+ total_actions: 0,
+ by_action_type: {},
+ by_action: {},
+ automation_stats: { total_executions: 0, successful: 0, failed: 0, by_type: {} },
+ timeframe: timeframe
+ };
  }
  }
 
@@ -423,6 +462,11 @@ class AuditLogger {
  */
  async searchAuditLogs(searchQuery, filters = {}) {
  try {
+ if (!this.supabase) {
+ logger.debug('📝 [LOCAL DEV] Would search audit logs');
+ return { results: [], total: 0, query: searchQuery, filters };
+ }
+
  const {
  userId,
  actionType,
@@ -457,7 +501,10 @@ class AuditLogger {
  const { data, error, count } = await query
  .range(offset, offset + limit - 1);
 
- if (error) throw error;
+ if (error) {
+ logger.warn('Audit log search failed:', error.message || error);
+ return { results: [], total: 0, query: searchQuery, filters };
+ }
 
  return {
  results: data,
@@ -466,8 +513,8 @@ class AuditLogger {
  filters: filters
  };
  } catch (error) {
- logger.error('Audit log search failed:', error);
- throw error;
+ logger.warn('Audit log search failed (non-critical):', error.message || error);
+ return { results: [], total: 0, query: searchQuery, filters };
  }
  }
 
@@ -476,6 +523,11 @@ class AuditLogger {
  */
  async cleanupOldLogs(retentionDays = 365) {
  try {
+ if (!this.supabase) {
+ logger.debug('📝 [LOCAL DEV] Would cleanup old audit logs');
+ return { cleaned_count: 0, cutoff_date: null };
+ }
+
  const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 
  const { error, count } = await this.supabase
@@ -483,14 +535,17 @@ class AuditLogger {
  .delete()
  .lt('timestamp', cutoffDate.toISOString());
 
- if (error) throw error;
+ if (error) {
+ logger.warn('Audit log cleanup failed:', error.message || error);
+ return { cleaned_count: 0, cutoff_date: null, error: error.message };
+ }
 
  logger.info(`🧹 Cleaned up ${count} old audit logs (older than ${retentionDays} days)`);
 
  return { cleaned_count: count, cutoff_date: cutoffDate.toISOString() };
  } catch (error) {
- logger.error('Audit log cleanup failed:', error);
- throw error;
+ logger.warn('Audit log cleanup failed (non-critical):', error.message || error);
+ return { cleaned_count: 0, cutoff_date: null, error: error.message };
  }
  }
 }
