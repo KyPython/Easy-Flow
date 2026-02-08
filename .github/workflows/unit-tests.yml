@@ -1,0 +1,101 @@
+name: Unit and Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            rpa-system/package-lock.json
+            rpa-system/backend/package-lock.json
+            rpa-system/rpa-dashboard/package-lock.json
+
+      # ==========================
+      # Backend: install, lint, test
+      # ==========================
+      - name: Install backend dependencies
+        working-directory: rpa-system/backend
+        if: hashFiles('rpa-system/backend/package.json') != ''
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Lint backend (if available)
+        working-directory: rpa-system/backend
+        if: hashFiles('rpa-system/backend/package.json') != ''
+        run: |
+          npm run lint --if-present
+
+      - name: Run backend unit tests
+        working-directory: rpa-system/backend
+        if: hashFiles('rpa-system/backend/package.json') != ''
+        env:
+          NODE_ENV: test
+          INTEGRATION_ENCRYPTION_KEY: dev-insecure-key-do-not-use-in-prod-32chars
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_KEY: test-key
+          SUPABASE_SERVICE_ROLE: test-key
+          SUPABASE_SERVICE_ROLE_KEY: test-key
+          SUPABASE_ANON_KEY: test-key
+          SESSION_SECRET: test-session-secret-32-characters-long
+        run: |
+          npm test -- --ci --watchAll=false || npm test -- --ci --watchAll=false --passWithNoTests
+
+      # ==========================
+      # Frontend: install, lint, test
+      # ==========================
+      - name: Install frontend dependencies
+        working-directory: rpa-system/rpa-dashboard
+        if: hashFiles('rpa-system/rpa-dashboard/package.json') != ''
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Lint frontend (if available)
+        working-directory: rpa-system/rpa-dashboard
+        if: hashFiles('rpa-system/rpa-dashboard/package.json') != ''
+        run: |
+          npm run lint --if-present
+
+      - name: Run frontend unit tests
+        working-directory: rpa-system/rpa-dashboard
+        if: hashFiles('rpa-system/rpa-dashboard/package.json') != ''
+        env:
+          CI: true
+        run: |
+          npm test -- --ci --watchAll=false || npm test -- --ci --watchAll=false --passWithNoTests
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-artifacts
+          path: |
+            rpa-system/backend/**/*.log
+            rpa-system/rpa-dashboard/**/*.log
+            rpa-system/backend/coverage/**
+            rpa-system/rpa-dashboard/coverage/**

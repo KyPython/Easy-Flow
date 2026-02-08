@@ -941,6 +941,15 @@ const trackingRoutes = require('./routes/trackingRoutes');
 app.use('/api/tracking', trackingRoutes);
 rootLogger.info('✓ Tracking routes mounted at /api/tracking');
 
+// Mount error resolution routes (user-facing failure guidance)
+try {
+  const resolutionRoutes = require('./routes/resolutionRoutes');
+  app.use('/api/resolution', resolutionRoutes);
+  rootLogger.info('✓ Resolution routes mounted at /api/resolution');
+} catch (e) {
+  rootLogger.warn('resolutionRoutes not mounted', { error: e?.message || e });
+}
+
 // Internal (dev) routes - accept frontend telemetry and error reports
 // ✅ FIX: Mount at /api/internal to match frontend logger endpoint
 try {

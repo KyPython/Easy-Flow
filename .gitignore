@@ -504,3 +504,4 @@ infrastructure/keys/
 
 .features/features.json
 .features/readiness-report.txt
+interview_practice.sh
