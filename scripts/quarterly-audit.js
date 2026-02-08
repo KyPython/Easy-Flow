@@ -105,11 +105,23 @@ class QuarterlyAuditTracker {
 
   extractScores(output) {
     const scores = {};
-    const filters = ['efficiency', 'control', 'data', 'strategy', 'culture', 'innovation', 'focus'];
     
-    filters.forEach(filter => {
-      const regex = new RegExp(`${filter}.*?Score:\\s*(\\d+(?:\\.\\d+)?)`, 'i');
-      const match = output.match(regex);
+    // Strip ANSI color codes for easier parsing
+    const cleanOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
+    
+    const filterMappings = {
+      efficiency: '1\\. Efficiency Test',
+      control: '2\\. Control Test',
+      data: '3\\. Data Test',
+      strategy: '4\\. Strategic Fit Test',
+      culture: '5\\. Culture Test',
+      innovation: '6\\. Innovation Test',
+      focus: '7\\. Focus Test'
+    };
+    
+    Object.entries(filterMappings).forEach(([filter, pattern]) => {
+      const regex = new RegExp(`${pattern}[\\s\\S]*?Score:\\s*(\\d+(?:\\.\\d+)?)`, 'i');
+      const match = cleanOutput.match(regex);
       scores[filter] = match ? parseFloat(match[1]) : 5;
     });
     
