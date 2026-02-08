@@ -1,4 +1,5 @@
 module.exports = {
+ root: true,  // Don't inherit from parent .eslintrc.js (which requires eslint-plugin-react)
  env: {
  node: true,
  es2021: true,

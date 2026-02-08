@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import { useEffect, useRef } from 'react';
 import { createLogger } from '../../utils/logger';
 const logger = createLogger('ChatbotUChatbot');

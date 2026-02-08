@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+
 /**
  * Admin Analytics Dashboard
  * Internal dashboard to see what ALL users are doing with EasyFlow

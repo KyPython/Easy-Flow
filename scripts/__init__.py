@@ -1,0 +1,1 @@
+# Makes scripts a package for absolute imports in tests.

@@ -319,7 +319,16 @@ class IntegrationCredentialsService {
  google_calendar: require('./integrations/googleCalendarIntegration'),
  whatsapp: require('./integrations/whatsappIntegration'),
  notion: require('./integrations/notionIntegration'),
- reddit: require('./integrations/redditIntegration')
+ reddit: require('./integrations/redditIntegration'),
+  teams: require('./integrations/teamsIntegration'),
+  dropbox: require('./integrations/dropboxIntegration'),
+  salesforce: require('./integrations/salesforceIntegration'),
+  hubspot: require('./integrations/hubspotIntegration'),
+  quickbooks: require('./integrations/quickbooksIntegration'),
+  asana: require('./integrations/asanaIntegration'),
+  trello: require('./integrations/trelloIntegration'),
+  linkedin: require('./integrations/linkedinIntegration'),
+  twitter: require('./integrations/twitterIntegration')
  };
 
  const IntegrationClass = integrations[service];

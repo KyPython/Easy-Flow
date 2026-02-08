@@ -182,11 +182,9 @@ export const usePlan = () => {
  });
  }
  
- // Keep existing plan data if we have it (graceful degradation)
- // Only clear if we never had data
- if (!planData) {
- setPlanData(null);
- }
+	// Keep existing plan data if we have it (graceful degradation)
+	// Ensure we don't clobber existing data; if none, set to null
+	setPlanData(prev => prev || null);
  } finally {
  setLoading(false);
  // Duration logged to backend telemetry if enabled

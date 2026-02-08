@@ -115,6 +115,33 @@ else
     fi
 fi
 
+# Step 2.5: Backend Syntax Validation (CRITICAL - ALWAYS RUN)
+# This check MUST run on ALL branches and MUST be blocking
+echo "\n${BLUE}Step 2.5: Backend syntax validation (CRITICAL)...${NC}"
+if [ -d "rpa-system/backend" ]; then
+    SYNTAX_ERRORS=0
+    TOTAL_FILES=0
+    
+    # Check all JS files recursively, excluding node_modules
+    for file in $(find rpa-system/backend -type f -name "*.js" ! -path "*/node_modules/*" ! -path "*/coverage/*"); do
+        TOTAL_FILES=$((TOTAL_FILES + 1))
+        if ! node --check "$file" 2>/dev/null; then
+            echo "  ${RED}✗ Syntax error in: $file${NC}"
+            SYNTAX_ERRORS=$((SYNTAX_ERRORS + 1))
+        fi
+    done
+    
+    if [ $SYNTAX_ERRORS -eq 0 ]; then
+        echo "  ${GREEN}✓ Backend syntax validation passed ($TOTAL_FILES files checked)${NC}"
+    else
+        echo "  ${RED}✗ Found $SYNTAX_ERRORS file(s) with syntax errors out of $TOTAL_FILES files${NC}"
+        echo "  ${RED}  This is CRITICAL and blocks commit on ALL branches${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo "  ${YELLOW}○ Backend not found, skipping${NC}"
+fi
+
 # Step 3: Run Tests (if available) - SKIP by default for speed
 if [ "$SKIP_TESTS" != "true" ]; then
     echo "\n${BLUE}Step 3: Running tests (can skip with SKIP_TESTS=true)...${NC}"

@@ -46,16 +46,34 @@ jobs:
             npm install --no-audit --no-fund
           fi
 
-      - name: Quick syntax check
+      - name: Backend syntax validation (BLOCKING)
         run: |
-          echo "🔍 Quick syntax check (non-blocking for dev branch)"
-          # Just verify Node.js files parse correctly
+          echo "🔍 Running backend syntax validation..."
           if [ -d "rpa-system/backend" ]; then
-            cd rpa-system/backend
-            node --check routes/*.js services/*.js 2>/dev/null || echo "⚠️ Syntax issues found. ACTION: Check your JS files for syntax errors."
-            cd ../..
+            ERRORS=0
+            TOTAL=0
+            
+            # Check all .js files recursively, excluding node_modules and coverage
+            while IFS= read -r file; do
+              TOTAL=$((TOTAL + 1))
+              if ! node --check "$file" 2>&1; then
+                echo "❌ Syntax error in: $file"
+                ERRORS=$((ERRORS + 1))
+              fi
+            done < <(find rpa-system/backend -type f -name "*.js" ! -path "*/node_modules/*" ! -path "*/coverage/*")
+            
+            echo ""
+            echo "📊 Checked $TOTAL files"
+            
+            if [ $ERRORS -gt 0 ]; then
+              echo "❌ Found $ERRORS file(s) with syntax errors"
+              echo "ACTION: Fix syntax errors before pushing"
+              exit 1
+            fi
+            
+            echo "✅ Backend syntax validation passed"
           fi
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Verify builds compile
         run: |

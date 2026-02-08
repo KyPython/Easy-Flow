@@ -1,3 +1,19 @@
+# Ignore personal interview tasks used for practice
+interview_tasks/
+
+# Common local envs
+.env
+venv/
+__pycache__/
+
+# Ignore interview-related docs and templates
+docs/INTERVIEW_TASKS.md
+docs/EVALUATION_RUBRIC.md
+docs/AI_USAGE_GUIDELINES.md
+docs/INTERVIEWER_CHEATSHEET.md
+docs/EXAMPLE_SOLUTION_BRANCH.md
+docs/ENGINEERING_PHILOSOPHY.md
+.github/PULL_REQUEST_TEMPLATE.md
 # Ignore all test files
 **/tests/
 **/*.test.js
@@ -422,6 +438,7 @@ docs/internal/
 docs/notes/
 docs/drafts/
 docs/scratch/
+docs/architecture/
 
 # Non-public files (any extension)
 **/*.private
@@ -487,3 +504,4 @@ infrastructure/keys/
 
 .features/features.json
 .features/readiness-report.txt
+interview_practice.sh

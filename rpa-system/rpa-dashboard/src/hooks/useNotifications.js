@@ -1,4 +1,6 @@
 // React Hook for EasyFlow Notifications
+import { createLogger } from '../utils/logger';
+const logger = createLogger('useNotifications');
 // Provides easy integration of real-time notifications in React components
 
 import { useState, useEffect, useCallback, useRef } from 'react';

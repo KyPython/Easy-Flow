@@ -26,11 +26,15 @@ const { getPerformanceLearningService } = require('../services/performanceLearni
 const { requireAuth } = require('../middleware/auth');
 const { requireFeature, getUserPlan } = require('../middleware/planEnforcement');
 const { checkScrapingDomainLimit, checkScrapingJobLimit, getScrapingUsage } = require('../middleware/scrapingRateLimit');
+const { enforceBoundaries, trackExecution } = require('../middleware/boundaryEnforcement');
 const axios = require('axios');
 const { validateUrlForSSRF } = require('../utils/ssrfProtection');
 
 const logger = createLogger('routes.scraping');
 const contextLoggerMiddleware = traceContextMiddleware;
+
+// Route-level middleware: Apply boundary enforcement to all POST operations
+router.post('*', enforceBoundaries('scraping'), trackExecution);
 
 /**
  * GET /api/scraping/queue/stats
@@ -78,8 +82,9 @@ router.get('/queue/stats', requireAuth, contextLoggerMiddleware, async (req, res
  * Add domain(s) to scrape queue
  * OBSERVABILITY: Full request logging with performance tracking
  * PLAN ENFORCEMENT: Checks lead_generation feature and domain limits
+ * BOUNDARY ENFORCEMENT: Tracks execution and enforces rate limits
  */
-router.post('/queue/enqueue', requireAuth, requireFeature('lead_generation'), checkScrapingDomainLimit, contextLoggerMiddleware, async (req, res) => {
+router.post('/queue/enqueue', requireAuth, requireFeature('lead_generation'), checkScrapingDomainLimit, enforceBoundaries('scraping'), trackExecution, contextLoggerMiddleware, async (req, res) => {
  const startTime = Date.now();
  const userId = req.user?.id;
  const userEmail = req.user?.email;

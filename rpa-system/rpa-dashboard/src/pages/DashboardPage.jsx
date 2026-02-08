@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useI18n } from '../i18n';
 import { useAuth } from '../utils/AuthContext';

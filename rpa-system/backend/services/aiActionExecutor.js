@@ -951,8 +951,8 @@ async function createAutomatedWorkflow(params, context) {
  * Generate fully configured workflow using AI to extract all details
  */
 async function generateFullyConfiguredWorkflow(params, context) {
- const OpenAI = require('openai');
- const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+ const { createAIClient } = require('../utils/aiClient');
+ const openai = createAIClient();
 
  const description = params.description || '';
  const fullPrompt = `${description}

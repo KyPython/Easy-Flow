@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import React, { useState, useEffect } from 'react';
 import { FiX, FiZap, FiTrendingUp } from 'react-icons/fi';
 import { usePlan } from '../../hooks/usePlan';

@@ -16,25 +16,23 @@
  * - Business metrics for usage analytics
  */
 
-const OpenAI = require('openai');
 const { createLogger } = require('../middleware/structuredLogging');
 const ragClient = require('./ragClient');
+const { createAIClient } = require('../utils/aiClient');
 
 // Namespaced logger for AI Workflow Agent
 const logger = createLogger('ai.agent');
 
 // Lazy-initialize OpenAI client (only when first needed, not at module load)
-let _openaiClient = null;
+let _aiClient = null;
 function getOpenAI() {
- if (!_openaiClient) {
- const apiKey = process.env.OPENAI_API_KEY;
- if (!apiKey) {
- logger.warn('OpenAI API key not configured - AI features will be limited');
- return null;
- }
- _openaiClient = new OpenAI({ apiKey });
- }
- return _openaiClient;
+	if (!_aiClient) {
+		_aiClient = createAIClient();
+		if (!_aiClient) {
+			logger.warn('No AI client configured (OpenAI or Anthropic). Set OPENAI_API_KEY or ANTHROPIC_API_KEY');
+		}
+	}
+	return _aiClient;
 }
 
 // Workflow step definitions for the AI to understand

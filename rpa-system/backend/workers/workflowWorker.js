@@ -57,16 +57,22 @@ class WorkflowWorker {
       attempts: job.attemptsMade
     });
 
+    let execution;
+    let execError;
+
     try {
       // Update job progress
       await job.progress(10);
 
       // Validate execution exists and is in PENDING state
-      const { data: execution, error: execError } = await this.supabase
+      const lookup = await this.supabase
         .from('workflow_executions')
         .select('*, workflows(*)')
         .eq('id', executionId)
         .single();
+
+      execution = lookup.data;
+      execError = lookup.error;
 
       if (execError || !execution) {
         throw new Error(`Execution not found: ${executionId}`);
@@ -154,45 +160,54 @@ class WorkflowWorker {
         attempts: job.attemptsMade
       });
 
-      // Check if we should retry
-      const shouldRetry = job.attemptsMade < job.opts.attempts;
+      // Determine retry bounds: prefer execution.max_retries, then Bull attempts, then default 3
+      const maxRetries = (execution && execution.max_retries) || (job.opts && job.opts.attempts) || 3;
+      const currentRetryCount = (execution && execution.retry_count) || 0;
+      const nextRetryCount = currentRetryCount + 1;
+      const shouldRetry = nextRetryCount < maxRetries;
+
+      const now = new Date().toISOString();
 
       if (shouldRetry) {
-        // Update to RETRYING state
+        // Move to RETRYING and persist error metadata and retry count
         await this.supabase
           .from('workflow_executions')
           .update({
             state: STATES.RETRYING,
             status: 'retrying',
             error_message: error.message,
-            last_retry_at: new Date().toISOString()
+            last_error: error.message,
+            retry_count: nextRetryCount,
+            last_retry_at: now
           })
           .eq('id', executionId);
 
         executionLogger.info('Workflow execution will be retried', {
           execution_id: executionId,
-          attempt: job.attemptsMade + 1,
-          max_attempts: job.opts.attempts
+          attempt: nextRetryCount,
+          max_attempts: maxRetries
         });
       } else {
-        // Update to FAILED state
+        // Exhausted retries -> FAILED terminal state
         await this.supabase
           .from('workflow_executions')
           .update({
             state: STATES.FAILED,
             status: 'failed',
             error_message: error.message,
-            completed_at: new Date().toISOString()
+            last_error: error.message,
+            retry_count: nextRetryCount,
+            completed_at: now
           })
           .eq('id', executionId);
 
         executionLogger.error('Workflow execution failed permanently', {
           execution_id: executionId,
-          attempts: job.attemptsMade
+          attempts: nextRetryCount
         });
       }
 
-      throw error; // Re-throw to let Bull handle retry logic
+      throw error; // Re-throw to let Bull handle retry logic and visibility
     }
   }
 

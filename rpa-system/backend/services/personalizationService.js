@@ -10,15 +10,13 @@
 
 const { createLogger } = require('../middleware/structuredLogging');
 const { getSupabase } = require('../utils/supabaseClient');
-const OpenAI = require('openai');
+const { createAIClient } = require('../utils/aiClient');
 
 const logger = createLogger('service.personalization');
 
 class PersonalizationService {
  constructor() {
- this.openai = process.env.OPENAI_API_KEY
- ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
- : null;
+	this.openai = createAIClient();
  }
 
  /**
