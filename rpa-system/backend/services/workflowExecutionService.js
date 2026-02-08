@@ -147,7 +147,7 @@ class WorkflowExecutionService {
     }
 
     // Check retry limit - for FAILED jobs, check retry_count against max_retries
-    if (originalExecution.state === 'FAILED' && 
+    if (originalExecution.state === 'FAILED' &&
         (originalExecution.retry_count || 0) >= (originalExecution.max_retries || 3)) {
       throw new Error('Maximum retry limit reached - job is in DLQ. Use replay instead.');
     }

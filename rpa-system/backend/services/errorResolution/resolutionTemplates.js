@@ -1,6 +1,6 @@
 /**
  * Error Resolution Templates
- * 
+ *
  * Comprehensive resolution templates for all error categories.
  * Each template provides:
  * - what: What happened (in user terms)
@@ -18,7 +18,7 @@ const { ErrorCategory, getFriendlyServiceName } = require('./errorCategories');
  */
 function resolveTemplate(template, context = {}) {
   let resolved = JSON.parse(JSON.stringify(template)); // Deep clone
-  
+
   // Substitute in what
   if (resolved.what && context.service) {
     resolved.what = resolved.what.replace('{service}', context.service);
@@ -29,7 +29,7 @@ function resolveTemplate(template, context = {}) {
   if (resolved.what && context.duration) {
     resolved.what = resolved.what.replace('{duration}', context.duration);
   }
-  
+
   // Substitute in why
   if (resolved.why) {
     resolved.why = resolved.why
@@ -41,7 +41,7 @@ function resolveTemplate(template, context = {}) {
       .replace('{element}', context.element || 'the element')
       .replace('{duration}', context.duration || 'the expected time');
   }
-  
+
   // Substitute in action steps
   if (resolved.action?.steps) {
     resolved.action.steps = resolved.action.steps.map(step => ({
@@ -50,7 +50,7 @@ function resolveTemplate(template, context = {}) {
       action: substituteVariables(step.action, context)
     }));
   }
-  
+
   return resolved;
 }
 
@@ -71,7 +71,7 @@ const ResolutionTemplates = {
   // =====================================================
   // RATE LIMITING & QUOTAS
   // =====================================================
-  
+
   [ErrorCategory.RATE_LIMIT_EXCEEDED]: {
     what: 'Your workflow hit a rate limit from {service}',
     why: '{service} allows only {limit} requests per {unit}. Your workflow sent {count} requests in the last {unit}.',
@@ -109,7 +109,7 @@ const ResolutionTemplates = {
       { text: 'Contact Support', url: '/support' }
     ]
   },
-  
+
   [ErrorCategory.QUOTA_EXCEEDED]: {
     what: 'You\'ve reached your {service} quota',
     why: 'Your current plan includes {limit} {quota} per month.',
@@ -140,7 +140,7 @@ const ResolutionTemplates = {
       { text: 'Contact Sales', url: '/contact' }
     ]
   },
-  
+
   [ErrorCategory.MONTHLY_LIMIT_REACHED]: {
     what: 'You\'ve used all {limit} {resource} this month',
     why: 'Your {plan} plan includes {limit} {resource} per billing cycle.',
@@ -174,7 +174,7 @@ const ResolutionTemplates = {
   // =====================================================
   // AUTHENTICATION & AUTHORIZATION
   // =====================================================
-  
+
   [ErrorCategory.AUTH_TOKEN_EXPIRED]: {
     what: 'Your session has expired',
     why: 'You haven\'t been active for {duration}. For security, sessions automatically expire.',
@@ -204,7 +204,7 @@ const ResolutionTemplates = {
       { text: 'Session Settings', url: '/app/settings/security' }
     ]
   },
-  
+
   [ErrorCategory.AUTH_INVALID_CREDENTIALS]: {
     what: 'Login failed - incorrect username or password',
     why: 'The credentials you provided don\'t match our records.',
@@ -241,7 +241,7 @@ const ResolutionTemplates = {
       { text: 'Sign In', url: '/login' }
     ]
   },
-  
+
   [ErrorCategory.AUTH_INSUFFICIENT_PERMISSIONS]: {
     what: 'You don\'t have permission to do this',
     why: 'Your current role or plan doesn\'t include access to this feature.',
@@ -278,7 +278,7 @@ const ResolutionTemplates = {
       { text: 'Team Management', url: '/app/team' }
     ]
   },
-  
+
   [ErrorCategory.AUTH_MFA_REQUIRED]: {
     what: 'Two-factor authentication is required',
     why: 'Your account has 2FA enabled for extra security.',
@@ -319,7 +319,7 @@ const ResolutionTemplates = {
   // =====================================================
   // WORKFLOW EXECUTION
   // =====================================================
-  
+
   [ErrorCategory.WORKFLOW_TIMEOUT]: {
     what: 'Your workflow timed out after {duration}',
     why: 'The operation took longer than the {timeout}-second limit.',
@@ -356,7 +356,7 @@ const ResolutionTemplates = {
       { text: 'Optimization Tips', url: '/docs/workflow-optimization' }
     ]
   },
-  
+
   [ErrorCategory.WORKFLOW_ELEMENT_NOT_FOUND]: {
     what: 'We couldn\'t find "{element}" on the page',
     why: 'The website structure may have changed or the element was removed.',
@@ -393,7 +393,7 @@ const ResolutionTemplates = {
       { text: 'Troubleshooting', url: '/docs/troubleshooting' }
     ]
   },
-  
+
   [ErrorCategory.WORKFLOW_PAGE_LOAD_FAILED]: {
     what: 'The page didn\'t load completely',
     why: 'The website took too long to respond or returned an error.',
@@ -430,7 +430,7 @@ const ResolutionTemplates = {
       { text: 'Wait Conditions', url: '/docs/wait-conditions' }
     ]
   },
-  
+
   [ErrorCategory.WORKFLOW_NAVIGATION_FAILED]: {
     what: 'Failed to navigate to the next page',
     why: 'The navigation action didn\'t complete as expected.',
@@ -466,7 +466,7 @@ const ResolutionTemplates = {
       { text: 'Navigation Actions', url: '/docs/navigation' }
     ]
   },
-  
+
   [ErrorCategory.WORKFLOW_VALIDATION_FAILED]: {
     what: 'The data validation failed',
     why: 'The input data doesn\'t match the expected format or values.',
@@ -503,7 +503,7 @@ const ResolutionTemplates = {
       { text: 'Input Data Format', url: '/docs/input-formats' }
     ]
   },
-  
+
   [ErrorCategory.WORKFLOW_ASSERTION_FAILED]: {
     what: 'Expected condition was not met',
     why: 'The assertion or condition check failed.',
@@ -536,7 +536,7 @@ const ResolutionTemplates = {
   // =====================================================
   // EXTERNAL SERVICES
   // =====================================================
-  
+
   [ErrorCategory.SERVICE_RATE_LIMIT]: {
     what: '{service} is rate limiting requests',
     why: '{service} limits how many requests can be made in a time period.',
@@ -572,7 +572,7 @@ const ResolutionTemplates = {
       { text: '{service} API Limits', url: '/docs/external-services' }
     ]
   },
-  
+
   [ErrorCategory.SERVICE_UNAVAILABLE]: {
     what: '{service} is temporarily unavailable',
     why: 'The service is experiencing issues or undergoing maintenance.',
@@ -601,7 +601,7 @@ const ResolutionTemplates = {
       { text: 'Service Status', url: 'https://status.example.com' }
     ]
   },
-  
+
   [ErrorCategory.SERVICE_AUTH_FAILED]: {
     what: 'Authentication with {service} failed',
     why: 'Your {service} credentials have expired or been revoked.',
@@ -638,7 +638,7 @@ const ResolutionTemplates = {
       { text: '{service} Permissions', url: '/docs/service-permissions' }
     ]
   },
-  
+
   [ErrorCategory.SERVICE_PERMISSION_DENIED]: {
     what: '{service} access was denied',
     why: 'Your {service} account doesn\'t have permission for this action.',
@@ -678,7 +678,7 @@ const ResolutionTemplates = {
   // =====================================================
   // DATA & CONFIGURATION
   // =====================================================
-  
+
   [ErrorCategory.DATA_NOT_FOUND]: {
     what: 'The requested data wasn\'t found',
     why: 'The record or file you\'re looking for doesn\'t exist.',
@@ -707,7 +707,7 @@ const ResolutionTemplates = {
       { text: 'Data Sources', url: '/docs/data-sources' }
     ]
   },
-  
+
   [ErrorCategory.DATA_VALIDATION_FAILED]: {
     what: 'The data format is invalid',
     why: 'The data doesn\'t match the expected format.',
@@ -736,7 +736,7 @@ const ResolutionTemplates = {
       { text: 'Data Formats', url: '/docs/data-formats' }
     ]
   },
-  
+
   [ErrorCategory.DATA_EXPORT_FAILED]: {
     what: 'Failed to export your data',
     why: 'There was an error processing your export request.',
@@ -765,7 +765,7 @@ const ResolutionTemplates = {
       { text: 'Export Guide', url: '/docs/exporting-data' }
     ]
   },
-  
+
   [ErrorCategory.CONFIG_INVALID]: {
     what: 'Your workflow configuration has errors',
     why: 'One or more settings are invalid or conflicting.',
@@ -794,7 +794,7 @@ const ResolutionTemplates = {
       { text: 'Workflow Configuration', url: '/docs/workflow-config' }
     ]
   },
-  
+
   [ErrorCategory.CONFIG_MISSING_FIELD]: {
     what: 'Required information is missing',
     why: 'A field that\'s needed for this action wasn\'t provided.',
@@ -827,7 +827,7 @@ const ResolutionTemplates = {
   // =====================================================
   // SYSTEM ERRORS
   // =====================================================
-  
+
   [ErrorCategory.SYSTEM_OVERLOAD]: {
     what: 'The system is busy',
     why: 'We\'re experiencing higher than normal demand.',
@@ -849,7 +849,7 @@ const ResolutionTemplates = {
       { text: 'Status Page', url: '/status' }
     ]
   },
-  
+
   [ErrorCategory.SYSTEM_MAINTENANCE]: {
     what: 'Scheduled maintenance in progress',
     why: 'We\'re performing planned updates to improve the service.',
@@ -879,7 +879,7 @@ const ResolutionTemplates = {
       { text: 'Maintenance Schedule', url: '/docs/maintenance' }
     ]
   },
-  
+
   [ErrorCategory.SYSTEM_INTERNAL_ERROR]: {
     what: 'Something went wrong on our end',
     why: 'An unexpected error occurred while processing your request.',
@@ -912,7 +912,7 @@ const ResolutionTemplates = {
   // =====================================================
   // USER ACTIONS
   // =====================================================
-  
+
   [ErrorCategory.USER_CANCELLED]: {
     what: 'The operation was cancelled',
     why: 'You or another user cancelled this action.',
@@ -932,7 +932,7 @@ const ResolutionTemplates = {
     retryAfter: false,
     helpLinks: []
   },
-  
+
   [ErrorCategory.USER_TIMEOUT]: {
     what: 'You took too long to respond',
     why: 'The system waited for input but didn\'t receive a response.',
@@ -965,7 +965,7 @@ const ResolutionTemplates = {
   // =====================================================
   // BOUNDARY VIOLATIONS
   // =====================================================
-  
+
   [ErrorCategory.BOUNDARY_AUTO_THROTTLED]: {
     what: 'Your workflow was temporarily paused due to high frequency',
     why: 'You ran {count} workflows in {time}, exceeding the safety limit.',
@@ -1008,7 +1008,7 @@ const ResolutionTemplates = {
       { text: 'Upgrade Plan', url: '/pricing' }
     ]
   },
-  
+
   [ErrorCategory.BOUNDARY_AUTO_PAUSED]: {
     what: 'Your workflow was automatically paused',
     why: 'This workflow failed {count} times in a row. We paused it to prevent further issues.',
@@ -1050,7 +1050,7 @@ const ResolutionTemplates = {
       { text: 'Contact Support', url: '/support' }
     ]
   },
-  
+
   [ErrorCategory.BOUNDARY_AUTO_DISABLED]: {
     what: 'Your account was temporarily disabled',
     why: 'Due to repeated workflow failures, your account has been paused for safety.',
@@ -1096,7 +1096,7 @@ const ResolutionTemplates = {
   // =====================================================
   // LEGACY / UNKNOWN
   // =====================================================
-  
+
   [ErrorCategory.UNKNOWN_ERROR]: {
     what: 'An unexpected error occurred',
     why: 'We couldn\'t determine the cause of this error.',

@@ -1093,7 +1093,7 @@ router.get('/marketing-events', authMiddleware, requireOwner, async (req, res) =
       validation_errors: signupEvents.validation_error.length,
       failures: signupEvents.failure.length,
       successes: signupEvents.success.length,
-      conversion_rate: signupEvents.form_viewed.length > 0 
+      conversion_rate: signupEvents.form_viewed.length > 0
         ? ((signupEvents.success.length / signupEvents.form_viewed.length) * 100).toFixed(2)
         : '0.00',
       failure_rate: signupEvents.attempt.length > 0
@@ -1102,8 +1102,8 @@ router.get('/marketing-events', authMiddleware, requireOwner, async (req, res) =
     };
 
     // A/B test performance
-    const abTestEvents = events.filter(e => 
-      e.event_name === 'ab_test_viewed' || 
+    const abTestEvents = events.filter(e =>
+      e.event_name === 'ab_test_viewed' ||
       (e.properties && e.properties.variant)
     );
 
@@ -1111,15 +1111,15 @@ router.get('/marketing-events', authMiddleware, requireOwner, async (req, res) =
     abTestEvents.forEach(event => {
       const testName = event.properties?.test_name || 'signup_form';
       const variant = event.properties?.variant || 'A';
-      
+
       if (!abTestMetrics[testName]) {
         abTestMetrics[testName] = { A: { views: 0, conversions: 0 }, B: { views: 0, conversions: 0 } };
       }
-      
+
       if (event.event_name === 'ab_test_viewed') {
         abTestMetrics[testName][variant].views = (abTestMetrics[testName][variant].views || 0) + 1;
       }
-      
+
       // Count conversions (signup_success) by variant
       if (event.event_name === 'signup_success' && event.properties?.variant) {
         const successVariant = event.properties.variant;
@@ -1133,7 +1133,7 @@ router.get('/marketing-events', authMiddleware, requireOwner, async (req, res) =
     Object.keys(abTestMetrics).forEach(testName => {
       ['A', 'B'].forEach(variant => {
         const metrics = abTestMetrics[testName][variant];
-        metrics.conversion_rate = metrics.views > 0 
+        metrics.conversion_rate = metrics.views > 0
           ? ((metrics.conversions / metrics.views) * 100).toFixed(2)
           : '0.00';
       });
@@ -1159,14 +1159,14 @@ router.get('/marketing-events', authMiddleware, requireOwner, async (req, res) =
           successes: 0
         };
       }
-      
+
       if (event.event_name === 'signup_form_viewed') dailyBreakdown[date].form_viewed++;
       if (event.event_name === 'signup_attempt') dailyBreakdown[date].attempts++;
       if (event.event_name === 'signup_failure') dailyBreakdown[date].failures++;
       if (event.event_name === 'signup_success') dailyBreakdown[date].successes++;
     });
 
-    const dailyData = Object.values(dailyBreakdown).sort((a, b) => 
+    const dailyData = Object.values(dailyBreakdown).sort((a, b) =>
       new Date(a.date) - new Date(b.date)
     );
 
@@ -1192,7 +1192,7 @@ router.get('/marketing-events', authMiddleware, requireOwner, async (req, res) =
     // Failure rate alerts (threshold: 20%)
     const failureRate = parseFloat(funnelMetrics.failure_rate);
     const alerts = [];
-    
+
     if (failureRate > 20) {
       alerts.push({
         type: 'high_failure_rate',
@@ -1236,9 +1236,9 @@ router.get('/marketing-events', authMiddleware, requireOwner, async (req, res) =
     });
   } catch (error) {
     logger.error('[GET /api/business-metrics/marketing-events] Error:', error);
-    return res.status(500).json({ 
-      error: 'Failed to fetch marketing events analytics', 
-      details: error.message 
+    return res.status(500).json({
+      error: 'Failed to fetch marketing events analytics',
+      details: error.message
     });
   }
 });

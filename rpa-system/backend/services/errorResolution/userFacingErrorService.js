@@ -1,9 +1,9 @@
 /**
  * User-Facing Error Service
- * 
+ *
  * Provides user-friendly error messages with actionable resolution steps.
  * Transforms technical errors into clear, actionable guidance for users.
- * 
+ *
  * Features:
  * - Comprehensive error categorization
  * - User-friendly error messages
@@ -13,9 +13,9 @@
  */
 
 const { v4: uuidv4 } = require('uuid');
-const { 
-  ErrorCategory, 
-  ErrorCategoryMetadata, 
+const {
+  ErrorCategory,
+  ErrorCategoryMetadata,
   LegacyCategoryMappings,
   getFriendlyServiceName,
   getHttpStatus,
@@ -43,25 +43,25 @@ class UserFacingErrorService {
   async getResolution(category, context = {}) {
     // Map legacy categories if needed
     const resolvedCategory = this._resolveCategory(category);
-    
+
     // Get base template
     const template = getResolutionTemplate(resolvedCategory);
-    
+
     // Enrich with context-specific variables
     const variables = this._buildVariables(resolvedCategory, context);
-    
+
     // Resolve template with variables
     const resolved = resolveTemplate(template, variables);
-    
+
     // Enrich with user-specific data
     const enriched = await this._enrichWithUserContext(resolved, context);
-    
+
     // Add metadata
     enriched.metadata = this._getMetadata(resolvedCategory);
-    
+
     // Generate resolution ID for tracking
     enriched.resolutionId = this._generateResolutionId();
-    
+
     return enriched;
   }
 
@@ -84,7 +84,7 @@ class UserFacingErrorService {
     return {
       // HTTP status for programmatic handling
       status: httpStatus,
-      
+
       // User-facing response
       what: resolution.what,
       why: resolution.why,
@@ -93,20 +93,20 @@ class UserFacingErrorService {
         secondary: resolution.action.secondary,
         steps: resolution.action.steps
       },
-      
+
       // Resolution ID for support reference
       resolutionId: resolution.resolutionId,
-      
+
       // Retry information
       retryable: isRetryable(category),
       retryAfter: resolution.retryAfter || getRetryDelay(category),
-      
+
       // Boundary status if applicable
       boundaryStatus: resolution.boundaryStatus || null,
-      
+
       // Help resources
       help: resolution.helpLinks || [],
-      
+
       // Additional context
       context: {
         category: category,
@@ -126,9 +126,9 @@ class UserFacingErrorService {
   async categorizeError(error, context = {}) {
     const message = (error?.message || '').toLowerCase();
     const code = error?.code || '';
-    
+
     // Check for authentication errors
-    if (context.isAuthError || message.includes('authentication') || 
+    if (context.isAuthError || message.includes('authentication') ||
         message.includes('unauthorized') || message.includes('jwt') ||
         code === 'UNAUTHORIZED' || code === 'AUTHENTICATION_ERROR') {
       if (message.includes('expired') || code === 'TOKEN_EXPIRED') {
@@ -139,37 +139,37 @@ class UserFacingErrorService {
       }
       return ErrorCategory.SERVICE_AUTH_FAILED;
     }
-    
+
     // Check for rate limiting
     if (message.includes('rate limit') || code === 'RATE_LIMIT_EXCEEDED' ||
         context.isRateLimit || code === 429) {
       return ErrorCategory.RATE_LIMIT_EXCEEDED;
     }
-    
+
     // Check for timeout
     if (message.includes('timeout') || code === 'ETIMEDOUT' ||
         context.isTimeout || code === 408) {
       return ErrorCategory.WORKFLOW_TIMEOUT;
     }
-    
+
     // Check for element not found
     if (message.includes('element') || message.includes('selector') ||
         message.includes('not found') || message.includes('could not find')) {
       return ErrorCategory.WORKFLOW_ELEMENT_NOT_FOUND;
     }
-    
+
     // Check for page load errors
     if (message.includes('page load') || message.includes('navigation') ||
         message.includes('load') || context.isPageLoadError) {
       return ErrorCategory.WORKFLOW_PAGE_LOAD_FAILED;
     }
-    
+
     // Check for service unavailable
     if (message.includes('service unavailable') || code === 'ECONNREFUSED' ||
         code === 503 || context.isServiceUnavailable) {
       return ErrorCategory.SERVICE_UNAVAILABLE;
     }
-    
+
     // Check for permission denied
     if (message.includes('permission') || message.includes('access denied') ||
         code === 'PERMISSION_DENIED' || code === 403) {
@@ -178,7 +178,7 @@ class UserFacingErrorService {
       }
       return ErrorCategory.AUTH_INSUFFICIENT_PERMISSIONS;
     }
-    
+
     // Check for boundary enforcement
     if (context.isBoundaryThrottled) {
       return ErrorCategory.BOUNDARY_AUTO_THROTTLED;
@@ -189,13 +189,13 @@ class UserFacingErrorService {
     if (context.isBoundaryDisabled) {
       return ErrorCategory.BOUNDARY_AUTO_DISABLED;
     }
-    
+
     // Check for user cancellation
     if (message.includes('cancelled') || message.includes('canceled') ||
         context.isCancelled) {
       return ErrorCategory.USER_CANCELLED;
     }
-    
+
     // Check for validation errors
     if (message.includes('validation') || message.includes('invalid') ||
         code === 'VALIDATION_ERROR') {
@@ -207,19 +207,19 @@ class UserFacingErrorService {
       }
       return ErrorCategory.WORKFLOW_VALIDATION_FAILED;
     }
-    
+
     // Check for missing configuration
     if (message.includes('missing') || message.includes('required') ||
         message.includes('not provided')) {
       return ErrorCategory.CONFIG_MISSING_FIELD;
     }
-    
+
     // Check for data not found
     if (message.includes('not found') || message.includes('does not exist') ||
         code === 'NOT_FOUND' || code === 404) {
       return ErrorCategory.DATA_NOT_FOUND;
     }
-    
+
     // Default to unknown
     return ErrorCategory.UNKNOWN_ERROR;
   }
@@ -233,10 +233,10 @@ class UserFacingErrorService {
   async handleError(error, context = {}) {
     // Categorize the error
     const category = await this.categorizeError(error, context);
-    
+
     // Generate user-facing response
     const response = await this.toUserFacing(error, category, context);
-    
+
     // Log the error with resolution ID
     logger.error('Error handled with user-facing response', {
       error: error?.message,
@@ -245,10 +245,10 @@ class UserFacingErrorService {
       userId: context.userId,
       workflowId: context.workflowId
     });
-    
+
     // Store error for analytics
     await this._storeError(context.userId, response, error);
-    
+
     return response;
   }
 
@@ -272,9 +272,9 @@ class UserFacingErrorService {
       502: ErrorCategory.WORKFLOW_PAGE_LOAD_FAILED,
       503: ErrorCategory.SERVICE_UNAVAILABLE
     };
-    
+
     const category = categoryMap[statusCode] || ErrorCategory.UNKNOWN_ERROR;
-    
+
     return this.toUserFacing({ message }, category, {
       ...context,
       statusCode

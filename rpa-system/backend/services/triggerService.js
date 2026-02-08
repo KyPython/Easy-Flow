@@ -561,7 +561,7 @@ class TriggerService {
  // Enqueue execution job
  const queue = getWorkflowQueue();
  const priority = 7; // Higher priority for webhook triggers
- 
+
  try {
  await queue.enqueueExecution({
  executionId,

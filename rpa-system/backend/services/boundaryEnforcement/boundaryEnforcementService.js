@@ -1,11 +1,11 @@
 /**
  * Boundary Enforcement Service
- * 
+ *
  * Automatically enforces system boundaries for user behavior:
  * - Auto-throttling: Limits execution frequency for safety
  * - Auto-pause: Pauses workflows with repeated failures
  * - Auto-disable: Temporarily disables accounts with chronic issues
- * 
+ *
  * This is the #1 difference between "founder-invisible SaaS" and
  * "founder-drowning-in-support-tickets SaaS"
  */
@@ -22,10 +22,10 @@ class BoundaryEnforcementService {
   constructor() {
     this.supabase = getSupabase();
     this.errorService = new UserFacingErrorService();
-    
+
     // In-memory state for fast access (persisted to DB periodically)
     this.userStateCache = new Map();
-    
+
     // Threshold configuration
     this.config = {
       autoThrottle: {
@@ -33,43 +33,43 @@ class BoundaryEnforcementService {
         maxExecutionsPerMinute: parseInt(process.env.BOUNDARY_MAX_PER_MINUTE || '10', 10),
         maxExecutionsPerHour: parseInt(process.env.BOUNDARY_MAX_PER_HOUR || '100', 10),
         maxExecutionsPerDay: parseInt(process.env.BOUNDARY_MAX_PER_DAY || '500', 10),
-        
+
         // Consecutive failure limits
         maxConsecutiveFailures: parseInt(process.env.BOUNDARY_MAX_CONSECUTIVE_FAILURES || '3', 10),
-        
+
         // Throttle duration
         throttleDurationMinutes: parseInt(process.env.BOUNDARY_THROTTLE_MINUTES || '30', 10),
-        
+
         // Grace period before enforcement (allows burst)
         gracePeriodExecutions: parseInt(process.env.BOUNDARY_GRACE_PERIOD || '2', 10)
       },
-      
+
       autoPause: {
         // Failure count limits
         maxFailuresPerHour: parseInt(process.env.BOUNDARY_MAX_FAILURES_PER_HOUR || '5', 10),
         maxFailuresPerDay: parseInt(process.env.BOUNDARY_MAX_FAILURES_PER_DAY || '20', 10),
-        
+
         // Failure window
         failureWindowMinutes: parseInt(process.env.BOUNDARY_FAILURE_WINDOW || '60', 10),
-        
+
         // Minimum time between pause and next enforcement
         pauseCooldownMinutes: parseInt(process.env.BOUNDARY_PAUSE_COOLDOWN || '60', 10)
       },
-      
+
       autoDisable: {
         // Pause count limit before disable
         maxPauseCount: parseInt(process.env.BOUNDARY_MAX_PAUSE_COUNT || '3', 10),
-        
+
         // Consecutive days with failures
         maxConsecutiveFailureDays: parseInt(process.env.BOUNDARY_MAX_FAILURE_DAYS || '5', 10),
-        
+
         // Disable duration
         disableDurationHours: parseInt(process.env.BOUNDARY_DISABLE_HOURS || '24', 10),
-        
+
         // Minimum time between disable and next disable
         disableCooldownHours: parseInt(process.env.BOUNDARY_DISABLE_COOLDOWN || '168', 10) // 7 days
       },
-      
+
       // Global overrides
       bypassUsers: (process.env.BOUNDARY_BYPASS_USERS || '').split(',').filter(Boolean),
       bypassPlans: (process.env.BOUNDARY_BYPASS_PLANS || 'enterprise').split(',').filter(Boolean)
@@ -90,26 +90,26 @@ class BoundaryEnforcementService {
 
     // Get or create user state
     const state = await this._getOrCreateUserState(userId);
-    
+
     // Check each boundary level
     const throttleResult = await this._checkThrottle(userId, state, context);
     if (throttleResult.enforced) {
       return this._handleThrottle(userId, state, throttleResult, context);
     }
-    
+
     const pauseResult = await this._checkAutoPause(userId, state, context);
     if (pauseResult.enforced) {
       return this._handleAutoPause(userId, state, pauseResult, context);
     }
-    
+
     const disableResult = await this._checkAutoDisable(userId, state, context);
     if (disableResult.enforced) {
       return this._handleAutoDisable(userId, state, disableResult, context);
     }
-    
+
     // Update state with successful execution
     await this._recordExecution(userId, state, { success: true, ...context });
-    
+
     return { action: 'NONE' };
   }
 
@@ -142,7 +142,7 @@ class BoundaryEnforcementService {
   async getBoundaryStatus(userId) {
     const state = await this._getOrCreateUserState(userId);
     const now = Date.now();
-    
+
     return {
       userId,
       isThrottled: this._isCurrentlyThrottled(state),
@@ -170,17 +170,17 @@ class BoundaryEnforcementService {
    */
   async resume(userId, workflowId = null) {
     const state = await this._getOrCreateUserState(userId);
-    
+
     if (workflowId) {
       // Resume specific workflow
       if (state.pauseInfo?.workflowIds?.includes(workflowId)) {
         state.pauseInfo.workflowIds = state.pauseInfo.workflowIds.filter(id => id !== workflowId);
-        
+
         if (state.pauseInfo.workflowIds.length === 0) {
           state.pauseInfo.isPaused = false;
           state.pauseInfo.pauseUntil = null;
         }
-        
+
         await this._saveUserState(userId, state);
       }
     } else {
@@ -188,12 +188,12 @@ class BoundaryEnforcementService {
       state.throttleUntil = null;
       state.pauseInfo = { isPaused: false, workflowIds: [], pauseUntil: null };
       // Note: We don't auto-resume disabled accounts - requires support
-      
+
       await this._saveUserState(userId, state);
-      
+
       logger.info('Boundary enforcement manually resumed', { userId });
     }
-    
+
     return this.getBoundaryStatus(userId);
   }
 
@@ -206,10 +206,10 @@ class BoundaryEnforcementService {
    */
   async _checkThrottle(userId, state, context) {
     const now = Date.now();
-    
+
     // Clean old entries
     this._cleanState(state, now);
-    
+
     // Check if currently throttled
     if (this._isCurrentlyThrottled(state)) {
       return {
@@ -219,16 +219,16 @@ class BoundaryEnforcementService {
         remainingMs: state.throttleUntil - now
       };
     }
-    
+
     const { maxExecutionsPerMinute, maxExecutionsPerHour, maxConsecutiveFailures, gracePeriodExecutions } = this.config.autoThrottle;
-    
+
     // Count recent executions
     const oneMinuteAgo = now - 60 * 1000;
     const oneHourAgo = now - 60 * 60 * 1000;
-    
+
     const recentExecutions = state.executionHistory.filter(e => e.timestamp > oneMinuteAgo);
     const hourlyExecutions = state.executionHistory.filter(e => e.timestamp > oneHourAgo);
-    
+
     // Check per-minute limit (with grace period)
     if (recentExecutions.length >= maxExecutionsPerMinute + gracePeriodExecutions) {
       return {
@@ -239,7 +239,7 @@ class BoundaryEnforcementService {
         duration: this.config.autoThrottle.throttleDurationMinutes * 60 * 1000
       };
     }
-    
+
     // Check per-hour limit
     if (hourlyExecutions.length >= maxExecutionsPerHour) {
       return {
@@ -250,7 +250,7 @@ class BoundaryEnforcementService {
         duration: this.config.autoThrottle.throttleDurationMinutes * 60 * 1000
       };
     }
-    
+
     // Check consecutive failure throttle
     if (state.consecutiveFailures >= maxConsecutiveFailures && !context.success) {
       return {
@@ -261,7 +261,7 @@ class BoundaryEnforcementService {
         duration: this.config.autoThrottle.throttleDurationMinutes * 60 * 1000
       };
     }
-    
+
     return { enforced: false };
   }
 
@@ -270,11 +270,11 @@ class BoundaryEnforcementService {
    */
   async _handleThrottle(userId, state, result, context) {
     const throttleUntil = Date.now() + result.duration;
-    
+
     // Update state
     state.throttleUntil = throttleUntil;
     await this._saveUserState(userId, state);
-    
+
     // Generate user-facing response
     const userFacing = await this.errorService.toUserFacing(
       new Error('Auto-throttled due to high frequency'),
@@ -287,7 +287,7 @@ class BoundaryEnforcementService {
         duration: Math.round(result.duration / 60000) + ' minutes'
       }
     );
-    
+
     logger.warn('User auto-throttled', {
       userId,
       reason: result.reason,
@@ -295,7 +295,7 @@ class BoundaryEnforcementService {
       actual: result.actual,
       throttleUntil
     });
-    
+
     return {
       action: 'THROTTLED',
       throttleUntil,
@@ -321,29 +321,29 @@ class BoundaryEnforcementService {
   async _checkAutoPause(userId, state, context) {
     const { workflowId } = context;
     if (!workflowId) return { enforced: false };
-    
+
     const now = Date.now();
     const { maxFailuresPerHour, failureWindowMinutes, pauseCooldownMinutes } = this.config.autoPause;
-    
+
     // Check cooldown
     if (state.pauseInfo?.pauseUntil && state.pauseInfo.pauseUntil > now) {
       return { enforced: false, inCooldown: true };
     }
-    
+
     // Get or create workflow state
     if (!state.workflowStates) {
       state.workflowStates = {};
     }
-    
+
     const workflowState = state.workflowStates[workflowId] || {
       failures: [],
       lastPausedAt: null
     };
-    
+
     // Clean old failures
     const windowStart = now - failureWindowMinutes * 60 * 1000;
     workflowState.failures = workflowState.failures.filter(f => f > windowStart);
-    
+
     // Check hourly failure limit
     if (workflowState.failures.length >= maxFailuresPerHour) {
       return {
@@ -355,11 +355,11 @@ class BoundaryEnforcementService {
         suggestedFix: this._analyzeFailurePattern(workflowState.failures)
       };
     }
-    
+
     // Update workflow state
     state.workflowStates[workflowId] = workflowState;
     await this._saveUserState(userId, state);
-    
+
     return { enforced: false };
   }
 
@@ -368,7 +368,7 @@ class BoundaryEnforcementService {
    */
   async _handleAutoPause(userId, state, result, context) {
     const pauseUntil = Date.now() + this.config.autoPause.failureWindowMinutes * 60 * 1000;
-    
+
     // Update state
     state.pauseInfo = {
       isPaused: true,
@@ -376,19 +376,19 @@ class BoundaryEnforcementService {
       workflowIds: [...(state.pauseInfo?.workflowIds || []), result.workflowId]
     };
     state.pauseCount = (state.pauseCount || 0) + 1;
-    
+
     // Update workflow state
     state.workflowStates = state.workflowStates || {};
     state.workflowStates[result.workflowId] = {
       ...state.workflowStates[result.workflowId],
       lastPausedAt: Date.now()
     };
-    
+
     await this._saveUserState(userId, state);
-    
+
     // Pause the workflow in database
     await this._pauseWorkflow(result.workflowId, userId);
-    
+
     // Generate user-facing response
     const userFacing = await this.errorService.toUserFacing(
       new Error('Workflow auto-paused due to repeated failures'),
@@ -400,14 +400,14 @@ class BoundaryEnforcementService {
         suggestedFix: result.suggestedFix
       }
     );
-    
+
     logger.warn('Workflow auto-paused', {
       userId,
       workflowId: result.workflowId,
       failureCount: result.failureCount,
       pauseUntil
     });
-    
+
     return {
       action: 'PAUSED',
       workflowId: result.workflowId,
@@ -427,14 +427,14 @@ class BoundaryEnforcementService {
     if (!this.config.autoDisable.maxPauseCount) {
       return { enforced: false }; // Auto-disable disabled
     }
-    
+
     const now = Date.now();
-    
+
     // Check cooldown
     if (state.disableInfo?.disableUntil && state.disableInfo.disableUntil > now) {
       return { enforced: false, inCooldown: true };
     }
-    
+
     // Check pause count limit
     if ((state.pauseCount || 0) >= this.config.autoDisable.maxPauseCount) {
       return {
@@ -445,7 +445,7 @@ class BoundaryEnforcementService {
         duration: this.config.autoDisable.disableDurationHours * 60 * 60 * 1000
       };
     }
-    
+
     // Check consecutive days with failures
     const failureDays = this._getFailureDays(state);
     if (failureDays.length >= this.config.autoDisable.maxConsecutiveFailureDays) {
@@ -457,7 +457,7 @@ class BoundaryEnforcementService {
         duration: this.config.autoDisable.disableDurationHours * 60 * 60 * 1000
       };
     }
-    
+
     return { enforced: false };
   }
 
@@ -466,7 +466,7 @@ class BoundaryEnforcementService {
    */
   async _handleAutoDisable(userId, state, result, context) {
     const disableUntil = Date.now() + result.duration;
-    
+
     // Update state
     state.disableInfo = {
       isDisabled: true,
@@ -474,12 +474,12 @@ class BoundaryEnforcementService {
       disabledAt: Date.now(),
       reason: result.reason
     };
-    
+
     await this._saveUserState(userId, state);
-    
+
     // Disable the user in database
     await this._disableUser(userId, disableUntil);
-    
+
     // Generate user-facing response
     const userFacing = await this.errorService.toUserFacing(
       new Error('Account auto-disabled due to repeated failures'),
@@ -490,13 +490,13 @@ class BoundaryEnforcementService {
         duration: Math.round(result.duration / (60 * 60 * 1000)) + ' hours'
       }
     );
-    
+
     logger.warn('User account auto-disabled', {
       userId,
       reason: result.reason,
       disableUntil
     });
-    
+
     return {
       action: 'DISABLED',
       disableUntil,
@@ -516,7 +516,7 @@ class BoundaryEnforcementService {
     if (this.userStateCache.has(userId)) {
       return this.userStateCache.get(userId);
     }
-    
+
     // Try database
     if (this.supabase) {
       try {
@@ -525,7 +525,7 @@ class BoundaryEnforcementService {
           .select('*')
           .eq('user_id', userId)
           .single();
-        
+
         if (data) {
           // Parse JSON fields
           const state = {
@@ -536,7 +536,7 @@ class BoundaryEnforcementService {
             pauseInfo: data.pause_info ? JSON.parse(data.pause_info) : null,
             disableInfo: data.disable_info ? JSON.parse(data.disable_info) : null
           };
-          
+
           this.userStateCache.set(userId, state);
           return state;
         }
@@ -544,7 +544,7 @@ class BoundaryEnforcementService {
         logger.debug('Failed to load boundary state from DB', { userId, error: err.message });
       }
     }
-    
+
     // Create new state
     const newState = this._createEmptyState(userId);
     this.userStateCache.set(userId, newState);
@@ -577,7 +577,7 @@ class BoundaryEnforcementService {
   async _saveUserState(userId, state) {
     // Update cache
     this.userStateCache.set(userId, state);
-    
+
     // Persist to database
     if (this.supabase) {
       try {
@@ -609,14 +609,14 @@ class BoundaryEnforcementService {
   async _recordExecution(userId, state, context) {
     const now = Date.now();
     const today = new Date().toDateString();
-    
+
     // Check if new day
     const lastDate = state.lastExecutionAt ? new Date(state.lastExecutionAt).toDateString() : null;
     if (lastDate !== today) {
       state.todayExecutions = 0;
       state.todayFailures = 0;
     }
-    
+
     // Add to history
     state.executionHistory.push({
       timestamp: now,
@@ -624,7 +624,7 @@ class BoundaryEnforcementService {
       workflowId: context.workflowId,
       type: context.type || 'general'
     });
-    
+
     // Update counters
     state.todayExecutions++;
     if (!context.success) {
@@ -634,10 +634,10 @@ class BoundaryEnforcementService {
       state.consecutiveFailures = 0;
     }
     state.lastExecutionAt = now;
-    
+
     // Clean old entries
     this._cleanState(state, now);
-    
+
     await this._saveUserState(userId, state);
   }
 
@@ -647,10 +647,10 @@ class BoundaryEnforcementService {
   _cleanState(state, now) {
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
     const oneHourAgo = now - 60 * 60 * 1000;
-    
+
     // Keep last 24 hours of history
     state.executionHistory = state.executionHistory.filter(e => e.timestamp > oneDayAgo);
-    
+
     // Clean workflow states (keep only recent)
     Object.keys(state.workflowStates || {}).forEach(workflowId => {
       const ws = state.workflowStates[workflowId];
@@ -672,7 +672,7 @@ class BoundaryEnforcementService {
     if (this.config.bypassUsers.includes(userId)) {
       return true;
     }
-    
+
     // Could also check user plan here
     return false;
   }
@@ -709,11 +709,11 @@ class BoundaryEnforcementService {
    */
   async _pauseWorkflow(workflowId, userId) {
     if (!this.supabase) return;
-    
+
     try {
       await this.supabase
         .from('workflows')
-        .update({ 
+        .update({
           status: 'paused',
           paused_at: new Date().toISOString(),
           pause_reason: 'Auto-paused due to repeated failures'
@@ -730,11 +730,11 @@ class BoundaryEnforcementService {
    */
   async _disableUser(userId, until) {
     if (!this.supabase) return;
-    
+
     try {
       await this.supabase
         .from('user_profiles')
-        .update({ 
+        .update({
           is_disabled: true,
           disabled_at: new Date().toISOString(),
           disabled_until: new Date(until).toISOString(),

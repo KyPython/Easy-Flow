@@ -758,26 +758,26 @@ async function handleMessage(userMessage, context = {}) {
  // ✅ PAIN MAPPING: Detect if user is describing a problem, not a solution
  const painDetection = painMapping.detectPainPoint(userMessage);
  const discoveredInfo = painMapping.extractDiscoveredInfo(context);
- 
+
  if (painDetection.isPainPoint && painDetection.confidence > 0.6) {
  msgLogger.info('Pain point detected', {
  painTypes: painDetection.painTypes,
  confidence: painDetection.confidence,
  discoveredInfo: Object.keys(discoveredInfo)
  });
- 
+
  // Check if we have enough information to proceed
  const questions = painMapping.generateClarifyingQuestions(painDetection, { discoveredInfo });
- 
+
  if (questions.length > 0) {
  // We need more information - ask clarifying questions
  const questionText = questions.map(q => q.question).join('\n- ');
- 
+
  // Also try to match templates to show user we understand their pain
  const templateMatches = await painMapping.matchTemplatesToPain(userMessage, discoveredInfo);
- 
+
  let responseMessage = `I understand you're dealing with ${painDetection.painTypes?.[0] || 'a repetitive task'}. Let me help you automate this! 🎯\n\n`;
- 
+
  if (templateMatches.success && templateMatches.matches.length > 0) {
  const topMatch = templateMatches.matches[0];
  responseMessage += `I found a template that might help: **${topMatch.name}** - ${topMatch.description}\n\n`;
@@ -786,7 +786,7 @@ async function handleMessage(userMessage, context = {}) {
  } else {
  responseMessage += `To create the perfect workflow for you, I need a few quick details:\n- ${questionText}`;
  }
- 
+
  return {
  type: 'conversation',
  success: true,
@@ -797,7 +797,7 @@ async function handleMessage(userMessage, context = {}) {
  discoveredInfo
  };
  }
- 
+
  // We have enough info, but user said "just make it work" - apply defaults
  const wantsDefaults = /just make it work|just do it|set it up|make it happen|do your thing/i.test(userMessage);
  if (wantsDefaults) {
@@ -1054,7 +1054,7 @@ Available automation types: ${Object.values(WORKFLOW_STEPS).map(s => `${s.icon} 
  if (context.applyDefaults && result.success && result.workflow) {
  result.workflow = painMapping.applyDefaultSettings(result.workflow, true);
  }
- 
+
  // ✅ PAIN MAPPING: Generate non-technical preview
  if (result.success && result.workflow) {
  const discoveredInfo = painMapping.extractDiscoveredInfo(context);

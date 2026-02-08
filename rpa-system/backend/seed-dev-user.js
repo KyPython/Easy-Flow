@@ -28,7 +28,7 @@ async function seed() {
   try {
     // Try to get the user first
     const { data: { user }, error: findError } = await supabase.auth.admin.getUserById(DEV_USER_ID);
-    
+
     if (!user) {
       logger.info('Creating auth user');
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
@@ -38,7 +38,7 @@ async function seed() {
         email_confirm: true,
         user_metadata: { name: 'Local Developer' }
       });
-      
+
       if (createError) {
         if (createError.message.includes('already registered')) {
              logger.info('Auth user already exists (caught in creation).');
@@ -113,7 +113,7 @@ async function seed() {
           logger.info('Creating default subscription');
           const { data: plan } = await supabase.from('plans').select('id').eq('id', 'professional').maybeSingle();
           const planId = plan ? plan.id : 'professional';
-          
+
           const { error: subError } = await supabase.from('subscriptions').insert([{
               user_id: DEV_USER_ID,
               plan_id: planId,

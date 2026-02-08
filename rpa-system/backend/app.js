@@ -2623,8 +2623,8 @@ try {
  rootLogger.warn('AI Agent routes not mounted (OpenAI API key may not be configured)', { error: e?.message || e });
  // Fallback for AI Agent routes to prevent 404s on UI
  app.use('/api/ai-agent', (req, res) => {
-   res.status(503).json({ 
-     error: 'AI Agent unavailable', 
+   res.status(503).json({
+     error: 'AI Agent unavailable',
      message: 'The AI Agent service is not configured (likely missing OPENAI_API_KEY). Check backend logs.',
      code: 'AI_SERVICE_NOT_CONFIGURED'
    });
@@ -2636,7 +2636,7 @@ try {
  const ragRoutes = require('./routes/ragRoutes');
  app.use('/api/rag', ragRoutes);
  rootLogger.info('✓ RAG service routes mounted at /api/rag');
- 
+
  if (!process.env.RAG_API_KEY) {
    rootLogger.warn('⚠️ RAG_API_KEY is missing in backend .env - RAG requests may fail with 403');
  }
@@ -3997,7 +3997,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
     if (!req.user || !req.user.id) {
       logger.warn('[GET /api/runs] No user in request', {
         has_user: !!req.user,
-        user_id: req.user?.id,
+        user_id: req.user?.id
       });
       return res
         .status(401)
@@ -4025,7 +4025,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       trace: req.trace,
       user_id: req.user.id,
       page,
-      pageSize,
+      pageSize
     });
 
     // 3) Main runs query (your existing fields) + pagination
@@ -4052,7 +4052,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
     if (error) {
       logger.error('[GET /api/runs] Database query error', {
         error_message: error.message,
-        user_id: req.user.id,
+        user_id: req.user.id
       });
       throw error;
     }
@@ -4065,7 +4065,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
         user_id: req.user.id,
         runs_count: runsData?.length || 0,
         message:
-          'Consider adding database indexes: idx_automation_runs_user_id_started_at',
+          'Consider adding database indexes: idx_automation_runs_user_id_started_at'
       });
     }
 
@@ -4075,13 +4075,13 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       performance: { duration: queryDuration },
       result: {
         rows_returned: runsData?.length || 0,
-        total_count: count ?? 0,
-      },
+        total_count: count ?? 0
+      }
     });
 
     // 4) Fetch task details (your existing pattern)
     const taskIds = [
-      ...new Set((runsData || []).filter((r) => r.task_id).map((r) => r.task_id)),
+      ...new Set((runsData || []).filter((r) => r.task_id).map((r) => r.task_id))
     ];
     let tasksMap = {};
 
@@ -4097,7 +4097,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
         logger.warn(
           '[GET /api/runs] Error fetching tasks (non-critical)',
           {
-            error_message: tasksError.message,
+            error_message: tasksError.message
           }
         );
         // don't throw; keep going with runs only
@@ -4106,7 +4106,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
           acc[task.id] = {
             name: task.name,
             url: task.url,
-            task_type: task.task_type,
+            task_type: task.task_type
           };
           return acc;
         }, {});
@@ -4116,7 +4116,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       if (taskQueryDuration > 1000) {
         logger.warn('[GET /api/runs] Slow task query detected', {
           duration_ms: taskQueryDuration,
-          task_count: taskIds.length,
+          task_count: taskIds.length
         });
       }
     }
@@ -4130,7 +4130,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
         ended_at: run.ended_at,
         result: run.result,
         artifact_url: run.artifact_url,
-        automation_tasks: run.task_id ? tasksMap[run.task_id] || null : null,
+        automation_tasks: run.task_id ? tasksMap[run.task_id] || null : null
       })) || [];
 
     // Pagination metadata
@@ -4144,7 +4144,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       user_id: req.user.id,
       runs_count: data.length,
       duration_ms: duration,
-      pagination: { page, pageSize, total, totalPages },
+      pagination: { page, pageSize, total, totalPages }
     });
 
     return res.json({
@@ -4152,7 +4152,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       page,
       pageSize,
       total,
-      totalPages,
+      totalPages
     });
   } catch (err) {
     const duration = Date.now() - startTime;
@@ -4162,7 +4162,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       error: err.message,
       stack: err.stack,
       user_id: req.user?.id,
-      duration_ms: duration,
+      duration_ms: duration
     });
 
     return res
@@ -8933,7 +8933,7 @@ app.use((err, req, res, _next) => {
  if (err && err.code === 'LIMIT_FILE_SIZE') {
  return res.status(413).json({ error: 'File too large' });
  }
- 
+
  // ✅ FIX: In dev mode, return mock data for known endpoints instead of 500
  // This prevents the dashboard from crashing when DB is empty or dev user is missing
  if (process.env.NODE_ENV === 'development') {

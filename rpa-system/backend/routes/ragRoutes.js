@@ -50,11 +50,11 @@ router.get('/health', authMiddleware, contextLoggerMiddleware, async (req, res) 
 router.post('/seed', authMiddleware, contextLoggerMiddleware, async (req, res) => {
  try {
  const aiAgent = require('../services/aiWorkflowAgent');
- 
+
  if (!aiAgent || typeof aiAgent.initializeKnowledge !== 'function') {
  throw new Error('AI Agent service not fully initialized');
  }
- 
+
  const result = await aiAgent.initializeKnowledge();
 
  res.json({

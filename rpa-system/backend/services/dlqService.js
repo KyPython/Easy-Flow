@@ -1,7 +1,7 @@
 /**
  * DLQ (Dead Letter Queue) Service
  * Provides inspection and replay capabilities for failed workflow executions
- * 
+ *
  * This service enables operators to:
  * - View all failed jobs in the DLQ
  * - Inspect failure details (error message, category, timestamps)

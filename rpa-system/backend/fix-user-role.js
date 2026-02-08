@@ -19,7 +19,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 async function fixUserRole() {
   try {
     console.log('🔧 Looking for user kyjahntsmith@gmail.com...');
-    
+
     // Find the user
     const { data: profiles, error: searchError } = await supabase
       .from('profiles')
@@ -34,12 +34,12 @@ async function fixUserRole() {
 
     if (!profiles || profiles.length === 0) {
       console.log('ℹ️  User not found. Trying to find all users...');
-      
+
       const { data: allProfiles, error: allError } = await supabase
         .from('profiles')
         .select('id, email, role')
         .limit(5);
-      
+
       if (allError) {
         console.error('❌ Error listing users:', allError.message);
       } else {
@@ -49,7 +49,7 @@ async function fixUserRole() {
     }
 
     const user = profiles[0];
-    console.log(`✅ Found user:`, {
+    console.log('✅ Found user:', {
       id: user.id,
       email: user.email,
       current_role: user.role || '(none)',
@@ -75,7 +75,7 @@ async function fixUserRole() {
 
     console.log('✅ Successfully set user role to owner!');
     console.log('ℹ️  You can now invite team members.');
-    
+
   } catch (err) {
     console.error('❌ Unexpected error:', err);
     process.exit(1);
