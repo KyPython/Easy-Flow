@@ -319,11 +319,10 @@ class IntegrationCredentialsService {
  google_calendar: require('./integrations/googleCalendarIntegration'),
  whatsapp: require('./integrations/whatsappIntegration'),
  notion: require('./integrations/notionIntegration'),
-base
  reddit: require('./integrations/redditIntegration'),
   // New providers (temporary: generic OAuth stub until full clients are implemented)
-  teams: require('./integrations/genericOAuthIntegration'),
-  dropbox: require('./integrations/genericOAuthIntegration'),
+  teams: require('./integrations/teamsIntegration'),
+  dropbox: require('./integrations/dropboxIntegration'),
   salesforce: require('./integrations/genericOAuthIntegration'),
   hubspot: require('./integrations/genericOAuthIntegration'),
   quickbooks: require('./integrations/genericOAuthIntegration'),
