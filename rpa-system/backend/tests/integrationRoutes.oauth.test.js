@@ -34,7 +34,7 @@ jest.mock('../services/integrationCredentialsService', () => {
     deleteCredentials: jest.fn(),
     testConnection: jest.fn(),
     storeOAuthState: jest.fn().mockResolvedValue(mockStateToken),
-    validateOAuthState: jest.fn().mockResolvedValue(mockOAuthState),
+    validateOAuthState: jest.fn().mockResolvedValue(mockOAuthState)
   };
 });
 
@@ -43,14 +43,14 @@ jest.mock('../middleware/planEnforcement', () => ({
   requireAutomationRun: () => (req, _res, next) => next(),
   requireWorkflowRun: () => (req, _res, next) => next(),
   requirePlan: () => (req, _res, next) => next(),
-  checkStorageLimit: () => (req, _res, next) => next(),
+  checkStorageLimit: () => (req, _res, next) => next()
 }));
 
 jest.mock('../middleware/auth', () => ({
   requireAuth: (req, _res, next) => {
     if (!req.user) req.user = { id: 'test-user-id' };
     next();
-  },
+  }
 }));
 
 const app = require('../app');

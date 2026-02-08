@@ -19,7 +19,7 @@ describe('Provider Client Tests', () => {
 
     test('authenticate validates accessToken', async () => {
       const client = new TeamsIntegration();
-      
+
       await expect(client.authenticate({})).rejects.toThrow('Teams: Missing accessToken');
       await expect(client.authenticate({ accessToken: 'token' })).resolves.toBe(true);
       expect(client.token).toBe('token');
@@ -70,7 +70,7 @@ describe('Provider Client Tests', () => {
 
     test('authenticate validates accessToken', async () => {
       const client = new DropboxIntegration();
-      
+
       await expect(client.authenticate({})).rejects.toThrow('Dropbox: Missing accessToken');
       await expect(client.authenticate({ accessToken: 'dbx-token' })).resolves.toBe(true);
     });
@@ -120,10 +120,10 @@ describe('Provider Client Tests', () => {
 
     test('authenticate validates accessToken and instanceUrl', async () => {
       const client = new SalesforceIntegration();
-      
+
       await expect(client.authenticate({})).rejects.toThrow('Salesforce: Missing accessToken');
       await expect(client.authenticate({ accessToken: 'token' })).rejects.toThrow('Salesforce: Missing instanceUrl');
-      await expect(client.authenticate({ 
+      await expect(client.authenticate({
         accessToken: 'sf-token',
         instanceUrl: 'https://example.salesforce.com'
       })).resolves.toBe(true);
@@ -131,7 +131,7 @@ describe('Provider Client Tests', () => {
 
     test('testConnection calls /sobjects endpoint', async () => {
       const client = new SalesforceIntegration();
-      await client.authenticate({ 
+      await client.authenticate({
         accessToken: 'sf-token',
         instanceUrl: 'https://example.salesforce.com'
       });
@@ -156,7 +156,7 @@ describe('Provider Client Tests', () => {
 
     test('testConnection handles 401 error', async () => {
       const client = new SalesforceIntegration();
-      await client.authenticate({ 
+      await client.authenticate({
         accessToken: 'expired',
         instanceUrl: 'https://example.salesforce.com'
       });
@@ -174,7 +174,7 @@ describe('Provider Client Tests', () => {
 
     test('authenticate validates accessToken', async () => {
       const client = new HubSpotIntegration();
-      
+
       await expect(client.authenticate({})).rejects.toThrow('HubSpot: Missing accessToken');
       await expect(client.authenticate({ accessToken: 'hs-token' })).resolves.toBe(true);
     });
@@ -219,10 +219,10 @@ describe('Provider Client Tests', () => {
 
     test('authenticate validates accessToken and realmId', async () => {
       const client = new QuickBooksIntegration();
-      
+
       await expect(client.authenticate({})).rejects.toThrow('QuickBooks: Missing accessToken');
       await expect(client.authenticate({ accessToken: 'token' })).rejects.toThrow('QuickBooks: Missing realmId');
-      await expect(client.authenticate({ 
+      await expect(client.authenticate({
         accessToken: 'qb-token',
         realmId: 'realm123'
       })).resolves.toBe(true);
@@ -269,7 +269,7 @@ describe('Provider Client Tests', () => {
 
     test('authenticate validates accessToken', async () => {
       const client = new AsanaIntegration();
-      
+
       await expect(client.authenticate({})).rejects.toThrow('Asana: Missing accessToken');
       await expect(client.authenticate({ accessToken: 'asana-token' })).resolves.toBe(true);
     });
@@ -316,7 +316,7 @@ describe('Provider Client Tests', () => {
 
     test('authenticate validates apiKey and token', async () => {
       const client = new TrelloIntegration();
-      
+
       await expect(client.authenticate({})).rejects.toThrow('Trello: Missing apiKey');
       await expect(client.authenticate({ apiKey: 'key' })).rejects.toThrow('Trello: Missing token');
       await expect(client.authenticate({ apiKey: 'key', token: 'token' })).resolves.toBe(true);
@@ -367,7 +367,7 @@ describe('Provider Client Tests', () => {
 
     test('authenticate validates accessToken', async () => {
       const client = new LinkedInIntegration();
-      
+
       await expect(client.authenticate({})).rejects.toThrow('LinkedIn: Missing accessToken');
       await expect(client.authenticate({ accessToken: 'li-token' })).resolves.toBe(true);
     });
@@ -413,7 +413,7 @@ describe('Provider Client Tests', () => {
 
     test('authenticate validates accessToken', async () => {
       const client = new TwitterIntegration();
-      
+
       await expect(client.authenticate({})).rejects.toThrow('Twitter: Missing accessToken');
       await expect(client.authenticate({ accessToken: 'tw-token' })).resolves.toBe(true);
     });

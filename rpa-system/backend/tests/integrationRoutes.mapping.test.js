@@ -34,7 +34,7 @@ jest.mock('../services/integrationCredentialsService', () => {
     deleteCredentials: jest.fn(),
     testConnection: jest.fn(),
     storeOAuthState: jest.fn(),
-    validateOAuthState: jest.fn(),
+    validateOAuthState: jest.fn()
   };
 });
 
@@ -43,14 +43,14 @@ jest.mock('../middleware/planEnforcement', () => ({
   requireAutomationRun: () => (req, _res, next) => next(),
   requireWorkflowRun: () => (req, _res, next) => next(),
   requirePlan: () => (req, _res, next) => next(),
-  checkStorageLimit: () => (req, _res, next) => next(),
+  checkStorageLimit: () => (req, _res, next) => next()
 }));
 
 jest.mock('../middleware/auth', () => ({
   requireAuth: (req, _res, next) => {
     if (!req.user) req.user = { id: 'test-user-id' };
     next();
-  },
+  }
 }));
 
 const app = require('../app');
@@ -185,7 +185,7 @@ describe('Integration Mapping and Test Connection', () => {
     test('updates test status and timestamp on success', async () => {
       const svc = require('../services/integrationCredentialsService');
       const mockUpdateCredentials = jest.fn();
-      
+
       svc.testConnection.mockImplementationOnce(async (userId, service) => {
         return { success: true, message: 'Connection successful' };
       });
@@ -200,7 +200,7 @@ describe('Integration Mapping and Test Connection', () => {
 
     test('updates test status to failed on error', async () => {
       const svc = require('../services/integrationCredentialsService');
-      
+
       svc.testConnection.mockImplementationOnce(async (userId, service) => {
         return {
           success: false,
