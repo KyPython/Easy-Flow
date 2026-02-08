@@ -78,6 +78,11 @@ export default function LandingPage() {
             {t('landing.book_consultation_optional', 'Prefer help? Book a free setup call')}
           </a>
         </div>
+
+        {/* Waitlist note */}
+        <div style={{ marginTop: 12, textAlign: 'center', color: 'var(--text-muted)' }}>
+          <strong>Closed Beta:</strong> EasyFlow is currently in Closed Beta for performance and reliability. Join the waitlist to get early access.
+        </div>
  
  {/* Social Proof */}
  <div style={{ marginTop: '20px', textAlign: 'center' }}>

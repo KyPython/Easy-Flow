@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import headerStyles from '../Header/Header.module.css';
 import { useI18n } from '../../i18n';

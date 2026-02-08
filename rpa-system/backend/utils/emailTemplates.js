@@ -224,7 +224,7 @@ function getWelcomeEmail(data = {}) {
 function getFollowupEmail(data = {}) {
   const { name } = data;
   const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
-  
+
   const subject = '🚀 Ready to automate your first task?';
   const html = `
     <p>Hi${name ? ' ' + name : ''},</p>
@@ -247,7 +247,7 @@ function getFollowupEmail(data = {}) {
 function getActivationReminderEmail(data = {}) {
   const { name } = data;
   const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
-  
+
   const subject = '💡 Create your first workflow in 5 minutes';
   const html = `
     <p>Hi${name ? ' ' + name : ''},</p>
@@ -271,7 +271,7 @@ function getActivationReminderEmail(data = {}) {
 function getSuccessTipsEmail(data = {}) {
   const { name } = data;
   const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
-  
+
   const subject = '✨ Success stories from EasyFlow users';
   const html = `
     <p>Hi${name ? ' ' + name : ''},</p>
@@ -306,7 +306,7 @@ function getCustomEmail(data = {}) {
 function getOutageNotificationEmail(data = {}) {
   const { estimatedDuration = 'within 1 hour', affectedSystems = ['All services'], startTime = new Date().toISOString() } = data;
   const subject = '⚠️ EasyFlow Service Outage Notification';
-  
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -351,9 +351,9 @@ function getOutageNotificationEmail(data = {}) {
 </body>
 </html>
   `.trim();
-  
+
   const text = `Service Outage Notification\n\nWe experienced a service interruption starting at ${startTime}.\n\nAffected Systems: ${affectedSystems.join(', ')}\nEstimated Resolution: ${estimatedDuration}\n\nOur team is working to restore full service. We apologize for any inconvenience.`;
-  
+
   return { subject, html, text };
 }
 
@@ -364,7 +364,7 @@ function getOutageNotificationEmail(data = {}) {
 function getSupportResponseEmail(data = {}) {
   const { ticketNumber = 'N/A', category = 'technical', name = 'there' } = data;
   const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
-  
+
   const templates = {
     'technical': {
       subject: `EasyFlow Support: Ticket #${ticketNumber} - Technical Issue`,
@@ -382,9 +382,9 @@ function getSupportResponseEmail(data = {}) {
       priority: 'low'
     }
   };
-  
+
   const template = templates[category] || templates['technical'];
-  
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -397,7 +397,7 @@ function getSupportResponseEmail(data = {}) {
 </body>
 </html>
   `.trim();
-  
+
   return { subject: template.subject, html, text: template.response };
 }
 
@@ -408,7 +408,7 @@ function getSupportResponseEmail(data = {}) {
 function getMaintenanceNotificationEmail(data = {}) {
   const { startTime = 'Saturday 6:00 AM UTC', duration = '4 hours', affectedFeatures = ['Workflow execution may be delayed', 'Dashboard may be temporarily unavailable'] } = data;
   const subject = '🔧 Scheduled Maintenance Notice - EasyFlow';
-  
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -452,9 +452,9 @@ function getMaintenanceNotificationEmail(data = {}) {
 </body>
 </html>
   `.trim();
-  
+
   const text = `Scheduled Maintenance Notice\n\nWe'll be performing scheduled maintenance on EasyFlow.\n\nDate/Time: ${startTime}\nDuration: Approximately ${duration}\n\nWhat this means for you:\n${affectedFeatures.map(f => `- ${f}`).join('\n')}\n\nAll services will be fully operational after maintenance completes.`;
-  
+
   return { subject, html, text };
 }
 

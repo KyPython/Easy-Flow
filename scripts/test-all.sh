@@ -150,6 +150,21 @@ if [ -f "rpa-system/rpa-dashboard/package.json" ]; then
     cd ../..
 fi
 
+# Python script tests (repo root via pytest.ini)
+if command -v pytest >/dev/null 2>&1 || python3 -m pytest --version >/dev/null 2>&1; then
+    CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
+    if python3 -m pytest -q >/dev/null 2>&1 || pytest -q >/dev/null 2>&1; then
+        echo "  ${GREEN}✓ Python script tests passed${NC}"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+    else
+        echo "  ${RED}✗ Python script tests failed${NC}"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        TESTS_CRITICAL_FAILED=true
+    fi
+else
+    echo "  ${YELLOW}○ Python script tests skipped (pytest not installed)${NC}"
+fi
+
 # Python tests (optional; only run when pytest is actually available and tests exist)
 if [ -f "rpa-system/automation/automation-service/requirements.txt" ]; then
     # Check if test files exist first

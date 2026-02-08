@@ -222,7 +222,7 @@ class IntegrationCredentialsService {
  if (error.message?.includes('Gmail API has not been used') || error.message?.includes('Gmail API') && error.message?.includes('disabled')) {
  const projectIdMatch = error.message.match(/project (\d+)/);
  const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
- errorMessage = `Gmail API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.`;
+ errorMessage = 'Gmail API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.';
  actionUrl = `https://console.cloud.google.com/apis/api/gmail.googleapis.com/overview?project=${projectId}`;
  isConfigIssue = true;
  }
@@ -230,7 +230,7 @@ class IntegrationCredentialsService {
  else if (error.message?.includes('Calendar') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
  const projectIdMatch = error.message.match(/project (\d+)/);
  const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
- errorMessage = `Google Calendar API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.`;
+ errorMessage = 'Google Calendar API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.';
  actionUrl = `https://console.cloud.google.com/apis/api/calendar-json.googleapis.com/overview?project=${projectId}`;
  isConfigIssue = true;
  }
@@ -238,7 +238,7 @@ class IntegrationCredentialsService {
  else if (error.message?.includes('Sheets API') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
  const projectIdMatch = error.message.match(/project (\d+)/);
  const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
- errorMessage = `Google Sheets API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.`;
+ errorMessage = 'Google Sheets API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.';
  actionUrl = `https://console.cloud.google.com/apis/api/sheets.googleapis.com/overview?project=${projectId}`;
  isConfigIssue = true;
  }
@@ -246,7 +246,7 @@ class IntegrationCredentialsService {
  else if (error.message?.includes('Drive API') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
  const projectIdMatch = error.message.match(/project (\d+)/);
  const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
- errorMessage = `Google Drive API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.`;
+ errorMessage = 'Google Drive API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.';
  actionUrl = `https://console.cloud.google.com/apis/api/drive.googleapis.com/overview?project=${projectId}`;
  isConfigIssue = true;
  }
@@ -254,7 +254,7 @@ class IntegrationCredentialsService {
  else if (error.message?.includes('Meet API') && (error.message?.includes('not been used') || error.message?.includes('disabled'))) {
  const projectIdMatch = error.message.match(/project (\d+)/);
  const projectId = projectIdMatch ? projectIdMatch[1] : 'your-project';
- errorMessage = `Google Meet API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.`;
+ errorMessage = 'Google Meet API is not enabled in your Google Cloud project. Click the button below to enable it, wait a few minutes, then test again.';
  actionUrl = `https://console.cloud.google.com/apis/api/meet.googleapis.com/overview?project=${projectId}`;
  isConfigIssue = true;
  }
@@ -264,8 +264,8 @@ class IntegrationCredentialsService {
  isConfigIssue = false;
  }
 
- return { 
- success: false, 
+ return {
+ success: false,
  error: errorMessage,
  actionUrl: actionUrl,
  isConfigIssue: isConfigIssue,
@@ -319,7 +319,16 @@ class IntegrationCredentialsService {
  google_calendar: require('./integrations/googleCalendarIntegration'),
  whatsapp: require('./integrations/whatsappIntegration'),
  notion: require('./integrations/notionIntegration'),
- reddit: require('./integrations/redditIntegration')
+ reddit: require('./integrations/redditIntegration'),
+  teams: require('./integrations/teamsIntegration'),
+  dropbox: require('./integrations/dropboxIntegration'),
+  salesforce: require('./integrations/salesforceIntegration'),
+  hubspot: require('./integrations/hubspotIntegration'),
+  quickbooks: require('./integrations/quickbooksIntegration'),
+  asana: require('./integrations/asanaIntegration'),
+  trello: require('./integrations/trelloIntegration'),
+  linkedin: require('./integrations/linkedinIntegration'),
+  twitter: require('./integrations/twitterIntegration')
  };
 
  const IntegrationClass = integrations[service];

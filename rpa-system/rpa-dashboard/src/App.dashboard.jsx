@@ -53,6 +53,7 @@ const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'));
 const UnifiedDashboardPage = lazy(() => import('./pages/UnifiedDashboardPage'));
 const WebhooksPage = lazy(() => import('./pages/WebhooksPage'));
+const IntegrationMarketplacePage = lazy(() => import('./pages/IntegrationMarketplacePage'));
 const RulesPage = lazy(() => import('./pages/RulesPage'));
 const AdminTemplatesPage = lazy(() => import('./pages/AdminTemplatesPage'));
 const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'));
@@ -343,6 +344,7 @@ function Shell() {
             <Route path="/app/analytics" element={<Protected><AnalyticsPage /></Protected>} />
             <Route path="/app/metrics" element={<Protected><BusinessMetricsPage /></Protected>} />
             <Route path="/app/integrations" element={<Protected><IntegrationsPage /></Protected>} />
+            <Route path="/app/integration-marketplace" element={<Protected><IntegrationMarketplacePage /></Protected>} />
             <Route path="/app/unified-dashboard" element={<Protected><UnifiedDashboardPage /></Protected>} />
             <Route path="/app/webhooks" element={<Protected><WebhooksPage /></Protected>} />
             <Route path="/app/rules" element={<Protected><RulesPage /></Protected>} />

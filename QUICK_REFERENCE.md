@@ -79,6 +79,9 @@ SUPABASE_SERVICE_ROLE_KEY=xxx
 OPENAI_API_KEY=xxx           # AI features
 STRIPE_SECRET_KEY=xxx        # Payments
 SENDGRID_API_KEY=xxx         # Emails
+ANTHROPIC_API_KEY=xxx       # (Optional) Anthropic Claude API key
+DEFAULT_AI_PROVIDER=openai    # Set to 'anthropic' to prefer Claude
+DEFAULT_AI_MODEL=claude-haiku-4.5  # Example model name for Claude Haiku
 ```
 
 ## Database Commands

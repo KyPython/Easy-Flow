@@ -58,8 +58,31 @@ An RPA automation platform focused on sovereign workflows, helping you reduce re
 
 ### Client Automation (Revenue)
 - **[CLIENT_AUTOMATION_QUICK_START.md](docs/CLIENT_AUTOMATION_QUICK_START.md)** - **START HERE** - 15-minute action plan
+
+---
+
+## Architecture Brief (Interview Guide)
+
+For a concise architecture summary, interview walkthrough, and explanation of the DLQ + atomic-claim primitives, see:
+
+- **[EasyFlow Architecture Brief](docs/EASYFLOW_ARCHITECTURE.md)**
+
+This document explains the Postgres-based coordination model, failure memory (`retry_count`, `last_error`), bounded retries and DLQ semantics, and the `claim_next_workflow_execution()` RPC used for atomic claiming.
 - **[CLIENT_AUTOMATION_GUIDE.md](docs/CLIENT_AUTOMATION_GUIDE.md)** - Complete client automation process
 - **[OUTREACH_TEMPLATES.md](docs/OUTREACH_TEMPLATES.md)** - Copy-paste outreach scripts
+
+## Practice & Interview Tasks (Personal)
+
+For personal practice and IDE-style interview tasks (kept out of repo history), see:
+- [docs/INTERVIEW_TASKS.md](docs/INTERVIEW_TASKS.md) — task index and how to run tests
+- [docs/EVALUATION_RUBRIC.md](docs/EVALUATION_RUBRIC.md) — scoring rubric for interviews
+- [docs/AI_USAGE_GUIDELINES.md](docs/AI_USAGE_GUIDELINES.md) — AI usage and provenance guidance
+- [docs/INTERVIEWER_CHEATSHEET.md](docs/INTERVIEWER_CHEATSHEET.md) — quick interviewer checklist
+
+## Engineering Philosophy
+
+High-level expectations for engineers (problem-solving, business focus, and AI collaboration):
+- [docs/ENGINEERING_PHILOSOPHY.md](docs/ENGINEERING_PHILOSOPHY.md)
 
 ### Reference (When Needed)
 - **[RAG_INTEGRATION.md](docs/RAG_INTEGRATION.md)** - RAG service setup

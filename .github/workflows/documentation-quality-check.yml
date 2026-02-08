@@ -1,0 +1,233 @@
+name: Documentation Quality Check
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - '.github/workflows/documentation-quality-check.yml'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - '**.md'
+
+jobs:
+  check-documentation:
+    name: Check Documentation Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        
+      - name: Check for temporary/low-value markdown files
+        run: |
+          echo "🔍 Checking for temporary or low-value markdown files..."
+          
+          # Define patterns that indicate temporary/low-value docs
+          TEMP_PATTERNS=(
+            "MIGRATION_INSTRUCTIONS"
+            "MIGRATION_READY"
+            "TEMP_"
+            "TMP_"
+            "DRAFT_"
+            "DELETE_ME"
+            "NOTES_"
+            "SCRATCH"
+            "WIP_"
+          )
+          
+          # Find markdown files (excluding node_modules)
+          FILES=$(find . -name "*.md" \
+            -not -path "./node_modules/*" \
+            -not -path "./.git/*" \
+            -not -path "*/node_modules/*" \
+            -not -path "./.next/*" \
+            -not -path "./build/*" \
+            -not -path "./dist/*")
+          
+          VIOLATIONS=0
+          
+          for FILE in $FILES; do
+            BASENAME=$(basename "$FILE")
+            
+            # Check if filename matches temporary patterns
+            for PATTERN in "${TEMP_PATTERNS[@]}"; do
+              if [[ "$BASENAME" == *"$PATTERN"* ]]; then
+                echo "❌ Found temporary/low-value doc: $FILE"
+                echo "   Pattern matched: $PATTERN"
+                echo "   → This appears to be a temporary file that should be deleted or moved to proper docs"
+                VIOLATIONS=$((VIOLATIONS + 1))
+              fi
+            done
+            
+            # Check for files without proper headers or context
+            if [ -f "$FILE" ]; then
+              FIRST_LINE=$(head -n 1 "$FILE" 2>/dev/null || echo "")
+              WORD_COUNT=$(wc -w < "$FILE" 2>/dev/null || echo "0")
+              
+              # Skip if it's a standard file (README, LICENSE, etc.)
+              if [[ "$BASENAME" == "README.md" ]] || \
+                 [[ "$BASENAME" == "LICENSE.md" ]] || \
+                 [[ "$BASENAME" == "CHANGELOG.md" ]] || \
+                 [[ "$BASENAME" == "CONTRIBUTING.md" ]]; then
+                continue
+              fi
+              
+              # Warn if very short (less than 50 words)
+              if [ "$WORD_COUNT" -lt 50 ]; then
+                echo "⚠️  Very short doc (${WORD_COUNT} words): $FILE"
+                echo "   → Consider: Is this valuable long-term or just a scratch note?"
+              fi
+            fi
+          done
+          
+          echo ""
+          echo "📊 Summary:"
+          echo "   Total markdown files checked: $(echo "$FILES" | wc -l)"
+          echo "   Violations found: $VIOLATIONS"
+          
+          if [ $VIOLATIONS -gt 0 ]; then
+            echo ""
+            echo "❌ Found $VIOLATIONS temporary/low-value markdown files"
+            echo ""
+            echo "📝 Guidelines:"
+            echo "   ✅ Keep: Long-term valuable documentation"
+            echo "   ✅ Keep: Architecture decisions, guides, references"
+            echo "   ❌ Remove: Temporary migration instructions"
+            echo "   ❌ Remove: Scratch notes, WIP docs"
+            echo "   ❌ Remove: 'TODO: Delete this' files"
+            echo ""
+            echo "💡 If a doc is temporary but needed right now:"
+            echo "   1. Move it to /tmp/ or a .gitignore'd folder"
+            echo "   2. Or add it to .md-exceptions if truly needed short-term"
+            exit 1
+          fi
+          
+          echo "✅ All markdown files appear to be long-term valuable documentation"
+          
+      - name: Check for outdated documentation markers
+        run: |
+          echo "🔍 Checking for outdated documentation markers..."
+          
+          # Find docs with "TODO: Delete", "Remove this", "Temporary", etc.
+          OUTDATED=$(grep -r \
+            -E "(TODO.*[Dd]elete|TODO.*[Rr]emove|TEMPORARY|This is temporary|Delete (this|me)|Remove (this|me))" \
+            --include="*.md" \
+            --exclude-dir=node_modules \
+            --exclude-dir=.git \
+            . || true)
+          
+          if [ -n "$OUTDATED" ]; then
+            echo "⚠️  Found documentation with deletion markers:"
+            echo "$OUTDATED"
+            echo ""
+            echo "💡 These docs should likely be removed or cleaned up"
+            # Don't fail on this, just warn
+          else
+            echo "✅ No outdated documentation markers found"
+          fi
+          
+      - name: Check for duplicate documentation
+        run: |
+          echo "🔍 Checking for potential duplicate documentation..."
+          
+          # Find files with very similar names (potential duplicates)
+          find . -name "*.md" \
+            -not -path "./node_modules/*" \
+            -not -path "./.git/*" \
+            -not -path "*/node_modules/*" \
+            | sort | while read FILE; do
+              BASENAME=$(basename "$FILE" .md)
+              
+              # Look for similar files (ignoring case, underscores vs hyphens)
+              NORMALIZED=$(echo "$BASENAME" | tr '[:upper:]' '[:lower:]' | tr '_' '-')
+              
+              # Check if multiple files have the same normalized name
+              SIMILAR=$(find . -name "*.md" \
+                -not -path "./node_modules/*" \
+                -not -path "./.git/*" \
+                -not -path "*/node_modules/*" \
+                | grep -i "$(echo $BASENAME | tr '_' '-')" || true)
+              
+              COUNT=$(echo "$SIMILAR" | grep -c . || echo "0")
+              
+              if [ "$COUNT" -gt 1 ]; then
+                echo "⚠️  Potential duplicates found for '$BASENAME':"
+                echo "$SIMILAR" | sed 's/^/     /'
+                echo ""
+              fi
+            done | head -20
+          
+          echo "✅ Duplicate check complete"
+          
+      - name: Generate documentation report
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "## 📚 Documentation Changes Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Get changed MD files in this PR
+          CHANGED_MDS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.md$' || echo "")
+          
+          if [ -n "$CHANGED_MDS" ]; then
+            echo "### Modified Documentation Files:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "$CHANGED_MDS" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            echo "### Review Checklist:" >> $GITHUB_STEP_SUMMARY
+            echo "- [ ] Are these docs valuable long-term?" >> $GITHUB_STEP_SUMMARY
+            echo "- [ ] Are they properly organized in /docs?" >> $GITHUB_STEP_SUMMARY
+            echo "- [ ] Do they have clear purpose and context?" >> $GITHUB_STEP_SUMMARY
+            echo "- [ ] Are there any temporary/scratch files?" >> $GITHUB_STEP_SUMMARY
+            echo "- [ ] Should any be removed or consolidated?" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No documentation files changed in this PR." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+      - name: Comment on PR
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ⚠️ Documentation Quality Issues Found
+              
+**Temporary or low-value markdown files detected.**
+
+Please review the CI logs above and:
+
+1. ✅ **Keep** only long-term valuable documentation
+2. ❌ **Remove** temporary migration instructions, scratch notes, WIP docs
+3. 📁 **Organize** docs properly in \`/docs\` folders
+
+### Common Issues:
+- Files named with MIGRATION_*, TEMP_*, DRAFT_*, WIP_*
+- Very short files (<50 words) without clear purpose
+- Files marked "TODO: Delete" or "Temporary"
+
+### Guidelines:
+**Keep these:**
+- Architecture decisions and design docs
+- Setup guides and tutorials
+- API documentation
+- Process and workflow docs
+- Long-term reference materials
+
+**Remove these:**
+- One-time migration instructions (after migration is done)
+- Scratch notes and temporary files
+- Duplicate or outdated documentation
+- "Notes to self" files
+
+---
+**Policy:** No markdown files should be in the codebase unless they provide long-term value.`
+            });

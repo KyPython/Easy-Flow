@@ -16,25 +16,23 @@
  * - Business metrics for usage analytics
  */
 
-const OpenAI = require('openai');
 const { createLogger } = require('../middleware/structuredLogging');
 const ragClient = require('./ragClient');
+const { createAIClient } = require('../utils/aiClient');
 
 // Namespaced logger for AI Workflow Agent
 const logger = createLogger('ai.agent');
 
 // Lazy-initialize OpenAI client (only when first needed, not at module load)
-let _openaiClient = null;
+let _aiClient = null;
 function getOpenAI() {
- if (!_openaiClient) {
- const apiKey = process.env.OPENAI_API_KEY;
- if (!apiKey) {
- logger.warn('OpenAI API key not configured - AI features will be limited');
- return null;
- }
- _openaiClient = new OpenAI({ apiKey });
- }
- return _openaiClient;
+	if (!_aiClient) {
+		_aiClient = createAIClient();
+		if (!_aiClient) {
+			logger.warn('No AI client configured (OpenAI or Anthropic). Set OPENAI_API_KEY or ANTHROPIC_API_KEY');
+		}
+	}
+	return _aiClient;
 }
 
 // Workflow step definitions for the AI to understand
@@ -760,26 +758,26 @@ async function handleMessage(userMessage, context = {}) {
  // ✅ PAIN MAPPING: Detect if user is describing a problem, not a solution
  const painDetection = painMapping.detectPainPoint(userMessage);
  const discoveredInfo = painMapping.extractDiscoveredInfo(context);
- 
+
  if (painDetection.isPainPoint && painDetection.confidence > 0.6) {
  msgLogger.info('Pain point detected', {
  painTypes: painDetection.painTypes,
  confidence: painDetection.confidence,
  discoveredInfo: Object.keys(discoveredInfo)
  });
- 
+
  // Check if we have enough information to proceed
  const questions = painMapping.generateClarifyingQuestions(painDetection, { discoveredInfo });
- 
+
  if (questions.length > 0) {
  // We need more information - ask clarifying questions
  const questionText = questions.map(q => q.question).join('\n- ');
- 
+
  // Also try to match templates to show user we understand their pain
  const templateMatches = await painMapping.matchTemplatesToPain(userMessage, discoveredInfo);
- 
+
  let responseMessage = `I understand you're dealing with ${painDetection.painTypes?.[0] || 'a repetitive task'}. Let me help you automate this! 🎯\n\n`;
- 
+
  if (templateMatches.success && templateMatches.matches.length > 0) {
  const topMatch = templateMatches.matches[0];
  responseMessage += `I found a template that might help: **${topMatch.name}** - ${topMatch.description}\n\n`;
@@ -788,7 +786,7 @@ async function handleMessage(userMessage, context = {}) {
  } else {
  responseMessage += `To create the perfect workflow for you, I need a few quick details:\n- ${questionText}`;
  }
- 
+
  return {
  type: 'conversation',
  success: true,
@@ -799,7 +797,7 @@ async function handleMessage(userMessage, context = {}) {
  discoveredInfo
  };
  }
- 
+
  // We have enough info, but user said "just make it work" - apply defaults
  const wantsDefaults = /just make it work|just do it|set it up|make it happen|do your thing/i.test(userMessage);
  if (wantsDefaults) {
@@ -1056,7 +1054,7 @@ Available automation types: ${Object.values(WORKFLOW_STEPS).map(s => `${s.icon} 
  if (context.applyDefaults && result.success && result.workflow) {
  result.workflow = painMapping.applyDefaultSettings(result.workflow, true);
  }
- 
+
  // ✅ PAIN MAPPING: Generate non-technical preview
  if (result.success && result.workflow) {
  const discoveredInfo = painMapping.extractDiscoveredInfo(context);

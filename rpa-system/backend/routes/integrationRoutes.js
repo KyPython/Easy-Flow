@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { logger } = require('../utils/logger');
 const integrationCredentialsService = require('../services/integrationCredentialsService');
+const oauthService = require('../services/oauthService');
 const { requireAuth } = require('../middleware/auth');
 const { requireFeature } = require('../middleware/planEnforcement');
 const { checkIntegrationLimit } = require('../middleware/comprehensiveRateLimit');
@@ -452,96 +453,9 @@ router.get('/:service/oauth/callback', async (req, res) => {
  * @private
  */
 async function getOAuthUrl(service, stateToken, redirectUri) {
- // Use the redirectUri parameter if provided (full callback URL),
- // otherwise construct from API_BASE_URL
- // This allows localhost for development and production URL for production
- let callbackUrl;
- if (redirectUri && redirectUri.includes('/api/integrations/')) {
- // redirectUri is already a full callback URL
- callbackUrl = redirectUri;
- } else {
- // Use redirectUri as base URL or fall back to API_BASE_URL
- const baseUrl = redirectUri || (process.env.API_BASE_URL || 'http://localhost:3030');
- callbackUrl = `${baseUrl}/api/integrations/${service}/oauth/callback`;
- }
-
- switch (service) {
- case 'slack': {
- const slackClientId = process.env.SLACK_CLIENT_ID;
- if (!slackClientId) {
- const error = new Error('SLACK_CLIENT_ID not configured');
- error.statusCode = 503;
- throw error;
- }
-
- const slackScopes = 'chat:write,channels:read,channels:history,files:write';
- return `https://slack.com/oauth/v2/authorize?client_id=${slackClientId}&scope=${slackScopes}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${stateToken}`;
- }
-
- case 'gmail':
- case 'google_sheets':
- case 'google_meet':
- case 'google_drive':
- case 'google_calendar': {
- const googleClientId = process.env.GOOGLE_CLIENT_ID;
- if (!googleClientId) {
- const error = new Error('GOOGLE_CLIENT_ID not configured');
- error.statusCode = 503;
- throw error;
- }
-
- const scopes = {
- gmail: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',
- google_sheets: 'https://www.googleapis.com/auth/spreadsheets',
- google_meet: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/calendar.readonly',
- google_drive: 'https://www.googleapis.com/auth/drive',
- google_calendar: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events'
- };
-
- const scope = scopes[service] || scopes.google_drive;
-
- // Log the exact redirect URI being sent to Google for debugging
- logger.info('[IntegrationRoutes] Google OAuth URL generated', {
- service,
- callbackUrl,
- scope: scope.substring(0, 50) + '...' // Truncate for logging
- });
-
- return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${stateToken}`;
- }
-
- case 'notion': {
- const notionClientId = process.env.NOTION_CLIENT_ID;
- if (!notionClientId) {
- const error = new Error('NOTION_CLIENT_ID not configured');
- error.statusCode = 503;
- throw error;
- }
-
- // Notion OAuth 2.0
- return `https://api.notion.com/v1/oauth/authorize?client_id=${notionClientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&owner=user&state=${stateToken}`;
- }
-
- case 'whatsapp': {
- // Meta WhatsApp Business API OAuth (via Facebook Login)
- const facebookAppId = process.env.FACEBOOK_APP_ID;
- if (!facebookAppId) {
- const error = new Error('FACEBOOK_APP_ID not configured. WhatsApp OAuth requires Facebook App credentials.');
- error.statusCode = 503;
- throw error;
- }
-
- // Meta WhatsApp requires these scopes:
- // - whatsapp_business_management: Manage WhatsApp Business accounts
- // - whatsapp_business_messaging: Send and receive messages
- // - business_management: Manage business assets
- const whatsappScopes = 'whatsapp_business_management,whatsapp_business_messaging,business_management';
- return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=${whatsappScopes}&response_type=code&state=${stateToken}`;
- }
-
- default:
- throw new Error(`OAuth not supported for service: ${service}`);
- }
+  // Wrapper function that delegates to oauthService
+  // Maintains backward compatibility while reducing complexity
+  return oauthService.generateOAuthUrl(service, stateToken, redirectUri);
 }
 
 /**
@@ -730,6 +644,160 @@ async function exchangeOAuthCode(service, code, redirectUri) {
  expiresAt: facebookTokenResponse.data.expires_in
  ? new Date(Date.now() + facebookTokenResponse.data.expires_in * 1000).toISOString()
  : null
+ };
+ }
+
+ // Microsoft Teams (Azure AD / MS Graph)
+ case 'teams': {
+ const clientId = process.env.TEAMS_CLIENT_ID;
+ const clientSecret = process.env.TEAMS_CLIENT_SECRET;
+ const tenant = process.env.AZURE_TENANT_ID || 'common';
+ const tokenUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`;
+ const params = new URLSearchParams();
+ params.append('client_id', clientId || '');
+ params.append('client_secret', clientSecret || '');
+ params.append('grant_type', 'authorization_code');
+ params.append('code', code);
+ params.append('redirect_uri', callbackUrl);
+ params.append('scope', 'offline_access User.Read');
+ const response = await axios.post(tokenUrl, params.toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+ return {
+ accessToken: response.data.access_token,
+ refreshToken: response.data.refresh_token,
+ expiresAt: response.data.expires_in ? new Date(Date.now() + response.data.expires_in * 1000).toISOString() : null
+ };
+ }
+
+ // Dropbox
+ case 'dropbox': {
+ const clientId = process.env.DROPBOX_CLIENT_ID;
+ const clientSecret = process.env.DROPBOX_CLIENT_SECRET;
+ const params = new URLSearchParams();
+ params.append('code', code);
+ params.append('grant_type', 'authorization_code');
+ params.append('client_id', clientId || '');
+ params.append('client_secret', clientSecret || '');
+ params.append('redirect_uri', callbackUrl);
+ const response = await axios.post('https://api.dropboxapi.com/oauth2/token', params.toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+ return {
+ accessToken: response.data.access_token,
+ refreshToken: response.data.refresh_token,
+ accountId: response.data.account_id,
+ expiresAt: response.data.expires_in ? new Date(Date.now() + response.data.expires_in * 1000).toISOString() : null
+ };
+ }
+
+ // Salesforce
+ case 'salesforce': {
+ const clientId = process.env.SALESFORCE_CLIENT_ID;
+ const clientSecret = process.env.SALESFORCE_CLIENT_SECRET;
+ const params = new URLSearchParams();
+ params.append('code', code);
+ params.append('grant_type', 'authorization_code');
+ params.append('client_id', clientId || '');
+ params.append('client_secret', clientSecret || '');
+ params.append('redirect_uri', callbackUrl);
+ const response = await axios.post('https://login.salesforce.com/services/oauth2/token', params.toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+ return {
+ accessToken: response.data.access_token,
+ refreshToken: response.data.refresh_token,
+ instanceUrl: response.data.instance_url,
+ id: response.data.id,
+ tokenType: response.data.token_type,
+ issuedAt: response.data.issued_at
+ };
+ }
+
+ // HubSpot
+ case 'hubspot': {
+ const clientId = process.env.HUBSPOT_CLIENT_ID;
+ const clientSecret = process.env.HUBSPOT_CLIENT_SECRET;
+ const params = new URLSearchParams();
+ params.append('grant_type', 'authorization_code');
+ params.append('client_id', clientId || '');
+ params.append('client_secret', clientSecret || '');
+ params.append('redirect_uri', callbackUrl);
+ params.append('code', code);
+ const response = await axios.post('https://api.hubapi.com/oauth/v1/token', params.toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+ return {
+ accessToken: response.data.access_token,
+ refreshToken: response.data.refresh_token,
+ expiresAt: response.data.expires_in ? new Date(Date.now() + response.data.expires_in * 1000).toISOString() : null
+ };
+ }
+
+ // QuickBooks (Intuit)
+ case 'quickbooks': {
+ const clientId = process.env.QUICKBOOKS_CLIENT_ID;
+ const clientSecret = process.env.QUICKBOOKS_CLIENT_SECRET;
+ const params = new URLSearchParams();
+ params.append('grant_type', 'authorization_code');
+ params.append('code', code);
+ params.append('redirect_uri', callbackUrl);
+ const response = await axios.post('https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer', params.toString(), {
+ headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+ auth: { username: clientId || '', password: clientSecret || '' }
+ });
+ return {
+ accessToken: response.data.access_token,
+ refreshToken: response.data.refresh_token,
+ tokenType: response.data.token_type,
+ expiresAt: response.data.expires_in ? new Date(Date.now() + response.data.expires_in * 1000).toISOString() : null
+ };
+ }
+
+ // Asana
+ case 'asana': {
+ const clientId = process.env.ASANA_CLIENT_ID;
+ const clientSecret = process.env.ASANA_CLIENT_SECRET;
+ const params = new URLSearchParams();
+ params.append('grant_type', 'authorization_code');
+ params.append('client_id', clientId || '');
+ params.append('client_secret', clientSecret || '');
+ params.append('redirect_uri', callbackUrl);
+ params.append('code', code);
+ const response = await axios.post('https://app.asana.com/-/oauth_token', params.toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+ return {
+ accessToken: response.data.access_token,
+ refreshToken: response.data.refresh_token,
+ tokenType: response.data.token_type,
+ expiresAt: response.data.expires_in ? new Date(Date.now() + response.data.expires_in * 1000).toISOString() : null
+ };
+ }
+
+ // LinkedIn
+ case 'linkedin': {
+ const clientId = process.env.LINKEDIN_CLIENT_ID;
+ const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
+ const params = new URLSearchParams();
+ params.append('grant_type', 'authorization_code');
+ params.append('code', code);
+ params.append('redirect_uri', callbackUrl);
+ params.append('client_id', clientId || '');
+ params.append('client_secret', clientSecret || '');
+ const response = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', params.toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+ return {
+ accessToken: response.data.access_token,
+ expiresAt: response.data.expires_in ? new Date(Date.now() + response.data.expires_in * 1000).toISOString() : null
+ };
+ }
+
+ // Twitter (OAuth 2.0)
+ case 'twitter': {
+ const clientId = process.env.TWITTER_CLIENT_ID;
+ const clientSecret = process.env.TWITTER_CLIENT_SECRET;
+ const params = new URLSearchParams();
+ params.append('client_id', clientId || '');
+ params.append('grant_type', 'authorization_code');
+ params.append('code', code);
+ params.append('redirect_uri', callbackUrl);
+ params.append('code_verifier', 'easyflow-placeholder');
+ const response = await axios.post('https://api.twitter.com/2/oauth2/token', params.toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+ return {
+ accessToken: response.data.access_token,
+ refreshToken: response.data.refresh_token,
+ expiresAt: response.data.expires_in ? new Date(Date.now() + response.data.expires_in * 1000).toISOString() : null,
+ tokenType: response.data.token_type
  };
  }
 

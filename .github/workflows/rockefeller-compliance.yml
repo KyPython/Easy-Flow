@@ -1,0 +1,215 @@
+name: Rockefeller Compliance Check
+
+on:
+  pull_request:
+    paths:
+      - 'rpa-system/**/*.{js,ts,jsx,tsx}'
+      - 'scripts/**/*.{js,ts}'
+      - '.github/rockefeller-rules.json'
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  rockefeller-compliance:
+    name: Rockefeller 7-Filter Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Run Rockefeller Compliance Analysis
+        id: compliance
+        run: |
+          echo "Running all 7 Rockefeller filters..."
+          node scripts/analyze-rockefeller-compliance.js \
+            .github/rockefeller-rules.json \
+            rpa-system/backend \
+            scripts 2>&1 | tee compliance_output.txt
+          
+          # Extract scores from output
+          efficiency=$(grep "1\. Efficiency" compliance_output.txt | grep -oP "Score: \K[\d.]+")
+          control=$(grep "2\. Control" compliance_output.txt | grep -oP "Score: \K[\d.]+")
+          data=$(grep "3\. Data" compliance_output.txt | grep -oP "Score: \K[\d.]+")
+          strategy=$(grep "4\. Strategic" compliance_output.txt | grep -oP "Score: \K[\d.]+")
+          culture=$(grep "5\. Culture" compliance_output.txt | grep -oP "Score: \K[\d.]+")
+          innovation=$(grep "6\. Innovation" compliance_output.txt | grep -oP "Score: \K[\d.]+")
+          focus=$(grep "7\. Focus" compliance_output.txt | grep -oP "Score: \K[\d.]+")
+          
+          total=$(grep "Total Score:" compliance_output.txt | grep -oP "Score: \K[\d]+")
+          
+          # Output scores for other steps
+          echo "efficiency=$efficiency" >> $GITHUB_OUTPUT
+          echo "control=$control" >> $GITHUB_OUTPUT
+          echo "data=$data" >> $GITHUB_OUTPUT
+          echo "strategy=$strategy" >> $GITHUB_OUTPUT
+          echo "culture=$culture" >> $GITHUB_OUTPUT
+          echo "innovation=$innovation" >> $GITHUB_OUTPUT
+          echo "focus=$focus" >> $GITHUB_OUTPUT
+          echo "total=$total" >> $GITHUB_OUTPUT
+          
+          # Determine outcome
+          if [ "$total" -ge 60 ]; then
+            echo "result=strong_yes" >> $GITHUB_OUTPUT
+            exit 0
+          elif [ "$total" -ge 45 ]; then
+            echo "result=conditional_yes" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "result=fail" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        continue-on-error: false
+        
+      - name: Generate Compliance Report
+        if: always()
+        run: |
+          total="${{ steps.compliance.outputs.total }}"
+          result="${{ steps.compliance.outputs.result }}"
+          
+          echo "## 🎯 Rockefeller Compliance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Score: ${total:-0}/70**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$result" = "strong_yes" ]; then
+            echo "### ✅ STRONG YES - Proceed Immediately" >> $GITHUB_STEP_SUMMARY
+            echo "Excellent alignment with Rockefeller principles!" >> $GITHUB_STEP_SUMMARY
+          elif [ "$result" = "conditional_yes" ]; then
+            echo "### ⚠️ CONDITIONAL YES - Address Concerns" >> $GITHUB_STEP_SUMMARY
+            echo "Good alignment, but review warnings below." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ BLOCKED - Does Not Meet Standards" >> $GITHUB_STEP_SUMMARY
+            echo "Score below 45/70. Significant improvements needed." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 7-Filter Breakdown" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Filter | Score | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          eff="${{ steps.compliance.outputs.efficiency }}"
+          [ "${eff%%.*}" -ge 8 ] && eff_status="✅" || eff_status="⚠️"
+          echo "| 1️⃣ Efficiency | ${eff:-5}/10 | $eff_status |" >> $GITHUB_STEP_SUMMARY
+          
+          con="${{ steps.compliance.outputs.control }}"
+          [ "${con%%.*}" -ge 8 ] && con_status="✅" || con_status="⚠️"
+          echo "| 2️⃣ Control | ${con:-5}/10 | $con_status |" >> $GITHUB_STEP_SUMMARY
+          
+          dat="${{ steps.compliance.outputs.data }}"
+          [ "${dat%%.*}" -ge 8 ] && dat_status="✅" || dat_status="⚠️"
+          echo "| 3️⃣ Data | ${dat:-5}/10 | $dat_status |" >> $GITHUB_STEP_SUMMARY
+          
+          str="${{ steps.compliance.outputs.strategy }}"
+          [ "${str%%.*}" -ge 8 ] && str_status="✅" || str_status="⚠️"
+          echo "| 4️⃣ Strategy | ${str:-5}/10 | $str_status |" >> $GITHUB_STEP_SUMMARY
+          
+          cul="${{ steps.compliance.outputs.culture }}"
+          [ "${cul%%.*}" -ge 8 ] && cul_status="✅" || cul_status="⚠️"
+          echo "| 5️⃣ Culture | ${cul:-5}/10 | $cul_status |" >> $GITHUB_STEP_SUMMARY
+          
+          inn="${{ steps.compliance.outputs.innovation }}"
+          [ "${inn%%.*}" -ge 8 ] && inn_status="✅" || inn_status="⚠️"
+          echo "| 6️⃣ Innovation | ${inn:-5}/10 | $inn_status |" >> $GITHUB_STEP_SUMMARY
+          
+          foc="${{ steps.compliance.outputs.focus }}"
+          [ "${foc%%.*}" -ge 8 ] && foc_status="✅" || foc_status="⚠️"
+          echo "| 7️⃣ Focus | ${foc:-5}/10 | $foc_status |" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Decision Guide" >> $GITHUB_STEP_SUMMARY
+          echo "- **60-70**: Strong YES ✅ (Proceed immediately)" >> $GITHUB_STEP_SUMMARY
+          echo "- **45-59**: Conditional YES ⚠️ (Address concerns)" >> $GITHUB_STEP_SUMMARY
+          echo "- **<45**: BLOCKED ❌ (Major improvements needed)" >> $GITHUB_STEP_SUMMARY
+          
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const total = parseInt('${{ steps.compliance.outputs.total }}') || 0;
+            const result = '${{ steps.compliance.outputs.result }}';
+            
+            let comment = '## 🎯 Rockefeller Compliance Check\n\n';
+            comment += `**Total Score: ${total}/70**\n\n`;
+            
+            if (result === 'strong_yes') {
+              comment += '### ✅ STRONG YES - Approved to Merge\n\n';
+              comment += 'Your changes demonstrate excellent alignment with our Rockefeller principles:\n';
+              comment += '- Ruthless efficiency in implementation\n';
+              comment += '- Strong control over dependencies\n';
+              comment += '- Good data intelligence\n';
+              comment += '- Strategic alignment with vision\n';
+              comment += '- Cultural values embodied\n';
+              comment += '- Innovative approach\n';
+              comment += '- Clear focus on priorities\n\n';
+              comment += '**Status**: Ready to merge! 🚀\n';
+            } else if (result === 'conditional_yes') {
+              comment += '### ⚠️ CONDITIONAL YES - Review Required\n\n';
+              comment += 'Your changes are acceptable but need attention in some areas.\n\n';
+              comment += '**What to do**:\n';
+              comment += '1. Review the filters scoring <8/10\n';
+              comment += '2. Address the specific recommendations\n';
+              comment += '3. Consider improvements before merge\n\n';
+              comment += '**Status**: Can merge after review\n';
+            } else {
+              comment += '### ❌ BLOCKED - Score Too Low\n\n';
+              comment += `Your changes scored ${total}/70, which is below our threshold of 45.\n\n`;
+              comment += '**This PR is blocked from merging until:**\n';
+              comment += '1. Review the detailed analysis above\n';
+              comment += '2. Implement recommended improvements\n';
+              comment += '3. Re-run compliance check\n';
+              comment += '4. Achieve score ≥45\n\n';
+              comment += '**Status**: ❌ CANNOT MERGE\n';
+            }
+            
+            comment += '\n### Detailed Scores\n\n';
+            comment += '| Filter | Score |\n';
+            comment += '|--------|-------|\n';
+            comment += `| Efficiency | ${{ steps.compliance.outputs.efficiency || 5 }}/10 |\n`;
+            comment += `| Control | ${{ steps.compliance.outputs.control || 5 }}/10 |\n`;
+            comment += `| Data | ${{ steps.compliance.outputs.data || 5 }}/10 |\n`;
+            comment += `| Strategy | ${{ steps.compliance.outputs.strategy || 5 }}/10 |\n`;
+            comment += `| Culture | ${{ steps.compliance.outputs.culture || 5 }}/10 |\n`;
+            comment += `| Innovation | ${{ steps.compliance.outputs.innovation || 5 }}/10 |\n`;
+            comment += `| Focus | ${{ steps.compliance.outputs.focus || 5 }}/10 |\n`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+            
+      - name: Enforce Compliance Threshold
+        if: steps.compliance.outputs.result == 'fail'
+        run: |
+          total="${{ steps.compliance.outputs.total }}"
+          echo "❌ PR BLOCKED: Rockefeller compliance score (${total}/70) is below minimum threshold (45)"
+          echo ""
+          echo "Your PR does not meet our Rockefeller Operating System standards."
+          echo ""
+          echo "Next steps:"
+          echo "1. Review the detailed analysis above"
+          echo "2. Implement the recommended improvements"
+          echo "3. Push new changes to re-trigger this check"
+          echo "4. Aim for a score of 45 or higher"
+          echo ""
+          echo "For help, see: docs/philosophy/ROCKEFELLER_DECISION_ANALYSIS.md"
+          exit 1
+          
+      - name: Success Message
+        if: steps.compliance.outputs.result == 'strong_yes' || steps.compliance.outputs.result == 'conditional_yes'
+        run: |
+          total="${{ steps.compliance.outputs.total }}"
+          echo "✅ Rockefeller compliance check passed (${total}/70)"
+          echo "Changes align with our operating principles!"

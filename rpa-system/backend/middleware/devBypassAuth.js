@@ -34,13 +34,13 @@ function checkDevBypass(req) {
   if (allowedDevIPs) {
     const allowedIPList = allowedDevIPs.split(',').map(ip => ip.trim());
     const clientIP = req.ip || req.connection?.remoteAddress || req.get('x-forwarded-for');
-    const isIPAllowed = allowedIPList.some(allowedIP => 
+    const isIPAllowed = allowedIPList.some(allowedIP =>
       clientIP?.includes(allowedIP) || allowedIP === '*'
     );
     if (!isIPAllowed) {
-      logger.warn('[dev-bypass-auth] IP not allowed', { 
-        ip: clientIP, 
-        allowedIPs: allowedIPList 
+      logger.warn('[dev-bypass-auth] IP not allowed', {
+        ip: clientIP,
+        allowedIPs: allowedIPList
       });
       return null;
     }

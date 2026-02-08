@@ -1,0 +1,146 @@
+name: Backend Syntax Guard
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - 'rpa-system/backend/**/*.js'
+  pull_request:
+    branches: ["**"]
+    paths:
+      - 'rpa-system/backend/**/*.js'
+
+# This workflow MUST block any commit with backend syntax errors
+# It runs on every push/PR that touches backend JavaScript files
+# No continue-on-error, no permissive mode - ALWAYS BLOCKING
+
+jobs:
+  syntax-validation:
+    name: Validate Backend Syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      
+      - name: Validate backend JavaScript syntax
+        id: syntax-check
+        run: |
+          echo "🔍 Validating backend JavaScript syntax..."
+          ERRORS=0
+          TOTAL=0
+          
+          # Find all .js files in backend, excluding node_modules and coverage
+          while IFS= read -r file; do
+            TOTAL=$((TOTAL + 1))
+            
+            # Use node --check for syntax validation
+            if ! node --check "$file" 2>&1; then
+              echo "❌ Syntax error in: $file"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done < <(find rpa-system/backend -type f -name "*.js" ! -path "*/node_modules/*" ! -path "*/coverage/*")
+          
+          echo ""
+          echo "📊 Validation Summary:"
+          echo "   Total files checked: $TOTAL"
+          echo "   Files with errors: $ERRORS"
+          
+          if [ $ERRORS -gt 0 ]; then
+            echo ""
+            echo "❌ CRITICAL: Found $ERRORS file(s) with syntax errors"
+            echo "   Syntax errors MUST be fixed before merge"
+            echo "   Run 'node --check <file>' locally to reproduce"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All backend files have valid JavaScript syntax"
+      
+      - name: Report status
+        if: always()
+        run: |
+          if [ "${{ steps.syntax-check.outcome }}" == "success" ]; then
+            echo "✅ Backend Syntax Guard: PASSED"
+            echo "All backend JavaScript files have valid syntax"
+          else
+            echo "❌ Backend Syntax Guard: FAILED"
+            echo "Fix syntax errors before merging"
+            exit 1
+          fi
+
+  backend-eslint:
+    name: Backend ESLint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: 'rpa-system/backend/package-lock.json'
+      
+      - name: Install backend dependencies
+        working-directory: rpa-system/backend
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci --only=production --ignore-scripts
+          else
+            npm install --only=production --ignore-scripts --no-audit --no-fund
+          fi
+      
+      - name: Run ESLint on backend
+        working-directory: rpa-system/backend
+        run: |
+          echo "🔍 Running ESLint on backend..."
+          
+          # Run ESLint - will use the fixed .eslintrc.js with root: true
+          if npm run lint; then
+            echo "✅ Backend ESLint passed"
+          else
+            echo "❌ Backend ESLint failed"
+            echo "Run 'npm run lint:fix' in rpa-system/backend to auto-fix"
+            exit 1
+          fi
+
+  status:
+    name: Backend Syntax Guard Status
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - syntax-validation
+      - backend-eslint
+    steps:
+      - name: Check all jobs
+        run: |
+          SYNTAX_STATUS="${{ needs.syntax-validation.result }}"
+          ESLINT_STATUS="${{ needs.backend-eslint.result }}"
+          
+          echo "📊 Backend Syntax Guard Results:"
+          echo "   Syntax Validation: $SYNTAX_STATUS"
+          echo "   ESLint: $ESLINT_STATUS"
+          
+          if [ "$SYNTAX_STATUS" != "success" ] || [ "$ESLINT_STATUS" != "success" ]; then
+            echo ""
+            echo "❌ Backend Syntax Guard: FAILED"
+            echo "   One or more checks failed. Review logs above."
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ Backend Syntax Guard: ALL CHECKS PASSED"

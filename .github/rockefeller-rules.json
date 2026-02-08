@@ -1,0 +1,334 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Rockefeller Principles Compliance Rules",
+  "description": "Configuration for validating code follows Rockefeller Operating System principles",
+  "version": "1.0.0",
+  
+  "filters": {
+    "efficiency": {
+      "weight": 10,
+      "description": "Does this reduce steps and save time?"
+    },
+    "control": {
+      "weight": 10,
+      "description": "Does this reduce dependency on 3rd parties?"
+    },
+    "data": {
+      "weight": 10,
+      "description": "Does this generate valuable intelligence?"
+    },
+    "strategy": {
+      "weight": 10,
+      "description": "Does this support the 3-year vision?"
+    },
+    "culture": {
+      "weight": 10,
+      "description": "Does this align with core values?"
+    },
+    "innovation": {
+      "weight": 10,
+      "description": "Is this innovative or just copying?"
+    },
+    "focus": {
+      "weight": 10,
+      "description": "Does this support the #1 current priority?"
+    }
+  },
+  
+  "scoringThresholds": {
+    "strongYes": 60,
+    "conditionalYes": 45,
+    "weak": 30,
+    "no": 0
+  },
+  
+  "complexity": {
+    "maxCyclomaticComplexity": 15,
+    "warnCyclomaticComplexity": 10,
+    "maxFunctionLines": 100,
+    "warnFunctionLines": 50,
+    "description": "High complexity reduces efficiency and maintainability"
+  },
+  
+  "inefficientPatterns": {
+    "codePatterns": [
+      {
+        "pattern": "for.*for.*for",
+        "description": "Triple-nested loops detected - likely O(n³) complexity",
+        "recommendation": "Consider using more efficient algorithms or data structures",
+        "severity": "error"
+      },
+      {
+        "pattern": "\\.find\\(.*\\.find\\(",
+        "description": "Nested array searches - inefficient pattern",
+        "recommendation": "Use Map/Set or single-pass algorithms",
+        "severity": "warning"
+      },
+      {
+        "pattern": "setTimeout.*setTimeout",
+        "description": "Nested timeouts can create timing issues",
+        "recommendation": "Use Promise chains or async/await",
+        "severity": "warning"
+      },
+      {
+        "pattern": "console\\.log\\(",
+        "description": "Console.log statements should not be in production",
+        "recommendation": "Use proper logging infrastructure",
+        "severity": "warning"
+      }
+    ],
+    "manualProcesses": [
+      {
+        "pattern": "manual.*deploy|deploy.*manual",
+        "description": "Manual deployment process detected",
+        "recommendation": "Automate deployment with CI/CD pipeline"
+      },
+      {
+        "pattern": "TODO.*automate|FIXME.*manual",
+        "description": "Manual process flagged for automation",
+        "recommendation": "Prioritize automation of this process"
+      }
+    ]
+  },
+  
+  "control": {
+    "minProprietaryRatio": 0.7,
+    "description": "At least 70% of code should be proprietary, not third-party",
+    
+    "highRiskDependencies": [
+      "deprecated",
+      "unmaintained",
+      "single-maintainer"
+    ],
+    
+    "mediumRiskDependencies": [
+      "beta",
+      "experimental",
+      "alpha"
+    ],
+    
+    "externalAPIs": [
+      {
+        "pattern": "stripe\\..*\\(",
+        "service": "Stripe",
+        "canInternalize": false,
+        "severity": "warning",
+        "recommendation": "Abstract payment processing behind interface for potential future migration"
+      },
+      {
+        "pattern": "openai\\..*\\(",
+        "service": "OpenAI",
+        "canInternalize": true,
+        "severity": "warning",
+        "recommendation": "Consider self-hosted AI models for sovereignty"
+      },
+      {
+        "pattern": "sendgrid|mailgun|postmark",
+        "service": "Email Service",
+        "canInternalize": true,
+        "severity": "warning",
+        "recommendation": "Consider self-hosted email infrastructure"
+      },
+      {
+        "pattern": "aws-sdk|s3\\..*\\(",
+        "service": "AWS",
+        "canInternalize": true,
+        "severity": "warning",
+        "recommendation": "Abstract cloud storage behind interface for multi-cloud strategy"
+      }
+    ],
+    
+    "vendorLockInPatterns": [
+      {
+        "pattern": "firebase\\.|firestore\\.",
+        "vendor": "Firebase",
+        "severity": "error",
+        "recommendation": "Firebase creates vendor lock-in. Use self-hosted alternatives."
+      },
+      {
+        "pattern": "vercel\\.|netlify\\.",
+        "vendor": "Deployment Platform",
+        "severity": "warning",
+        "recommendation": "Abstract deployment behind scripts for platform independence"
+      }
+    ]
+  },
+  
+  "dataIntelligence": {
+    "requiredInstrumentation": [
+      {
+        "feature": "user_actions",
+        "description": "Track key user actions for product insights",
+        "patterns": ["analytics.track", "telemetry.log", "metrics.record"]
+      },
+      {
+        "feature": "performance",
+        "description": "Monitor performance metrics",
+        "patterns": ["performance.mark", "timer.start", "metrics.timing"]
+      },
+      {
+        "feature": "errors",
+        "description": "Log and track errors",
+        "patterns": ["logger.error", "captureException", "trackError"]
+      },
+      {
+        "feature": "business_metrics",
+        "description": "Track business KPIs",
+        "patterns": ["metrics.increment", "analytics.track", "counter.inc"]
+      }
+    ],
+    
+    "missingDataPatterns": [
+      {
+        "pattern": "button.*onClick.*=>",
+        "requiredNearby": ["track|analytics|telemetry"],
+        "description": "Button clicks should be tracked for user behavior insights"
+      },
+      {
+        "pattern": "api.*post|fetch.*post",
+        "requiredNearby": ["timer|performance|metrics"],
+        "description": "API calls should be instrumented for performance monitoring"
+      }
+    ]
+  },
+  
+  "culture": {
+    "values": {
+      "sovereignty": {
+        "description": "Own the code and the platform",
+        "indicators": [
+          "proprietary",
+          "in-house",
+          "custom-built",
+          "self-hosted"
+        ]
+      },
+      "radicalSimplicity": {
+        "description": "Reduce complexity, clicks, and friction",
+        "indicators": [
+          "simplified",
+          "streamlined",
+          "one-click",
+          "automated"
+        ],
+        "violations": [
+          "complex",
+          "complicated",
+          "manual-steps",
+          "multi-step"
+        ]
+      },
+      "transparentBuilding": {
+        "description": "Ship value fast and be open",
+        "indicators": [
+          "changelog",
+          "documentation",
+          "public-api",
+          "open-source"
+        ]
+      },
+      "userFirst": {
+        "description": "Prioritize immediate value",
+        "indicators": [
+          "user-facing",
+          "customer-value",
+          "solves-pain",
+          "immediate-benefit"
+        ]
+      },
+      "longTerm": {
+        "description": "Build foundations for scale",
+        "indicators": [
+          "scalable",
+          "extensible",
+          "maintainable",
+          "future-proof"
+        ]
+      }
+    }
+  },
+  
+  "strategicAlignment": {
+    "threeYearVision": [
+      "ubiquitous automation",
+      "reduce context switching",
+      "integration marketplace",
+      "AI-powered workflows"
+    ],
+    
+    "currentPriorities": [
+      "ship production-ready features",
+      "deliver immediate user value",
+      "build integration capabilities",
+      "improve AI agent"
+    ],
+    
+    "distractionPatterns": [
+      {
+        "pattern": "experimental|prototype|poc",
+        "description": "Experimental code should align with roadmap",
+        "recommendation": "Ensure experiments support strategic priorities"
+      },
+      {
+        "pattern": "refactor.*\\(large\\)|rewrite.*\\(complete\\)",
+        "description": "Large refactors can distract from shipping value",
+        "recommendation": "Prefer incremental improvements unless critical"
+      }
+    ]
+  },
+  
+  "innovation": {
+    "competitiveAnalysis": {
+      "description": "Track what differentiates us from competitors",
+      "uniqueFeatures": [
+        "unified-dashboard",
+        "integration-usage-tracking",
+        "comprehensive-ai-knowledge",
+        "form-submission-automation"
+      ]
+    },
+    
+    "copyingPatterns": [
+      {
+        "pattern": "based-on.*competitor|inspired-by.*\\w+",
+        "description": "Feature copied from competitor",
+        "recommendation": "Add unique twist or superior implementation"
+      }
+    ]
+  },
+  
+  "focus": {
+    "maxSimultaneousPriorities": 3,
+    "description": "Too many priorities = no priorities",
+    
+    "focusViolations": [
+      {
+        "pattern": "side-project|quick-experiment|just-trying",
+        "description": "Unfocused experimentation",
+        "recommendation": "Ensure all work supports #1 priority"
+      }
+    ]
+  },
+  
+  "excludedPaths": [
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    "__pycache__/**",
+    "*.test.js",
+    "*.spec.js",
+    "*.test.ts",
+    "*.spec.ts"
+  ],
+  
+  "codeQualityBaseline": {
+    "minTestCoverage": 70,
+    "maxTechnicalDebt": "moderate",
+    "requiredDocumentation": [
+      "API endpoints",
+      "Core business logic",
+      "Integration points",
+      "Configuration options"
+    ]
+  }
+}

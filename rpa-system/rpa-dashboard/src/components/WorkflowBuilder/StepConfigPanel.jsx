@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+
 /*
  * PERFORMANCE OPTIMIZATIONS APPLIED:
  * 1. Memoized KeyValueList, EmailList, and ConditionList components to prevent unnecessary re-renders

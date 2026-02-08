@@ -1,0 +1,5 @@
+tenant_id,status,duration_ms
+t1,200,120
+t1,500,300
+t2,200,90
+t2,200,110

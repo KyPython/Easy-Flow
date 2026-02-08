@@ -157,6 +157,17 @@ const Header = ({ user }) => {
               {(!planData?.plan || ['Hobbyist', 'Starter'].includes(planData.plan.name)) && <span className={styles.proIcon}>✨</span>}
             </Link>
 
+            {/* Integration Marketplace - Discover providers */}
+            <Link
+              to="/app/integration-marketplace"
+              className={`${styles.navLink} ${
+                isActive('/app/integration-marketplace') ? styles.activeNavLink : ''
+              }`}
+            >
+              {t('nav.marketplace','Marketplace')}
+              {(!planData?.plan || ['Hobbyist', 'Starter'].includes(planData.plan.name)) && <span className={styles.proIcon}>✨</span>}
+            </Link>
+
             {/* Unified Dashboard - External tools status */}
             <Link
               to="/app/unified-dashboard"

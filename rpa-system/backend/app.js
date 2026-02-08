@@ -93,6 +93,7 @@ const taskStatusStore = require('./utils/taskStatusStore');
 const { usageTracker } = require('./utils/usageTracker');
 const { auditLogger } = require('./utils/auditLogger');
 const { LinkDiscoveryService } = require('./services/linkDiscoveryService');
+const automationQueueService = require('./services/automationQueueService');
 const { requireAutomationRun, requireWorkflowRun, requireWorkflowCreation, checkStorageLimit, requireFeature, requirePlan } = require('./middleware/planEnforcement');
 const { traceContextMiddleware, createContextLogger } = require('./middleware/traceContext');
 // Backwards-compatible alias: some modules use `contextLoggerMiddleware` name
@@ -940,6 +941,15 @@ app.use('/api', feedbackRoutes);
 const trackingRoutes = require('./routes/trackingRoutes');
 app.use('/api/tracking', trackingRoutes);
 rootLogger.info('✓ Tracking routes mounted at /api/tracking');
+
+// Mount error resolution routes (user-facing failure guidance)
+try {
+  const resolutionRoutes = require('./routes/resolutionRoutes');
+  app.use('/api/resolution', resolutionRoutes);
+  rootLogger.info('✓ Resolution routes mounted at /api/resolution');
+} catch (e) {
+  rootLogger.warn('resolutionRoutes not mounted', { error: e?.message || e });
+}
 
 // Internal (dev) routes - accept frontend telemetry and error reports
 // ✅ FIX: Mount at /api/internal to match frontend logger endpoint
@@ -2614,8 +2624,8 @@ try {
  rootLogger.warn('AI Agent routes not mounted (OpenAI API key may not be configured)', { error: e?.message || e });
  // Fallback for AI Agent routes to prevent 404s on UI
  app.use('/api/ai-agent', (req, res) => {
-   res.status(503).json({ 
-     error: 'AI Agent unavailable', 
+   res.status(503).json({
+     error: 'AI Agent unavailable',
      message: 'The AI Agent service is not configured (likely missing OPENAI_API_KEY). Check backend logs.',
      code: 'AI_SERVICE_NOT_CONFIGURED'
    });
@@ -2627,7 +2637,7 @@ try {
  const ragRoutes = require('./routes/ragRoutes');
  app.use('/api/rag', ragRoutes);
  rootLogger.info('✓ RAG service routes mounted at /api/rag');
- 
+
  if (!process.env.RAG_API_KEY) {
    rootLogger.warn('⚠️ RAG_API_KEY is missing in backend .env - RAG requests may fail with 403');
  }
@@ -2757,507 +2767,88 @@ function sanitizeError(error, isDevelopment = false) {
 // Add this function before the route handlers (around line 500)
 
 // Implementation of task run queueing and processing
+// Refactored to use automationQueueService for better maintainability and testability
 async function queueTaskRun(runId, taskData) {
- try {
- logger.info(`[queueTaskRun] Queueing automation run ${runId}`);
+  try {
+    logger.info(`[queueTaskRun] Queueing automation run ${runId}`);
 
- // Get the automation worker URL from environment
- const automationUrl = process.env.AUTOMATION_URL;
- if (!automationUrl) {
- const errorMessage = 'Automation service is not configured. Please contact support to enable this feature.';
- logger.error(`[queueTaskRun] ${errorMessage}`);
- throw new Error(errorMessage);
- }
+    // Step 1: Validate automation service configuration
+    const { automationUrl } = automationQueueService.validateAutomationServiceConfig();
 
- // ✅ PRIORITY 1: Health check before execution with retry scheduling + OBSERVABILITY
- const healthCheckStartTime = Date.now();
- let healthCheckPassed = false;
- try {
- let normalizedUrl = automationUrl.trim();
- if (!/^https?:\/\//i.test(normalizedUrl)) {
- normalizedUrl = `http://${normalizedUrl}`;
- }
+    // Step 2: Perform health check with automatic retry scheduling
+    const healthCheck = await automationQueueService.performHealthCheckWithRetry(
+      automationUrl,
+      runId,
+      taskData,
+      supabase,
+      queueTaskRun // Pass reference for retry scheduling
+    );
 
- // ✅ OBSERVABILITY: Log health check attempt
- logger.info(`[queueTaskRun] 🔍 Health check: ${normalizedUrl}`, {
- run_id: runId,
- automation_url: normalizedUrl,
- timestamp: new Date().toISOString()
- });
+    if (!healthCheck.shouldContinue) {
+      // Health check failed, retry scheduled
+      return healthCheck.retryInfo;
+    }
 
- // Quick health check
- const axios = require('axios');
- await axios.get(`${normalizedUrl}/health`, { timeout: 5000 }).catch(() => {
- // Try root endpoint if /health doesn't exist
- return axios.get(normalizedUrl, { timeout: 5000, validateStatus: () => true });
- });
+    // Step 3: Extract and validate target URL (with SSRF protection)
+    const { validatedUrl } = automationQueueService.extractAndValidateTargetUrl(taskData);
 
- const healthCheckDuration = Date.now() - healthCheckStartTime;
- healthCheckPassed = true;
+    // Step 4: Build automation payload in worker-expected format
+    const { payload } = automationQueueService.buildAutomationPayload(taskData, validatedUrl, runId);
 
- // ✅ OBSERVABILITY: Log successful health check
- logger.info('[queueTaskRun] ✅ Health check passed', {
- run_id: runId,
- automation_url: normalizedUrl,
- duration_ms: healthCheckDuration,
- timestamp: new Date().toISOString()
- });
- } catch (healthError) {
- const healthCheckDuration = Date.now() - healthCheckStartTime;
+    // Step 5: Build endpoint candidates
+    const { normalizedUrl, candidates } = automationQueueService.buildEndpointCandidates(automationUrl, payload.type);
 
- // ✅ PRIORITY 1: Schedule retry in 5 minutes instead of failing immediately
- // ✅ OBSERVABILITY: Log health check failure with full context
- logger.warn('[queueTaskRun] ⚠️ Automation service health check failed, scheduling retry in 5 minutes', {
- run_id: runId,
- error: healthError.message,
- error_code: healthError.code,
- automation_url: automationUrl,
- duration_ms: healthCheckDuration,
- retry_scheduled_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
- timestamp: new Date().toISOString(),
- observability: {
- event: 'health_check_failed',
- retry_scheduled: true,
- retry_delay_seconds: 300
- }
- });
+    // Step 6: Execute automation with retry logic and endpoint fallback
+    const dependencies = {
+      supabase,
+      usageTracker,
+      firebaseNotificationService,
+      NotificationTemplates
+    };
 
- // Update run status to show retry scheduled
- try {
- await supabase
- .from('automation_runs')
- .update({
- status: 'running', // Keep as running to show it's pending retry
- result: JSON.stringify({
- status: 'queued',
- message: 'Service unavailable, retrying in 5 min',
- retry_scheduled: true,
- retry_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
- health_check_error: healthError.message
- })
- })
- .eq('id', runId);
- } catch (updateErr) {
- logger.error('[queueTaskRun] Failed to update run status for retry:', updateErr.message);
- }
+    try {
+      const result = await automationQueueService.executeAutomationWithRetry(
+        normalizedUrl,
+        candidates,
+        payload,
+        runId,
+        taskData,
+        dependencies
+      );
 
- // Schedule retry in 5 minutes
- setTimeout(async () => {
- logger.info(`[queueTaskRun] 🔄 Retrying automation run ${runId} after health check failure`);
- try {
- await queueTaskRun(runId, taskData);
- } catch (retryError) {
- logger.error(`[queueTaskRun] Retry failed for run ${runId}:`, retryError.message);
- // Mark as failed if retry also fails
- try {
- await supabase
- .from('automation_runs')
- .update({
- status: 'failed',
- ended_at: new Date().toISOString(),
- result: JSON.stringify({
- error: 'Automation service unavailable after retry',
- message: 'Service was unavailable and retry also failed. Please try again later.',
- retry_attempted: true
- })
- })
- .eq('id', runId);
- } catch (finalErr) {
- logger.error('[queueTaskRun] Failed to mark run as failed after retry:', finalErr.message);
- }
- }
- }, 5 * 60 * 1000); // 5 minutes
+      logger.info(`[queueTaskRun] Task ${runId} successfully dispatched`);
 
- // Don't throw - let the retry happen in background
- return {
- success: false,
- retry_scheduled: true,
- message: 'Service unavailable, retrying in 5 min',
- retry_at: new Date(Date.now() + 5 * 60 * 1000).toISOString()
- };
- }
+      return {
+        success: true,
+        message: 'Task dispatched to automation worker',
+        run_id: runId,
+        queued: true,
+        worker_response: result.result
+      };
 
- // ✅ SECURITY: Validate URL to prevent SSRF
- // ✅ FIX: Log taskData structure to debug missing URL
- logger.info('[queueTaskRun] Task data received:', {
- has_url: !!taskData.url,
- url: taskData.url,
- task_type: taskData.task_type,
- has_parameters: !!taskData.parameters,
- parameters_keys: taskData.parameters ? Object.keys(taskData.parameters) : [],
- all_keys: Object.keys(taskData)
- });
+    } catch (error) {
+      await automationQueueService.handleAutomationFailure(error, runId, taskData, dependencies);
+    }
 
- // ✅ FIX: Extract URL from multiple possible locations
- let urlToValidate = taskData.url;
- if (!urlToValidate && taskData.parameters) {
- urlToValidate = taskData.parameters.url || taskData.parameters.targetUrl || taskData.parameters.websiteUrl;
- if (urlToValidate) {
- logger.info(`[queueTaskRun] URL found in parameters, extracting to top level: ${urlToValidate}`);
- taskData.url = urlToValidate; // Set it at top level for consistency
- }
- }
+  } catch (error) {
+    logger.error(`[queueTaskRun] Error: ${error.message || error}`);
 
- // ✅ CRITICAL: URL is required for all automation tasks
- if (!urlToValidate) {
- logger.error('[queueTaskRun] CRITICAL ERROR: No URL found in task data!', {
- run_id: runId,
- taskData_keys: Object.keys(taskData),
- has_parameters: !!taskData.parameters,
- parameters_keys: taskData.parameters ? Object.keys(taskData.parameters) : []
- });
- throw new Error('URL is required but was not found in task data. Please provide a valid URL.');
- }
+    // Top-level error handling - mark run as failed
+    try {
+      await supabase
+        .from('automation_runs')
+        .update({
+          status: 'failed',
+          ended_at: new Date().toISOString(),
+          result: JSON.stringify({ error: error.message || 'Unknown error' })
+        })
+        .eq('id', runId);
+    } catch (updateError) {
+      logger.error(`[queueTaskRun] Failed to update run status: ${updateError.message}`);
+    }
 
- // ✅ SECURITY: Use SSRF protection module for validation
- const { validateUrlForSSRF } = require('./utils/ssrfProtection');
- const urlValidation = validateUrlForSSRF(urlToValidate);
- if (!urlValidation.valid) {
- logger.warn(`[queueTaskRun] Invalid URL rejected: ${urlToValidate} (reason: ${urlValidation.error})`);
- throw new Error(`Invalid URL: ${urlValidation.error}`);
- }
- const validatedUrl = urlValidation.url; // Use validated URL (safe from SSRF)
-
- // Prepare the payload for the automation worker
- const payload = {
- url: validatedUrl, // Use validated URL instead of raw input
- title: taskData.title || 'Untitled Task',
- run_id: runId,
- task_id: taskData.task_id,
- user_id: taskData.user_id,
- type: taskData.task_type || taskData.type || 'general',
- task_type: taskData.task_type || taskData.type || 'general', // ✅ FIX: Also send task_type for worker compatibility
- parameters: taskData.parameters || {}
- };
-
- // ✅ For invoice downloads, extract pdf_url from parameters to top level for automation worker
- // The automation worker expects pdf_url at top level: task_data.get('pdf_url') or task_data.get('url')
- if (payload.type === 'invoice_download' || payload.type === 'invoice-download') {
- const params = payload.parameters || {};
- // ✅ FIX: Extract pdf_url even if it's undefined/null, so we can detect missing PDF URL
- const pdfUrl = params.pdf_url;
- if (pdfUrl) {
- payload.pdf_url = pdfUrl;
- } else {
- // ✅ FIX: If no pdf_url provided, check if we should fail early or use url as fallback
- // For invoice_download, we need a direct PDF URL, not a login page URL
- // If url is a login page and no pdf_url, this will fail - which is correct behavior
- // But we should log this clearly for debugging
- logger.warn(`[queueTaskRun] Invoice download task missing pdf_url. Will use url as fallback: ${validatedUrl}`, {
- run_id: runId,
- task_id: taskData.task_id,
- has_url: !!validatedUrl,
- url_is_pdf: validatedUrl && validatedUrl.toLowerCase().endsWith('.pdf')
- });
- }
- }
-
- logger.info(`[queueTaskRun] Sending to automation service: ${automationUrl}`);
-
- // ✅ CRITICAL: Log the exact payload being sent to worker for debugging
- logger.info('[queueTaskRun] Payload being sent to worker:', {
- run_id: runId,
- has_url: !!payload.url,
- url: payload.url,
- has_pdf_url: !!payload.pdf_url,
- pdf_url: payload.pdf_url,
- task_type: payload.task_type,
- type: payload.type,
- all_keys: Object.keys(payload),
- payload_summary: {
- url: payload.url,
- pdf_url: payload.pdf_url,
- task_type: payload.task_type,
- type: payload.type,
- title: payload.title,
- run_id: payload.run_id,
- task_id: payload.task_id,
- user_id: payload.user_id
- }
- });
-
- // ✅ PRIORITY 2: Call automation service with retry logic (3x: 0s, 5s, 15s)
- try {
- let automationResult;
- let response = null;
- const maxRetries = 3;
- const backoffDelays = [0, 5000, 15000]; // 0s, 5s, 15s
- let lastError;
-
- // Ensure URL has protocol; accept values like 'localhost:5001' and normalize to 'http://localhost:5001'
- // ✅ SECURITY: automationUrl comes from process.env.AUTOMATION_URL (trusted server config), not user input
- // User input URLs are validated via validateUrlForSSRF() at line 2543
- let normalizedUrl = automationUrl;
- if (!/^https?:\/\//i.test(normalizedUrl)) {
- normalizedUrl = `http://${normalizedUrl}`;
- }
- normalizedUrl = normalizedUrl.trim();
-
- // Try type-specific endpoints first, then fall back to generic /automate
- // ✅ FIX: Worker only supports /automate and /automate/<task_type>, not /<task_type>
- const taskTypeSlug = String(payload.type || 'general').toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-');
- const candidates = [
- `/automate/${encodeURIComponent(taskTypeSlug)}`,
- '/automate' // Fallback to generic endpoint
- ];
-
- // ✅ OBSERVABILITY: Track retry attempts with timing
- const automationStartTime = Date.now();
-
- // Retry loop with exponential backoff
- for (let attempt = 1; attempt <= maxRetries; attempt++) {
- lastError = null;
- const attemptStartTime = Date.now();
-
- // ✅ OBSERVABILITY: Log each retry attempt with full context
- logger.info(`[queueTaskRun] 🔄 Automation attempt ${attempt}/${maxRetries}`, {
- run_id: runId,
- attempt,
- max_attempts: maxRetries,
- wait_ms: attempt > 1 ? backoffDelays[attempt - 1] : 0,
- backoff_delays: backoffDelays,
- timestamp: new Date().toISOString(),
- observability: {
- event: 'automation_retry_attempt',
- attempt_number: attempt,
- total_attempts: maxRetries
- }
- });
-
- // Wait before retry (except first attempt)
- if (attempt > 1) {
- const waitMs = backoffDelays[attempt - 1];
- logger.info(`[queueTaskRun] ⏳ Waiting ${waitMs}ms before retry`, {
- run_id: runId,
- wait_ms: waitMs,
- attempt,
- observability: {
- event: 'retry_backoff_wait',
- wait_ms: waitMs
- }
- });
- await new Promise(resolve => setTimeout(resolve, waitMs));
- }
-
- // Try each endpoint candidate
- for (const pathSuffix of candidates) {
- const base = normalizedUrl.replace(/\/$/, '');
- const fullAutomationUrl = `${base}${pathSuffix}`;
-
- try {
- const headers = { 'Content-Type': 'application/json' };
- if (process.env.AUTOMATION_API_KEY) {
- headers['Authorization'] = `Bearer ${process.env.AUTOMATION_API_KEY}`;
- }
-
- response = await axios.post(fullAutomationUrl, payload, {
- timeout: 30000,
- headers
- });
-
- automationResult = response.data || { message: 'Execution completed with no data returned' };
- const attemptDuration = Date.now() - attemptStartTime;
- const totalDuration = Date.now() - automationStartTime;
-
- // ✅ FIX: If direct endpoint returns result synchronously (when Kafka unavailable), handle it immediately
- // Check if the response contains a result (direct endpoint) vs just acknowledgment (Kafka mode)
- if (automationResult.result || automationResult.success !== undefined) {
- // Direct endpoint returned the actual result - update status immediately
- logger.info('[queueTaskRun] ✅ Direct endpoint returned result (Kafka unavailable)', {
- run_id: runId,
- endpoint: pathSuffix,
- status: response.status,
- success: automationResult.success,
- attempt,
- attempt_duration_ms: attemptDuration,
- total_duration_ms: totalDuration
- });
-
- // Update automation run status immediately since we have the result
- const finalStatus = automationResult.success ? 'completed' : 'failed';
- const sb2 = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
- await sb2
- .from('automation_runs')
- .update({
- status: finalStatus,
- ended_at: new Date().toISOString(),
- result: JSON.stringify(automationResult.result || automationResult)
- })
- .eq('id', runId);
-
- // Track usage and send notifications
- await usageTracker.trackAutomationRun(taskData.user_id, runId, finalStatus);
-
- // Send notification if failed
- if (finalStatus === 'failed') {
- try {
- const taskName = taskData.title || 'Automation Task';
- const errorMessage = automationResult.result?.error || automationResult.error || 'Task failed';
- const notification = NotificationTemplates.taskFailed(taskName, errorMessage);
- await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
- logger.info(`🔔 Task failure notification sent to user ${taskData.user_id}`);
- } catch (notificationError) {
- logger.error('🔔 Failed to send task failure notification:', notificationError.message);
- }
- }
-
- break; // Success - exit both loops
- } else {
- // Kafka mode - just acknowledgment, result will come via Kafka
- logger.info(`[queueTaskRun] ✅ Automation succeeded on attempt ${attempt}`, {
- run_id: runId,
- endpoint: pathSuffix,
- status: response.status,
- attempt,
- attempt_duration_ms: attemptDuration,
- total_duration_ms: totalDuration,
- timestamp: new Date().toISOString(),
- observability: {
- event: 'automation_success',
- attempt_number: attempt,
- duration_ms: attemptDuration,
- total_duration_ms: totalDuration
- }
- });
- break; // Success - exit both loops
- }
- } catch (err) {
- lastError = err;
- const isRetryable =
- err.code === 'ECONNRESET' ||
- err.code === 'ETIMEDOUT' ||
- err.code === 'ENOTFOUND' ||
- err.code === 'EAI_AGAIN' ||
- (err.response?.status >= 500) ||
- (err.response?.status === 408) ||
- (err.response?.status === 429) ||
- err.message?.toLowerCase().includes('timeout') ||
- err.message?.toLowerCase().includes('network');
-
- logger.warn(`[queueTaskRun] ⚠️ Endpoint ${pathSuffix} failed (attempt ${attempt})`, {
- run_id: runId,
- status: err?.response?.status,
- error: err.message,
- is_retryable: isRetryable,
- attempt
- });
-
- // If not retryable, don't try other endpoints
- if (!isRetryable) {
- break;
- }
- }
- }
-
- // If we got a result, exit retry loop
- if (automationResult) {
- break;
- }
-
- // If last attempt and still no result, throw
- if (attempt === maxRetries && lastError) {
- const totalDuration = Date.now() - automationStartTime;
- logger.error(`[queueTaskRun] ❌ All ${maxRetries} attempts failed`, {
- run_id: runId,
- final_error: lastError.message,
- final_error_code: lastError.code,
- attempts: maxRetries,
- total_duration_ms: totalDuration,
- backoff_delays_used: backoffDelays,
- timestamp: new Date().toISOString(),
- observability: {
- event: 'automation_all_retries_failed',
- total_attempts: maxRetries,
- total_duration_ms: totalDuration,
- final_error: lastError.message,
- final_error_code: lastError.code
- }
- });
- throw lastError;
- }
- }
-
- if (!automationResult) {
- throw new Error('Automation service returned no result after all retries');
- }
-
- // ✅ FIX: queueTaskRun should ONLY dispatch the task, NOT update final status
- // The HTTP 200 response is just an acknowledgment that the task was queued/received
- // The actual result (completed/failed) comes later via Kafka
- // Kafka consumer (kafkaService.js) handles the final status update
-
- logger.info(`[queueTaskRun] ✅ Task ${runId} successfully dispatched to automation worker`, {
- runId,
- worker_response_status: response?.status,
- worker_response_received: true,
- message: 'Task queued - final result will be delivered via Kafka'
- });
-
- // ✅ DO NOT update status here - Kafka consumer will handle it
- // ✅ DO NOT track usage here - Kafka consumer will handle it
- // ✅ DO NOT send notifications here - Kafka consumer will handle it
- // ✅ Status remains 'running' until Kafka delivers the actual result
-
- // Return acknowledgment that task was dispatched
- return {
- success: true,
- message: 'Task dispatched to automation worker',
- run_id: runId,
- queued: true,
- // Include the worker's acknowledgment response for reference (but don't use it for status)
- worker_response: automationResult
- };
- } catch (error) {
- logger.error('[queueTaskRun] Automation service error:', error.message);
-
- // Update the run with the error
- const sb2 = (typeof global !== 'undefined' && global.supabase) ? global.supabase : supabase;
- await sb2
- .from('automation_runs')
- .update({
- status: 'failed',
- ended_at: new Date().toISOString(),
- result: JSON.stringify({
- error: 'Automation execution failed',
- message: error.message || 'Unknown error'
- })
- })
- .eq('id', runId);
-
- // Track the failed automation run (failed runs don't count towards monthly quota)
- await usageTracker.trackAutomationRun(taskData.user_id, runId, 'failed');
-
- // Send notification for task failure
- try {
- const taskName = taskData.title || 'Automation Task';
- const notification = NotificationTemplates.taskFailed(taskName, error.message || 'Unknown error');
- await firebaseNotificationService.sendAndStoreNotification(taskData.user_id, notification);
- logger.info(`🔔 Task failure notification sent to user ${taskData.user_id}`);
- } catch (notificationError) {
- logger.error('🔔 Failed to send task failure notification:', notificationError.message);
- }
-
- throw error;
- }
- } catch (error) {
- logger.error(`[queueTaskRun] Error: ${error.message || error}`);
-
- // Make sure the run is marked as failed if we get an unexpected error
- try {
- await supabase
- .from('automation_runs')
- .update({
- status: 'failed',
- ended_at: new Date().toISOString(),
- result: JSON.stringify({ error: error.message || 'Unknown error' })
- })
- .eq('id', runId);
- } catch (updateError) {
- logger.error(`[queueTaskRun] Failed to update run status: ${updateError.message}`);
- }
-
- throw error;
- }
+    throw error;
+  }
 }
 
 // Comprehensive input sanitization function
@@ -3988,7 +3579,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
     if (!req.user || !req.user.id) {
       logger.warn('[GET /api/runs] No user in request', {
         has_user: !!req.user,
-        user_id: req.user?.id,
+        user_id: req.user?.id
       });
       return res
         .status(401)
@@ -4016,7 +3607,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       trace: req.trace,
       user_id: req.user.id,
       page,
-      pageSize,
+      pageSize
     });
 
     // 3) Main runs query (your existing fields) + pagination
@@ -4043,7 +3634,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
     if (error) {
       logger.error('[GET /api/runs] Database query error', {
         error_message: error.message,
-        user_id: req.user.id,
+        user_id: req.user.id
       });
       throw error;
     }
@@ -4056,7 +3647,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
         user_id: req.user.id,
         runs_count: runsData?.length || 0,
         message:
-          'Consider adding database indexes: idx_automation_runs_user_id_started_at',
+          'Consider adding database indexes: idx_automation_runs_user_id_started_at'
       });
     }
 
@@ -4066,13 +3657,13 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       performance: { duration: queryDuration },
       result: {
         rows_returned: runsData?.length || 0,
-        total_count: count ?? 0,
-      },
+        total_count: count ?? 0
+      }
     });
 
     // 4) Fetch task details (your existing pattern)
     const taskIds = [
-      ...new Set((runsData || []).filter((r) => r.task_id).map((r) => r.task_id)),
+      ...new Set((runsData || []).filter((r) => r.task_id).map((r) => r.task_id))
     ];
     let tasksMap = {};
 
@@ -4088,7 +3679,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
         logger.warn(
           '[GET /api/runs] Error fetching tasks (non-critical)',
           {
-            error_message: tasksError.message,
+            error_message: tasksError.message
           }
         );
         // don't throw; keep going with runs only
@@ -4097,7 +3688,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
           acc[task.id] = {
             name: task.name,
             url: task.url,
-            task_type: task.task_type,
+            task_type: task.task_type
           };
           return acc;
         }, {});
@@ -4107,7 +3698,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       if (taskQueryDuration > 1000) {
         logger.warn('[GET /api/runs] Slow task query detected', {
           duration_ms: taskQueryDuration,
-          task_count: taskIds.length,
+          task_count: taskIds.length
         });
       }
     }
@@ -4121,7 +3712,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
         ended_at: run.ended_at,
         result: run.result,
         artifact_url: run.artifact_url,
-        automation_tasks: run.task_id ? tasksMap[run.task_id] || null : null,
+        automation_tasks: run.task_id ? tasksMap[run.task_id] || null : null
       })) || [];
 
     // Pagination metadata
@@ -4135,7 +3726,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       user_id: req.user.id,
       runs_count: data.length,
       duration_ms: duration,
-      pagination: { page, pageSize, total, totalPages },
+      pagination: { page, pageSize, total, totalPages }
     });
 
     return res.json({
@@ -4143,7 +3734,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       page,
       pageSize,
       total,
-      totalPages,
+      totalPages
     });
   } catch (err) {
     const duration = Date.now() - startTime;
@@ -4153,7 +3744,7 @@ app.get('/api/runs', authMiddleware, async (req, res) => {
       error: err.message,
       stack: err.stack,
       user_id: req.user?.id,
-      duration_ms: duration,
+      duration_ms: duration
     });
 
     return res
@@ -8924,7 +8515,7 @@ app.use((err, req, res, _next) => {
  if (err && err.code === 'LIMIT_FILE_SIZE') {
  return res.status(413).json({ error: 'File too large' });
  }
- 
+
  // ✅ FIX: In dev mode, return mock data for known endpoints instead of 500
  // This prevents the dashboard from crashing when DB is empty or dev user is missing
  if (process.env.NODE_ENV === 'development') {

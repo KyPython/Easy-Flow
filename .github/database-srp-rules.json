@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Database Table Single Responsibility Principle Rules",
+  "description": "Configuration for validating database tables follow SRP",
+  "version": "1.0.0",
+  
+  "rules": {
+    "maxColumnsPerTable": {
+      "warning": 15,
+      "error": 25,
+      "description": "Tables with too many columns likely have multiple responsibilities"
+    },
+    
+    "maxForeignKeysPerTable": {
+      "warning": 5,
+      "error": 10,
+      "description": "Too many foreign keys suggest a table is trying to relate to too many concerns"
+    },
+    
+    "maxJsonbColumnsPerTable": {
+      "warning": 2,
+      "error": 4,
+      "description": "Excessive JSONB columns often indicate lack of proper normalization and mixed responsibilities"
+    },
+    
+    "prohibitedColumnCombinations": [
+      {
+        "patterns": ["user_id", "workflow_id", "execution_"],
+        "description": "User, workflow, and execution data should be separated",
+        "severity": "warning",
+        "exception": ["workflow_executions", "automation_runs_tracking"]
+      },
+      {
+        "patterns": ["credentials", "profile", "settings"],
+        "description": "Credentials, profiles, and settings should be in separate tables",
+        "severity": "error",
+        "exception": []
+      }
+    ],
+    
+    "requiredSeparation": [
+      {
+        "concerns": ["authentication", "authorization", "user_data"],
+        "description": "Auth and user data should be separate",
+        "tables": {
+          "authentication": ["integration_credentials", "integration_oauth_states"],
+          "user_data": ["profiles", "user_settings", "user_features"]
+        }
+      },
+      {
+        "concerns": ["configuration", "runtime_data", "audit"],
+        "description": "Configuration, runtime, and audit data should be separate",
+        "tables": {
+          "configuration": ["workflows", "workflow_steps", "action_definitions"],
+          "runtime_data": ["workflow_executions", "step_executions"],
+          "audit": ["audit_logs", "workflow_decision_logs"]
+        }
+      }
+    ],
+    
+    "namingPatterns": {
+      "multipleResponsibilities": [
+        "_and_",
+        "_with_",
+        "composite",
+        "combined",
+        "mixed"
+      ],
+      "description": "Table names suggesting multiple responsibilities"
+    },
+    
+    "columnPatterns": {
+      "godObjectIndicators": [
+        {
+          "pattern": "(metadata|data|info|details).*jsonb",
+          "description": "Generic JSONB catch-all columns indicate lack of clear responsibility",
+          "severity": "warning"
+        },
+        {
+          "pattern": "^(is_|has_|can_|should_|enable_|disable_).*",
+          "count": 5,
+          "description": "Too many boolean flags suggest multiple responsibilities",
+          "severity": "warning"
+        }
+      ]
+    },
+    
+    "dependencyRules": {
+      "maxCircularDependencies": 0,
+      "maxDependencyDepth": 4,
+      "description": "Deep or circular dependencies indicate poor separation of concerns"
+    }
+  },
+  
+  "excludedTables": [
+    "schema_migrations",
+    "example",
+    "raw_notes"
+  ],
+  
+  "customValidations": {
+    "workflows": {
+      "concern": "Workflow definition only",
+      "shouldNotContain": ["execution_data", "runtime_state"],
+      "notes": "Consider separating workflow definition from execution"
+    },
+    "profiles": {
+      "concern": "User profile data only",
+      "shouldNotContain": ["billing", "subscription", "usage"],
+      "notes": "Billing and usage should be in separate tables"
+    },
+    "files": {
+      "concern": "File metadata only",
+      "shouldNotContain": ["content", "processing_state"],
+      "notes": "Consider separating file metadata from processing state"
+    }
+  },
+  
+  "recommendations": {
+    "whenToSplit": [
+      "Table has columns that change at different rates",
+      "Table has multiple distinct groups of columns",
+      "Table has many nullable columns (optional features)",
+      "Table name contains 'and', 'with', or multiple nouns",
+      "Table serves multiple user stories or use cases"
+    ],
+    
+    "splitStrategies": [
+      {
+        "name": "Vertical Split",
+        "when": "Columns belong to different concerns",
+        "example": "Split 'users' into 'user_accounts' and 'user_profiles'"
+      },
+      {
+        "name": "Horizontal Split",
+        "when": "Different types of entities share same structure",
+        "example": "Split by entity type or status"
+      },
+      {
+        "name": "Extension Tables",
+        "when": "Optional features or rare attributes",
+        "example": "Create separate tables for optional features"
+      }
+    ]
+  }
+}
