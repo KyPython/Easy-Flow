@@ -39,7 +39,7 @@ async function runMigration() {
 
     for (let i = 0; i < statements.length; i++) {
       const statement = statements[i];
-      
+
       // Skip comments and DO blocks (they need special handling)
       if (statement.toLowerCase().startsWith('comment on')) {
         console.log(`⏭️  Skipping comment statement ${i + 1}/${statements.length}`);
@@ -60,20 +60,20 @@ async function runMigration() {
 
         if (error) {
           // Check if it's a "already exists" error (non-critical)
-          if (error.message.includes('already exists') || 
+          if (error.message.includes('already exists') ||
               error.message.includes('duplicate')) {
-            console.log(`   ⚠️  Already exists (skipping)`);
+            console.log('   ⚠️  Already exists (skipping)');
             skipCount++;
-          } else if (error.message.includes('does not exist') && 
+          } else if (error.message.includes('does not exist') &&
                      statement.toLowerCase().includes('drop')) {
-            console.log(`   ⚠️  Object doesn't exist (skipping)`);
+            console.log('   ⚠️  Object doesn\'t exist (skipping)');
             skipCount++;
           } else {
             console.error(`   ❌ Error: ${error.message}`);
             errorCount++;
           }
         } else {
-          console.log(`   ✅ Success`);
+          console.log('   ✅ Success');
           successCount++;
         }
       } catch (err) {
@@ -99,10 +99,10 @@ async function runMigration() {
 
     // Verify the new tables were created
     console.log('🔍 Verifying new tables...\n');
-    
+
     const tablesToCheck = [
       'file_metadata',
-      'file_storage', 
+      'file_storage',
       'file_organization',
       'file_workflow_links',
       'file_access_tracking'
