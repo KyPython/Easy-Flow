@@ -140,8 +140,152 @@ Unsubscribe: ${appUrl}/unsubscribe?email=${encodeURIComponent(email)}
 }
 
 /**
+ * Referral Invite Email Template
+ * Sent to referred users when someone invites them to join EasyFlow
+ */
+function getReferralInviteEmail(data = {}) {
+  const { referralCode, referrerName, referrerEmail } = data;
+  const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || process.env.VITE_PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
+  const signupUrl = `${appUrl}/signup?ref=${referralCode}`;
+  
+  const subject = `${referrerName || 'A friend'} invited you to join EasyFlow - Get 1 month free!`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>You're Invited to EasyFlow!</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center" style="padding: 20px 0;">
+        <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">🎁 You're Invited!</h1>
+              <p style="margin: 10px 0 0; color: #e0e7ff; font-size: 16px;">Join EasyFlow and automate your workflows</p>
+            </td>
+          </tr>
+          
+          <!-- Main Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
+                Hi there,
+              </p>
+              
+              <p style="margin: 0 0 30px; color: #4b5563; font-size: 16px; line-height: 1.6;">
+                <strong>${referrerName || 'Someone'}</strong> ${referrerEmail ? `(${referrerEmail})` : ''} has invited you to join EasyFlow! They've given you a special referral code for a free month of our Pro plan.
+              </p>
+              
+              <!-- Reward Box -->
+              <div style="margin: 0 0 30px; padding: 24px; background-color: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px; text-align: center;">
+                <div style="font-size: 36px; margin-bottom: 10px;">🎉</div>
+                <h3 style="margin: 0 0 10px; color: #166534; font-size: 20px; font-weight: 600;">Your Exclusive Offer</h3>
+                <p style="margin: 0; color: #15803d; font-size: 18px;">
+                  <strong>1 Month Free</strong> of EasyFlow Pro when you sign up!
+                </p>
+              </div>
+              
+              <!-- CTA Button -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 30px 0;">
+                <tr>
+                  <td align="center" style="padding: 20px 0;">
+                    <a href="${signupUrl}" style="display: inline-block; padding: 16px 40px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 18px;">
+                      🚀 Sign Up Now
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="margin: 0 0 20px; color: #6b7280; font-size: 14px;">
+                <strong>Your referral code:</strong> <code style="background-color: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-size: 16px; letter-spacing: 1px;">${referralCode}</code>
+              </p>
+              
+              <p style="margin: 0 0 30px; color: #6b7280; font-size: 14px;">
+                Or copy and paste this link into your browser:
+                <br>
+                <a href="${signupUrl}" style="color: #2563eb; text-decoration: none; word-break: break-all;">${signupUrl}</a>
+              </p>
+              
+              <!-- Features -->
+              <div style="margin: 30px 0; padding: 20px; background-color: #f9fafb; border-radius: 8px;">
+                <p style="margin: 0 0 15px; color: #1f2937; font-size: 16px; font-weight: 600;">With EasyFlow Pro, you can:</p>
+                <ul style="margin: 0; padding-left: 20px; color: #4b5563; line-height: 1.8;">
+                  <li>🤖 Automate repetitive tasks with AI-powered workflows</li>
+                  <li>📊 Extract data from any website automatically</li>
+                  <li>📧 Send personalized emails at scale</li>
+                  <li>🔄 Connect your favorite tools and apps</li>
+                  <li>⏰ Schedule workflows to run automatically</li>
+                </ul>
+              </div>
+              
+              <p style="margin: 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                Need help? Just reply to this email - we're here to help you succeed!
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 30px 40px; background-color: #f9fafb; border-radius: 0 0 8px 8px; text-align: center; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0 0 10px; color: #6b7280; font-size: 14px;">
+                <strong>EasyFlow</strong> - Automate Your Workflows, Save Your Time
+              </p>
+              <p style="margin: 0 0 15px; color: #9ca3af; font-size: 12px;">
+                You're receiving this because ${referrerName || 'someone'} invited you to join EasyFlow.
+              </p>
+              <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                <a href="${appUrl}" style="color: #2563eb; text-decoration: none;">Visit EasyFlow</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  const text = `
+🎉 You're Invited to Join EasyFlow!
+
+Hi there,
+
+${referrerName || 'Someone'} has invited you to join EasyFlow! They've given you a special referral code for a free month of our Pro plan.
+
+🎁 YOUR EXCLUSIVE OFFER:
+1 Month Free of EasyFlow Pro when you sign up!
+
+📍 GET STARTED:
+Sign up here: ${signupUrl}
+
+Your referral code: ${referralCode}
+
+WHAT YOU CAN DO WITH EASYFLOW PRO:
+- Automate repetitive tasks with AI-powered workflows
+- Extract data from any website automatically
+- Send personalized emails at scale
+- Connect your favorite tools and apps
+- Schedule workflows to run automatically
+
+Need help? Just reply to this email - we're here to help you succeed!
+
+---
+EasyFlow - Automate Your Workflows, Save Your Time
+  `.trim();
+
+  return { subject, html, text };
+}
+
+/**
  * Get email template by name
- * Supports: 'success', 'welcome', 'followup', 'welcome_followup', 'activation_reminder', 'success_tips', 'automation_tips', 'custom'
+ * Supports: 'success', 'welcome', 'followup', 'welcome_followup', 'activation_reminder', 'success_tips', 'automation_tips', 'referral', 'custom'
  */
 function getEmailTemplate(templateName, data = {}) {
   switch (templateName) {
@@ -158,6 +302,8 @@ function getEmailTemplate(templateName, data = {}) {
       return getSuccessTipsEmail(data);
     case 'automation_tips':
       return getAutomationTipsEmail(data);
+    case 'referral':
+      return getReferralInviteEmail(data);
     case 'custom':
     default:
       return getCustomEmail(data);
@@ -467,6 +613,7 @@ module.exports = {
   getActivationReminderEmail,
   getSuccessTipsEmail,
   getCustomEmail,
+  getReferralInviteEmail,
   // Support & Operations templates
   getOutageNotificationEmail,
   getSupportResponseEmail,

@@ -191,19 +191,16 @@ def _scrape_web_page_impl(driver, url, task_data=None):
     try:
         logger.info(f"Scraping web page: {url}")
 
-        # ✅ INSTRUCTION 3: Create span for page load
+        # Load page and parse HTML (with optional OTEL spans)
         if OTEL_AVAILABLE and tracer is not None:
             with tracer.start_as_current_span(
                 "browser.action.page_load",
                 attributes={'browser.url': url}
             ) as load_span:
                 driver.get(url)
-                
-                # Wait for the page to load
                 WebDriverWait(driver, 10).until(
                     EC.presence_of_element_located((By.TAG_NAME, "body"))
                 )
-                
                 load_span.set_status(Status(StatusCode.OK))
                 load_span.set_attribute('browser.page_loaded', True)
         else:
@@ -212,7 +209,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
 
-        # ✅ INSTRUCTION 3: Create span for HTML parsing
+        # Parse HTML
         if OTEL_AVAILABLE and tracer is not None:
             with tracer.start_as_current_span(
                 "browser.action.parse_html",
@@ -230,211 +227,32 @@ def _scrape_web_page_impl(driver, url, task_data=None):
             "timestamp": datetime.now().isoformat()
         }
 
-        # ✅ INSTRUCTION 3: Create span for basic data extraction
-        if OTEL_AVAILABLE and tracer is not None:
-            with tracer.start_as_current_span(
-                "browser.action.extract_basic_data",
-                attributes={'browser.url': url}
-            ) as extract_span:
-                # Extract meta description
-                meta_description_tag = soup.find("meta", attrs={"name": "description"})
-                scraped_data["description"] = meta_description_tag["content"].strip() if meta_description_tag and meta_description_tag.get("content") else "No meta description found"
+        # Extract basic content using helper
+        basic = _extract_basic_data(soup, driver)
+        scraped_data.update(basic)
 
-                # Extract headings (h1, h2, h3)
-                headings = [h.get_text().strip() for h in soup.find_all(['h1', 'h2', 'h3']) if h.get_text().strip()]
-                scraped_data["headings"] = headings
+        # Extract structured content using helper (tables, lists, links)
+        structured = _extract_structured_data(soup, url)
+        scraped_data.update(structured)
 
-                # Extract all paragraph text
-                paragraphs = [p.get_text().strip() for p in soup.find_all('p') if p.get_text().strip()]
-                scraped_data["paragraphs"] = paragraphs
-                scraped_data["raw_body_text"] = driver.find_element(By.TAG_NAME, "body").text
+        # Images and prices
+        scraped_data["images"] = _extract_images(soup)
+        scraped_data["detected_prices"] = _extract_prices(scraped_data.get("raw_body_text", ""))
 
-                extract_span.set_status(Status(StatusCode.OK))
-                extract_span.set_attribute('extraction.headings_found', len(headings))
-                extract_span.set_attribute('extraction.paragraphs_found', len(paragraphs))
-        else:
-            meta_description_tag = soup.find("meta", attrs={"name": "description"})
-            scraped_data["description"] = meta_description_tag["content"].strip() if meta_description_tag and meta_description_tag.get("content") else "No meta description found"
-            headings = [h.get_text().strip() for h in soup.find_all(['h1', 'h2', 'h3']) if h.get_text().strip()]
-            scraped_data["headings"] = headings
-            paragraphs = [p.get_text().strip() for p in soup.find_all('p') if p.get_text().strip()]
-            scraped_data["paragraphs"] = paragraphs
-            scraped_data["raw_body_text"] = driver.find_element(By.TAG_NAME, "body").text
+        # Targeted selectors
+        targeted = _handle_selectors(driver, task_data)
+        if targeted:
+            scraped_data.update(targeted)
 
-        # ✅ INSTRUCTION 3: Create span for structured data extraction (tables, lists, links)
-        if OTEL_AVAILABLE and tracer is not None:
-            with tracer.start_as_current_span(
-                "browser.action.extract_structured_data",
-                attributes={'browser.url': url}
-            ) as struct_span:
-                # Extract structured data - tables
-                tables = []
-                for table in soup.find_all('table'):
-                    table_data = []
-                    rows = table.find_all('tr')
-                    for row in rows:
-                        cells = row.find_all(['td', 'th'])
-                        row_data = [cell.get_text().strip() for cell in cells]
-                        if any(row_data):  # Only include non-empty rows
-                            table_data.append(row_data)
-                    if table_data:
-                        tables.append({
-                            'headers': table_data[0] if table_data else [],
-                            'rows': table_data[1:] if len(table_data) > 1 else [],
-                            'total_rows': len(table_data),
-                            'total_columns': len(table_data[0]) if table_data else 0
-                        })
-                scraped_data["tables"] = tables
-
-                # Extract lists (ul, ol)
-                lists = []
-                for list_elem in soup.find_all(['ul', 'ol']):
-                    list_items = [li.get_text().strip() for li in list_elem.find_all('li')]
-                    if list_items:
-                        lists.append({
-                            'type': list_elem.name,
-                            'items': list_items,
-                            'item_count': len(list_items)
-                        })
-                scraped_data["lists"] = lists
-
-                # Extract links
-                links = []
-                for link in soup.find_all('a', href=True):
-                    link_text = link.get_text().strip()
-                    if link_text:
-                        links.append({
-                            'text': link_text,
-                            'url': link['href'],
-                            'is_external': link['href'].startswith('http') and not any(domain in link['href'] for domain in [url])
-                        })
-                scraped_data["links"] = links[:50]  # Limit to first 50 links
-
-                struct_span.set_status(Status(StatusCode.OK))
-                struct_span.set_attribute('extraction.tables_found', len(tables))
-                struct_span.set_attribute('extraction.lists_found', len(lists))
-                struct_span.set_attribute('extraction.links_found', len(links))
-        else:
-            # Fallback without instrumentation
-            tables = []
-            for table in soup.find_all('table'):
-                table_data = []
-                rows = table.find_all('tr')
-                for row in rows:
-                    cells = row.find_all(['td', 'th'])
-                    row_data = [cell.get_text().strip() for cell in cells]
-                    if any(row_data):
-                        table_data.append(row_data)
-                if table_data:
-                    tables.append({
-                        'headers': table_data[0] if table_data else [],
-                        'rows': table_data[1:] if len(table_data) > 1 else [],
-                        'total_rows': len(table_data),
-                        'total_columns': len(table_data[0]) if table_data else 0
-                    })
-            scraped_data["tables"] = tables
-
-            lists = []
-            for list_elem in soup.find_all(['ul', 'ol']):
-                list_items = [li.get_text().strip() for li in list_elem.find_all('li')]
-                if list_items:
-                    lists.append({
-                        'type': list_elem.name,
-                        'items': list_items,
-                        'item_count': len(list_items)
-                    })
-            scraped_data["lists"] = lists
-
-            links = []
-            for link in soup.find_all('a', href=True):
-                link_text = link.get_text().strip()
-                if link_text:
-                    links.append({
-                        'text': link_text,
-                        'url': link['href'],
-                        'is_external': link['href'].startswith('http') and not any(domain in link['href'] for domain in [url])
-                    })
-            scraped_data["links"] = links[:50]
-
-        # Extract images with alt text
-        images = []
-        for img in soup.find_all('img'):
-            if img.get('src'):
-                images.append({
-                    'src': img['src'],
-                    'alt': img.get('alt', ''),
-                    'title': img.get('title', '')
-                })
-        scraped_data["images"] = images[:20]  # Limit to first 20 images
-
-        # Extract prices (common patterns)
-        price_patterns = [
-            r'\$[\d,]+\.?\d*',
-            r'€[\d,]+\.?\d*',
-            r'£[\d,]+\.?\d*',
-            r'[\d,]+\.?\d*\s*USD',
-            r'[\d,]+\.?\d*\s*EUR'
-        ]
-        prices = []
-        for pattern in price_patterns:
-            found_prices = re.findall(pattern, scraped_data["raw_body_text"])
-            prices.extend(found_prices[:10])  # Limit per pattern
-        scraped_data["detected_prices"] = list(set(prices))  # Remove duplicates
-
-        # Handle multiple selectors for targeted scraping
-        selectors = task_data.get('selectors', {})
-        if isinstance(selectors, dict):
-            extracted_elements = {}
-            for key, selector in selectors.items():
-                try:
-                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
-                    if elements:
-                        if len(elements) == 1:
-                            extracted_elements[key] = elements[0].text.strip()
-                        else:
-                            extracted_elements[key] = [elem.text.strip() for elem in elements if elem.text.strip()]
-                    else:
-                        extracted_elements[key] = f"No elements found with selector '{selector}'"
-                except Exception as e:
-                    logger.warning(f"Could not extract elements for '{key}' with selector '{selector}': {e}")
-                    extracted_elements[key] = f"Error: {str(e)}"
-            
-            if extracted_elements:
-                scraped_data["targeted_elements"] = extracted_elements
-
-        # Legacy single selector support
-        selector = task_data.get('selector')
-        if selector:
-            try:
-                element = WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                )
-                scraped_data["targeted_element_text"] = element.text.strip()
-            except Exception as e:
-                logger.warning(f"Could not find element with selector '{selector}': {e}")
-                scraped_data["targeted_element_text"] = f"Element with selector '{selector}' not found"
-
-        # Handle table data extraction
+        # Enhanced table extraction if requested
         if task_data.get('extract_table_data'):
             table_config = task_data.get('table_config', {})
-            enhanced_tables = []
-            
-            for i, table in enumerate(tables):
-                enhanced_table = table.copy()
-                
-                # Apply table configuration
-                if table_config.get('skip_empty_rows'):
-                    enhanced_table['rows'] = [row for row in table['rows'] if any(cell.strip() for cell in row)]
-                
-                enhanced_tables.append(enhanced_table)
-            
-            scraped_data["enhanced_tables"] = enhanced_tables
+            scraped_data["enhanced_tables"] = _enhance_tables(scraped_data.get('tables', []), table_config)
 
         scraped_data["status"] = "success"
         scraped_data["scraped_at"] = datetime.now().isoformat()
 
         return scraped_data
-
     except Exception as e:
         logger.error(f"Error scraping web page: {e}")
         return {
@@ -446,6 +264,7 @@ def _scrape_web_page_impl(driver, url, task_data=None):
     finally:
         if driver:
             driver.quit()
+
 
 def generate_files(scraped_data):
     """
@@ -518,10 +337,310 @@ def generate_files(scraped_data):
 
         logger.info(f"Generated {len(files_created)} files for scraped data")
         return files_created
-
     except Exception as e:
         logger.error(f"Error generating files: {e}")
         return []
+
+
+# --- Helper extraction functions (split large function into smaller pieces) ---
+def _extract_basic_data(soup, driver):
+    meta_description_tag = soup.find("meta", attrs={"name": "description"})
+    description = meta_description_tag["content"].strip() if meta_description_tag and meta_description_tag.get("content") else "No meta description found"
+    headings = [h.get_text().strip() for h in soup.find_all(['h1', 'h2', 'h3']) if h.get_text().strip()]
+    paragraphs = [p.get_text().strip() for p in soup.find_all('p') if p.get_text().strip()]
+    raw_body_text = driver.find_element(By.TAG_NAME, "body").text if driver else ""
+    return {
+        "description": description,
+        "headings": headings,
+        "paragraphs": paragraphs,
+        "raw_body_text": raw_body_text
+    }
+
+
+def _extract_structured_data(soup, url):
+    return {
+        "tables": _parse_tables_from_soup(soup),
+        "lists": _parse_lists_from_soup(soup),
+        "links": _parse_links_from_soup(soup, url)[:50]
+    }
+
+
+def _parse_tables_from_soup(soup):
+    tables = []
+    for table in soup.find_all('table'):
+        table_data = []
+        rows = table.find_all('tr')
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            row_data = [cell.get_text().strip() for cell in cells]
+            if any(row_data):
+                table_data.append(row_data)
+        if table_data:
+            tables.append({
+                'headers': table_data[0] if table_data else [],
+                'rows': table_data[1:] if len(table_data) > 1 else [],
+                'total_rows': len(table_data),
+                'total_columns': len(table_data[0]) if table_data else 0
+            })
+    return tables
+
+
+def _parse_lists_from_soup(soup):
+    lists = []
+    for list_elem in soup.find_all(['ul', 'ol']):
+        list_items = [li.get_text().strip() for li in list_elem.find_all('li')]
+        if list_items:
+            lists.append({
+                'type': list_elem.name,
+                'items': list_items,
+                'item_count': len(list_items)
+            })
+    return lists
+
+
+def _parse_links_from_soup(soup, base_url):
+    links = []
+    for link in soup.find_all('a', href=True):
+        link_text = link.get_text().strip()
+        href = link['href']
+        if not link_text:
+            continue
+        is_external = href.startswith('http') and (base_url not in href)
+        links.append({'text': link_text, 'url': href, 'is_external': is_external})
+    return links
+
+
+def _extract_images(soup, limit=20):
+    images = []
+    for img in soup.find_all('img'):
+        if img.get('src'):
+            images.append({
+                'src': img['src'],
+                'alt': img.get('alt', ''),
+                'title': img.get('title', '')
+            })
+    return images[:limit]
+
+
+def _extract_prices(raw_text):
+    price_patterns = [
+        r'\$[\d,]+\.?\d*',
+        r'€[\d,]+\.?\d*',
+        r'£[\d,]+\.?\d*',
+        r'[\d,]+\.?\d*\s*USD',
+        r'[\d,]+\.?\d*\s*EUR'
+    ]
+    prices = []
+    for pattern in price_patterns:
+        found_prices = re.findall(pattern, raw_text or "")
+        prices.extend(found_prices[:10])
+    return list(set(prices))
+
+
+def _handle_selectors(driver, task_data):
+    result = {}
+    selectors = task_data.get('selectors', {}) if isinstance(task_data, dict) else {}
+    if isinstance(selectors, dict) and selectors:
+        extracted_elements = {}
+        for key, selector in selectors.items():
+            try:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                if elements:
+                    if len(elements) == 1:
+                        extracted_elements[key] = elements[0].text.strip()
+                    else:
+                        extracted_elements[key] = [elem.text.strip() for elem in elements if elem.text.strip()]
+                else:
+                    extracted_elements[key] = f"No elements found with selector '{selector}'"
+            except Exception as e:
+                logger.warning(f"Could not extract elements for '{key}' with selector '{selector}': {e}")
+                extracted_elements[key] = f"Error: {str(e)}"
+        if extracted_elements:
+            result["targeted_elements"] = extracted_elements
+
+    # Legacy single selector
+    selector = task_data.get('selector') if isinstance(task_data, dict) else None
+    if selector:
+        try:
+            element = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+            )
+            result["targeted_element_text"] = element.text.strip()
+        except Exception as e:
+            logger.warning(f"Could not find element with selector '{selector}': {e}")
+            result["targeted_element_text"] = f"Element with selector '{selector}' not found"
+
+    return result
+
+
+def _enhance_tables(tables, table_config):
+    enhanced_tables = []
+    for table in tables:
+        enhanced_table = table.copy()
+        if table_config.get('skip_empty_rows'):
+            enhanced_table['rows'] = [row for row in table['rows'] if any(cell.strip() for cell in row)]
+        enhanced_tables.append(enhanced_table)
+    return enhanced_tables
+
+
+# --- Helpers for `submit_form` refactor ---
+def _open_and_prepare(driver, url):
+    driver.get(url)
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+    time.sleep(2)
+
+
+def _fill_single_field(driver, field_name, field_value, selector):
+    def _is_select(el):
+        try:
+            return el.tag_name.lower() == 'select'
+        except Exception:
+            return False
+
+    def _handle_select(el, value):
+        sel = Select(el)
+        try:
+            sel.select_by_visible_text(str(value))
+        except Exception:
+            sel.select_by_value(str(value))
+        return f"{field_name}: {value} (select)"
+
+    def _handle_checkbox(el, value):
+        try:
+            if value and not el.is_selected():
+                el.click()
+            elif not value and el.is_selected():
+                el.click()
+            return f"{field_name}: {value} (checkbox)"
+        except Exception:
+            return None
+
+    def _handle_radio(el, value):
+        try:
+            if value:
+                el.click()
+            return f"{field_name}: {value} (radio)"
+        except Exception:
+            return None
+
+    def _handle_file(el, value):
+        try:
+            if value and os.path.exists(str(value)):
+                el.send_keys(str(value))
+            return f"{field_name}: {value} (file)"
+        except Exception:
+            return None
+
+    def _handle_text(el, value):
+        try:
+            el.clear()
+            el.send_keys(str(value))
+            return f"{field_name}: {value} (text)"
+        except Exception:
+            return None
+
+    try:
+        element = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+        )
+    except Exception as e:
+        logger.warning(f"Could not find selector for '{field_name}': {e}")
+        return None
+
+    try:
+        input_type = (element.get_attribute('type') or '').lower()
+
+        if _is_select(element):
+            return _handle_select(element, field_value)
+
+        if input_type == 'checkbox':
+            return _handle_checkbox(element, field_value)
+
+        if input_type == 'radio':
+            return _handle_radio(element, field_value)
+
+        if input_type == 'file':
+            return _handle_file(element, field_value)
+
+        return _handle_text(element, field_value)
+    except Exception as e:
+        logger.warning(f"Could not fill field '{field_name}' with selector '{selector}': {e}")
+        return None
+
+
+def _perform_submit(driver, selectors):
+    submit_success = False
+    submit_method = 'unknown'
+
+    if selectors and 'submit' in selectors:
+        try:
+            submit_btn = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, selectors['submit']))
+            )
+            submit_btn.click()
+            return True, 'button_click'
+        except Exception as e:
+            logger.warning(f"Could not click submit button: {e}")
+
+    try:
+        submit_btn = driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
+        submit_btn.click()
+        return True, 'auto_submit_button'
+    except Exception:
+        pass
+
+    try:
+        # Try pressing Enter on last selector if provided
+        if selectors:
+            last_selector = list(selectors.values())[-1]
+            last_el = driver.find_element(By.CSS_SELECTOR, last_selector)
+            last_el.send_keys(Keys.RETURN)
+            return True, 'enter_key'
+    except Exception as e:
+        logger.debug(f"Auto-submit fallbacks failed: {e}")
+
+    return submit_success, submit_method
+
+
+def _collect_form_result(driver, url, filled_fields, submit_success, submit_method, wait_after_submit):
+    result_soup = BeautifulSoup(driver.page_source, 'html.parser')
+    current_url = getattr(driver, 'current_url', url)
+    page_title = result_soup.title.get_text() if result_soup.title else 'No title'
+
+    success_indicators = result_soup.find_all(text=re.compile(r'success|submitted|thank you|confirmation', re.IGNORECASE))
+    error_indicators = result_soup.find_all(text=re.compile(r'error|failed|invalid|required', re.IGNORECASE))
+
+    message_selectors = [
+        ".message", ".alert", ".notification", ".success", ".error",
+        "#message", "#alert", "#notification", "[role='alert']"
+    ]
+
+    messages = []
+    for selector in message_selectors:
+        try:
+            elements = result_soup.select(selector)
+            for elem in elements[:3]:
+                text = elem.get_text(strip=True)
+                if text and len(text) < 500:
+                    messages.append(text)
+        except Exception:
+            continue
+
+    return {
+        'url': url,
+        'final_url': current_url,
+        'page_title': page_title,
+        'timestamp': datetime.now().isoformat(),
+        'filled_fields': filled_fields,
+        'submit_method': submit_method,
+        'submit_success': submit_success,
+        'wait_after_submit': wait_after_submit,
+        'success_indicators': success_indicators[:5],
+        'error_indicators': error_indicators[:5],
+        'result_messages': messages,
+        'status': 'success' if submit_success else 'failed'
+    }
+
 
 def submit_form(url, form_data, selectors, wait_after_submit=3):
     """
@@ -542,153 +661,27 @@ def submit_form(url, form_data, selectors, wait_after_submit=3):
 
     try:
         logger.info(f"Submitting form at: {url}")
-        driver.get(url)
+        _open_and_prepare(driver, url)
 
-        # Wait for the page to load
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-
-        # Wait a bit more for dynamic content
-        time.sleep(2)
-
-        # Fill form fields
+        # Fill fields
         filled_fields = []
-        for field_name, field_value in form_data.items():
+        for field_name, field_value in (form_data or {}).items():
             if field_name in selectors:
-                try:
-                    selector = selectors[field_name]
-                    element = WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                    )
+                filled = _fill_single_field(driver, field_name, field_value, selectors[field_name])
+                if filled:
+                    filled_fields.append(filled)
 
-                    # Handle different input types
-                    if element.tag_name.lower() == 'select':
-                        # Handle dropdown/select elements
-                        select = Select(element)
-                        try:
-                            select.select_by_visible_text(str(field_value))
-                        except:
-                            select.select_by_value(str(field_value))
-                        filled_fields.append(f"{field_name}: {field_value} (select)")
+        # Submit
+        submit_success, submit_method = _perform_submit(driver, selectors)
 
-                    elif element.get_attribute('type') == 'checkbox':
-                        # Handle checkboxes
-                        if field_value and not element.is_selected():
-                            element.click()
-                        elif not field_value and element.is_selected():
-                            element.click()
-                        filled_fields.append(f"{field_name}: {field_value} (checkbox)")
-
-                    elif element.get_attribute('type') == 'radio':
-                        # Handle radio buttons
-                        if field_value:
-                            element.click()
-                        filled_fields.append(f"{field_name}: {field_value} (radio)")
-
-                    elif element.get_attribute('type') == 'file':
-                        # Handle file uploads
-                        if field_value and os.path.exists(str(field_value)):
-                            element.send_keys(str(field_value))
-                        filled_fields.append(f"{field_name}: {field_value} (file)")
-
-                    else:
-                        # Handle text inputs, textareas, etc.
-                        element.clear()
-                        element.send_keys(str(field_value))
-                        filled_fields.append(f"{field_name}: {field_value} (text)")
-
-                except Exception as e:
-                    logger.warning(f"Could not fill field '{field_name}' with selector '{selector}': {e}")
-
-        # Submit the form
-        submit_success = False
-        submit_method = "unknown"
-
-        if 'submit' in selectors:
-            try:
-                # Use provided submit button selector
-                submit_btn = WebDriverWait(driver, 5).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, selectors['submit']))
-                )
-                submit_btn.click()
-                submit_success = True
-                submit_method = "button_click"
-            except Exception as e:
-                logger.warning(f"Could not click submit button: {e}")
-
-        if not submit_success:
-            try:
-                # Try to find and click any submit button
-                submit_btn = driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit'], button:contains('Submit')")
-                submit_btn.click()
-                submit_success = True
-                submit_method = "auto_submit_button"
-            except:
-                try:
-                    # Try submitting the form using Enter key on the last filled field
-                    last_element = driver.find_element(By.CSS_SELECTOR, list(selectors.values())[-1])
-                    last_element.send_keys(Keys.RETURN)
-                    submit_success = True
-                    submit_method = "enter_key"
-                except Exception as e:
-                    logger.error(f"Could not submit form: {e}")
-
-        # Wait after submission to let the page process
+        # Wait and collect results
         time.sleep(wait_after_submit)
-
-        # Get the result page content
-        result_soup = BeautifulSoup(driver.page_source, 'html.parser')
-        current_url = driver.current_url
-        page_title = result_soup.title.get_text() if result_soup.title else "No title"
-
-        # Look for success/error indicators
-        success_indicators = result_soup.find_all(text=re.compile(r'success|submitted|thank you|confirmation', re.IGNORECASE))
-        error_indicators = result_soup.find_all(text=re.compile(r'error|failed|invalid|required', re.IGNORECASE))
-
-        result_data = {
-            "url": url,
-            "final_url": current_url,
-            "page_title": page_title,
-            "timestamp": datetime.now().isoformat(),
-            "filled_fields": filled_fields,
-            "submit_method": submit_method,
-            "submit_success": submit_success,
-            "wait_after_submit": wait_after_submit,
-            "success_indicators": success_indicators[:5],  # Limit to first 5
-            "error_indicators": error_indicators[:5],  # Limit to first 5
-            "status": "success" if submit_success else "failed"
-        }
-
-        # Extract any form result messages
-        message_selectors = [
-            ".message", ".alert", ".notification", ".success", ".error",
-            "#message", "#alert", "#notification", "[role='alert']"
-        ]
-
-        messages = []
-        for selector in message_selectors:
-            try:
-                elements = result_soup.select(selector)
-                for elem in elements[:3]:  # Limit to first 3 per selector
-                    text = elem.get_text(strip=True)
-                    if text and len(text) < 500:  # Only include reasonable length messages
-                        messages.append(text)
-            except:
-                continue
-
-        result_data["result_messages"] = messages
+        result_data = _collect_form_result(driver, url, filled_fields, submit_success, submit_method, wait_after_submit)
 
         return result_data
-
     except Exception as e:
         logger.error(f"Error submitting form: {e}")
-        return {
-            "error": str(e),
-            "status": "failed",
-            "url": url,
-            "timestamp": datetime.now().isoformat()
-        }
+        return {"error": str(e), "status": "failed", "url": url, "timestamp": datetime.now().isoformat()}
     finally:
         if driver:
             driver.quit()

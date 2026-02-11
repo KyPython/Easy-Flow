@@ -68,10 +68,8 @@ def perform_web_automation(url, task_data):
     Args:
         url (str): Target URL
     task_data (dict): Task configuration with actions and verification
-
-    Returns:
-        dict: Result of automation including success status and data
     """
+
     # Translate localhost URLs for Docker environment
     url = translate_localhost_url(url)
 
@@ -82,17 +80,6 @@ def perform_web_automation(url, task_data):
     try:
         logger.info(f"Starting web automation for: {url}")
 
-        # Navigate to URL
-        driver.get(url)
-
-        # Wait for page load
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-
-        # Allow additional time for dynamic content
-        time.sleep(2)
-
         result = {
             "url": url,
             "start_time": datetime.now().isoformat(),
@@ -102,107 +89,18 @@ def perform_web_automation(url, task_data):
             "status": "success"
         }
 
-        # Perform actions
-        actions = task_data.get('actions', [])
-        for i, action in enumerate(actions):
-            try:
-                action_result = perform_action(driver, action, i)
-                result["actions_performed"].append(action_result)
+        _nav_and_wait(driver, url)
+        _execute_actions(driver, task_data.get('actions', []), result)
+        _execute_verifications(driver, task_data.get('verify_elements', []), task_data.get('success_indicators', []), result)
 
-                if not action_result.get('success', True):
-                    result["status"] = "partial_failure"
-
-            except Exception as e:
-                logger.error(f"Action {i} failed: {e}")
-                result["actions_performed"].append({
-                    "action_index": i,
-                    "action_type": action.get('type', 'unknown'),
-                    "success": False,
-                    "error": str(e),
-                    "timestamp": datetime.now().isoformat()
-                })
-                result["status"] = "partial_failure"
-
-        # Perform verifications
-        verify_elements = task_data.get('verify_elements', [])
-        for selector in verify_elements:
-            try:
-                element = driver.find_element(By.CSS_SELECTOR, selector)
-                result["verifications"].append({
-                    "selector": selector,
-                    "found": True,
-                    "text": element.text.strip(),
-                    "visible": element.is_displayed()
-                })
-            except NoSuchElementException:
-                result["verifications"].append({
-                    "selector": selector,
-                    "found": False,
-                    "error": "Element not found"
-                })
-                result["status"] = "partial_failure"
-
-            # Check success indicators
-        success_indicators = task_data.get('success_indicators', [])
-        for indicator in success_indicators:
-            try:
-                success = check_success_indicator(driver, indicator)
-                result["verifications"].append({
-                    "type": "success_indicator",
-                    "indicator": indicator,
-                    "success": success
-                })
-                if not success:
-                    result["status"] = "partial_failure"
-            except Exception as e:
-                result["verifications"].append({
-                    "type": "success_indicator",
-                    "indicator": indicator,
-                    "success": False,
-                    "error": str(e)
-                })
-
-        # Final page state
-        result["final_url"] = driver.current_url
-        result["page_title"] = driver.title
-        result["end_time"] = datetime.now().isoformat()
-
-    # Get final page content for analysis
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-
-        # Look for common success/error patterns
-        success_patterns = soup.find_all(
-            text=lambda text: text and any(
-                keyword in text.lower() for keyword in [
-                    'success',
-                    'submitted',
-                    'thank you',
-                    'welcome',
-                    'logged in']))
-        error_patterns = soup.find_all(
-            text=lambda text: text and any(
-                keyword in text.lower() for keyword in [
-                    'error',
-                    'failed',
-                    'invalid',
-                    'required',
-                    'please try']))
-
-        result["page_analysis"] = {
-            "success_messages": [msg.strip() for msg in success_patterns[:5]],
-            "error_messages": [msg.strip() for msg in error_patterns[:5]]
-        }
+        # Finalize and analyze page
+        _finalize_and_analyze(driver, result)
 
         return result
 
     except Exception as e:
         logger.error(f"Web automation failed: {e}")
-        return {
-            "error": str(e),
-            "status": "failed",
-            "url": url,
-            "timestamp": datetime.now().isoformat()
-        }
+        return {"error": str(e), "status": "failed", "url": url, "timestamp": datetime.now().isoformat()}
     finally:
         if driver:
             driver.quit()
@@ -295,6 +193,91 @@ def fill_text_action(driver, action, action_index, timestamp):
         "selector": selector,
         "value": value,
         "timestamp": timestamp
+    }
+
+
+def _nav_and_wait(driver, url):
+    """Navigate to URL and wait for page load and dynamic content."""
+    driver.get(url)
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+    time.sleep(2)
+
+
+def _execute_actions(driver, actions, result):
+    for i, action in enumerate(actions):
+        try:
+            action_result = perform_action(driver, action, i)
+            result["actions_performed"].append(action_result)
+            if not action_result.get('success', True):
+                result["status"] = "partial_failure"
+        except Exception as e:
+            logger.error(f"Action {i} failed: {e}")
+            result["actions_performed"].append({
+                "action_index": i,
+                "action_type": action.get('type', 'unknown'),
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            })
+            result["status"] = "partial_failure"
+
+
+def _execute_verifications(driver, verify_elements, success_indicators, result):
+    for selector in verify_elements:
+        try:
+            element = driver.find_element(By.CSS_SELECTOR, selector)
+            result["verifications"].append({
+                "selector": selector,
+                "found": True,
+                "text": element.text.strip(),
+                "visible": element.is_displayed()
+            })
+        except NoSuchElementException:
+            result["verifications"].append({
+                "selector": selector,
+                "found": False,
+                "error": "Element not found"
+            })
+            result["status"] = "partial_failure"
+
+    for indicator in success_indicators:
+        try:
+            success = check_success_indicator(driver, indicator)
+            result["verifications"].append({
+                "type": "success_indicator",
+                "indicator": indicator,
+                "success": success
+            })
+            if not success:
+                result["status"] = "partial_failure"
+        except Exception as e:
+            result["verifications"].append({
+                "type": "success_indicator",
+                "indicator": indicator,
+                "success": False,
+                "error": str(e)
+            })
+
+
+def _finalize_and_analyze(driver, result):
+    result["final_url"] = driver.current_url
+    result["page_title"] = driver.title
+    result["end_time"] = datetime.now().isoformat()
+
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+    success_patterns = soup.find_all(
+        text=lambda text: text and any(
+            keyword in text.lower() for keyword in [
+                'success', 'submitted', 'thank you', 'welcome', 'logged in']))
+    error_patterns = soup.find_all(
+        text=lambda text: text and any(
+            keyword in text.lower() for keyword in [
+                'error', 'failed', 'invalid', 'required', 'please try']))
+
+    result["page_analysis"] = {
+        "success_messages": [msg.strip() for msg in success_patterns[:5]],
+        "error_messages": [msg.strip() for msg in error_patterns[:5]]
     }
 
 
@@ -527,366 +510,216 @@ def check_success_indicator(driver, indicator):
     return False
 
 
-def download_pdf(pdf_url, task_data):
-    """
-    Download a PDF file from a URL.
-    Supports authenticated downloads using cookies from link discovery.
+# Module-level helpers for `download_pdf` to keep the top-level function small
+import tempfile
+import os
+from urllib.parse import urlparse
+import ipaddress
+import requests
 
-    Args:
-        pdf_url (str): URL of the PDF to download
-    task_data (dict): Task configuration (may include auth_cookies or cookie_string)
 
-    Returns:
-        dict: Result of download operation
-    """
-    import requests
-    import tempfile
-    import os
+def _prepare_download_path_module(raw_path):
+    download_path = os.path.abspath(os.path.normpath(raw_path))
+    safe_base = os.path.abspath(tempfile.gettempdir())
+    if not download_path.startswith(safe_base):
+        logger.warning(f"Download path {download_path} outside safe directory, using temp directory")
+        return safe_base
+    return download_path
 
-    # Translate localhost URLs for Docker environment
-    pdf_url = translate_localhost_url(pdf_url)
+
+def _validate_url_module(url):
+    parsed = urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        return False, f"Invalid URL scheme: {parsed.scheme}. Only http and https are allowed."
+    hostname = parsed.hostname
+    if not hostname:
+        return False, "Invalid URL: missing hostname"
+
+    env = os.getenv('ENV', os.getenv('NODE_ENV', 'development')).lower()
+    is_development = env in ('development', 'dev', 'local')
+
+    localhost_variants = {'localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]'}
+    if not is_development and hostname.lower() in localhost_variants:
+        return False, "Private/localhost addresses are not allowed"
 
     try:
-        # ✅ SECURITY: Sanitize download_path to prevent path traversal attacks
-        raw_download_path = task_data.get(
-            'download_path', tempfile.gettempdir())
-        # Normalize path and resolve to absolute path to prevent directory
-        # traversal
-        download_path = os.path.abspath(os.path.normpath(raw_download_path))
-        # Ensure the path is within the temp directory or a safe download
-        # directory
-        safe_base = os.path.abspath(tempfile.gettempdir())
-        if not download_path.startswith(safe_base):
-            logger.warning(
-                f"Download path {download_path} outside safe directory, using temp directory")
-            download_path = safe_base
+        ip = ipaddress.ip_address(hostname)
+        if not is_development and (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast):
+            return False, "Private IP addresses are not allowed"
+    except ValueError:
+        pass
 
-        verify_pdf = task_data.get('verify_pdf', True)
+    return True, None
 
-        logger.info(f"Downloading PDF from: {pdf_url}")
 
-        # ✅ SECURITY: Validate PDF URL to prevent SSRF
-        # Only allow http/https URLs, block private IPs
-        from urllib.parse import urlparse
-        import ipaddress
+def _build_auth_module(task):
+    headers = {}
+    cookies = {}
+    if task.get('cookie_string'):
+        headers['Cookie'] = task['cookie_string']
+        logger.info(f"Using cookie string for authenticated download ({len(task['cookie_string'])} chars)")
+    elif task.get('auth_cookies'):
+        for cookie in task['auth_cookies']:
+            cookies[cookie.get('name', '')] = cookie.get('value', '')
+        logger.info(f"Using {len(cookies)} cookies for authenticated download")
+    return headers, cookies
 
-        parsed_url = urlparse(pdf_url)
-        if parsed_url.scheme not in ('http', 'https'):
-            return {
-                "success": False,
-                "error": f"Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed."
-            }
 
-        # Block private IP addresses and localhost (unless in development mode)
-        hostname = parsed_url.hostname
-        if not hostname:
-            return {
-                "success": False,
-                "error": "Invalid URL: missing hostname"
-            }
+def _stream_to_file_module(response, filepath):
+    with open(filepath, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+    return os.path.getsize(filepath)
 
-        # ✅ FIX: Allow localhost in development mode for testing
-        # Default to 'development' for local testing (safer default than
-        # 'production')
-        env = os.getenv('ENV', os.getenv('NODE_ENV', 'development')).lower()
-        is_development = env in ('development', 'dev', 'local')
 
-        # Check for localhost variations (skip in development)
-        localhost_variants = [
-            'localhost',
-            '127.0.0.1',
-            '0.0.0.0',
-            '::1',
-            '[::1]']
-        if not is_development and hostname.lower() in localhost_variants:
-            return {
-                "success": False,
-                "error": "Private/localhost addresses are not allowed"
-            }
+def _verify_pdf_file_module(filepath):
+    with open(filepath, 'rb') as f:
+        header = f.read(4)
+        return header == b'%PDF'
 
-        # Check if hostname is an IP address and if it's private (skip in
-        # development)
-        try:
-            ip = ipaddress.ip_address(hostname)
-            if not is_development and (
-                    ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast):
-                return {
-                    "success": False,
-                    "error": "Private IP addresses are not allowed"
-                }
-        except ValueError:
-            # Not an IP address, check if it's a valid hostname
-            # Allow public hostnames
-            pass
 
-        # ✅ SEAMLESS UX: Use cookies for authenticated PDF downloads
-        headers = {}
-        cookies_dict = {}
+def _attempt_supabase_upload_module(filepath, filename, file_size, task_data):
+    supabase_url = os.environ.get('SUPABASE_URL')
+    supabase_key = os.environ.get('SUPABASE_SERVICE_ROLE') or os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_KEY')
+    user_id = task_data.get('user_id')
+    if not (supabase_url and supabase_key and user_id):
+        return {}
 
-        # Handle cookie string (simpler format)
-        if task_data.get('cookie_string'):
-            headers['Cookie'] = task_data['cookie_string']
-            logger.info(
-                f"Using cookie string for authenticated download ({len(task_data['cookie_string'])} chars)")
+    try:
+        supabase = _get_supabase_client(supabase_url, supabase_key)
+    except ImportError:
+        logger.warning("⚠️ supabase-py not installed, skipping cloud upload")
+        return {}
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to initialize Supabase client: {e}")
+        return {}
 
-        # Handle cookie objects (more detailed format from Puppeteer)
-        elif task_data.get('auth_cookies'):
-            # Convert cookie objects to requests-compatible format
-            for cookie in task_data['auth_cookies']:
-                cookies_dict[cookie.get('name', '')] = cookie.get('value', '')
-            logger.info(
-                f"Using {
-                    len(cookies_dict)} cookies for authenticated download")
-
-        # Download the file with authentication if available
-        response = requests.get(
-            pdf_url,
-            timeout=30,
-            stream=True,
-            headers=headers,
-            cookies=cookies_dict if cookies_dict else None
-        )
-        response.raise_for_status()
-
-        # ✅ FIX: Check Content-Type header before downloading
-        content_type = response.headers.get('content-type', '').lower()
-        is_pdf_content_type = 'application/pdf' in content_type or 'pdf' in content_type
-
-        # ✅ FIX: For demo URLs, provide helpful error message
-        if not is_pdf_content_type and '/demo' in pdf_url and not pdf_url.endswith(
-                '.pdf'):
-            return {
-                "success": False,
-                "error": f"URL does not point to a PDF file. The URL '{pdf_url}' returns HTML content. For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf' instead of 'http://localhost:3030/demo'.",
-                "content_type": content_type,
-                "suggestion": "Use a direct PDF URL ending in .pdf, or navigate to the PDF link on the page first."}
-
-        # Generate filename - sanitize to prevent path traversal
+    try:
+        with open(filepath, 'rb') as f:
+            file_content = f.read()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"downloaded_invoice_{timestamp}.pdf"
-        # ✅ SECURITY: Use os.path.join and normalize to prevent path traversal
-        filepath = os.path.abspath(
-            os.path.normpath(
-                os.path.join(
-                    download_path,
-                    filename)))
-        # Double-check the final path is still within safe directory
-        if not filepath.startswith(download_path):
-            raise ValueError(f"Path traversal detected: {filepath}")
+        storage_path = f"{user_id}/invoices/{timestamp}_{filename}"
 
-        # Save the file
-        with open(filepath, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+        upload_meta = _upload_file_to_supabase(supabase, storage_path, file_content)
+        if upload_meta.get('error'):
+            logger.warning(f"⚠️ Supabase storage upload failed: {upload_meta.get('error')}")
+            return {"upload_failed": True, "upload_error": str(upload_meta.get('error')), "storage_path": storage_path}
 
-        file_size = os.path.getsize(filepath)
+        signed_meta = _create_signed_url_supabase(supabase, storage_path)
+        if signed_meta:
+            return {**signed_meta, "storage_path": storage_path}
+        return {"storage_path": storage_path}
+    except Exception as e:
+        logger.warning(f"⚠️ Error during Supabase upload attempt: {e}")
+        return {}
 
-        result = {
-            "success": True,
-            "pdf_url": pdf_url,
-            "download_path": filepath,
-            "filename": filename,
-            "file_size": file_size,
-            "timestamp": datetime.now().isoformat(),
-            "content_type": content_type,
-            "status_code": response.status_code
-        }
 
-        # ✅ FIX: Verify it's actually a PDF and fail if it's not
-        if verify_pdf:
-            with open(filepath, 'rb') as f:
-                header = f.read(4)
-                is_pdf = header == b'%PDF'
-                result["is_valid_pdf"] = is_pdf
+def _get_supabase_client(supabase_url, supabase_key):
+    from supabase import create_client, Client
+    return create_client(supabase_url, supabase_key)
 
-                if not is_pdf:
-                    # ✅ FIX: Check if it's HTML content before deleting
-                    f.seek(0)  # Reset to beginning
-                    content_start = f.read(100).decode(
-                        'utf-8', errors='ignore')
-                    is_html = '<html' in content_start.lower() or '<!doctype' in content_start.lower()
 
-                    # Clean up the invalid file
-                    try:
-                        os.remove(filepath)
-                    except Exception as e:
-                        logger.warning(f"Failed to remove invalid file: {e}")
+def _upload_file_to_supabase(supabase, storage_path, file_content):
+    try:
+        upload_result = supabase.storage.from_('user-files').upload(storage_path, file_content, file_options={"content-type": "application/pdf", "upsert": "false"})
+        if hasattr(upload_result, 'error'):
+            return {'error': upload_result.error}
+        if isinstance(upload_result, dict) and upload_result.get('error'):
+            return {'error': upload_result.get('error')}
+        return {'ok': True}
+    except Exception as e:
+        return {'error': str(e)}
 
-                    error_msg = "Downloaded file is not a valid PDF"
-                    if is_html:
-                        error_msg += f". The URL returned HTML content instead of a PDF. Content-Type was: {content_type}"
-                    if '/demo' in pdf_url:
-                        error_msg += f" For the demo portal, use a direct PDF URL like 'http://localhost:3030/demo/invoice-1.pdf'"
 
-                    return {
-                        "success": False,
-                        "error": error_msg,
-                        "content_type": content_type,
-                        "file_size": file_size
-                    }
-
-        # ✅ Upload to Supabase storage if configured
+def _create_signed_url_supabase(supabase, storage_path):
+    try:
+        url_result = supabase.storage.from_('user-files').create_signed_url(storage_path, 31536000)
         artifact_url = None
-        try:
-            supabase_url = os.environ.get('SUPABASE_URL')
-            # ✅ FIX: Check both SUPABASE_SERVICE_ROLE and SUPABASE_SERVICE_ROLE_KEY (different naming conventions)
-            supabase_key = os.environ.get('SUPABASE_SERVICE_ROLE') or os.environ.get(
-                'SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_KEY')
-            user_id = task_data.get('user_id')
+        if isinstance(url_result, dict):
+            artifact_url = url_result.get('signedURL') or url_result.get('signedUrl')
+        elif isinstance(url_result, str):
+            artifact_url = url_result
+        return {"artifact_url": artifact_url} if artifact_url else {}
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to create signed URL: {e}")
+        return {}
 
-            if supabase_url and supabase_key and user_id:
-                try:
-                    from supabase import create_client, Client
-                    supabase: Client = create_client(
-                        supabase_url, supabase_key)
 
-                    # Read file content
-                    with open(filepath, 'rb') as f:
-                        file_content = f.read()
+def _check_content_type_module(response, pdf_url):
+    content_type = response.headers.get('content-type', '').lower()
+    is_pdf_ct = 'application/pdf' in content_type or 'pdf' in content_type
+    if not is_pdf_ct and '/demo' in pdf_url and not pdf_url.endswith('.pdf'):
+        return False, {"error": f"URL does not point to a PDF file. The URL '{pdf_url}' returns HTML content.", "content_type": content_type, "suggestion": "Use a direct PDF URL ending in .pdf"}
+    return True, {"content_type": content_type}
 
-                    # Generate storage path
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    storage_path = f"{user_id}/invoices/{timestamp}_{filename}"
 
-                    # ✅ FIX: Upload to Supabase storage with better error handling
-                    # Log which key is being used (masked for security)
-                    key_type = "SUPABASE_SERVICE_ROLE" if os.environ.get('SUPABASE_SERVICE_ROLE') else (
-                        "SUPABASE_SERVICE_ROLE_KEY" if os.environ.get('SUPABASE_SERVICE_ROLE_KEY') else "SUPABASE_KEY"
-                    )
-                    logger.info(
-                        f"📤 Uploading to Supabase storage using {key_type} (key present: {bool(supabase_key)})"
-                    )
+def _generate_filepath_module(download_path):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"downloaded_invoice_{timestamp}.pdf"
+    filepath = os.path.abspath(os.path.normpath(os.path.join(download_path, filename)))
+    return filepath, filename
 
-                    upload_result = supabase.storage.from_('user-files').upload(
-                        storage_path, file_content, file_options={
-                            "content-type": "application/pdf", "upsert": "false"})
 
-                    # Check if upload was successful (new supabase version returns object, not
-                    # dict)
-                    upload_error = None
-                    if hasattr(upload_result, 'error'):
-                        upload_error = upload_result.error
-                    elif isinstance(upload_result, dict):
-                        upload_error = upload_result.get('error')
+def download_pdf(pdf_url, task_data):
+    """Download a PDF and optionally upload it to Supabase.
 
-                    # ✅ FIX: Better error logging for RLS issues
-                    if upload_error:
-                        error_msg = str(upload_error) if not isinstance(
-                            upload_error, dict) else upload_error.get(
-                            'message', str(upload_error))
-                        logger.warning(f"⚠️ Supabase storage upload failed: {error_msg}")
-                        # If RLS error, suggest checking service role key
-                        if 'row-level security' in error_msg.lower() or 'rls' in error_msg.lower():
-                            logger.warning(
-                                "💡 Tip: RLS policy violation - ensure SUPABASE_SERVICE_ROLE (service role key) is set, not SUPABASE_ANON_KEY")
+    This top-level function is intentionally small; most logic lives in
+    module-level helpers to keep complexity low for CI enforcement.
+    """
+    pdf_url = translate_localhost_url(pdf_url)
+    raw_download_path = task_data.get('download_path', tempfile.gettempdir())
+    download_path = _prepare_download_path_module(raw_download_path)
+    verify_pdf = task_data.get('verify_pdf', True)
 
-                    if not upload_error:
-                        # Create signed URL (valid for 1 year) since bucket is private
-                        # Using very long expiry since these are user's own files
-                        try:
-                            url_result = supabase.storage.from_(
-                                'user-files').create_signed_url(storage_path, 31536000)  # 1 year in seconds
-                            artifact_url = None
-                            if isinstance(url_result, dict):
-                                artifact_url = url_result.get(
-                                    'signedURL') or url_result.get('signedUrl')
-                            elif isinstance(url_result, str):
-                                artifact_url = url_result
+    logger.info(f"Downloading PDF from: {pdf_url}")
 
-                            if artifact_url:
-                                result["artifact_url"] = artifact_url
-                                result["storage_path"] = storage_path
-                                logger.info(f"✅ Uploaded invoice to Supabase storage with signed URL")
-                            else:
-                                # Fallback: use public URL if signed URL fails
-                                result["storage_path"] = storage_path
-                                logger.warning("⚠️ Could not create signed URL, using storage path only")
-                        except Exception as url_error:
-                            logger.warning(
-                                f"⚠️ Failed to create signed URL (file still uploaded): {url_error}")
-                            result["storage_path"] = storage_path
+    valid, err = _validate_url_module(pdf_url)
+    if not valid:
+        return {"success": False, "error": err}
 
-                        # ✅ Create file record in files table so it appears in Files page
-                        # Note: This may fail due to RLS policies, but file is still uploaded to
-                        # storage
-                        try:
-                            import hashlib
-                            # ✅ SECURITY: Use SHA-256 instead of MD5 (MD5 is cryptographically broken)
-                            file_content_hash = hashlib.sha256(file_content).hexdigest()
+    headers, cookies = _build_auth_module(task_data)
 
-                            file_record = {
-                                "user_id": str(user_id),  # Ensure string format
-                                "original_name": filename,
-                                "display_name": filename,
-                                "storage_path": storage_path,
-                                "storage_bucket": "user-files",
-                                "file_size": file_size,
-                                "mime_type": "application/pdf",
-                                "file_extension": "pdf",
-                                # Note: checksum_sha256 column doesn't exist in files table, removed to
-                                # prevent errors
-                                "folder_path": "/invoices",
-                                "tags": ["automation", "invoice"],
-                                "metadata": {
-                                    "source": "automation",
-                                    "task_type": "invoice_download",
-                                    "pdf_url": pdf_url
-                                }
-                            }
-
-                            # ✅ FIX: Use service role key to bypass RLS - check if we have the right key
-                            file_insert_result = supabase.table('files').insert(file_record).execute()
-
-                            # Check for errors in the response
-                            if hasattr(file_insert_result, 'error') and file_insert_result.error:
-                                logger.warning(
-                                    f"⚠️ File record creation failed (RLS policy?): {
-                                        file_insert_result.error}")
-                            elif hasattr(file_insert_result, 'data') and file_insert_result.data:
-                                result["file_record_id"] = file_insert_result.data[0].get('id') if isinstance(
-                                    file_insert_result.data, list) else file_insert_result.data.get('id')
-                                logger.info(
-                                    f"✅ Created file record in files table: {
-                                        result.get('file_record_id')}")
-                            elif isinstance(file_insert_result, dict) and file_insert_result.get('error'):
-                                logger.warning(
-                                    f"⚠️ File record creation failed: {
-                                        file_insert_result.get('error')}")
-                            else:
-                                logger.warning(
-                                    "⚠️ File uploaded but file record creation returned no data")
-                        except Exception as file_record_error:
-                            # File is still in storage, just the database record failed
-                            logger.warning(
-                                f"⚠️ Failed to create file record (file still uploaded to storage): {file_record_error}")
-                            # Include storage path in result so backend can create the record
-                            result["storage_path"] = storage_path
-                            result["file_record_error"] = str(file_record_error)
-                    else:
-                        error_msg = str(upload_error) if not isinstance(
-                            upload_error, dict) else upload_error.get(
-                            'message', str(upload_error))
-                        logger.warning(f"⚠️ Failed to upload to Supabase storage: {error_msg}")
-                        # ✅ FIX: Still include storage_path in result so backend can try to create file record
-                        # The backend will handle the case where file isn't in storage yet
-                        result["storage_path"] = storage_path
-                        result["upload_failed"] = True
-                        result["upload_error"] = error_msg
-                except ImportError:
-                    logger.warning("⚠️ supabase-py not installed, skipping cloud upload")
-                except Exception as upload_error:
-                    logger.warning(
-                        f"⚠️ Failed to upload to Supabase storage: {upload_error}")
-        except Exception as e:
-            logger.warning(f"⚠️ Error during Supabase upload attempt: {e}")
-
-        return result
-
+    try:
+        response = requests.get(pdf_url, timeout=30, stream=True, headers=headers, cookies=cookies if cookies else None)
+        response.raise_for_status()
     except Exception as e:
         logger.error(f"PDF download failed: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "pdf_url": pdf_url,
-            "timestamp": datetime.now().isoformat()
-        }
+        return {"success": False, "error": str(e), "pdf_url": pdf_url, "timestamp": datetime.now().isoformat()}
+
+    ok, meta = _check_content_type_module(response, pdf_url)
+    if not ok:
+        return {"success": False, **meta}
+
+    filepath, filename = _generate_filepath_module(download_path)
+    if not filepath.startswith(download_path):
+        return {"success": False, "error": f"Path traversal detected: {filepath}"}
+
+    try:
+        file_size = _stream_to_file_module(response, filepath)
+    except Exception as e:
+        logger.error(f"Failed saving PDF: {e}")
+        return {"success": False, "error": str(e)}
+
+    result = {"success": True, "pdf_url": pdf_url, "download_path": filepath, "filename": filename, "file_size": file_size, "timestamp": datetime.now().isoformat(), "content_type": content_type, "status_code": response.status_code}
+
+    if verify_pdf:
+        is_pdf = _verify_pdf_file_module(filepath)
+        result["is_valid_pdf"] = is_pdf
+        if not is_pdf:
+            with open(filepath, 'rb') as f:
+                f.seek(0)
+                content_start = f.read(100).decode('utf-8', errors='ignore')
+            is_html = '<html' in content_start.lower() or '<!doctype' in content_start.lower()
+            try:
+                os.remove(filepath)
+            except Exception as e:
+                logger.warning(f"Failed to remove invalid file: {e}")
+            error_msg = "Downloaded file is not a valid PDF"
+            if is_html:
+                error_msg += f". The URL returned HTML content instead of a PDF. Content-Type was: {content_type}"
+            return {"success": False, "error": error_msg, "content_type": content_type, "file_size": file_size}
+
+    upload_meta = _attempt_supabase_upload_module(filepath, filename, file_size, task_data)
+    result.update(upload_meta)
+
+    return result

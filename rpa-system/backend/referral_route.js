@@ -3,6 +3,37 @@ const { logger, getLogger } = require('./utils/logger');
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const router = express.Router();
+const { getReferralInviteEmail } = require('./utils/emailTemplates');
+
+// Initialize SendGrid for email sending
+let sgMail;
+try {
+ sgMail = require('@sendgrid/mail');
+} catch (e) {
+ // Provide a minimal stub so the module can be required without crashing
+ sgMail = {
+ setApiKey: () => {},
+ send: async () => { throw new Error('SendGrid client not installed'); }
+ };
+}
+
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
+const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || process.env.FROM_EMAIL || '';
+const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || 'EasyFlow';
+
+// Configure SendGrid if available
+if (SENDGRID_API_KEY) {
+ try { sgMail.setApiKey(SENDGRID_API_KEY); } catch (_e) { /* ignore */ }
+}
+
+// Build FROM address with optional name
+const getFromAddress = () => {
+ if (!SENDGRID_FROM_EMAIL) return '';
+ if (SENDGRID_FROM_NAME && SENDGRID_FROM_NAME !== 'EasyFlow') {
+ return `${SENDGRID_FROM_NAME} <${SENDGRID_FROM_EMAIL}>`;
+ }
+ return SENDGRID_FROM_EMAIL;
+};
 
 // Initialize Supabase client only when needed to avoid env var issues at startup
 function getSupabaseClient() {
@@ -17,6 +48,53 @@ function getSupabaseClient() {
 
 function generateReferralCode() {
  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+/**
+ * Send referral invitation email to the referred user
+ */
+async function sendReferralEmail(toEmail, referralCode, referrerName, referrerEmailAddr) {
+ try {
+ // Check if email service is configured
+ if (!SENDGRID_API_KEY || !SENDGRID_FROM_EMAIL) {
+ logger.warn('[referral_route] Email service not configured - referral email not sent', {
+ to_email: toEmail,
+ referral_code: referralCode
+ });
+ return { success: false, error: 'Email not configured' };
+ }
+
+ // Generate email content using template
+ const emailTemplate = getReferralInviteEmail({
+ referralCode,
+ referrerName: referrerName || 'A friend',
+ referrerEmail: referrerEmailAddr
+ });
+
+ const msg = {
+ to: toEmail,
+ from: getFromAddress(),
+ subject: emailTemplate.subject,
+ text: emailTemplate.text,
+ html: emailTemplate.html
+ };
+
+ const [result] = await sgMail.send(msg);
+ logger.info(`[referral_route] Referral email sent to ${toEmail}`, {
+ message_id: result?.headers?.['x-message-id'],
+ referral_code: referralCode
+ });
+
+ return { success: true, messageId: result?.headers?.['x-message-id'] };
+ } catch (error) {
+ const errorMsg = error?.response?.body?.errors?.map(err => err.message).join('; ') || error?.message || 'Failed to send email';
+ logger.error('[referral_route] Failed to send referral email', {
+ error: errorMsg,
+ to_email: toEmail,
+ referral_code: referralCode
+ });
+ return { success: false, error: errorMsg };
+ }
 }
 
 router.post('/generate-referral', async (req, res) => {
@@ -113,7 +191,13 @@ router.post('/generate-referral', async (req, res) => {
  return res.status(500).json({ error: 'Failed to create referral' });
  }
 
- // TODO: Send email to referred user with signup link containing referral code
+ // Send referral invitation email
+ const emailResult = await sendReferralEmail(referredEmail, referralCode, referrerEmail, referrerEmail);
+
+ if (!emailResult.success) {
+ logger.warn(`[referral_route] Referral created but email failed to send: ${emailResult.error}`);
+ }
+
  logger.info(`Referral created: ${referralCode} for ${referredEmail} by ${referrerEmail}`);
 
  res.json({

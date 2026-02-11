@@ -21,185 +21,25 @@ import logging
 import threading
 import signal
 import json
-import uuid
-from flask import Flask, request, jsonify
-from datetime import datetime, timezone
-from concurrent.futures import ThreadPoolExecutor
-
-# ✅ INSTRUCTION 2: Import OpenTelemetry components for trace propagation
-try:
-    from opentelemetry import trace, context as otel_context, propagate
-    from opentelemetry.trace import SpanKind, Status, StatusCode
-    OTEL_AVAILABLE = True
-
-    # Get tracer for this service
-    tracer = trace.get_tracer(__name__)
-except ImportError:
-    OTEL_AVAILABLE = False
-    tracer = None
-    otel_context = None
-    propagate = None
-    logging.warning(
-        "⚠️ OpenTelemetry not available - trace propagation disabled")
-
-# Configure logging first (before using logger anywhere)
-# ✅ DOCKER LOGGING: Python logging writes to stderr/stdout by default (no handlers specified)
-# Combined with PYTHONUNBUFFERED=1 in Dockerfile, logs are immediately flushed to stdout
-# This allows Docker to capture logs via its logging driver, which Promtail then collects
-# Logs are automatically shipped to Loki for observability and trace discovery
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    # No handlers specified = writes to stderr/stdout (Docker captures this)
-)
-logger = logging.getLogger(__name__)
-
-# ✅ INSTRUCTION 2: Prometheus metrics - PRUNED for cost optimization (Gap 8, 18)
-# Removed generic system-level metrics (CPU, memory) - these are covered by Kubernetes monitoring
-# Keeping only business-critical, custom metrics
-try:
-    from prometheus_client import Counter, Histogram, generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST
-    METRICS_AVAILABLE = True
-
-    # Create custom registry to avoid conflicts
-    registry = CollectorRegistry()
-
-    # ✅ INSTRUCTION 2: Keep only business-critical metrics (Gap 8, 18)
-    # Core business metric: task processing outcomes
-    # ✅ INSTRUCTION 3: Added user_id and workflow_id labels for high-cardinality (Gap 17)
-    tasks_processed = Counter(
-        'automation_tasks_processed_total',
-        'Total number of automation tasks processed',
-        # High-cardinality labels for filtering
-        ['status', 'task_type', 'user_id', 'workflow_id'],
-        registry=registry
-    )
-
-    # Performance metric: task duration for SLO tracking
-    # ✅ INSTRUCTION 3: Added workflow_id for performance analysis by workflow (Gap 17)
-    task_duration = Histogram(
-        'automation_task_duration_seconds',
-        'Time spent processing automation tasks',
-        ['task_type', 'workflow_id'],  # Essential for performance analysis
-        buckets=[
-            0.1,
-            0.5,
-            1.0,
-            2.5,
-            5.0,
-            10.0,
-            30.0,
-            60.0],
-        # Optimized buckets
-        registry=registry
-    )
-
-    # Business-critical error tracking
-    error_count = Counter(
-        'automation_errors_total',
-        'Total automation errors by type',
-        # Essential for debugging by user
-        ['error_type', 'task_type', 'user_id'],
-        registry=registry
-    )
-
-    # ✅ REMOVED (Gap 8, 18):
-    # - active_workers (covered by Kubernetes pod metrics)
-    # - kafka_messages (covered by Kafka broker metrics)
-    # - System-level metrics (CPU, memory - covered by node exporter)
-
-except ImportError:
-    METRICS_AVAILABLE = False
-    # ✅ INSTRUCTION 2: Reduced logging verbosity (Gap 19)
-    # Only log at startup, not on every init
-    pass  # Silent fallback
-
-# Try to import Kafka library
-try:
-    from kafka import KafkaProducer, KafkaConsumer
-    from kafka.errors import KafkaError, NoBrokersAvailable
-    KAFKA_AVAILABLE = True
-except ImportError:
-    KAFKA_AVAILABLE = False
-
-    class KafkaProducer:
-        pass
-
-    class KafkaConsumer:
-        pass
-
-    class KafkaError:
-        Exception
-
-    class NoBrokersAvailable(Exception):
-        pass
-
-# Logger was already configured above
-
-# Flask app
-app = Flask(__name__)
-# ✅ INSTRUCTION 2: Reduce logging verbosity in production (Gap 19)
-app.logger.setLevel(logging.INFO if os.getenv(
-    'ENV') == 'production' else logging.DEBUG)
-
-# Kafka configuration
-KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
-KAFKA_TASK_TOPIC = os.getenv('KAFKA_TASK_TOPIC', 'automation-tasks')
-KAFKA_RESULT_TOPIC = os.getenv('KAFKA_RESULT_TOPIC', 'automation-results')
-KAFKA_CONSUMER_GROUP = os.getenv('KAFKA_CONSUMER_GROUP', 'automation-workers')
-
-# Global state and locks
-kafka_producer = None
-kafka_consumer = None
-kafka_lock = threading.Lock()
-shutdown_event = threading.Event()
-
-# Enhanced thread pool configuration
-MAX_WORKERS = int(os.getenv('MAX_WORKERS', '3'))
-USE_PROCESS_POOL = os.getenv('USE_PROCESS_POOL', 'false').lower() == 'true'
-POOL_TYPE = os.getenv('POOL_TYPE', 'thread')  # 'thread' or 'process'
-
-# Import ProcessPoolExecutor for CPU-bound tasks
-
-# Initialize the appropriate executor based on configuration
-# ✅ INSTRUCTION 2: Reduced startup logging (Gap 19) - log once at INFO level
-if USE_PROCESS_POOL or POOL_TYPE == 'process':
-    executor = ProcessPoolExecutor(max_workers=MAX_WORKERS)
-    if os.getenv('ENV') != 'production':
-        logger.info(f"Using ProcessPoolExecutor with {MAX_WORKERS} processes")
-else:
-    executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
-    if os.getenv('ENV') != 'production':
-        logger.info(f"Using ThreadPoolExecutor with {MAX_WORKERS} threads")
-
-# ✅ INSTRUCTION 3: Context-aware thread pool submission wrapper
 
 
 def context_aware_submit(executor, fn, *args, **kwargs):
-    """
-    Wrapper to preserve OpenTelemetry context across thread boundaries.
-    Captures the current trace context before submitting to executor,
-    then restores it in the worker thread before executing the function.
+    """Submit a callable to an executor preserving OpenTelemetry context.
+
+    If OpenTelemetry is unavailable, falls back to normal `executor.submit`.
     """
     if not OTEL_AVAILABLE or otel_context is None:
-        # Fallback to normal submit if OpenTelemetry not available
         return executor.submit(fn, *args, **kwargs)
 
-    # Capture the current OpenTelemetry context
     current_context = otel_context.get_current()
 
     def context_preserving_wrapper():
-        """Internal wrapper that restores context in the new thread"""
-        # Attach the captured context in this new thread
         token = otel_context.attach(current_context)
         try:
-            # Execute the original function with the restored context
             return fn(*args, **kwargs)
         finally:
-            # Detach context to avoid leaks
             otel_context.detach(token)
 
-    # Submit the context-preserving wrapper to the executor
     return executor.submit(context_preserving_wrapper)
 
 # ✅ INSTRUCTION 2: Helper to convert Kafka headers to dict for OTEL extraction
@@ -433,20 +273,7 @@ def process_automation_task(task_data):
     }
 
     # ✅ OBSERVABILITY: Add OpenTelemetry trace context to log context
-    if OTEL_AVAILABLE and otel_context is not None:
-        try:
-            span = trace.get_current_span()
-            if span:
-                span_context = span.get_span_context()
-                if span_context and span_context.is_valid:
-                    extra_context['otel_trace_id'] = format(
-                        span_context.trace_id, '032x')
-                    extra_context['otel_span_id'] = format(
-                        span_context.span_id, '016x')
-                    extra_context['otel_trace_flags'] = span_context.trace_flags
-        except Exception as e:
-            # Silently fail if trace context extraction fails
-            pass
+    _add_otel_trace_context(extra_context)
 
     task_logger = logging.LoggerAdapter(logger, extra_context)
 
@@ -458,164 +285,7 @@ def process_automation_task(task_data):
     start_time = time.time() if METRICS_AVAILABLE else None
 
     try:
-        # --- Real automation logic with browser automation ---
-        if task_type == 'web_automation':
-            try:
-                from . import web_automation
-            except ImportError:
-                import web_automation
-
-            url = task_data.get('url')
-            if not url:
-                result = {
-                    'success': False,
-                    'error': 'Missing required field: url'
-                }
-            else:
-                automation_result = web_automation.perform_web_automation(
-                    url, task_data)
-                if automation_result.get('status') == 'success' or automation_result.get(
-                        'status') == 'partial_failure':
-                    result = {
-                        'success': True,
-                        'data': automation_result,
-                        'message': f'Web automation completed with status: {
-                            automation_result.get("status")}'}
-                else:
-                    result = {
-                        'success': False,
-                        'error': automation_result.get(
-                            'error',
-                            'Web automation failed'),
-                        'details': automation_result}
-        elif task_type == 'data_extraction' or task_type == 'web_scraping':
-            # Support both 'data_extraction' (legacy) and 'web_scraping' task types
-            # They use the same scraping logic
-            url = task_data.get('url')
-            if not url:
-                result = {'success': False, 'error': 'Missing required field: url'}
-            else:
-                try:
-                    from . import generic_scraper
-                except ImportError:
-                    import generic_scraper
-
-                task_logger.info(f"🔍 Starting web scraping for: {url}")
-                scrape_result = generic_scraper.scrape_web_page(url, task_data)
-                if scrape_result.get('status') == 'success':
-                    result = {'success': True, 'data': scrape_result}
-                    task_logger.info(f"✅ Web scraping completed successfully")
-                else:
-                    result = {
-                        'success': False,
-                        'error': scrape_result.get(
-                            'error',
-                            'Scraping failed'),
-                        'details': scrape_result}
-                    task_logger.error(f"❌ Web scraping failed: {result.get('error')}")
-        elif task_type == 'invoice_download':
-            # Support both pdf_url and url fields
-            pdf_url = task_data.get('pdf_url') or task_data.get('url')
-            if not pdf_url:
-                result = {
-                    'success': False,
-                    'error': 'Missing required field: pdf_url or url'}
-            else:
-                # ✅ SECURITY: Validate URL to prevent SSRF before calling download_pdf
-                from urllib.parse import urlparse
-                parsed_url = urlparse(pdf_url)
-                if parsed_url.scheme not in ('http', 'https'):
-                    result = {
-                        'success': False,
-                        'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'}
-                else:
-                    try:
-                        from . import web_automation
-                    except ImportError:
-                        import web_automation
-
-                    task_logger.info(f"📥 Starting invoice download from: {pdf_url}")
-                    # ✅ SECURITY: Explicitly validate and sanitize download_path before passing to download_pdf
-                    # This prevents path traversal attacks even if download_pdf is called
-                    # incorrectly
-                    import os
-                    import tempfile
-                    raw_download_path = task_data.get('download_path', tempfile.gettempdir())
-                    # ✅ SECURITY: Normalize and validate path to prevent directory traversal
-                    if raw_download_path and isinstance(raw_download_path, str):
-                        # Remove any path traversal attempts and normalize
-                        normalized_path = os.path.normpath(raw_download_path)
-                        # Remove any remaining path traversal attempts after normalization
-                        if '..' in normalized_path or normalized_path.startswith('/') or normalized_path.startswith('~'):
-                            task_logger.warning(
-                                f"Download path contains unsafe characters, using temp directory")
-                            task_data['download_path'] = tempfile.gettempdir()
-                        else:
-                            # Ensure path is absolute and within safe directory
-                            safe_base = os.path.abspath(tempfile.gettempdir())
-                            abs_path = os.path.abspath(os.path.join(safe_base, normalized_path))
-                            # Double-check that resolved path is still within safe base
-                            if not abs_path.startswith(safe_base):
-                                task_logger.warning(
-                                    f"Download path {abs_path} outside safe directory, using temp directory")
-                                task_data['download_path'] = safe_base
-                            else:
-                                task_data['download_path'] = abs_path
-                    else:
-                        task_data['download_path'] = tempfile.gettempdir()
-
-                    # download_pdf() also sanitizes internally as a defense-in-depth measure
-                    download_result = web_automation.download_pdf(pdf_url, task_data)
-                    # ✅ SECURITY: download_pdf also validates the path internally to prevent path traversal
-                    if download_result.get('success'):
-                        result = {'success': True, 'data': download_result,
-                                  'message': f'Invoice downloaded from {pdf_url}'}
-                        task_logger.info(f"✅ Invoice download completed successfully")
-                    else:
-                        result = {
-                            'success': False,
-                            'error': download_result.get(
-                                'error',
-                                'Download failed'),
-                            'details': download_result}
-                        task_logger.error(f"❌ Invoice download failed: {result.get('error')}")
-        elif task_type == 'form_submission':
-            # Form submission task - fill and submit forms on web pages
-            url = task_data.get('url')
-            form_data = task_data.get('form_data', {})
-            selectors = task_data.get('selectors', {})
-            wait_after_submit = task_data.get('wait_after_submit', 3)
-
-            if not url:
-                result = {'success': False, 'error': 'Missing required field: url'}
-            elif not form_data:
-                result = {
-                    'success': False,
-                    'error': 'Missing required field: form_data'}
-            else:
-                try:
-                    from . import generic_scraper
-                except ImportError:
-                    import generic_scraper
-
-                task_logger.info(f"📝 Starting form submission for: {url}")
-                submit_result = generic_scraper.submit_form(
-                    url, form_data, selectors, wait_after_submit)
-                if submit_result.get(
-                        'status') == 'success' or submit_result.get('success'):
-                    result = {'success': True, 'data': submit_result,
-                              'message': f'Form submitted successfully at {url}'}
-                    task_logger.info(f"✅ Form submission completed successfully")
-                else:
-                    result = {
-                        'success': False,
-                        'error': submit_result.get(
-                            'error',
-                            'Form submission failed'),
-                        'details': submit_result}
-                    task_logger.error(f"❌ Form submission failed: {result.get('error')}")
-        else:
-            result = {'success': False, 'error': f'Unknown task type: {task_type}'}
+        result = _run_task_core(task_data, task_logger, start_time, task_id, task_type, user_id, workflow_id)
 
         # ✅ FIX: Pass run_id from task_data so Kafka consumer can update automation_runs table
         run_id = task_data.get('run_id')
@@ -684,6 +354,249 @@ def process_automation_task(task_data):
 
         # ✅ FIX: Return error result so direct HTTP endpoint can use it
         return error_result
+
+
+def _run_task_core(task_data, task_logger, start_time, task_id, task_type, user_id, workflow_id):
+    """Core task processing logic extracted to reduce `process_automation_task` complexity."""
+    # --- Real automation logic with browser automation ---
+    if task_type == 'web_automation':
+        try:
+            from . import web_automation
+        except ImportError:
+            import web_automation
+
+        url = task_data.get('url')
+        if not url:
+            return {'success': False, 'error': 'Missing required field: url'}
+
+        automation_result = web_automation.perform_web_automation(url, task_data)
+        if automation_result.get('status') in ('success', 'partial_failure'):
+            return {'success': True, 'data': automation_result, 'message': f'Web automation completed with status: {automation_result.get("status")}' }
+        return {'success': False, 'error': automation_result.get('error', 'Web automation failed'), 'details': automation_result}
+
+    if task_type in ('data_extraction', 'web_scraping'):
+        url = task_data.get('url')
+        if not url:
+            return {'success': False, 'error': 'Missing required field: url'}
+        try:
+            from . import generic_scraper
+        except ImportError:
+            import generic_scraper
+
+        task_logger.info(f"🔍 Starting web scraping for: {url}")
+        scrape_result = generic_scraper.scrape_web_page(url, task_data)
+        if scrape_result.get('status') == 'success':
+            task_logger.info("✅ Web scraping completed successfully")
+            return {'success': True, 'data': scrape_result}
+        task_logger.error(f"❌ Web scraping failed: {scrape_result.get('error')}")
+        return {'success': False, 'error': scrape_result.get('error', 'Scraping failed'), 'details': scrape_result}
+
+    if task_type == 'invoice_download':
+        pdf_url = task_data.get('pdf_url') or task_data.get('url')
+        if not pdf_url:
+            return {'success': False, 'error': 'Missing required field: pdf_url or url'}
+
+        from urllib.parse import urlparse
+        parsed_url = urlparse(pdf_url)
+        if parsed_url.scheme not in ('http', 'https'):
+            return {'success': False, 'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'}
+
+        try:
+            from . import web_automation
+        except ImportError:
+            import web_automation
+
+        task_logger.info(f"📥 Starting invoice download from: {pdf_url}")
+        # Sanitize download_path similar to previous behavior
+        import os
+        import tempfile
+        raw_download_path = task_data.get('download_path', tempfile.gettempdir())
+        if raw_download_path and isinstance(raw_download_path, str):
+            normalized_path = os.path.normpath(raw_download_path)
+            if '..' in normalized_path or normalized_path.startswith('/') or normalized_path.startswith('~'):
+                task_logger.warning("Download path contains unsafe characters, using temp directory")
+                task_data['download_path'] = tempfile.gettempdir()
+            else:
+                safe_base = os.path.abspath(tempfile.gettempdir())
+                abs_path = os.path.abspath(os.path.join(safe_base, normalized_path))
+                if not abs_path.startswith(safe_base):
+                    task_logger.warning(f"Download path {abs_path} outside safe directory, using temp directory")
+                    task_data['download_path'] = safe_base
+                else:
+                    task_data['download_path'] = abs_path
+        else:
+            task_data['download_path'] = tempfile.gettempdir()
+
+        download_result = web_automation.download_pdf(pdf_url, task_data)
+        if download_result.get('success'):
+            task_logger.info("✅ Invoice download completed successfully")
+            return {'success': True, 'data': download_result, 'message': f'Invoice downloaded from {pdf_url}'}
+        task_logger.error(f"❌ Invoice download failed: {download_result.get('error')}")
+        return {'success': False, 'error': download_result.get('error', 'Download failed'), 'details': download_result}
+
+    if task_type == 'form_submission':
+        url = task_data.get('url')
+        form_data = task_data.get('form_data', {})
+        selectors = task_data.get('selectors', {})
+        wait_after_submit = task_data.get('wait_after_submit', 3)
+
+        if not url:
+            return {'success': False, 'error': 'Missing required field: url'}
+        if not form_data:
+            return {'success': False, 'error': 'Missing required field: form_data'}
+
+        try:
+            from . import generic_scraper
+        except ImportError:
+            import generic_scraper
+
+        task_logger.info(f"📝 Starting form submission for: {url}")
+        submit_result = generic_scraper.submit_form(url, form_data, selectors, wait_after_submit)
+        if submit_result.get('status') == 'success' or submit_result.get('success'):
+            task_logger.info("✅ Form submission completed successfully")
+            return {'success': True, 'data': submit_result, 'message': f'Form submitted successfully at {url}'}
+        task_logger.error(f"❌ Form submission failed: {submit_result.get('error')}")
+        return {'success': False, 'error': submit_result.get('error', 'Form submission failed'), 'details': submit_result}
+
+    return {'success': False, 'error': f'Unknown task type: {task_type}'}
+
+
+def _add_otel_trace_context(extra_context):
+    """Attempt to extract current OTel span context and append to log context."""
+    if not (OTEL_AVAILABLE and otel_context is not None):
+        return
+    try:
+        span = trace.get_current_span()
+        if not span:
+            return
+        span_context = span.get_span_context()
+        if not (span_context and span_context.is_valid):
+            return
+        extra_context['otel_trace_id'] = format(span_context.trace_id, '032x')
+        extra_context['otel_span_id'] = format(span_context.span_id, '016x')
+        extra_context['otel_trace_flags'] = span_context.trace_flags
+    except Exception:
+        # Best-effort: do not raise from telemetry extraction
+        return
+
+
+def _process_web_automation(task_data, task_logger):
+    try:
+        try:
+            from . import web_automation
+        except ImportError:
+            import web_automation
+
+        url = task_data.get('url')
+        if not url:
+            return {'success': False, 'error': 'Missing required field: url'}
+
+        automation_result = web_automation.perform_web_automation(url, task_data)
+        if automation_result.get('status') in ('success', 'partial_failure'):
+            return {'success': True, 'data': automation_result, 'message': f'Web automation completed with status: {automation_result.get("status")}' }
+        return {'success': False, 'error': automation_result.get('error', 'Web automation failed'), 'details': automation_result}
+    except Exception as e:
+        task_logger.error(f"Web automation handler failed: {e}")
+        return {'success': False, 'error': str(e)}
+
+
+def _process_data_extraction(task_data, task_logger):
+    try:
+        url = task_data.get('url')
+        if not url:
+            return {'success': False, 'error': 'Missing required field: url'}
+        try:
+            from . import generic_scraper
+        except ImportError:
+            import generic_scraper
+
+        task_logger.info(f"🔍 Starting web scraping for: {url}")
+        scrape_result = generic_scraper.scrape_web_page(url, task_data)
+        if scrape_result.get('status') == 'success':
+            task_logger.info("✅ Web scraping completed successfully")
+            return {'success': True, 'data': scrape_result}
+        task_logger.error(f"❌ Web scraping failed: {scrape_result.get('error')}")
+        return {'success': False, 'error': scrape_result.get('error', 'Scraping failed'), 'details': scrape_result}
+    except Exception as e:
+        task_logger.error(f"Data extraction handler failed: {e}")
+        return {'success': False, 'error': str(e)}
+
+
+def _process_invoice_download(task_data, task_logger):
+    try:
+        pdf_url = task_data.get('pdf_url') or task_data.get('url')
+        if not pdf_url:
+            return {'success': False, 'error': 'Missing required field: pdf_url or url'}
+
+        from urllib.parse import urlparse
+        parsed_url = urlparse(pdf_url)
+        if parsed_url.scheme not in ('http', 'https'):
+            return {'success': False, 'error': f'Invalid URL scheme: {parsed_url.scheme}. Only http and https are allowed.'}
+
+        try:
+            from . import web_automation
+        except ImportError:
+            import web_automation
+
+        task_logger.info(f"📥 Starting invoice download from: {pdf_url}")
+        # Sanitize download_path similar to previous behavior
+        import os
+        import tempfile
+        raw_download_path = task_data.get('download_path', tempfile.gettempdir())
+        if raw_download_path and isinstance(raw_download_path, str):
+            normalized_path = os.path.normpath(raw_download_path)
+            if '..' in normalized_path or normalized_path.startswith('/') or normalized_path.startswith('~'):
+                task_logger.warning("Download path contains unsafe characters, using temp directory")
+                task_data['download_path'] = tempfile.gettempdir()
+            else:
+                safe_base = os.path.abspath(tempfile.gettempdir())
+                abs_path = os.path.abspath(os.path.join(safe_base, normalized_path))
+                if not abs_path.startswith(safe_base):
+                    task_logger.warning(f"Download path {abs_path} outside safe directory, using temp directory")
+                    task_data['download_path'] = safe_base
+                else:
+                    task_data['download_path'] = abs_path
+        else:
+            task_data['download_path'] = tempfile.gettempdir()
+
+        download_result = web_automation.download_pdf(pdf_url, task_data)
+        if download_result.get('success'):
+            task_logger.info("✅ Invoice download completed successfully")
+            return {'success': True, 'data': download_result, 'message': f'Invoice downloaded from {pdf_url}'}
+        task_logger.error(f"❌ Invoice download failed: {download_result.get('error')}")
+        return {'success': False, 'error': download_result.get('error', 'Download failed'), 'details': download_result}
+    except Exception as e:
+        task_logger.error(f"Invoice download handler failed: {e}")
+        return {'success': False, 'error': str(e)}
+
+
+def _process_form_submission(task_data, task_logger):
+    try:
+        url = task_data.get('url')
+        form_data = task_data.get('form_data', {})
+        selectors = task_data.get('selectors', {})
+        wait_after_submit = task_data.get('wait_after_submit', 3)
+
+        if not url:
+            return {'success': False, 'error': 'Missing required field: url'}
+        if not form_data:
+            return {'success': False, 'error': 'Missing required field: form_data'}
+
+        try:
+            from . import generic_scraper
+        except ImportError:
+            import generic_scraper
+
+        task_logger.info(f"📝 Starting form submission for: {url}")
+        submit_result = generic_scraper.submit_form(url, form_data, selectors, wait_after_submit)
+        if submit_result.get('status') == 'success' or submit_result.get('success'):
+            task_logger.info("✅ Form submission completed successfully")
+            return {'success': True, 'data': submit_result, 'message': f'Form submitted successfully at {url}'}
+        task_logger.error(f"❌ Form submission failed: {submit_result.get('error')}")
+        return {'success': False, 'error': submit_result.get('error', 'Form submission failed'), 'details': submit_result}
+    except Exception as e:
+        task_logger.error(f"Form submission handler failed: {e}")
+        return {'success': False, 'error': str(e)}
 
 
 def kafka_consumer_loop():
