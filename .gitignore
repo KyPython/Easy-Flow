@@ -1,3 +1,6 @@
+# Easy-Flow generated .gitignore
+# Ignore local EasyFlow templates scaffold
+templates/
 # Ignore personal interview tasks used for practice
 interview_tasks/
 
