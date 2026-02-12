@@ -1,0 +1,27 @@
+
+#!/usr/bin/env sh
+# EasyFlow husky pre-push hook template
+# When copied to a target repo, place at `.husky/pre-push` and `chmod +x`.
+
+echo "[easyflow] starting pre-push checks"
+
+# Fast-fail on any command failure
+set -euo pipefail
+
+# If Node project: run lint and tests quickly
+if [ -f package.json ]; then
+	echo "[easyflow] detected package.json — running lint and quick tests"
+	# prefer npm, fallback to pnpm/yarn
+	if command -v npm >/dev/null 2>&1; then
+		npm run -s lint || echo "[easyflow] lint failed" && exit 1
+		npm run -s test:ci || echo "[easyflow] tests failed" && exit 1
+	fi
+fi
+
+# Run docs sync validation (non-destructive check)
+if [ -x scripts/validate-docs-sync.sh ]; then
+	scripts/validate-docs-sync.sh || (echo "[easyflow] docs sync check failed" && exit 1)
+fi
+
+echo "[easyflow] pre-push checks passed"
+exit 0

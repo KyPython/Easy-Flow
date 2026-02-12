@@ -1,0 +1,48 @@
+name: EasyFlow Baseline CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (if Node project)
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install deps
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Lint
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm run -s lint
+
+      - name: Tests (CI)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm run -s test:ci
+
+      - name: Docs sync validation
+        if: ${{ hashFiles('scripts/validate-docs-sync.sh') != '' }}
+        run: bash scripts/validate-docs-sync.sh
+
+      - name: Rockefeller compliance check
+        if: ${{ hashFiles('scripts/check-rockefeller-compliance.sh') != '' }}
+        run: bash scripts/check-rockefeller-compliance.sh
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: |
+            logs/**
+            diagnostics/**
