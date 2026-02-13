@@ -388,16 +388,16 @@ export default function PricingPage() {
  <h2>{t('pricing.faq_title','Frequently Asked Questions')}</h2>
  <div className={styles.faqGrid}>
  <div className={styles.faqItem}>
- <h4>{t('pricing.faq_trial_q','How does the free trial work?')}</h4>
- <p>{t('pricing.faq_trial_a','All paid plans come with a 14-day free trial.')}</p>
+ <h4>{t('pricing.faq_trial_q','Who is ModeLogic for?')}</h4>
+ <p>{t('pricing.faq_trial_a','Founders and small teams copying data between tools weekly.')}</p>
  </div>
  <div className={styles.faqItem}>
- <h4>{t('pricing.faq_change_q','Can I change plans later?')}</h4>
- <p>{t('pricing.faq_change_a','You can upgrade or downgrade your plan at any time. Changes take effect at the start of your next billing cycle.')}</p>
+ <h4>{t('pricing.faq_change_q','How does ModeLogic reduce cost?')}</h4>
+ <p>{t('pricing.faq_change_a','By batching and scheduling non-urgent runs, avoiding the instant premium.')}</p>
  </div>
  <div className={styles.faqItem}>
- <h4>{t('pricing.faq_after_q','What happens after my trial ends?')}</h4>
- <p>{t('pricing.faq_after_a','Your account will be upgraded to the paid plan unless cancelled.')}</p>
+ <h4>{t('pricing.faq_after_q','What if I need instant?')}</h4>
+ <p>{t('pricing.faq_after_a','Instant Mode remains available for urgent tasks.')}</p>
  </div>
  </div>
  </section>
