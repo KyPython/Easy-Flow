@@ -98,7 +98,7 @@ const OnboardingModal = ({ isOpen, onClose, userEmail }) => {
  },
  {
  title: t('onboarding.step4.title','Sovereign Onboarding Complete!'),
- description: t('onboarding.sovereign_welcome','Welcome to EasyFlow. You\'re no longer a tenant of your software. You\'re the Architect. Let\'s build your first sovereign workflow.'),
+ description: t('onboarding.sovereign_welcome','Welcome to ModeLogic. You\'re no longer a tenant of your software. You\'re the Architect. Let\'s build your first sovereign workflow.'),
  icon: '🎉',
  content: (
  <div className={styles.stepContent}>

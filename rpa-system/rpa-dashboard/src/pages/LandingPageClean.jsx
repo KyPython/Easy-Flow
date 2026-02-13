@@ -62,7 +62,7 @@ export default function LandingPageClean() {
  </section>
 
  <footer className={styles.footer}>
- <p style={{ margin: 0 }}>&copy; 2025 EasyFlow. Turn boring work into one-click actions.</p>
+ <p style={{ margin: 0 }}>&copy; 2025 ModeLogic. The Cost-Optimized Automation Engine for Founders.</p>
  </footer>
  </div>
  );

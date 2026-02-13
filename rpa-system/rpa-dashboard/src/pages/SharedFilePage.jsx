@@ -317,7 +317,7 @@ const SharedFilePage = () => {
  </div>
 
  <div className={styles.poweredBy}>
- <span>Powered by EasyFlow</span>
+ <span>Powered by ModeLogic</span>
  </div>
  </div>
  </div>

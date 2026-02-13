@@ -73,7 +73,7 @@ const FeatureComparison = ({ compact = false }) => {
  </h3>
  {!compact && (
  <p className={styles.subtitle}>
- See what you unlock with EasyFlow Pro
+ See what you unlock with ModeLogic Pro
  </p>
  )}
  </div>

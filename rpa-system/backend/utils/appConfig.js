@@ -153,7 +153,7 @@ const appConfig = {
  enabled: getEnvBoolean('DEMO_ENABLED', true),
  username: getEnv('DEMO_USERNAME', 'demo@useeasyflow.com'),
  password: getEnv('DEMO_PASSWORD', ''), // Should be empty for security
- description: getEnv('DEMO_DESCRIPTION', 'EasyFlow demo invoice portal - always available, always works!')
+ description: getEnv('DEMO_DESCRIPTION', 'ModeLogic demo invoice portal - always available, always works!')
  },
 
  // Logging Configuration

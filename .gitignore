@@ -1,3 +1,10 @@
+# Ignore ModeLogic implementation files and assets
+/docs/modeLogic/
+
+# (removed) previously ignored: /assets/mode_logic_cost_audit.csv — file deleted
+
+# Local private modelogic helpers (not tracked)
+/private_modeLogic/
 # Ignore all test files
 **/tests/
 **/*.test.js

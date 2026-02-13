@@ -112,7 +112,7 @@ const Sidebar: React.FC<SidebarProps> = ({
  {/* Header */}
  <div className={styles.header}>
  <div className={styles.logo}>
- <h2 className="heading-5">EasyFlow Workspace</h2>
+ <h2 className="heading-5">ModeLogic Workspace</h2>
  </div>
  <button
  className={styles.closeButton}

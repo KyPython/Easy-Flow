@@ -404,7 +404,7 @@ export default function PricingPage() {
 
  <div className={styles.cta}>
  <h3>{t('pricing.cta_title','Ready to automate your workflow?')}</h3>
- <p>{t('pricing.cta_subtitle','Join thousands of businesses saving time and money with EasyFlow')}</p>
+ <p>{t('pricing.cta_subtitle','Join thousands of businesses saving time and money with ModeLogic')}</p>
  <button className={styles.ctaButton} onClick={() => {
  // Track upgrade click from pricing CTA
  conversionTracker.trackUpgradeClicked(

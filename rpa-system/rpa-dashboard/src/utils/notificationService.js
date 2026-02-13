@@ -1211,7 +1211,7 @@ export const NotificationHelpers = {
  // Welcome notification
  welcome: (userName, userId) => ({
  type: NOTIFICATION_TYPES.WELCOME,
- title: 'Welcome to EasyFlow!',
+ title: 'Welcome to ModeLogic!',
  body: `Hi ${userName}! Your account is ready. Start automating your workflows today.`,
  priority: NOTIFICATION_PRIORITIES.NORMAL,
  userId

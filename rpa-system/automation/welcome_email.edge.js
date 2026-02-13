@@ -19,16 +19,16 @@ async function onUserSignup(user) {
  await axios.post(
  EMAIL_WORKER_ENDPOINT,
  {
- subject: "Welcome to EasyFlow -- Let's Get Started!",
+ subject: "Welcome to ModeLogic -- Let's Get Started!",
  to: user.email,
  message: `
  Hi ${firstName},
  <br><br>
- Welcome to EasyFlow! We're excited to have you onboard.<br>
+ Welcome to ModeLogic! We're excited to have you onboard.<br>
  Get started by exploring your <a href="${AUTOMATION_TASKS_URL}">automation tasks</a>.<br><br>
  If you need help, reply to this email anytime.<br><br>
  Cheers,<br>
- The EasyFlow Team
+ The ModeLogic Team
  `
  },
  {
@@ -48,7 +48,7 @@ async function onUserSignup(user) {
  firstname: firstName,
  lastname: lastName,
  signup_date: new Date().toISOString(),
- lead_source: 'EasyFlow Signup'
+ lead_source: 'ModeLogic Signup'
  }
  }
  );

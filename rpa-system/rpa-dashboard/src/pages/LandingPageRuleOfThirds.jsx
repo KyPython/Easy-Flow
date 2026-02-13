@@ -138,7 +138,7 @@ export default function LandingPageRuleOfThirds() {
 
         {/* Legal links - bottom, minimal contrast */}
         <div className={styles.legalLinks}>
-          By using EasyFlow, you agree to our{' '}
+          By using ModeLogic, you agree to our{' '}
           <Link to="/terms">Terms</Link> and{' '}
           <Link to="/privacy">Privacy Policy</Link>
         </div>

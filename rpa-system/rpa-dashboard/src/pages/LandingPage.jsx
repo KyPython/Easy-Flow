@@ -32,8 +32,8 @@ export default function LandingPage() {
 
  // Headline variants
  const headlineVariants = {
- A: '🚀 Stop Doing Boring Work', // Current
- B: '⚡ Eliminate Manual Logins Forever' // New
+ A: 'ModeLogic: The First Cost-Optimized Automation Engine for Founders', // Current
+ B: 'Why paying for \"Instant\" automation is costing you 25% extra—and how ModeLogic fixes it' // New
  };
 
  const headline = headlineVariants[headlineVariant] || headlineVariants.A;
@@ -59,13 +59,13 @@ export default function LandingPage() {
  </div>
 
  <p className={styles.lead}>
- <strong>Stop Copy/Pasting Between Tools</strong><br/><br/>
+ <strong>Zero-Overhead Growth</strong><br/><br/>
  <strong>Before:</strong> Copy data from Slack -> paste into Google Sheets. Copy from email -> paste into Notion. Copy from forms -> paste into CRM. Hours wasted every week.<br/><br/>
- <strong>After:</strong> Connect your tools once. EasyFlow automatically moves data between them. No more manual copy/paste. No coding required.<br/><br/>
+ <strong>After:</strong> Zero-Overhead Growth — connect your tools once. ModeLogic batches and schedules workflows to cut costs by up to 25%. No more manual copy/paste. No coding required.<br/><br/>
  <strong>Zero-infrastructure automation</strong> - No servers, no DevOps. Just connect and go.
  </p>
  <p style={{ fontSize: 'var(--font-size-sm)', marginTop: '16px', textAlign: 'center' }}>
- By using EasyFlow, you agree to our{' '}
+ By using ModeLogic, you agree to our{' '}
  <Link to="/terms" style={{ textDecoration: 'underline' }}>Terms of Use</Link>
  {' '}and{' '}
  <Link to="/privacy" style={{ textDecoration: 'underline' }}>Privacy Policy</Link>.
@@ -119,7 +119,7 @@ export default function LandingPage() {
  <section className={styles.featuresSection} style={{ background: 'var(--color-success-50)', padding: 'var(--spacing-xl)', borderRadius: 'var(--radius-xl)', margin: 'var(--spacing-xl) 0' }}>
  <h2 className={styles.sectionTitle}>💰 Save Up to 25% on Automation Costs</h2>
  <p style={{ textAlign: 'center', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--spacing-lg)', color: 'var(--text-muted)' }}>
- Unlike Zapier and Make, EasyFlow automatically optimizes costs with smart execution modes
+ Unlike Zapier and Make, ModeLogic automatically optimizes costs with smart execution modes
  </p>
  <div className={styles.featuresGrid}>
  <div className={styles.featureCard}>
@@ -150,7 +150,7 @@ export default function LandingPage() {
  </section>
 
  <section className={styles.featuresSection}>
- <h2 className={styles.sectionTitle}>{t('landing.why_choose','Stop Copy/Pasting Between Tools')}</h2>
+ <h2 className={styles.sectionTitle}>{t('landing.why_choose','ModeLogic Comparison Guide')}</h2>
  <div className={styles.featuresGrid}>
  <div className={styles.featureCard}>
  <div className={styles.featureIcon}>💬</div>
@@ -288,7 +288,7 @@ export default function LandingPage() {
       </section>
 
  <footer className={styles.footer}>
- <p>&copy; 2025 {t('landing.footer_tagline','EasyFlow. Intelligent RPA Automation Platform.')}</p>
+ <p>&copy; 2025 {t('landing.footer_tagline','ModeLogic. The Cost-Optimized Automation Engine for Founders.')}</p>
  <div className={styles.footerLinks}>
  <a href="tel:+12034494970" className={styles.footerLink}>{t('landing.call_support','Call Support: +1 (203) 449-4970')}</a>
  <a href="mailto:support@useeasyflow.com" className={styles.footerLink}>{t('landing.email_support','Email: support@useeasyflow.com')}</a>

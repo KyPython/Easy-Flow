@@ -136,7 +136,7 @@ function EnhancedDashboard() {
  return (
  <div className="enhanced-dashboard">
  <div className="dashboard-header">
- <h1>EasyFlow Dashboard</h1>
+ <h1>ModeLogic Dashboard</h1>
  <button 
  onClick={loadWorkflows}
  disabled={loading}

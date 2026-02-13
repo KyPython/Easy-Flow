@@ -108,7 +108,7 @@ const MilestonePrompt = ({ milestone, onClose }) => {
  </h3>
  
  <p className={styles.message}>
- Great progress! You're getting amazing value from EasyFlow automation.
+ Great progress! You're getting amazing value from ModeLogic automation.
  </p>
 
  {showUpgradePrompt && (
@@ -130,7 +130,7 @@ const MilestonePrompt = ({ milestone, onClose }) => {
  {!showUpgradePrompt && (
  <div className={styles.celebration}>
  <p className={styles.proMessage}>
- Keep up the great work with EasyFlow Pro! 🌟
+ Keep up the great work with ModeLogic Pro! 🌟
  </p>
  </div>
  )}

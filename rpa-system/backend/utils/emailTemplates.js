@@ -16,7 +16,7 @@ function getAutomationTipsEmail(data = {}) {
  process.env.VITE_PUBLIC_URL ||
  (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
 
- const subject = '🚀 Your Free Automation Tips - Get Started with EasyFlow';
+ const subject = '🚀 Your Free Automation Tips - Get Started with ModeLogic';
 
  const html = `
 <!DOCTYPE html>
@@ -24,7 +24,7 @@ function getAutomationTipsEmail(data = {}) {
 <head>
  <meta charset="utf-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>Automation Tips from EasyFlow</title>
+ <title>Automation Tips from ModeLogic</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5; padding: 20px;">
@@ -34,7 +34,7 @@ function getAutomationTipsEmail(data = {}) {
  <!-- Header -->
  <tr>
  <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-radius: 8px 8px 0 0;">
- <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">🚀 Welcome to EasyFlow!</h1>
+ <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">🚀 Welcome to ModeLogic!</h1>
  <p style="margin: 10px 0 0; color: #e0e7ff; font-size: 16px;">Your automation journey starts here</p>
  </td>
  </tr>
@@ -93,14 +93,14 @@ function getAutomationTipsEmail(data = {}) {
  <tr>
  <td style="padding: 30px 40px; background-color: #f9fafb; border-radius: 0 0 8px 8px; text-align: center; border-top: 1px solid #e5e7eb;">
  <p style="margin: 0 0 10px; color: #6b7280; font-size: 14px;">
- <strong>EasyFlow</strong> - Automate Your Workflows, Save Your Time
+ <strong>ModeLogic</strong> - Cost-Optimized Automation for Founders
  </p>
  <p style="margin: 0 0 15px; color: #9ca3af; font-size: 12px;">
  You're receiving this because you signed up for automation tips.
  </p>
  <p style="margin: 0; color: #9ca3af; font-size: 12px;">
  <a href="${appUrl}/unsubscribe?email=${encodeURIComponent(email)}" style="color: #2563eb; text-decoration: none;">Unsubscribe</a> | 
- <a href="${appUrl}" style="color: #2563eb; text-decoration: none;">Visit EasyFlow</a>
+ <a href="${appUrl}" style="color: #2563eb; text-decoration: none;">Visit ModeLogic</a>
  </p>
  </td>
  </tr>
@@ -170,7 +170,7 @@ function getEmailTemplate(templateName, data = {}) {
  */
 function getSuccessEmail(data = {}) {
  const { message, workflow_name, execution_id } = data;
- const subject = '✅ Your EasyFlow Workflow Completed Successfully';
+ const subject = '✅ Your ModeLogic Workflow Completed Successfully';
 
  const html = `
 <!DOCTYPE html>
@@ -178,7 +178,7 @@ function getSuccessEmail(data = {}) {
 <head>
  <meta charset="utf-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>Workflow Completed - EasyFlow</title>
+ <title>Workflow Completed - ModeLogic</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5; padding: 20px;">
@@ -202,7 +202,7 @@ function getSuccessEmail(data = {}) {
 </html>
  `.trim();
 
- const text = `✅ Workflow Completed!\n\n${workflow_name ? `${workflow_name}\n\n` : ''}${message || 'Your workflow has completed successfully.'}\n\nCheck your EasyFlow dashboard for details.`;
+ const text = `✅ Workflow Completed!\n\n${workflow_name ? `${workflow_name}\n\n` : ''}${message || 'Your workflow has completed successfully.'}\n\nCheck your ModeLogic dashboard for details.`;
 
  return { subject, html, text };
 }
@@ -212,9 +212,9 @@ function getSuccessEmail(data = {}) {
  */
 function getWelcomeEmail(data = {}) {
  const { name } = data;
- const subject = 'Welcome to EasyFlow!';
- const html = `<p>Thanks for joining EasyFlow${name ? ', ' + name : ''}!</p>`;
- const text = `Thanks for joining EasyFlow${name ? ', ' + name : ''}!`;
+ const subject = 'Welcome to ModeLogic!';
+ const html = `<p>Thanks for joining ModeLogic${name ? ', ' + name : ''}!</p>`;
+ const text = `Thanks for joining ModeLogic${name ? ', ' + name : ''}!`;
  return { subject, html, text };
 }
 
@@ -228,7 +228,7 @@ function getFollowupEmail(data = {}) {
   const subject = '🚀 Ready to automate your first task?';
   const html = `
     <p>Hi${name ? ' ' + name : ''},</p>
-    <p>Thanks for signing up for EasyFlow! Here are some quick tips to get started:</p>
+    <p>Thanks for signing up for ModeLogic! Here are some quick tips to get started:</p>
     <ul>
       <li>📊 <strong>Portal CSV Export</strong> - Automate login and data extraction from any website</li>
       <li>📧 <strong>Email Automation</strong> - Send automated emails based on triggers</li>
@@ -272,10 +272,10 @@ function getSuccessTipsEmail(data = {}) {
   const { name } = data;
   const appUrl = process.env.REACT_APP_PUBLIC_URL || process.env.PUBLIC_URL || (process.env.NODE_ENV === 'production' ? 'https://www.tryeasyflow.com' : 'http://localhost:3000');
   
-  const subject = '✨ Success stories from EasyFlow users';
+  const subject = '✨ Success stories from ModeLogic users';
   const html = `
     <p>Hi${name ? ' ' + name : ''},</p>
-    <p>Here are some ways other users are automating with EasyFlow:</p>
+    <p>Here are some ways other users are automating with ModeLogic:</p>
     <ul>
       <li>📊 <strong>Monthly reports</strong> - Automatically export data and email to stakeholders</li>
       <li>📧 <strong>Lead capture</strong> - Extract contact info from websites and add to CRM</li>
@@ -293,8 +293,8 @@ function getSuccessTipsEmail(data = {}) {
  */
 function getCustomEmail(data = {}) {
   const { subject: customSubject, text: customText, html: customHtml } = data;
-  const subject = customSubject || 'EasyFlow Notification';
-  const html = customHtml || `<p>${customText || 'Hello from EasyFlow'}</p>`;
+  const subject = customSubject || 'ModeLogic Notification';
+  const html = customHtml || `<p>${customText || 'Hello from ModeLogic'}</p>`;
   const text = customText || 'Hello from EasyFlow';
   return { subject, html, text };
 }
