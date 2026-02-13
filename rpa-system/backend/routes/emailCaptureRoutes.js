@@ -76,7 +76,7 @@ router.post('/capture-email', async (req, res) => {
  // Try to send directly via SendGrid if configured
  const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
  const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || process.env.FROM_EMAIL;
- const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || 'EasyFlow';
+ const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || 'ModeLogic';
 
  // Build FROM address with optional name: "Name <email@domain.com>" or just "email@domain.com"
  const getFromAddress = () => {
@@ -184,7 +184,40 @@ router.post('/capture-email', async (req, res) => {
  logger.warn('⚠️ Neither SendGrid nor email queue configured - email will not be sent');
  }
 
- // 3. Add to HubSpot (fire-and-forget, don't block response)
+ // Enqueue follow-up sequence (Day 1,3,7) when Supabase is available
+if (supabase) {
+  try {
+    const now = new Date();
+    const addDays = d => new Date(now.getTime() + d * 24 * 60 * 60 * 1000);
+    const { getEmailTemplate } = require('../utils/emailTemplates');
+    const sequence = [
+      { template: 'followup', scheduled_at: addDays(1).toISOString() },
+      { template: 'activation_reminder', scheduled_at: addDays(3).toISOString() },
+      { template: 'success_tips', scheduled_at: addDays(7).toISOString() }
+    ];
+    const rows = sequence.map(s => {
+      const t = getEmailTemplate(s.template, { email: normalizedEmail, source: source || 'session_modal', userPlan: userPlan || 'hobbyist' });
+      return {
+        to_email: normalizedEmail,
+        template: s.template,
+        data: { source: source || 'session_modal', userPlan: userPlan || 'hobbyist', subject: t.subject, html: t.html, text: t.text },
+        scheduled_at: s.scheduled_at,
+        status: 'pending',
+        created_at: now.toISOString()
+      };
+    });
+    const { error: seqErr } = await supabase.from('email_queue').insert(rows);
+    if (seqErr) {
+      logger.warn('⚠️ Error enqueueing follow-up sequence:', seqErr);
+    } else {
+      logger.info('✅ Enqueued follow-up email sequence (Day 1,3,7)');
+    }
+  } catch (seqError) {
+    logger.warn('⚠️ Failed to build follow-up sequence:', seqError?.message || seqError);
+  }
+}
+
+// 3. Add to HubSpot (fire-and-forget, don't block response)
  if (process.env.HUBSPOT_API_KEY && process.env.NODE_ENV !== 'test') {
  (async () => {
  try {
@@ -318,14 +351,14 @@ router.get('/unsubscribe', async (req, res) => {
  <head>
  <meta charset="utf-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>Unsubscribe - EasyFlow</title>
+ <title>Unsubscribe - ModeLogic</title>
  <style>
  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
  .error { color: #dc2626; background: #fef2f2; padding: 15px; border-radius: 6px; border-left: 4px solid #dc2626; }
  </style>
  </head>
  <body>
- <h1>Unsubscribe from EasyFlow</h1>
+ <h1>Unsubscribe from ModeLogic</h1>
  <div class="error">
  <p><strong>Error:</strong> Email address is required.</p>
  <p>Please use the unsubscribe link from your email.</p>
@@ -412,7 +445,7 @@ router.get('/unsubscribe', async (req, res) => {
  <head>
  <meta charset="utf-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>Unsubscribed - EasyFlow</title>
+ <title>Unsubscribed - ModeLogic</title>
  <style>
  body { 
  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
@@ -453,9 +486,9 @@ router.get('/unsubscribe', async (req, res) => {
  <div class="container">
  <div class="success-icon">✅</div>
  <h1>You've been unsubscribed</h1>
- <p>We're sorry to see you go! You've been successfully unsubscribed from EasyFlow automation tips emails.</p>
+ <p>We're sorry to see you go! You've been successfully unsubscribed from ModeLogic automation tips emails.</p>
  <p>You won't receive any more marketing emails from us.</p>
- <a href="${appUrl}" class="button">Visit EasyFlow</a>
+ <a href="${appUrl}" class="button">Visit ModeLogic</a>
  </div>
  </body>
  </html>

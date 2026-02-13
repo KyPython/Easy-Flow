@@ -40,7 +40,7 @@ async function callRpc(fnName, args) {
 const SEND_EMAIL_WEBHOOK = process.env.SEND_EMAIL_WEBHOOK || ''; // optional: a webhook that accepts {to_email, template, data}
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
 const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || process.env.FROM_EMAIL || '';
-const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || 'EasyFlow'; // Optional: Display name for sender
+const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || 'ModeLogic'; // Optional: Display name for sender
 const POLL_INTERVAL_MS = parseInt(process.env.EMAIL_WORKER_POLL_MS || '5000', 10);
 const MAX_ATTEMPTS = 5;
 
@@ -156,9 +156,9 @@ async function handleItem(item) {
  } catch (templateError) {
  // Fallback template if specific template doesn't exist
  emailTemplate = {
- subject: `EasyFlow Notification - ${item.template}`,
- text: `Hello from EasyFlow!\n\nTemplate: ${item.template}\n\n${JSON.stringify(item.data || {}, null, 2)}`,
- html: `<p>Hello from EasyFlow!</p><p>Template: ${item.template}</p><pre>${JSON.stringify(item.data || {}, null, 2)}</pre>`
+ subject: `ModeLogic Notification - ${item.template}`,
+ text: `Hello from ModeLogic!\n\nTemplate: ${item.template}\n\n${JSON.stringify(item.data || {}, null, 2)}`,
+ html: `<p>Hello from ModeLogic!</p><p>Template: ${item.template}</p><pre>${JSON.stringify(item.data || {}, null, 2)}</pre>`
  };
  }
 
