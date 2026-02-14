@@ -641,6 +641,111 @@ def process_automation_task(task_data):
                         task_logger.debug(f"[meter] skip: {_me}")
             except Exception as e:
                 result = {'success': False, 'error': str(e)}
+        elif task_type == 'stripe_create_product':
+            try:
+                try:
+                    from . import stripe_connector
+                except ImportError:
+                    import stripe_connector
+                params = task_data.get('parameters') or {}
+                api_key = params.get('stripe_api_key') or task_data.get('stripe_api_key')
+                name = params.get('name') or task_data.get('name')
+                description = params.get('description') or task_data.get('description')
+                if not api_key or not name:
+                    result = {'success': False, 'error': 'Missing required fields: stripe_api_key and name'}
+                else:
+                    prod = stripe_connector.create_product(api_key, name=name, description=description)
+                    result = {'success': True, 'data': {'product': prod}, 'message': 'Stripe product created'}
+                    try:
+                        try:
+                            from . import meter_helper
+                        except ImportError:
+                            import meter_helper
+                        meter_helper.meter_action(user_id=user_id, workflow_execution_id=task_data.get('run_id'), action_type='stripe.create_product', payload={'product_id': prod.get('id')})
+                    except Exception as _me:
+                        task_logger.debug(f"[meter] skip: {_me}")
+            except Exception as e:
+                result = {'success': False, 'error': str(e)}
+        elif task_type == 'stripe_create_price':
+            try:
+                try:
+                    from . import stripe_connector
+                except ImportError:
+                    import stripe_connector
+                params = task_data.get('parameters') or {}
+                api_key = params.get('stripe_api_key') or task_data.get('stripe_api_key')
+                product_id = params.get('product_id') or task_data.get('product_id')
+                unit_amount = params.get('unit_amount') or task_data.get('unit_amount')
+                currency = params.get('currency') or task_data.get('currency') or 'usd'
+                recurring_interval = params.get('recurring_interval') or task_data.get('recurring_interval')
+                if not api_key or not product_id or not unit_amount:
+                    result = {'success': False, 'error': 'Missing required fields: stripe_api_key, product_id, unit_amount'}
+                else:
+                    price = stripe_connector.create_price(api_key, product_id=product_id, unit_amount=int(unit_amount), currency=currency, recurring_interval=recurring_interval)
+                    result = {'success': True, 'data': {'price': price}, 'message': 'Stripe price created'}
+                    try:
+                        try:
+                            from . import meter_helper
+                        except ImportError:
+                            import meter_helper
+                        meter_helper.meter_action(user_id=user_id, workflow_execution_id=task_data.get('run_id'), action_type='stripe.create_price', payload={'price_id': price.get('id')})
+                    except Exception as _me:
+                        task_logger.debug(f"[meter] skip: {_me}")
+            except Exception as e:
+                result = {'success': False, 'error': str(e)}
+        elif task_type == 'stripe_create_payment_link':
+            try:
+                try:
+                    from . import stripe_connector
+                except ImportError:
+                    import stripe_connector
+                params = task_data.get('parameters') or {}
+                api_key = params.get('stripe_api_key') or task_data.get('stripe_api_key')
+                price_id = params.get('price_id') or task_data.get('price_id')
+                quantity = params.get('quantity') or task_data.get('quantity') or 1
+                if not api_key or not price_id:
+                    result = {'success': False, 'error': 'Missing required fields: stripe_api_key and price_id'}
+                else:
+                    link = stripe_connector.create_payment_link(api_key, price_id=price_id, quantity=int(quantity))
+                    result = {'success': True, 'data': {'payment_link': link}, 'message': 'Stripe payment link created'}
+                    try:
+                        try:
+                            from . import meter_helper
+                        except ImportError:
+                            import meter_helper
+                        meter_helper.meter_action(user_id=user_id, workflow_execution_id=task_data.get('run_id'), action_type='stripe.create_payment_link', payload={'payment_link_id': link.get('id')})
+                    except Exception as _me:
+                        task_logger.debug(f"[meter] skip: {_me}")
+            except Exception as e:
+                result = {'success': False, 'error': str(e)}
+        elif task_type == 'stripe_create_checkout_session':
+            try:
+                try:
+                    from . import stripe_connector
+                except ImportError:
+                    import stripe_connector
+                params = task_data.get('parameters') or {}
+                api_key = params.get('stripe_api_key') or task_data.get('stripe_api_key')
+                price_id = params.get('price_id') or task_data.get('price_id')
+                quantity = params.get('quantity') or task_data.get('quantity') or 1
+                mode = params.get('mode') or task_data.get('mode') or 'payment'
+                success_url = params.get('success_url') or task_data.get('success_url') or 'https://example.com/success'
+                cancel_url = params.get('cancel_url') or task_data.get('cancel_url') or 'https://example.com/cancel'
+                if not api_key or not price_id:
+                    result = {'success': False, 'error': 'Missing required fields: stripe_api_key and price_id'}
+                else:
+                    session = stripe_connector.create_checkout_session(api_key, price_id=price_id, quantity=int(quantity), mode=mode, success_url=success_url, cancel_url=cancel_url)
+                    result = {'success': True, 'data': {'checkout_session': session}, 'message': 'Stripe checkout session created'}
+                    try:
+                        try:
+                            from . import meter_helper
+                        except ImportError:
+                            import meter_helper
+                        meter_helper.meter_action(user_id=user_id, workflow_execution_id=task_data.get('run_id'), action_type='stripe.create_checkout_session', payload={'checkout_session_id': session.get('id')})
+                    except Exception as _me:
+                        task_logger.debug(f"[meter] skip: {_me}")
+            except Exception as e:
+                result = {'success': False, 'error': str(e)}
         else:
             result = {'success': False, 'error': f'Unknown task type: {task_type}'}
 
