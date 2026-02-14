@@ -319,7 +319,9 @@ class IntegrationCredentialsService {
  google_calendar: require('./integrations/googleCalendarIntegration'),
  whatsapp: require('./integrations/whatsappIntegration'),
  notion: require('./integrations/notionIntegration'),
- reddit: require('./integrations/redditIntegration')
+ reddit: require('./integrations/redditIntegration'),
+  airtable: require('./integrations/airtableIntegration'),
+  trello: require('./integrations/trelloIntegration')
  };
 
  const IntegrationClass = integrations[service];

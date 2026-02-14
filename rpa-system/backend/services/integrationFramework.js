@@ -11,6 +11,8 @@ const GmailIntegration = require('./integrations/gmailIntegration');
 const GoogleSheetsIntegration = require('./integrations/googleSheetsIntegration');
 const GoogleMeetIntegration = require('./integrations/googleMeetIntegration');
 const WhatsAppIntegration = require('./integrations/whatsappIntegration');
+const AirtableIntegration = require('./integrations/airtableIntegration');
+const TrelloIntegration = require('./integrations/trelloIntegration');
 
 /**
  * Integration Framework for EasyFlow
@@ -34,6 +36,8 @@ class IntegrationFramework {
  googleSheets: new GoogleSheetsIntegration(),
  googleMeet: new GoogleMeetIntegration(),
  whatsapp: new WhatsAppIntegration(this.http),
+  airtable: new AirtableIntegration(),
+  trello: new TrelloIntegration(),
  zapier: new ZapierIntegration(this.http)
  };
  }

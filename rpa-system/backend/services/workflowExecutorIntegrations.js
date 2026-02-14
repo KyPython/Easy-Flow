@@ -12,6 +12,8 @@ const GoogleMeetIntegration = require('./integrations/googleMeetIntegration');
 const WhatsAppIntegration = require('./integrations/whatsappIntegration');
 const MultiChannelCollectionService = require('./multiChannelCollectionService');
 const RedditIntegration = require('./integrations/redditIntegration');
+const AirtableIntegration = require('./integrations/airtableIntegration');
+const TrelloIntegration = require('./integrations/trelloIntegration');
 
 /**
  * Execute Slack actions
@@ -529,13 +531,72 @@ async function executeRedditAction(actionType, config, inputData, execution) {
  }
 }
 
-module.exports = {
- executeSlackAction,
- executeGmailAction,
- executeSheetsAction,
- executeMeetAction,
- executeWhatsAppAction,
- executeMultiChannelAction,
- executeRedditAction
-};
 
+async function executeAirtableAction(actionType, config, inputData, execution) {
+  const userId = execution?.user_id;
+  if (!userId) throw new Error('User ID required for Airtable integration');
+  const credentials = await integrationCredentialsService.getCredentials(userId, 'airtable');
+  if (!credentials) throw new Error('Airtable integration not connected. Please connect Airtable in Settings.');
+  const airtable = new AirtableIntegration();
+  await airtable.authenticate(credentials.credentials);
+  await integrationCredentialsService.updateLastUsed(credentials.id);
+  try {
+    switch (actionType) {
+      case 'airtable_create_record': {
+        const result = await airtable.sendData(config.fields || inputData || {});
+        return { success: true, data: result, message: 'Airtable record created' };
+      }
+      case 'airtable_upload_file': {
+        if (!inputData?.file && !config.file) throw new Error('File required for Airtable upload');
+        const file = inputData?.file || config.file;
+        const result = await airtable.uploadFile(file, { fields: config.fields });
+        return { success: true, data: result, message: 'Airtable file uploaded' };
+      }
+      default:
+        throw new Error(`Unknown Airtable action: ${actionType}`);
+    }
+  } catch (error) {
+    logger.error(`[WorkflowExecutor] Airtable action failed (${actionType}):`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function executeTrelloAction(actionType, config, inputData, execution) {
+  const userId = execution?.user_id;
+  if (!userId) throw new Error('User ID required for Trello integration');
+  const credentials = await integrationCredentialsService.getCredentials(userId, 'trello');
+  if (!credentials) throw new Error('Trello integration not connected. Please connect Trello in Settings.');
+  const trello = new TrelloIntegration();
+  await trello.authenticate(credentials.credentials);
+  await integrationCredentialsService.updateLastUsed(credentials.id);
+  try {
+    switch (actionType) {
+      case 'trello_create_card': {
+        const result = await trello.sendData({ name: config.name, desc: config.desc || JSON.stringify(inputData || {}) });
+        return { success: true, data: result, message: 'Trello card created' };
+      }
+      case 'trello_attach_file': {
+        if (!inputData?.file && !config.file) throw new Error('File required for Trello attachment');
+        const file = inputData?.file || config.file;
+        const result = await trello.uploadFile(file, { desc: config.desc });
+        return { success: true, data: result, message: 'File attached to Trello card' };
+      }
+      default:
+        throw new Error(`Unknown Trello action: ${actionType}`);
+    }
+  } catch (error) {
+    logger.error(`[WorkflowExecutor] Trello action failed (${actionType}):`, error);
+    return { success: false, error: error.message };
+  }
+}
+module.exports = {
+  executeSlackAction,
+  executeGmailAction,
+  executeSheetsAction,
+  executeMeetAction,
+  executeWhatsAppAction,
+  executeMultiChannelAction,
+  executeRedditAction,
+  executeAirtableAction,
+  executeTrelloAction
+};

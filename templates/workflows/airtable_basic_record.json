@@ -1,0 +1,8 @@
+{
+  "name": "Airtable: Create Record",
+  "description": "Create a record in Airtable from previous step data",
+  "steps": [
+    { "action_type": "data_transform", "config": { "mapping": { "input.name": "fields.Name", "input.email": "fields.Email" } } },
+    { "action_type": "airtable_create_record", "config": { "fields": { "Name": "{{fields.Name}}", "Email": "{{fields.Email}}" } } }
+  ]
+}

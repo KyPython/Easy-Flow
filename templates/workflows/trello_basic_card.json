@@ -1,0 +1,8 @@
+{
+  "name": "Trello: Create Card",
+  "description": "Create a Trello card and attach a file",
+  "steps": [
+    { "action_type": "trello_create_card", "config": { "name": "Follow up", "desc": "Created by ModeLogic" } },
+    { "action_type": "trello_attach_file", "config": { "desc": "Attachment from automation" } }
+  ]
+}

@@ -82,6 +82,22 @@ const INTEGRATIONS = [
     icon: '📱',
     color: '#FF4500',
     oauthSupported: false
+  },
+  {
+    id: 'airtable',
+    name: 'Airtable',
+    description: 'Create records and upload attachments to bases/tables',
+    icon: '🗂️',
+    color: '#18BFFF',
+    oauthSupported: false
+  },
+  {
+    id: 'trello',
+    name: 'Trello',
+    description: 'Create cards and attach files to boards/lists',
+    icon: '📌',
+    color: '#026AA7',
+    oauthSupported: false
   }
 ];
 

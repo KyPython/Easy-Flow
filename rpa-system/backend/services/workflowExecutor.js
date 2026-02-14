@@ -15,11 +15,22 @@ const {
   executeMeetAction,
   executeWhatsAppAction,
   executeMultiChannelAction,
-  executeRedditAction
+  executeRedditAction,
+  executeAirtableAction,
+  executeTrelloAction
 } = require('./workflowExecutorIntegrations');
 
 // ✅ OBSERVABILITY: Import OpenTelemetry API for trace propagation and span creation
 const { trace, context, propagation, SpanStatusCode } = require('@opentelemetry/api');
+// Action metering helper (records to `actions` table)
+let meterAction = null;
+try {
+  meterAction = require('../lib/actionMeter').meterAction;
+} catch (e) {
+  // Non-fatal: meterAction optional
+  // eslint-disable-next-line no-console
+  console.debug('meterAction not available:', e && e.message);
+}
 
 // ✅ INSTRUCTION 2: Import structured logger (Gap 13, 15)
 const { createLogger } = require('../middleware/structuredLogging');
@@ -595,6 +606,15 @@ class WorkflowExecutor {
     }
 
     const executionId = uuidv4();
+
+    // Meter execution start (best-effort)
+    try {
+      if (typeof meterAction === 'function') {
+        meterAction({ userId, workflowExecutionId: executionId, actionType: 'execution.start', payload: { workflowId, triggeredBy } }).catch?.(() => {});
+      }
+    } catch (e) {
+      // ignore metering errors
+    }
 
     // ✅ HARD TIMEOUT CONFIGURATION
     const EXECUTION_TIMEOUT = 300000; // 5 minutes maximum execution time
@@ -2055,6 +2075,12 @@ class WorkflowExecutor {
           return await executeMeetAction(action_type, config, inputData, execution);
         case 'whatsapp_send':
           return await executeWhatsAppAction(action_type, config, inputData, execution);
+        case 'airtable_create_record':
+        case 'airtable_upload_file':
+          return await executeAirtableAction(action_type, config, inputData, execution);
+        case 'trello_create_card':
+        case 'trello_attach_file':
+          return await executeTrelloAction(action_type, config, inputData, execution);
         case 'multi_channel_collect':
           return await executeMultiChannelAction(config, inputData, execution);
         // Reddit actions (no credentials needed - public API)
@@ -3631,6 +3657,14 @@ class WorkflowExecutor {
     }
 
     logger.info(`[WorkflowExecutor] Execution ${executionId} completed in ${duration}s`);
+    // Meter execution completion (best-effort)
+    try {
+      if (typeof meterAction === 'function') {
+        meterAction({ userId: execution.user_id, workflowExecutionId: executionId, actionType: 'execution.completed', payload: { workflowId: execution.workflow_id, duration_seconds: duration, steps_executed: stepsExecuted } }).catch?.(() => {});
+      }
+    } catch (e) {
+      // ignore metering errors
+    }
   }
 
   async failExecution(executionId, errorMessage, errorStepId = null, errorCategory = null) {
@@ -3702,6 +3736,15 @@ class WorkflowExecutor {
           execution_id: executionId
         });
       }
+    }
+
+    // Meter execution failure (best-effort)
+    try {
+      if (typeof meterAction === 'function') {
+        meterAction({ userId: execution?.user_id || null, workflowExecutionId: executionId, actionType: 'execution.failed', payload: { workflowId: execution?.workflow_id || null, error_message: formattedErrorMessage, error_category: errorCategory } }).catch?.(() => {});
+      }
+    } catch (e) {
+      // ignore metering errors
     }
 
     // ✅ FIX: Store all error details in metadata field as JSON
