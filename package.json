@@ -54,7 +54,8 @@
     "infra:drift": "./scripts/terraform-detect-drift.sh",
     "infra:hooks": "./scripts/setup-terraform-pre-commit.sh",
     "prepare": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('husky').install(); } catch(e) { process.exit(0); } }\"",
-    "postinstall": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('husky').install(); } catch(e) { process.exit(0); } }\""
+    "postinstall": "node -e \"if (process.env.CI || process.env.VERCEL) { process.exit(0); } else { try { require('husky').install(); } catch(e) { process.exit(0); } }\"",
+    "validate:meter": "node scripts/test-meter-helper.js"
   },
   "keywords": [
     "automation",
@@ -77,5 +78,8 @@
     "dotenv": "^16.0.3",
     "husky": "^9.1.7",
     "software-entropy": "^1.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
   }
 }

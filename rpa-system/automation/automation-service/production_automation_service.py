@@ -614,6 +614,33 @@ def process_automation_task(task_data):
                             'Form submission failed'),
                         'details': submit_result}
                     task_logger.error(f"❌ Form submission failed: {result.get('error')}")
+        elif task_type == 'stripe_create_customer':
+            try:
+                try:
+                    from . import stripe_connector
+                except ImportError:
+                    import stripe_connector
+                params = task_data.get('parameters') or {}
+                api_key = params.get('stripe_api_key') or task_data.get('stripe_api_key')
+                email = params.get('email') or task_data.get('email')
+                name = params.get('name') or task_data.get('name')
+                description = params.get('description') or task_data.get('description')
+                if not api_key or not email:
+                    result = {'success': False, 'error': 'Missing required fields: stripe_api_key and email'}
+                else:
+                    cust = stripe_connector.create_customer(api_key, email=email, name=name, description=description)
+                    result = {'success': True, 'data': {'customer': cust}, 'message': 'Stripe customer created'}
+                    # Meter action (best-effort)
+                    try:
+                        try:
+                            from . import meter_helper
+                        except ImportError:
+                            import meter_helper
+                        meter_helper.meter_action(user_id=user_id, workflow_execution_id=task_data.get('run_id'), action_type='stripe.create_customer', payload={'customer_id': cust.get('id')})
+                    except Exception as _me:
+                        task_logger.debug(f"[meter] skip: {_me}")
+            except Exception as e:
+                result = {'success': False, 'error': str(e)}
         else:
             result = {'success': False, 'error': f'Unknown task type: {task_type}'}
 
