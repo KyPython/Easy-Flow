@@ -1,0 +1,7 @@
+{
+  "name": "Stripe: Checkout Session",
+  "description": "Create a checkout session for a price",
+  "steps": [
+    { "action_type": "stripe_create_checkout_session", "config": { "price_id": "{{input.price_id}}", "quantity": "{{input.quantity}}", "mode": "payment", "success_url": "{{env.SUCCESS_URL}}", "cancel_url": "{{env.CANCEL_URL}}", "stripe_api_key": "{{secrets.STRIPE_API_KEY}}" } }
+  ]
+}

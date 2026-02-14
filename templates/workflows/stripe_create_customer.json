@@ -1,0 +1,7 @@
+{
+  "name": "Stripe: Create Customer",
+  "description": "Create a Stripe customer from inputs",
+  "steps": [
+    { "action_type": "stripe_create_customer", "config": { "email": "{{input.email}}", "name": "{{input.name}}", "description": "Created via ModeLogic", "stripe_api_key": "{{secrets.STRIPE_API_KEY}}" } }
+  ]
+}

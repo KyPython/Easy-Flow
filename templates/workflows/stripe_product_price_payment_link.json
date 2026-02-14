@@ -1,0 +1,9 @@
+{
+  "name": "Stripe: Product + Price + Payment Link",
+  "description": "Create product, price and a payment link",
+  "steps": [
+    { "action_type": "stripe_create_product", "config": { "name": "{{input.product_name}}", "description": "{{input.product_description}}", "stripe_api_key": "{{secrets.STRIPE_API_KEY}}" } },
+    { "action_type": "stripe_create_price", "config": { "product_id": "{{prev.product.id}}", "unit_amount": "{{input.unit_amount}}", "currency": "{{input.currency}}", "recurring_interval": "{{input.recurring_interval}}", "stripe_api_key": "{{secrets.STRIPE_API_KEY}}" } },
+    { "action_type": "stripe_create_payment_link", "config": { "price_id": "{{prev.price.id}}", "quantity": "{{input.quantity}}", "stripe_api_key": "{{secrets.STRIPE_API_KEY}}" } }
+  ]
+}
