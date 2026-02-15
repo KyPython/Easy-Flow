@@ -1143,7 +1143,26 @@ function getKafkaService() {
  return kafkaService;
 }
 
+async function isRunAlreadyProcessed(runId) {
+  try {
+    if (!runId) return false;
+    const { getSupabase } = require('./supabaseClient');
+    const supabase = getSupabase();
+    if (!supabase) return false;
+    const { data: existingRun } = await supabase
+      .from('automation_runs')
+      .select('id, status, updated_at')
+      .eq('id', runId)
+      .single();
+    return !!(existingRun && existingRun.status !== 'running' && existingRun.status !== 'queued');
+  } catch (_) {
+    // Fail-open: if we cannot check, treat as not processed
+    return false;
+  }
+}
+
 module.exports = {
- KafkaService,
- getKafkaService
+  KafkaService,
+  getKafkaService,
+  isRunAlreadyProcessed
 };
