@@ -32,7 +32,7 @@ export default function LandingPage() {
 
  // Headline variants
  const headlineVariants = {
- A: 'ModeLogic: The First Cost-Optimized Automation Engine for Founders', // Current
+  A: 'ModeLogic — Savings Calculator', // swapped to emphasize Savings Calculator
  B: 'Why paying for \"Instant\" automation is costing you 25% extra—and how ModeLogic fixes it' // New
  };
 
@@ -71,11 +71,11 @@ export default function LandingPage() {
  <Link to="/privacy" style={{ textDecoration: 'underline' }}>Privacy Policy</Link>.
  </p>
         <div className={styles.ctaGroup}>
-          <Link to="/auth" className={styles.ctaPrimary}>
-            {t('landing.start_free_trial', 'Start Free Trial — No Credit Card Required')}
+          <Link to="/calculator" className={styles.ctaPrimary}>
+            {t('landing.open_savings_calculator', 'Open Savings Calculator')}
           </Link>
           <a href="https://calendly.com/kyjahn-smith/consultation" target="_blank" rel="noopener noreferrer" className={styles.ctaSecondary}>
-            {t('landing.book_consultation_optional', 'Prefer help? Book a free setup call')}
+            {t('landing.book_setup_call', 'Book a Setup Call')}
           </a>
         </div>
  
@@ -189,11 +189,11 @@ export default function LandingPage() {
  </div>
 
         <div className={styles.ctaBig}>
-          <Link to="/auth" className={styles.ctaPrimary}>
-            {t('landing.start_free_trial', 'Start Free Trial — No Credit Card Required')}
+          <Link to="/calculator" className={styles.ctaPrimary}>
+            {t('landing.open_savings_calculator', 'Open Savings Calculator')}
           </Link>
           <a href="https://calendly.com/kyjahn-smith/consultation" target="_blank" rel="noopener noreferrer" className={styles.ctaSecondary} style={{ marginTop: '16px', display: 'inline-block' }}>
-            {t('landing.prefer_help', 'Prefer help? Book a free setup call')}
+            {t('landing.book_setup_call', 'Book a Setup Call')}
           </a>
         </div>
       </section>

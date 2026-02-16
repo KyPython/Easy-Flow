@@ -87,8 +87,8 @@ export default function LandingPageRuleOfThirds() {
             {/* ✅ CONTRAST: Brightest element on page (white on dark gradient) */}
             {/* ✅ RULE OF THIRDS: Positioned at 33% horizontal, 33% vertical */}
             <div className={styles.ctaHero}>
-              <Link to="/auth" className={styles.ctaPrimary}>
-                Start Free Trial
+              <Link to="/savings-calculator" className={styles.ctaPrimary}>
+                Try the Savings Calculator
                 <span className={styles.ctaSubtext}>No credit card • 2 min setup</span>
               </Link>
 

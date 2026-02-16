@@ -10,7 +10,7 @@ import styles from './DemoBookingButton.module.css';
  * Integrates with Calendly or opens custom booking modal
  */
 const DemoBookingButton = ({
- buttonText = "📅 Book Free Demo",
+ buttonText = "📅 Book a Setup Call",
  subtext = "15-min setup call",
  source = "unknown",
  variant = "secondary",
@@ -43,14 +43,14 @@ const DemoBookingButton = ({
  } else if (onDemoRequested) {
  // Option B: Custom handler (opens modal, etc.)
  onDemoRequested();
- } else {
- // Option C: Default redirect to a booking page
- window.open('https://calendly.com/your-link/15min', '_blank', 'noopener,noreferrer');
+	 } else {
+ // Option C: Default redirect to a booking page (setup call)
+ window.open('https://calendly.com/kyjahn-smith/consultation', '_blank', 'noopener,noreferrer');
  }
  } catch (error) {
  console.error('Failed to open demo booking:', error);
- // Fallback: Try direct link
- window.open('https://calendly.com/your-link/15min', '_blank', 'noopener,noreferrer');
+ // Fallback: Try direct setup call link
+ window.open('https://calendly.com/kyjahn-smith/consultation', '_blank', 'noopener,noreferrer');
  } finally {
  setTimeout(() => setIsLoading(false), 1000); // Reset loading state
  }

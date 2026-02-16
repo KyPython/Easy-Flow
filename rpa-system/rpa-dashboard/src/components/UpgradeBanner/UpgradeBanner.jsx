@@ -88,14 +88,14 @@ const UpgradeBanner = () => {
  </button>
  
  <DemoBookingButton
- buttonText="📅 Book Demo"
- subtext=""
- source="dashboard_banner"
- variant="outline"
- size="medium"
- showSubtext={false}
- calendlyUrl="https://calendly.com/your-link/15min"
- className={styles.demoButton}
+				buttonText="📅 Book a Setup Call"
+				subtext=""
+				source="dashboard_banner"
+				variant="outline"
+				size="medium"
+				showSubtext={false}
+				calendlyUrl="https://calendly.com/kyjahn-smith/consultation"
+				className={styles.demoButton}
  />
  </div>
  

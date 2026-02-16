@@ -41,6 +41,7 @@ const PricingPage = lazy(() => import('./pages/PricingPage'));
 const SharedFilePage = lazy(() => import('./pages/SharedFilePage'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
+const SavingsCalculatorPage = lazy(() => import('./pages/SavingsCalculator'));
 
 // Protected Pages (loaded only for authenticated users)
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -327,6 +328,7 @@ function Shell() {
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            <Route path="/calculator" element={<SavingsCalculatorPage />} />
             {/* Public shared file access - no authentication required */}
             <Route path="/shared/:token" element={<SharedFilePage />} />
             {/* Public landing page at root for unauthenticated users */}
