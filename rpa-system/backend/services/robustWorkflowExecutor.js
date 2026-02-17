@@ -33,7 +33,7 @@ class RobustWorkflowExecutor {
  /**
  * Main execution entry point with comprehensive error handling
  */
- async executeWorkflow({ workflowId, userId, steps, inputData = {} }) {
+ async executeWorkflow({ workflowId, userId, steps, inputData: _inputData = {} }) {
  const executionId = uuidv4();
  const startTime = Date.now();
 
