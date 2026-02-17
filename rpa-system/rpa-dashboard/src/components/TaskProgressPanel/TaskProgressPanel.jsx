@@ -276,18 +276,18 @@ const TaskProgressPanel = ({ runId, onClose, onComplete }) => {
  <span className={styles.screenshotCounter}>
  {screenshots.findIndex(s => s.timestamp === currentScreenshot.timestamp) + 1} / {screenshots.length}
  </span>
- <button
- className={styles.screenshotNavButton}
- onClick={() => {
- const currentIndex = screenshots.findIndex(s => s.timestamp === currentScreenshot.timestamp);
- if (currentIndex < screenshots.length - 1) {
- setCurrentScreenshot(screenshots[currentIndex + 1]);
- }
- }}
- disabled={screenshots.findIndex(s => s.timestamp === currentScreenshot.timestamp) === screenshots.length - 1}
- >
- Next ->
- </button>
+				<button
+					className={styles.screenshotNavButton}
+					onClick={() => {
+						const currentIndex = screenshots.findIndex(s => s.timestamp === currentScreenshot.timestamp);
+						if (currentIndex < screenshots.length - 1) {
+							setCurrentScreenshot(screenshots[currentIndex + 1]);
+						}
+					}}
+					disabled={screenshots.findIndex(s => s.timestamp === currentScreenshot.timestamp) === screenshots.length - 1}
+				>
+					Next →
+				</button>
  </div>
  )}
  </div>

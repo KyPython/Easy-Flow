@@ -204,12 +204,12 @@ class NotificationService {
  const errorCode = error?.code || error?.errorInfo?.code || 'UNKNOWN';
  const is401 = errorCode.includes('401') || errorCode.includes('auth/') || error.message?.includes('401');
  
- logger.error('\n🔥🔥🔥 FIREBASE AUTHENTICATION FAILURE 🔥🔥🔥', {
+    logger.error('\n🔥🔥🔥 FIREBASE AUTHENTICATION FAILURE 🔥🔥🔥', {
  message: error.message,
  code: errorCode,
  userId: user.id,
  email: user.email,
- cascade_impact: 'This failure will cascade: FCM -> Supabase -> Polling fallback',
+    cascade_impact: 'This failure will cascade: FCM → Supabase → Polling fallback',
  likely_cause: is401 
  ? 'Project ID mismatch between backend and frontend Firebase configs'
  : 'Invalid credentials or configuration',

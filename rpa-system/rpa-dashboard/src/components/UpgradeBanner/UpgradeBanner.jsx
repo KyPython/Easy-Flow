@@ -50,8 +50,8 @@ const UpgradeBanner = () => {
  const handleUpgradeClick = () => {
  // Track upgrade click from banner
  conversionTracker.trackUpgradeClicked(
- 'dashboard_banner',
- 'Upgrade to Pro ->',
+		'dashboard_banner',
+		'Upgrade to Pro →',
  planData?.plan?.name || 'hobbyist'
  );
  
@@ -84,7 +84,7 @@ const UpgradeBanner = () => {
  onClick={handleUpgradeClick}
  className={styles.upgradeButton}
  >
- Upgrade to Pro ->
+					Upgrade to Pro →
  </button>
  
  <DemoBookingButton

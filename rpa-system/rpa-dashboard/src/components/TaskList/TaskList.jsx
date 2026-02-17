@@ -287,7 +287,6 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
  <th className={styles.checkboxHeader}>
  <input
  type="checkbox"
- checked={selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0}
  onChange={handleSelectAll}
  className={styles.checkbox}
  />
@@ -611,7 +610,7 @@ const TaskList = ({ tasks, onEdit, onDelete, onView }) => {
  fontWeight: 600
  }}
  >
- View Full Details ->
+				{"View Full Details \u2192"}
  </button>
  </div>
  </td>

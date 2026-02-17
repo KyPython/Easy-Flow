@@ -161,7 +161,7 @@ const BusinessMetricsPage = () => {
  value={`${metrics.conversionRate.toFixed(1)}%`}
  icon="🎯"
  trend="up"
- subtitle="Visit -> Signup"
+	subtitle="Visit → Signup"
  />
  );
  }

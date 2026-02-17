@@ -20,7 +20,7 @@ const FeatureComparison = ({ compact = false }) => {
  const handleUpgradeClick = () => {
  conversionTracker.trackUpgradeClicked(
  'feature_comparison',
- 'Upgrade to Pro - 50% Off ->',
+ 'Upgrade to Pro - 50% Off →',
  userPlan
  );
  window.location.href = '/pricing';
@@ -122,7 +122,7 @@ const FeatureComparison = ({ compact = false }) => {
  className={styles.upgradeButton}
  >
  <FiZap />
- Upgrade to Pro - 50% Off ->
+ Upgrade to Pro - 50% Off →
  </button>
  <div className={styles.ctaSubtext}>
  🔥 Limited time: First 10 customers only

@@ -73,7 +73,7 @@ const IntegrationKeyModal = ({ isOpen, onClose, integration, onConnect }) => {
  title: 'Get Your WhatsApp API Key',
  steps: [
  'Go to Twilio Console (https://console.twilio.com)',
- 'Navigate to Account -> API Keys & Tokens',
+                    'Navigate to Account → API Keys & Tokens',
  'Create a new API Key or use an existing one',
  'Copy the API Key (starts with SK...)',
  'Optionally, copy the API Secret if you have one'

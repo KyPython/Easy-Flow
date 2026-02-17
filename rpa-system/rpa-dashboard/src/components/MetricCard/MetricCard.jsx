@@ -11,7 +11,7 @@ const MetricCard = ({ title, value, icon, trend, subtitle }) => {
  </div>
  {trend && (
  <div className={`${styles.trend} ${styles[trend]}`}>
- {trend === 'up' ? '↗' : trend === 'down' ? '↘' : '->'}
+					{trend === 'up' ? '↗' : trend === 'down' ? '↘' : '→'}
  </div>
  )}
  </div>

@@ -555,7 +555,7 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
  <div className={styles.comparisonBody}>
  <div className={styles.comparisonSummary}>
  <span>Version {comparisonData.from_version}</span>
- <span>-></span>
+	<span>→</span>
  <span>Version {comparisonData.to_version}</span>
  </div>
  
@@ -566,7 +566,7 @@ const WorkflowVersionHistory = ({ workflowId, workflowName, onClose }) => {
  <h4>Workflow Changes</h4>
  {Object.entries(comparisonData.changes.workflow).map(([field, change]) => (
  <div key={field} className={styles.change}>
- <strong>{field}:</strong> {change.from} -> {change.to}
+							<strong>{field}:</strong> {change.from} → {change.to}
  </div>
  ))}
  </div>

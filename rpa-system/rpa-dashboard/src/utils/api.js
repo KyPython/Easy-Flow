@@ -65,7 +65,7 @@ const API_LOG_SAMPLE_RATE = parseInt(process.env.REACT_APP_API_LOG_SAMPLE_RATE |
 let apiLogCounter = 0;
 
 // Throttle repeated error logs to prevent flooding
-const errorThrottleCache = new Map(); // errorKey -> { count, lastLogged, firstSeen }
+const errorThrottleCache = new Map(); // errorKey → { count, lastLogged, firstSeen }
 const ERROR_THROTTLE_WINDOW_MS = 10000; // 10 seconds
 const MAX_ERRORS_PER_WINDOW = 1; // Only log once per window
 

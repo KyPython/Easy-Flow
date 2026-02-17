@@ -490,7 +490,7 @@ const AIWorkflowAgent = ({ onWorkflowGenerated, isOpen, onClose }) => {
  // Show success message
  setMessages(prev => [...prev, {
  id: `bookmarklet-copied-${Date.now()}`,
- content: '✅ Bookmarklet code copied! Right-click your bookmarks bar -> "Add page" -> Paste the code as the URL -> Name it "EasyFlow Automation"',
+                content: '✅ Bookmarklet code copied! Right-click your bookmarks bar → "Add page" → Paste the code as the URL → Name it "EasyFlow Automation"',
  isUser: false,
  timestamp: new Date()
  }]);

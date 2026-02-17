@@ -77,12 +77,12 @@ const LOG_SAMPLE_RATE = getLogSampleRate();
 const namespaceCounters = new Map();
 
 // Rate limiting for repeated log messages
-const messageCache = new Map(); // key -> { count, firstSeen, lastSeen, lastLogged }
 const THROTTLE_WINDOW_MS = 10000; // Throttle identical messages within 10 seconds
 const MAX_LOGS_PER_WINDOW = 1; // Max 1 identical message per window (more aggressive)
 
 // Telemetry-specific throttling to prevent API flooding
-const telemetryThrottleMap = new Map(); // key -> timestamp of last telemetry send
+const telemetryThrottleMap = new Map(); // key → timestamp of last telemetry send
+const messageCache = new Map(); // key → { count, firstSeen, lastSeen, lastLogged }
 
 /**
  * Structured Logger for Frontend
