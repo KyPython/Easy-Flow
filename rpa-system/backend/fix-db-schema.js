@@ -23,9 +23,9 @@ async function fixSchema() {
     // If column missing (error 42703 or similar), try to add it
     if (error && (error.code === '42703' || error.message.includes('does not exist'))) {
       console.log('🔧 Auto-fixing schema: Adding missing "steps" column to workflows table...');
-      
+
       const { error: rpcError } = await supabase.rpc('exec_sql', {
-        query: `ALTER TABLE workflows ADD COLUMN IF NOT EXISTS steps JSONB DEFAULT '[]'::jsonb;`
+        query: 'ALTER TABLE workflows ADD COLUMN IF NOT EXISTS steps JSONB DEFAULT \'[]\'::jsonb;'
       });
 
       if (!rpcError) {

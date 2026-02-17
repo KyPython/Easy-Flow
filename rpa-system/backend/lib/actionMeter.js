@@ -11,7 +11,7 @@ const candidates = [
 ];
 function chooseEnv() { for (const p of candidates) if (fs.existsSync(p)) return p; return candidates[0]; }
 
-try { require('dotenv').config({ path: chooseEnv() }); } catch (_) {}
+try { require('dotenv').config({ path: chooseEnv() }); } catch (err) { /* ignore dotenv load errors */ }
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;

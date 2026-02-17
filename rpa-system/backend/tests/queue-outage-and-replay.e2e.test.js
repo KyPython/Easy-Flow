@@ -35,7 +35,7 @@ jest.mock('bull', () => {
       setConnected: (val) => {
         connected = val;
       },
-      size: () => jobs.size,
+      size: () => jobs.size
     };
   };
 });

@@ -21,16 +21,16 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 async function addColumns() {
   try {
     console.log('🔧 Adding team management columns to profiles table...\n');
-    
+
     // Since we can't execute raw SQL directly, we'll check if columns exist
     // by trying to select them
-    
+
     console.log('Step 1: Checking current schema...');
     const { data: checkData, error: checkError } = await supabase
       .from('profiles')
       .select('id, email, role, organization_id')
       .limit(1);
-    
+
     if (checkError) {
       if (checkError.message.includes('role') || checkError.message.includes('organization_id')) {
         console.log('⚠️  Columns do not exist yet. Please run the following SQL in your Supabase SQL Editor:\n');
@@ -56,33 +56,33 @@ AND role IS NULL;
       }
       throw checkError;
     }
-    
+
     console.log('✅ Columns already exist!');
     console.log('\n📋 Current user data:');
-    
+
     const { data: userData, error: userError } = await supabase
       .from('profiles')
       .select('email, role, organization_id')
       .eq('email', 'kyjahntsmith@gmail.com')
       .single();
-    
+
     if (userError) throw userError;
-    
+
     console.log(userData);
-    
+
     if (!userData.role) {
       console.log('\n🔧 Setting user role to owner...');
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ role: 'owner' })
         .eq('email', 'kyjahntsmith@gmail.com');
-      
+
       if (updateError) throw updateError;
       console.log('✅ User is now an owner!');
     } else {
       console.log(`✅ User already has role: ${userData.role}`);
     }
-    
+
   } catch (err) {
     console.error('❌ Error:', err.message);
     process.exit(1);

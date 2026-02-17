@@ -76,6 +76,8 @@
   },
   "devDependencies": {
     "dotenv": "^16.0.3",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^4.6.0",
     "husky": "^9.1.7",
     "software-entropy": "^1.0.0"
   },
