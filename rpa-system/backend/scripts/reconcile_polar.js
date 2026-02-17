@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 /**
  * reconcile_polar.js
  * Lightweight reconciliation helper: lists subscriptions that may need attention

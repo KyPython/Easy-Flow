@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 logger.info('dotenv path ->', require('path').resolve(__dirname, '..', '.env'));
 
 const fs = require('fs');

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 /*
  Seeds initial workflow templates and versions into Supabase.
  Usage:

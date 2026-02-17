@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 
 /**
  * OpenTelemetry Credentials Verification Script

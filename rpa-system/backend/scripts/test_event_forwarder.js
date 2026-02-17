@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const { enqueueEvent, __internal } = require('../event_forwarder');
 async function run() {
  enqueueEvent({ id: 'test-1', url: 'https://httpbin.org/post', method: 'post', body: { hello: 'world' } });
