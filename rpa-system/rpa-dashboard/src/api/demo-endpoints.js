@@ -15,13 +15,13 @@
  * ✅ INSTRUCTION 3: Helper function to inject trace context into fetch/axios headers
  * This should be called before every API request to propagate frontend trace context
  */
-const getTraceHeaders = () => {
+const getTraceHeaders = async () => {
  const headers = {};
  
  try {
- // Attempt to load OpenTelemetry API dynamically. If not present or not
- // initialized, this will silently fall back.
- const opentelemetry = await import('@opentelemetry/api').catch(() => null);
+	// Attempt to load OpenTelemetry API dynamically. If not present or not
+	// initialized, this will silently fall back.
+	const opentelemetry = await import('@opentelemetry/api').catch(() => null);
  if (!opentelemetry) return headers;
 
  // Get active context (if OpenTelemetry is initialized in the frontend)
@@ -60,8 +60,8 @@ const getTraceHeaders = () => {
  * Use this instead of raw fetch() for all API calls
  */
 const tracedFetch = async (url, options = {}) => {
- // Inject trace headers into request
- const traceHeaders = getTraceHeaders();
+	// Inject trace headers into request
+	const traceHeaders = await getTraceHeaders();
  
  const enhancedOptions = {
  ...options,
@@ -77,9 +77,9 @@ const tracedFetch = async (url, options = {}) => {
  }
  
  // Log trace injection for debugging
- if (process.env.NODE_ENV !== 'production' && traceHeaders.traceparent) {
- console.log(`[API] Injecting trace context: ${traceHeaders.traceparent}`);
- }
+	if (process.env.NODE_ENV !== 'production' && traceHeaders.traceparent) {
+		console.log(`[API] Injecting trace context: ${traceHeaders.traceparent}`);
+	}
 
  // Use a safe fetch reference -- support SSR/tests where fetch may be polyfilled or missing
  const fnFetch = (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function')

@@ -233,7 +233,7 @@ export const schemas = {
 export const useFormValidation = (initialValues, schema) => {
  const [values, setValues] = React.useState(initialValues);
  const [errors, setErrors] = React.useState({});
- const [touched, setTouched] = React.useState({});
+ const [touched, setTouchedState] = React.useState({});
 
  const validate = React.useCallback((fieldName, value) => {
  if (schema[fieldName]) {
@@ -276,17 +276,17 @@ export const useFormValidation = (initialValues, schema) => {
  }, [touched, validate]);
 
  const setTouched = React.useCallback((fieldName) => {
- setTouched(prev => ({
- ...prev,
- [fieldName]: true
- }));
- validate(fieldName, values[fieldName]);
+	 setTouchedState(prev => ({
+		 ...prev,
+		 [fieldName]: true
+	 }));
+	 validate(fieldName, values[fieldName]);
  }, [validate, values]);
 
  const reset = React.useCallback(() => {
  setValues(initialValues);
  setErrors({});
- setTouched({});
+ setTouchedState({});
  }, [initialValues]);
 
  return {

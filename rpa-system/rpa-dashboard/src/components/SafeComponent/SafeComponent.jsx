@@ -7,14 +7,6 @@ import PropTypes from 'prop-types';
  */
 
 class SafeComponentWrapper extends Component {
- constructor(props) {
- super(props);
- this.state = {
- hasError: false,
- error: null,
- retryCount: 0
- };
- }
 
  static getDerivedStateFromError(error) {
  return { hasError: true, error };
@@ -40,21 +32,30 @@ class SafeComponentWrapper extends Component {
 
  this.setState({ error });
  }
+	constructor(props) {
+		super(props);
+		this.state = {
+			hasError: false,
+			error: null,
+			retryCount: 0
+		};
+		this.handleRetry = this.handleRetry.bind(this);
+	}
 
- handleRetry = () => {
- console.log(`[SafeComponent] Retrying ${this.props.componentName}`);
- this.setState({
- hasError: false,
- error: null,
- retryCount: this.state.retryCount + 1
- });
- };
+	handleRetry() {
+		console.log(`[SafeComponent] Retrying ${this.props.componentName}`);
+		this.setState({
+			hasError: false,
+			error: null,
+			retryCount: this.state.retryCount + 1
+		});
+	}
 
- isNetworkError = (error) => {
- const networkKeywords = ['network', 'fetch', 'connection', 'econnrefused', 'timeout'];
- const errorMsg = (error?.message || '').toLowerCase();
- return networkKeywords.some(keyword => errorMsg.includes(keyword));
- };
+	isNetworkError(error) {
+		const networkKeywords = ['network', 'fetch', 'connection', 'econnrefused', 'timeout'];
+		const errorMsg = ((error && error.message) || '').toLowerCase();
+		return networkKeywords.some(keyword => errorMsg.includes(keyword));
+	}
 
  render() {
  if (this.state.hasError) {

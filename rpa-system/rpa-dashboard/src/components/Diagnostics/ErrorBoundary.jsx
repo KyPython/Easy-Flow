@@ -62,39 +62,39 @@ export default class ErrorBoundary extends React.Component {
  }
  }
 
- isNetworkError = (error) => {
- const networkKeywords = ['network', 'fetch', 'connection', 'econnrefused', 'timeout'];
- const errorMsg = (error.message || '').toLowerCase();
- return networkKeywords.some(keyword => errorMsg.includes(keyword));
- };
+	isNetworkError(error) {
+		const networkKeywords = ['network', 'fetch', 'connection', 'econnrefused', 'timeout'];
+		const errorMsg = (error && error.message) ? String(error.message).toLowerCase() : '';
+		return networkKeywords.some(keyword => errorMsg.includes(keyword));
+	}
 
- attemptRecovery = () => {
- console.log('[ErrorBoundary] Attempting auto-recovery from network error...');
- this.setState({ 
- hasError: false, 
- error: null, 
- info: null 
- });
- };
+	attemptRecovery() {
+		console.log('[ErrorBoundary] Attempting auto-recovery from network error...');
+		this.setState({
+			hasError: false,
+			error: null,
+			info: null
+		});
+	}
 
- handleReload = () => {
- // Clear any cached error states
- localStorage.removeItem('app_error_state');
- window.location.reload();
- };
+	handleReload() {
+		// Clear any cached error states
+		localStorage.removeItem('app_error_state');
+		window.location.reload();
+	}
 
- handleRetry = () => {
- console.log('[ErrorBoundary] Manual retry initiated');
- this.setState({ 
- hasError: false, 
- error: null, 
- info: null 
- });
- };
+	handleRetry() {
+		console.log('[ErrorBoundary] Manual retry initiated');
+		this.setState({
+			hasError: false,
+			error: null,
+			info: null
+		});
+	}
 
- toggleDetails = () => {
- this.setState({ showDetails: !this.state.showDetails });
- };
+	toggleDetails() {
+		this.setState({ showDetails: !this.state.showDetails });
+	}
 
  render() {
  if (this.state.hasError) {

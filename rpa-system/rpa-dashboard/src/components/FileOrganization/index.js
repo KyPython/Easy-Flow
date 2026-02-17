@@ -6,5 +6,5 @@ export { default as BulkOperations } from '../BulkOperations/BulkOperations';
 export { default as BreadcrumbNavigation } from '../BreadcrumbNavigation/BreadcrumbNavigation';
 
 // Individual component exports for granular imports
-export { TagManager, DragDropFileManager, BulkOperations, BreadcrumbNavigation };
+// Named exports already provided above; avoid duplicate exports
 
