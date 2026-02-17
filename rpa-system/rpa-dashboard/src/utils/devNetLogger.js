@@ -6,9 +6,6 @@ Dev Network Logger
 */
 
 /* eslint-disable no-console */
-
-<<<<<<< Updated upstream
-=======
 import { isDevelopment, getApiBaseUrl, getBackendPort } from './commonEnv';
 import { getAuthToken, clearAuthTokens, dispatchAuthEvent, isAuthEndpoint as checkAuthEndpoint } from './tokenHelpers';
 
@@ -16,56 +13,13 @@ import { getAuthToken, clearAuthTokens, dispatchAuthEvent, isAuthEndpoint as che
 const DEFAULT_LOG_SAMPLE_RATE = 10; // Sample 10% of logs
 const DEFAULT_NETWORK_ERROR_STATUS = 503;
 const DEFAULT_BACKEND_PORT = '3030';
->>>>>>> Stashed changes
-
 // Log sampling configuration - reduce log volume in development
 const LOG_SAMPLE_RATE = parseInt(localStorage.getItem('DEV_LOG_SAMPLE_RATE') || '10', 10); // Sample 10% of logs
 let logCounter = 0;
 
-// Environment flag for development
-const isDevelopment = (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') ||
-	(typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost');
-
 function shouldLog() {
 	logCounter++;
 	return logCounter % LOG_SAMPLE_RATE === 0;
-}
-
-// Helper to get API base URL (same logic as config.js)
-function getApiBaseUrl() {
-	// Check for explicit env vars first
-	if (typeof window !== 'undefined' && window._env) {
-		if (window._env.VITE_API_URL) return window._env.VITE_API_URL;
-		if (window._env.VITE_API_BASE) return window._env.VITE_API_BASE;
-		if (window._env.REACT_APP_API_BASE) return window._env.REACT_APP_API_BASE;
-	}
-
-	// Check process.env (build-time)
-	if (typeof process !== 'undefined' && process.env) {
-		if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
-		if (process.env.REACT_APP_API_BASE) return process.env.REACT_APP_API_BASE;
-		if (process.env.VITE_API_BASE) return process.env.VITE_API_BASE;
-	}
-
-	// Auto-detect based on hostname (only if env vars are not set)
-	if (typeof window !== 'undefined') {
-		const hostname = window.location.hostname;
-
-		// Development environments - use configured port
-		if (hostname === 'localhost' || hostname === '127.0.0.1') {
-			const backendPort = (typeof window !== 'undefined' && window._env?.VITE_BACKEND_PORT) ||
-				(typeof process !== 'undefined' && process.env?.REACT_APP_BACKEND_PORT) ||
-				'3030';
-			return `http://${hostname}:${backendPort}`;
-		}
-
-		// Production environments - use same origin (no hardcoded domains)
-		// All production URLs should be configured via VITE_API_URL env var
-		return window.location.origin;
-	}
-
-	// Fallback: empty string (relative URLs will work with proxy)
-	return '';
 }
 
 // Export a fetch wrapper for consistent use in app (top-level)
@@ -98,32 +52,11 @@ export async function fetchWithAuth(url, options = {}) {
 
 		// Self-healing: if 401 Unauthorized, clear cookies/localStorage and trigger re-authentication
 		if (res.status === 401) {
-<<<<<<< Updated upstream
-			console.warn('[devNetLogger] 401 Unauthorized detected. Attempting self-heal: clearing auth tokens and cookies, triggering re-authentication.');
-			try {
-				// Clear localStorage tokens
-				localStorage.removeItem('dev_token');
-				localStorage.removeItem('authToken');
-				// Attempt to clear cookies (best effort)
-				if (typeof document !== 'undefined') {
-					document.cookie.split(';').forEach(function(c) {
-						document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
-					});
-				}
-				// Optionally, trigger a login flow or reload
-				if (typeof window !== 'undefined') {
-					window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
-					setTimeout(function() { window.location.reload(); }, 1000);
-				}
-			} catch (e) {
-				console.error('[devNetLogger] Self-heal failed:', e);
-=======
 			// Skip self-heal on auth endpoints to prevent infinite loops
 			if (!checkAuthEndpoint(url)) {
 				console.warn('[devNetLogger] 401 Unauthorized detected. Clearing auth tokens.');
 				clearAuthTokens();
 				dispatchAuthEvent('devNetLogger:selfHealAuth');
->>>>>>> Stashed changes
 			}
 		}
 
@@ -235,32 +168,11 @@ if (typeof window !== 'undefined') {
 
 					// Self-healing: if 401 Unauthorized, clear cookies/localStorage and trigger re-authentication
 					if (res.status === 401) {
-<<<<<<< Updated upstream
-						console.warn('[devNetLogger] 401 Unauthorized detected. Attempting self-heal: clearing auth tokens and cookies, triggering re-authentication.');
-						try {
-							// Clear localStorage tokens
-							localStorage.removeItem('dev_token');
-							localStorage.removeItem('authToken');
-							// Attempt to clear cookies (best effort)
-							if (typeof document !== 'undefined') {
-								document.cookie.split(';').forEach(function(c) {
-									document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
-								});
-							}
-							// Optionally, trigger a login flow or reload
-							if (typeof window !== 'undefined') {
-								window.dispatchEvent(new CustomEvent('devNetLogger:selfHealAuth'));
-								setTimeout(function() { window.location.reload(); }, 1000);
-							}
-						} catch (e) {
-							console.error('[devNetLogger] Self-heal failed:', e);
-=======
 						// Skip self-heal on auth endpoints to prevent infinite loops
 						if (!checkAuthEndpoint(url)) {
 							console.warn('[devNetLogger] 401 Unauthorized detected. Clearing auth tokens.');
 							clearAuthTokens();
 							dispatchAuthEvent('devNetLogger:selfHealAuth');
->>>>>>> Stashed changes
 						}
 					}
 
