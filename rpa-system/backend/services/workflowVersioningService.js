@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 /**
  * Workflow Versioning Service for EasyFlow
  *

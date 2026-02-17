@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const { getSupabase } = require('../utils/supabaseClient');
 const cron = require('node-cron');
 const crypto = require('crypto');

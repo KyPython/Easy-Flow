@@ -1,7 +1,7 @@
 // Load environment variables FIRST
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
-const { logger, getLogger } = require('./utils/logger');
+const { logger } = require('./utils/logger');
 // ✅ OBSERVABILITY: Initialize OpenTelemetry FIRST (before anything else)
 // All telemetry flows through OpenTelemetry -> OTEL Collector -> Prometheus/Tempo/Grafana
 // Telemetry is ALWAYS enabled - DISABLE_TELEMETRY is ignored

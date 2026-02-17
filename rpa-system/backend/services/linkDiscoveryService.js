@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const puppeteer = require('puppeteer');
 const { PasswordResetService } = require('./PasswordResetService');
 const { SiteAdaptationService } = require('./SiteAdaptationService');

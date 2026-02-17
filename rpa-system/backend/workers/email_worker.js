@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 // Simple email worker: polls email_queue and sends emails via configured webhook or logs (for dev)
 // Can run standalone (node workers/email_worker.js) or be embedded inside the main backend
 // when required via startEmailWorker().

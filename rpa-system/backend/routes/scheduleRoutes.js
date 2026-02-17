@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const express = require('express');
 const { TriggerService } = require('../services/triggerService');
 const { getSupabase } = require('../utils/supabaseClient');

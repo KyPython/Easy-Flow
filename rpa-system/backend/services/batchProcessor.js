@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');
 const { createInstrumentedHttpClient } = require('../middleware/httpInstrumentation');
 const { BulkOperationSpan, withPerformanceSpan } = require('../middleware/performanceInstrumentation');

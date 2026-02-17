@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 // axios is required dynamically inside integrations that need it
 const { createInstrumentedHttpClient } = require('../middleware/httpInstrumentation');
 const { createInstrumentedSupabaseClient } = require('../middleware/databaseInstrumentation');

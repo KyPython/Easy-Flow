@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 /**
  * Audit Logs API Routes
  * Provides endpoints for accessing and managing audit logs

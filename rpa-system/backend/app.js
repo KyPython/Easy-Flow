@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('./utils/logger');
+const { logger } = require('./utils/logger');
 // --- Initialize OpenTelemetry first for comprehensive instrumentation ---
 // ✅ OBSERVABILITY: Telemetry is ALWAYS enabled - use sampling to control volume, not disable
 // Sampling is configured in telemetryInit.js (default 10% via OTEL_TRACE_SAMPLING_RATIO)

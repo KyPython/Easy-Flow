@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 /**
  * ROI Analytics API Routes
  * Tracks automation performance, time savings, and business value metrics

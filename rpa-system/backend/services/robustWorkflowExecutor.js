@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const { getSupabase } = require('../utils/supabaseClient');
 const { v4: uuidv4 } = require('uuid');
 
