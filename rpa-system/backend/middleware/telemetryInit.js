@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 /**
  * OpenTelemetry Backend Initialization for SLO Metrics Export
  * Must be imported before any other modules to ensure proper instrumentation

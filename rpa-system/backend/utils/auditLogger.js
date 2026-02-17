@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('./logger');
+const { logger } = require('./logger');
 /**
  * Audit Logger for EasyFlow
  *

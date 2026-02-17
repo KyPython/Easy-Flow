@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('./logger');
+const { logger } = require('./logger');
 // Firebase Admin SDK for EasyFlow Backend
 // Handles server-side Firebase operations for notifications
 

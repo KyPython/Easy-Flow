@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('./logger');
+const { logger } = require('./logger');
 const { createClient } = require('@supabase/supabase-js');
 
 class UsageTracker {

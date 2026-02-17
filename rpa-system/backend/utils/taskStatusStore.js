@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('./logger');
+const { logger } = require('./logger');
 // Task status store with Redis support and in-memory fallback
 // Supports both Upstash REST API and traditional Redis connections
 

@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 // Dynamic, database-driven plan enforcement middleware
 const { getUserPlan } = require('../services/planService');
 const { getPlanHierarchy } = require('../utils/planHierarchy');

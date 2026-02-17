@@ -1,5 +1,5 @@
 
-const { logger, getLogger } = require('../utils/logger');
+const { logger } = require('../utils/logger');
 // Dev bypass middleware
 // Enables a safe, auditable dev-only bypass when NODE_ENV !== 'production'
 // Use header `x-dev-bypass: <DEV_BYPASS_TOKEN>` and set DEV_USER_ID in your local .env
