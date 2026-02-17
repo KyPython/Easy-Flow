@@ -93,12 +93,12 @@ const taskStatusStore = require('./utils/taskStatusStore');
 const { usageTracker } = require('./utils/usageTracker');
 const { auditLogger } = require('./utils/auditLogger');
 const { LinkDiscoveryService } = require('./services/linkDiscoveryService');
-const { requireAutomationRun, requireWorkflowRun, requireWorkflowCreation, checkStorageLimit, requireFeature, requirePlan } = require('./middleware/planEnforcement');
-const { traceContextMiddleware, createContextLogger } = require('./middleware/traceContext');
+const { requireAutomationRun, requireWorkflowRun, requireWorkflowCreation: _requireWorkflowCreation, checkStorageLimit, requireFeature, requirePlan } = require('./middleware/planEnforcement');
+const { traceContextMiddleware, createContextLogger: _createContextLogger } = require('./middleware/traceContext');
 // Backwards-compatible alias: some modules use `contextLoggerMiddleware` name
 const contextLoggerMiddleware = traceContextMiddleware;
 const { requestLoggingMiddleware } = require('./middleware/structuredLogging');
- const { createClient } = require('@supabase/supabase-js');
+ const { createClient: _createClient } = require('@supabase/supabase-js');
  const fs = require('fs');
  // ✅ REMOVED: morgan middleware - conflicts with structured logging (causes <no value> in Loki)
  // const morgan = require('morgan');
@@ -189,7 +189,7 @@ const envOrigins = process.env.ALLOWED_ORIGINS
 const ALLOWED_ORIGINS = process.env.NODE_ENV === 'production'
  ? (envOrigins.length > 0 ? envOrigins : DEFAULT_PROD_ORIGINS)
  : [...new Set([...DEFAULT_DEV_ORIGINS, ...DEFAULT_PROD_ORIGINS, ...envOrigins])]; // Merge and dedupe
-const ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
+const _ALLOWED_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES || '.vercel.app')
  .split(',')
  .map(s => s.trim())
  .filter(Boolean);
@@ -630,7 +630,7 @@ app.use((req, res, next) => {
 });
 
 // --- Supabase & App Config ---
-const { getSupabase, getSupabaseOrThrow, isSupabaseConfigured } = require('./utils/supabaseClient');
+const { getSupabase, getSupabaseOrThrow: _getSupabaseOrThrow, isSupabaseConfigured: _isSupabaseConfigured } = require('./utils/supabaseClient');
 let supabase = null;
 try {
  supabase = getSupabase();
@@ -647,7 +647,7 @@ if (!supabase) {
  logger.error('❌ Failed to initialize Supabase client:', err.message || err);
  supabase = null;
 }
-const ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
+const _ARTIFACTS_BUCKET = process.env.SUPABASE_BUCKET || 'artifacts';
 
 // Configure multer for file uploads
 const upload = multer({
@@ -656,10 +656,10 @@ const upload = multer({
  fileSize: 10 * 1024 * 1024 // 10MB limit
  }
 });
-const USE_SIGNED_URLS = (process.env.SUPABASE_USE_SIGNED_URLS || 'true').toLowerCase() !== 'false';
-const SIGNED_URL_EXPIRES = Math.max(60, parseInt(process.env.SUPABASE_SIGNED_URL_EXPIRES || '86400', 10));
-const DOWNLOADS_DIR_CONTAINER = process.env.DOWNLOADS_DIR_CONTAINER || '/downloads';
-const DOWNLOADS_DIR_HOST = process.env.DOWNLOADS_DIR_HOST || (process.cwd().includes('/workspace') ? '/workspace/downloads' : path.join(process.cwd(), 'downloads'));
+const _USE_SIGNED_URLS = (process.env.SUPABASE_USE_SIGNED_URLS || 'true').toLowerCase() !== 'false';
+const _SIGNED_URL_EXPIRES = Math.max(60, parseInt(process.env.SUPABASE_SIGNED_URL_EXPIRES || '86400', 10));
+const _DOWNLOADS_DIR_CONTAINER = process.env.DOWNLOADS_DIR_CONTAINER || '/downloads';
+const _DOWNLOADS_DIR_HOST = process.env.DOWNLOADS_DIR_HOST || (process.cwd().includes('/workspace') ? '/workspace/downloads' : path.join(process.cwd(), 'downloads'));
 
 
 // CORS configuration moved to top of file (after app creation) for proper middleware order
@@ -688,8 +688,8 @@ try {
  // Include 'up' metric so Prometheus shows the target as UP
  app.get('/metrics', (req, res) => {
  res.set('Content-Type', 'text/plain; version=0.0.4');
- const timestamp = Date.now();
- res.send(`# Prometheus metrics endpoint
+  const _timestamp = Date.now();
+  res.send(`# Prometheus metrics endpoint
 # OpenTelemetry PrometheusExporter not available
 # HELP up Whether the backend service is up
 # TYPE up gauge

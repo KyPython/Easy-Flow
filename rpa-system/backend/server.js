@@ -73,7 +73,7 @@ if (require.main === module && process.env.NODE_ENV !== 'test') {
  // This ensures the AI assistant has access to EasyFlow knowledge
  if (process.env.RAG_AUTO_SEED !== 'false') {
  try {
- const ragClient = require('./services/ragClient');
+  const _ragClient = require('./services/ragClient');
  const aiAgent = require('./services/aiWorkflowAgent');
 
  // Initialize RAG knowledge asynchronously (don't block server startup)

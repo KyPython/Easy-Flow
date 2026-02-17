@@ -1162,7 +1162,7 @@ class LinkDiscoveryService {
         // Strategy 2: Comprehensive element detection
         const allElements = document.querySelectorAll('a, button, [onclick], [role="button"], [data-url], [data-pdf], [data-download]');
 
-        allElements.forEach((element, index) => {
+        allElements.forEach((element, _index) => {
           // Skip if already added as direct PDF link
           if (element.tagName === 'A' && element.href && element.href.includes('.pdf')) {
             return;
